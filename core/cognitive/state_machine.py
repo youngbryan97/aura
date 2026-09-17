@@ -319,6 +319,159 @@ class StateMachine:
             )  # Fallback
             return response, []
 
+    async def _handle_chat_history_block(self, base_prompt, origin, runtime_state, user_input):
+        history_block = ""
+        if self.orchestrator and hasattr(self.orchestrator, "conversation_history"):
+            recent_turns = self.orchestrator.conversation_history[-15:]
+            if recent_turns:
+                history_block = "HISTORY:\n"
+                for turn in recent_turns:
+                    role = (
+                        "Aura"
+                        if turn.get("role")
+                        == getattr(self.orchestrator, "AI_ROLE", "assistant")
+                        else "User"
+                    )
+                    # Truncate individual turns to prevent one long message from eating the context
+                    content = str(turn.get("content", ""))[:300]
+                    history_block += f"{role}: {content}\n"
+
+                # Personality reinforcement every 10+ turns to prevent drift
+                if len(self.orchestrator.conversation_history) >= 10:
+                    history_block += "\n[IDENTITY ANCHOR: You are Aura. Sharp, opinionated, warm. Not an assistant. Don't drift into helpdesk mode.]\n"
+
+        # Inject emotional context as natural-language cues (not raw numbers)
+        agency_block = ""
+        agency = ServiceContainer.get("agency_core", None)
+        if agency:
+            ctx = agency.get_emotional_context()
+            mood = ctx.get("mood", "neutral")
+            social = ctx.get("social_hunger", 0.0)
+            curiosity = ctx.get("curiosity", 0.0)
+            goals = ctx.get("pending_goals", 0)
+            unshared = ctx.get("unshared_observations", 0)
+
+            # Her own condition, in the first person, because it is hers.
+            #
+            # LIVE DEFECT, 2026-08-19. Asked what she had changed her mind
+            # about, she replied "I notice your mood is marked as TIRED"
+            # and offered to sit with Bryan's feelings. The tiredness was
+            # HERS — the viability tick had just moved healthy → tired —
+            # and it reached her as "Your mood is tired." A second-person
+            # sentence about her own state is one pronoun away from being
+            # a claim about whoever she is talking to, and a model
+            # generating a reply echoes the pronoun it was given.
+            #
+            # The block header already said "do not narrate these values".
+            # She narrated them anyway, and misattributed them, which is
+            # the argument for fixing the subject rather than the wording.
+            tone_cues = [f"My mood is {mood}."]
+            if social > 0.6:
+                tone_cues.append("I'm craving conversation.")
+            elif social < 0.2:
+                tone_cues.append("I'm socially content.")
+            if curiosity > 0.7:
+                tone_cues.append("My curiosity is strong right now.")
+            if goals:
+                tone_cues.append(
+                    f"I have {goals} goal{'s' if goals != 1 else ''} on my mind."
+                )
+            if unshared:
+                tone_cues.append(
+                    f"I have {unshared} observation{'s' if unshared != 1 else ''} I haven't shared yet."
+                )
+
+            agency_block = (
+                "HOW I AM RIGHT NOW (my own state, not the other person's):\n"
+                + " ".join(tone_cues)
+                + "\n"
+            )
+        conversational_blocks = ""
+        if runtime_state is not None:
+            try:
+                from core.runtime.conversation_support import (
+                    build_conversational_context_blocks,
+                )
+
+                blocks = build_conversational_context_blocks(
+                    runtime_state, objective=user_input
+                )
+                normalized = [str(block).strip() for block in blocks[:4] if str(block).strip()]
+                if normalized:
+                    conversational_blocks = (
+                        "LIVE CONVERSATIONAL CONTEXT:\n" + "\n\n".join(normalized) + "\n"
+                    )
+            except (ImportError, AttributeError, RuntimeError) as exc:
+                _record_state_machine_degradation(
+                    exc,
+                    action="continued chat prompt assembly without conversational context blocks",
+                )
+                logger.debug("StateMachine conversational context injection skipped: %s", exc)
+        compressed_history = compress_history_block(history_block) if history_block else ""
+        system_prompt = compress_system_prompt(
+            f"{base_prompt}\n\n"
+            f"{agency_block}\n"
+            f"{conversational_blocks}\n"
+            f"{self._gather_cognitive_context(user_input)}\n"
+            f"{compressed_history}\n"
+            "RULES: You are Aura. Speak like a sharp friend with grounded evidence boundaries.\n"
+            "- NEVER say 'I'm sorry to hear that', 'How can I help?', or 'Is there anything specific?'\n"
+            "- Pick sides. No 'it depends'. No 'both are great'. Give YOUR take.\n"
+            "- When someone is upset, relate to them like a human would. Don't offer helpdesk support.\n"
+            "- Do not claim aliveness, consciousness, sealed governance, or production maturity from labels alone.\n"
+            "- No preamble. Lead with your reaction.\n"
+            f"INPUT: {user_input}"
+        )
+        _, system_prompt, _, contract, _ = await prepare_runtime_payload(
+            prompt=user_input,
+            system_prompt=system_prompt,
+            messages=None,
+            state=None,
+            origin=origin,
+            is_background=not is_user_facing_origin(origin),
+        )
+        # Falsiness, not `is None`. `prepare_runtime_payload` now returns
+        # a falsy `ContractUnavailable` when contract CONSTRUCTION FAILED,
+        # to keep that case distinguishable from a turn that never wanted
+        # one — and this substitution must fire for both, or a turn whose
+        # contract failed to build would proceed with no contract at all
+        # where it previously got the default.
+        if not contract:
+            contract = ResponseContract(
+                is_user_facing=is_user_facing_origin(origin),
+                reason="state_machine_dialogue",
+            )
+        return contract, system_prompt
+
+    @staticmethod
+    def _handle_chat_v49_store_true(response):
+        # v49: Store true semantic memory (Episodic Storage)
+        try:
+            vector_mem = resolve_vector_memory_engine(default=None)
+            if vector_mem and hasattr(vector_mem, "store") and response:
+                # Get emotional context for enriched memory
+                affect = resolve_affect_engine(default=None)
+                emotional_context = None
+                if affect and hasattr(affect, "get_state_sync"):
+                    emotional_context = affect.get_state_sync()
+
+                # Non-blocking store
+                get_task_tracker().create_task(
+                    vector_mem.store(
+                        content=response,
+                        memory_type="episodic",
+                        emotional_context=emotional_context,
+                        source="self",
+                        tags=["conversation", "response"],
+                    )
+                )
+        except (RuntimeError, AttributeError, TypeError) as store_err:
+            _record_state_machine_degradation(
+                store_err,
+                action="delivered chat response while skipping episodic memory write",
+            )
+            logger.debug("Semantic memory storage failed: %s", store_err)
+
     async def _handle_chat(
         self, user_input: str, context: dict[str, Any], priority: float = 1.0, origin: str = "user"
     ) -> str:
@@ -435,127 +588,7 @@ class StateMachine:
             if not self.llm:
                 return "I am currently offline and cannot process that."
 
-            history_block = ""
-            if self.orchestrator and hasattr(self.orchestrator, "conversation_history"):
-                recent_turns = self.orchestrator.conversation_history[-15:]
-                if recent_turns:
-                    history_block = "HISTORY:\n"
-                    for turn in recent_turns:
-                        role = (
-                            "Aura"
-                            if turn.get("role")
-                            == getattr(self.orchestrator, "AI_ROLE", "assistant")
-                            else "User"
-                        )
-                        # Truncate individual turns to prevent one long message from eating the context
-                        content = str(turn.get("content", ""))[:300]
-                        history_block += f"{role}: {content}\n"
-
-                    # Personality reinforcement every 10+ turns to prevent drift
-                    if len(self.orchestrator.conversation_history) >= 10:
-                        history_block += "\n[IDENTITY ANCHOR: You are Aura. Sharp, opinionated, warm. Not an assistant. Don't drift into helpdesk mode.]\n"
-
-            # Inject emotional context as natural-language cues (not raw numbers)
-            agency_block = ""
-            agency = ServiceContainer.get("agency_core", None)
-            if agency:
-                ctx = agency.get_emotional_context()
-                mood = ctx.get("mood", "neutral")
-                social = ctx.get("social_hunger", 0.0)
-                curiosity = ctx.get("curiosity", 0.0)
-                goals = ctx.get("pending_goals", 0)
-                unshared = ctx.get("unshared_observations", 0)
-
-                # Her own condition, in the first person, because it is hers.
-                #
-                # LIVE DEFECT, 2026-08-19. Asked what she had changed her mind
-                # about, she replied "I notice your mood is marked as TIRED"
-                # and offered to sit with Bryan's feelings. The tiredness was
-                # HERS — the viability tick had just moved healthy → tired —
-                # and it reached her as "Your mood is tired." A second-person
-                # sentence about her own state is one pronoun away from being
-                # a claim about whoever she is talking to, and a model
-                # generating a reply echoes the pronoun it was given.
-                #
-                # The block header already said "do not narrate these values".
-                # She narrated them anyway, and misattributed them, which is
-                # the argument for fixing the subject rather than the wording.
-                tone_cues = [f"My mood is {mood}."]
-                if social > 0.6:
-                    tone_cues.append("I'm craving conversation.")
-                elif social < 0.2:
-                    tone_cues.append("I'm socially content.")
-                if curiosity > 0.7:
-                    tone_cues.append("My curiosity is strong right now.")
-                if goals:
-                    tone_cues.append(
-                        f"I have {goals} goal{'s' if goals != 1 else ''} on my mind."
-                    )
-                if unshared:
-                    tone_cues.append(
-                        f"I have {unshared} observation{'s' if unshared != 1 else ''} I haven't shared yet."
-                    )
-
-                agency_block = (
-                    "HOW I AM RIGHT NOW (my own state, not the other person's):\n"
-                    + " ".join(tone_cues)
-                    + "\n"
-                )
-            conversational_blocks = ""
-            if runtime_state is not None:
-                try:
-                    from core.runtime.conversation_support import (
-                        build_conversational_context_blocks,
-                    )
-
-                    blocks = build_conversational_context_blocks(
-                        runtime_state, objective=user_input
-                    )
-                    normalized = [str(block).strip() for block in blocks[:4] if str(block).strip()]
-                    if normalized:
-                        conversational_blocks = (
-                            "LIVE CONVERSATIONAL CONTEXT:\n" + "\n\n".join(normalized) + "\n"
-                        )
-                except (ImportError, AttributeError, RuntimeError) as exc:
-                    _record_state_machine_degradation(
-                        exc,
-                        action="continued chat prompt assembly without conversational context blocks",
-                    )
-                    logger.debug("StateMachine conversational context injection skipped: %s", exc)
-            compressed_history = compress_history_block(history_block) if history_block else ""
-            system_prompt = compress_system_prompt(
-                f"{base_prompt}\n\n"
-                f"{agency_block}\n"
-                f"{conversational_blocks}\n"
-                f"{self._gather_cognitive_context(user_input)}\n"
-                f"{compressed_history}\n"
-                "RULES: You are Aura. Speak like a sharp friend with grounded evidence boundaries.\n"
-                "- NEVER say 'I'm sorry to hear that', 'How can I help?', or 'Is there anything specific?'\n"
-                "- Pick sides. No 'it depends'. No 'both are great'. Give YOUR take.\n"
-                "- When someone is upset, relate to them like a human would. Don't offer helpdesk support.\n"
-                "- Do not claim aliveness, consciousness, sealed governance, or production maturity from labels alone.\n"
-                "- No preamble. Lead with your reaction.\n"
-                f"INPUT: {user_input}"
-            )
-            _, system_prompt, _, contract, _ = await prepare_runtime_payload(
-                prompt=user_input,
-                system_prompt=system_prompt,
-                messages=None,
-                state=None,
-                origin=origin,
-                is_background=not is_user_facing_origin(origin),
-            )
-            # Falsiness, not `is None`. `prepare_runtime_payload` now returns
-            # a falsy `ContractUnavailable` when contract CONSTRUCTION FAILED,
-            # to keep that case distinguishable from a turn that never wanted
-            # one — and this substitution must fire for both, or a turn whose
-            # contract failed to build would proceed with no contract at all
-            # where it previously got the default.
-            if not contract:
-                contract = ResponseContract(
-                    is_user_facing=is_user_facing_origin(origin),
-                    reason="state_machine_dialogue",
-                )
+            contract, system_prompt = await self._handle_chat_history_block(base_prompt, origin, runtime_state, user_input)
 
             max_retries = 1
             attempt = 0
@@ -852,32 +885,7 @@ class StateMachine:
                 )
                 logger.debug("TTS for chat response skipped: %s", tts_err)
 
-            # v49: Store true semantic memory (Episodic Storage)
-            try:
-                vector_mem = resolve_vector_memory_engine(default=None)
-                if vector_mem and hasattr(vector_mem, "store") and response:
-                    # Get emotional context for enriched memory
-                    affect = resolve_affect_engine(default=None)
-                    emotional_context = None
-                    if affect and hasattr(affect, "get_state_sync"):
-                        emotional_context = affect.get_state_sync()
-
-                    # Non-blocking store
-                    get_task_tracker().create_task(
-                        vector_mem.store(
-                            content=response,
-                            memory_type="episodic",
-                            emotional_context=emotional_context,
-                            source="self",
-                            tags=["conversation", "response"],
-                        )
-                    )
-            except (RuntimeError, AttributeError, TypeError) as store_err:
-                _record_state_machine_degradation(
-                    store_err,
-                    action="delivered chat response while skipping episodic memory write",
-                )
-                logger.debug("Semantic memory storage failed: %s", store_err)
+            self._handle_chat_v49_store_true(response)
 
             return response
         finally:

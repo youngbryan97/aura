@@ -2905,15 +2905,7 @@ class CognitiveEngine(_RunsItsAugmentors):
             },
         )
 
-    async def _run_thinking_loop(
-        self,
-        state: AuraState,
-        objective: str,
-        mode: ThinkingMode,
-        origin: str,
-        context: dict[str, Any] = None,
-        **kwargs,
-    ) -> Thought:
+    def _run_thinking_loop_part_1(self, context, objective, origin, state):
         """
         Internal method to execute the core cognitive phase loop.
         Extracted from `think` to allow pre/post-processing in `think`.
@@ -2942,13 +2934,9 @@ class CognitiveEngine(_RunsItsAugmentors):
             or context.get("suppress_working_memory_user_append")
         )
         self._thinking_loop_surface_prompt(append_user_message, context, objective, origin, state, surface_prompt)
+        return context, foreground_turn_objective
 
-        is_background = bool(kwargs.get("is_background", False))
-        explicit_timeout = kwargs.get("timeout_s", kwargs.get("timeout"))
-        try:
-            cycle_timeout = float(explicit_timeout) if explicit_timeout is not None else 0.0
-        except (TypeError, ValueError):
-            cycle_timeout = 0.0
+    def _run_thinking_loop_part_2(self, context, cycle_timeout, is_background, objective, origin):
         if cycle_timeout <= 0.0:
             if self._is_user_facing_origin(origin):
                 cycle_timeout = 180.0
@@ -2987,6 +2975,613 @@ class CognitiveEngine(_RunsItsAugmentors):
         cycle_timeout = max(8.0, min(cycle_timeout_cap, cycle_timeout))
         cycle_deadline_at = time.monotonic() + cycle_timeout
         context["cognitive_cycle_deadline_monotonic"] = cycle_deadline_at
+        return cycle_deadline_at, cycle_timeout
+
+    def _run_thinking_loop_part_3(self, direct_quick_reply, origin, state, success, temp_state):
+        if direct_quick_reply is not None:
+            # The quick lane returned before any phase executed. Whether the
+            # model was called depends on which branch inside it answered: the
+            # canonical floors return pre-rendered text and never reach it.
+            record_response_path(
+                str(
+                    (direct_quick_reply.metadata or {}).get("response_path")
+                    or "desktop_quick_reply"
+                ),
+                model_generation=bool(
+                    (direct_quick_reply.metadata or {}).get(
+                        "live_mind_generation_required", True
+                    )
+                ),
+            )
+            state.cognition.working_memory.append(
+                {
+                    "role": "assistant",
+                    "content": direct_quick_reply.content,
+                    "timestamp": time.time(),
+                    "origin": origin,
+                }
+            )
+            if self._is_user_facing_origin(origin):
+                state.transition_origin = origin
+                state.cognition.current_origin = origin
+            temp_state = state
+            success = True
+        return success, temp_state
+
+    def _run_thinking_loop__clock_keeper(self, _cycle_clock, context, is_background, objective, origin):
+        _clock_keeper = create_owned_asyncio_task(
+            _keep_the_cycle_open_while_it_is_working(
+                _cycle_clock,
+                ceiling_at=time.monotonic()
+                + _the_longest_this_turn_may_take(
+                    float(
+                        response_policy.USER_FACING_COMPLETION_DEADLINE_MAX_S
+                    ),
+                    user_facing=bool(
+                        self._is_user_facing_origin(origin)
+                        and not is_background
+                    ),
+                ),
+                user_facing=bool(
+                    self._is_user_facing_origin(origin) and not is_background
+                ),
+                runtime_context=context,
+            )
+        )
+        _begin_pass_run("legacy_pipeline")
+        # The provenance graph had the same asymmetry the pass
+        # instrumentation had, for the same reason: it was opened
+        # in AuraKernel.tick, and chat drives THIS loop. So the
+        # causal record that answers "why did she do that" existed
+        # for the three turns a day the kernel runs and not for the
+        # several hundred a person has. Same seam, same graph.
+        _provenance_tick = _open_provenance_tick(
+            objective=objective, priority=self._is_user_facing_origin(origin)
+        )
+        return _clock_keeper, _provenance_tick
+
+    @staticmethod
+    async def _run_thinking_loop_started_at(context, kwargs, objective, ordinal, phase, phase_name, temp_state):
+        started_at = time.perf_counter()
+        # Measured around the phase, never reported by it.
+        _transformation = _begin_provenance(phase_name, temp_state)
+        _phase_error = ""
+        try:
+            # Pass through kwargs like is_background if phases support it
+            temp_state = await phase.execute(
+                temp_state,
+                objective=objective,
+                context=context,
+                **kwargs,
+            )
+        except BaseException as phase_exc:
+            _phase_error = f"{type(phase_exc).__name__}: {phase_exc}"
+            _record_legacy_pass(
+                phase_name,
+                ordinal,
+                time.perf_counter() - started_at,
+                skipped=False,
+                error=_phase_error,
+            )
+            raise
+        finally:
+            _complete_provenance(
+                _transformation,
+                temp_state,
+                error=_phase_error,
+                objective=objective,
+            )
+        phase_elapsed = time.perf_counter() - started_at
+        _record_legacy_pass(
+            phase_name,
+            ordinal,
+            phase_elapsed,
+            skipped=False,
+        )
+        # Marked after the phase returns, so a phase that timed
+        # out mid-execution is not recorded as having run.
+        record_phase(phase_name)
+        # The retrieval phase is one of the five components a
+        # turn's latency is split into (R11), and its duration
+        # was only ever a "phase latency exceeded budget" line.
+        if "retrieval" in str(phase_name).lower():
+            try:
+                record_latency("retrieval", phase_elapsed)
+            except ValueError:
+                pass
+        return temp_state
+
+    async def _run_thinking_loop_closed_rather_after(self, _clock_keeper, _provenance_tick, backup_state, state, success):
+        # Closed here rather than after the loop so a tick that timed
+        # out or crashed still lands in the ring. Those are the ticks
+        # somebody most wants to read afterwards, and the version that
+        # closed on the success path recorded only the turns that went
+        # well.
+        #
+        # And the task holding the cycle clock open, however the turn
+        # ended. It is bounded on its own, but a turn that finished in
+        # two seconds should not leave something watching for eight
+        # minutes.
+        if _clock_keeper is not None:
+            _clock_keeper.cancel()
+            with suppress(asyncio.CancelledError):
+                await _clock_keeper
+        _close_provenance_tick(_provenance_tick)
+        try:
+            # vResilience: Avoid locals().get() for type stability
+            if not success and "backup_state" in locals():
+                # This restores a LOCAL REFERENCE and nothing else.
+                #
+                # A deep copy of the state object cannot undo what a
+                # phase already did outside it: events published, tools
+                # invoked, rows written, in-place mutations to
+                # collaborators the phase was handed. Calling this
+                # "rollback" invites the next reader to rely on a
+                # transaction that does not exist, so the receipt says
+                # what was and was not restored.
+                state = backup_state
+                self._last_phase_rollback = {
+                    "restored": "cognitive_state_snapshot",
+                    "not_restored": [
+                        "external_service_writes",
+                        "published_events",
+                        "tool_invocations",
+                        "database_rows",
+                        "in_place_collaborator_mutations",
+                    ],
+                    "at": time.time(),
+                }
+                # A receipt about the recovery, not a second fault.
+                #
+                # cognitive_engine is a required subsystem, so a
+                # warning here escalates: this note became CRITICAL
+                # SERVICE FAILURE, which aborted the whole turn and
+                # answered the person "I couldn't get to an answer
+                # I'd stand behind." The phase failure itself is
+                # recorded where it happens; this line only says what
+                # the restore did and did not cover, and saying so
+                # must not cost the turn it was trying to save.
+                record_degradation(
+                    "cognitive_engine",
+                    RuntimeError("phase_failure_partial_rollback"),
+                    severity="info",
+                    action="restored the cognitive state snapshot; external phase effects are not reversible here",
+                )
+        except (OSError, ConnectionError, TimeoutError) as _e:
+            record_degradation(
+                "cognitive_engine",
+                _e,
+                severity="warning",
+                action="continued with current state after backup restore check failed",
+            )
+            logger.debug("Ignored Exception in cognitive_engine.py: %s", _e)
+        return state
+
+    async def _run_thinking_loop_should_bypass_commit(self, context, cycle_deadline_at, is_test_run, origin, pre_turn_cognition, state, temp_state):
+        should_bypass_commit = is_test_run or self.state_repository is None
+        # The watchdog above wraps PHASE EXECUTION only. Repository reads,
+        # advisors, spine checks, augmentors, the deep copy, this commit loop
+        # and feedback learning all run outside it, so a configured cycle
+        # timeout was never the end-to-end budget it reads as. The commit loop
+        # is the largest of those — three attempts, each a database round trip
+        # — so it gets what is left of the same deadline instead of an
+        # unbounded wait after the budget is already gone.
+
+
+        # What actually happened to durable state. Every exit from this loop
+        # used to be a bare `break`, after which extraction returned a
+        # 0.9-confidence "completed successfully" thought whether the commit
+        # had landed, been bypassed, exhausted its retries, or raised.
+        commit_outcome = "not_attempted"
+        max_retries = 3
+        commit_outcome, state = await _commit_the_thought_with_retries(
+            commit_outcome=commit_outcome,
+            cycle_deadline_at=cycle_deadline_at,
+            runtime_context=context,
+            is_test_run=is_test_run,
+            max_retries=max_retries,
+            origin=origin,
+            pre_turn_cognition=pre_turn_cognition,
+            self=self,
+            should_bypass_commit=should_bypass_commit,
+            state=state,
+            temp_state=temp_state,
+        )
+        return commit_outcome, state
+
+    def _run_thinking_loop_imagination_feedback(self, _cycle_reward, commit_outcome, context, feedback, last_msg, mode, state):
+        imagination_feedback = self._learn_imagination_workspace_outcome(
+            context,
+            outcome="assistant_response",
+            reward=_cycle_reward,
+        )
+        bicameral_feedback = self._learn_bicameral_advisory_outcome(
+            context,
+            outcome="assistant_response",
+            reward=_cycle_reward,
+        )
+        generation_controls = context.get("live_mind_generation_controls")
+        if not isinstance(generation_controls, dict):
+            generation_controls = {}
+        surface_control_receipt = state.response_modifiers.get(
+            "live_mind_surface_control_receipt"
+        )
+        if not isinstance(surface_control_receipt, dict):
+            surface_control_receipt = {}
+        if not surface_control_receipt:
+            try:
+                router = get_container().get("llm_router", default=None)
+                if router is not None and hasattr(
+                    router, "get_last_generation_metadata"
+                ):
+                    generation_metadata = router.get_last_generation_metadata()
+                    if isinstance(generation_metadata, dict):
+                        candidate = generation_metadata.get(
+                            "surface_control_receipt"
+                        )
+                        if isinstance(candidate, dict):
+                            surface_control_receipt = dict(candidate)
+            except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
+                logger.debug(
+                    "Could not read full-phase surface-control receipt: %s",
+                    exc,
+                )
+        context_controls_bound = bool(
+            context.get("live_mind_controls_bound", False)
+            and generation_controls
+        )
+        surface_control_receipt = normalize_live_mind_surface_control_receipt(
+            surface_control_receipt,
+            controls_bound=context_controls_bound,
+            generation_controls=generation_controls,
+            source="cognitive_engine_full_phase_controls",
+        )
+        latent_final_quality = state.response_modifiers.get(
+            "latent_cortex_final_output_quality"
+        )
+        latent_quality_reasons = (
+            tuple(latent_final_quality.get("reasons") or ())
+            if isinstance(latent_final_quality, dict)
+            else ()
+        )
+        surface_reasons = tuple(
+            dict.fromkeys(
+                (
+                    *tuple(
+                        surface_control_receipt.get(
+                            "surface_quality_gate_reasons"
+                        )
+                        or ()
+                    ),
+                    *latent_quality_reasons,
+                )
+            )
+        )
+        generation_stop_reason = str(
+            surface_control_receipt.get("generation_stop_reason") or ""
+        )
+        semantic_completion_incomplete = bool(
+            surface_control_receipt.get("semantic_completion_incomplete", False)
+        )
+        full_phase_text = str(last_msg.get("content") or "").strip()
+        generation_failure_class = str(
+            state.response_modifiers.get("generation_failure_class") or ""
+        ).lower()
+        reply_generation_incomplete = bool(
+            semantic_completion_incomplete
+            or set(surface_reasons)
+            & {
+                "truncated_tail",
+                "final_answer_missing",
+                "missing_final_answer",
+                "incomplete_code_response",
+            }
+            or generation_stop_reason
+            in {"max_tokens", "deadline_exceeded", "soft_cancelled"}
+            or any(
+                reason in generation_failure_class
+                for reason in (
+                    "truncated_tail",
+                    "final_answer_missing",
+                    "missing_final_answer",
+                    "incomplete_code_response",
+                )
+            )
+            or _truncation_verdict(
+                full_phase_text,
+                generation_stop_reason=generation_stop_reason,
+            )
+        )
+        latent_metadata = {
+            key: state.response_modifiers.get(key)
+            for key in (
+                "latent_cortex_selected",
+                "latent_cortex_selection_reason",
+                "latent_cortex_depth_worthy",
+                "latent_cortex_prompt_shape",
+                "latent_cortex_attempted",
+                "latent_cortex_succeeded",
+                "latent_cortex_fallback_used",
+                "latent_cortex_failure_reason",
+                "latent_cortex_identity_bound",
+                "latent_cortex_final_text_transformed",
+                "latent_cortex_final_output_quality",
+                "latent_cortex_raw_final_quality_hash_match",
+                "latent_cortex_receipt",
+                "latent_cortex_ingress",
+                "latent_cortex_progress",
+            )
+            if key in state.response_modifiers
+        }
+        _degraded_count = len(
+            [
+                key
+                for key in state.response_modifiers
+                if str(key).endswith("_degraded")
+                and state.response_modifiers.get(key)
+            ]
+        )
+        thought = Thought(
+            id=str(uuid.uuid4()),
+            content=last_msg["content"],
+            mode=mode,
+            confidence=self._cycle_confidence(
+                commit_outcome=commit_outcome,
+                degraded_subsystems=_degraded_count,
+            ),
+            reasoning=[
+                "Phase-based cognitive cycle completed.",
+                f"State commit: {commit_outcome}.",
+            ],
+            metadata={
+                "state_commit_outcome": commit_outcome,
+                "spiking_active_inference": context.get("spiking_active_inference")
+                if isinstance(context, dict)
+                else None,
+                "spiking_active_inference_feedback": feedback,
+                "imagination_workspace_feedback": imagination_feedback,
+                "bicameral_advisory": context.get("bicameral_advisory")
+                if isinstance(context, dict)
+                else None,
+                "bicameral_advisory_feedback": bicameral_feedback,
+                "cognitive_situation_frame": context.get("cognitive_situation_frame")
+                if isinstance(context, dict)
+                else None,
+                "live_mind_controls_bound": context_controls_bound,
+                "live_mind_generation_controls": dict(generation_controls),
+                "live_mind_snapshot_ready": bool(
+                    context.get("live_mind_snapshot_ready", False)
+                ),
+                "live_mind_required_subsystems_ok": bool(
+                    context.get("live_mind_required_subsystems_ok", False)
+                ),
+                "live_mind_context_required": bool(
+                    context.get("live_mind_context_required", False)
+                ),
+                "live_mind_surface_control_receipt": dict(
+                    surface_control_receipt
+                ),
+                "live_mind_controls_worker_applied": bool(
+                    surface_control_receipt.get("live_mind_controls_bound")
+                    and surface_control_receipt.get("applied")
+                ),
+                "reply_generation_incomplete": reply_generation_incomplete,
+                "reply_generation_stop_reason": generation_stop_reason,
+                "reply_generation_failure_reasons": surface_reasons,
+                "reply_original_chars": len(full_phase_text),
+                **latent_metadata,
+                "response_path": str(
+                    state.response_modifiers.get("response_path")
+                    or (
+                        "cognitive_engine_latent_cortex"
+                        if state.response_modifiers.get(
+                            "latent_cortex_succeeded"
+                        )
+                        is True
+                        else "cognitive_engine"
+                    )
+                ),
+            },
+        )
+        return thought
+
+    def _run_thinking_loop_record_pressure_read(self, context, objective):
+        # Record the pressure, then READ it back. Until this, the graph had
+        # two writers and no reader anywhere in the codebase: it accumulated
+        # friction that could not influence any output, which makes the
+        # signal unmeasurable rather than merely unused.
+        friction_key = objective[:20]
+        self.autopoiesis.experience_friction(friction_key, 0.45)
+        if self.autopoiesis.is_under_pressure(friction_key):
+            logger.warning(
+                "Objective '%s' keeps failing to resolve (friction %.2f); "
+                "repeated failures on one kind of request are a defect signal, "
+                "not noise",
+                friction_key,
+                self.autopoiesis.friction_for(friction_key),
+            )
+            record_degradation(
+                "cognitive_engine",
+                RuntimeError(f"objective repeatedly unresolved: {friction_key}"),
+                severity="warning",
+                action="recorded sustained objective friction",
+                extra=self.autopoiesis.pressure_report(),
+                # Friction is a durable learning/diagnostic observation, not
+                # an exception from the service contract. Letting the generic
+                # fail-closed policy enforce this warning turned a useful
+                # signal into CRITICAL SERVICE FAILURE and killed the repair
+                # pass that was supposed to resolve it.
+                enforce_failure_policy=False,
+            )
+        self._learn_spiking_active_inference_outcome(
+            context,
+            outcome="no_assistant_response",
+            reward=-0.65,
+        )
+        self._learn_imagination_workspace_outcome(
+            context,
+            outcome="no_assistant_response",
+            reward=-0.65,
+        )
+        self._learn_bicameral_advisory_outcome(
+            context,
+            outcome="no_assistant_response",
+            reward=-0.65,
+        )
+
+    @staticmethod
+    def _run_thinking_loop_generation_metadata(context, origin, salvaged, state):
+        generation_metadata = dict(state.response_modifiers)
+        generation_controls = context.get("live_mind_generation_controls")
+        if not isinstance(generation_controls, dict):
+            generation_controls = {}
+        surface_control_receipt = generation_metadata.get(
+            "live_mind_surface_control_receipt"
+        )
+        if not isinstance(surface_control_receipt, dict):
+            surface_control_receipt = {}
+        context_controls_bound = bool(
+            context.get("live_mind_controls_bound", False)
+            and generation_controls
+        )
+        surface_control_receipt = normalize_live_mind_surface_control_receipt(
+            surface_control_receipt,
+            controls_bound=context_controls_bound,
+            generation_controls=generation_controls,
+            source="cognitive_engine_recoverable_draft_controls",
+        )
+        latent_final_quality = generation_metadata.get(
+            "latent_cortex_final_output_quality"
+        )
+        latent_quality_reasons = (
+            tuple(latent_final_quality.get("reasons") or ())
+            if isinstance(latent_final_quality, dict)
+            else ()
+        )
+        surface_reasons = tuple(
+            dict.fromkeys(
+                (
+                    *tuple(
+                        surface_control_receipt.get(
+                            "surface_quality_gate_reasons"
+                        )
+                        or ()
+                    ),
+                    *latent_quality_reasons,
+                )
+            )
+        )
+        generation_stop_reason = str(
+            surface_control_receipt.get("generation_stop_reason") or ""
+        )
+        generation_failure_class = str(
+            generation_metadata.get("generation_failure_class") or ""
+        ).lower()
+        reply_generation_incomplete = bool(
+            surface_control_receipt.get(
+                "semantic_completion_incomplete", False
+            )
+            or set(surface_reasons)
+            & {
+                "truncated_tail",
+                "final_answer_missing",
+                "missing_final_answer",
+                "incomplete_code_response",
+            }
+            or generation_stop_reason
+            in {"max_tokens", "deadline_exceeded", "soft_cancelled"}
+            or any(
+                reason in generation_failure_class
+                for reason in (
+                    "truncated_tail",
+                    "final_answer_missing",
+                    "missing_final_answer",
+                    "incomplete_code_response",
+                )
+            )
+            or _truncation_verdict(
+                salvaged,
+                generation_stop_reason=generation_stop_reason,
+            )
+        )
+        recoverable_metadata = {
+            key: (dict(value) if isinstance(value, dict) else value)
+            for key, value in generation_metadata.items()
+            if key
+            in {
+                "generation_failure_class",
+                "latent_cortex_selected",
+                "latent_cortex_selection_reason",
+                "latent_cortex_depth_worthy",
+                "latent_cortex_prompt_shape",
+                "latent_cortex_attempted",
+                "latent_cortex_succeeded",
+                "latent_cortex_fallback_used",
+                "latent_cortex_failure_reason",
+                "latent_cortex_identity_bound",
+                "latent_cortex_final_text_transformed",
+                "latent_cortex_final_output_quality",
+                "latent_cortex_raw_final_quality_hash_match",
+                "latent_cortex_receipt",
+                "latent_cortex_ingress",
+                "latent_cortex_progress",
+                "response_path",
+            }
+        }
+        recoverable_metadata.update(
+            {
+                "recovered_from_suppression": True,
+                "live_mind_controls_bound": context_controls_bound,
+                "live_mind_generation_controls": dict(generation_controls),
+                "live_mind_snapshot_ready": bool(
+                    context.get("live_mind_snapshot_ready", False)
+                ),
+                "live_mind_required_subsystems_ok": bool(
+                    context.get("live_mind_required_subsystems_ok", False)
+                ),
+                "live_mind_context_required": bool(
+                    context.get("live_mind_context_required", False)
+                ),
+                "live_mind_surface_control_receipt": dict(
+                    surface_control_receipt
+                ),
+                "live_mind_controls_worker_applied": bool(
+                    surface_control_receipt.get("live_mind_controls_bound")
+                    and surface_control_receipt.get("applied")
+                ),
+                "reply_generation_incomplete": reply_generation_incomplete,
+                "reply_generation_stop_reason": generation_stop_reason,
+                "reply_generation_failure_reasons": surface_reasons,
+                "reply_original_chars": len(salvaged),
+            }
+        )
+        logger.warning(
+            "🩹 CognitiveEngine: no answer-quality response for origin=%s, but the "
+            "turn still held a recoverable %d-char draft; serving it rather than "
+            "reporting an empty cycle.",
+            origin,
+            len(salvaged),
+        )
+        return recoverable_metadata
+
+    async def _run_thinking_loop(
+        self,
+        state: AuraState,
+        objective: str,
+        mode: ThinkingMode,
+        origin: str,
+        context: dict[str, Any] = None,
+        **kwargs,
+    ) -> Thought:
+        context, foreground_turn_objective = self._run_thinking_loop_part_1(context, objective, origin, state)
+
+        is_background = bool(kwargs.get("is_background", False))
+        explicit_timeout = kwargs.get("timeout_s", kwargs.get("timeout"))
+        try:
+            cycle_timeout = float(explicit_timeout) if explicit_timeout is not None else 0.0
+        except (TypeError, ValueError):
+            cycle_timeout = 0.0
+        cycle_deadline_at, cycle_timeout = self._run_thinking_loop_part_2(context, cycle_timeout, is_background, objective, origin)
 
         # 4. Phase Execution Loop with Watchdog
         import copy
@@ -3022,34 +3617,7 @@ class CognitiveEngine(_RunsItsAugmentors):
                 context,
                 timeout_s=cycle_timeout,
             )
-        if direct_quick_reply is not None:
-            # The quick lane returned before any phase executed. Whether the
-            # model was called depends on which branch inside it answered: the
-            # canonical floors return pre-rendered text and never reach it.
-            record_response_path(
-                str(
-                    (direct_quick_reply.metadata or {}).get("response_path")
-                    or "desktop_quick_reply"
-                ),
-                model_generation=bool(
-                    (direct_quick_reply.metadata or {}).get(
-                        "live_mind_generation_required", True
-                    )
-                ),
-            )
-            state.cognition.working_memory.append(
-                {
-                    "role": "assistant",
-                    "content": direct_quick_reply.content,
-                    "timestamp": time.time(),
-                    "origin": origin,
-                }
-            )
-            if self._is_user_facing_origin(origin):
-                state.transition_origin = origin
-                state.cognition.current_origin = origin
-            temp_state = state
-            success = True
+        success, temp_state = self._run_thinking_loop_part_3(direct_quick_reply, origin, state, success, temp_state)
 
         if not success:
             # Bound before the try, because the finally below reads it and the
@@ -3069,35 +3637,7 @@ class CognitiveEngine(_RunsItsAugmentors):
                         ))
                     ),
                 ):
-                    _clock_keeper = create_owned_asyncio_task(
-                        _keep_the_cycle_open_while_it_is_working(
-                            _cycle_clock,
-                            ceiling_at=time.monotonic()
-                            + _the_longest_this_turn_may_take(
-                                float(
-                                    response_policy.USER_FACING_COMPLETION_DEADLINE_MAX_S
-                                ),
-                                user_facing=bool(
-                                    self._is_user_facing_origin(origin)
-                                    and not is_background
-                                ),
-                            ),
-                            user_facing=bool(
-                                self._is_user_facing_origin(origin) and not is_background
-                            ),
-                            runtime_context=context,
-                        )
-                    )
-                    _begin_pass_run("legacy_pipeline")
-                    # The provenance graph had the same asymmetry the pass
-                    # instrumentation had, for the same reason: it was opened
-                    # in AuraKernel.tick, and chat drives THIS loop. So the
-                    # causal record that answers "why did she do that" existed
-                    # for the three turns a day the kernel runs and not for the
-                    # several hundred a person has. Same seam, same graph.
-                    _provenance_tick = _open_provenance_tick(
-                        objective=objective, priority=self._is_user_facing_origin(origin)
-                    )
+                    _clock_keeper, _provenance_tick = self._run_thinking_loop__clock_keeper(_cycle_clock, context, is_background, objective, origin)
                     for phase in self._phases:
                         phase_name = phase.__class__.__name__
                         # [PASS INSTRUMENTATION] AURA_PASS_BISECT_LIMIT and
@@ -3120,53 +3660,7 @@ class CognitiveEngine(_RunsItsAugmentors):
                             # "why did you do that" usually means.
                             _skip_provenance(phase_name, temp_state, reason)
                             continue
-                        started_at = time.perf_counter()
-                        # Measured around the phase, never reported by it.
-                        _transformation = _begin_provenance(phase_name, temp_state)
-                        _phase_error = ""
-                        try:
-                            # Pass through kwargs like is_background if phases support it
-                            temp_state = await phase.execute(
-                                temp_state,
-                                objective=objective,
-                                context=context,
-                                **kwargs,
-                            )
-                        except BaseException as phase_exc:
-                            _phase_error = f"{type(phase_exc).__name__}: {phase_exc}"
-                            _record_legacy_pass(
-                                phase_name,
-                                ordinal,
-                                time.perf_counter() - started_at,
-                                skipped=False,
-                                error=_phase_error,
-                            )
-                            raise
-                        finally:
-                            _complete_provenance(
-                                _transformation,
-                                temp_state,
-                                error=_phase_error,
-                                objective=objective,
-                            )
-                        phase_elapsed = time.perf_counter() - started_at
-                        _record_legacy_pass(
-                            phase_name,
-                            ordinal,
-                            phase_elapsed,
-                            skipped=False,
-                        )
-                        # Marked after the phase returns, so a phase that timed
-                        # out mid-execution is not recorded as having run.
-                        record_phase(phase_name)
-                        # The retrieval phase is one of the five components a
-                        # turn's latency is split into (R11), and its duration
-                        # was only ever a "phase latency exceeded budget" line.
-                        if "retrieval" in str(phase_name).lower():
-                            try:
-                                record_latency("retrieval", phase_elapsed)
-                            except ValueError:
-                                pass
+                        temp_state = await self._run_thinking_loop_started_at(context, kwargs, objective, ordinal, phase, phase_name, temp_state)
 
                     state = temp_state
                     record_response_path(
@@ -3238,69 +3732,7 @@ class CognitiveEngine(_RunsItsAugmentors):
                     authored_version=int(getattr(state, "version", 0) or 0),
                 )
             finally:
-                # Closed here rather than after the loop so a tick that timed
-                # out or crashed still lands in the ring. Those are the ticks
-                # somebody most wants to read afterwards, and the version that
-                # closed on the success path recorded only the turns that went
-                # well.
-                #
-                # And the task holding the cycle clock open, however the turn
-                # ended. It is bounded on its own, but a turn that finished in
-                # two seconds should not leave something watching for eight
-                # minutes.
-                if _clock_keeper is not None:
-                    _clock_keeper.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await _clock_keeper
-                _close_provenance_tick(_provenance_tick)
-                try:
-                    # vResilience: Avoid locals().get() for type stability
-                    if not success and "backup_state" in locals():
-                        # This restores a LOCAL REFERENCE and nothing else.
-                        #
-                        # A deep copy of the state object cannot undo what a
-                        # phase already did outside it: events published, tools
-                        # invoked, rows written, in-place mutations to
-                        # collaborators the phase was handed. Calling this
-                        # "rollback" invites the next reader to rely on a
-                        # transaction that does not exist, so the receipt says
-                        # what was and was not restored.
-                        state = backup_state
-                        self._last_phase_rollback = {
-                            "restored": "cognitive_state_snapshot",
-                            "not_restored": [
-                                "external_service_writes",
-                                "published_events",
-                                "tool_invocations",
-                                "database_rows",
-                                "in_place_collaborator_mutations",
-                            ],
-                            "at": time.time(),
-                        }
-                        # A receipt about the recovery, not a second fault.
-                        #
-                        # cognitive_engine is a required subsystem, so a
-                        # warning here escalates: this note became CRITICAL
-                        # SERVICE FAILURE, which aborted the whole turn and
-                        # answered the person "I couldn't get to an answer
-                        # I'd stand behind." The phase failure itself is
-                        # recorded where it happens; this line only says what
-                        # the restore did and did not cover, and saying so
-                        # must not cost the turn it was trying to save.
-                        record_degradation(
-                            "cognitive_engine",
-                            RuntimeError("phase_failure_partial_rollback"),
-                            severity="info",
-                            action="restored the cognitive state snapshot; external phase effects are not reversible here",
-                        )
-                except (OSError, ConnectionError, TimeoutError) as _e:
-                    record_degradation(
-                        "cognitive_engine",
-                        _e,
-                        severity="warning",
-                        action="continued with current state after backup restore check failed",
-                    )
-                    logger.debug("Ignored Exception in cognitive_engine.py: %s", _e)
+                state = await self._run_thinking_loop_closed_rather_after(_clock_keeper, _provenance_tick, backup_state, state, success)
 
         # Capture the routed objective before closing a foreground turn. Response
         # extraction still needs it for action-imperative validation, but durable
@@ -3327,35 +3759,7 @@ class CognitiveEngine(_RunsItsAugmentors):
         # 5. Final State Commit
         # HF12: Handle concurrent version conflicts with a mini-retry loop
         is_test_run = self._is_test_run(origin)
-        should_bypass_commit = is_test_run or self.state_repository is None
-        # The watchdog above wraps PHASE EXECUTION only. Repository reads,
-        # advisors, spine checks, augmentors, the deep copy, this commit loop
-        # and feedback learning all run outside it, so a configured cycle
-        # timeout was never the end-to-end budget it reads as. The commit loop
-        # is the largest of those — three attempts, each a database round trip
-        # — so it gets what is left of the same deadline instead of an
-        # unbounded wait after the budget is already gone.
-
-
-        # What actually happened to durable state. Every exit from this loop
-        # used to be a bare `break`, after which extraction returned a
-        # 0.9-confidence "completed successfully" thought whether the commit
-        # had landed, been bypassed, exhausted its retries, or raised.
-        commit_outcome = "not_attempted"
-        max_retries = 3
-        commit_outcome, state = await _commit_the_thought_with_retries(
-            commit_outcome=commit_outcome,
-            cycle_deadline_at=cycle_deadline_at,
-            runtime_context=context,
-            is_test_run=is_test_run,
-            max_retries=max_retries,
-            origin=origin,
-            pre_turn_cognition=pre_turn_cognition,
-            self=self,
-            should_bypass_commit=should_bypass_commit,
-            state=state,
-            temp_state=temp_state,
-        )
+        commit_outcome, state = await self._run_thinking_loop_should_bypass_commit(context, cycle_deadline_at, is_test_run, origin, pre_turn_cognition, state, temp_state)
 
         # The turn completed durably (or was legitimately isolated). Only now
         # may external lifecycle state be told it finished.
@@ -3425,244 +3829,11 @@ class CognitiveEngine(_RunsItsAugmentors):
                     "bicameral_advisory_feedback": bicameral_feedback,
                 }
             else:
-                imagination_feedback = self._learn_imagination_workspace_outcome(
-                    context,
-                    outcome="assistant_response",
-                    reward=_cycle_reward,
-                )
-                bicameral_feedback = self._learn_bicameral_advisory_outcome(
-                    context,
-                    outcome="assistant_response",
-                    reward=_cycle_reward,
-                )
-                generation_controls = context.get("live_mind_generation_controls")
-                if not isinstance(generation_controls, dict):
-                    generation_controls = {}
-                surface_control_receipt = state.response_modifiers.get(
-                    "live_mind_surface_control_receipt"
-                )
-                if not isinstance(surface_control_receipt, dict):
-                    surface_control_receipt = {}
-                if not surface_control_receipt:
-                    try:
-                        router = get_container().get("llm_router", default=None)
-                        if router is not None and hasattr(
-                            router, "get_last_generation_metadata"
-                        ):
-                            generation_metadata = router.get_last_generation_metadata()
-                            if isinstance(generation_metadata, dict):
-                                candidate = generation_metadata.get(
-                                    "surface_control_receipt"
-                                )
-                                if isinstance(candidate, dict):
-                                    surface_control_receipt = dict(candidate)
-                    except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
-                        logger.debug(
-                            "Could not read full-phase surface-control receipt: %s",
-                            exc,
-                        )
-                context_controls_bound = bool(
-                    context.get("live_mind_controls_bound", False)
-                    and generation_controls
-                )
-                surface_control_receipt = normalize_live_mind_surface_control_receipt(
-                    surface_control_receipt,
-                    controls_bound=context_controls_bound,
-                    generation_controls=generation_controls,
-                    source="cognitive_engine_full_phase_controls",
-                )
-                latent_final_quality = state.response_modifiers.get(
-                    "latent_cortex_final_output_quality"
-                )
-                latent_quality_reasons = (
-                    tuple(latent_final_quality.get("reasons") or ())
-                    if isinstance(latent_final_quality, dict)
-                    else ()
-                )
-                surface_reasons = tuple(
-                    dict.fromkeys(
-                        (
-                            *tuple(
-                                surface_control_receipt.get(
-                                    "surface_quality_gate_reasons"
-                                )
-                                or ()
-                            ),
-                            *latent_quality_reasons,
-                        )
-                    )
-                )
-                generation_stop_reason = str(
-                    surface_control_receipt.get("generation_stop_reason") or ""
-                )
-                semantic_completion_incomplete = bool(
-                    surface_control_receipt.get("semantic_completion_incomplete", False)
-                )
-                full_phase_text = str(last_msg.get("content") or "").strip()
-                generation_failure_class = str(
-                    state.response_modifiers.get("generation_failure_class") or ""
-                ).lower()
-                reply_generation_incomplete = bool(
-                    semantic_completion_incomplete
-                    or set(surface_reasons)
-                    & {
-                        "truncated_tail",
-                        "final_answer_missing",
-                        "missing_final_answer",
-                        "incomplete_code_response",
-                    }
-                    or generation_stop_reason
-                    in {"max_tokens", "deadline_exceeded", "soft_cancelled"}
-                    or any(
-                        reason in generation_failure_class
-                        for reason in (
-                            "truncated_tail",
-                            "final_answer_missing",
-                            "missing_final_answer",
-                            "incomplete_code_response",
-                        )
-                    )
-                    or _truncation_verdict(
-                        full_phase_text,
-                        generation_stop_reason=generation_stop_reason,
-                    )
-                )
-                latent_metadata = {
-                    key: state.response_modifiers.get(key)
-                    for key in (
-                        "latent_cortex_selected",
-                        "latent_cortex_selection_reason",
-                        "latent_cortex_depth_worthy",
-                        "latent_cortex_prompt_shape",
-                        "latent_cortex_attempted",
-                        "latent_cortex_succeeded",
-                        "latent_cortex_fallback_used",
-                        "latent_cortex_failure_reason",
-                        "latent_cortex_identity_bound",
-                        "latent_cortex_final_text_transformed",
-                        "latent_cortex_final_output_quality",
-                        "latent_cortex_raw_final_quality_hash_match",
-                        "latent_cortex_receipt",
-                        "latent_cortex_ingress",
-                        "latent_cortex_progress",
-                    )
-                    if key in state.response_modifiers
-                }
-                _degraded_count = len(
-                    [
-                        key
-                        for key in state.response_modifiers
-                        if str(key).endswith("_degraded")
-                        and state.response_modifiers.get(key)
-                    ]
-                )
-                thought = Thought(
-                    id=str(uuid.uuid4()),
-                    content=last_msg["content"],
-                    mode=mode,
-                    confidence=self._cycle_confidence(
-                        commit_outcome=commit_outcome,
-                        degraded_subsystems=_degraded_count,
-                    ),
-                    reasoning=[
-                        "Phase-based cognitive cycle completed.",
-                        f"State commit: {commit_outcome}.",
-                    ],
-                    metadata={
-                        "state_commit_outcome": commit_outcome,
-                        "spiking_active_inference": context.get("spiking_active_inference")
-                        if isinstance(context, dict)
-                        else None,
-                        "spiking_active_inference_feedback": feedback,
-                        "imagination_workspace_feedback": imagination_feedback,
-                        "bicameral_advisory": context.get("bicameral_advisory")
-                        if isinstance(context, dict)
-                        else None,
-                        "bicameral_advisory_feedback": bicameral_feedback,
-                        "cognitive_situation_frame": context.get("cognitive_situation_frame")
-                        if isinstance(context, dict)
-                        else None,
-                        "live_mind_controls_bound": context_controls_bound,
-                        "live_mind_generation_controls": dict(generation_controls),
-                        "live_mind_snapshot_ready": bool(
-                            context.get("live_mind_snapshot_ready", False)
-                        ),
-                        "live_mind_required_subsystems_ok": bool(
-                            context.get("live_mind_required_subsystems_ok", False)
-                        ),
-                        "live_mind_context_required": bool(
-                            context.get("live_mind_context_required", False)
-                        ),
-                        "live_mind_surface_control_receipt": dict(
-                            surface_control_receipt
-                        ),
-                        "live_mind_controls_worker_applied": bool(
-                            surface_control_receipt.get("live_mind_controls_bound")
-                            and surface_control_receipt.get("applied")
-                        ),
-                        "reply_generation_incomplete": reply_generation_incomplete,
-                        "reply_generation_stop_reason": generation_stop_reason,
-                        "reply_generation_failure_reasons": surface_reasons,
-                        "reply_original_chars": len(full_phase_text),
-                        **latent_metadata,
-                        "response_path": str(
-                            state.response_modifiers.get("response_path")
-                            or (
-                                "cognitive_engine_latent_cortex"
-                                if state.response_modifiers.get(
-                                    "latent_cortex_succeeded"
-                                )
-                                is True
-                                else "cognitive_engine"
-                            )
-                        ),
-                    },
-                )
+                thought = self._run_thinking_loop_imagination_feedback(_cycle_reward, commit_outcome, context, feedback, last_msg, mode, state)
             self.thoughts.append(thought)
             return thought
 
-        # Record the pressure, then READ it back. Until this, the graph had
-        # two writers and no reader anywhere in the codebase: it accumulated
-        # friction that could not influence any output, which makes the
-        # signal unmeasurable rather than merely unused.
-        friction_key = objective[:20]
-        self.autopoiesis.experience_friction(friction_key, 0.45)
-        if self.autopoiesis.is_under_pressure(friction_key):
-            logger.warning(
-                "Objective '%s' keeps failing to resolve (friction %.2f); "
-                "repeated failures on one kind of request are a defect signal, "
-                "not noise",
-                friction_key,
-                self.autopoiesis.friction_for(friction_key),
-            )
-            record_degradation(
-                "cognitive_engine",
-                RuntimeError(f"objective repeatedly unresolved: {friction_key}"),
-                severity="warning",
-                action="recorded sustained objective friction",
-                extra=self.autopoiesis.pressure_report(),
-                # Friction is a durable learning/diagnostic observation, not
-                # an exception from the service contract. Letting the generic
-                # fail-closed policy enforce this warning turned a useful
-                # signal into CRITICAL SERVICE FAILURE and killed the repair
-                # pass that was supposed to resolve it.
-                enforce_failure_policy=False,
-            )
-        self._learn_spiking_active_inference_outcome(
-            context,
-            outcome="no_assistant_response",
-            reward=-0.65,
-        )
-        self._learn_imagination_workspace_outcome(
-            context,
-            outcome="no_assistant_response",
-            reward=-0.65,
-        )
-        self._learn_bicameral_advisory_outcome(
-            context,
-            outcome="no_assistant_response",
-            reward=-0.65,
-        )
+        self._run_thinking_loop_record_pressure_read(context, objective)
 
         # ── ACTION IMPERATIVE FALLBACK ──
         #
@@ -3840,137 +4011,7 @@ class CognitiveEngine(_RunsItsAugmentors):
             except (ImportError, RuntimeError, TypeError, ValueError):
                 salvaged = ""
         if salvaged:
-            generation_metadata = dict(state.response_modifiers)
-            generation_controls = context.get("live_mind_generation_controls")
-            if not isinstance(generation_controls, dict):
-                generation_controls = {}
-            surface_control_receipt = generation_metadata.get(
-                "live_mind_surface_control_receipt"
-            )
-            if not isinstance(surface_control_receipt, dict):
-                surface_control_receipt = {}
-            context_controls_bound = bool(
-                context.get("live_mind_controls_bound", False)
-                and generation_controls
-            )
-            surface_control_receipt = normalize_live_mind_surface_control_receipt(
-                surface_control_receipt,
-                controls_bound=context_controls_bound,
-                generation_controls=generation_controls,
-                source="cognitive_engine_recoverable_draft_controls",
-            )
-            latent_final_quality = generation_metadata.get(
-                "latent_cortex_final_output_quality"
-            )
-            latent_quality_reasons = (
-                tuple(latent_final_quality.get("reasons") or ())
-                if isinstance(latent_final_quality, dict)
-                else ()
-            )
-            surface_reasons = tuple(
-                dict.fromkeys(
-                    (
-                        *tuple(
-                            surface_control_receipt.get(
-                                "surface_quality_gate_reasons"
-                            )
-                            or ()
-                        ),
-                        *latent_quality_reasons,
-                    )
-                )
-            )
-            generation_stop_reason = str(
-                surface_control_receipt.get("generation_stop_reason") or ""
-            )
-            generation_failure_class = str(
-                generation_metadata.get("generation_failure_class") or ""
-            ).lower()
-            reply_generation_incomplete = bool(
-                surface_control_receipt.get(
-                    "semantic_completion_incomplete", False
-                )
-                or set(surface_reasons)
-                & {
-                    "truncated_tail",
-                    "final_answer_missing",
-                    "missing_final_answer",
-                    "incomplete_code_response",
-                }
-                or generation_stop_reason
-                in {"max_tokens", "deadline_exceeded", "soft_cancelled"}
-                or any(
-                    reason in generation_failure_class
-                    for reason in (
-                        "truncated_tail",
-                        "final_answer_missing",
-                        "missing_final_answer",
-                        "incomplete_code_response",
-                    )
-                )
-                or _truncation_verdict(
-                    salvaged,
-                    generation_stop_reason=generation_stop_reason,
-                )
-            )
-            recoverable_metadata = {
-                key: (dict(value) if isinstance(value, dict) else value)
-                for key, value in generation_metadata.items()
-                if key
-                in {
-                    "generation_failure_class",
-                    "latent_cortex_selected",
-                    "latent_cortex_selection_reason",
-                    "latent_cortex_depth_worthy",
-                    "latent_cortex_prompt_shape",
-                    "latent_cortex_attempted",
-                    "latent_cortex_succeeded",
-                    "latent_cortex_fallback_used",
-                    "latent_cortex_failure_reason",
-                    "latent_cortex_identity_bound",
-                    "latent_cortex_final_text_transformed",
-                    "latent_cortex_final_output_quality",
-                    "latent_cortex_raw_final_quality_hash_match",
-                    "latent_cortex_receipt",
-                    "latent_cortex_ingress",
-                    "latent_cortex_progress",
-                    "response_path",
-                }
-            }
-            recoverable_metadata.update(
-                {
-                    "recovered_from_suppression": True,
-                    "live_mind_controls_bound": context_controls_bound,
-                    "live_mind_generation_controls": dict(generation_controls),
-                    "live_mind_snapshot_ready": bool(
-                        context.get("live_mind_snapshot_ready", False)
-                    ),
-                    "live_mind_required_subsystems_ok": bool(
-                        context.get("live_mind_required_subsystems_ok", False)
-                    ),
-                    "live_mind_context_required": bool(
-                        context.get("live_mind_context_required", False)
-                    ),
-                    "live_mind_surface_control_receipt": dict(
-                        surface_control_receipt
-                    ),
-                    "live_mind_controls_worker_applied": bool(
-                        surface_control_receipt.get("live_mind_controls_bound")
-                        and surface_control_receipt.get("applied")
-                    ),
-                    "reply_generation_incomplete": reply_generation_incomplete,
-                    "reply_generation_stop_reason": generation_stop_reason,
-                    "reply_generation_failure_reasons": surface_reasons,
-                    "reply_original_chars": len(salvaged),
-                }
-            )
-            logger.warning(
-                "🩹 CognitiveEngine: no answer-quality response for origin=%s, but the "
-                "turn still held a recoverable %d-char draft; serving it rather than "
-                "reporting an empty cycle.",
-                origin,
-                len(salvaged),
-            )
+            recoverable_metadata = self._run_thinking_loop_generation_metadata(context, origin, salvaged, state)
             return Thought(
                 id=str(uuid.uuid4()),
                 content=salvaged,
@@ -4228,106 +4269,8 @@ class CognitiveEngine(_RunsItsAugmentors):
         self.thoughts.append(thought)
         return thought
 
-    async def _direct_desktop_quick_reply(
-        self,
-        objective: str,
-        mode: ThinkingMode,
-        origin: str,
-        context: dict[str, Any] | None,
-        *,
-        timeout_s: float,
-    ) -> Thought | None:
-        if not self._is_user_facing_origin(origin):
-            return None
-        if not isinstance(context, dict) or not bool(context.get("desktop_quick_reply_contract")):
-            return None
-
-        container = get_container()
-        router = container.get("llm_router", default=None)
-
-        # int() on caller input, outside the guarded router call below: a
-        # string or a NaN raised TypeError/ValueError here and took the turn
-        # down before any bounded failure thought could be produced. A bad
-        # request is a bad request, not a crash.
-        max_tokens = self._bounded_request_int(
-            context.get("max_tokens"), default=768, low=1, high=32_768
-        )
-        advice = context.get("spiking_active_inference")
-        imagination_frame = context.get("imagination_workspace")
-        bicameral_frame = context.get("bicameral_advisory")
-        cognitive_situation_frame = context.get("cognitive_situation_frame")
-        sampling_sources: list[Any] = []
-        if isinstance(advice, dict):
-            sampling_sources.append(advice.get("sampling_bias") or {})
-        if isinstance(imagination_frame, dict):
-            sampling_sources.append(imagination_frame.get("sampling_bias") or {})
-        if isinstance(bicameral_frame, dict):
-            sampling_sources.append(bicameral_frame.get("sampling_bias") or {})
-        if isinstance(cognitive_situation_frame, dict):
-            sampling_sources.append(cognitive_situation_frame.get("sampling_bias") or {})
-        memory_state_contract = bool(context.get("memory_state_contract", False))
-        runtime_fact_status_contract = bool(
-            context.get("runtime_fact_status_contract", False)
-            or context.get("grounded_runtime_status_contract", False)
-        )
-        self_condition_contract = bool(context.get("self_condition_contract", False))
-        self_condition_contract_covers_turn = bool(
-            context.get(
-                "self_condition_contract_covers_turn",
-                self_condition_contract,
-            )
-        )
-        capability_inventory_contract = bool(context.get("capability_inventory_contract", False))
-        identity_continuity_contract = bool(
-            context.get("identity_continuity_contract", False)
-            or context.get("grounded_identity_continuity_context")
-        )
-        completion_retry_contract = bool(
-            context.get("user_surface_completion_retry", False)
-        )
-        continuation_partial = continuation_state_text(
-            context.get("user_surface_continuation_partial")
-        )
-        continuation_prefix = continuation_prompt_prefix(continuation_partial)
-        continuation_contract = bool(
-            completion_retry_contract
-            and context.get("user_surface_continuation_contract", False)
-            and continuation_partial
-        )
-        resume_capability = project_user_surface_resume_capability(
-            context,
-            continuation_contract=continuation_contract,
-            conversation_contract_compatible=not any(
-                (
-                    memory_state_contract,
-                    runtime_fact_status_contract,
-                    self_condition_contract,
-                    capability_inventory_contract,
-                    identity_continuity_contract,
-                    bool(context.get("desktop_execution_contract", False)),
-                    bool(context.get("strict_answer_contract", False)),
-                    bool(context.get("strict_value_contract", False)),
-                    bool(context.get("proof_evaluation_contract", False)),
-                    bool(context.get("operator_evidence_contract", False)),
-                    bool(context.get("completed_capability_evidence")),
-                )
-            ),
-        )
-        obligation_segment = str(
-            context.get("user_surface_obligation_segment") or ""
-        ).strip()
-        obligation_parent_request = str(
-            context.get("user_surface_obligation_parent_request") or ""
-        ).strip()
-        obligation_partial = continuation_state_text(
-            context.get("user_surface_obligation_partial")
-        )
-        obligation_contract = bool(
-            completion_retry_contract
-            and context.get("user_surface_obligation_contract", False)
-            and obligation_segment
-            and obligation_parent_request
-        )
+    @staticmethod
+    def _direct_desktop_quick_reply_prompt_shape(context, objective, self_condition_contract_covers_turn):
         prompt_shape = context.get("prompt_shape")
         if not isinstance(prompt_shape, dict):
             prompt_shape = {}
@@ -4362,26 +4305,10 @@ class CognitiveEngine(_RunsItsAugmentors):
             # Treating its evidence distinctions as independent long-form asks
             # previously expanded a 256-token answer into a 1,024-token job.
             shape_wants_room = False
-        extended_full_mind_reply = bool(
-            context.get("require_full_foreground_mind_reply", False) and shape_wants_room
-        )
-        canonical_memory_state_evidence = str(
-            context.get("canonical_memory_state_evidence") or ""
-        ).strip()
-        canonical_self_condition_context = str(
-            context.get("canonical_self_condition_context") or ""
-        ).strip()
-        advisory_factors: list[float] = []
-        for sampling in sampling_sources:
-            if isinstance(sampling, dict):
-                try:
-                    factor_value = float(sampling.get("max_tokens_factor", 1.0))
-                except (TypeError, ValueError):
-                    factor_value = 1.0
-                if 0.25 <= factor_value <= 1.25:
-                    if capability_inventory_contract and factor_value < 1.0:
-                        continue
-                    advisory_factors.append(factor_value)
+        return shape_wants_room, structural_answer_floor
+
+    @staticmethod
+    def _direct_desktop_quick_reply_part_2(advisory_factors, capability_inventory_contract, context, extended_full_mind_reply, max_tokens, memory_state_contract, runtime_fact_status_contract, shape_wants_room, structural_answer_floor):
         if advisory_factors:
             max_tokens = max(
                 128,
@@ -4427,202 +4354,10 @@ class CognitiveEngine(_RunsItsAugmentors):
         # Preserve it unless memory pressure is truly critical. The MLX gate
         # keeps 64/32-token critical and emergency caps hard.
         completion_floor = max_tokens
-        request_timeout_cap = (
-            response_policy.USER_FACING_COMPLETION_DEADLINE_MAX_S
-            if shape_wants_room
-            else 180.0
-        )
-        request_timeout = max(
-            12.0,
-            min(
-                max(12.0, float(timeout_s or 32.0) - 5.0),
-                request_timeout_cap,
-            ),
-        )
-        if memory_state_contract or runtime_fact_status_contract or self_condition_contract:
-            request_timeout = min(request_timeout, 90.0)
-        if capability_inventory_contract:
-            request_timeout = min(request_timeout, 28.0)
-        style_contract = self._contract_safe(
-            context.get("response_style_contract"), self._STYLE_CONTRACT_LIMIT
-        )
-        visible_user_message = str(context.get("visible_user_message") or objective or "").strip()
-        recent_conversation_context = str(context.get("recent_conversation_context") or "").strip()
-        history_messages = _desktop_history_messages_from_context(context)
-        discourse_repair_contract = context.get("discourse_repair_contract")
-        if isinstance(discourse_repair_contract, dict):
-            from core.utils.injected_blocks import is_stamped_runtime_payload
+        return completion_floor, max_tokens
 
-            if is_stamped_runtime_payload(discourse_repair_contract) and bool(
-                discourse_repair_contract.get("active")
-            ):
-                from core.conversation.discourse_repair_pursuit import (
-                    apply_repair_pursuit_to_history,
-                )
-
-                # The user's pursuit rejects the prior answer, not the earlier
-                # context.  Leaving that assistant text in history turns it
-                # into the strongest few-shot example for the replacement and
-                # reproduces the same evasion nearly verbatim.
-                history_messages = apply_repair_pursuit_to_history(
-                    history_messages,
-                    discourse_repair_contract,
-                )
-            else:
-                discourse_repair_contract = {}
-        live_speech_frame = context.get("live_speech_grounding_frame")
-        live_mind_context = context.get("live_mind_context")
-        live_mind_required = bool(context.get("live_mind_context_required", False))
-        # The visible request is bound before the cognitive loop starts. Use
-        # that turn-owned control contract here instead of deriving a second
-        # one from a later view of the same context. Two derivations produced
-        # requested-depth=2 in the parent and applied-depth=1 in the worker on
-        # one live turn, so neither receipt described the execution it judged.
-        live_mind_generation_controls = _bind_live_mind_generation_contract(context)
-        # The spiking model's temperature and top-p deltas reach the sampler
-        # here. Before this they were computed every turn and dropped, leaving
-        # a prompt sentence as the neurodynamics' only actuator.
-        live_mind_generation_controls = _apply_neurodynamic_sampling_bias(
-            live_mind_generation_controls, advice
-        )
-        context["live_mind_generation_controls"] = dict(
-            live_mind_generation_controls
-        )
-        live_mind_controls_bound = _live_mind_controls_bound(
-            live_mind_context,
-            live_mind_generation_controls,
-        )
-        # The three flags below gate the structured floors, which return
-        # self-condition, planning, capability and identity answers at high
-        # confidence with live-mind metadata attached. They used to be
-        # satisfiable from the caller's own context booleans — and the last
-        # branch re-derived controls_bound as True from them, bypassing
-        # _live_mind_controls_bound entirely. A caller could therefore mint a
-        # proof-bearing reply by asserting that it was entitled to one.
-        #
-        # A context fallback is still allowed, but only when the payload
-        # carries this runtime's stamp: then the booleans are the runtime's own
-        # summary of a snapshot it produced, not a claim about itself.
-        from core.utils.injected_blocks import is_stamped_runtime_payload
-
-        _context_attested = is_stamped_runtime_payload(live_mind_context)
-        live_mind_snapshot_ready = bool(
-            isinstance(live_mind_context, dict)
-            and isinstance(live_mind_context.get("mind_snapshot_quality"), dict)
-            and live_mind_context["mind_snapshot_quality"].get("ready")
-        )
-        if not live_mind_snapshot_ready and _context_attested:
-            live_mind_snapshot_ready = bool(context.get("live_mind_snapshot_ready"))
-        live_mind_required_subsystems_ok = bool(
-            isinstance(live_mind_context, dict)
-            and live_mind_context.get("required_subsystems_ok")
-        )
-        if not live_mind_required_subsystems_ok and _context_attested:
-            live_mind_required_subsystems_ok = bool(
-                context.get("live_mind_required_subsystems_ok")
-            )
-        # controls_bound comes from _live_mind_controls_bound and nowhere else.
-        # It used to be re-derived True here from the flags above, which is the
-        # check answering to the thing it was checking.
-        if live_mind_controls_bound and not (
-            live_mind_generation_controls
-            and live_mind_snapshot_ready
-            and live_mind_required_subsystems_ok
-        ):
-            live_mind_controls_bound = False
-        # A typed self-condition projection is evidence for Aura's answer, not
-        # Aura's answer.  Returning it here bypassed the resident model entirely
-        # and made an ordinary "how are you?" turn look like a health endpoint.
-        # Keep the projection in the grounded prompt below.  The route may use a
-        # visibly bounded projection only after model generation and one
-        # same-worker corrective attempt have both failed.
-        if bool(context.get("bounded_planning_contract")) and not bool(
-            context.get("require_full_foreground_mind_reply", False)
-        ):
-            bounded_reply = str(context.get("bounded_planning_reply") or "").strip()
-            if bounded_reply:
-                metadata = self._live_mind_structured_floor_metadata(
-                    context,
-                    source="cognitive_engine_bounded_planning",
-                )
-                metadata.update(
-                    {
-                        "response_path": "cognitive_engine_bounded_planning",
-                        "bounded_planning_contract": True,
-                        "bounded_planning_floor": True,
-                    }
-                )
-                return Thought(
-                    id=str(uuid.uuid4()),
-                    content=bounded_reply,
-                    mode=mode,
-                    confidence=0.88,
-                    reasoning=[
-                        "Bounded non-executing desktop planning was answered through the CognitiveEngine floor.",
-                        "The reply remained governed, non-executing, and attached to live mind proof metadata.",
-                    ],
-                    metadata=metadata,
-                )
-        if capability_inventory_contract:
-            grounded_inventory = str(
-                context.get("grounded_capability_inventory_context") or ""
-            ).strip()
-            if grounded_inventory:
-                metadata = self._live_mind_structured_floor_metadata(
-                    context,
-                    source="cognitive_engine_capability_catalog_grounding",
-                )
-                metadata.update(
-                    {
-                        "response_path": "cognitive_engine_capability_catalog_grounding",
-                        "capability_inventory_contract": True,
-                        "grounded_capability_inventory": True,
-                    }
-                )
-                return Thought(
-                    id=str(uuid.uuid4()),
-                    content=grounded_inventory,
-                    mode=mode,
-                    confidence=0.86,
-                    reasoning=[
-                        "Desktop capability inventory was grounded from the governed live capability catalog.",
-                        "No foreground model generation was required for this runtime-fact turn.",
-                    ],
-                    metadata=metadata,
-                )
-        if identity_continuity_contract:
-            grounded_identity = str(
-                context.get("grounded_identity_continuity_context") or ""
-            ).strip()
-            if grounded_identity:
-                metadata = self._live_mind_structured_floor_metadata(
-                    context,
-                    source="cognitive_engine_identity_continuity_grounding",
-                )
-                metadata.update(
-                    {
-                        "response_path": "cognitive_engine_identity_continuity_grounding",
-                        "identity_continuity_contract": True,
-                        "grounded_identity_continuity": True,
-                    }
-                )
-                return Thought(
-                    id=str(uuid.uuid4()),
-                    content=grounded_identity,
-                    mode=mode,
-                    confidence=0.88,
-                    reasoning=[
-                        "Identity and continuity were answered from canonical live identity grounding inside CognitiveEngine.",
-                        "The route had already bound live mind context and generation controls, so no recovery model cycle was needed.",
-                    ],
-                    metadata=metadata,
-                )
-        if router is None or not hasattr(router, "think"):
-            return None
-        live_runtime_required = bool(
-            context.get("live_runtime_payload_required", False)
-            or (live_mind_required and isinstance(live_mind_context, dict))
-        )
+    @staticmethod
+    def _direct_desktop_quick_reply_authority_head_always(capability_inventory_contract, completion_retry_contract, continuation_contract, memory_state_contract, obligation_contract, runtime_fact_status_contract, self_condition_contract, style_contract, visible_user_message):
         # ONE authority head, always the same bytes.
         #
         # This used to be five hand-written system prompts selected by contract
@@ -4733,21 +4468,10 @@ class CognitiveEngine(_RunsItsAugmentors):
 
         if style_contract and not capability_inventory_contract:
             turn_dynamic_contracts.append(style_contract)
-        persona_contract = str(context.get("persona_system_prompt") or "").strip()
-        if persona_contract:
-            # CP126 ab3abbae: persona conditioning arrives as a structured
-            # context field and is applied here, at SYSTEM role. It used to be
-            # string-prepended into the user objective, where later objective
-            # text could override it and it polluted task semantics, caching,
-            # memory and audit attribution.
-            system_prompt = f"{system_prompt}\n[PERSONA CONTRACT]\n{persona_contract[:2000]}"
-        mind_context_contract = self._contract_safe(
-            context.get("mind_context_contract"), self._MIND_CONTRACT_LIMIT
-        )
-        # Per-turn control state belongs next to the turn it governs. Keeping it
-        # out of the stable system head lets the resident model reuse the full
-        # identity/persona prefix and prior conversation KV across turns.
-        contract_grounding_blocks: list[str] = list(turn_dynamic_contracts)
+        return system_prompt, turn_dynamic_contracts
+
+    @staticmethod
+    def _direct_desktop_quick_reply_task_grounding_blocks(capability_inventory_contract, live_mind_context, live_speech_frame, memory_state_contract, mind_context_contract, self_condition_contract):
         task_grounding_blocks: list[str] = []
         ambient_grounding_blocks: list[str] = []
         # The block below tells the model its own state is "causal grounding for
@@ -4787,18 +4511,10 @@ class CognitiveEngine(_RunsItsAugmentors):
                     "This frame is grounding, not prose to repeat. Convert it into ordinary speech only when it helps answer the user.\n"
                     "[END LIVE SPEECH GROUNDING]"
                 )
-        user_prompt = visible_user_message or objective
-        try:
-            from core.senses.turn_evidence import sensory_evidence_grounding_block
+        return ambient_grounding_blocks, task_grounding_blocks
 
-            turn_sensory_evidence = sensory_evidence_grounding_block(
-                context.get("turn_sensory_evidence")
-            )
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            logger.debug("Turn sensory evidence unavailable: %s", exc)
-            turn_sensory_evidence = ""
-        if turn_sensory_evidence:
-            task_grounding_blocks.append(turn_sensory_evidence)
+    @staticmethod
+    def _direct_desktop_quick_reply_context_challenge_evidence(canonical_memory_state_evidence, canonical_self_condition_context, context, contract_grounding_blocks, discourse_repair_contract, runtime_fact_status_contract, self_condition_contract, task_grounding_blocks, user_prompt):
         context_challenge_evidence = str(
             context.get("contextual_relevance_evidence") or ""
         ).strip()
@@ -4995,6 +4711,452 @@ class CognitiveEngine(_RunsItsAugmentors):
                     )
         except (ImportError, AttributeError, RuntimeError, OSError) as _sf_exc:
             logger.debug("Self-forensics grounding unavailable: %s", _sf_exc)
+        return action_episode_evidence
+
+    @staticmethod
+    async def _direct_desktop_quick_reply_part_6(context, live_mind_generation_controls, obligation_contract, obligation_segment, origin, request_timeout, router, router_generation_metadata, router_kwargs):
+        if obligation_contract:
+            router_kwargs["user_surface_obligation_contract"] = True
+            router_kwargs["user_surface_obligation_segment"] = obligation_segment
+        # The lesion for this channel is omission, not substitution: a
+        # neutral temperature is still a temperature somebody chose, and
+        # measuring against one would compare two mind-derived settings
+        # instead of comparing the mind's setting against its absence.
+        if not get_lesion_registry().is_lesioned(
+            influence_channels.LIVE_MIND_GENERATION_CONTROLS
+        ):
+            if "temperature" in live_mind_generation_controls:
+                router_kwargs["temperature"] = live_mind_generation_controls["temperature"]
+                router_kwargs["temp"] = live_mind_generation_controls["temperature"]
+            if "top_p" in live_mind_generation_controls:
+                router_kwargs["top_p"] = live_mind_generation_controls["top_p"]
+        router_generation_metadata_sink: dict[str, Any] = {}
+        router_kwargs["_generation_metadata_sink"] = (
+            router_generation_metadata_sink
+        )
+        # The ninth clock, and the last hard one on this path.
+        #
+        # asyncio.wait_for cancels on a stopwatch and cannot tell a
+        # generation that is writing from one that has stopped. Every
+        # other clock a desktop turn passes through has been taught the
+        # difference; this one was still counting.
+        #
+        # LIVE 2026-08-29: asked what she could work out about herself
+        # from what she can measure, the turn ran 185 seconds and ended
+        # in "TimeoutError: <no message; raised in
+        # asyncio.timeouts:__aexit__>" — the empty message being what a
+        # stopwatch has to say about work it did not watch. The person got
+        # the canned apology.
+        #
+        # Same helper as the rest of them: it waits while tokens are
+        # arriving, gives up on silence, and is bounded by the turn's own
+        # ceiling. This origin is one a person types into, and the caller
+        # already said so.
+        from core.brain.llm_health_router import _await_while_it_is_working
+        from core.runtime.turn_origin import a_person_is_waiting
+
+        content = await _await_while_it_is_working(
+            router.think(**router_kwargs),
+            budget_s=request_timeout + 3.0,
+            user_facing=True,
+            # The bare origin, not the decorated one: every
+            # "desktop_quick_*" matches the foreground prefix, so asking
+            # about the decorated name says yes for an autonomous
+            # initiative too. The origin judged as itself is the fact.
+            person_is_waiting=a_person_is_waiting(
+                origin, stated=context.get("a_person_is_waiting")
+            ),
+        )
+        if router_generation_metadata_sink:
+            router_generation_metadata = dict(router_generation_metadata_sink)
+        elif hasattr(router, "get_last_generation_metadata"):
+            raw_metadata = router.get_last_generation_metadata()
+            if isinstance(raw_metadata, dict):
+                router_generation_metadata = dict(raw_metadata)
+        return content, router_generation_metadata
+
+    @staticmethod
+    def _direct_desktop_quick_reply_semantic_completion_incomplete(generation_stop_reason, surface_reasons, surface_receipt, text):
+        semantic_completion_incomplete = bool(
+            surface_receipt.get("semantic_completion_incomplete", False)
+        )
+        reply_generation_incomplete = bool(
+            semantic_completion_incomplete
+            or "truncated_tail" in surface_reasons
+            or generation_stop_reason
+            in {"max_tokens", "deadline_exceeded", "soft_cancelled"}
+            or _truncation_verdict(
+                text,
+                generation_stop_reason=generation_stop_reason,
+            )
+        )
+        if reply_generation_incomplete:
+            record_degradation(
+                "cognitive_engine",
+                RuntimeError("desktop_quick_reply_midsentence_cutoff"),
+                severity="info",
+                action=(
+                    "preserved a clipped draft as incomplete so the chat route can "
+                    "replace it with a full answer before surfacing"
+                ),
+            )
+        # 0.8 immediately after a nonempty generation, before user feedback,
+        # task outcome, factual verification, or even a correlated quality
+        # receipt — so a fluent failure reinforced the components that shaped
+        # it. The reply is not yet known to be good; what IS known is whether
+        # it came out whole. A reply the budget cut mid-sentence is the one
+        # signal available here, and it is negative.
+        _quick_reward = 0.4 if reply_generation_incomplete else 0.6
+        return _quick_reward, reply_generation_incomplete
+
+    async def _direct_desktop_quick_reply(
+        self,
+        objective: str,
+        mode: ThinkingMode,
+        origin: str,
+        context: dict[str, Any] | None,
+        *,
+        timeout_s: float,
+    ) -> Thought | None:
+        if not self._is_user_facing_origin(origin):
+            return None
+        if not isinstance(context, dict) or not bool(context.get("desktop_quick_reply_contract")):
+            return None
+
+        container = get_container()
+        router = container.get("llm_router", default=None)
+
+        # int() on caller input, outside the guarded router call below: a
+        # string or a NaN raised TypeError/ValueError here and took the turn
+        # down before any bounded failure thought could be produced. A bad
+        # request is a bad request, not a crash.
+        max_tokens = self._bounded_request_int(
+            context.get("max_tokens"), default=768, low=1, high=32_768
+        )
+        advice = context.get("spiking_active_inference")
+        imagination_frame = context.get("imagination_workspace")
+        bicameral_frame = context.get("bicameral_advisory")
+        cognitive_situation_frame = context.get("cognitive_situation_frame")
+        sampling_sources: list[Any] = []
+        if isinstance(advice, dict):
+            sampling_sources.append(advice.get("sampling_bias") or {})
+        if isinstance(imagination_frame, dict):
+            sampling_sources.append(imagination_frame.get("sampling_bias") or {})
+        if isinstance(bicameral_frame, dict):
+            sampling_sources.append(bicameral_frame.get("sampling_bias") or {})
+        if isinstance(cognitive_situation_frame, dict):
+            sampling_sources.append(cognitive_situation_frame.get("sampling_bias") or {})
+        memory_state_contract = bool(context.get("memory_state_contract", False))
+        runtime_fact_status_contract = bool(
+            context.get("runtime_fact_status_contract", False)
+            or context.get("grounded_runtime_status_contract", False)
+        )
+        self_condition_contract = bool(context.get("self_condition_contract", False))
+        self_condition_contract_covers_turn = bool(
+            context.get(
+                "self_condition_contract_covers_turn",
+                self_condition_contract,
+            )
+        )
+        capability_inventory_contract = bool(context.get("capability_inventory_contract", False))
+        identity_continuity_contract = bool(
+            context.get("identity_continuity_contract", False)
+            or context.get("grounded_identity_continuity_context")
+        )
+        completion_retry_contract = bool(
+            context.get("user_surface_completion_retry", False)
+        )
+        continuation_partial = continuation_state_text(
+            context.get("user_surface_continuation_partial")
+        )
+        continuation_prefix = continuation_prompt_prefix(continuation_partial)
+        continuation_contract = bool(
+            completion_retry_contract
+            and context.get("user_surface_continuation_contract", False)
+            and continuation_partial
+        )
+        resume_capability = project_user_surface_resume_capability(
+            context,
+            continuation_contract=continuation_contract,
+            conversation_contract_compatible=not any(
+                (
+                    memory_state_contract,
+                    runtime_fact_status_contract,
+                    self_condition_contract,
+                    capability_inventory_contract,
+                    identity_continuity_contract,
+                    bool(context.get("desktop_execution_contract", False)),
+                    bool(context.get("strict_answer_contract", False)),
+                    bool(context.get("strict_value_contract", False)),
+                    bool(context.get("proof_evaluation_contract", False)),
+                    bool(context.get("operator_evidence_contract", False)),
+                    bool(context.get("completed_capability_evidence")),
+                )
+            ),
+        )
+        obligation_segment = str(
+            context.get("user_surface_obligation_segment") or ""
+        ).strip()
+        obligation_parent_request = str(
+            context.get("user_surface_obligation_parent_request") or ""
+        ).strip()
+        obligation_partial = continuation_state_text(
+            context.get("user_surface_obligation_partial")
+        )
+        obligation_contract = bool(
+            completion_retry_contract
+            and context.get("user_surface_obligation_contract", False)
+            and obligation_segment
+            and obligation_parent_request
+        )
+        shape_wants_room, structural_answer_floor = self._direct_desktop_quick_reply_prompt_shape(context, objective, self_condition_contract_covers_turn)
+        extended_full_mind_reply = bool(
+            context.get("require_full_foreground_mind_reply", False) and shape_wants_room
+        )
+        canonical_memory_state_evidence = str(
+            context.get("canonical_memory_state_evidence") or ""
+        ).strip()
+        canonical_self_condition_context = str(
+            context.get("canonical_self_condition_context") or ""
+        ).strip()
+        advisory_factors: list[float] = []
+        for sampling in sampling_sources:
+            if isinstance(sampling, dict):
+                try:
+                    factor_value = float(sampling.get("max_tokens_factor", 1.0))
+                except (TypeError, ValueError):
+                    factor_value = 1.0
+                if 0.25 <= factor_value <= 1.25:
+                    if capability_inventory_contract and factor_value < 1.0:
+                        continue
+                    advisory_factors.append(factor_value)
+        completion_floor, max_tokens = self._direct_desktop_quick_reply_part_2(advisory_factors, capability_inventory_contract, context, extended_full_mind_reply, max_tokens, memory_state_contract, runtime_fact_status_contract, shape_wants_room, structural_answer_floor)
+        request_timeout_cap = (
+            response_policy.USER_FACING_COMPLETION_DEADLINE_MAX_S
+            if shape_wants_room
+            else 180.0
+        )
+        request_timeout = max(
+            12.0,
+            min(
+                max(12.0, float(timeout_s or 32.0) - 5.0),
+                request_timeout_cap,
+            ),
+        )
+        if memory_state_contract or runtime_fact_status_contract or self_condition_contract:
+            request_timeout = min(request_timeout, 90.0)
+        if capability_inventory_contract:
+            request_timeout = min(request_timeout, 28.0)
+        style_contract = self._contract_safe(
+            context.get("response_style_contract"), self._STYLE_CONTRACT_LIMIT
+        )
+        visible_user_message = str(context.get("visible_user_message") or objective or "").strip()
+        recent_conversation_context = str(context.get("recent_conversation_context") or "").strip()
+        history_messages = _desktop_history_messages_from_context(context)
+        discourse_repair_contract = context.get("discourse_repair_contract")
+        if isinstance(discourse_repair_contract, dict):
+            from core.utils.injected_blocks import is_stamped_runtime_payload
+
+            if is_stamped_runtime_payload(discourse_repair_contract) and bool(
+                discourse_repair_contract.get("active")
+            ):
+                from core.conversation.discourse_repair_pursuit import (
+                    apply_repair_pursuit_to_history,
+                )
+
+                # The user's pursuit rejects the prior answer, not the earlier
+                # context.  Leaving that assistant text in history turns it
+                # into the strongest few-shot example for the replacement and
+                # reproduces the same evasion nearly verbatim.
+                history_messages = apply_repair_pursuit_to_history(
+                    history_messages,
+                    discourse_repair_contract,
+                )
+            else:
+                discourse_repair_contract = {}
+        live_speech_frame = context.get("live_speech_grounding_frame")
+        live_mind_context = context.get("live_mind_context")
+        live_mind_required = bool(context.get("live_mind_context_required", False))
+        # The visible request is bound before the cognitive loop starts. Use
+        # that turn-owned control contract here instead of deriving a second
+        # one from a later view of the same context. Two derivations produced
+        # requested-depth=2 in the parent and applied-depth=1 in the worker on
+        # one live turn, so neither receipt described the execution it judged.
+        live_mind_generation_controls = _bind_live_mind_generation_contract(context)
+        # The spiking model's temperature and top-p deltas reach the sampler
+        # here. Before this they were computed every turn and dropped, leaving
+        # a prompt sentence as the neurodynamics' only actuator.
+        live_mind_generation_controls = _apply_neurodynamic_sampling_bias(
+            live_mind_generation_controls, advice
+        )
+        context["live_mind_generation_controls"] = dict(
+            live_mind_generation_controls
+        )
+        live_mind_controls_bound = _live_mind_controls_bound(
+            live_mind_context,
+            live_mind_generation_controls,
+        )
+        # The three flags below gate the structured floors, which return
+        # self-condition, planning, capability and identity answers at high
+        # confidence with live-mind metadata attached. They used to be
+        # satisfiable from the caller's own context booleans — and the last
+        # branch re-derived controls_bound as True from them, bypassing
+        # _live_mind_controls_bound entirely. A caller could therefore mint a
+        # proof-bearing reply by asserting that it was entitled to one.
+        #
+        # A context fallback is still allowed, but only when the payload
+        # carries this runtime's stamp: then the booleans are the runtime's own
+        # summary of a snapshot it produced, not a claim about itself.
+        from core.utils.injected_blocks import is_stamped_runtime_payload
+
+        _context_attested = is_stamped_runtime_payload(live_mind_context)
+        live_mind_snapshot_ready = bool(
+            isinstance(live_mind_context, dict)
+            and isinstance(live_mind_context.get("mind_snapshot_quality"), dict)
+            and live_mind_context["mind_snapshot_quality"].get("ready")
+        )
+        if not live_mind_snapshot_ready and _context_attested:
+            live_mind_snapshot_ready = bool(context.get("live_mind_snapshot_ready"))
+        live_mind_required_subsystems_ok = bool(
+            isinstance(live_mind_context, dict)
+            and live_mind_context.get("required_subsystems_ok")
+        )
+        if not live_mind_required_subsystems_ok and _context_attested:
+            live_mind_required_subsystems_ok = bool(
+                context.get("live_mind_required_subsystems_ok")
+            )
+        # controls_bound comes from _live_mind_controls_bound and nowhere else.
+        # It used to be re-derived True here from the flags above, which is the
+        # check answering to the thing it was checking.
+        if live_mind_controls_bound and not (
+            live_mind_generation_controls
+            and live_mind_snapshot_ready
+            and live_mind_required_subsystems_ok
+        ):
+            live_mind_controls_bound = False
+        # A typed self-condition projection is evidence for Aura's answer, not
+        # Aura's answer.  Returning it here bypassed the resident model entirely
+        # and made an ordinary "how are you?" turn look like a health endpoint.
+        # Keep the projection in the grounded prompt below.  The route may use a
+        # visibly bounded projection only after model generation and one
+        # same-worker corrective attempt have both failed.
+        if bool(context.get("bounded_planning_contract")) and not bool(
+            context.get("require_full_foreground_mind_reply", False)
+        ):
+            bounded_reply = str(context.get("bounded_planning_reply") or "").strip()
+            if bounded_reply:
+                metadata = self._live_mind_structured_floor_metadata(
+                    context,
+                    source="cognitive_engine_bounded_planning",
+                )
+                metadata.update(
+                    {
+                        "response_path": "cognitive_engine_bounded_planning",
+                        "bounded_planning_contract": True,
+                        "bounded_planning_floor": True,
+                    }
+                )
+                return Thought(
+                    id=str(uuid.uuid4()),
+                    content=bounded_reply,
+                    mode=mode,
+                    confidence=0.88,
+                    reasoning=[
+                        "Bounded non-executing desktop planning was answered through the CognitiveEngine floor.",
+                        "The reply remained governed, non-executing, and attached to live mind proof metadata.",
+                    ],
+                    metadata=metadata,
+                )
+        if capability_inventory_contract:
+            grounded_inventory = str(
+                context.get("grounded_capability_inventory_context") or ""
+            ).strip()
+            if grounded_inventory:
+                metadata = self._live_mind_structured_floor_metadata(
+                    context,
+                    source="cognitive_engine_capability_catalog_grounding",
+                )
+                metadata.update(
+                    {
+                        "response_path": "cognitive_engine_capability_catalog_grounding",
+                        "capability_inventory_contract": True,
+                        "grounded_capability_inventory": True,
+                    }
+                )
+                return Thought(
+                    id=str(uuid.uuid4()),
+                    content=grounded_inventory,
+                    mode=mode,
+                    confidence=0.86,
+                    reasoning=[
+                        "Desktop capability inventory was grounded from the governed live capability catalog.",
+                        "No foreground model generation was required for this runtime-fact turn.",
+                    ],
+                    metadata=metadata,
+                )
+        if identity_continuity_contract:
+            grounded_identity = str(
+                context.get("grounded_identity_continuity_context") or ""
+            ).strip()
+            if grounded_identity:
+                metadata = self._live_mind_structured_floor_metadata(
+                    context,
+                    source="cognitive_engine_identity_continuity_grounding",
+                )
+                metadata.update(
+                    {
+                        "response_path": "cognitive_engine_identity_continuity_grounding",
+                        "identity_continuity_contract": True,
+                        "grounded_identity_continuity": True,
+                    }
+                )
+                return Thought(
+                    id=str(uuid.uuid4()),
+                    content=grounded_identity,
+                    mode=mode,
+                    confidence=0.88,
+                    reasoning=[
+                        "Identity and continuity were answered from canonical live identity grounding inside CognitiveEngine.",
+                        "The route had already bound live mind context and generation controls, so no recovery model cycle was needed.",
+                    ],
+                    metadata=metadata,
+                )
+        if router is None or not hasattr(router, "think"):
+            return None
+        live_runtime_required = bool(
+            context.get("live_runtime_payload_required", False)
+            or (live_mind_required and isinstance(live_mind_context, dict))
+        )
+        system_prompt, turn_dynamic_contracts = self._direct_desktop_quick_reply_authority_head_always(capability_inventory_contract, completion_retry_contract, continuation_contract, memory_state_contract, obligation_contract, runtime_fact_status_contract, self_condition_contract, style_contract, visible_user_message)
+        persona_contract = str(context.get("persona_system_prompt") or "").strip()
+        if persona_contract:
+            # CP126 ab3abbae: persona conditioning arrives as a structured
+            # context field and is applied here, at SYSTEM role. It used to be
+            # string-prepended into the user objective, where later objective
+            # text could override it and it polluted task semantics, caching,
+            # memory and audit attribution.
+            system_prompt = f"{system_prompt}\n[PERSONA CONTRACT]\n{persona_contract[:2000]}"
+        mind_context_contract = self._contract_safe(
+            context.get("mind_context_contract"), self._MIND_CONTRACT_LIMIT
+        )
+        # Per-turn control state belongs next to the turn it governs. Keeping it
+        # out of the stable system head lets the resident model reuse the full
+        # identity/persona prefix and prior conversation KV across turns.
+        contract_grounding_blocks: list[str] = list(turn_dynamic_contracts)
+        ambient_grounding_blocks, task_grounding_blocks = self._direct_desktop_quick_reply_task_grounding_blocks(capability_inventory_contract, live_mind_context, live_speech_frame, memory_state_contract, mind_context_contract, self_condition_contract)
+        user_prompt = visible_user_message or objective
+        try:
+            from core.senses.turn_evidence import sensory_evidence_grounding_block
+
+            turn_sensory_evidence = sensory_evidence_grounding_block(
+                context.get("turn_sensory_evidence")
+            )
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("Turn sensory evidence unavailable: %s", exc)
+            turn_sensory_evidence = ""
+        if turn_sensory_evidence:
+            task_grounding_blocks.append(turn_sensory_evidence)
+        action_episode_evidence = self._direct_desktop_quick_reply_context_challenge_evidence(canonical_memory_state_evidence, canonical_self_condition_context, context, contract_grounding_blocks, discourse_repair_contract, runtime_fact_status_contract, self_condition_contract, task_grounding_blocks, user_prompt)
 
         if recent_conversation_context and not history_messages:
             ambient_grounding_blocks.append(
@@ -5220,64 +5382,7 @@ class CognitiveEngine(_RunsItsAugmentors):
                 router_kwargs["user_surface_continuation_contract"] = True
                 router_kwargs["user_surface_continuation_partial"] = continuation_partial
             router_kwargs.update(resume_capability.context)
-            if obligation_contract:
-                router_kwargs["user_surface_obligation_contract"] = True
-                router_kwargs["user_surface_obligation_segment"] = obligation_segment
-            # The lesion for this channel is omission, not substitution: a
-            # neutral temperature is still a temperature somebody chose, and
-            # measuring against one would compare two mind-derived settings
-            # instead of comparing the mind's setting against its absence.
-            if not get_lesion_registry().is_lesioned(
-                influence_channels.LIVE_MIND_GENERATION_CONTROLS
-            ):
-                if "temperature" in live_mind_generation_controls:
-                    router_kwargs["temperature"] = live_mind_generation_controls["temperature"]
-                    router_kwargs["temp"] = live_mind_generation_controls["temperature"]
-                if "top_p" in live_mind_generation_controls:
-                    router_kwargs["top_p"] = live_mind_generation_controls["top_p"]
-            router_generation_metadata_sink: dict[str, Any] = {}
-            router_kwargs["_generation_metadata_sink"] = (
-                router_generation_metadata_sink
-            )
-            # The ninth clock, and the last hard one on this path.
-            #
-            # asyncio.wait_for cancels on a stopwatch and cannot tell a
-            # generation that is writing from one that has stopped. Every
-            # other clock a desktop turn passes through has been taught the
-            # difference; this one was still counting.
-            #
-            # LIVE 2026-08-29: asked what she could work out about herself
-            # from what she can measure, the turn ran 185 seconds and ended
-            # in "TimeoutError: <no message; raised in
-            # asyncio.timeouts:__aexit__>" — the empty message being what a
-            # stopwatch has to say about work it did not watch. The person got
-            # the canned apology.
-            #
-            # Same helper as the rest of them: it waits while tokens are
-            # arriving, gives up on silence, and is bounded by the turn's own
-            # ceiling. This origin is one a person types into, and the caller
-            # already said so.
-            from core.brain.llm_health_router import _await_while_it_is_working
-            from core.runtime.turn_origin import a_person_is_waiting
-
-            content = await _await_while_it_is_working(
-                router.think(**router_kwargs),
-                budget_s=request_timeout + 3.0,
-                user_facing=True,
-                # The bare origin, not the decorated one: every
-                # "desktop_quick_*" matches the foreground prefix, so asking
-                # about the decorated name says yes for an autonomous
-                # initiative too. The origin judged as itself is the fact.
-                person_is_waiting=a_person_is_waiting(
-                    origin, stated=context.get("a_person_is_waiting")
-                ),
-            )
-            if router_generation_metadata_sink:
-                router_generation_metadata = dict(router_generation_metadata_sink)
-            elif hasattr(router, "get_last_generation_metadata"):
-                raw_metadata = router.get_last_generation_metadata()
-                if isinstance(raw_metadata, dict):
-                    router_generation_metadata = dict(raw_metadata)
+            content, router_generation_metadata = await self._direct_desktop_quick_reply_part_6(context, live_mind_generation_controls, obligation_contract, obligation_segment, origin, request_timeout, router, router_generation_metadata, router_kwargs)
         except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
             record_degradation(
                 "cognitive_engine",
@@ -5343,36 +5448,7 @@ class CognitiveEngine(_RunsItsAugmentors):
         generation_stop_reason = str(
             surface_receipt.get("generation_stop_reason") or ""
         )
-        semantic_completion_incomplete = bool(
-            surface_receipt.get("semantic_completion_incomplete", False)
-        )
-        reply_generation_incomplete = bool(
-            semantic_completion_incomplete
-            or "truncated_tail" in surface_reasons
-            or generation_stop_reason
-            in {"max_tokens", "deadline_exceeded", "soft_cancelled"}
-            or _truncation_verdict(
-                text,
-                generation_stop_reason=generation_stop_reason,
-            )
-        )
-        if reply_generation_incomplete:
-            record_degradation(
-                "cognitive_engine",
-                RuntimeError("desktop_quick_reply_midsentence_cutoff"),
-                severity="info",
-                action=(
-                    "preserved a clipped draft as incomplete so the chat route can "
-                    "replace it with a full answer before surfacing"
-                ),
-            )
-        # 0.8 immediately after a nonempty generation, before user feedback,
-        # task outcome, factual verification, or even a correlated quality
-        # receipt — so a fluent failure reinforced the components that shaped
-        # it. The reply is not yet known to be good; what IS known is whether
-        # it came out whole. A reply the budget cut mid-sentence is the one
-        # signal available here, and it is negative.
-        _quick_reward = 0.4 if reply_generation_incomplete else 0.6
+        _quick_reward, reply_generation_incomplete = self._direct_desktop_quick_reply_semantic_completion_incomplete(generation_stop_reason, surface_reasons, surface_receipt, text)
         imagination_feedback = self._learn_imagination_workspace_outcome(
             context,
             outcome="desktop_quick_reply",

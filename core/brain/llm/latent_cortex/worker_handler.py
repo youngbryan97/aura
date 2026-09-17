@@ -418,6 +418,283 @@ def budget_from_job(job_budget: dict[str, Any] | None) -> ComputeBudget:
     return ComputeBudget(**kwargs)
 
 
+def _handle_latent_reason_admit_action_state_runtime(action_intervention, action_state_runtime_wire, worker_capture_launch_challenge, worker_capture_signing_identity, worker_identity):
+    from core.brain.llm.latent_cortex.action_state_runtime import (
+        admit_action_state_runtime,
+        resident_model_identity_for_worker,
+    )
+    from core.brain.llm.latent_cortex.runtime_identity import (
+        collect_latent_runtime_identity,
+    )
+
+    action_state_runtime = admit_action_state_runtime(
+        action_state_runtime_wire,
+        worker_launch_challenge=worker_capture_launch_challenge,
+        now_unix=int(time.time()),
+    )
+    actual_model_identity = resident_model_identity_for_worker(
+        worker_identity
+    )
+    if actual_model_identity != action_state_runtime.model_identity:
+        raise ValueError(
+            "action-state model identity differs from loaded resident"
+        )
+    if (
+        action_state_runtime.resident_worker_origin_binding.get(
+            "worker_identity"
+        )
+        != worker_capture_signing_identity.public_identity
+    ):
+        raise ValueError(
+            "action-state resident origin differs from this worker"
+        )
+    action_state_runtime_identity = collect_latent_runtime_identity(
+        Path(__file__).resolve().parents[4]
+    )
+    if action_state_runtime_identity.get("identity_bound") is not True:
+        raise ValueError("action-state runtime identity is unbound")
+    if action_state_runtime.mode == "capture" and action_intervention is not None:
+        raise ValueError("capture must precede action intervention")
+    if action_state_runtime.mode == "restore":
+        if action_intervention is None:
+            raise ValueError("restore requires an action intervention")
+        authority = action_intervention.get("authority_payload", {})
+        if authority.get("arm") != action_state_runtime.arm:
+            raise ValueError("restore arm differs from intervention")
+        capture_receipt = action_state_runtime.capture_receipt or {}
+        if (
+            authority.get("starting_state_components")
+            != capture_receipt.get("state_components")
+            or authority.get("expected_pre_state_sha256")
+            != capture_receipt.get("state_sha256")
+            or authority.get("expected_pre_kv_sha256")
+            != capture_receipt.get("state_components", {}).get(
+                "kv_cache_sha256"
+            )
+        ):
+            raise ValueError(
+                "restore capture receipt differs from intervention prestate"
+            )
+    return action_state_runtime, action_state_runtime_identity
+
+def _handle_latent_reason_build_critic_identity(candidate_verifier, config, job, worker_identity):
+    from core.brain.llm.latent_cortex.critic_identity import (
+        build_critic_identity,
+        build_shared_blind_spot_evidence,
+        validate_critic_identity,
+        validate_shared_blind_spot_evidence,
+    )
+
+    critic_identity = build_critic_identity(
+        candidate_verifier,
+        worker_identity=worker_identity,
+    )
+    critic_identity = validate_critic_identity(
+        critic_identity,
+        worker_identity=worker_identity,
+    )
+    generator_sha = critic_identity["generator_identity"]["function_sha256"]
+    critic_sha = critic_identity["critic_function_sha256"]
+    evidence = config.critic_blind_spot_evidence
+    if evidence is None:
+        evidence = build_shared_blind_spot_evidence(
+            bucket=f"{str(job.get('domain', 'general'))[:120]}|runtime",
+            generator_function_sha256=generator_sha,
+            critic_function_sha256=critic_sha,
+            checked_outcomes=[],
+        )
+    shared_blind_spots = validate_shared_blind_spot_evidence(
+        evidence,
+        generator_function_sha256=generator_sha,
+        critic_function_sha256=critic_sha,
+    )
+    if shared_blind_spots["critic_reliability_admitted"] is not True:
+        raise ValueError("shared_blind_spot_upper_bound_exceeded")
+    return critic_identity, shared_blind_spots
+
+def _handle_latent_reason_part_3(critic_identity, operation_authority, result, shared_blind_spots, task_verifier, tokenizer, verifier_requested, verifier_unavailable_reason, worker_identity):
+    if task_verifier is not None:
+        excluded = set(
+            result.receipt.verifier_preflight.get(
+                "control_evaluation_indices",
+                [],
+            )
+        )
+        excluded.update(
+            result.receipt.decoy_verification.get(
+                "control_evaluation_indices",
+                [],
+            )
+        )
+        result.receipt.verifier_guidance = task_verifier.to_receipt(
+            exclude_evaluation_indices=excluded,
+        )
+    elif verifier_requested:
+        # Legible in the receipt: downstream must be able to tell "no verifier
+        # was wanted" from "a verifier was wanted and could not be built".
+        if tokenizer is None:
+            result.receipt.verifier_guidance = {
+                "requested": True,
+                "available": False,
+                "reason": "tokenizer_unavailable",
+            }
+        else:
+            result.receipt.verifier_guidance = {
+                "requested": True,
+                "available": False,
+                "reason": verifier_unavailable_reason or "critic_unavailable",
+            }
+    receipt = result.receipt
+    receipt.critic_identity = dict(critic_identity)
+    receipt.shared_blind_spots = dict(shared_blind_spots)
+    if verifier_requested and task_verifier is None:
+        receipt.flag("critic_authority_unproven")
+    receipt.runtime_operation_authority = dict(operation_authority or {})
+    receipt.worker_boot_id = str(worker_identity.get("worker_boot_id") or "")
+    receipt.worker_pid = int(worker_identity.get("worker_pid") or 0)
+    receipt.worker_model_path = str(worker_identity.get("worker_model_path") or "")
+    receipt.worker_model_parameter_count = int(
+        worker_identity.get("worker_model_parameter_count") or 0
+    )
+    receipt.worker_model_stored_parameter_element_count = int(
+        worker_identity.get("worker_model_stored_parameter_element_count") or 0
+    )
+    receipt.worker_model_parameter_count_basis = str(
+        worker_identity.get("worker_model_parameter_count_basis") or ""
+    )
+    receipt.worker_source_sha256 = str(worker_identity.get("worker_source_sha256") or "")
+    receipt.worker_identity = dict(worker_identity)
+    receipt.worker_affective_steering_active = bool(
+        worker_identity.get("worker_affective_steering_active", False)
+    )
+    receipt.worker_affective_steering_alpha = float(
+        worker_identity.get("worker_affective_steering_alpha") or 0.0
+    )
+    return receipt
+
+def _handle_latent_reason_engine_measures_model(action_state_restore_receipt, action_state_runtime, job, model_path, public_action_state_receipt, receipt, result, tokenizer, worker_identity):
+    # The engine measures model state but cannot identify the worker process.
+    # Bind those measurements to this exact boot and serving stack before any
+    # caller is allowed to keep the resident worker alive.
+    from core.brain.llm.latent_cortex.runtime_integrity import (
+        bind_worker_runtime_integrity,
+        runtime_integrity_safe,
+    )
+
+    try:
+        receipt.runtime_integrity = bind_worker_runtime_integrity(
+            receipt.runtime_integrity,
+            worker_identity=worker_identity,
+        )
+    except (ImportError, TypeError, ValueError) as exc:
+        receipt.flag(f"runtime_integrity_binding_failed:{type(exc).__name__}")
+        result.ok = False
+        result.text = ""
+        result.tokens = []
+        result.reason = f"runtime integrity could not be proven: {exc}"
+
+    integrity_safe = runtime_integrity_safe(
+        receipt.runtime_integrity,
+        require_worker=True,
+        expected_episode_id=receipt.episode_id,
+        expected_input_tokens_sha256=receipt.input_tokens_sha256,
+        expected_worker_identity=worker_identity,
+        expected_fast_weights_applied=receipt.fast_weights_applied,
+        expected_fast_weights_attach_attempted=(
+            receipt.fast_weights_attach_attempted
+        ),
+        expected_checkpoint_fingerprint=receipt.checkpoint_fingerprint,
+        expected_checkpoint_method=receipt.checkpoint_fingerprint_method,
+        expected_checkpoint_file_count=receipt.checkpoint_file_count,
+    )
+    if not integrity_safe:
+        receipt.flag("runtime_integrity_unproven")
+        result.ok = False
+        result.text = ""
+        result.tokens = []
+        result.reason = result.reason or "runtime integrity is unproven"
+
+    if (
+        integrity_safe
+        and job.get("foreground_request") is True
+        and result.tokens
+        and "native_thinking_prefix_open" in receipt.honest_flags
+    ):
+        from core.brain.llm.chat_format import split_native_thinking_generation
+        from core.brain.llm.thinking_reserve import (
+            record_budget_that_ran_out_thinking,
+            record_reasoning_cost,
+        )
+
+        try:
+            channels = split_native_thinking_generation(
+                tokenizer.decode(result.tokens), native_thinking=True,
+            )
+            if channels.boundary_closed:
+                record_reasoning_cost(
+                    reasoning_chars=len(channels.reasoning),
+                    surface_chars=len(channels.surface),
+                    generated_tokens=len(result.tokens),
+                    model=model_path,
+                )
+            else:
+                # This is a censored observation: all observed tokens were
+                # private, regardless of which resource ended generation.
+                record_budget_that_ran_out_thinking(
+                    budget_tokens=len(result.tokens), model=model_path,
+                )
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            receipt.flag("native_thinking_cost_observation_failed")
+            logger.warning("Could not retain latent reasoning cost: %s", exc)
+
+    # The client performs the final causal-envelope reconstruction after it
+    # captures runtime/app provenance, but the worker boundary itself must
+    # already be complete and independently reconstructable.
+    from core.brain.llm.latent_cortex.causal_receipt import build_causal_receipt
+
+    receipt.causal_receipt = build_causal_receipt(receipt.to_dict())
+    body = result.to_dict()
+    body["status"] = "ok" if result.ok else "error"
+    if public_action_state_receipt is not None:
+        body["action_state_capture_receipt"] = dict(
+            public_action_state_receipt
+        )
+        body["action_state_runtime_mode"] = str(action_state_runtime.mode)
+    if action_state_restore_receipt is not None:
+        body["action_state_restore_receipt"] = dict(
+            action_state_restore_receipt
+        )
+    if not result.ok:
+        body["message"] = result.reason
+    # Compatibility booleans remain telemetry only. The measured, worker-bound
+    # proof is the sole authority for cache retention and process reuse.
+    body["requires_cache_clear"] = bool(
+        (
+            result.receipt.fast_weights_applied
+            or result.receipt.fast_weights_attach_attempted
+        )
+        and not integrity_safe
+    )
+    # Memory exhaustion is not a clean failure even when the erase proof
+    # holds: the process just could not get what it asked for, and the next
+    # episode inherits whatever fragmentation caused it.
+    memory_exhausted = "fallback_refused_memory_exhaustion" in set(
+        result.receipt.honest_flags
+    )
+    body["requires_worker_recycle"] = not integrity_safe or memory_exhausted
+    if not integrity_safe:
+        logger.warning(
+            "Latent episode returned no complete worker-bound runtime-integrity "
+            "proof; recycling rather than trusting unverified resident state."
+        )
+    if action_state_runtime is not None:
+        from core.brain.llm.latent_cortex.action_state_runtime import (
+            assert_public_runtime_result,
+        )
+
+        assert_public_runtime_result(body)
+    return body
+
 def handle_latent_reason(
     job: dict[str, Any],
     *,
@@ -675,62 +952,7 @@ def handle_latent_reason(
                 "message": "latent_reason action-state runtime lacks worker signer",
             }
         try:
-            from core.brain.llm.latent_cortex.action_state_runtime import (
-                admit_action_state_runtime,
-                resident_model_identity_for_worker,
-            )
-            from core.brain.llm.latent_cortex.runtime_identity import (
-                collect_latent_runtime_identity,
-            )
-
-            action_state_runtime = admit_action_state_runtime(
-                action_state_runtime_wire,
-                worker_launch_challenge=worker_capture_launch_challenge,
-                now_unix=int(time.time()),
-            )
-            actual_model_identity = resident_model_identity_for_worker(
-                worker_identity
-            )
-            if actual_model_identity != action_state_runtime.model_identity:
-                raise ValueError(
-                    "action-state model identity differs from loaded resident"
-                )
-            if (
-                action_state_runtime.resident_worker_origin_binding.get(
-                    "worker_identity"
-                )
-                != worker_capture_signing_identity.public_identity
-            ):
-                raise ValueError(
-                    "action-state resident origin differs from this worker"
-                )
-            action_state_runtime_identity = collect_latent_runtime_identity(
-                Path(__file__).resolve().parents[4]
-            )
-            if action_state_runtime_identity.get("identity_bound") is not True:
-                raise ValueError("action-state runtime identity is unbound")
-            if action_state_runtime.mode == "capture" and action_intervention is not None:
-                raise ValueError("capture must precede action intervention")
-            if action_state_runtime.mode == "restore":
-                if action_intervention is None:
-                    raise ValueError("restore requires an action intervention")
-                authority = action_intervention.get("authority_payload", {})
-                if authority.get("arm") != action_state_runtime.arm:
-                    raise ValueError("restore arm differs from intervention")
-                capture_receipt = action_state_runtime.capture_receipt or {}
-                if (
-                    authority.get("starting_state_components")
-                    != capture_receipt.get("state_components")
-                    or authority.get("expected_pre_state_sha256")
-                    != capture_receipt.get("state_sha256")
-                    or authority.get("expected_pre_kv_sha256")
-                    != capture_receipt.get("state_components", {}).get(
-                        "kv_cache_sha256"
-                    )
-                ):
-                    raise ValueError(
-                        "restore capture receipt differs from intervention prestate"
-                    )
+            action_state_runtime, action_state_runtime_identity = _handle_latent_reason_admit_action_state_runtime(action_intervention, action_state_runtime_wire, worker_capture_launch_challenge, worker_capture_signing_identity, worker_identity)
         except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
             return {
                 "status": "error",
@@ -826,38 +1048,7 @@ def handle_latent_reason(
             response_contract=str(response_contract or ""),
         )
         try:
-            from core.brain.llm.latent_cortex.critic_identity import (
-                build_critic_identity,
-                build_shared_blind_spot_evidence,
-                validate_critic_identity,
-                validate_shared_blind_spot_evidence,
-            )
-
-            critic_identity = build_critic_identity(
-                candidate_verifier,
-                worker_identity=worker_identity,
-            )
-            critic_identity = validate_critic_identity(
-                critic_identity,
-                worker_identity=worker_identity,
-            )
-            generator_sha = critic_identity["generator_identity"]["function_sha256"]
-            critic_sha = critic_identity["critic_function_sha256"]
-            evidence = config.critic_blind_spot_evidence
-            if evidence is None:
-                evidence = build_shared_blind_spot_evidence(
-                    bucket=f"{str(job.get('domain', 'general'))[:120]}|runtime",
-                    generator_function_sha256=generator_sha,
-                    critic_function_sha256=critic_sha,
-                    checked_outcomes=[],
-                )
-            shared_blind_spots = validate_shared_blind_spot_evidence(
-                evidence,
-                generator_function_sha256=generator_sha,
-                critic_function_sha256=critic_sha,
-            )
-            if shared_blind_spots["critic_reliability_admitted"] is not True:
-                raise ValueError("shared_blind_spot_upper_bound_exceeded")
+            critic_identity, shared_blind_spots = _handle_latent_reason_build_critic_identity(candidate_verifier, config, job, worker_identity)
             task_verifier = candidate_verifier
         except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
             verifier_unavailable_reason = f"critic_identity_or_reliability_unproven:{exc}"
@@ -1106,63 +1297,7 @@ def handle_latent_reason(
             action_state_store.close()
         if action_state_custodian is not None:
             action_state_custodian.close()
-    if task_verifier is not None:
-        excluded = set(
-            result.receipt.verifier_preflight.get(
-                "control_evaluation_indices",
-                [],
-            )
-        )
-        excluded.update(
-            result.receipt.decoy_verification.get(
-                "control_evaluation_indices",
-                [],
-            )
-        )
-        result.receipt.verifier_guidance = task_verifier.to_receipt(
-            exclude_evaluation_indices=excluded,
-        )
-    elif verifier_requested:
-        # Legible in the receipt: downstream must be able to tell "no verifier
-        # was wanted" from "a verifier was wanted and could not be built".
-        if tokenizer is None:
-            result.receipt.verifier_guidance = {
-                "requested": True,
-                "available": False,
-                "reason": "tokenizer_unavailable",
-            }
-        else:
-            result.receipt.verifier_guidance = {
-                "requested": True,
-                "available": False,
-                "reason": verifier_unavailable_reason or "critic_unavailable",
-            }
-    receipt = result.receipt
-    receipt.critic_identity = dict(critic_identity)
-    receipt.shared_blind_spots = dict(shared_blind_spots)
-    if verifier_requested and task_verifier is None:
-        receipt.flag("critic_authority_unproven")
-    receipt.runtime_operation_authority = dict(operation_authority or {})
-    receipt.worker_boot_id = str(worker_identity.get("worker_boot_id") or "")
-    receipt.worker_pid = int(worker_identity.get("worker_pid") or 0)
-    receipt.worker_model_path = str(worker_identity.get("worker_model_path") or "")
-    receipt.worker_model_parameter_count = int(
-        worker_identity.get("worker_model_parameter_count") or 0
-    )
-    receipt.worker_model_stored_parameter_element_count = int(
-        worker_identity.get("worker_model_stored_parameter_element_count") or 0
-    )
-    receipt.worker_model_parameter_count_basis = str(
-        worker_identity.get("worker_model_parameter_count_basis") or ""
-    )
-    receipt.worker_source_sha256 = str(worker_identity.get("worker_source_sha256") or "")
-    receipt.worker_identity = dict(worker_identity)
-    receipt.worker_affective_steering_active = bool(
-        worker_identity.get("worker_affective_steering_active", False)
-    )
-    receipt.worker_affective_steering_alpha = float(
-        worker_identity.get("worker_affective_steering_alpha") or 0.0
-    )
+    receipt = _handle_latent_reason_part_3(critic_identity, operation_authority, result, shared_blind_spots, task_verifier, tokenizer, verifier_requested, verifier_unavailable_reason, worker_identity)
     receipt.input_context_compaction = dict(context_compaction)
     control_state = dict(surface_control_state or {})
     applied_alpha = control_state.get("surface_alpha_applied")
@@ -1194,126 +1329,7 @@ def handle_latent_reason(
         verifier_guidance=True if job.get("verifier_guidance") else None,
         facet_reliability=job.get("facet_reliability"),
     )
-    # The engine measures model state but cannot identify the worker process.
-    # Bind those measurements to this exact boot and serving stack before any
-    # caller is allowed to keep the resident worker alive.
-    from core.brain.llm.latent_cortex.runtime_integrity import (
-        bind_worker_runtime_integrity,
-        runtime_integrity_safe,
-    )
-
-    try:
-        receipt.runtime_integrity = bind_worker_runtime_integrity(
-            receipt.runtime_integrity,
-            worker_identity=worker_identity,
-        )
-    except (ImportError, TypeError, ValueError) as exc:
-        receipt.flag(f"runtime_integrity_binding_failed:{type(exc).__name__}")
-        result.ok = False
-        result.text = ""
-        result.tokens = []
-        result.reason = f"runtime integrity could not be proven: {exc}"
-
-    integrity_safe = runtime_integrity_safe(
-        receipt.runtime_integrity,
-        require_worker=True,
-        expected_episode_id=receipt.episode_id,
-        expected_input_tokens_sha256=receipt.input_tokens_sha256,
-        expected_worker_identity=worker_identity,
-        expected_fast_weights_applied=receipt.fast_weights_applied,
-        expected_fast_weights_attach_attempted=(
-            receipt.fast_weights_attach_attempted
-        ),
-        expected_checkpoint_fingerprint=receipt.checkpoint_fingerprint,
-        expected_checkpoint_method=receipt.checkpoint_fingerprint_method,
-        expected_checkpoint_file_count=receipt.checkpoint_file_count,
-    )
-    if not integrity_safe:
-        receipt.flag("runtime_integrity_unproven")
-        result.ok = False
-        result.text = ""
-        result.tokens = []
-        result.reason = result.reason or "runtime integrity is unproven"
-
-    if (
-        integrity_safe
-        and job.get("foreground_request") is True
-        and result.tokens
-        and "native_thinking_prefix_open" in receipt.honest_flags
-    ):
-        from core.brain.llm.chat_format import split_native_thinking_generation
-        from core.brain.llm.thinking_reserve import (
-            record_budget_that_ran_out_thinking,
-            record_reasoning_cost,
-        )
-
-        try:
-            channels = split_native_thinking_generation(
-                tokenizer.decode(result.tokens), native_thinking=True,
-            )
-            if channels.boundary_closed:
-                record_reasoning_cost(
-                    reasoning_chars=len(channels.reasoning),
-                    surface_chars=len(channels.surface),
-                    generated_tokens=len(result.tokens),
-                    model=model_path,
-                )
-            else:
-                # This is a censored observation: all observed tokens were
-                # private, regardless of which resource ended generation.
-                record_budget_that_ran_out_thinking(
-                    budget_tokens=len(result.tokens), model=model_path,
-                )
-        except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
-            receipt.flag("native_thinking_cost_observation_failed")
-            logger.warning("Could not retain latent reasoning cost: %s", exc)
-
-    # The client performs the final causal-envelope reconstruction after it
-    # captures runtime/app provenance, but the worker boundary itself must
-    # already be complete and independently reconstructable.
-    from core.brain.llm.latent_cortex.causal_receipt import build_causal_receipt
-
-    receipt.causal_receipt = build_causal_receipt(receipt.to_dict())
-    body = result.to_dict()
-    body["status"] = "ok" if result.ok else "error"
-    if public_action_state_receipt is not None:
-        body["action_state_capture_receipt"] = dict(
-            public_action_state_receipt
-        )
-        body["action_state_runtime_mode"] = str(action_state_runtime.mode)
-    if action_state_restore_receipt is not None:
-        body["action_state_restore_receipt"] = dict(
-            action_state_restore_receipt
-        )
-    if not result.ok:
-        body["message"] = result.reason
-    # Compatibility booleans remain telemetry only. The measured, worker-bound
-    # proof is the sole authority for cache retention and process reuse.
-    body["requires_cache_clear"] = bool(
-        (
-            result.receipt.fast_weights_applied
-            or result.receipt.fast_weights_attach_attempted
-        )
-        and not integrity_safe
-    )
-    # Memory exhaustion is not a clean failure even when the erase proof
-    # holds: the process just could not get what it asked for, and the next
-    # episode inherits whatever fragmentation caused it.
-    memory_exhausted = "fallback_refused_memory_exhaustion" in set(
-        result.receipt.honest_flags
-    )
-    body["requires_worker_recycle"] = not integrity_safe or memory_exhausted
-    if not integrity_safe:
-        logger.warning(
-            "Latent episode returned no complete worker-bound runtime-integrity "
-            "proof; recycling rather than trusting unverified resident state."
-        )
-    if action_state_runtime is not None:
-        from core.brain.llm.latent_cortex.action_state_runtime import (
-            assert_public_runtime_result,
-        )
-
-        assert_public_runtime_result(body)
+    body = _handle_latent_reason_engine_measures_model(action_state_restore_receipt, action_state_runtime, job, model_path, public_action_state_receipt, receipt, result, tokenizer, worker_identity)
     return body
 
 

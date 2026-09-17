@@ -412,6 +412,99 @@ class CognitiveRoutingPhase(Phase):
             float(metadata.get("coding_complexity_score", 0.0) or 0.0),
         )
 
+    async def _execute_llm(self, analysis, is_user_facing, new_state, objective, priority, route_meta):
+        llm = self.kernel.organs["llm"].get_instance()
+
+        skill_hint = ""
+        try:
+            from core.container import ServiceContainer
+
+            cap = ServiceContainer.get("capability_engine", default=None)
+            if cap and hasattr(cap, "skills"):
+                names = sorted(cap.skills.keys())[:30]
+                skill_hint = "Available skills: " + ", ".join(names) + "\n"
+        except (ImportError, AttributeError, RuntimeError) as _exc:
+            _record_cognitive_routing_degradation(
+                _exc,
+                action="continued LLM classification without capability skill hint",
+            )
+            logger.debug("Suppressed Exception: %s", _exc)
+
+        prompt = (
+            f"{skill_hint}"
+            "Classify the following user input as exactly ONE of: CHAT, SKILL, TASK, or SYSTEM.\n"
+            "- CHAT: conversation, opinion, explanation, question, creative writing\n"
+            "- SKILL: single-step tool use — web search, file read, browser, memory lookup\n"
+            "- TASK: multi-step goal requiring planning — create X, build Y, research and write, automate, organize\n"
+            "- SYSTEM: reboot, shutdown, sleep, restart\n\n"
+            f"Input: {objective}\n"
+            "Classification (one word):"
+        )
+
+        res = ""
+        if hasattr(llm, "classify"):
+            res = await llm.classify(prompt)
+        else:
+            res = await llm.think(
+                prompt,
+                system_prompt="You are a routing classifier. Output ONLY one word: CHAT, SKILL, or SYSTEM.",
+                priority=priority,
+            )
+
+        res = str(res).strip().upper()
+        if "TASK" in res:
+            new_state.cognition.current_mode = CognitiveMode.DELIBERATE
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="TASK",
+                is_user_facing=is_user_facing,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
+        elif "SKILL" in res:
+            new_state.cognition.current_mode = CognitiveMode.REACTIVE
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="SKILL",
+                is_user_facing=is_user_facing,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
+        elif "SYSTEM" in res:
+            new_state.cognition.current_mode = CognitiveMode.REACTIVE
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="SYSTEM",
+                is_user_facing=is_user_facing,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
+        else:
+            new_state.cognition.current_mode = CognitiveMode.REACTIVE
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="CHAT",
+                is_user_facing=is_user_facing,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
+
+        new_state.world.recent_percepts.append(
+            {
+                "type": "goal_achieved",
+                "content": f"Routed intent: {new_state.response_modifiers['intent_type']}",
+                "intensity": 0.4,
+                "timestamp": time.time(),
+            }
+        )
+        logger.info(
+            "🧭 Routing: LLM classified → %s", new_state.response_modifiers["intent_type"]
+        )
+
     async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         priority = kwargs.get("priority", False)
         if not objective:
@@ -879,97 +972,7 @@ class CognitiveRoutingPhase(Phase):
                 )
                 return new_state
 
-            llm = self.kernel.organs["llm"].get_instance()
-
-            skill_hint = ""
-            try:
-                from core.container import ServiceContainer
-
-                cap = ServiceContainer.get("capability_engine", default=None)
-                if cap and hasattr(cap, "skills"):
-                    names = sorted(cap.skills.keys())[:30]
-                    skill_hint = "Available skills: " + ", ".join(names) + "\n"
-            except (ImportError, AttributeError, RuntimeError) as _exc:
-                _record_cognitive_routing_degradation(
-                    _exc,
-                    action="continued LLM classification without capability skill hint",
-                )
-                logger.debug("Suppressed Exception: %s", _exc)
-
-            prompt = (
-                f"{skill_hint}"
-                "Classify the following user input as exactly ONE of: CHAT, SKILL, TASK, or SYSTEM.\n"
-                "- CHAT: conversation, opinion, explanation, question, creative writing\n"
-                "- SKILL: single-step tool use — web search, file read, browser, memory lookup\n"
-                "- TASK: multi-step goal requiring planning — create X, build Y, research and write, automate, organize\n"
-                "- SYSTEM: reboot, shutdown, sleep, restart\n\n"
-                f"Input: {objective}\n"
-                "Classification (one word):"
-            )
-
-            res = ""
-            if hasattr(llm, "classify"):
-                res = await llm.classify(prompt)
-            else:
-                res = await llm.think(
-                    prompt,
-                    system_prompt="You are a routing classifier. Output ONLY one word: CHAT, SKILL, or SYSTEM.",
-                    priority=priority,
-                )
-
-            res = str(res).strip().upper()
-            if "TASK" in res:
-                new_state.cognition.current_mode = CognitiveMode.DELIBERATE
-                self._stamp_llm_route(
-                    new_state,
-                    objective=objective,
-                    intent_type="TASK",
-                    is_user_facing=is_user_facing,
-                    analysis=analysis,
-                    route_meta=route_meta,
-                )
-            elif "SKILL" in res:
-                new_state.cognition.current_mode = CognitiveMode.REACTIVE
-                self._stamp_llm_route(
-                    new_state,
-                    objective=objective,
-                    intent_type="SKILL",
-                    is_user_facing=is_user_facing,
-                    analysis=analysis,
-                    route_meta=route_meta,
-                )
-            elif "SYSTEM" in res:
-                new_state.cognition.current_mode = CognitiveMode.REACTIVE
-                self._stamp_llm_route(
-                    new_state,
-                    objective=objective,
-                    intent_type="SYSTEM",
-                    is_user_facing=is_user_facing,
-                    analysis=analysis,
-                    route_meta=route_meta,
-                )
-            else:
-                new_state.cognition.current_mode = CognitiveMode.REACTIVE
-                self._stamp_llm_route(
-                    new_state,
-                    objective=objective,
-                    intent_type="CHAT",
-                    is_user_facing=is_user_facing,
-                    analysis=analysis,
-                    route_meta=route_meta,
-                )
-
-            new_state.world.recent_percepts.append(
-                {
-                    "type": "goal_achieved",
-                    "content": f"Routed intent: {new_state.response_modifiers['intent_type']}",
-                    "intensity": 0.4,
-                    "timestamp": time.time(),
-                }
-            )
-            logger.info(
-                "🧭 Routing: LLM classified → %s", new_state.response_modifiers["intent_type"]
-            )
+            await self._execute_llm(analysis, is_user_facing, new_state, objective, priority, route_meta)
 
         except RuntimeError:
             logger.warning("🧭 Routing: LLM Organ not ready, defaulting to CHAT.")

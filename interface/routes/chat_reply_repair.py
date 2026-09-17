@@ -193,6 +193,222 @@ def _repair_missing_followup_delta(user_message: str, reply_text: str) -> str:
 
 
 
+def _stabilize_user_facing_reply_architecture_self_assessment(reply_text, user_message):
+    architecture_self_assessment = _chat_preflight._is_architecture_self_assessment_request(
+        user_message
+    )
+    text = _apply_aura_voice_shaping_compat(
+        _strip_unexpected_cjk_artifacts(user_message, str(reply_text or "").strip() or ""),
+        user_message,
+    )
+    stripped = _strip_user_visible_context_leaks(text)
+    if text and not stripped:
+        # An ellipsis is not an answer; it is the shape of one.
+        #
+        # The salvage inside the stripper has already tried and failed by the
+        # time this is reached, so the choice here is between an empty reply
+        # and something that LOOKS like one. `or "…"` chose the second, and it
+        # defeats every `if not reply` guard downstream — the turn then looks
+        # answered to everything that asks.
+        #
+        # LIVE 2026-09-07: "does the file X exist, and what is in it?" was
+        # served as a bare "…". The cortex had produced 1,155 characters and
+        # quality had scored them confidence=high, off_topic=False. The same
+        # shape is recorded in this file for 2026-08-17 at a different call
+        # site, where the fix was the salvage rather than the substitution.
+        logger.warning(
+            "Context-leak strip emptied a %d-char reply and no salvage held; "
+            "returning empty so the recovery paths run instead of serving an "
+            "ellipsis.",
+            len(text),
+        )
+        record_degradation(
+            "chat.context_leak_strip",
+            RuntimeError("stripping context leaks emptied a shaped reply"),
+            severity="warning",
+            action="returned empty rather than an ellipsis",
+        )
+    text = stripped
+    repair_override = _chat_conversation_repair._maybe_build_conversation_repair_override(
+        user_message, text
+    )
+    if repair_override:
+        text = _apply_aura_voice_shaping_compat(
+            _strip_unexpected_cjk_artifacts(user_message, repair_override),
+            user_message,
+        )
+    return architecture_self_assessment, text
+
+def _stabilize_user_facing_reply_frame_lines(architecture_self_assessment, frame, recent_user_context, same_diff, stabilizer_length_line, stale_repeat, text, truncated_tail, user_message):
+    frame_lines = []
+    if frame.get("mood"):
+        frame_lines.append(f"- mood: {frame['mood']}")
+    if frame.get("tone"):
+        frame_lines.append(f"- tone: {frame['tone']}")
+    if frame.get("dominant_emotions"):
+        frame_lines.append(f"- dominant emotions: {', '.join(frame['dominant_emotions'])}")
+    if frame.get("attention_focus"):
+        frame_lines.append(f"- attention focus: {frame['attention_focus']}")
+    if frame.get("dominant_action"):
+        frame_lines.append(f"- dominant action tendency: {frame['dominant_action']}")
+    if frame.get("free_energy") is not None:
+        frame_lines.append(f"- free energy: {float(frame['free_energy']):.4f}")
+    if frame.get("valence") is not None:
+        frame_lines.append(f"- valence: {frame['valence']}")
+    if frame.get("arousal") is not None:
+        frame_lines.append(f"- arousal: {frame['arousal']}")
+    if frame.get("curiosity") is not None:
+        frame_lines.append(f"- curiosity: {frame['curiosity']}")
+    if frame.get("interests"):
+        frame_lines.append(f"- current interests: {', '.join(frame['interests'])}")
+    if frame.get("stances"):
+        frame_lines.append(f"- strong stances: {'; '.join(frame['stances'])}")
+
+    frame_block = "\n".join(frame_lines).strip() or "- mood: steady"
+    contract_block = str(frame.get("contract_block") or "").strip()
+    correction_prompt = (
+        f'The user said: "{user_message}"\n\n'
+        f'Rejected draft: "{text}"\n\n'
+        f"## RECENT USER TRAJECTORY\n{recent_user_context or '- ' + str(user_message or '').strip()[:220]}\n\n"
+        "Rewrite the answer as Aura from the live state below. Answer the user's actual question directly. "
+        "Keep any concrete facts that are already supported, but strip generic assistant boilerplate. "
+        "Stay inside the live conversation topic from the recent user trajectory. "
+        "Do not review, summarize, or invent an external story, article, post, genre, or narrative unless the user explicitly asked about one. "
+        "Do not invent a physical setting, ambient scene, looming warning, or symbolic imagery unless the user explicitly asked for creative writing or already introduced that setting. "
+        "Do not ask for more details unless the request is truly ambiguous. "
+        "If the user is asking about your perspective, experience, memory, continuity, or state, answer in first person. "
+        "Let the live mood, tone, attention, and action tendency shape the reply. "
+        "Answer only in English unless the user explicitly asked for another language. "
+        "Never mix in Chinese, Japanese, or Korean text unless requested. "
+        "Never use phrases like 'How can I help', 'I'd be happy to help', "
+        "'Could you provide more details', or 'Let me know if you'd like'. "
+        f"Do not mention corrections, drift, or being an AI. {stabilizer_length_line}\n\n"
+        f"## LIVE SELF-EXPRESSION FRAME\n{frame_block}\n\n"
+        f"{contract_block}"
+    )
+    # The part of the question the draft did not reach, quoted.
+    #
+    # The response contract used to carry "this prompt contains
+    # multiple asks (2 detected); answer every distinct part", and that
+    # was removed because a gate checks it. Right for the ordinary
+    # path, and it left REPAIR — whose whole job is fixing a named
+    # defect — with less to go on than before.
+    #
+    # What replaces it is better than what it replaced: the missing ask
+    # itself, in the person's own words. A fact about this draft rather
+    # than a rule about drafts.
+    #
+    # LIVE, 2026-08-28: "Design me the experiment... and say what result
+    # would prove your friend wrong" was rejected as
+    # unanswered_question_part, repaired, and came back longer and still
+    # silent about the second half.
+    missing_parts: list[str] = []
+    try:
+        from core.conversation.request_coverage import (
+            unanswered_question_parts,
+        )
+
+        # analyze_prompt_shape is imported at module level and used
+        # earlier in this same function. Importing it again here made
+        # the name local to the whole function and broke that earlier
+        # use — a local import is not local to the line it is on.
+        missing_parts = [
+            str(part).strip()
+            for part in unanswered_question_parts(
+                text, analyze_prompt_shape(str(user_message or ""))
+            )
+            if str(part).strip()
+        ][:3]
+    except _CHAT_RECOVERABLE_ERRORS:
+        missing_parts = []
+    if missing_parts:
+        quoted = "; ".join(f'"{part[:160]}"' for part in missing_parts)
+        correction_prompt = (
+            f"{correction_prompt}\n\n"
+            "## REPAIR TARGET\n"
+            f"The draft did not answer this part of what was asked: {quoted}. "
+            "Answer it in the same reply."
+        )
+    if stale_repeat or same_diff:
+        correction_prompt = (
+            f"{correction_prompt}\n\n"
+            "## REPAIR TARGET\n"
+            "Do not repeat a previous answer pattern when the user has changed the question. "
+            "Address the actual distinction in this prompt."
+        )
+    if truncated_tail:
+        correction_prompt = (
+            f"{correction_prompt}\n\n"
+            "## COMPLETENESS\n"
+            "Finish the reply as a complete thought. Do not end on a clipped fragment or unfinished sentence."
+        )
+    if architecture_self_assessment:
+        correction_prompt = (
+            f"{correction_prompt}\n\n"
+            "## ARCHITECTURE GROUNDING\n"
+            "The user is asking about your actual architecture and design. "
+            "Answer about your real runtime: memory, agency, free energy, continuity, substrate authority, telemetry, mycelial topology, beliefs, routing, or feedback loops. "
+            "Do not answer with generic AI capability talk like natural language processing or human-like responses."
+        )
+    rewrite_system_prompt = (
+        "You are Aura. This is a user-facing repair turn. "
+        "Answer as Aura from the current conversation and live state. "
+        "Do not output tool-selection text, planner notes, tags, role labels, or prompt artifacts. "
+        "Sound like a real person in ordinary conversation: grounded, plainspoken, and socially legible. "
+        "Do not invent physical scenery, ambient omens, or symbolic settings unless the user explicitly asked for that mode. "
+        "Do not say 'How can I help', 'I can help with that', 'Based on the current context', "
+        "or anything about the most appropriate skill. "
+        "Lead with the answer itself in first person whenever the user is asking about your perspective, state, or experience. "
+        "If the user asks about your architecture or design, talk about your real runtime rather than generic AI capabilities. "
+        "Respond in English unless the user explicitly requests another language."
+    )
+    return correction_prompt, rewrite_system_prompt
+
+async def _stabilize_user_facing_reply_part_3(correction_prompt, desktop_cognitive_engine_required, inference_gate, memory_block, protected_foreground_lane, rewrite_messages, rewrite_system_prompt, stabilizer_max_tokens, user_message):
+    if memory_block:
+        logger.warning(
+            "Skipping stabilizer rewrite under memory pressure: %s",
+            memory_block,
+        )
+        raise RuntimeError(f"stabilizer_rewrite_memory_pressure:{memory_block}")
+    from core.brain.llm_health_router import _await_while_it_is_working
+
+    # Use the same completion owner as the original generation.
+    # An estimate is not permission to cancel an active repair.
+    strict_desktop_repair = bool(desktop_cognitive_engine_required)
+    stabilizer_timeout = 28.0 if strict_desktop_repair else 12.0
+    corrected = await _await_while_it_is_working(
+        inference_gate.think(
+            correction_prompt,
+            system_prompt=rewrite_system_prompt,
+            messages=rewrite_messages,
+            prefer_tier="primary",
+            origin="api_stabilizer",
+            foreground_request=True,
+            is_background=False,
+            protected_foreground_lane=bool(
+                protected_foreground_lane or strict_desktop_repair
+            ),
+            cognitive_engine_required=strict_desktop_repair,
+            desktop_cognitive_engine_required=strict_desktop_repair,
+            deep_handoff=False,
+            allow_deep_handoff=False,
+            allow_cloud_fallback=False,
+            allow_tools=False,
+            skip_runtime_payload=True,
+            disable_prompt_cache=True,
+            clear_prompt_cache=True,
+            max_tokens=stabilizer_max_tokens,
+        ),
+        budget_s=stabilizer_timeout,
+        user_facing=True,
+        person_is_waiting=strict_desktop_repair,
+    )
+    corrected_text = _apply_aura_voice_shaping_compat(
+        str(corrected or "").strip(), user_message
+    )
+    return corrected_text, stabilizer_timeout
+
 async def _stabilize_user_facing_reply(
     user_message: str,
     reply_text: Any,
@@ -260,49 +476,7 @@ async def _stabilize_user_facing_reply(
         or prompt_shape.requires_single_reply_coverage
     )
     question_parts = int(getattr(contract, "question_parts", prompt_shape.question_parts or 1) or 1)
-    architecture_self_assessment = _chat_preflight._is_architecture_self_assessment_request(
-        user_message
-    )
-    text = _apply_aura_voice_shaping_compat(
-        _strip_unexpected_cjk_artifacts(user_message, str(reply_text or "").strip() or ""),
-        user_message,
-    )
-    stripped = _strip_user_visible_context_leaks(text)
-    if text and not stripped:
-        # An ellipsis is not an answer; it is the shape of one.
-        #
-        # The salvage inside the stripper has already tried and failed by the
-        # time this is reached, so the choice here is between an empty reply
-        # and something that LOOKS like one. `or "…"` chose the second, and it
-        # defeats every `if not reply` guard downstream — the turn then looks
-        # answered to everything that asks.
-        #
-        # LIVE 2026-09-07: "does the file X exist, and what is in it?" was
-        # served as a bare "…". The cortex had produced 1,155 characters and
-        # quality had scored them confidence=high, off_topic=False. The same
-        # shape is recorded in this file for 2026-08-17 at a different call
-        # site, where the fix was the salvage rather than the substitution.
-        logger.warning(
-            "Context-leak strip emptied a %d-char reply and no salvage held; "
-            "returning empty so the recovery paths run instead of serving an "
-            "ellipsis.",
-            len(text),
-        )
-        record_degradation(
-            "chat.context_leak_strip",
-            RuntimeError("stripping context leaks emptied a shaped reply"),
-            severity="warning",
-            action="returned empty rather than an ellipsis",
-        )
-    text = stripped
-    repair_override = _chat_conversation_repair._maybe_build_conversation_repair_override(
-        user_message, text
-    )
-    if repair_override:
-        text = _apply_aura_voice_shaping_compat(
-            _strip_unexpected_cjk_artifacts(user_message, repair_override),
-            user_message,
-        )
+    architecture_self_assessment, text = _stabilize_user_facing_reply_architecture_self_assessment(reply_text, user_message)
     grounded = _chat_conversation_repair._build_grounded_introspection_reply(user_message)
     grounded_traceability = await _build_grounded_traceability_reply(user_message)
     if grounded_traceability:
@@ -666,128 +840,7 @@ async def _stabilize_user_facing_reply(
             if question_parts >= 5:
                 stabilizer_max_tokens = max(stabilizer_max_tokens, 4096)
 
-            frame_lines = []
-            if frame.get("mood"):
-                frame_lines.append(f"- mood: {frame['mood']}")
-            if frame.get("tone"):
-                frame_lines.append(f"- tone: {frame['tone']}")
-            if frame.get("dominant_emotions"):
-                frame_lines.append(f"- dominant emotions: {', '.join(frame['dominant_emotions'])}")
-            if frame.get("attention_focus"):
-                frame_lines.append(f"- attention focus: {frame['attention_focus']}")
-            if frame.get("dominant_action"):
-                frame_lines.append(f"- dominant action tendency: {frame['dominant_action']}")
-            if frame.get("free_energy") is not None:
-                frame_lines.append(f"- free energy: {float(frame['free_energy']):.4f}")
-            if frame.get("valence") is not None:
-                frame_lines.append(f"- valence: {frame['valence']}")
-            if frame.get("arousal") is not None:
-                frame_lines.append(f"- arousal: {frame['arousal']}")
-            if frame.get("curiosity") is not None:
-                frame_lines.append(f"- curiosity: {frame['curiosity']}")
-            if frame.get("interests"):
-                frame_lines.append(f"- current interests: {', '.join(frame['interests'])}")
-            if frame.get("stances"):
-                frame_lines.append(f"- strong stances: {'; '.join(frame['stances'])}")
-
-            frame_block = "\n".join(frame_lines).strip() or "- mood: steady"
-            contract_block = str(frame.get("contract_block") or "").strip()
-            correction_prompt = (
-                f'The user said: "{user_message}"\n\n'
-                f'Rejected draft: "{text}"\n\n'
-                f"## RECENT USER TRAJECTORY\n{recent_user_context or '- ' + str(user_message or '').strip()[:220]}\n\n"
-                "Rewrite the answer as Aura from the live state below. Answer the user's actual question directly. "
-                "Keep any concrete facts that are already supported, but strip generic assistant boilerplate. "
-                "Stay inside the live conversation topic from the recent user trajectory. "
-                "Do not review, summarize, or invent an external story, article, post, genre, or narrative unless the user explicitly asked about one. "
-                "Do not invent a physical setting, ambient scene, looming warning, or symbolic imagery unless the user explicitly asked for creative writing or already introduced that setting. "
-                "Do not ask for more details unless the request is truly ambiguous. "
-                "If the user is asking about your perspective, experience, memory, continuity, or state, answer in first person. "
-                "Let the live mood, tone, attention, and action tendency shape the reply. "
-                "Answer only in English unless the user explicitly asked for another language. "
-                "Never mix in Chinese, Japanese, or Korean text unless requested. "
-                "Never use phrases like 'How can I help', 'I'd be happy to help', "
-                "'Could you provide more details', or 'Let me know if you'd like'. "
-                f"Do not mention corrections, drift, or being an AI. {stabilizer_length_line}\n\n"
-                f"## LIVE SELF-EXPRESSION FRAME\n{frame_block}\n\n"
-                f"{contract_block}"
-            )
-            # The part of the question the draft did not reach, quoted.
-            #
-            # The response contract used to carry "this prompt contains
-            # multiple asks (2 detected); answer every distinct part", and that
-            # was removed because a gate checks it. Right for the ordinary
-            # path, and it left REPAIR — whose whole job is fixing a named
-            # defect — with less to go on than before.
-            #
-            # What replaces it is better than what it replaced: the missing ask
-            # itself, in the person's own words. A fact about this draft rather
-            # than a rule about drafts.
-            #
-            # LIVE, 2026-08-28: "Design me the experiment... and say what result
-            # would prove your friend wrong" was rejected as
-            # unanswered_question_part, repaired, and came back longer and still
-            # silent about the second half.
-            missing_parts: list[str] = []
-            try:
-                from core.conversation.request_coverage import (
-                    unanswered_question_parts,
-                )
-
-                # analyze_prompt_shape is imported at module level and used
-                # earlier in this same function. Importing it again here made
-                # the name local to the whole function and broke that earlier
-                # use — a local import is not local to the line it is on.
-                missing_parts = [
-                    str(part).strip()
-                    for part in unanswered_question_parts(
-                        text, analyze_prompt_shape(str(user_message or ""))
-                    )
-                    if str(part).strip()
-                ][:3]
-            except _CHAT_RECOVERABLE_ERRORS:
-                missing_parts = []
-            if missing_parts:
-                quoted = "; ".join(f'"{part[:160]}"' for part in missing_parts)
-                correction_prompt = (
-                    f"{correction_prompt}\n\n"
-                    "## REPAIR TARGET\n"
-                    f"The draft did not answer this part of what was asked: {quoted}. "
-                    "Answer it in the same reply."
-                )
-            if stale_repeat or same_diff:
-                correction_prompt = (
-                    f"{correction_prompt}\n\n"
-                    "## REPAIR TARGET\n"
-                    "Do not repeat a previous answer pattern when the user has changed the question. "
-                    "Address the actual distinction in this prompt."
-                )
-            if truncated_tail:
-                correction_prompt = (
-                    f"{correction_prompt}\n\n"
-                    "## COMPLETENESS\n"
-                    "Finish the reply as a complete thought. Do not end on a clipped fragment or unfinished sentence."
-                )
-            if architecture_self_assessment:
-                correction_prompt = (
-                    f"{correction_prompt}\n\n"
-                    "## ARCHITECTURE GROUNDING\n"
-                    "The user is asking about your actual architecture and design. "
-                    "Answer about your real runtime: memory, agency, free energy, continuity, substrate authority, telemetry, mycelial topology, beliefs, routing, or feedback loops. "
-                    "Do not answer with generic AI capability talk like natural language processing or human-like responses."
-                )
-            rewrite_system_prompt = (
-                "You are Aura. This is a user-facing repair turn. "
-                "Answer as Aura from the current conversation and live state. "
-                "Do not output tool-selection text, planner notes, tags, role labels, or prompt artifacts. "
-                "Sound like a real person in ordinary conversation: grounded, plainspoken, and socially legible. "
-                "Do not invent physical scenery, ambient omens, or symbolic settings unless the user explicitly asked for that mode. "
-                "Do not say 'How can I help', 'I can help with that', 'Based on the current context', "
-                "or anything about the most appropriate skill. "
-                "Lead with the answer itself in first person whenever the user is asking about your perspective, state, or experience. "
-                "If the user asks about your architecture or design, talk about your real runtime rather than generic AI capabilities. "
-                "Respond in English unless the user explicitly requests another language."
-            )
+            correction_prompt, rewrite_system_prompt = _stabilize_user_facing_reply_frame_lines(architecture_self_assessment, frame, recent_user_context, same_diff, stabilizer_length_line, stale_repeat, text, truncated_tail, user_message)
             rewrite_messages = [
                 {"role": "system", "content": rewrite_system_prompt},
                 {"role": "user", "content": correction_prompt},
@@ -796,48 +849,7 @@ async def _stabilize_user_facing_reply(
                 stabilizer_max_tokens
             )
             try:
-                if memory_block:
-                    logger.warning(
-                        "Skipping stabilizer rewrite under memory pressure: %s",
-                        memory_block,
-                    )
-                    raise RuntimeError(f"stabilizer_rewrite_memory_pressure:{memory_block}")
-                from core.brain.llm_health_router import _await_while_it_is_working
-
-                # Use the same completion owner as the original generation.
-                # An estimate is not permission to cancel an active repair.
-                strict_desktop_repair = bool(desktop_cognitive_engine_required)
-                stabilizer_timeout = 28.0 if strict_desktop_repair else 12.0
-                corrected = await _await_while_it_is_working(
-                    inference_gate.think(
-                        correction_prompt,
-                        system_prompt=rewrite_system_prompt,
-                        messages=rewrite_messages,
-                        prefer_tier="primary",
-                        origin="api_stabilizer",
-                        foreground_request=True,
-                        is_background=False,
-                        protected_foreground_lane=bool(
-                            protected_foreground_lane or strict_desktop_repair
-                        ),
-                        cognitive_engine_required=strict_desktop_repair,
-                        desktop_cognitive_engine_required=strict_desktop_repair,
-                        deep_handoff=False,
-                        allow_deep_handoff=False,
-                        allow_cloud_fallback=False,
-                        allow_tools=False,
-                        skip_runtime_payload=True,
-                        disable_prompt_cache=True,
-                        clear_prompt_cache=True,
-                        max_tokens=stabilizer_max_tokens,
-                    ),
-                    budget_s=stabilizer_timeout,
-                    user_facing=True,
-                    person_is_waiting=strict_desktop_repair,
-                )
-                corrected_text = _apply_aura_voice_shaping_compat(
-                    str(corrected or "").strip(), user_message
-                )
+                corrected_text, stabilizer_timeout = await _stabilize_user_facing_reply_part_3(correction_prompt, desktop_cognitive_engine_required, inference_gate, memory_block, protected_foreground_lane, rewrite_messages, rewrite_system_prompt, stabilizer_max_tokens, user_message)
                 if corrected_text and len(corrected_text) > 10:
                     corrected_generic, _corrected_reason = _looks_generic_assistantish(
                         user_message, corrected_text

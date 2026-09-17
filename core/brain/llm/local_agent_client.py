@@ -395,6 +395,126 @@ class LocalAgentClient(LocalBrain):
             return False
         return name in self._permitted_tool_names()
 
+    @staticmethod
+    def _think_and_act_gather_telemetry_header(context):
+        from core.container import ServiceContainer
+        # 1. Gather Telemetry for the Header
+        telemetry_header = ""
+        try:
+            metabolism = ServiceContainer.get("metabolic_monitor", default=None)
+            if metabolism:
+                snap = metabolism.get_current_metabolism()
+                telemetry_header += f"[METABOLIC LOAD: {snap.health_score * 100:.0f}%]\n"
+
+            affect = ServiceContainer.get("affect_engine", default=None)
+            if affect:
+                vad = affect.get_current_vad()
+                telemetry_header += f"[INTERNAL STATE: Valence={vad.get('valence', 0):.2f}, Arousal={vad.get('arousal', 0):.2f}]\n"
+        except _LOCAL_AGENT_RECOVERABLE_ERRORS as exc:
+            _record_agent_degradation(
+                exc,
+                stage="telemetry_header",
+                action="continued local agent loop without metabolic/affect telemetry header",
+            )
+
+        # 2. Build the Turn Input
+        #
+        # `is_impulse` and `is_internal` came straight out of the caller's
+        # context dict and rewrote the prompt into SYSTEM instructions or an
+        # autonomous goal — the two labels this loop treats as most
+        # authoritative. Nothing authenticated them and nothing in this
+        # repository sets them, so the only way either arrives is from outside,
+        # which means ordinary user text could be relabelled as Aura's own
+        # impulse by whoever composed the call.
+        #
+        # The flag now states an intent; the governed scope decides whether it
+        # is honoured. Internal cognition runs inside one, a request carrying
+        # user text does not, and a caller cannot enter one by setting a
+        # dictionary key.
+        requested_impulse = bool((context or {}).get("is_impulse", False))
+        return requested_impulse, telemetry_header
+
+    @staticmethod
+    def _think_and_act_generate_response(history, reinforced_system, turn):
+        # 1. Generate Response
+        _emit_agent_event(
+            f"Titan-Agent (Turn {turn + 1})",
+            "Formulating next action...",
+            level="info",
+        )
+
+        # Phase 24 Upgrade: Rolling Memory Compaction
+        try:
+            # We treat each turn as a string for now, but in future this should be structured
+            # For this implementation, we ensure token count stays light by pruning history
+            from .context_limit import get_context_manager
+
+            # Pruned against `system_prompt` while generation received
+            # `reinforced_system` — persona, runtime rules, tool lists,
+            # affordances, the whole assembled block, several times larger.
+            # The budget was therefore computed for a message that was
+            # never sent, and the real sequence could overflow the declared
+            # window, truncating either history or the governance
+            # instructions unpredictably. Budget what is sent.
+            history = get_context_manager(max_tokens=_AGENT_CONTEXT_TOKENS).prune(
+                history, reinforced_system
+            )
+        except (ImportError, AttributeError, RuntimeError) as e:
+            _record_agent_degradation(
+                e,
+                stage="history_compaction",
+                action="continued agent turn with unpruned history; context guard will retry next turn",
+            )
+            logger.debug("History pruning/compaction skipped: %s", e)
+
+        # Phase 24 Upgrade: Keep model in VRAM and cap context
+        # keep_alive was hard-coded to "24h" on every turn: one request
+        # pinned model residency for a day regardless of lane pressure,
+        # request class or ownership. Residency is a model-lane decision,
+        # not something a prompt option should assert per request, so this
+        # asks for nothing and leaves the lane's own policy in charge.
+        options = {
+            "num_ctx": _AGENT_CONTEXT_TOKENS,
+            "temperature": 0.7,
+        }
+        return history, options
+
+    @staticmethod
+    def _think_and_act_part_3(episode_nonce, result_str, tool_args, tool_duration_ms, tool_error, tool_ledger, tool_name, tool_ok, turn):
+        tool_ledger.append({
+            "call_id": f"{episode_nonce}-{len(tool_ledger) + 1}",
+            "tool": _tool_label(tool_name),
+            "turn": turn + 1,
+            "ok": tool_ok,
+            "args_sha256": _commitment(tool_args),
+            "result_sha256": _commitment(result_str),
+            "result_chars": len(str(result_str or "")),
+            "duration_ms": round(tool_duration_ms, 1),
+            **({"error": tool_error} if tool_error else {}),
+        })
+
+        # Emit result for visibility.
+        #
+        # This sent the complete JSON arguments and the first 200
+        # characters of the result to a shared UI/telemetry stream.
+        # Tool arguments routinely carry tokens, file paths, personal
+        # data and document contents; the stream is not the place they
+        # belong. The name, the argument KEYS, and a commitment to the
+        # values go out — enough to follow what she is doing, without
+        # publishing what she is doing it with.
+        _emit_agent_event(
+            f"Action ({_tool_label(tool_name)})",
+            f"fields={sorted(tool_args)[:12] if isinstance(tool_args, dict) else 'opaque'} "
+            f"args={_commitment(tool_args)}",
+            level="info",
+        )
+        _emit_agent_event(
+            f"Result ({_tool_label(tool_name)})",
+            f"{'completed' if tool_ok else 'failed'} in {tool_duration_ms:.0f}ms; "
+            f"{len(str(result_str or ''))} chars, result={_commitment(result_str)}",
+            level="success" if tool_ok else "warning",
+        )
+
     async def think_and_act(
         self,
         prompt: str,
@@ -492,40 +612,7 @@ class LocalAgentClient(LocalBrain):
         # Phase 24 Upgrade: Cognitive Header (Telemetry)
         from core.container import ServiceContainer
 
-        # 1. Gather Telemetry for the Header
-        telemetry_header = ""
-        try:
-            metabolism = ServiceContainer.get("metabolic_monitor", default=None)
-            if metabolism:
-                snap = metabolism.get_current_metabolism()
-                telemetry_header += f"[METABOLIC LOAD: {snap.health_score * 100:.0f}%]\n"
-
-            affect = ServiceContainer.get("affect_engine", default=None)
-            if affect:
-                vad = affect.get_current_vad()
-                telemetry_header += f"[INTERNAL STATE: Valence={vad.get('valence', 0):.2f}, Arousal={vad.get('arousal', 0):.2f}]\n"
-        except _LOCAL_AGENT_RECOVERABLE_ERRORS as exc:
-            _record_agent_degradation(
-                exc,
-                stage="telemetry_header",
-                action="continued local agent loop without metabolic/affect telemetry header",
-            )
-
-        # 2. Build the Turn Input
-        #
-        # `is_impulse` and `is_internal` came straight out of the caller's
-        # context dict and rewrote the prompt into SYSTEM instructions or an
-        # autonomous goal — the two labels this loop treats as most
-        # authoritative. Nothing authenticated them and nothing in this
-        # repository sets them, so the only way either arrives is from outside,
-        # which means ordinary user text could be relabelled as Aura's own
-        # impulse by whoever composed the call.
-        #
-        # The flag now states an intent; the governed scope decides whether it
-        # is honoured. Internal cognition runs inside one, a request carrying
-        # user text does not, and a caller cannot enter one by setting a
-        # dictionary key.
-        requested_impulse = bool((context or {}).get("is_impulse", False))
+        requested_impulse, telemetry_header = self._think_and_act_gather_telemetry_header(context)
         requested_internal = bool((context or {}).get("is_internal", False))
         internal_scope = _internal_execution_scope()
         is_impulse = requested_impulse and internal_scope
@@ -639,47 +726,7 @@ class LocalAgentClient(LocalBrain):
                     "Agent loop stopping early: loop detection unavailable."
                 )
                 break
-            # 1. Generate Response
-            _emit_agent_event(
-                f"Titan-Agent (Turn {turn + 1})",
-                "Formulating next action...",
-                level="info",
-            )
-
-            # Phase 24 Upgrade: Rolling Memory Compaction
-            try:
-                # We treat each turn as a string for now, but in future this should be structured
-                # For this implementation, we ensure token count stays light by pruning history
-                from .context_limit import get_context_manager
-
-                # Pruned against `system_prompt` while generation received
-                # `reinforced_system` — persona, runtime rules, tool lists,
-                # affordances, the whole assembled block, several times larger.
-                # The budget was therefore computed for a message that was
-                # never sent, and the real sequence could overflow the declared
-                # window, truncating either history or the governance
-                # instructions unpredictably. Budget what is sent.
-                history = get_context_manager(max_tokens=_AGENT_CONTEXT_TOKENS).prune(
-                    history, reinforced_system
-                )
-            except (ImportError, AttributeError, RuntimeError) as e:
-                _record_agent_degradation(
-                    e,
-                    stage="history_compaction",
-                    action="continued agent turn with unpruned history; context guard will retry next turn",
-                )
-                logger.debug("History pruning/compaction skipped: %s", e)
-
-            # Phase 24 Upgrade: Keep model in VRAM and cap context
-            # keep_alive was hard-coded to "24h" on every turn: one request
-            # pinned model residency for a day regardless of lane pressure,
-            # request class or ownership. Residency is a model-lane decision,
-            # not something a prompt option should assert per request, so this
-            # asks for nothing and leaves the lane's own policy in charge.
-            options = {
-                "num_ctx": _AGENT_CONTEXT_TOKENS,
-                "temperature": 0.7,
-            }
+            history, options = self._think_and_act_generate_response(history, reinforced_system, turn)
             try:
                 generated = await asyncio.wait_for(
                     self.generate(
@@ -839,39 +886,7 @@ class LocalAgentClient(LocalBrain):
                         )
                     tool_duration_ms = (time.monotonic() - _started) * 1000.0
 
-                tool_ledger.append({
-                    "call_id": f"{episode_nonce}-{len(tool_ledger) + 1}",
-                    "tool": _tool_label(tool_name),
-                    "turn": turn + 1,
-                    "ok": tool_ok,
-                    "args_sha256": _commitment(tool_args),
-                    "result_sha256": _commitment(result_str),
-                    "result_chars": len(str(result_str or "")),
-                    "duration_ms": round(tool_duration_ms, 1),
-                    **({"error": tool_error} if tool_error else {}),
-                })
-
-                # Emit result for visibility.
-                #
-                # This sent the complete JSON arguments and the first 200
-                # characters of the result to a shared UI/telemetry stream.
-                # Tool arguments routinely carry tokens, file paths, personal
-                # data and document contents; the stream is not the place they
-                # belong. The name, the argument KEYS, and a commitment to the
-                # values go out — enough to follow what she is doing, without
-                # publishing what she is doing it with.
-                _emit_agent_event(
-                    f"Action ({_tool_label(tool_name)})",
-                    f"fields={sorted(tool_args)[:12] if isinstance(tool_args, dict) else 'opaque'} "
-                    f"args={_commitment(tool_args)}",
-                    level="info",
-                )
-                _emit_agent_event(
-                    f"Result ({_tool_label(tool_name)})",
-                    f"{'completed' if tool_ok else 'failed'} in {tool_duration_ms:.0f}ms; "
-                    f"{len(str(result_str or ''))} chars, result={_commitment(result_str)}",
-                    level="success" if tool_ok else "warning",
-                )
+                self._think_and_act_part_3(episode_nonce, result_str, tool_args, tool_duration_ms, tool_error, tool_ledger, tool_name, tool_ok, turn)
 
                 # CP126 6a8225f5. result_str was interpolated wholesale, so
                 # one large tool result caused immediate context growth and

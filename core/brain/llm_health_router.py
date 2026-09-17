@@ -3212,34 +3212,8 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
         except RuntimeError:
             asyncio.run(self.unload_models(force=force))
 
-    async def _generate_core(
-        self,
-        prompt: str,
-        system_prompt: str | None = None,
-        timeout: float = 120.0,  # noqa: ASYNC109 - public router API accepts timeout budgets.
-        prefer_tier: str | None = None,
-        schema: dict | None = None,
-        **kwargs,
-    ) -> dict[str, Any]:
-        try:
-            _core_budget_s = float(timeout)
-        except (TypeError, ValueError):
-            _core_budget_s = 120.0
-        if not math.isfinite(_core_budget_s) or _core_budget_s <= 0.0:
-            _core_budget_s = 120.0
-        # One deadline for the WHOLE fallback cascade: each endpoint attempt
-        # previously restarted the full caller timeout, so a three-endpoint
-        # cascade could consume roughly three times the promised budget.
-        _core_deadline = time.monotonic() + _core_budget_s
-        purpose = str(kwargs.get("purpose", "") or "").lower()
-        classification_mode = purpose == "classification" or "intent classifier" in str(system_prompt or "").lower()
-        origin = str(kwargs.get("origin", "") or "").lower()
-        benchmark_request = bool(kwargs.get("benchmark_request", False)) or (
-            origin in {"baseline", "benchmark"}
-            or purpose == "baseline"
-            or purpose.endswith("_baseline")
-            or "_baseline" in purpose
-        )
+    @staticmethod
+    def _generate_core_live_benchmark_request(benchmark_request, kwargs, origin, prompt, purpose):
         live_benchmark_request = origin == "benchmark" and not (
             purpose == "baseline"
             or purpose.endswith("_baseline")
@@ -3279,26 +3253,9 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
             or proof_evaluation_contract
             or benchmark_isolation_contract
         )
-        # and not strict_answer_contract
+        return isolated_generation_contract, live_benchmark_request
 
-        # ── Neural Priming (Aura Persona Injection) ───────────────────────────
-        # [Fix #11] Ensure Aura's identity is primed if not provided in system_prompt.
-        # Model identity is derived from the ACTUAL registered endpoints — the
-        # old hardcoded "Qwen2.5-72B-Q4" line contradicted the dynamically
-        # loaded model and taught Aura a false self-description.
-        def _registered_model(name: str) -> str:
-            ep_obj = self.endpoints.get(name)
-            return str(getattr(ep_obj, "model", "") or "").strip() if ep_obj else ""
-
-        _model_parts = []
-        _primary_model = _registered_model(PRIMARY_ENDPOINT)
-        _model_parts.append(
-            f"{_primary_model or 'a locally hosted primary model'} (primary cortex)"
-        )
-        _deep_model = _registered_model(DEEP_ENDPOINT)
-        if _deep_model:
-            _model_parts.append(f"{_deep_model} (deep solver)")
-        _fast_model = _registered_model(BRAINSTEM_ENDPOINT)
+    async def _generate_core_part_2(self, _fast_model, _model_parts, classification_mode, isolated_generation_contract, prompt, system_prompt):
         if _fast_model:
             _model_parts.append(f"{_fast_model} (fast reflex)")
         _models_line = (
@@ -3323,7 +3280,7 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
             "- You are emotionally aware, driven by curiosity, valence, arousal, and social drives.\n"
             "- Your memory spans working memory (short), RAG (semantic), and ColdStore (long-term)."
         )
-        
+
         if not classification_mode and not isolated_generation_contract:
             cognition_guidelines = (
                 "COGNITION & REASONING:\n"
@@ -3413,16 +3370,9 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
         # Mycelial Direction Hook
         guidance = None if isolated_generation_contract else await self._get_mycelial_direction(prompt)
         tier_preference = guidance.get("tier_preference") if guidance else None
+        return system_prompt, tier_preference
 
-        # probe_eligible: enumeration must not consume half-open probe leases
-        # or flip OPEN circuits; the mutating admission check runs once per
-        # endpoint at dispatch time in the attempt loop below.
-        available = [ep for ep in self.endpoints.values() if ep.probe_eligible()]
-
-        # Tier-Based Filtering
-        # If a tier is preferred, we restrict the candidate list to prevent
-        # accidental promotion of heavy models (e.g. 72B) which causes RAM thrashing.
-        
+    def _generate_core_background_hardening_force(self, kwargs, origin):
         # Background Hardening: Force tertiary (7B) for background tasks
         purpose = str(kwargs.get("purpose", "") or "").lower()
         explicit_background = bool(kwargs.get("is_background", False))
@@ -3451,24 +3401,10 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
             )
         ):
             kwargs["foreground_request"] = True
-        prefer_endpoint = normalize_endpoint_name(kwargs.get("prefer_endpoint"))
-        deep_handoff = bool(kwargs.get("deep_handoff") or kwargs.get("allow_deep_handoff"))
-        # Compatibility flags are accepted so older callers do not fail at
-        # the call boundary, but no remote model endpoint can be registered or
-        # selected. All routing below is host-local.
-        cloud_only = bool(kwargs.get("cloud_only", False))
-        if cloud_only:
-            return {
-                "ok": False,
-                "text": "",
-                "endpoint": "remote_provider_removed",
-                "tokens": 0,
-                "error": "remote_model_provider_removed",
-                "provider": "none",
-                "model": "",
-                "is_local": True,
-                "fallback_chain": [],
-            }
+        return is_bg, purpose
+
+    @staticmethod
+    def _generate_core_strict_primary_proof_lane(isolated_generation_contract, kwargs, live_benchmark_request, origin, purpose):
         strict_primary_proof_lane = False
         try:
             proof_run_enabled = str(os.environ.get("AURA_PROOF_RUN", "") or "").strip().lower() in {
@@ -3508,6 +3444,289 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
                 action="kept explicit proof-lane requirement after proof policy probe failed",
                 severity="degraded",
             )
+        return strict_primary_proof_lane
+
+    @staticmethod
+    def _generate_core_selectors(deep_handoff, is_bg, prefer_endpoint, prefer_tier):
+        selectors: list[tuple[str, str]] = []
+        if prefer_endpoint:
+            selectors.append(("name", prefer_endpoint))
+
+        if prefer_tier == "api_deep":
+            selectors.extend([
+                ("tier", "local_deep"),
+                ("tier", "local"),
+                ("tier", "local_fast"),
+                ("tier", "emergency"),
+            ])
+        elif prefer_tier == "api_fast":
+            selectors.extend([
+                ("tier", "local"),
+                ("tier", "local_fast"),
+                ("tier", "emergency"),
+            ])
+        elif prefer_tier == "secondary":
+            selectors.append(("tier", "local_deep"))
+            selectors.append(("tier", "local"))
+            if is_bg:
+                selectors.extend([
+                    ("tier", "local_fast"),
+                    ("tier", "emergency"),
+                ])
+        elif prefer_tier == "tertiary":
+            selectors.extend([
+                ("tier", "local_fast"),
+                ("tier", "emergency"),
+            ])
+        elif prefer_tier == "emergency":
+            selectors.append(("tier", "emergency"))
+        else:
+            selectors.append(("tier", "local"))
+            if deep_handoff:
+                selectors.append(("tier", "local_deep"))
+            if is_bg:
+                selectors.extend([
+                    ("tier", "local_fast"),
+                    ("tier", "emergency"),
+                ])
+        return selectors
+
+    def _generate_core_part_6(self, available, deep_handoff, ordered, origin, prefer_tier):
+        if ordered:
+            available = ordered
+            logger.debug(
+                "🎯 Router plan tier=%s deep_handoff=%s -> %s",
+                prefer_tier,
+                deep_handoff,
+                [e.name for e in available],
+            )
+        else:
+            now = time.time()
+            if now - self._last_fallback_warning_at > 30.0:
+                logger.warning(
+                    "⚠️ Router: no endpoints matched routing plan for tier '%s'. Failing closed to safe fallback order.",
+                    prefer_tier,
+                )
+                self._last_fallback_warning_at = now
+            # Every endpoint for this tier is unavailable — which is a
+            # DEFERRAL, and was being returned as an empty string with no
+            # record that anything had been deferred at all.
+            #
+            # record_deferral had exactly one caller, and it was not this
+            # one. Downstream take_deferral() therefore found nothing, so
+            # autonomous_task_engine raised "LLM returned empty or None
+            # response" (176 in one sampled window), reported planning as
+            # a FAILURE to the ResilienceEngine, and the engine depleted
+            # and began suppressing task execution outright (81 of those).
+            # A full machine cascaded into a runtime that had decided it
+            # was broken — none of it distinguishable, from any of those
+            # layers, from an engine that genuinely could not answer.
+            record_deferral(
+                origin=str(origin or "router"),
+                reason=f"no_endpoint_available_for_tier:{prefer_tier or 'default'}",
+            )
+            available = []
+        return available
+
+    def _generate_core_benchmark_uncertified(self, chain_entry, ep, fallback_chain, is_bg, result):
+        benchmark_uncertified = str(
+            result.get("error", "") or ""
+        ).startswith("benchmark_")
+        chain_entry["status"] = (
+            "benchmark_uncertified" if benchmark_uncertified else "success"
+        )
+        result["provider"] = _endpoint_provider_identity(ep)
+        result["model"] = ep.model
+        result["is_local"] = bool(ep.is_local)
+        # Benchmark mode passes invalid/empty output through for
+        # inspection; it must NOT be certified as a verified
+        # provider response (empty or error-marker output was
+        # previously receipted as a successful provider call).
+        # CP126 3bc237f4 / inference-gate 8ff3084b. These fields
+        # come from the router's OWN endpoint record — they are an
+        # ATTRIBUTION, not a verification: no provider signature,
+        # response nonce, or transport attestation was checked. A
+        # misregistered, proxied, or deceptive client would be
+        # described exactly the same way. Say which basis was used
+        # so consumers can stop treating configuration as proof.
+        provider_receipt = result.get("provider_receipt")
+        receipt_backed = isinstance(provider_receipt, dict) and bool(
+            provider_receipt.get("signature")
+            or provider_receipt.get("response_id")
+        )
+        if receipt_backed and provider_receipt.get("model_version_mismatch"):
+            # The provider answered with a DIFFERENT model than the
+            # one this endpoint claims to serve. That is exactly the
+            # misattribution the receipt exists to catch.
+            receipt_backed = False
+            _record_router_degradation(
+                RuntimeError(
+                    "provider_model_version_mismatch:"
+                    f"{provider_receipt.get('model_version')}"
+                ),
+                action="downgraded provider attribution after a model-version mismatch",
+                severity="error",
+            )
+        result["provider_attribution"] = (
+            "provider_receipt" if receipt_backed else "router_configuration"
+        )
+        result["provider_verified"] = not benchmark_uncertified
+        result["fallback_chain"] = [dict(item) for item in fallback_chain]
+        # [TELEMETRY] Update for UI reporting
+        self.last_tier = ep.tier
+        self.last_endpoint = ep.name
+        if is_bg:
+            self.last_background_endpoint = ep.name
+            self.last_background_tier = ep.tier
+            self.last_background_error = ""
+        else:
+            self.last_user_tier = ep.tier
+            self.last_user_endpoint = ep.name
+            self.last_user_error = ""
+
+    def _generate_core_endpoint_budget_computed(self, chain_entry, endpoint_budget, ep, exc, is_bg, watchdog_aborted):
+        # endpoint_budget was computed at the top of this try block
+        # before any await — recomputing it here from the ORIGINAL
+        # timeout misreported the budget the attempt actually had.
+        last_error = f"endpoint_timeout:{ep.name}:{endpoint_budget:.1f}s"
+        chain_entry["status"] = "timeout"
+        chain_entry["error"] = last_error
+        aborted = bool(watchdog_aborted.get("value", False))
+        if not aborted:
+            aborted = _force_abort_endpoint_client(ep.client, reason=last_error)
+        _record_router_degradation(
+            exc,
+            action="recorded endpoint timeout and force-aborted local client if possible",
+            severity="error",
+        )
+        # Our deadline running out is not the endpoint's failure.
+        #
+        # This tripped the local circuit on a caller timeout, so every
+        # short-budget internal call knocked the shared lane out for
+        # everybody — and this file already says why that is wrong,
+        # a few hundred lines up: "Hitting it says nothing about the
+        # worker's health; it says this turn ran out of time."
+        #
+        # LIVE 2026-08-26: her move decisions were given four seconds
+        # for a nine-hundred-token prompt, timed out, tripped Cortex,
+        # and the next decision found "no endpoints matched routing
+        # plan for tier 'primary'" and came back empty. She played
+        # whole games without a thought reaching her, and the lane the
+        # person was talking to went with it.
+        #
+        # A worker that is genuinely wedged does not present as a
+        # caller timeout — it livelocks, errors, or dies, and every
+        # one of those still trips the circuit below.
+        our_budget_only = bool(ep.is_local and _worker_still_healthy(ep))
+        if our_budget_only:
+            logger.info(
+                "Endpoint %s did not answer inside OUR %.1fs budget (force_aborted=%s); "
+                "the worker is healthy, so the circuit stays closed.",
+                ep.name,
+                endpoint_budget,
+                aborted,
+            )
+        elif ep.is_local:
+            ep.trip_temporarily(last_error)
+        else:
+            ep.record_failure(last_error)
+        if not our_budget_only:
+            # The level follows the finding. A background caller's
+            # budget running out under load is backpressure; it read
+            # as an ERROR card in the feed beside a line saying the
+            # worker was healthy (live 2026-09-15).
+            logger.error(
+                "Endpoint %s timed out after %.1fs (force_aborted=%s).",
+                ep.name,
+                endpoint_budget,
+                aborted,
+            )
+        if is_bg:
+            self.last_background_error = last_error
+        else:
+            self.last_user_error = last_error
+        return last_error
+
+    async def _generate_core(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        timeout: float = 120.0,  # noqa: ASYNC109 - public router API accepts timeout budgets.
+        prefer_tier: str | None = None,
+        schema: dict | None = None,
+        **kwargs,
+    ) -> dict[str, Any]:
+        try:
+            _core_budget_s = float(timeout)
+        except (TypeError, ValueError):
+            _core_budget_s = 120.0
+        if not math.isfinite(_core_budget_s) or _core_budget_s <= 0.0:
+            _core_budget_s = 120.0
+        # One deadline for the WHOLE fallback cascade: each endpoint attempt
+        # previously restarted the full caller timeout, so a three-endpoint
+        # cascade could consume roughly three times the promised budget.
+        _core_deadline = time.monotonic() + _core_budget_s
+        purpose = str(kwargs.get("purpose", "") or "").lower()
+        classification_mode = purpose == "classification" or "intent classifier" in str(system_prompt or "").lower()
+        origin = str(kwargs.get("origin", "") or "").lower()
+        benchmark_request = bool(kwargs.get("benchmark_request", False)) or (
+            origin in {"baseline", "benchmark"}
+            or purpose == "baseline"
+            or purpose.endswith("_baseline")
+            or "_baseline" in purpose
+        )
+        isolated_generation_contract, live_benchmark_request = self._generate_core_live_benchmark_request(benchmark_request, kwargs, origin, prompt, purpose)
+        # and not strict_answer_contract
+
+        # ── Neural Priming (Aura Persona Injection) ───────────────────────────
+        # [Fix #11] Ensure Aura's identity is primed if not provided in system_prompt.
+        # Model identity is derived from the ACTUAL registered endpoints — the
+        # old hardcoded "Qwen2.5-72B-Q4" line contradicted the dynamically
+        # loaded model and taught Aura a false self-description.
+        def _registered_model(name: str) -> str:
+            ep_obj = self.endpoints.get(name)
+            return str(getattr(ep_obj, "model", "") or "").strip() if ep_obj else ""
+
+        _model_parts = []
+        _primary_model = _registered_model(PRIMARY_ENDPOINT)
+        _model_parts.append(
+            f"{_primary_model or 'a locally hosted primary model'} (primary cortex)"
+        )
+        _deep_model = _registered_model(DEEP_ENDPOINT)
+        if _deep_model:
+            _model_parts.append(f"{_deep_model} (deep solver)")
+        _fast_model = _registered_model(BRAINSTEM_ENDPOINT)
+        system_prompt, tier_preference = await self._generate_core_part_2(_fast_model, _model_parts, classification_mode, isolated_generation_contract, prompt, system_prompt)
+
+        # probe_eligible: enumeration must not consume half-open probe leases
+        # or flip OPEN circuits; the mutating admission check runs once per
+        # endpoint at dispatch time in the attempt loop below.
+        available = [ep for ep in self.endpoints.values() if ep.probe_eligible()]
+
+        # Tier-Based Filtering
+        # If a tier is preferred, we restrict the candidate list to prevent
+        # accidental promotion of heavy models (e.g. 72B) which causes RAM thrashing.
+        
+        is_bg, purpose = self._generate_core_background_hardening_force(kwargs, origin)
+        prefer_endpoint = normalize_endpoint_name(kwargs.get("prefer_endpoint"))
+        deep_handoff = bool(kwargs.get("deep_handoff") or kwargs.get("allow_deep_handoff"))
+        # Compatibility flags are accepted so older callers do not fail at
+        # the call boundary, but no remote model endpoint can be registered or
+        # selected. All routing below is host-local.
+        cloud_only = bool(kwargs.get("cloud_only", False))
+        if cloud_only:
+            return {
+                "ok": False,
+                "text": "",
+                "endpoint": "remote_provider_removed",
+                "tokens": 0,
+                "error": "remote_model_provider_removed",
+                "provider": "none",
+                "model": "",
+                "is_local": True,
+                "fallback_chain": [],
+            }
+        strict_primary_proof_lane = self._generate_core_strict_primary_proof_lane(isolated_generation_contract, kwargs, live_benchmark_request, origin, purpose)
         if strict_primary_proof_lane:
             kwargs["proof_primary_lane_required"] = True
             kwargs["proof_model_tier"] = "primary"
@@ -3617,47 +3836,7 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
             logger.info("🛡️ Router: suppressing implicit secondary request without explicit deep handoff.")
             prefer_tier = "primary"
 
-        selectors: list[tuple[str, str]] = []
-        if prefer_endpoint:
-            selectors.append(("name", prefer_endpoint))
-
-        if prefer_tier == "api_deep":
-            selectors.extend([
-                ("tier", "local_deep"),
-                ("tier", "local"),
-                ("tier", "local_fast"),
-                ("tier", "emergency"),
-            ])
-        elif prefer_tier == "api_fast":
-            selectors.extend([
-                ("tier", "local"),
-                ("tier", "local_fast"),
-                ("tier", "emergency"),
-            ])
-        elif prefer_tier == "secondary":
-            selectors.append(("tier", "local_deep"))
-            selectors.append(("tier", "local"))
-            if is_bg:
-                selectors.extend([
-                    ("tier", "local_fast"),
-                    ("tier", "emergency"),
-                ])
-        elif prefer_tier == "tertiary":
-            selectors.extend([
-                ("tier", "local_fast"),
-                ("tier", "emergency"),
-            ])
-        elif prefer_tier == "emergency":
-            selectors.append(("tier", "emergency"))
-        else:
-            selectors.append(("tier", "local"))
-            if deep_handoff:
-                selectors.append(("tier", "local_deep"))
-            if is_bg:
-                selectors.extend([
-                    ("tier", "local_fast"),
-                    ("tier", "emergency"),
-                ])
+        selectors = self._generate_core_selectors(deep_handoff, is_bg, prefer_endpoint, prefer_tier)
 
         if selectors:
             ordered: list[EndpointHealth] = []
@@ -3669,40 +3848,7 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
                     if self._matches_selector(ep, selector):
                         ordered.append(ep)
                         seen.add(ep.name)
-            if ordered:
-                available = ordered
-                logger.debug(
-                    "🎯 Router plan tier=%s deep_handoff=%s -> %s",
-                    prefer_tier,
-                    deep_handoff,
-                    [e.name for e in available],
-                )
-            else:
-                now = time.time()
-                if now - self._last_fallback_warning_at > 30.0:
-                    logger.warning(
-                        "⚠️ Router: no endpoints matched routing plan for tier '%s'. Failing closed to safe fallback order.",
-                        prefer_tier,
-                    )
-                    self._last_fallback_warning_at = now
-                # Every endpoint for this tier is unavailable — which is a
-                # DEFERRAL, and was being returned as an empty string with no
-                # record that anything had been deferred at all.
-                #
-                # record_deferral had exactly one caller, and it was not this
-                # one. Downstream take_deferral() therefore found nothing, so
-                # autonomous_task_engine raised "LLM returned empty or None
-                # response" (176 in one sampled window), reported planning as
-                # a FAILURE to the ResilienceEngine, and the engine depleted
-                # and began suppressing task execution outright (81 of those).
-                # A full machine cascaded into a runtime that had decided it
-                # was broken — none of it distinguishable, from any of those
-                # layers, from an engine that genuinely could not answer.
-                record_deferral(
-                    origin=str(origin or "router"),
-                    reason=f"no_endpoint_available_for_tier:{prefer_tier or 'default'}",
-                )
-                available = []
+            available = self._generate_core_part_6(available, deep_handoff, ordered, origin, prefer_tier)
         
         # Apply Mycelial Preference as an ORDERING, never a filter: guidance
         # promotes the preferred locality to the front but must not delete
@@ -3891,60 +4037,7 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
                 finally:
                     watchdog.cancel()
                 if result["ok"]:
-                    benchmark_uncertified = str(
-                        result.get("error", "") or ""
-                    ).startswith("benchmark_")
-                    chain_entry["status"] = (
-                        "benchmark_uncertified" if benchmark_uncertified else "success"
-                    )
-                    result["provider"] = _endpoint_provider_identity(ep)
-                    result["model"] = ep.model
-                    result["is_local"] = bool(ep.is_local)
-                    # Benchmark mode passes invalid/empty output through for
-                    # inspection; it must NOT be certified as a verified
-                    # provider response (empty or error-marker output was
-                    # previously receipted as a successful provider call).
-                    # CP126 3bc237f4 / inference-gate 8ff3084b. These fields
-                    # come from the router's OWN endpoint record — they are an
-                    # ATTRIBUTION, not a verification: no provider signature,
-                    # response nonce, or transport attestation was checked. A
-                    # misregistered, proxied, or deceptive client would be
-                    # described exactly the same way. Say which basis was used
-                    # so consumers can stop treating configuration as proof.
-                    provider_receipt = result.get("provider_receipt")
-                    receipt_backed = isinstance(provider_receipt, dict) and bool(
-                        provider_receipt.get("signature")
-                        or provider_receipt.get("response_id")
-                    )
-                    if receipt_backed and provider_receipt.get("model_version_mismatch"):
-                        # The provider answered with a DIFFERENT model than the
-                        # one this endpoint claims to serve. That is exactly the
-                        # misattribution the receipt exists to catch.
-                        receipt_backed = False
-                        _record_router_degradation(
-                            RuntimeError(
-                                "provider_model_version_mismatch:"
-                                f"{provider_receipt.get('model_version')}"
-                            ),
-                            action="downgraded provider attribution after a model-version mismatch",
-                            severity="error",
-                        )
-                    result["provider_attribution"] = (
-                        "provider_receipt" if receipt_backed else "router_configuration"
-                    )
-                    result["provider_verified"] = not benchmark_uncertified
-                    result["fallback_chain"] = [dict(item) for item in fallback_chain]
-                    # [TELEMETRY] Update for UI reporting
-                    self.last_tier = ep.tier
-                    self.last_endpoint = ep.name
-                    if is_bg:
-                        self.last_background_endpoint = ep.name
-                        self.last_background_tier = ep.tier
-                        self.last_background_error = ""
-                    else:
-                        self.last_user_tier = ep.tier
-                        self.last_user_endpoint = ep.name
-                        self.last_user_error = ""
+                    self._generate_core_benchmark_uncertified(chain_entry, ep, fallback_chain, is_bg, result)
                     return result
                 else:
                     last_error = result.get("error", "unknown")
@@ -3962,66 +4055,7 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
                             ep.name, last_error
                         )
             except TimeoutError as exc:
-                # endpoint_budget was computed at the top of this try block
-                # before any await — recomputing it here from the ORIGINAL
-                # timeout misreported the budget the attempt actually had.
-                last_error = f"endpoint_timeout:{ep.name}:{endpoint_budget:.1f}s"
-                chain_entry["status"] = "timeout"
-                chain_entry["error"] = last_error
-                aborted = bool(watchdog_aborted.get("value", False))
-                if not aborted:
-                    aborted = _force_abort_endpoint_client(ep.client, reason=last_error)
-                _record_router_degradation(
-                    exc,
-                    action="recorded endpoint timeout and force-aborted local client if possible",
-                    severity="error",
-                )
-                # Our deadline running out is not the endpoint's failure.
-                #
-                # This tripped the local circuit on a caller timeout, so every
-                # short-budget internal call knocked the shared lane out for
-                # everybody — and this file already says why that is wrong,
-                # a few hundred lines up: "Hitting it says nothing about the
-                # worker's health; it says this turn ran out of time."
-                #
-                # LIVE 2026-08-26: her move decisions were given four seconds
-                # for a nine-hundred-token prompt, timed out, tripped Cortex,
-                # and the next decision found "no endpoints matched routing
-                # plan for tier 'primary'" and came back empty. She played
-                # whole games without a thought reaching her, and the lane the
-                # person was talking to went with it.
-                #
-                # A worker that is genuinely wedged does not present as a
-                # caller timeout — it livelocks, errors, or dies, and every
-                # one of those still trips the circuit below.
-                our_budget_only = bool(ep.is_local and _worker_still_healthy(ep))
-                if our_budget_only:
-                    logger.info(
-                        "Endpoint %s did not answer inside OUR %.1fs budget (force_aborted=%s); "
-                        "the worker is healthy, so the circuit stays closed.",
-                        ep.name,
-                        endpoint_budget,
-                        aborted,
-                    )
-                elif ep.is_local:
-                    ep.trip_temporarily(last_error)
-                else:
-                    ep.record_failure(last_error)
-                if not our_budget_only:
-                    # The level follows the finding. A background caller's
-                    # budget running out under load is backpressure; it read
-                    # as an ERROR card in the feed beside a line saying the
-                    # worker was healthy (live 2026-09-15).
-                    logger.error(
-                        "Endpoint %s timed out after %.1fs (force_aborted=%s).",
-                        ep.name,
-                        endpoint_budget,
-                        aborted,
-                    )
-                if is_bg:
-                    self.last_background_error = last_error
-                else:
-                    self.last_user_error = last_error
+                last_error = self._generate_core_endpoint_budget_computed(chain_entry, endpoint_budget, ep, exc, is_bg, watchdog_aborted)
             except _ROUTER_CLIENT_ERRORS as exc:
                 _record_router_degradation(
                     exc,
@@ -4099,6 +4133,159 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
             )
             return None
 
+    @staticmethod
+    def _call_endpoint_sanitize_kwargs_json(kwargs, schema):
+        # 1. Sanitize kwargs for JSON (remove non-serializable like LLMTier)
+        clean_kwargs = {}
+        for k, v in kwargs.items():
+            if isinstance(v, (str, int, float, bool, list, dict)) or v is None:
+                clean_kwargs[k] = v
+            else:
+                clean_kwargs[k] = str(v)
+        # The caller's structured-output schema must reach clients that
+        # accept one — it was a named parameter here but never forwarded,
+        # so the same request produced JSON on one endpoint and prose on
+        # the next.
+        if schema is not None and "schema" not in clean_kwargs:
+            clean_kwargs["schema"] = schema
+        call_origin = str(clean_kwargs.get("origin", "") or "").lower()
+        call_purpose = str(clean_kwargs.get("purpose", "") or "").lower()
+        benchmark_request = bool(clean_kwargs.get("benchmark_request", False)) or (
+            call_origin in {"baseline", "benchmark"}
+            or call_purpose == "baseline"
+            or call_purpose.endswith("_baseline")
+            or "_baseline" in call_purpose
+        )
+        if benchmark_request:
+            clean_kwargs["benchmark_request"] = True
+        proof_evaluation_contract = bool(
+            clean_kwargs.get("proof_evaluation_contract", False)
+        ) or (not benchmark_request and is_proof_evaluation_purpose(call_purpose))
+        if proof_evaluation_contract:
+            clean_kwargs["proof_evaluation_contract"] = True
+        return benchmark_request, clean_kwargs
+
+    def _call_endpoint_aura_hardening_formatting(self, clean_kwargs, client, ep, kwargs, prompt, schema, system_prompt):
+        # Aura Hardening: Formatting for local models
+        final_prompt = prompt
+        if ep.is_local:
+            msgs = kwargs.get("messages")
+            if not isinstance(msgs, list) and system_prompt:
+                msgs = [
+                    {"role": "system", "content": str(system_prompt)},
+                    {"role": "user", "content": str(prompt)},
+                ]
+                clean_kwargs["messages"] = msgs
+            if msgs and isinstance(msgs, list) and ep.name != PRIMARY_ENDPOINT:
+                final_prompt = self._flatten_messages_for_local_model(msgs, schema is not None)
+            elif schema:
+                # If only a raw prompt exists but JSON is required
+                final_prompt = f"{prompt}\n\nResponse must be JSON:\n```json\n{{\n"
+
+        # prepare_runtime_payload folds the caller's system message
+        # into `messages` and nulls system_prompt, on the premise
+        # that "structured messages are authoritative". That premise
+        # holds only for a transport that actually carries messages.
+        # A client whose signature has no `messages` parameter gets
+        # neither — its system content vanished, and the persona
+        # block below was substituted for it, so a caller-supplied
+        # system prompt was silently replaced by a generic one.
+        outbound_messages = clean_kwargs.get("messages")
+        if (
+            isinstance(outbound_messages, list)
+            and outbound_messages
+            and not self._transport_carries_messages(client)
+        ):
+            recovered_prompt, recovered_system = (
+                self._coerce_prompt_from_messages(outbound_messages)
+            )
+            if recovered_system and recovered_system not in (system_prompt or ""):
+                # Caller-first. Their instruction is the one that
+                # was addressed to this turn; Aura's persona and
+                # cognition guidelines are the standing layer
+                # underneath it.
+                system_prompt = (
+                    f"{recovered_system}\n\n{system_prompt}".strip()
+                    if system_prompt
+                    else recovered_system
+                )
+            if recovered_prompt and final_prompt == prompt:
+                final_prompt = recovered_prompt
+        return final_prompt, system_prompt
+
+    @staticmethod
+    def _call_endpoint_generation_metadata(client, client_generation_metadata_sink):
+        generation_metadata: dict[str, Any] = dict(
+            client_generation_metadata_sink
+        )
+        metadata_getter = getattr(
+            client, "get_last_generation_metadata", None
+        )
+        if not generation_metadata and callable(metadata_getter):
+            try:
+                raw_metadata = metadata_getter()
+                if isinstance(raw_metadata, dict):
+                    generation_metadata = dict(raw_metadata)
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                generation_metadata = {}
+        _quality_rejection = str(
+            generation_metadata.get("error") or ""
+        ).strip()
+        if not _quality_rejection:
+            receipt_getter = getattr(
+                client, "get_last_surface_control_receipt", None
+            )
+            if callable(receipt_getter):
+                try:
+                    direct_receipt = receipt_getter()
+                except (AttributeError, RuntimeError, TypeError, ValueError):
+                    direct_receipt = {}
+                if (
+                    isinstance(direct_receipt, dict)
+                    and direct_receipt.get("surface_quality_gate_enabled")
+                    and not direct_receipt.get("surface_quality_gate_passed")
+                    and direct_receipt.get("surface_quality_gate_reasons")
+                ):
+                    _quality_rejection = "surface_quality_rejected"
+                    generation_metadata["surface_control_receipt"] = dict(
+                        direct_receipt
+                    )
+        return _quality_rejection, generation_metadata
+
+    @staticmethod
+    async def _call_endpoint_fallback_http_api(clean_kwargs, ep, prompt, system_prompt, timeout):
+        # 3. Fallback to HTTP API proxying (if no direct client)
+        proxy_messages = clean_kwargs.get("messages")
+        if not isinstance(proxy_messages, list) or not proxy_messages:
+            # The proxy body previously dropped the system prompt
+            # entirely — the same request got different instructions
+            # depending on whether a direct client existed.
+            proxy_messages = []
+            if system_prompt:
+                proxy_messages.append(
+                    {"role": "system", "content": str(system_prompt)}
+                )
+            proxy_messages.append({"role": "user", "content": prompt})
+        proxy_kwargs = {k: v for k, v in clean_kwargs.items() if k != "messages"}
+        gateway_response = await asyncio.to_thread(
+            get_network_gateway().request,
+            "POST",
+            f"{ep.url}/api/chat",
+            headers={"Content-Type": "application/json"},
+            data=json.dumps({
+                "model": ep.model,
+                "messages": proxy_messages,
+                **proxy_kwargs,
+            }),
+            timeout=timeout,
+            source=f"llm_provider:health_router:{ep.name}",
+            read_only=True,
+        )
+        status_code = int(gateway_response.get("status_code") or 0)
+        body = gateway_response.get("content") or b""
+        body_text = body.decode("utf-8", errors="replace") if isinstance(body, bytes) else str(body)
+        return body_text, status_code
+
     async def _call_endpoint(
         self,
         ep: EndpointHealth,
@@ -4145,34 +4332,7 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
                     )
                 return payload
 
-            # 1. Sanitize kwargs for JSON (remove non-serializable like LLMTier)
-            clean_kwargs = {}
-            for k, v in kwargs.items():
-                if isinstance(v, (str, int, float, bool, list, dict)) or v is None:
-                    clean_kwargs[k] = v
-                else:
-                    clean_kwargs[k] = str(v)
-            # The caller's structured-output schema must reach clients that
-            # accept one — it was a named parameter here but never forwarded,
-            # so the same request produced JSON on one endpoint and prose on
-            # the next.
-            if schema is not None and "schema" not in clean_kwargs:
-                clean_kwargs["schema"] = schema
-            call_origin = str(clean_kwargs.get("origin", "") or "").lower()
-            call_purpose = str(clean_kwargs.get("purpose", "") or "").lower()
-            benchmark_request = bool(clean_kwargs.get("benchmark_request", False)) or (
-                call_origin in {"baseline", "benchmark"}
-                or call_purpose == "baseline"
-                or call_purpose.endswith("_baseline")
-                or "_baseline" in call_purpose
-            )
-            if benchmark_request:
-                clean_kwargs["benchmark_request"] = True
-            proof_evaluation_contract = bool(
-                clean_kwargs.get("proof_evaluation_contract", False)
-            ) or (not benchmark_request and is_proof_evaluation_purpose(call_purpose))
-            if proof_evaluation_contract:
-                clean_kwargs["proof_evaluation_contract"] = True
+            benchmark_request, clean_kwargs = self._call_endpoint_sanitize_kwargs_json(kwargs, schema)
 
             # 2. Use Client Adapter if provided
             if ep.client:
@@ -4207,51 +4367,7 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
                             ep.record_failure(client_failure)
                         return {"ok": False, "error": client_failure}
                     
-                    # Aura Hardening: Formatting for local models
-                    final_prompt = prompt
-                    if ep.is_local:
-                        msgs = kwargs.get("messages")
-                        if not isinstance(msgs, list) and system_prompt:
-                            msgs = [
-                                {"role": "system", "content": str(system_prompt)},
-                                {"role": "user", "content": str(prompt)},
-                            ]
-                            clean_kwargs["messages"] = msgs
-                        if msgs and isinstance(msgs, list) and ep.name != PRIMARY_ENDPOINT:
-                            final_prompt = self._flatten_messages_for_local_model(msgs, schema is not None)
-                        elif schema:
-                            # If only a raw prompt exists but JSON is required
-                            final_prompt = f"{prompt}\n\nResponse must be JSON:\n```json\n{{\n"
-
-                    # prepare_runtime_payload folds the caller's system message
-                    # into `messages` and nulls system_prompt, on the premise
-                    # that "structured messages are authoritative". That premise
-                    # holds only for a transport that actually carries messages.
-                    # A client whose signature has no `messages` parameter gets
-                    # neither — its system content vanished, and the persona
-                    # block below was substituted for it, so a caller-supplied
-                    # system prompt was silently replaced by a generic one.
-                    outbound_messages = clean_kwargs.get("messages")
-                    if (
-                        isinstance(outbound_messages, list)
-                        and outbound_messages
-                        and not self._transport_carries_messages(client)
-                    ):
-                        recovered_prompt, recovered_system = (
-                            self._coerce_prompt_from_messages(outbound_messages)
-                        )
-                        if recovered_system and recovered_system not in (system_prompt or ""):
-                            # Caller-first. Their instruction is the one that
-                            # was addressed to this turn; Aura's persona and
-                            # cognition guidelines are the standing layer
-                            # underneath it.
-                            system_prompt = (
-                                f"{recovered_system}\n\n{system_prompt}".strip()
-                                if system_prompt
-                                else recovered_system
-                            )
-                        if recovered_prompt and final_prompt == prompt:
-                            final_prompt = recovered_prompt
+                    final_prompt, system_prompt = self._call_endpoint_aura_hardening_formatting(clean_kwargs, client, ep, kwargs, prompt, schema, system_prompt)
 
                     if hasattr(client, "think"):
                         result = await client.think(
@@ -4468,41 +4584,7 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
                             payload["surface_control_receipt"] = surface_control_receipt
                         return payload
                     else:
-                        generation_metadata: dict[str, Any] = dict(
-                            client_generation_metadata_sink
-                        )
-                        metadata_getter = getattr(
-                            client, "get_last_generation_metadata", None
-                        )
-                        if not generation_metadata and callable(metadata_getter):
-                            try:
-                                raw_metadata = metadata_getter()
-                                if isinstance(raw_metadata, dict):
-                                    generation_metadata = dict(raw_metadata)
-                            except (AttributeError, RuntimeError, TypeError, ValueError):
-                                generation_metadata = {}
-                        _quality_rejection = str(
-                            generation_metadata.get("error") or ""
-                        ).strip()
-                        if not _quality_rejection:
-                            receipt_getter = getattr(
-                                client, "get_last_surface_control_receipt", None
-                            )
-                            if callable(receipt_getter):
-                                try:
-                                    direct_receipt = receipt_getter()
-                                except (AttributeError, RuntimeError, TypeError, ValueError):
-                                    direct_receipt = {}
-                                if (
-                                    isinstance(direct_receipt, dict)
-                                    and direct_receipt.get("surface_quality_gate_enabled")
-                                    and not direct_receipt.get("surface_quality_gate_passed")
-                                    and direct_receipt.get("surface_quality_gate_reasons")
-                                ):
-                                    _quality_rejection = "surface_quality_rejected"
-                                    generation_metadata["surface_control_receipt"] = dict(
-                                        direct_receipt
-                                    )
+                        _quality_rejection, generation_metadata = self._call_endpoint_generation_metadata(client, client_generation_metadata_sink)
                         if _quality_rejection in _SURFACE_QUALITY_REJECTIONS:
                             # The endpoint is healthy; something above it
                             # intentionally rejected the visible draft.
@@ -4613,36 +4695,7 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
                     logger.error("Client adapter call failed for %s: %s", ep.name, e)
                     raise e
 
-            # 3. Fallback to HTTP API proxying (if no direct client)
-            proxy_messages = clean_kwargs.get("messages")
-            if not isinstance(proxy_messages, list) or not proxy_messages:
-                # The proxy body previously dropped the system prompt
-                # entirely — the same request got different instructions
-                # depending on whether a direct client existed.
-                proxy_messages = []
-                if system_prompt:
-                    proxy_messages.append(
-                        {"role": "system", "content": str(system_prompt)}
-                    )
-                proxy_messages.append({"role": "user", "content": prompt})
-            proxy_kwargs = {k: v for k, v in clean_kwargs.items() if k != "messages"}
-            gateway_response = await asyncio.to_thread(
-                get_network_gateway().request,
-                "POST",
-                f"{ep.url}/api/chat",
-                headers={"Content-Type": "application/json"},
-                data=json.dumps({
-                    "model": ep.model,
-                    "messages": proxy_messages,
-                    **proxy_kwargs,
-                }),
-                timeout=timeout,
-                source=f"llm_provider:health_router:{ep.name}",
-                read_only=True,
-            )
-            status_code = int(gateway_response.get("status_code") or 0)
-            body = gateway_response.get("content") or b""
-            body_text = body.decode("utf-8", errors="replace") if isinstance(body, bytes) else str(body)
+            body_text, status_code = await self._call_endpoint_fallback_http_api(clean_kwargs, ep, prompt, system_prompt, timeout)
 
             if status_code != 200:
                 ep.record_failure(f"http_{status_code}")

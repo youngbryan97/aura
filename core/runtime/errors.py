@@ -485,90 +485,7 @@ def get_escalation_governor() -> _EscalationGovernor:
 _ESCALATION_MARKER = "CRITICAL SERVICE FAILURE:"
 
 
-def record_degradation(
-    subsystem: str,
-    error: BaseException,
-    severity: Severity = "degraded",
-    action: str = "",
-    *,
-    classification: FallbackClassification | None = None,
-    receipt_required: bool = False,
-    extra: dict[str, Any] | None = None,
-    enforce_failure_policy: bool = True,
-) -> DegradationRecord:
-    """Record a degradation event: the canonical replacement for silent catch-alls.
-
-    Parameters
-    ----------
-    subsystem : str
-        Which subsystem degraded (e.g. "memory_facade", "phi_core").
-    error : BaseException
-        The caught exception.
-    severity : Severity
-        One of "debug", "warning", "degraded", "critical".
-    action : str
-        What the code did in response (e.g. "fell back to cache").
-    classification : FallbackClassification, optional
-        Risk classification of the fallback pathway.
-    receipt_required : bool
-        If True, emit a durable receipt to the ReceiptStore.
-    extra : dict, optional
-        Additional metadata for the receipt.
-
-    Returns
-    -------
-    DegradationRecord
-        The created record, for further programmatic use.
-    """
-    # ── Filter out expected async lifecycle events ────────────────────
-    # CancelledError is a normal part of asyncio shutdown, not real degradation.
-    # Recording it spikes frustration/depletion in the resilience engine and
-    # creates a feedback loop during graceful teardown.
-    import asyncio as _asyncio
-    if isinstance(error, (_asyncio.CancelledError, KeyboardInterrupt, SystemExit)):
-        logger.debug(
-            "[DEGRADATION] Suppressed expected lifecycle event in %s: %s: %s",
-            subsystem, type(error).__name__, str(error)[:100],
-        )
-        return DegradationRecord(
-            subsystem=subsystem, severity="debug",
-            error_type=type(error).__qualname__,
-            error_message=str(error)[:500],
-            action=action or "lifecycle event — not real degradation",
-            timestamp=time.time(),
-        )
-
-    # ── Skip during shutdown ─────────────────────────────────────────
-    _shutting_down = False
-    try:
-        from core.runtime.shutdown_coordinator import is_shutdown_requested
-        _shutting_down = is_shutdown_requested()
-    except (ImportError, RuntimeError) as _exc:
-        logger.debug("Suppressed %s in core.runtime.errors: %s", type(_exc).__name__, _exc)
-    if _shutting_down:
-        severity = "debug"  # Demote cleanup-time events during shutdown.
-    if classification in (FallbackClassification.GOVERNANCE_BYPASS, FallbackClassification.STATE_CORRUPTION_RISK):
-        # Trigger strict fail-closed exceptions
-        if classification == FallbackClassification.GOVERNANCE_BYPASS:
-            raise CapabilityDenied(f"Fail-Closed: Governance bypass detected in {subsystem}. original_error={error}")
-        else:
-            raise StateCoherenceFailure(f"Fail-Closed: State corruption risk detected in {subsystem}. original_error={error}")
-
-    # A timeout is backpressure, not a service death. A bounded wait expiring
-    # (asyncio.wait_for, generation-gate timeout) under load means the work
-    # yielded — the subsystem is slow, not broken. Escalating every such
-    # timeout on a fail-closed subsystem to a CRITICAL SERVICE FAILURE that
-    # RAISES drove the whole mind into unified_failure_lockdown 1.00 again and
-    # again this cycle: sovereign_pruner, dialectical_crucible, and
-    # cognitive_engine→agency_core goal-genesis all cascaded to a locked-down,
-    # tool-blocked, unhealthy runtime from a single slow background pass
-    # (observed live 2026-07-04/05). Genuine faults — crashes, corruption,
-    # validation, contract breaches — still fail closed with full force; only
-    # bare timeouts are demoted to a visible-but-non-fatal degradation.
-    # ``enforce_failure_policy=False`` callers opt out of the escalation
-    # entirely (they own their own backpressure discipline).
-    _is_timeout = isinstance(error, (TimeoutError, _asyncio.TimeoutError))
-
+def _record_degradation_admission_backpressure_decision(_is_timeout, _shutting_down, action, enforce_failure_policy, error, extra, receipt_required, severity, subsystem):
     # ── Admission backpressure is a DECISION, not a fault ─────────────
     # Warmup backoff, model-load admission refusal, spawn-gate contention and
     # crash-loop backoff are the runtime deliberately declining to start a
@@ -730,7 +647,7 @@ def record_degradation(
     # cost an hour of live forensics on 2026-07-10. The type plus the raise
     # site is the minimum useful identity.
     error_msg = str(error)[:500] or f"<no message; raised in {_raise_site(error)}>"
-    
+
     # [STABILITY v54] Demote expected background accessibility errors to debug
     if not failure_policy_violation and "background process lacks accessibility context" in error_msg:
         severity = "debug"
@@ -968,6 +885,98 @@ def record_degradation(
 
     if failure_policy_violation and enforce_failure_policy:
         raise RuntimeError(failure_policy_error)
+    return record
+
+def _record_degradation_skip_during_shutdown(action, classification, enforce_failure_policy, error, extra, receipt_required, severity, subsystem):
+    import asyncio as _asyncio
+    # ── Skip during shutdown ─────────────────────────────────────────
+    _shutting_down = False
+    try:
+        from core.runtime.shutdown_coordinator import is_shutdown_requested
+        _shutting_down = is_shutdown_requested()
+    except (ImportError, RuntimeError) as _exc:
+        logger.debug("Suppressed %s in core.runtime.errors: %s", type(_exc).__name__, _exc)
+    if _shutting_down:
+        severity = "debug"  # Demote cleanup-time events during shutdown.
+    if classification in (FallbackClassification.GOVERNANCE_BYPASS, FallbackClassification.STATE_CORRUPTION_RISK):
+        # Trigger strict fail-closed exceptions
+        if classification == FallbackClassification.GOVERNANCE_BYPASS:
+            raise CapabilityDenied(f"Fail-Closed: Governance bypass detected in {subsystem}. original_error={error}")
+        else:
+            raise StateCoherenceFailure(f"Fail-Closed: State corruption risk detected in {subsystem}. original_error={error}")
+
+    # A timeout is backpressure, not a service death. A bounded wait expiring
+    # (asyncio.wait_for, generation-gate timeout) under load means the work
+    # yielded — the subsystem is slow, not broken. Escalating every such
+    # timeout on a fail-closed subsystem to a CRITICAL SERVICE FAILURE that
+    # RAISES drove the whole mind into unified_failure_lockdown 1.00 again and
+    # again this cycle: sovereign_pruner, dialectical_crucible, and
+    # cognitive_engine→agency_core goal-genesis all cascaded to a locked-down,
+    # tool-blocked, unhealthy runtime from a single slow background pass
+    # (observed live 2026-07-04/05). Genuine faults — crashes, corruption,
+    # validation, contract breaches — still fail closed with full force; only
+    # bare timeouts are demoted to a visible-but-non-fatal degradation.
+    # ``enforce_failure_policy=False`` callers opt out of the escalation
+    # entirely (they own their own backpressure discipline).
+    _is_timeout = isinstance(error, (TimeoutError, _asyncio.TimeoutError))
+
+    record = _record_degradation_admission_backpressure_decision(_is_timeout, _shutting_down, action, enforce_failure_policy, error, extra, receipt_required, severity, subsystem)
+    return record
+
+def record_degradation(
+    subsystem: str,
+    error: BaseException,
+    severity: Severity = "degraded",
+    action: str = "",
+    *,
+    classification: FallbackClassification | None = None,
+    receipt_required: bool = False,
+    extra: dict[str, Any] | None = None,
+    enforce_failure_policy: bool = True,
+) -> DegradationRecord:
+    """Record a degradation event: the canonical replacement for silent catch-alls.
+
+    Parameters
+    ----------
+    subsystem : str
+        Which subsystem degraded (e.g. "memory_facade", "phi_core").
+    error : BaseException
+        The caught exception.
+    severity : Severity
+        One of "debug", "warning", "degraded", "critical".
+    action : str
+        What the code did in response (e.g. "fell back to cache").
+    classification : FallbackClassification, optional
+        Risk classification of the fallback pathway.
+    receipt_required : bool
+        If True, emit a durable receipt to the ReceiptStore.
+    extra : dict, optional
+        Additional metadata for the receipt.
+
+    Returns
+    -------
+    DegradationRecord
+        The created record, for further programmatic use.
+    """
+    # ── Filter out expected async lifecycle events ────────────────────
+    # CancelledError is a normal part of asyncio shutdown, not real degradation.
+    # Recording it spikes frustration/depletion in the resilience engine and
+    # creates a feedback loop during graceful teardown.
+    import asyncio as _asyncio
+    if isinstance(error, (_asyncio.CancelledError, KeyboardInterrupt, SystemExit)):
+        logger.debug(
+            "[DEGRADATION] Suppressed expected lifecycle event in %s: %s: %s",
+            subsystem, type(error).__name__, str(error)[:100],
+        )
+        return DegradationRecord(
+            subsystem=subsystem, severity="debug",
+            error_type=type(error).__qualname__,
+            error_message=str(error)[:500],
+            action=action or "lifecycle event — not real degradation",
+            timestamp=time.time(),
+        )
+
+    record = _record_degradation_skip_during_shutdown(action, classification, enforce_failure_policy, error, extra, receipt_required, severity, subsystem)
 
     return record
 

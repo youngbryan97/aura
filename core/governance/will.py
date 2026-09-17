@@ -540,6 +540,162 @@ class UnifiedWill:
     # THE SINGLE DECISION METHOD
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _decide_existential_stakes_check(domain, is_critical, source):
+        # ── 0. EXISTENTIAL STAKES CHECK: Is the system under severe resource threat? ──
+        survival_veto = False
+        survival_reason = ""
+        try:
+            stakes = ServiceContainer.get("existential_stakes", default=None)
+            if stakes:
+                threat = stakes.get_existential_threat()
+                # If threat exceeds 0.75, we trigger survival veto for non-critical/heavy actions
+                if threat > 0.75 and not is_critical:
+                    # Heavy action domains or non-critical sources
+                    if domain.value in {
+                        "tool_execution",
+                        "self_modification",
+                        "external_action",
+                        "network_call",
+                        "cloud_call",
+                        "file_write",
+                        "ci_cd"
+                    } or source in {"explore", "proactive_agent", "initiative_loop"}:
+                        survival_veto = True
+                        survival_reason = f"survival_inhibition: existential threat level critical ({threat:.2f})"
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
+            record_degradation(
+                "will.existential_stakes",
+                e,
+                severity="warning",
+                action="continued decision check without existential stakes veto",
+            )
+        return survival_reason, survival_veto
+
+    def _decide_inject_scar_constraints(self, catatonia_relief, constraints, content, context, domain, outcome, reason, scar_constraints):
+        # ── 9b. Inject scar constraints (learned caution from experience) ─
+        if scar_constraints:
+            constraints.extend(scar_constraints)
+            if outcome == WillOutcome.PROCEED:
+                outcome = WillOutcome.CONSTRAIN
+                reason = "scar_caution: " + "; ".join(scar_constraints)
+
+        if catatonia_relief and outcome in (WillOutcome.PROCEED, WillOutcome.CONSTRAIN):
+            constraints.append("catatonia_relief:self_repair_lane")
+            constraints.append("catatonia_relief:no_external_effects")
+            if outcome == WillOutcome.PROCEED:
+                outcome = WillOutcome.CONSTRAIN
+                reason = "catatonia_relief: reserved self-repair lane"
+
+        # ── 9c. PERMISSION RISK MODEL GATE ───────────────────────────
+        try:
+            pm = ServiceContainer.get("permission_model", default=None)
+            if pm and self._permission_model_applies(domain):
+                permission_effect_scope = ""
+                permission_execution_risk = ""
+                if domain == ActionDomain.TOOL_EXECUTION:
+                    tool_name = str(
+                        context.get("tool") or context.get("skill") or ""
+                    ).strip()
+                    if not tool_name and content.startswith("tool:"):
+                        tool_name = content.split(":", 1)[1].split()[0].strip()
+                    permission_effect_scope = resolve_execution_effect_scope(
+                        tool_name,
+                        context,
+                    )
+                    permission_execution_risk = classify_execution_risk(
+                        tool_name,
+                        context,
+                        effect_scope=permission_effect_scope,
+                    )
+                pm_decision = pm.check_permission(
+                    domain.value,
+                    content,
+                    context,
+                    effect_scope=permission_effect_scope,
+                    execution_risk=permission_execution_risk,
+                )
+                if not pm_decision.approved:
+                    if pm_decision.requires_confirmation:
+                        outcome = WillOutcome.DEFER
+                        reason = f"permission_model_requires_confirmation: {pm_decision.reason}"
+                        constraints.append("requires_user_confirmation")
+                    else:
+                        outcome = WillOutcome.REFUSE
+                        reason = f"permission_model_blocked: {pm_decision.reason}"
+                        constraints.append("permission_blocked")
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as pm_err:
+            record_degradation(
+                "will.permission_model",
+                pm_err,
+                severity="degraded",
+                action="refused decision because permission model check failed",
+            )
+            outcome = WillOutcome.REFUSE
+            reason = "permission_model_check_failed"
+            constraints.append("permission_model_failure")
+        return outcome, reason
+
+    def _decide_part_3(self, decision, domain, latency_stages, outcome, reason, source):
+        if decision.latency_ms > 250.0:
+            logger.info(
+                "Will decision latency diagnostic: total_ms=%.1f domain=%s "
+                "source=%s stages=%s",
+                decision.latency_ms,
+                domain.value,
+                source,
+                {
+                    name: round(duration_ms, 2)
+                    for name, duration_ms in latency_stages
+                },
+            )
+
+        # ── 6. UPDATE WILL STATE ────────────────────────────────────
+        self._update_will_state(decision)
+        self._record(decision)
+
+        # ── 6b. CONSEQUENCE BUS: publish decision outcome ──────────
+        self._publish_to_consequence_bus(decision, domain, source)
+
+        # ── 6c. Reliability: tracing + SLO integration ─────────────
+        # Feed decision latency into SLO monitor for live burn-rate tracking.
+        # REFUSE decisions get a force-sampled trace span plus a fault-registry
+        # occurrence (defined as NEGLIGIBLE/recovered: governance working as
+        # designed, kept for forensic traceability, never health pollution).
+        try:
+            from slo.slo_monitor import get_slo_monitor
+            get_slo_monitor().record("will_decision_p95_ms", decision.latency_ms)
+        except (ImportError, AttributeError, RuntimeError):
+            pass
+        if outcome == WillOutcome.REFUSE:
+            try:
+                from core.observability.tracing import get_tracer
+                from core.resilience.fault_taxonomy import get_fault_registry
+                with get_tracer().span(
+                    "will.refuse",
+                    attributes={
+                        "will.domain": domain.value,
+                        "will.source": source,
+                        "will.reason": reason[:120],
+                        "will.latency_ms": round(decision.latency_ms, 3),
+                    },
+                    force_sample=True,
+                ):
+                    get_fault_registry().record_fault(
+                        "WILL-REFUSE", subsystem=f"will.{source}",
+                        details=f"domain={domain.value} reason={reason[:80]}",
+                        recovered=True,
+                    )
+            except (ImportError, AttributeError, RuntimeError):
+                pass
+
+        if outcome == WillOutcome.REFUSE:
+            logger.info("WILL REFUSED: %s/%s -- %s", source, domain.value, reason)
+        elif outcome == WillOutcome.DEFER:
+            logger.info("WILL DEFERRED: %s/%s -- %s", source, domain.value, reason)
+        elif outcome == WillOutcome.CONSTRAIN:
+            logger.debug("WILL CONSTRAINED: %s/%s -- %s", source, domain.value, reason)
+
     def decide(
         self,
         content: str,
@@ -651,34 +807,7 @@ class UnifiedWill:
             self._record(decision)
             return decision
 
-        # ── 0. EXISTENTIAL STAKES CHECK: Is the system under severe resource threat? ──
-        survival_veto = False
-        survival_reason = ""
-        try:
-            stakes = ServiceContainer.get("existential_stakes", default=None)
-            if stakes:
-                threat = stakes.get_existential_threat()
-                # If threat exceeds 0.75, we trigger survival veto for non-critical/heavy actions
-                if threat > 0.75 and not is_critical:
-                    # Heavy action domains or non-critical sources
-                    if domain.value in {
-                        "tool_execution",
-                        "self_modification",
-                        "external_action",
-                        "network_call",
-                        "cloud_call",
-                        "file_write",
-                        "ci_cd"
-                    } or source in {"explore", "proactive_agent", "initiative_loop"}:
-                        survival_veto = True
-                        survival_reason = f"survival_inhibition: existential threat level critical ({threat:.2f})"
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
-            record_degradation(
-                "will.existential_stakes",
-                e,
-                severity="warning",
-                action="continued decision check without existential stakes veto",
-            )
+        survival_reason, survival_veto = self._decide_existential_stakes_check(domain, is_critical, source)
 
         if survival_veto:
             decision = WillDecision(
@@ -771,67 +900,7 @@ class UnifiedWill:
         )
         mark_latency_stage("policy_compose")
 
-        # ── 9b. Inject scar constraints (learned caution from experience) ─
-        if scar_constraints:
-            constraints.extend(scar_constraints)
-            if outcome == WillOutcome.PROCEED:
-                outcome = WillOutcome.CONSTRAIN
-                reason = "scar_caution: " + "; ".join(scar_constraints)
-
-        if catatonia_relief and outcome in (WillOutcome.PROCEED, WillOutcome.CONSTRAIN):
-            constraints.append("catatonia_relief:self_repair_lane")
-            constraints.append("catatonia_relief:no_external_effects")
-            if outcome == WillOutcome.PROCEED:
-                outcome = WillOutcome.CONSTRAIN
-                reason = "catatonia_relief: reserved self-repair lane"
-
-        # ── 9c. PERMISSION RISK MODEL GATE ───────────────────────────
-        try:
-            pm = ServiceContainer.get("permission_model", default=None)
-            if pm and self._permission_model_applies(domain):
-                permission_effect_scope = ""
-                permission_execution_risk = ""
-                if domain == ActionDomain.TOOL_EXECUTION:
-                    tool_name = str(
-                        context.get("tool") or context.get("skill") or ""
-                    ).strip()
-                    if not tool_name and content.startswith("tool:"):
-                        tool_name = content.split(":", 1)[1].split()[0].strip()
-                    permission_effect_scope = resolve_execution_effect_scope(
-                        tool_name,
-                        context,
-                    )
-                    permission_execution_risk = classify_execution_risk(
-                        tool_name,
-                        context,
-                        effect_scope=permission_effect_scope,
-                    )
-                pm_decision = pm.check_permission(
-                    domain.value,
-                    content,
-                    context,
-                    effect_scope=permission_effect_scope,
-                    execution_risk=permission_execution_risk,
-                )
-                if not pm_decision.approved:
-                    if pm_decision.requires_confirmation:
-                        outcome = WillOutcome.DEFER
-                        reason = f"permission_model_requires_confirmation: {pm_decision.reason}"
-                        constraints.append("requires_user_confirmation")
-                    else:
-                        outcome = WillOutcome.REFUSE
-                        reason = f"permission_model_blocked: {pm_decision.reason}"
-                        constraints.append("permission_blocked")
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as pm_err:
-            record_degradation(
-                "will.permission_model",
-                pm_err,
-                severity="degraded",
-                action="refused decision because permission model check failed",
-            )
-            outcome = WillOutcome.REFUSE
-            reason = "permission_model_check_failed"
-            constraints.append("permission_model_failure")
+        outcome, reason = self._decide_inject_scar_constraints(catatonia_relief, constraints, content, context, domain, outcome, reason, scar_constraints)
 
         # ── 9d. ULYSSES COVENANT: bindings signed by a calmer self ──
         outcome, reason, constraints = self._consult_ulysses_covenant(
@@ -891,64 +960,7 @@ class UnifiedWill:
             substrate_receipt_id=substrate_receipt,
         )
         mark_latency_stage("receipt_construct")
-        if decision.latency_ms > 250.0:
-            logger.info(
-                "Will decision latency diagnostic: total_ms=%.1f domain=%s "
-                "source=%s stages=%s",
-                decision.latency_ms,
-                domain.value,
-                source,
-                {
-                    name: round(duration_ms, 2)
-                    for name, duration_ms in latency_stages
-                },
-            )
-
-        # ── 6. UPDATE WILL STATE ────────────────────────────────────
-        self._update_will_state(decision)
-        self._record(decision)
-
-        # ── 6b. CONSEQUENCE BUS: publish decision outcome ──────────
-        self._publish_to_consequence_bus(decision, domain, source)
-
-        # ── 6c. Reliability: tracing + SLO integration ─────────────
-        # Feed decision latency into SLO monitor for live burn-rate tracking.
-        # REFUSE decisions get a force-sampled trace span plus a fault-registry
-        # occurrence (defined as NEGLIGIBLE/recovered: governance working as
-        # designed, kept for forensic traceability, never health pollution).
-        try:
-            from slo.slo_monitor import get_slo_monitor
-            get_slo_monitor().record("will_decision_p95_ms", decision.latency_ms)
-        except (ImportError, AttributeError, RuntimeError):
-            pass
-        if outcome == WillOutcome.REFUSE:
-            try:
-                from core.observability.tracing import get_tracer
-                from core.resilience.fault_taxonomy import get_fault_registry
-                with get_tracer().span(
-                    "will.refuse",
-                    attributes={
-                        "will.domain": domain.value,
-                        "will.source": source,
-                        "will.reason": reason[:120],
-                        "will.latency_ms": round(decision.latency_ms, 3),
-                    },
-                    force_sample=True,
-                ):
-                    get_fault_registry().record_fault(
-                        "WILL-REFUSE", subsystem=f"will.{source}",
-                        details=f"domain={domain.value} reason={reason[:80]}",
-                        recovered=True,
-                    )
-            except (ImportError, AttributeError, RuntimeError):
-                pass
-
-        if outcome == WillOutcome.REFUSE:
-            logger.info("WILL REFUSED: %s/%s -- %s", source, domain.value, reason)
-        elif outcome == WillOutcome.DEFER:
-            logger.info("WILL DEFERRED: %s/%s -- %s", source, domain.value, reason)
-        elif outcome == WillOutcome.CONSTRAIN:
-            logger.debug("WILL CONSTRAINED: %s/%s -- %s", source, domain.value, reason)
+        self._decide_part_3(decision, domain, latency_stages, outcome, reason, source)
 
         return decision
 

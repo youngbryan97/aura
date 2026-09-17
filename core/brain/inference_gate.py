@@ -7761,6 +7761,286 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             return text.replace(token, "").strip()
         return text
 
+    @staticmethod
+    async def _tool_grounded_answer_part_1(ceiling, client, decode_budget, evidence, origin, required, text, timeout_s, tools):
+        logger.info(
+            "🔧 Tool handoff: wanted=%s offered=%s",
+            ",".join(required),
+            ",".join(sorted(tools)),
+        )
+        # The receipts this loop writes belong to the turn that started it.
+        # That used to need a hand-threaded lease, because custody was
+        # keyed on the exact (thread, task) that opened the turn and this
+        # loop does not always run there. Belonging is inherited from the
+        # turn's context now, so the loop needs nothing to be part of it.
+        # The tool loop is the part of a turn that takes the time, and it
+        # was the one clock left holding an absolute number. Live on
+        # 2026-08-28 a ledgerkit turn read three files and died here at
+        # 138.9 seconds while every clock around it was holding itself
+        # open, because this one still counted.
+        from core.brain.llm_health_router import _await_while_it_is_working
+
+        result = await _await_while_it_is_working(
+            client.think_and_act(
+                objective=text,
+                # The budget this turn decided on, not the client's default.
+                #
+                # LIVE, 2026-08-28: "read the docs, then use it" read three
+                # files, said "Running it now:", and emitted a code_repl
+                # call whose argument was cut off mid-import. The turn's
+                # clock had allocated 1536 tokens and every generation in
+                # the loop got 399, so the narration and the opening of the
+                # program together reached the ceiling and the call was
+                # never a call — it arrived as prose, was judged prose
+                # containing prompt scaffolding, and was correctly refused.
+                #
+                # She decided to run the code. The room to say so was the
+                # thing missing, and the room had already been worked out
+                # one function up.
+                **(
+                    {"max_tokens": int(decode_budget)}
+                    if int(decode_budget or 0) > 0
+                    else {}
+                ),
+                # An execution turn is not a conversation turn.
+                #
+                # The foreground system prompt is the full conversational
+                # scaffold — persona, instruments, present moment, running
+                # to five thousand tokens. Wrapped around a tool call it
+                # produced an immediate end-of-turn: one token, no text,
+                # every time. A call needs the objective and the tools; the
+                # voice belongs to the reply, which is generated
+                # separately.
+                #
+                # It is also most of the latency of a tool turn.
+                system_prompt="",
+                tools=tools,
+                # A step, a look at what it returned, and a chance to do
+                # something else because of it — three is one attempt with
+                # no room to be wrong. Scaled to the working set so a
+                # single-capability turn stays cheap.
+                #
+                # And one more than the calls, because the last turn has to
+                # be free to WRITE. Two tools gave five turns; a turn that
+                # was refused twice and then read three files used all five
+                # on calls, and the person got a list of what ran instead of
+                # an answer.
+                #
+                # LIVE, 2026-08-28: "read the docs, then actually use it"
+                # spent turns on a denied path, a refused execution, and
+                # three successful reads. Nothing was left to say what it
+                # had found.
+                max_turns=max(4, 2 * len(tools) + 2),
+                context={
+                    "required_skills": list(required),
+                    "foreground_request": True,
+                    # Who asked, and what they said.
+                    #
+                    # The conscience holds a skill whose worst case looks
+                    # harmful unless a person asked for it directly, in the
+                    # foreground, on their own machine — and it decides
+                    # that from the origin and the message on this context.
+                    # Neither was here, so every dispatch arrived as
+                    # origin=unknown and the override could not fire.
+                    #
+                    # LIVE, 2026-08-29: asked to use a library at a named
+                    # path, the model called code_repl with that path, was
+                    # held at "worst-case harm 0.80", tried sys, importlib
+                    # and exec in turn — each correctly refused — and came
+                    # back to the right call, which was held again. The
+                    # person had asked for it in those words.
+                    "origin": origin or "user",
+                    "message": text,
+                    # The fact, rather than a name to be parsed again. This
+                    # gate already decided whether somebody is waiting on
+                    # this turn; the conscience downstream needs the same
+                    # answer, and deriving it twice from origin strings is
+                    # how the two came to disagree.
+                    "a_person_is_waiting": True,
+                    # What this turn may do. The dispatch refuses any
+                    # action ranked above it, so a skill can be offered
+                    # for its safe actions without offering its
+                    # dangerous ones.
+                    "authorised_effect_scope": ceiling,
+                    # Consent the request itself carries.
+                    #
+                    # The permission model already asks whether the person
+                    # pre-approved this class of action, and nothing ever
+                    # answered. So "build me a small web app, one
+                    # self-contained file" was refused with "Requires user
+                    # confirmation" — a confirmation prompt for the thing
+                    # that had just been asked for in those words.
+                    #
+                    # Deliberately narrow, and it was narrower than the
+                    # thing it was arguing for.
+                    #
+                    # Set only for the artifact ceiling, it left the
+                    # SELF-SERVICE ceiling asking for a confirmation
+                    # nobody can give — and that ceiling is defined, where
+                    # it is declared, as "the most a turn may do without
+                    # the person having asked for that effect... it can
+                    # calculate anything and change nothing outside its own
+                    # sandbox". Something that by definition needs no
+                    # permission was being refused for want of one.
+                    #
+                    # LIVE, 2026-08-28: "read the docs, then actually use
+                    # it" reached code_repl and came back "Permission
+                    # denied: Requires user confirmation: Typed execution
+                    # contract: scope=sandboxed_compute". She read the
+                    # library three times over and never ran it.
+                    #
+                    # Still narrow: these are the two ceilings a request
+                    # can establish for itself. Nothing here authorises
+                    # external_io, privileged mutation, deleting, sending
+                    # or spending — those need their own consent, because
+                    # nobody asked for them.
+                    "user_explicitly_authorized": (
+                        ceiling
+                        in {
+                            _SELF_SERVICE_EFFECT_CEILING,
+                            _REQUESTED_ARTIFACT_EFFECT_CEILING,
+                        }
+                    ),
+                },
+                # What the turn has already read. Without it the loop
+                # fetched the same document a second time, from a URL it
+                # rebuilt from memory, and got a 400.
+                evidence=evidence,
+            ),
+            # The tool loop's job is to GET the evidence; the reply's job
+            # is to SAY it, and evidence nobody can say is worth nothing.
+            #
+            # LIVE, 2026-08-27: a repository diagnosis ran in 389ms and
+            # came back complete — the contradiction, the line, the
+            # project's own broken invariant. The tool-calling pass had
+            # taken 65s of a 148s turn and the presenting pass was refused
+            # before dispatch, "because the request budget was already
+            # spent". The answer was in hand and there was no time left to
+            # say it.
+            budget_s=_tool_loop_budget(
+                timeout_s,
+                _answer_reserve_seconds(
+                    client,
+                    # What the answer will be read from: everything handed
+                    # to the loop, because that is what comes back with it.
+                    len(str(text or ""))
+                    + sum(
+                        len(str((item or {}).get("content") or ""))
+                        for item in (evidence or [])
+                        if isinstance(item, dict)
+                    ),
+                ),
+            ),
+            user_facing=True,
+            # The same fact the loop puts on its own context. A person
+            # asked for this in the foreground and is sitting in front of
+            # it, so the bound is the turn's ceiling rather than a
+            # multiple of one step's budget — which cut a loop that was
+            # producing 0.2s earlier, LIVE 2026-08-29.
+            person_is_waiting=True,
+        )
+        return result
+
+    def _tool_grounded_answer_model_path(self, called, client, text):
+        model_path = str(getattr(client, "model_path", "") or "").strip()
+        if text and model_path:
+            # The receipt for the work, carried with the record of it.
+            #
+            # Ownership of a foreground answer is proven by a surface-control
+            # receipt with a token count in it: the resident model generated
+            # these words, on this turn, once. This path recorded that a tool
+            # loop had run and nothing about the generation inside it, so an
+            # answer the 27B plainly wrote could not be shown to have been
+            # written by anything.
+            #
+            # LIVE 2026-08-29: six tool calls, the last one returning the
+            # trial balance, an answer composed from them and trimmed, and
+            # then "missing: foreground_model_generation_ownership_unproven"
+            # with generations=0 consumed=False. The turn failed closed on
+            # bookkeeping for work it had done.
+            tool_loop_metadata = {
+                "provider": "mlx_local",
+                "model": model_path,
+                "endpoint": os.path.basename(model_path),
+                "is_local": True,
+                "provider_verified": True,
+                "tool_loop": True,
+                "tool_calls": len(called),
+            }
+            receipt = None
+            reader = getattr(client, "get_last_surface_control_receipt", None)
+            if callable(reader):
+                try:
+                    receipt = reader()
+                except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                    logger.debug(
+                        "tool loop could not read the surface control receipt: %s", exc
+                    )
+            if isinstance(receipt, dict) and receipt:
+                tool_loop_metadata["live_mind_surface_control_receipt"] = dict(receipt)
+            self._record_client_generation_metadata(
+                client,
+                label=os.path.basename(model_path),
+                success=True,
+                text=text,
+                generation_metadata=tool_loop_metadata,
+            )
+            # And on the turn, which is the one thing every path shares.
+            #
+            # The line above publishes on this gate. The layer that checks
+            # authorship reads the health router. Both are right about their
+            # own object, and the answer falls between them — LIVE 2026-08-29,
+            # "ownership_evidence=[live_mind(tokens=-,decode=-); latent_cortex
+            # (decode=0)]" on a turn whose fifth tool call had just returned
+            # the trial balance.
+            _tokens = 0
+            for _key in ("generated_tokens", "decode_generated_tokens"):
+                _value = (receipt or {}).get(_key)
+                if isinstance(_value, int) and _value > 0:
+                    _tokens = _value
+                    break
+            if _tokens <= 0:
+                # What the client counted arriving, when the worker attached
+                # no total. The tokens are the same tokens; only the reporting
+                # differs, and an answer must not fail to prove itself because
+                # of which branch of the worker replied.
+                _counter = getattr(client, "tokens_generated_for_this_request", None)
+                if callable(_counter):
+                    try:
+                        _tokens = max(0, int(_counter() or 0))
+                    except (TypeError, ValueError) as exc:
+                        logger.debug("Token counter is not an integer, counting none: %s", exc)
+                        _tokens = 0
+            try:
+                from core.conversation.turn_evidence_custody import (
+                    record_turn_model_generation,
+                )
+
+                _recorded = (
+                    record_turn_model_generation(
+                        model_path, tokens=_tokens, path="tool_loop"
+                    )
+                    if _tokens > 0
+                    else False
+                )
+            except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+                _recorded = False
+                logger.debug("tool loop could not record its generation: %s", exc)
+            # Which of the two, when the answer cannot prove who wrote it.
+            #
+            # A receipt with no count and a turn that would not take the
+            # record are different faults: the first is a generation whose
+            # tokens nobody added up, the second is custody this execution
+            # does not belong to. Both end as
+            # "foreground_model_generation_ownership_unproven" and the name
+            # says neither.
+            if not _recorded:
+                logger.info(
+                    "🧾 tool loop generation unrecorded: tokens=%d receipt_keys=%s",
+                    _tokens,
+                    ",".join(sorted(receipt or {}))[:300] or "none",
+                )
+
     async def _tool_grounded_answer(
         self,
         client: Any,
@@ -7863,182 +8143,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                     ceiling,
                 )
                 return None
-            logger.info(
-                "🔧 Tool handoff: wanted=%s offered=%s",
-                ",".join(required),
-                ",".join(sorted(tools)),
-            )
-            # The receipts this loop writes belong to the turn that started it.
-            # That used to need a hand-threaded lease, because custody was
-            # keyed on the exact (thread, task) that opened the turn and this
-            # loop does not always run there. Belonging is inherited from the
-            # turn's context now, so the loop needs nothing to be part of it.
-            # The tool loop is the part of a turn that takes the time, and it
-            # was the one clock left holding an absolute number. Live on
-            # 2026-08-28 a ledgerkit turn read three files and died here at
-            # 138.9 seconds while every clock around it was holding itself
-            # open, because this one still counted.
-            from core.brain.llm_health_router import _await_while_it_is_working
-
-            result = await _await_while_it_is_working(
-                client.think_and_act(
-                    objective=text,
-                    # The budget this turn decided on, not the client's default.
-                    #
-                    # LIVE, 2026-08-28: "read the docs, then use it" read three
-                    # files, said "Running it now:", and emitted a code_repl
-                    # call whose argument was cut off mid-import. The turn's
-                    # clock had allocated 1536 tokens and every generation in
-                    # the loop got 399, so the narration and the opening of the
-                    # program together reached the ceiling and the call was
-                    # never a call — it arrived as prose, was judged prose
-                    # containing prompt scaffolding, and was correctly refused.
-                    #
-                    # She decided to run the code. The room to say so was the
-                    # thing missing, and the room had already been worked out
-                    # one function up.
-                    **(
-                        {"max_tokens": int(decode_budget)}
-                        if int(decode_budget or 0) > 0
-                        else {}
-                    ),
-                    # An execution turn is not a conversation turn.
-                    #
-                    # The foreground system prompt is the full conversational
-                    # scaffold — persona, instruments, present moment, running
-                    # to five thousand tokens. Wrapped around a tool call it
-                    # produced an immediate end-of-turn: one token, no text,
-                    # every time. A call needs the objective and the tools; the
-                    # voice belongs to the reply, which is generated
-                    # separately.
-                    #
-                    # It is also most of the latency of a tool turn.
-                    system_prompt="",
-                    tools=tools,
-                    # A step, a look at what it returned, and a chance to do
-                    # something else because of it — three is one attempt with
-                    # no room to be wrong. Scaled to the working set so a
-                    # single-capability turn stays cheap.
-                    #
-                    # And one more than the calls, because the last turn has to
-                    # be free to WRITE. Two tools gave five turns; a turn that
-                    # was refused twice and then read three files used all five
-                    # on calls, and the person got a list of what ran instead of
-                    # an answer.
-                    #
-                    # LIVE, 2026-08-28: "read the docs, then actually use it"
-                    # spent turns on a denied path, a refused execution, and
-                    # three successful reads. Nothing was left to say what it
-                    # had found.
-                    max_turns=max(4, 2 * len(tools) + 2),
-                    context={
-                        "required_skills": list(required),
-                        "foreground_request": True,
-                        # Who asked, and what they said.
-                        #
-                        # The conscience holds a skill whose worst case looks
-                        # harmful unless a person asked for it directly, in the
-                        # foreground, on their own machine — and it decides
-                        # that from the origin and the message on this context.
-                        # Neither was here, so every dispatch arrived as
-                        # origin=unknown and the override could not fire.
-                        #
-                        # LIVE, 2026-08-29: asked to use a library at a named
-                        # path, the model called code_repl with that path, was
-                        # held at "worst-case harm 0.80", tried sys, importlib
-                        # and exec in turn — each correctly refused — and came
-                        # back to the right call, which was held again. The
-                        # person had asked for it in those words.
-                        "origin": origin or "user",
-                        "message": text,
-                        # The fact, rather than a name to be parsed again. This
-                        # gate already decided whether somebody is waiting on
-                        # this turn; the conscience downstream needs the same
-                        # answer, and deriving it twice from origin strings is
-                        # how the two came to disagree.
-                        "a_person_is_waiting": True,
-                        # What this turn may do. The dispatch refuses any
-                        # action ranked above it, so a skill can be offered
-                        # for its safe actions without offering its
-                        # dangerous ones.
-                        "authorised_effect_scope": ceiling,
-                        # Consent the request itself carries.
-                        #
-                        # The permission model already asks whether the person
-                        # pre-approved this class of action, and nothing ever
-                        # answered. So "build me a small web app, one
-                        # self-contained file" was refused with "Requires user
-                        # confirmation" — a confirmation prompt for the thing
-                        # that had just been asked for in those words.
-                        #
-                        # Deliberately narrow, and it was narrower than the
-                        # thing it was arguing for.
-                        #
-                        # Set only for the artifact ceiling, it left the
-                        # SELF-SERVICE ceiling asking for a confirmation
-                        # nobody can give — and that ceiling is defined, where
-                        # it is declared, as "the most a turn may do without
-                        # the person having asked for that effect... it can
-                        # calculate anything and change nothing outside its own
-                        # sandbox". Something that by definition needs no
-                        # permission was being refused for want of one.
-                        #
-                        # LIVE, 2026-08-28: "read the docs, then actually use
-                        # it" reached code_repl and came back "Permission
-                        # denied: Requires user confirmation: Typed execution
-                        # contract: scope=sandboxed_compute". She read the
-                        # library three times over and never ran it.
-                        #
-                        # Still narrow: these are the two ceilings a request
-                        # can establish for itself. Nothing here authorises
-                        # external_io, privileged mutation, deleting, sending
-                        # or spending — those need their own consent, because
-                        # nobody asked for them.
-                        "user_explicitly_authorized": (
-                            ceiling
-                            in {
-                                _SELF_SERVICE_EFFECT_CEILING,
-                                _REQUESTED_ARTIFACT_EFFECT_CEILING,
-                            }
-                        ),
-                    },
-                    # What the turn has already read. Without it the loop
-                    # fetched the same document a second time, from a URL it
-                    # rebuilt from memory, and got a 400.
-                    evidence=evidence,
-                ),
-                # The tool loop's job is to GET the evidence; the reply's job
-                # is to SAY it, and evidence nobody can say is worth nothing.
-                #
-                # LIVE, 2026-08-27: a repository diagnosis ran in 389ms and
-                # came back complete — the contradiction, the line, the
-                # project's own broken invariant. The tool-calling pass had
-                # taken 65s of a 148s turn and the presenting pass was refused
-                # before dispatch, "because the request budget was already
-                # spent". The answer was in hand and there was no time left to
-                # say it.
-                budget_s=_tool_loop_budget(
-                    timeout_s,
-                    _answer_reserve_seconds(
-                        client,
-                        # What the answer will be read from: everything handed
-                        # to the loop, because that is what comes back with it.
-                        len(str(text or ""))
-                        + sum(
-                            len(str((item or {}).get("content") or ""))
-                            for item in (evidence or [])
-                            if isinstance(item, dict)
-                        ),
-                    ),
-                ),
-                user_facing=True,
-                # The same fact the loop puts on its own context. A person
-                # asked for this in the foreground and is sitting in front of
-                # it, so the bound is the turn's ceiling rather than a
-                # multiple of one step's budget — which cut a loop that was
-                # producing 0.2s earlier, LIVE 2026-08-29.
-                person_is_waiting=True,
-            )
+            result = await self._tool_grounded_answer_part_1(ceiling, client, decode_budget, evidence, origin, required, text, timeout_s, tools)
         except asyncio.CancelledError:
             # Stop belongs to the whole turn, including its fallback path.
             raise
@@ -8075,104 +8180,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             # answer is ungrounded by construction, and it is exactly how
             # "Output: 7" reached the screen.
             return None
-        model_path = str(getattr(client, "model_path", "") or "").strip()
-        if text and model_path:
-            # The receipt for the work, carried with the record of it.
-            #
-            # Ownership of a foreground answer is proven by a surface-control
-            # receipt with a token count in it: the resident model generated
-            # these words, on this turn, once. This path recorded that a tool
-            # loop had run and nothing about the generation inside it, so an
-            # answer the 27B plainly wrote could not be shown to have been
-            # written by anything.
-            #
-            # LIVE 2026-08-29: six tool calls, the last one returning the
-            # trial balance, an answer composed from them and trimmed, and
-            # then "missing: foreground_model_generation_ownership_unproven"
-            # with generations=0 consumed=False. The turn failed closed on
-            # bookkeeping for work it had done.
-            tool_loop_metadata = {
-                "provider": "mlx_local",
-                "model": model_path,
-                "endpoint": os.path.basename(model_path),
-                "is_local": True,
-                "provider_verified": True,
-                "tool_loop": True,
-                "tool_calls": len(called),
-            }
-            receipt = None
-            reader = getattr(client, "get_last_surface_control_receipt", None)
-            if callable(reader):
-                try:
-                    receipt = reader()
-                except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                    logger.debug(
-                        "tool loop could not read the surface control receipt: %s", exc
-                    )
-            if isinstance(receipt, dict) and receipt:
-                tool_loop_metadata["live_mind_surface_control_receipt"] = dict(receipt)
-            self._record_client_generation_metadata(
-                client,
-                label=os.path.basename(model_path),
-                success=True,
-                text=text,
-                generation_metadata=tool_loop_metadata,
-            )
-            # And on the turn, which is the one thing every path shares.
-            #
-            # The line above publishes on this gate. The layer that checks
-            # authorship reads the health router. Both are right about their
-            # own object, and the answer falls between them — LIVE 2026-08-29,
-            # "ownership_evidence=[live_mind(tokens=-,decode=-); latent_cortex
-            # (decode=0)]" on a turn whose fifth tool call had just returned
-            # the trial balance.
-            _tokens = 0
-            for _key in ("generated_tokens", "decode_generated_tokens"):
-                _value = (receipt or {}).get(_key)
-                if isinstance(_value, int) and _value > 0:
-                    _tokens = _value
-                    break
-            if _tokens <= 0:
-                # What the client counted arriving, when the worker attached
-                # no total. The tokens are the same tokens; only the reporting
-                # differs, and an answer must not fail to prove itself because
-                # of which branch of the worker replied.
-                _counter = getattr(client, "tokens_generated_for_this_request", None)
-                if callable(_counter):
-                    try:
-                        _tokens = max(0, int(_counter() or 0))
-                    except (TypeError, ValueError) as exc:
-                        logger.debug("Token counter is not an integer, counting none: %s", exc)
-                        _tokens = 0
-            try:
-                from core.conversation.turn_evidence_custody import (
-                    record_turn_model_generation,
-                )
-
-                _recorded = (
-                    record_turn_model_generation(
-                        model_path, tokens=_tokens, path="tool_loop"
-                    )
-                    if _tokens > 0
-                    else False
-                )
-            except (ImportError, RuntimeError, TypeError, ValueError) as exc:
-                _recorded = False
-                logger.debug("tool loop could not record its generation: %s", exc)
-            # Which of the two, when the answer cannot prove who wrote it.
-            #
-            # A receipt with no count and a turn that would not take the
-            # record are different faults: the first is a generation whose
-            # tokens nobody added up, the second is custody this execution
-            # does not belong to. Both end as
-            # "foreground_model_generation_ownership_unproven" and the name
-            # says neither.
-            if not _recorded:
-                logger.info(
-                    "🧾 tool loop generation unrecorded: tokens=%d receipt_keys=%s",
-                    _tokens,
-                    ",".join(sorted(receipt or {}))[:300] or "none",
-                )
+        self._tool_grounded_answer_model_path(called, client, text)
         from core.conversation.surface_disposition import record_tool_receipt
 
         for call in called:
@@ -8764,6 +8772,344 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
         receipt = getattr(self, "_living_mind_receipt", None)
         return receipt.as_dict() if receipt is not None else {}
 
+    @staticmethod
+    def _build_living_mind_context_memory_pressure(mem_monitor, segments, state):
+        memory_pressure = None
+        if mem_monitor is not None:
+            memory_pressure = getattr(mem_monitor, "pressure", None)
+        if memory_pressure is None and psutil is not None:
+            memory_pressure = InferenceGate._recent_virtual_memory().percent
+        # Only render fields that were actually observed. Missing hardware
+        # telemetry must appear as UNAVAILABLE — fabricating 0% CPU and a
+        # "stable" thermal label would present dead sensors as calm
+        # physiology.
+        temperature: float | None = None
+        cpu_usage: float | None = None
+        if state is not None:
+            hw = getattr(getattr(state, "soma", None), "hardware", {}) or {}
+            if hw.get("temperature") is not None:
+                temperature = float(hw.get("temperature") or 0.0)
+            if hw.get("cpu_usage") is not None:
+                cpu_usage = float(hw.get("cpu_usage") or 0.0)
+        physiology_lines = ["## LIVE PHYSIOLOGY"]
+        physiology_lines.append(
+            f"- CPU usage: {cpu_usage:.1f}%"
+            if cpu_usage is not None
+            else "- CPU usage: unavailable (no hardware telemetry)"
+        )
+        if temperature is not None:
+            thermal_label = (
+                "critical"
+                if temperature >= 85.0
+                else "warm"
+                if temperature >= 75.0
+                else "stable"
+            )
+            physiology_lines.append(
+                f"- Thermal state: {thermal_label} ({temperature:.1f} C)"
+            )
+        else:
+            physiology_lines.append(
+                "- Thermal state: unavailable (no hardware telemetry)"
+            )
+        physiology_lines.append(
+            f"- Memory pressure: {float(memory_pressure):.1f}%"
+            if memory_pressure is not None
+            else "- Memory pressure: unavailable"
+        )
+        segments.add("physiology", "\n".join(physiology_lines))
+
+    @staticmethod
+    def _build_living_mind_context_pneuma_active_inference(prompt, segments):
+        # ── PNEUMA (Active Inference) ─────────────────────────────────────────
+        try:
+            from core.pneuma import get_pneuma
+
+            _pneuma = get_pneuma()
+            _pneuma_block = _pneuma.get_context_block()
+            if _pneuma_block:
+                segments.add("pneuma", _pneuma_block)
+            # Push the current prompt into the belief flow as UNTRUSTED
+            # observation — raw user text is not verified evidence, so it
+            # gets a capped weight and an attributable provenance tag.
+            _pneuma.on_evidence(
+                prompt[:300], weight=0.2, source="user_prompt", trusted=False
+            )
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            segments.omit("pneuma", exc)
+            _record_inference_degradation(
+                exc,
+                action="omitted unavailable living-mind context signal and continued prompt assembly",
+            )
+            logger.debug("PNEUMA injection unavailable: %s", exc)
+
+        # ── MHAF (Mycelial Hypergraph) ────────────────────────────────────────
+        try:
+            from core.consciousness.mhaf_field import get_mhaf
+
+            _mhaf = get_mhaf()
+            _mhaf_block = _mhaf.get_context_block()
+            if _mhaf_block:
+                segments.add("mhaf", _mhaf_block)
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            segments.omit("mhaf", exc)
+            _record_inference_degradation(
+                exc,
+                action="omitted unavailable living-mind context signal and continued prompt assembly",
+            )
+            logger.debug("MHAF injection unavailable: %s", exc)
+
+        # ── Private Lexicon (Neologism Engine) ───────────────────────────────
+        try:
+            from core.consciousness.neologism_engine import get_neologism_engine
+
+            _neo = get_neologism_engine()
+            _neo.collect_state()
+            lex_block = _neo.get_lexicon_block()
+            if lex_block:
+                segments.add("neologisms", lex_block, priority=PRIORITY_COLOUR)
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            segments.omit("neologisms", exc)
+            _record_inference_degradation(
+                exc,
+                action="omitted unavailable living-mind context signal and continued prompt assembly",
+            )
+            logger.debug("NeologismEngine injection unavailable: %s", exc)
+
+    def _build_living_mind_context_part_3(self, _affect_observed, _circ, _shared_arousal, _shared_valence):
+        if _circ and hasattr(_circ, "get_llm_params"):
+            # The PUBLIC reader first. _sample_raw_axes is private, and
+            # reaching past a public accessor into a subsystem's internals
+            # is how a rename becomes an outage.
+            _cp = _circ.get_llm_params()
+            if isinstance(_cp, dict):
+                _v = self._bounded_affect(_cp.get("valence"), low=-1.0, high=1.0)
+                _a = self._bounded_affect(_cp.get("arousal"), low=0.0, high=1.0)
+                if _v is not None:
+                    _shared_valence, _affect_observed["valence"] = _v, True
+                if _a is not None:
+                    _shared_arousal, _affect_observed["arousal"] = _a, True
+        if (
+            not _affect_observed["valence"]
+            and _circ
+            and hasattr(_circ, "_sample_raw_axes")
+        ):
+            _raw = _circ._sample_raw_axes()
+            if isinstance(_raw, (tuple, list)) and len(_raw) == 2:
+                _v = self._bounded_affect(_raw[0], low=-1.0, high=1.0)
+                _a = self._bounded_affect(_raw[1], low=0.0, high=1.0)
+                if _v is not None:
+                    _shared_valence, _affect_observed["valence"] = _v, True
+                if _a is not None:
+                    _shared_arousal, _affect_observed["arousal"] = _a, True
+        return _shared_arousal, _shared_valence
+
+    @staticmethod
+    def _build_living_mind_context_part_4(_affect_observed, _shared_arousal, _shared_curiosity, _shared_energy, _shared_valence, advance_state, segments):
+        if not all(_affect_observed.values()):
+            # Which axes are real and which are the constructor's defaults.
+            # Without this, "valence 0.0" means either "measured neutral" or
+            # "nothing answered", and three subsystems consume it as the first.
+            segments.omit(
+                "affect_axes",
+                "defaults used for: "
+                + ", ".join(
+                    name for name, seen in _affect_observed.items() if not seen
+                ),
+            )
+
+        try:
+            from core.consciousness.crsm import get_crsm
+
+            _crsm = get_crsm()
+            if advance_state:
+                _crsm.update(
+                    valence=_shared_valence,
+                    arousal=_shared_arousal,
+                    curiosity=_shared_curiosity,
+                    energy=_shared_energy,
+                    surprise=_crsm.surprise_signal,  # self-referential: own recent error
+                )
+                segments.advanced("crsm")
+            _crsm_block = _crsm.get_context_block()
+            if _crsm_block:
+                segments.add("crsm", _crsm_block)
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            segments.omit("crsm", exc)
+            _record_inference_degradation(
+                exc,
+                action="omitted unavailable living-mind context signal and continued prompt assembly",
+            )
+            logger.debug("CRSM injection unavailable: %s", exc)
+
+        # ── Higher-Order Thought Engine (HOT) ────────────────────────────────
+        try:
+            from core.consciousness.hot_engine import get_hot_engine
+
+            _hot = get_hot_engine()
+            _hot.generate_fast(
+                {
+                    "valence": _shared_valence,
+                    "arousal": _shared_arousal,
+                    "curiosity": _shared_curiosity,
+                    "energy": _shared_energy,
+                    "surprise": 0.0,
+                }
+            )
+            _hot_block = _hot.get_context_block()
+            if _hot_block:
+                segments.add("higher_order_thought", _hot_block)
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            segments.omit("higher_order_thought", exc)
+            _record_inference_degradation(
+                exc,
+                action="omitted unavailable living-mind context signal and continued prompt assembly",
+            )
+            logger.debug("HOT Engine injection unavailable: %s", exc)
+
+        # ── Hedonic Gradient ──────────────────────────────────────────────────
+        try:
+            from core.consciousness.hedonic_gradient import get_hedonic_gradient
+
+            _hg = get_hedonic_gradient()
+            # Update with current affect state before reading context block
+            if advance_state:
+                _hg.update(
+                    valence=_shared_valence,
+                    arousal=_shared_arousal,
+                    curiosity=_shared_curiosity,
+                    energy=_shared_energy,
+                )
+                segments.advanced("hedonic_gradient")
+            _hg_block = _hg.get_context_block()
+            if _hg_block:
+                segments.add("hedonic_gradient", _hg_block)
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            segments.omit("hedonic_gradient", exc)
+            _record_inference_degradation(
+                exc,
+                action="omitted unavailable living-mind context signal and continued prompt assembly",
+            )
+            logger.debug("HedoniGradient injection unavailable: %s", exc)
+
+    @staticmethod
+    def _build_living_mind_context_hierarchical_goals(advance_state, prompt, segments):
+        # ── Hierarchical Goals ────────────────────────────────────────────────
+        try:
+            from core.agi.hierarchical_planner import get_hierarchical_planner
+
+            _hp = get_hierarchical_planner()
+            _hp_block = _hp.get_context_block()
+            if _hp_block:
+                segments.add("hierarchical_plan", _hp_block)
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            segments.omit("hierarchical_plan", exc)
+            _record_inference_degradation(
+                exc,
+                action="omitted unavailable living-mind context signal and continued prompt assembly",
+            )
+            logger.debug("HierarchicalPlanner injection unavailable: %s", exc)
+
+        # ── Active Commitments ────────────────────────────────────────────────
+        try:
+            from core.agency.commitment_engine import get_commitment_engine
+
+            _ce = get_commitment_engine()
+            _ce_block = _ce.get_context_block()
+            if _ce_block:
+                segments.add("commitments", _ce_block)
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            segments.omit("commitments", exc)
+            _record_inference_degradation(
+                exc,
+                action="omitted unavailable living-mind context signal and continued prompt assembly",
+            )
+            logger.debug("CommitmentEngine injection unavailable: %s", exc)
+
+        # ── Curiosity Explorer (active learning findings) ─────────────────────
+        try:
+            from core.agi.curiosity_explorer import get_curiosity_explorer
+
+            _cx = get_curiosity_explorer()
+            _cx_block = _cx.get_context_block()
+            if _cx_block:
+                segments.add("curiosity", _cx_block, priority=PRIORITY_COLOUR)
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            segments.omit("curiosity", exc)
+            _record_inference_degradation(
+                exc,
+                action="omitted unavailable living-mind context signal and continued prompt assembly",
+            )
+            logger.debug("CuriosityExplorer injection unavailable: %s", exc)
+
+        # ── Circadian Rhythm ──────────────────────────────────────────────────
+        try:
+            from core.senses.circadian import get_circadian
+
+            _circ_eng = get_circadian()
+            if advance_state:
+                _circ_eng.update()
+                segments.advanced("circadian")
+            _circ_block = _circ_eng.get_context_block()
+            if _circ_block:
+                segments.add("circadian", _circ_block, priority=PRIORITY_COLOUR)
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            segments.omit("circadian", exc)
+            _record_inference_degradation(
+                exc,
+                action="omitted unavailable living-mind context signal and continued prompt assembly",
+            )
+            logger.debug("CircadianEngine injection unavailable: %s", exc)
+
+        # ── Identity Narrative (Experience Consolidator) ──────────────────────
+        try:
+            from core.consciousness.experience_consolidator import get_experience_consolidator
+
+            _ec = get_experience_consolidator()
+            _ec_block = _ec.get_context_block()
+            if _ec_block:
+                segments.add("experience_consolidation", _ec_block, priority=PRIORITY_COLOUR)
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            segments.omit("experience_consolidation", exc)
+            _record_inference_degradation(
+                exc,
+                action="omitted unavailable living-mind context signal and continued prompt assembly",
+            )
+            logger.debug("ExperienceConsolidator injection unavailable: %s", exc)
+
+        # ── Substrate Learning (CRSM LoRA Bridge) ─────────────────────────────
+        try:
+            from core.consciousness.crsm_lora_bridge import get_crsm_lora_bridge
+
+            _lora_bridge = get_crsm_lora_bridge()
+            _lora_block = _lora_bridge.get_context_block()
+            if _lora_block:
+                segments.add("crsm_lora_bridge", _lora_block)
+            # Pre-inference capture: record current state before thinking
+            from core.consciousness.crsm import get_crsm as _get_crsm2
+
+            _crsm2 = _get_crsm2()
+            from core.consciousness.hedonic_gradient import get_hedonic_gradient as _get_hg2
+
+            _hg2 = _get_hg2()
+            _lora_bridge.pre_inference_capture(
+                context_text=prompt,
+                surprise_magnitude=_crsm2.surprise_signal,
+                hedonic_score=_hg2.score,
+                crsm_hidden_norm=float(
+                    sum(x**2 for x in _crsm2.hidden_state) ** 0.5
+                    if hasattr(_crsm2, "hidden_state")
+                    else 0.0
+                ),
+            )
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            segments.omit("crsm_lora_bridge", exc)
+            _record_inference_degradation(
+                exc,
+                action="omitted unavailable living-mind context signal and continued prompt assembly",
+            )
+            logger.debug("CRSMLoraBridge injection unavailable: %s", exc)
+
     async def _build_living_mind_context(
         self,
         prompt: str,
@@ -8797,50 +9143,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             repo = ServiceContainer.get("state_repository", default=None)
             state = getattr(repo, "_current", None) if repo is not None else None
             mem_monitor = ServiceContainer.get("memory_monitor", default=None)
-            memory_pressure = None
-            if mem_monitor is not None:
-                memory_pressure = getattr(mem_monitor, "pressure", None)
-            if memory_pressure is None and psutil is not None:
-                memory_pressure = InferenceGate._recent_virtual_memory().percent
-            # Only render fields that were actually observed. Missing hardware
-            # telemetry must appear as UNAVAILABLE — fabricating 0% CPU and a
-            # "stable" thermal label would present dead sensors as calm
-            # physiology.
-            temperature: float | None = None
-            cpu_usage: float | None = None
-            if state is not None:
-                hw = getattr(getattr(state, "soma", None), "hardware", {}) or {}
-                if hw.get("temperature") is not None:
-                    temperature = float(hw.get("temperature") or 0.0)
-                if hw.get("cpu_usage") is not None:
-                    cpu_usage = float(hw.get("cpu_usage") or 0.0)
-            physiology_lines = ["## LIVE PHYSIOLOGY"]
-            physiology_lines.append(
-                f"- CPU usage: {cpu_usage:.1f}%"
-                if cpu_usage is not None
-                else "- CPU usage: unavailable (no hardware telemetry)"
-            )
-            if temperature is not None:
-                thermal_label = (
-                    "critical"
-                    if temperature >= 85.0
-                    else "warm"
-                    if temperature >= 75.0
-                    else "stable"
-                )
-                physiology_lines.append(
-                    f"- Thermal state: {thermal_label} ({temperature:.1f} C)"
-                )
-            else:
-                physiology_lines.append(
-                    "- Thermal state: unavailable (no hardware telemetry)"
-                )
-            physiology_lines.append(
-                f"- Memory pressure: {float(memory_pressure):.1f}%"
-                if memory_pressure is not None
-                else "- Memory pressure: unavailable"
-            )
-            segments.add("physiology", "\n".join(physiology_lines))
+            self._build_living_mind_context_memory_pressure(mem_monitor, segments, state)
         except _INFERENCE_RECOVERABLE_ERRORS as exc:
             segments.omit("physiology", exc)
             _record_inference_degradation(
@@ -9041,60 +9344,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             )
             logger.debug("Architecture overview injection unavailable: %s", exc)
 
-        # ── PNEUMA (Active Inference) ─────────────────────────────────────────
-        try:
-            from core.pneuma import get_pneuma
-
-            _pneuma = get_pneuma()
-            _pneuma_block = _pneuma.get_context_block()
-            if _pneuma_block:
-                segments.add("pneuma", _pneuma_block)
-            # Push the current prompt into the belief flow as UNTRUSTED
-            # observation — raw user text is not verified evidence, so it
-            # gets a capped weight and an attributable provenance tag.
-            _pneuma.on_evidence(
-                prompt[:300], weight=0.2, source="user_prompt", trusted=False
-            )
-        except _INFERENCE_RECOVERABLE_ERRORS as exc:
-            segments.omit("pneuma", exc)
-            _record_inference_degradation(
-                exc,
-                action="omitted unavailable living-mind context signal and continued prompt assembly",
-            )
-            logger.debug("PNEUMA injection unavailable: %s", exc)
-
-        # ── MHAF (Mycelial Hypergraph) ────────────────────────────────────────
-        try:
-            from core.consciousness.mhaf_field import get_mhaf
-
-            _mhaf = get_mhaf()
-            _mhaf_block = _mhaf.get_context_block()
-            if _mhaf_block:
-                segments.add("mhaf", _mhaf_block)
-        except _INFERENCE_RECOVERABLE_ERRORS as exc:
-            segments.omit("mhaf", exc)
-            _record_inference_degradation(
-                exc,
-                action="omitted unavailable living-mind context signal and continued prompt assembly",
-            )
-            logger.debug("MHAF injection unavailable: %s", exc)
-
-        # ── Private Lexicon (Neologism Engine) ───────────────────────────────
-        try:
-            from core.consciousness.neologism_engine import get_neologism_engine
-
-            _neo = get_neologism_engine()
-            _neo.collect_state()
-            lex_block = _neo.get_lexicon_block()
-            if lex_block:
-                segments.add("neologisms", lex_block, priority=PRIORITY_COLOUR)
-        except _INFERENCE_RECOVERABLE_ERRORS as exc:
-            segments.omit("neologisms", exc)
-            _record_inference_degradation(
-                exc,
-                action="omitted unavailable living-mind context signal and continued prompt assembly",
-            )
-            logger.debug("NeologismEngine injection unavailable: %s", exc)
+        self._build_living_mind_context_pneuma_active_inference(prompt, segments)
 
         # ── Continuous Recurrent Self-Model (CRSM) ───────────────────────────
         # Shared affect state — pulled once, fed to CRSM, HOT and Hedonic.
@@ -9120,31 +9370,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
 
             # valence + arousal from AffectiveCircumplex (authoritative source)
             _circ = ServiceContainer.get("affective_circumplex", default=None)
-            if _circ and hasattr(_circ, "get_llm_params"):
-                # The PUBLIC reader first. _sample_raw_axes is private, and
-                # reaching past a public accessor into a subsystem's internals
-                # is how a rename becomes an outage.
-                _cp = _circ.get_llm_params()
-                if isinstance(_cp, dict):
-                    _v = self._bounded_affect(_cp.get("valence"), low=-1.0, high=1.0)
-                    _a = self._bounded_affect(_cp.get("arousal"), low=0.0, high=1.0)
-                    if _v is not None:
-                        _shared_valence, _affect_observed["valence"] = _v, True
-                    if _a is not None:
-                        _shared_arousal, _affect_observed["arousal"] = _a, True
-            if (
-                not _affect_observed["valence"]
-                and _circ
-                and hasattr(_circ, "_sample_raw_axes")
-            ):
-                _raw = _circ._sample_raw_axes()
-                if isinstance(_raw, (tuple, list)) and len(_raw) == 2:
-                    _v = self._bounded_affect(_raw[0], low=-1.0, high=1.0)
-                    _a = self._bounded_affect(_raw[1], low=0.0, high=1.0)
-                    if _v is not None:
-                        _shared_valence, _affect_observed["valence"] = _v, True
-                    if _a is not None:
-                        _shared_arousal, _affect_observed["arousal"] = _a, True
+            _shared_arousal, _shared_valence = self._build_living_mind_context_part_3(_affect_observed, _circ, _shared_arousal, _shared_valence)
             # curiosity + energy from liquid_state, reported as percentages
             _ls = ServiceContainer.get("liquid_state", default=None)
             if _ls and hasattr(_ls, "get_status"):
@@ -9163,91 +9389,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                 extra={"observed": dict(_affect_observed)},
             )
             logger.debug("Affect snapshot unavailable: %s", _exc)
-        if not all(_affect_observed.values()):
-            # Which axes are real and which are the constructor's defaults.
-            # Without this, "valence 0.0" means either "measured neutral" or
-            # "nothing answered", and three subsystems consume it as the first.
-            segments.omit(
-                "affect_axes",
-                "defaults used for: "
-                + ", ".join(
-                    name for name, seen in _affect_observed.items() if not seen
-                ),
-            )
-
-        try:
-            from core.consciousness.crsm import get_crsm
-
-            _crsm = get_crsm()
-            if advance_state:
-                _crsm.update(
-                    valence=_shared_valence,
-                    arousal=_shared_arousal,
-                    curiosity=_shared_curiosity,
-                    energy=_shared_energy,
-                    surprise=_crsm.surprise_signal,  # self-referential: own recent error
-                )
-                segments.advanced("crsm")
-            _crsm_block = _crsm.get_context_block()
-            if _crsm_block:
-                segments.add("crsm", _crsm_block)
-        except _INFERENCE_RECOVERABLE_ERRORS as exc:
-            segments.omit("crsm", exc)
-            _record_inference_degradation(
-                exc,
-                action="omitted unavailable living-mind context signal and continued prompt assembly",
-            )
-            logger.debug("CRSM injection unavailable: %s", exc)
-
-        # ── Higher-Order Thought Engine (HOT) ────────────────────────────────
-        try:
-            from core.consciousness.hot_engine import get_hot_engine
-
-            _hot = get_hot_engine()
-            _hot.generate_fast(
-                {
-                    "valence": _shared_valence,
-                    "arousal": _shared_arousal,
-                    "curiosity": _shared_curiosity,
-                    "energy": _shared_energy,
-                    "surprise": 0.0,
-                }
-            )
-            _hot_block = _hot.get_context_block()
-            if _hot_block:
-                segments.add("higher_order_thought", _hot_block)
-        except _INFERENCE_RECOVERABLE_ERRORS as exc:
-            segments.omit("higher_order_thought", exc)
-            _record_inference_degradation(
-                exc,
-                action="omitted unavailable living-mind context signal and continued prompt assembly",
-            )
-            logger.debug("HOT Engine injection unavailable: %s", exc)
-
-        # ── Hedonic Gradient ──────────────────────────────────────────────────
-        try:
-            from core.consciousness.hedonic_gradient import get_hedonic_gradient
-
-            _hg = get_hedonic_gradient()
-            # Update with current affect state before reading context block
-            if advance_state:
-                _hg.update(
-                    valence=_shared_valence,
-                    arousal=_shared_arousal,
-                    curiosity=_shared_curiosity,
-                    energy=_shared_energy,
-                )
-                segments.advanced("hedonic_gradient")
-            _hg_block = _hg.get_context_block()
-            if _hg_block:
-                segments.add("hedonic_gradient", _hg_block)
-        except _INFERENCE_RECOVERABLE_ERRORS as exc:
-            segments.omit("hedonic_gradient", exc)
-            _record_inference_degradation(
-                exc,
-                action="omitted unavailable living-mind context signal and continued prompt assembly",
-            )
-            logger.debug("HedoniGradient injection unavailable: %s", exc)
+        self._build_living_mind_context_part_4(_affect_observed, _shared_arousal, _shared_curiosity, _shared_energy, _shared_valence, advance_state, segments)
 
         # ── Hierarchical Goals ────────────────────────────────────────────────
         try:
@@ -9264,121 +9406,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             )
             logger.debug("GoalEngine injection unavailable: %s", exc)
 
-        # ── Hierarchical Goals ────────────────────────────────────────────────
-        try:
-            from core.agi.hierarchical_planner import get_hierarchical_planner
-
-            _hp = get_hierarchical_planner()
-            _hp_block = _hp.get_context_block()
-            if _hp_block:
-                segments.add("hierarchical_plan", _hp_block)
-        except _INFERENCE_RECOVERABLE_ERRORS as exc:
-            segments.omit("hierarchical_plan", exc)
-            _record_inference_degradation(
-                exc,
-                action="omitted unavailable living-mind context signal and continued prompt assembly",
-            )
-            logger.debug("HierarchicalPlanner injection unavailable: %s", exc)
-
-        # ── Active Commitments ────────────────────────────────────────────────
-        try:
-            from core.agency.commitment_engine import get_commitment_engine
-
-            _ce = get_commitment_engine()
-            _ce_block = _ce.get_context_block()
-            if _ce_block:
-                segments.add("commitments", _ce_block)
-        except _INFERENCE_RECOVERABLE_ERRORS as exc:
-            segments.omit("commitments", exc)
-            _record_inference_degradation(
-                exc,
-                action="omitted unavailable living-mind context signal and continued prompt assembly",
-            )
-            logger.debug("CommitmentEngine injection unavailable: %s", exc)
-
-        # ── Curiosity Explorer (active learning findings) ─────────────────────
-        try:
-            from core.agi.curiosity_explorer import get_curiosity_explorer
-
-            _cx = get_curiosity_explorer()
-            _cx_block = _cx.get_context_block()
-            if _cx_block:
-                segments.add("curiosity", _cx_block, priority=PRIORITY_COLOUR)
-        except _INFERENCE_RECOVERABLE_ERRORS as exc:
-            segments.omit("curiosity", exc)
-            _record_inference_degradation(
-                exc,
-                action="omitted unavailable living-mind context signal and continued prompt assembly",
-            )
-            logger.debug("CuriosityExplorer injection unavailable: %s", exc)
-
-        # ── Circadian Rhythm ──────────────────────────────────────────────────
-        try:
-            from core.senses.circadian import get_circadian
-
-            _circ_eng = get_circadian()
-            if advance_state:
-                _circ_eng.update()
-                segments.advanced("circadian")
-            _circ_block = _circ_eng.get_context_block()
-            if _circ_block:
-                segments.add("circadian", _circ_block, priority=PRIORITY_COLOUR)
-        except _INFERENCE_RECOVERABLE_ERRORS as exc:
-            segments.omit("circadian", exc)
-            _record_inference_degradation(
-                exc,
-                action="omitted unavailable living-mind context signal and continued prompt assembly",
-            )
-            logger.debug("CircadianEngine injection unavailable: %s", exc)
-
-        # ── Identity Narrative (Experience Consolidator) ──────────────────────
-        try:
-            from core.consciousness.experience_consolidator import get_experience_consolidator
-
-            _ec = get_experience_consolidator()
-            _ec_block = _ec.get_context_block()
-            if _ec_block:
-                segments.add("experience_consolidation", _ec_block, priority=PRIORITY_COLOUR)
-        except _INFERENCE_RECOVERABLE_ERRORS as exc:
-            segments.omit("experience_consolidation", exc)
-            _record_inference_degradation(
-                exc,
-                action="omitted unavailable living-mind context signal and continued prompt assembly",
-            )
-            logger.debug("ExperienceConsolidator injection unavailable: %s", exc)
-
-        # ── Substrate Learning (CRSM LoRA Bridge) ─────────────────────────────
-        try:
-            from core.consciousness.crsm_lora_bridge import get_crsm_lora_bridge
-
-            _lora_bridge = get_crsm_lora_bridge()
-            _lora_block = _lora_bridge.get_context_block()
-            if _lora_block:
-                segments.add("crsm_lora_bridge", _lora_block)
-            # Pre-inference capture: record current state before thinking
-            from core.consciousness.crsm import get_crsm as _get_crsm2
-
-            _crsm2 = _get_crsm2()
-            from core.consciousness.hedonic_gradient import get_hedonic_gradient as _get_hg2
-
-            _hg2 = _get_hg2()
-            _lora_bridge.pre_inference_capture(
-                context_text=prompt,
-                surprise_magnitude=_crsm2.surprise_signal,
-                hedonic_score=_hg2.score,
-                crsm_hidden_norm=float(
-                    sum(x**2 for x in _crsm2.hidden_state) ** 0.5
-                    if hasattr(_crsm2, "hidden_state")
-                    else 0.0
-                ),
-            )
-        except _INFERENCE_RECOVERABLE_ERRORS as exc:
-            segments.omit("crsm_lora_bridge", exc)
-            _record_inference_degradation(
-                exc,
-                action="omitted unavailable living-mind context signal and continued prompt assembly",
-            )
-            logger.debug("CRSMLoraBridge injection unavailable: %s", exc)
+        self._build_living_mind_context_hierarchical_goals(advance_state, prompt, segments)
 
         # ══════════════════════════════════════════════════════════════════
         # DEEPENED CONSCIOUSNESS CONTEXT BLOCKS
@@ -9790,19 +9818,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             sink_slot.reset(sink_token)
             _GENERATE_ENTERED_AT.reset(entered_token)
 
-    async def _generate_with_metadata_sink(  # noqa: ASYNC109
-        self,
-        prompt: str,
-        context: dict[str, Any] | None = None,
-        timeout: float | None = None,  # noqa: ASYNC109
-    ) -> Any:
-        """Primary generation endpoint.
-
-        [v7.4] Deadline-Aware Generation:
-        Instead of fragmented local timers, we now use a unified Deadline object.
-        """
-        if context is None:
-            context = {}
+    def _generate_with_metadata_sink_part_1(self, context, prompt):
         if "user_surface_grounding_evidence" not in context:
             try:
                 from core.conversation.turn_evidence_custody import (
@@ -9941,104 +9957,9 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             )
             surface_prompt = resolve_user_surface_prompt(context)
         initial_visible_user_prompt = surface_prompt.prompt or initial_visible_user_prompt
-        output_contract = requested_output_contract(initial_visible_user_prompt)
-        output_contract_payload = (
-            output_contract.as_dict() if output_contract.constrained else None
-        )
-        state = context.get("state")
-        origin = str(context.get("origin", "") or "").lower()
-        purpose = str(context.get("purpose", "") or "").lower()
-        benchmark_request = bool(context.get("benchmark_request", False)) or (
-            origin in {"baseline", "benchmark"}
-            or purpose == "baseline"
-            or purpose.endswith("_baseline")
-            or "_baseline" in purpose
-        )
-        live_benchmark_request = origin == "benchmark" and not (
-            purpose == "baseline"
-            or purpose.endswith("_baseline")
-            or "_baseline" in purpose
-        )
-        if benchmark_request:
-            context["benchmark_request"] = True
+        return initial_visible_user_prompt, internal_inference_call
 
-        # Organism-first path: try to answer from the substrate+state without
-        # invoking the LLM. This is bounded on purpose — the mesh handles only
-        # self-reports, acknowledgements, and resource-gated responses. When it
-        # does handle a request, the LLM is never called for that turn.
-        proof_evaluation_contract = bool(context.get("proof_evaluation_contract", False)) or (
-            not benchmark_request and is_proof_evaluation_purpose(purpose)
-        )
-        _seam_early_response = await _refuse_a_cold_protected_lane(
-            benchmark_request=benchmark_request,
-            context=context,
-            initial_visible_user_prompt=initial_visible_user_prompt,
-            origin=origin,
-            output_contract=output_contract,
-            output_contract_payload=output_contract_payload,
-            proof_evaluation_contract=proof_evaluation_contract,
-            self=self,
-            state=state,
-        )
-        if _seam_early_response is not _SEAM_FELL_THROUGH:
-            return _seam_early_response
-
-        health_probe = bool(context.get("health_probe", False)) or purpose == "proof_model_lane_probe"
-        # A generation that is not the reply must be able to say so.
-        #
-        # LIVE 2026-08-19: deciding a move on screen answered "left", and the
-        # user-surface gate rejected it as arithmetic_answer_missing — because
-        # the request it was graded against was the deliberation's own prompt,
-        # which mentions a 128 tile. Retries were exhausted, the model returned
-        # nothing, and the pursuit reported that she named no available move.
-        #
-        # The conflation is one clause below: a call is treated as user-facing
-        # when its origin says so OR it asked for the primary tier. Wanting the
-        # good model is not the same as producing the visible answer. Internal
-        # reasoning keeps the primary tier and the foreground lane; what it
-        # stops inheriting is the contract that its output IS the reply.
-        internal_inference = internal_inference_call
-        proof_evaluation_contract = proof_evaluation_contract or (
-            not benchmark_request and is_proof_evaluation_purpose(purpose)
-        )
-        if proof_evaluation_contract:
-            context["proof_evaluation_contract"] = True
-        operator_evidence_contract = bool(context.get("operator_evidence_contract", False))
-        requested_tier = self._normalize_tier(context.get("prefer_tier"))
-        explicit_background = "is_background" in context
-        explicit_foreground = bool(context.get("foreground_request", False))
-        # A planner that runs AS PART OF the turn in progress.
-        #
-        # LIVE, 2026-08-22: the finite-game solver asks the model to translate
-        # the rules into a spec, and that call was refused —
-        # "all_background_endpoints_deferred" — because the foreground turn it
-        # was serving had reserved the lane. The turn then answered from the
-        # model's own guess and got the strategy wrong.
-        #
-        # The flag alone would be an unauthenticated claim on the protected
-        # lane, so it is honoured only when the orchestrator agrees a
-        # foreground turn is actually running. Outside a turn it means
-        # nothing and the request stays background.
-        if not explicit_foreground and context.get("serves_current_turn"):
-            explicit_foreground = self._a_user_turn_is_in_flight()
-        protected_foreground_lane = bool(context.get("protected_foreground_lane", False))
-        deep_probe_request = False
-        try:
-            from core.runtime.turn_analysis import looks_like_deep_mind_probe
-
-            deep_probe_request = looks_like_deep_mind_probe(prompt)
-        except _INFERENCE_RECOVERABLE_ERRORS as exc:
-            logger.debug("Deep-probe classifier unavailable, not treating it as one: %s", exc)
-            deep_probe_request = False
-        if deep_probe_request and (explicit_foreground or self._origin_is_user_facing(origin)):
-            if _FLAG_EMBODIED_CHALLENGE.value():
-                logger.info(
-                    "🛡️ InferenceGate: Suppressing deep-probe logic for Embodied Challenge priority."
-                )
-                deep_probe_request = False
-            else:
-                protected_foreground_lane = True
-                context["deep_mind_probe"] = True
+    def _generate_with_metadata_sink_is_background(self, context, explicit_background, explicit_foreground, origin, purpose, requested_tier):
         is_background = bool(context.get("is_background", False))
         if explicit_foreground:
             is_background = False
@@ -10064,36 +9985,10 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             # cortex, RLC, verifiers, tools, and memory still execute the deep
             # systems lane. Preserve that mode across provider fallback.
             context["reasoning_mode"] = "deep"
-        desktop_cognitive_engine_contract = bool(
-            context.get("cognitive_engine_required", False)
-            or context.get("desktop_cognitive_engine_required", False)
-        )
-        protected_compact_capability_contract = bool(
-            context.get("capability_inventory_contract", False)
-            and (
-                desktop_cognitive_engine_contract
-                or context.get("protected_foreground_lane", False)
-                or explicit_foreground
-            )
-        )
-        if requested_tier == "secondary":
-            deep_handoff = True
-        if deep_handoff and not local_deep_solver_enabled():
-            # The lane does not exist on this host, so routing to it spends a
-            # load admission that cannot be granted and comes back with
-            # nothing. The router stopped registering the endpoint at boot;
-            # this is the same fact reaching the other decision that can
-            # select it. Measured live 2026-08-20: "Routing to Solver" on a
-            # foreground chat turn, followed by "lane_budget_exceeded:solver
-            # request 48.4GB + committed 25.3GB > budget 46.1GB" and an empty
-            # generation, twice, ending in an apology.
-            logger.debug(
-                "Deep handoff requested where the deep solver cannot load; "
-                "keeping this turn on the resident cortex."
-            )
-            deep_handoff = False
-            if requested_tier == "secondary":
-                requested_tier = "primary"
+        return deep_handoff, is_background
+
+    @staticmethod
+    def _generate_with_metadata_sink_part_3(context, deep_handoff, explicit_background, health_probe, is_background, live_benchmark_request, origin, proof_evaluation_contract, purpose):
         if deep_handoff and not explicit_background:
             # Explicit deep handoffs are foreground reasoning requests even if
             # the caller forgot to stamp a user-facing origin.
@@ -10142,88 +10037,42 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                 action="kept explicit proof-lane requirement after proof policy probe failed",
                 severity="error",
             )
-        if strict_primary_proof_lane:
-            context["proof_primary_lane_required"] = True
-            context["proof_model_tier"] = "primary"
-            if live_benchmark_request:
-                context["foreground_request"] = True
-            requested_tier = "primary"
-            deep_handoff = False
-            is_background = False
-            protected_foreground_lane = True
-        if desktop_cognitive_engine_contract:
-            context["desktop_cognitive_engine_required"] = True
-            # The contract is about the ANSWER, not about every call made
-            # while producing it.
-            #
-            # This forced `primary` for the whole turn, so an internal
-            # tool-loop decision — picking one of eight labelled radio buttons
-            # inside a browser pursuit — inherited the desktop reply's lane and
-            # ran on the 32B at up to 103s a round. A sixty-item form died on
-            # the turn budget having answered nothing, and because this runs
-            # before the trust block, the explicit fast-lane request never even
-            # reached the rule that would have honoured it.
-            #
-            # What the contract requires is that what she SAYS comes from the
-            # real engine. An origin that is not user-facing is not that, and
-            # keeps whatever lane it asked for.
-            if self._origin_is_user_facing(origin):
-                requested_tier = "primary"
-                deep_handoff = False
-                is_background = False
-                protected_foreground_lane = True
-        if is_background:
-            requested_tier = "tertiary"
-            deep_handoff = False
-            background_deferral = self._background_local_deferral_reason(origin=origin)
-            endpoint_deferrals: dict[str, str] = {}
-            if not background_deferral:
-                background_deferral, endpoint_deferrals = (
-                    self._background_endpoint_headroom_deferral()
-                )
-            if background_deferral:
-                if background_deferral == "memory_pressure":
-                    logger.info(
-                        "⏸️ InferenceGate: Deferring background inference for origin=%s due to memory pressure.",
-                        origin,
-                    )
-                elif background_deferral == "foreground_headroom_reserved":
-                    logger.info(
-                        "⏸️ InferenceGate: Foreground headroom reserved. Deferring background inference for origin=%s.",
-                        origin,
-                    )
-                elif background_deferral == "cortex_startup_quiet":
-                    logger.info(
-                        "⏸️ InferenceGate: Cortex quiet window active. Deferring background inference for origin=%s.",
-                        origin,
-                    )
-                elif background_deferral == "foreground_quiet_window":
-                    logger.info(
-                        "⏸️ InferenceGate: Foreground quiet window active. Deferring background inference for origin=%s.",
-                        origin,
-                    )
-                elif background_deferral == "desktop_background_disabled":
-                    logger.info(
-                        "⏸️ InferenceGate: Desktop background local LLM disabled. Deferring background inference for origin=%s.",
-                        origin,
-                    )
-                else:
-                    logger.info(
-                        "⏸️ InferenceGate: Foreground lane reserved. Deferring background inference for origin=%s.",
-                        origin,
-                    )
-                return self._refuse_generation(
-                    self.REFUSAL_DEFERRED,
-                    str(background_deferral or "foreground_lane_reserved"),
-                    context=context,
-                    origin=origin,
-                    detail=(
-                        {"endpoint_deferrals": endpoint_deferrals}
-                        if endpoint_deferrals
-                        else None
-                    ),
-                )
+        return is_background, strict_primary_proof_lane
 
+    @staticmethod
+    def _generate_with_metadata_sink_part_4(background_deferral, origin):
+        if background_deferral == "memory_pressure":
+            logger.info(
+                "⏸️ InferenceGate: Deferring background inference for origin=%s due to memory pressure.",
+                origin,
+            )
+        elif background_deferral == "foreground_headroom_reserved":
+            logger.info(
+                "⏸️ InferenceGate: Foreground headroom reserved. Deferring background inference for origin=%s.",
+                origin,
+            )
+        elif background_deferral == "cortex_startup_quiet":
+            logger.info(
+                "⏸️ InferenceGate: Cortex quiet window active. Deferring background inference for origin=%s.",
+                origin,
+            )
+        elif background_deferral == "foreground_quiet_window":
+            logger.info(
+                "⏸️ InferenceGate: Foreground quiet window active. Deferring background inference for origin=%s.",
+                origin,
+            )
+        elif background_deferral == "desktop_background_disabled":
+            logger.info(
+                "⏸️ InferenceGate: Desktop background local LLM disabled. Deferring background inference for origin=%s.",
+                origin,
+            )
+        else:
+            logger.info(
+                "⏸️ InferenceGate: Foreground lane reserved. Deferring background inference for origin=%s.",
+                origin,
+            )
+
+    async def _generate_with_metadata_sink_part_5(self, context, is_background, origin, protected_foreground_lane, requested_tier, strict_primary_proof_lane):
         if protected_foreground_lane and not is_background:
             # Global resource side effects, and the promotion that reaches them
             # can come from PROMPT TEXT: looks_like_deep_mind_probe is a
@@ -10284,55 +10133,10 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             self=self,
             strict_primary_proof_lane=strict_primary_proof_lane,
         )
-        if _seam_early_response is not _SEAM_FELL_THROUGH:
-            return _seam_early_response
+        return _seam_early_response, requested_tier
 
-        # ── Trust gate: process message through trust engine ──────────────
-        # PERF FIX: The trust gate calls UserRecognizer.recognize() which
-        # runs PBKDF2-SHA256 (260K iterations) on every word/phrase in the
-        # prompt to check for the owner passphrase.  This blocks the event
-        # loop for 3-5+ seconds on large prompts.  Fix: offload to thread
-        # pool, and skip entirely for background/autonomous requests.
-        _trust_guidance = ""
-        strict_proof_answer_request = (
-            not benchmark_request and is_strict_proof_answer_prompt(prompt, origin=origin)
-        )
-        # Use the fully resolved routing classification, not merely whether the
-        # caller explicitly stamped `is_background`. Origin-derived background
-        # work such as `origin="system"` must not pay the foreground trust-gate
-        # cost or get re-promoted back into the protected Cortex lane.
-        _is_bg_request = bool(is_background)
-        protected_foreground_lane, requested_tier = await _apply_strict_proof_answer_contract(
-            _is_bg_request=_is_bg_request,
-            context=context,
-            deep_handoff=deep_handoff,
-            deep_probe_request=deep_probe_request,
-            origin=origin,
-            prompt=prompt,
-            protected_foreground_lane=protected_foreground_lane,
-            requested_tier=requested_tier,
-            state=state,
-            strict_proof_answer_request=strict_proof_answer_request,
-        )
-
-        strict_answer_contract = bool(context.get("strict_answer_contract", False))
-        strict_value_contract = bool(context.get("strict_value_contract", False))
-        # A reply that must CARRY a document is not a conversational reply.
-        #
-        # LIVE, 2026-08-20. "build me a small web app… one self-contained
-        # file" was answered with the page written into the reply, and the
-        # reply stopped mid-attribute at `<script type=` — a 4096-token
-        # default scaled to 970 by Phi control and pressure, which is a fair
-        # size for prose and half an HTML page.
-        #
-        # The plan lane already has a floor for the same reason: a turn that
-        # must emit a plan cannot be shrunk below the plan.
-        document_output_contract = bool(
-            context.get("document_output_contract", False)
-        ) or _asks_for_a_document(initial_visible_user_prompt)
-        if document_output_contract:
-            context["document_output_contract"] = True
-        web_interlocutor_contract = bool(context.get("web_interlocutor_contract", False))
+    @staticmethod
+    def _generate_with_metadata_sink_source_code_prose(context, operator_evidence_contract, proof_evaluation_contract, strict_answer_contract, strict_proof_answer_request, strict_value_contract, web_interlocutor_contract):
         # Source code is not prose, and the conversational pipeline exists to
         # shape prose for a person: it repairs sentences, normalises
         # whitespace, and enforces a reply contract. Every one of those is
@@ -10373,205 +10177,45 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                     strict_max_token_cap = None
             except (TypeError, ValueError, OverflowError):
                 strict_max_token_cap = 128
+        return isolated_generation_contract, strict_max_token_cap
 
-        if not is_background and requested_tier == "secondary":
-            local_deep_block = self._local_deep_solver_block_reason()
-            if local_deep_block:
-                logger.warning(
-                    "🛡️ InferenceGate: local 70B Solver handoff blocked (%s). Staying on Cortex.",
-                    local_deep_block,
-                )
-                context["local_deep_block_reason"] = local_deep_block
-                requested_tier = "primary"
-                deep_handoff = False
-
-        timeout_val = self._requested_timeout_s(
-            timeout,
-            self._default_timeout_for_request(
-                origin,
-                requested_tier,
-                deep_handoff=deep_handoff,
-                is_background=is_background,
-            ),
-        )
-        primary_timeout, fallback_timeout = self._split_attempt_timeouts(
-            timeout_val, requested_tier
-        )
-        lower_local_lane_forbidden = bool(
-            proof_evaluation_contract
-            or strict_primary_proof_lane
-            or operator_evidence_contract
-            or desktop_cognitive_engine_contract
-            or health_probe
-        )
-        if requested_tier == "primary" and lower_local_lane_forbidden:
-            # This contract refuses every lower lane. Reserving 15-40% for a
-            # fallback that is forbidden shortened the only admissible 32B
-            # attempt, then failed closed after spending the reserved time on
-            # nothing. Keep a small delivery margin and give the real lane the
-            # rest; EOS still returns immediately.
-            primary_timeout = max(8.0, timeout_val - 4.0)
-            fallback_timeout = min(4.0, timeout_val)
-        # ONE clock for the whole request.
-        #
-        # Every attempt below used to start a fresh timeout of its own: the
-        # primary attempt, then each scheduled repair at 30–60s, then the
-        # brainstem, then the reflex, then APIAdapter at 30s, then HealthRouter
-        # at another 30s. A caller asking for 45 seconds could wait several
-        # minutes and every individual wait_for was "within budget". This
-        # deadline is the budget the caller actually asked for, and every
-        # window below is capped by what is left of it.
-        request_deadline = get_deadline(float(timeout_val))
-        context["request_deadline_s"] = float(timeout_val)
-        max_tokens = self._requested_max_tokens(
-            context.get("max_tokens"),
-            self._default_max_tokens_for_request(
-                origin,
-                requested_tier,
-                deep_handoff=deep_handoff,
-                is_background=is_background,
-            ),
-        )
-        explicit_max_tokens_cap: int | None = None
-        if "max_tokens" in context:
-            try:
-                explicit_max_tokens_cap = max(1, int(context.get("max_tokens") or 1))
-            except (TypeError, ValueError, OverflowError) as exc:
-                logger.debug("Requested max_tokens is not an integer, applying no explicit cap: %s", exc)
-                explicit_max_tokens_cap = None
-        # Whether the CALLER asked for the floor, or the gate worked it out.
-        #
-        # A floor the caller supplied is the caller's own instruction and beats
-        # the caller's own stale cap — that is what a long-form desktop request
-        # carrying both max_tokens=1536 and user_surface_completion_floor=2560
-        # is asking for. A floor the gate computed is not an instruction, and
-        # raising a declared ceiling with it dispatched a request that asked for
-        # 384 at 1000 while the context still said 384.
-        caller_declared_completion_floor = "user_surface_completion_floor" in context
-        surface_completion_floor = 0
-        # How much room an answer needs is a property of the question, not of
-        # the path that happens to serve it.
-        #
-        # LIVE, 2026-08-27: a question that had to be worked out was routed to
-        # the deliberate lane BECAUSE it was hard, and that lane carried no
-        # desktop contract, so the floor did not apply and the model was
-        # dispatched with 128 tokens. The quick lane, for the same question,
-        # got 896. Choosing the right lane made the budget worse.
-        #
-        # The population is the one the sampling multiplier below already acts
-        # on: user-facing foreground generations. One gate lowers the budget
-        # and one floors it, and they now cover the same turns. A declared
-        # output ceiling and a blocked resource stake still win, as before.
-        _foreground_answer_turn = (
-            not is_background
-            and self._origin_is_user_facing(origin)
-            and not isolated_generation_contract
-            and not health_probe
-            and not benchmark_request
-            and not proof_evaluation_contract
-            and not strict_answer_contract
-        )
-        if (
-            (desktop_cognitive_engine_contract or _foreground_answer_turn)
-            and not bool(context.get("hard_output_token_ceiling", False))
-            and not bool(context.get("resource_stakes_blocked", False))
-        ):
-            try:
-                surface_completion_floor = max(
-                    1,
-                    int(
-                        context.get("user_surface_completion_floor")
-                        or answer_surface_token_floor(initial_visible_user_prompt)
-                    ),
-                )
-            except (TypeError, ValueError, OverflowError):
-                surface_completion_floor = answer_surface_token_floor(
-                    initial_visible_user_prompt
-                )
-            context["user_surface_completion_floor"] = surface_completion_floor
-            # A declared ceiling wins, which is what the paragraph above says
-            # and what this used to contradict: it raised explicit_max_tokens_cap
-            # to the floor, so a caller asking for 384 was dispatched with 1000.
-            # The floor is for a turn nobody sized; it is not a licence to
-            # overrule a caller who did.
-            room = (
-                min(surface_completion_floor, explicit_max_tokens_cap)
-                if explicit_max_tokens_cap is not None
-                and not caller_declared_completion_floor
-                else surface_completion_floor
+    @staticmethod
+    def _generate_with_metadata_sink_part_7(caller_declared_completion_floor, context, explicit_max_tokens_cap, initial_visible_user_prompt, max_tokens, surface_completion_floor):
+        try:
+            surface_completion_floor = max(
+                1,
+                int(
+                    context.get("user_surface_completion_floor")
+                    or answer_surface_token_floor(initial_visible_user_prompt)
+                ),
             )
-            if max_tokens < room:
-                logger.info(
-                    "🧠 Foreground completion contract raised the decode budget %d→%d.",
-                    max_tokens,
-                    room,
-                )
-                max_tokens = room
-            if explicit_max_tokens_cap is not None:
-                if caller_declared_completion_floor:
-                    explicit_max_tokens_cap = max(
-                        explicit_max_tokens_cap, surface_completion_floor
-                    )
-                context["max_tokens"] = min(explicit_max_tokens_cap, max_tokens)
-        if "max_tokens" not in context:
-            max_tokens = self._adaptive_max_tokens_for_prompt(
-                initial_visible_user_prompt,
-                base_tokens=max_tokens,
-                origin=origin,
-                requested_tier=requested_tier,
-                is_background=is_background,
+        except (TypeError, ValueError, OverflowError):
+            surface_completion_floor = answer_surface_token_floor(
+                initial_visible_user_prompt
             )
-        # When the cortex is still warming or recovering, refuse to load
-        # the 72B Solver alongside it — they don't fit in 64GB together and
-        # the resulting MemoryGuard panic-eviction creates a thrash loop where
-        # neither lane stays up long enough to answer. Force primary; the
-        # cortex will handle the turn when warmup finishes.
-        if not is_background and requested_tier == "secondary" and not protected_foreground_lane:
-            try:
-                _cortex_lane = self.get_conversation_status() or {}
-                _cortex_state = str(_cortex_lane.get("state", "") or "").lower()
-                if _cortex_state in {"warming", "handshaking", "recovering"}:
-                    logger.info(
-                        "🛡️ InferenceGate: cortex is %s; refusing secondary handoff to avoid "
-                        "%s/Solver memory thrash. Staying on primary.",
-                        _cortex_state,
-                        _primary_lane_label(),
-                    )
-                    requested_tier = "primary"
-                    deep_handoff = False
-            except _INFERENCE_RECOVERABLE_ERRORS as _swap_exc:
-                record_degradation(
-                    "inference_gate",
-                    _swap_exc,
-                    severity="warning",
-                    action="failed safe to primary after secondary coexistence probe failed",
-                )
-                logger.debug("Cortex lane probe before secondary admission failed: %s", _swap_exc)
-                requested_tier = "primary"
-                deep_handoff = False
-
-        admission_snapshot: dict[str, Any] | None = None
-        _seam_early_response, deep_handoff, fallback_timeout, max_tokens, primary_timeout, request_deadline, requested_tier, timeout_val = await _admit_the_foreground_request(
-            context=context,
-            deep_handoff=deep_handoff,
-            desktop_cognitive_engine_contract=desktop_cognitive_engine_contract,
-            fallback_timeout=fallback_timeout,
-            initial_visible_user_prompt=initial_visible_user_prompt,
-            is_background=is_background,
-            max_tokens=max_tokens,
-            origin=origin,
-            primary_timeout=primary_timeout,
-            protected_foreground_lane=protected_foreground_lane,
-            request_deadline=request_deadline,
-            requested_tier=requested_tier,
-            self=self,
-            surface_completion_floor=surface_completion_floor,
-            timeout=timeout,
-            timeout_val=timeout_val,
+        context["user_surface_completion_floor"] = surface_completion_floor
+        # A declared ceiling wins, which is what the paragraph above says
+        # and what this used to contradict: it raised explicit_max_tokens_cap
+        # to the floor, so a caller asking for 384 was dispatched with 1000.
+        # The floor is for a turn nobody sized; it is not a licence to
+        # overrule a caller who did.
+        room = (
+            min(surface_completion_floor, explicit_max_tokens_cap)
+            if explicit_max_tokens_cap is not None
+            and not caller_declared_completion_floor
+            else surface_completion_floor
         )
-        if _seam_early_response is not _SEAM_FELL_THROUGH:
-            return _seam_early_response
+        if max_tokens < room:
+            logger.info(
+                "🧠 Foreground completion contract raised the decode budget %d→%d.",
+                max_tokens,
+                room,
+            )
+            max_tokens = room
+        return max_tokens, surface_completion_floor
 
+    @staticmethod
+    def _generate_with_metadata_sink_resource_stakes_scale(benchmark_request, health_probe, isolated_generation_contract, max_tokens, strict_answer_contract):
         # ── Resource Stakes: scale token budget by computational survival state ──
         try:
             from core.consciousness.resource_stakes import get_resource_stakes
@@ -10598,115 +10242,10 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
         # This newer ledger is stricter than the legacy multiplier above: it can
         # downgrade the large-model lane and hard-cap output when viability drops.
         stakes_token_ceiling: int | None = None
-        try:
-            from core.container import ServiceContainer
+        return max_tokens, stakes_token_ceiling
 
-            stakes = ServiceContainer.get("resource_stakes", default=None)
-            deep_handoff, max_tokens, requested_tier, stakes_token_ceiling = _settle_the_token_ceilings(
-                context=context,
-                deep_handoff=deep_handoff,
-                desktop_cognitive_engine_contract=desktop_cognitive_engine_contract,
-                max_tokens=max_tokens,
-                prompt=prompt,
-                protected_compact_capability_contract=protected_compact_capability_contract,
-                requested_tier=requested_tier,
-                self=self,
-                stakes=stakes,
-                stakes_token_ceiling=stakes_token_ceiling,
-                surface_completion_floor=surface_completion_floor,
-            )
-        except _INFERENCE_RECOVERABLE_ERRORS as _stakes_exc:
-            record_degradation(
-                "inference_gate",
-                _stakes_exc,
-                severity="warning",
-                action="kept default resource-stakes action envelope",
-            )
-            logger.debug("ResourceStakesLedger unavailable: %s", _stakes_exc)
-
-        # ── Phi (Integrated Information): scale token budget based on cognitive integration ──
-        # [STABILITY v59] NEVER throttle user-facing foreground requests.
-        # PHI is near-zero during early boot (insufficient IIT data), which
-        # was crushing max_tokens to ~420 on the first few user turns —
-        # making desktop responses catastrophically worse than server mode.
-        # PHI scaling is now restricted to background requests only, and
-        # even then the floor is 0.6x instead of 0.2x.
-        _is_user_facing_for_phi = bool(
-            not is_background
-            and (explicit_foreground or protected_foreground_lane or self._origin_is_user_facing(origin))
-        )
-        if not _is_user_facing_for_phi:
-            try:
-                from core.container import ServiceContainer
-                phi_val = 1.0  # default
-                phi_is_measured = False
-                phi_core = ServiceContainer.get("phi_core", default=None)
-                if phi_core is not None:
-                    if hasattr(phi_core, "get_live_phi"):
-                        # include_surrogate=True means this number may be a
-                        # PROXY, not an exact-MIP integrated-information
-                        # measurement. It still scales the BACKGROUND token
-                        # budget — which is a defensible use of a rough
-                        # signal — but it must not be recorded as Φ, and the
-                        # foreground lane is already excluded above.
-                        phi_val = max(
-                            0.0,
-                            _finite(
-                                phi_core.get_live_phi(include_surrogate=True), 1.0
-                            )
-                            or 1.0,
-                        )
-                        phi_is_measured = False
-                    elif hasattr(phi_core, "_last_result") and phi_core._last_result:
-                        phi_val = max(
-                            0.0, _finite(phi_core._last_result.phi_s, 1.0) or 1.0
-                        )
-                        phi_is_measured = True
-                context["background_budget_signal"] = {
-                    "value": round(float(phi_val), 4),
-                    # The name of the thing, not the name of the ideal.
-                    "kind": "phi_measured" if phi_is_measured else "phi_surrogate",
-                    "scales": "background_token_budget",
-                }
-                
-                # Scale token budget for background requests only:
-                # When Φ is high, allow full budget. When Φ is low, scale down
-                # but never below 60% — the old 20% floor was destructive.
-                #
-                # "Background only" is what this always said and never did.
-                # There was no background check in the condition, so a
-                # background budget control was trimming the answers people
-                # were waiting for, and the signal it scales on is registered
-                # under the name "background_token_budget" a dozen lines above.
-                #
-                # It matters more than a percentage looks. A token budget is a
-                # ceiling and not a reservation: the model stops when it has
-                # finished, so a generous ceiling costs nothing on a turn that
-                # ends early, while a tight one costs the end of a sentence on
-                # the turn that needed the room. Guessing low and guessing high
-                # are not symmetric, and on one laptop serving one person
-                # there is nothing on the other side of the trade.
-                if (
-                    phi_val < 0.8
-                    and is_background
-                    and not strict_answer_contract
-                    and not health_probe
-                    and not isolated_generation_contract
-                    and not benchmark_request
-                    and not document_output_contract
-                ):
-                    phi_scale = max(0.6, 0.6 + 0.4 * (phi_val / 0.8))
-                    max_tokens = max(512, int(max_tokens * phi_scale))
-                    logger.info("🧠 [PHI CONTROL] Integration Φ=%.3f -> scaling token budget by %.2f (max_tokens=%d)", 
-                                phi_val, phi_scale, max_tokens)
-            except _INFERENCE_RECOVERABLE_ERRORS as exc:
-                _record_inference_degradation(
-                    exc,
-                    action="kept unscaled token budget after phi token-budget probe failed",
-                    severity="debug",
-                )
-                logger.debug("Phi token budget scaling skipped: %s", exc)
-
+    @staticmethod
+    def _generate_with_metadata_sink_affective_circumplex_let(context):
         # ── Affective Circumplex: let somatic state modulate generation params ──
         # Only applies on user-facing, non-background requests. Background tasks
         # run at fixed params to avoid thermal feedback loops.
@@ -10770,417 +10309,201 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
         ):
             if _gen_key in context:
                 morpho_kwargs[_gen_key] = context[_gen_key]
-        if (
-            not is_background
-            and self._origin_is_user_facing(origin)
-            and not isolated_generation_contract
-        ):
-            try:
-                from core.affect.affective_circumplex import get_circumplex
-                from core.verify import influence_channels
-                from core.verify.lesion_registry import apply_channel
+        return morpho_kwargs, somatic_temperature
 
-                circumplex_params = get_circumplex().get_llm_params()
-                # Wrapped so a paired trial can run this exact code with the
-                # affect contribution removed. This is the largest direct
-                # actuation in the system — the circumplex moves temperature
-                # across 0.500..0.858 and the token budget across 472..768 —
-                # and it was the only live actuator with no lesion, so the one
-                # faculty with a visibly large effect was the one the influence
-                # apparatus could not ask about. Neutral is "no affective
-                # modulation": the caller's own budget and the default
-                # temperature, which is what this block would produce if the
-                # circumplex were flat.
-                if not context.get("max_tokens"):
-                    max_tokens = max(
-                        384,
-                        min(
-                            max_tokens,
-                            int(
-                                apply_channel(
-                                    influence_channels.AFFECT_CIRCUMPLEX_SAMPLING,
-                                    circumplex_params["max_tokens"],
-                                    neutral=max_tokens,
-                                )
-                            ),
+    @staticmethod
+    def _generate_with_metadata_sink_part_10(context, max_tokens, somatic_temperature):
+        try:
+            from core.affect.affective_circumplex import get_circumplex
+            from core.verify import influence_channels
+            from core.verify.lesion_registry import apply_channel
+
+            circumplex_params = get_circumplex().get_llm_params()
+            # Wrapped so a paired trial can run this exact code with the
+            # affect contribution removed. This is the largest direct
+            # actuation in the system — the circumplex moves temperature
+            # across 0.500..0.858 and the token budget across 472..768 —
+            # and it was the only live actuator with no lesion, so the one
+            # faculty with a visibly large effect was the one the influence
+            # apparatus could not ask about. Neutral is "no affective
+            # modulation": the caller's own budget and the default
+            # temperature, which is what this block would produce if the
+            # circumplex were flat.
+            if not context.get("max_tokens"):
+                max_tokens = max(
+                    384,
+                    min(
+                        max_tokens,
+                        int(
+                            apply_channel(
+                                influence_channels.AFFECT_CIRCUMPLEX_SAMPLING,
+                                circumplex_params["max_tokens"],
+                                neutral=max_tokens,
+                            )
                         ),
-                    )
-                somatic_temperature = apply_channel(
-                    influence_channels.AFFECT_CIRCUMPLEX_SAMPLING,
-                    circumplex_params["temperature"],
-                    neutral=None,
+                    ),
                 )
-                logger.debug(
-                    "💓 Circumplex: V=%.2f A=%.2f → temp=%s tokens=%d",
-                    circumplex_params["valence"],
-                    circumplex_params["arousal"],
-                    # %s, not %.2f: under a paired trial this channel is
-                    # lesioned to None and a float format would raise inside
-                    # the logging call.
-                    "lesioned"
-                    if somatic_temperature is None
-                    else f"{somatic_temperature:.2f}",
-                    max_tokens,
-                )
-            except _INFERENCE_RECOVERABLE_ERRORS as _ce:
-                record_degradation(
-                    "inference_gate",
-                    _ce,
-                    severity="warning",
-                    action="kept default sampling parameters without affective circumplex",
-                )
-                logger.debug("Circumplex unavailable: %s", _ce)
+            somatic_temperature = apply_channel(
+                influence_channels.AFFECT_CIRCUMPLEX_SAMPLING,
+                circumplex_params["temperature"],
+                neutral=None,
+            )
+            logger.debug(
+                "💓 Circumplex: V=%.2f A=%.2f → temp=%s tokens=%d",
+                circumplex_params["valence"],
+                circumplex_params["arousal"],
+                # %s, not %.2f: under a paired trial this channel is
+                # lesioned to None and a float format would raise inside
+                # the logging call.
+                "lesioned"
+                if somatic_temperature is None
+                else f"{somatic_temperature:.2f}",
+                max_tokens,
+            )
+        except _INFERENCE_RECOVERABLE_ERRORS as _ce:
+            record_degradation(
+                "inference_gate",
+                _ce,
+                severity="warning",
+                action="kept default sampling parameters without affective circumplex",
+            )
+            logger.debug("Circumplex unavailable: %s", _ce)
 
-            # ── PNEUMA precision sampler: blend with circumplex temperature ──
-            try:
-                from core.consciousness.precision_sampler import get_active_inference_sampler
+        # ── PNEUMA precision sampler: blend with circumplex temperature ──
+        try:
+            from core.consciousness.precision_sampler import get_active_inference_sampler
 
-                _ais_params = get_active_inference_sampler().get_sampling_params()
-                ais_temp = _ais_params.get("temperature")
-                if ais_temp is not None:
-                    # Blend: 50% circumplex + 50% PNEUMA precision
-                    base = somatic_temperature if somatic_temperature is not None else 0.72
-                    somatic_temperature = round(0.5 * base + 0.5 * ais_temp, 3)
-                    logger.debug("🎯 PNEUMA precision temp blend → %.3f", somatic_temperature)
-            except _INFERENCE_RECOVERABLE_ERRORS as _ais_e:
-                record_degradation(
-                    "inference_gate",
-                    _ais_e,
-                    severity="warning",
-                    action="kept existing sampling temperature without active-inference blend",
+            _ais_params = get_active_inference_sampler().get_sampling_params()
+            ais_temp = _ais_params.get("temperature")
+            if ais_temp is not None:
+                # Blend: 50% circumplex + 50% PNEUMA precision
+                base = somatic_temperature if somatic_temperature is not None else 0.72
+                somatic_temperature = round(0.5 * base + 0.5 * ais_temp, 3)
+                logger.debug("🎯 PNEUMA precision temp blend → %.3f", somatic_temperature)
+        except _INFERENCE_RECOVERABLE_ERRORS as _ais_e:
+            record_degradation(
+                "inference_gate",
+                _ais_e,
+                severity="warning",
+                action="kept existing sampling temperature without active-inference blend",
+            )
+            logger.debug("ActiveInferenceSampler unavailable: %s", _ais_e)
+        return max_tokens, somatic_temperature
+
+    def _generate_with_metadata_sink_part_11(self, _homeostasis, max_tokens, somatic_temperature):
+        if _homeostasis and hasattr(_homeostasis, "get_inference_modifiers"):
+            _h_mods = _homeostasis.get_inference_modifiers()
+            if somatic_temperature is not None:
+                somatic_temperature = round(
+                    somatic_temperature
+                    + self._modulator_delta(
+                        _h_mods["temperature_mod"],
+                        source="homeostasis.temperature_mod",
+                        limit=0.5,
+                    ),
+                    3,
                 )
-                logger.debug("ActiveInferenceSampler unavailable: %s", _ais_e)
-
-            # ── Homeostatic Coupling: Apply cognitive modifiers to generation ──
-            # These are computed every heartbeat tick from drives + affect + hardware.
-            # temperature_mod: integrity/sovereignty stress → more cautious (lower temp)
-            # depth_mod: energy depletion → fewer tokens; high energy → more
-            # creativity_mod: curiosity-driven exploration width
-            try:
-                _homeo_coupling = ServiceContainer.get("homeostatic_coupling", default=None)
-                if _homeo_coupling:
-                    _mods = _homeo_coupling.get_modifiers()
-                    _temp_factor = self._modulator_factor(
-                        _mods.temperature_mod,
-                        source="homeostatic_coupling.temperature_mod",
-                        low=0.5,
-                        high=1.5,
-                    )
-                    _depth_factor = self._modulator_factor(
-                        _mods.depth_mod,
-                        source="homeostatic_coupling.depth_mod",
+                somatic_temperature = max(0.1, min(1.5, somatic_temperature))
+            max_tokens = max(
+                384,
+                int(
+                    max_tokens
+                    * self._modulator_factor(
+                        _h_mods["token_multiplier"],
+                        source="homeostasis.token_multiplier",
                         low=0.5,
                         high=2.0,
                     )
-                    if somatic_temperature is not None:
-                        somatic_temperature = round(somatic_temperature * _temp_factor, 3)
-                    max_tokens = max(384, int(max_tokens * _depth_factor))
-                    logger.debug(
-                        "🫀 HomeostaticCoupling: temp_mod=%.2f depth_mod=%.2f → temp=%.3f tokens=%d",
-                        _mods.temperature_mod,
-                        _mods.depth_mod,
-                        somatic_temperature or 0.0,
-                        max_tokens,
-                    )
-            except _INFERENCE_RECOVERABLE_ERRORS as _hc_e:
-                record_degradation(
-                    "inference_gate",
-                    _hc_e,
-                    severity="warning",
-                    action="kept existing generation parameters without homeostatic coupling",
-                )
-                logger.debug("HomeostaticCoupling modifiers unavailable: %s", _hc_e)
-
-            # ── Homeostasis Engine: Direct drive-based inference modulation ──
-            # Integrity/sovereignty danger → lower temperature (caution)
-            # Low metabolism → fewer tokens (conserve)
-            # High curiosity → slight temp boost (exploration)
-            try:
-                _homeostasis = ServiceContainer.get("homeostasis", default=None)
-                if _homeostasis and hasattr(_homeostasis, "get_inference_modifiers"):
-                    _h_mods = _homeostasis.get_inference_modifiers()
-                    if somatic_temperature is not None:
-                        somatic_temperature = round(
-                            somatic_temperature
-                            + self._modulator_delta(
-                                _h_mods["temperature_mod"],
-                                source="homeostasis.temperature_mod",
-                                limit=0.5,
-                            ),
-                            3,
-                        )
-                        somatic_temperature = max(0.1, min(1.5, somatic_temperature))
-                    max_tokens = max(
-                        384,
-                        int(
-                            max_tokens
-                            * self._modulator_factor(
-                                _h_mods["token_multiplier"],
-                                source="homeostasis.token_multiplier",
-                                low=0.5,
-                                high=2.0,
-                            )
-                        ),
-                    )
-                    logger.debug(
-                        "🫀 Homeostasis: temp_mod=%+.3f token_mult=%.2f caution=%.2f",
-                        _h_mods["temperature_mod"],
-                        _h_mods["token_multiplier"],
-                        _h_mods["caution_level"],
-                    )
-            except _INFERENCE_RECOVERABLE_ERRORS as _he_e:
-                record_degradation(
-                    "inference_gate",
-                    _he_e,
-                    severity="warning",
-                    action="kept existing generation parameters without homeostasis modifiers",
-                )
-                logger.debug("Homeostasis inference modifiers unavailable: %s", _he_e)
-
-            # ── Morphogenetic substrate → sampling parameters ────────────────
-            # What this does: reads the morphogenetic field's danger, curiosity
-            # and resource-pressure scalars and moves temperature, top_p and
-            # the repetition penalty. That is a real causal path from substrate
-            # state to output distribution, and it is worth having.
-            #
-            # What it is NOT: "curing mind-body dualism" or "true embodied
-            # cognition", which is what this comment used to claim. Nothing
-            # here establishes embodiment; it reads three numbers out of a
-            # service and scales three sampler knobs. The claim outran the
-            # code, and a claim about Aura with no test behind it is the thing
-            # this pass exists to remove (core/organism/model_validation.py).
-            try:
-                from core.container import ServiceContainer
-
-                _rt = ServiceContainer.get("morphogenetic_runtime", default=None)
-                max_tokens, somatic_temperature = _modulate_sampling_from_the_body(
-                    ServiceContainer=ServiceContainer,
-                    _rt=_rt,
-                    context=context,
-                    explicit_foreground=explicit_foreground,
-                    is_background=is_background,
-                    max_tokens=max_tokens,
-                    morpho_kwargs=morpho_kwargs,
-                    protected_compact_capability_contract=protected_compact_capability_contract,
-                    protected_foreground_lane=protected_foreground_lane,
-                    self=self,
-                    somatic_temperature=somatic_temperature,
-                )
-            except _INFERENCE_RECOVERABLE_ERRORS as _m_e:
-                record_degradation(
-                    "inference_gate",
-                    _m_e,
-                    severity="warning",
-                    action="continued without morphogenetic generation-parameter coupling",
-                )
-                logger.debug("Morphogenetic coupling unavailable: %s", _m_e)
-
-            # ── Synaptic Plasticity: Learned generation-style modulation ──
-            # The projection matrix was updated after previous inferences via
-            # reward-modulated Hebbian learning. Now it transforms the current
-            # substrate state into sampling parameter adjustments.
-            try:
-                _plasticity = ServiceContainer.get("synaptic_plasticity", default=None)
-                if _plasticity is not None:
-                    _substrate = ServiceContainer.get("conscious_substrate", default=None)
-                    if _substrate is not None and hasattr(_substrate, "x"):
-                        import numpy as _np_plast
-                        _sub_state = _np_plast.asarray(_substrate.x, dtype=_np_plast.float32)
-                        _plast_mod = _plasticity.compute_modulation(_sub_state)
-                        if _plast_mod:
-                            _p_temp_d = _plast_mod.get("temperature_delta", 0.0)
-                            _p_topp_d = _plast_mod.get("top_p_delta", 0.0)
-                            _p_rep_d = _plast_mod.get("repetition_penalty_delta", 0.0)
-                            if somatic_temperature is not None:
-                                somatic_temperature = max(0.1, min(1.5, somatic_temperature + _p_temp_d))
-                            else:
-                                somatic_temperature = max(0.1, min(1.5, 0.72 + _p_temp_d))
-                            if "top_p" in morpho_kwargs:
-                                morpho_kwargs["top_p"] = max(0.3, min(0.98, morpho_kwargs["top_p"] + _p_topp_d))
-                            if "repetition_penalty" in morpho_kwargs:
-                                morpho_kwargs["repetition_penalty"] = max(0.9, min(1.4, morpho_kwargs["repetition_penalty"] + _p_rep_d))
-                            logger.debug(
-                                "🧬 SynapticPlasticity: temp_d=%.3f topp_d=%.3f rep_d=%.3f",
-                                _p_temp_d, _p_topp_d, _p_rep_d,
-                            )
-                        # Pre-inference capture for post-inference learning
-                        _hedonic = 0.0
-                        try:
-                            from core.consciousness.hedonic_gradient import get_hedonic_gradient
-                            _hedonic = get_hedonic_gradient().score
-                        except _INFERENCE_RECOVERABLE_ERRORS as _hedonic_exc:
-                            record_degradation(
-                                "inference_gate",
-                                _hedonic_exc,
-                                severity="warning",
-                                action="continued synaptic plasticity capture without hedonic score",
-                            )
-                            logger.debug(
-                                "SynapticPlasticity hedonic capture unavailable: %s",
-                                _hedonic_exc,
-                            )
-                        _plasticity.pre_inference_capture(_sub_state, _hedonic)
-            except _INFERENCE_RECOVERABLE_ERRORS as _sp_e:
-                record_degradation(
-                    "inference_gate",
-                    _sp_e,
-                    severity="warning",
-                    action="continued without synaptic plasticity generation modulation",
-                )
-                logger.debug("SynapticPlasticity coupling unavailable: %s", _sp_e)
-
-            # ── Temporal Continuity: Silence-accumulated modulation ──
-            # The temporal residue from accumulated silence directly adjusts
-            # generation parameters — the system speaks differently after long
-            # silences because real drift accumulated.
-            try:
-                _tc = ServiceContainer.get("temporal_continuity", default=None)
-                if _tc is not None:
-                    _tc.on_inference_start()
-                    _tc_mod = _tc.compute_modulation()
-                    if _tc_mod:
-                        _tc_temp_d = self._modulator_delta(
-                            _tc_mod.get("temperature_delta", 0.0),
-                            source="temporal_continuity.temperature_delta",
-                            limit=0.5,
-                        )
-                        _tc_topp_d = _tc_mod.get("top_p_delta", 0.0)
-                        _tc_rep_d = _tc_mod.get("repetition_penalty_delta", 0.0)
-                        _tc_token_mult = _tc_mod.get("token_budget_multiplier", 1.0)
-                        if somatic_temperature is not None:
-                            somatic_temperature = max(0.1, min(1.5, somatic_temperature + _tc_temp_d))
-                        if _tc_topp_d and "top_p" in morpho_kwargs:
-                            morpho_kwargs["top_p"] = max(0.3, min(0.98, morpho_kwargs["top_p"] + _tc_topp_d))
-                        if _tc_rep_d and "repetition_penalty" in morpho_kwargs:
-                            morpho_kwargs["repetition_penalty"] = max(0.9, min(1.4, morpho_kwargs["repetition_penalty"] + _tc_rep_d))
-                        if _tc_token_mult > 1.0:
-                            max_tokens = int(min(max_tokens * _tc_token_mult, 4096))
-                        logger.debug(
-                            "🕐 TemporalContinuity: temp_d=%.3f token_mult=%.2f",
-                            _tc_temp_d, _tc_token_mult,
-                        )
-            except _INFERENCE_RECOVERABLE_ERRORS as _tc_e:
-                record_degradation(
-                    "inference_gate",
-                    _tc_e,
-                    severity="warning",
-                    action="continued without temporal continuity generation modulation",
-                )
-                logger.debug("TemporalContinuity coupling unavailable: %s", _tc_e)
-
-            # ── Somatic qualia service → sampler perturbations ──
-            # Reads temperature/top_p/repetition/frequency offsets from the
-            # somatic_qualia service and applies them, bounded, to the sampler.
-            # The perturbation is real and measurable at the output.
-            #
-            # "Raw felt perturbation" was the previous label, and the code does
-            # not support it: felt-ness is not established by a service returning
-            # four floats. The mechanism stands on its own without the claim.
-            try:
-                _sq = ServiceContainer.get("somatic_qualia", default=None)
-                if _sq is not None:
-                    _sq_pert = _sq.compute_perturbation()
-                    if _sq_pert:
-                        _sq_temp = self._modulator_delta(
-                            _sq_pert.get("temperature_perturbation", 0.0),
-                            source="somatic_qualia.temperature",
-                            limit=0.5,
-                        )
-                        _sq_rep = self._modulator_delta(
-                            _sq_pert.get("repetition_penalty_perturbation", 0.0),
-                            source="somatic_qualia.repetition_penalty",
-                            limit=0.5,
-                        )
-                        _sq_topp = self._modulator_delta(
-                            _sq_pert.get("top_p_perturbation", 0.0),
-                            source="somatic_qualia.top_p",
-                            limit=0.5,
-                        )
-                        _sq_freq = self._modulator_delta(
-                            _sq_pert.get("frequency_penalty_perturbation", 0.0),
-                            source="somatic_qualia.frequency_penalty",
-                            limit=0.5,
-                        )
-                        if somatic_temperature is not None:
-                            somatic_temperature = max(0.1, min(1.5, somatic_temperature + _sq_temp))
-                        if "repetition_penalty" in morpho_kwargs:
-                            morpho_kwargs["repetition_penalty"] = max(0.9, min(1.4, morpho_kwargs["repetition_penalty"] + _sq_rep))
-                        if "top_p" in morpho_kwargs:
-                            morpho_kwargs["top_p"] = max(0.3, min(0.98, morpho_kwargs["top_p"] + _sq_topp))
-                        if _sq_freq:
-                            morpho_kwargs["frequency_penalty"] = max(0.0, min(0.5, morpho_kwargs.get("frequency_penalty", 0.0) + _sq_freq))
-                        logger.debug(
-                            "🫀 SomaticQualia: temp=%.4f rep=%.4f topp=%.4f freq=%.4f",
-                            _sq_temp, _sq_rep, _sq_topp, _sq_freq,
-                        )
-            except _INFERENCE_RECOVERABLE_ERRORS as _sq_e:
-                record_degradation(
-                    "inference_gate",
-                    _sq_e,
-                    severity="warning",
-                    action="continued without somatic qualia generation perturbation",
-                )
-                logger.debug("SomaticQualia coupling unavailable: %s", _sq_e)
-
-            # ── Free Energy: Urgency-based tier escalation ──
-            # When FE is high and rising, prefer deeper model for better reasoning
-            try:
-                _fe_engine = ServiceContainer.get("free_energy_engine", default=None)
-                if _fe_engine and _fe_engine.current:
-                    _fe_state = _fe_engine.current
-                    # High FE + complex action → request deeper model
-                    if (
-                        _fe_state.free_energy > 0.65
-                        and _fe_state.dominant_action in ("update_beliefs", "act_on_world")
-                        and requested_tier == "primary"
-                    ):
-                        # Nudge toward deeper tier if available
-                        if not deep_handoff:
-                            logger.debug(
-                                "⚡ FE urgency (F=%.2f, action=%s): consider deeper reasoning",
-                                _fe_state.free_energy,
-                                _fe_state.dominant_action,
-                            )
-                            # Don't force tier switch — just extend token budget
-                            max_tokens = min(max_tokens + 256, 4096)
-            except _INFERENCE_RECOVERABLE_ERRORS as _fe_e:
-                record_degradation(
-                    "inference_gate",
-                    _fe_e,
-                    severity="warning",
-                    action="continued without free-energy token-budget nudge",
-                )
-                logger.debug("FreeEnergy tier nudge unavailable: %s", _fe_e)
-
-        # Ordinary live conversation must not collapse into a starvation budget
-        # after affective / homeostatic modulation. Explicit caller caps still
-        # win, as do hard resource-stakes blocks and deep-probe turns.
-        if (
-            not is_background
-            and self._origin_is_user_facing(origin)
-            and requested_tier in {"primary", "secondary"}
-            and "max_tokens" not in context
-            and not bool(context.get("resource_stakes_blocked", False))
-            and not deep_probe_request
-            and not isolated_generation_contract
-            and not health_probe
-        ):
-            foreground_floor, foreground_cap, _foreground_loops = (
-                self._foreground_compute_profile(initial_visible_user_prompt)
+                ),
             )
-            max_tokens = min(max_tokens, foreground_cap)
-            if max_tokens < foreground_floor:
-                logger.info(
-                    "🧠 Foreground chat compute profile raised budget %d→%d "
-                    "(cap=%d, loops=%d, origin=%s).",
-                    max_tokens,
-                    foreground_floor,
-                    foreground_cap,
-                    _foreground_loops,
-                    origin or "unknown",
-                )
-                max_tokens = foreground_floor
+            logger.debug(
+                "🫀 Homeostasis: temp_mod=%+.3f token_mult=%.2f caution=%.2f",
+                _h_mods["temperature_mod"],
+                _h_mods["token_multiplier"],
+                _h_mods["caution_level"],
+            )
+        return max_tokens, somatic_temperature
 
+    @staticmethod
+    def _generate_with_metadata_sink_part_12(_plasticity, _substrate, morpho_kwargs, somatic_temperature):
+        if _substrate is not None and hasattr(_substrate, "x"):
+            import numpy as _np_plast
+            _sub_state = _np_plast.asarray(_substrate.x, dtype=_np_plast.float32)
+            _plast_mod = _plasticity.compute_modulation(_sub_state)
+            if _plast_mod:
+                _p_temp_d = _plast_mod.get("temperature_delta", 0.0)
+                _p_topp_d = _plast_mod.get("top_p_delta", 0.0)
+                _p_rep_d = _plast_mod.get("repetition_penalty_delta", 0.0)
+                if somatic_temperature is not None:
+                    somatic_temperature = max(0.1, min(1.5, somatic_temperature + _p_temp_d))
+                else:
+                    somatic_temperature = max(0.1, min(1.5, 0.72 + _p_temp_d))
+                if "top_p" in morpho_kwargs:
+                    morpho_kwargs["top_p"] = max(0.3, min(0.98, morpho_kwargs["top_p"] + _p_topp_d))
+                if "repetition_penalty" in morpho_kwargs:
+                    morpho_kwargs["repetition_penalty"] = max(0.9, min(1.4, morpho_kwargs["repetition_penalty"] + _p_rep_d))
+                logger.debug(
+                    "🧬 SynapticPlasticity: temp_d=%.3f topp_d=%.3f rep_d=%.3f",
+                    _p_temp_d, _p_topp_d, _p_rep_d,
+                )
+            # Pre-inference capture for post-inference learning
+            _hedonic = 0.0
+            try:
+                from core.consciousness.hedonic_gradient import get_hedonic_gradient
+                _hedonic = get_hedonic_gradient().score
+            except _INFERENCE_RECOVERABLE_ERRORS as _hedonic_exc:
+                record_degradation(
+                    "inference_gate",
+                    _hedonic_exc,
+                    severity="warning",
+                    action="continued synaptic plasticity capture without hedonic score",
+                )
+                logger.debug(
+                    "SynapticPlasticity hedonic capture unavailable: %s",
+                    _hedonic_exc,
+                )
+            _plasticity.pre_inference_capture(_sub_state, _hedonic)
+        return somatic_temperature
+
+    def _generate_with_metadata_sink_part_13(self, _sq, morpho_kwargs, somatic_temperature):
+        if _sq is not None:
+            _sq_pert = _sq.compute_perturbation()
+            if _sq_pert:
+                _sq_temp = self._modulator_delta(
+                    _sq_pert.get("temperature_perturbation", 0.0),
+                    source="somatic_qualia.temperature",
+                    limit=0.5,
+                )
+                _sq_rep = self._modulator_delta(
+                    _sq_pert.get("repetition_penalty_perturbation", 0.0),
+                    source="somatic_qualia.repetition_penalty",
+                    limit=0.5,
+                )
+                _sq_topp = self._modulator_delta(
+                    _sq_pert.get("top_p_perturbation", 0.0),
+                    source="somatic_qualia.top_p",
+                    limit=0.5,
+                )
+                _sq_freq = self._modulator_delta(
+                    _sq_pert.get("frequency_penalty_perturbation", 0.0),
+                    source="somatic_qualia.frequency_penalty",
+                    limit=0.5,
+                )
+                if somatic_temperature is not None:
+                    somatic_temperature = max(0.1, min(1.5, somatic_temperature + _sq_temp))
+                if "repetition_penalty" in morpho_kwargs:
+                    morpho_kwargs["repetition_penalty"] = max(0.9, min(1.4, morpho_kwargs["repetition_penalty"] + _sq_rep))
+                if "top_p" in morpho_kwargs:
+                    morpho_kwargs["top_p"] = max(0.3, min(0.98, morpho_kwargs["top_p"] + _sq_topp))
+                if _sq_freq:
+                    morpho_kwargs["frequency_penalty"] = max(0.0, min(0.5, morpho_kwargs.get("frequency_penalty", 0.0) + _sq_freq))
+                logger.debug(
+                    "🫀 SomaticQualia: temp=%.4f rep=%.4f topp=%.4f freq=%.4f",
+                    _sq_temp, _sq_rep, _sq_topp, _sq_freq,
+                )
+        return somatic_temperature
+
+    def _generate_with_metadata_sink_block_above_skipped(self, context, deep_probe_request, health_probe, is_background, isolated_generation_contract, max_tokens, origin, requested_tier):
         # The block above is skipped whenever the caller named its own budget —
         # and the desktop chat route always does, so no live desktop turn has
         # ever had a starvation floor. An explicit cap is an upper bound the
@@ -11240,82 +10563,10 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                         origin or "unknown",
                     )
                     max_tokens = starvation_floor
+        return max_tokens
 
-        if (
-            not is_background
-            and self._origin_is_user_facing(origin)
-            and not isolated_generation_contract
-            and not health_probe
-            and not benchmark_request
-            and not proof_evaluation_contract
-            and not strict_answer_contract
-        ):
-            somatic_temperature, max_tokens, applied_bias = self._apply_runtime_sampling_biases(
-                base_temperature=somatic_temperature,
-                max_tokens=max_tokens,
-                context=context,
-                state=state,
-                allow_token_scaling="max_tokens" not in context,
-            )
-            if applied_bias["temperature_delta"] or applied_bias["max_tokens_factor"] != 1.0:
-                logger.debug(
-                    "🧠 Runtime sampling bias: temp_delta=%.3f token_factor=%.3f max_tokens=%d",
-                    applied_bias["temperature_delta"],
-                    applied_bias["max_tokens_factor"],
-                    max_tokens,
-                )
-            # A bias may spend less of the budget than it was given. It may not
-            # spend less than the request needs. The completion floor was
-            # applied further up and this multiplier ran after it, so the floor
-            # has to be put back or it was never a floor.
-            #
-            # LIVE, 2026-08-27: a question that had to be worked out carried a
-            # floor of 896 tokens. An integration measure scaled the budget by
-            # its smallest permitted factor and the model was dispatched with
-            # 363, stopping one sentence before the answer. The same principle
-            # is already written where the floor is computed: sampling biases
-            # may make an answer terser, and may not make the surface smaller
-            # than the visible request.
-            try:
-                _floor = int(context.get("user_surface_completion_floor") or 0)
-            except (TypeError, ValueError, OverflowError) as exc:
-                logger.debug("user_surface_completion_floor is not an integer, using no floor: %s", exc)
-                _floor = 0
-            if 0 < _floor and max_tokens < _floor:
-                logger.info(
-                    "🧠 Completion floor restored after sampling bias: %d→%d.",
-                    max_tokens,
-                    _floor,
-                )
-                max_tokens = _floor
-
-        if (
-            not is_background
-            and self._origin_is_user_facing(origin)
-            and requested_tier in {"primary", "secondary"}
-            and "max_tokens" not in context
-            and not bool(context.get("resource_stakes_blocked", False))
-            and not deep_probe_request
-            and not isolated_generation_contract
-            and not health_probe
-        ):
-            foreground_floor, foreground_cap, _foreground_loops = (
-                self._foreground_compute_profile(initial_visible_user_prompt)
-            )
-            bounded = min(max_tokens, foreground_cap)
-            if bounded < foreground_floor:
-                logger.info(
-                    "🧠 Foreground chat post-bias budget floor raised %d→%d "
-                    "(cap=%d, origin=%s).",
-                    bounded,
-                    foreground_floor,
-                    foreground_cap,
-                    origin or "unknown",
-                )
-                max_tokens = foreground_floor
-            else:
-                max_tokens = bounded
-
+    @staticmethod
+    def _generate_with_metadata_sink_part_15(context, deep_probe_request, explicit_max_tokens_cap, is_background, max_tokens, operator_evidence_contract, protected_compact_capability_contract, strict_answer_contract, strict_max_token_cap):
         if explicit_max_tokens_cap is not None:
             max_tokens = min(max_tokens, explicit_max_tokens_cap)
             if (
@@ -11375,7 +10626,10 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             context["allow_tools"] = False
             context["disable_prompt_cache"] = True
             context["clear_prompt_cache"] = True
+        return max_tokens
 
+    @staticmethod
+    def _generate_with_metadata_sink_part_16(benchmark_request, context, health_probe, initial_visible_user_prompt, max_tokens, morpho_kwargs):
         if health_probe:
             requested_cap = context.get("max_tokens", max_tokens)
             try:
@@ -11401,18 +10655,10 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                 requested_cap_int = 96
             max_tokens = max(1, min(max_tokens, requested_cap_int))
             context["max_tokens"] = max_tokens
+        return max_tokens
 
-        output_contract_is_user_facing = bool(
-            not is_background
-            and not isolated_generation_contract
-            and not health_probe
-            and not benchmark_request
-            and (
-                explicit_foreground
-                or self._origin_is_user_facing(origin)
-                or requested_tier in {"primary", "secondary"}
-            )
-        )
+    @staticmethod
+    def _generate_with_metadata_sink_turn_executes_something(context, explicit_max_tokens_cap, max_tokens, morpho_kwargs, output_contract, output_contract_is_user_facing, output_contract_payload, stakes_token_ceiling):
         # On a turn that EXECUTES something, a shape phrase describes the
         # ARTIFACT, not her reply.
         #
@@ -11523,6 +10769,9 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             brief = brief.to_briefing_text()
         elif not isinstance(brief, str):
             brief = str(brief)
+        return brief, max_tokens
+
+    def _generate_with_metadata_sink_use_compact_foreground_context(self, context, deep_handoff, initial_visible_user_prompt, is_background, origin, requested_tier):
         use_compact_foreground_context = self._should_use_compact_foreground_context(
             origin,
             requested_tier,
@@ -11549,6 +10798,1470 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             provided_messages = None
         if not isinstance(provided_messages, list):
             provided_messages = None
+        return provided_messages, use_compact_foreground_context
+
+    @staticmethod
+    async def _generate_with_metadata_sink_task_grounding_blocks(context, contract_grounding_blocks, isolated_generation_contract, living_mind_context, prompt_contract_block, somatic_temperature, visible_user_prompt):
+        task_grounding_blocks: list[str] = []
+        ambient_grounding_blocks: list[str] = []
+        # The response contract describes THIS turn — its reason label and the
+        # current local date both change per turn — so it belongs beside the
+        # turn, not in the persistent system prompt. Measured live: it landed at
+        # token 125 and divergence began at "## RESPONSE CONTRACT\n- Reason:
+        # compound_prompt\n- Current local date: ...", stranding 3,884 tokens of
+        # conversation behind it (3% reused).
+        if prompt_contract_block and not isolated_generation_contract:
+            contract_grounding_blocks.append(prompt_contract_block)
+        # Current mind state changes independently of identity and policy. It
+        # belongs with this turn's evidence, never inside the stable system
+        # prefix. The old path inserted it above and then inserted it a second
+        # time into prebuilt messages below. Besides presenting one source twice,
+        # that made every affect tick invalidate the conversation's KV prefix.
+        if living_mind_context and not isolated_generation_contract:
+            ambient_grounding_blocks.append(living_mind_context)
+        await _attach_the_present_moment(
+            ambient_grounding_blocks=ambient_grounding_blocks,
+            isolated_generation_contract=isolated_generation_contract,
+            recent_actions_already_grounded=bool(
+                context.get("recent_actions_already_grounded", False)
+            ),
+            task_grounding_blocks=task_grounding_blocks,
+            visible_user_prompt=visible_user_prompt,
+        )
+        # Keep prompt growth aligned with the actual local model context window
+        # instead of assuming 128k+ headroom on the primary Qwen lane.
+
+        # ── Somatic narrative: brief felt-state line in the system prompt ────────
+        if somatic_temperature is not None and not isolated_generation_contract:
+            try:
+                from core.affect.affective_circumplex import get_circumplex
+
+                _soma_narrative = get_circumplex().describe()
+                if _soma_narrative:
+                    # Felt state changes on every tick; it travels with the rest
+                    # of the volatile grounding, after the conversation.
+                    ambient_grounding_blocks.append(
+                        f"## SOMATIC STATE\n{_soma_narrative}"
+                    )
+            except _INFERENCE_RECOVERABLE_ERRORS as _exc:
+                record_degradation(
+                    "inference_gate",
+                    _exc,
+                    severity="warning",
+                    action="continued without somatic-state prompt section",
+                )
+                logger.debug("Suppressed Exception: %s", _exc)
+        return ambient_grounding_blocks, task_grounding_blocks
+
+    @staticmethod
+    def _generate_with_metadata_sink_architecture_self_awareness(context, contract_grounding_blocks, isolated_generation_contract, prompt_user_facing, task_grounding_blocks, visible_user_prompt):
+        # ── Architecture Self-Awareness: inject relevant subsystem context ──────
+        # Only for user-facing requests that mention architecture/code keywords.
+        if prompt_user_facing and not isolated_generation_contract:
+            try:
+                import re as _re
+
+                _arch_triggers = _re.compile(
+                    r"\b(how|explain|what|which|where|why|trace|show|describe)\b.{0,60}"
+                    r"\b(module|subsystem|file|class|method|function|work|does|handles|manages|routes|sends|wires)\b",
+                    _re.IGNORECASE,
+                )
+                if _arch_triggers.search(visible_user_prompt):
+                    from core.self.architecture_index import get_architecture_index
+
+                    arch_excerpt = get_architecture_index().query(
+                        visible_user_prompt,
+                        max_results=3,
+                    )
+                    if arch_excerpt:
+                        # The excerpt depends on this question, so it travels
+                        # with turn-local grounding. Putting it in the stable
+                        # system prefix invalidates cached conversation tokens
+                        # when the next question is about another subsystem.
+                        task_grounding_blocks.append(str(arch_excerpt))
+            except _INFERENCE_RECOVERABLE_ERRORS as _ae:
+                record_degradation(
+                    "inference_gate",
+                    _ae,
+                    severity="warning",
+                    action="continued without architecture self-awareness excerpt",
+                )
+                logger.debug("ArchIndex injection skipped: %s", _ae)
+            contract_grounding_blocks.append(
+                conversation_reliability_system_block(visible_user_prompt)
+            )
+        history = context.get("history", [])
+        return history
+
+    def _generate_with_metadata_sink_messages(self, context, deep_probe_context, foreground_profile, is_background, messages, visible_user_prompt):
+        messages = self._compact_prebuilt_messages(
+            messages,
+            history_limit=(
+                4
+                if is_background
+                else self._foreground_prebuilt_history_limit(
+                    visible_user_prompt,
+                    context,
+                    deep_probe=deep_probe_context,
+                )
+            ),
+            deep_probe=deep_probe_context,
+            budget_profile=foreground_profile,
+            current_user_content=visible_user_prompt,
+        )
+        # The compacted message set is now AUTHORITATIVE. Turn-local mind
+        # context and reliability guidance are attached below, after this
+        # compaction, as one bounded grounding message.
+        #
+        # `system_prompt` is a separate identity/policy string that grew
+        # independently and is never compacted. It is still handed to the
+        # client alongside these
+        # messages, and the client merges a separately-passed system_prompt
+        # into messages[0] — so it silently undid every compaction above.
+        # Measured live: a 2,399-char compacted system message reached the
+        # worker at 106,861 chars, turning a 278-char question into a
+        # 27,129-token prefill (a 384:1 scaffold-to-request ratio) that
+        # could not produce a first token inside the turn budget. None of
+        # it was visible, because the prompt plan logs the compacted
+        # messages and the re-inflation happens after that.
+        #
+        # The compacted structured messages now carry all system policy.
+        # Passing a scalar copy would let the client merge the unbounded
+        # pre-compaction prompt back into the first system message.
+        system_prompt = ""
+        return messages, system_prompt
+
+    def _generate_with_metadata_sink_volatile_grounding_rides(self, ambient_grounding_blocks, context, contract_grounding_blocks, messages, morpho_kwargs, system_prompt, task_grounding_blocks):
+        # Volatile grounding rides LAST, behind the conversation, so the KV
+        # prefix covering the history survives from one turn to the next.
+        # Appended after compaction on purpose: compaction rewrites the history
+        # it is given, and this block must not be trimmed away — it is the
+        # read-not-inferred ground truth (clock, receipts, felt state) that
+        # stops her narrating a present she was never given.
+        has_volatile_grounding = bool(
+            contract_grounding_blocks
+            or task_grounding_blocks
+            or ambient_grounding_blocks
+        )
+        messages, system_prompt = _refresh_volatile_grounding(
+            ambient_grounding_blocks=ambient_grounding_blocks,
+            context=context,
+            contract_grounding_blocks=contract_grounding_blocks,
+            has_volatile_grounding=has_volatile_grounding,
+            messages=messages,
+            self=self,
+            system_prompt=system_prompt,
+            task_grounding_blocks=task_grounding_blocks,
+        )
+        # Cache policy is not a caller preference.
+        #
+        # morpho_kwargs is populated from `context` early, then several
+        # contracts (strict proof, operator evidence, health probe) set
+        # context["disable_prompt_cache"] = True LATER — after the copy. A
+        # caller that passed disable_prompt_cache=False therefore kept its
+        # False in the kwargs that actually reach the worker, and an exact-cold
+        # prompt contract silently ran on reused KV. Re-sync here, once, after
+        # every contract has had its say: policy wins.
+        for _cache_key in ("disable_prompt_cache", "clear_prompt_cache"):
+            if bool(context.get(_cache_key, False)):
+                if not bool(morpho_kwargs.get(_cache_key, False)):
+                    logger.debug(
+                        "Cache policy overrides caller %s=%r for this contract.",
+                        _cache_key,
+                        morpho_kwargs.get(_cache_key),
+                    )
+                morpho_kwargs[_cache_key] = True
+        return messages, system_prompt
+
+    @staticmethod
+    def _generate_with_metadata_sink_authority_block_moves(context, max_tokens, messages, system_prompt):
+        # WHICH authority block moves. The scaffold total said 1809 on one turn
+        # and 1817 on the next, which is enough to make the merged front system
+        # message a different token sequence and cost the whole conversation
+        # its prompt-cache prefix — 17.7s of a 22s turn. A total cannot say
+        # which block did it; a per-block digest can.
+        if logger.isEnabledFor(logging.INFO):
+            _blocks = [
+                (len(str(msg.get("content", "") or "")),
+                 hashlib.sha256(
+                     str(msg.get("content", "") or "").encode("utf-8", "replace")
+                 ).hexdigest()[:8],
+                 str(msg.get("content", "") or "")[:48].replace("\n", "⏎"))
+                for msg in messages
+                if str(msg.get("role", "")).strip().lower() == "system"
+            ]
+            if _blocks:
+                logger.info(
+                    "🧩 [PROMPT BLOCKS] %s",
+                    " | ".join(f"{n}c {d} {h!r}" for n, d, h in _blocks),
+                )
+        # The separately-passed system_prompt is merged into messages[0] at the
+        # client boundary, so it is part of the prefill even though it is not in
+        # `messages` here. Leaving it out of this line is how a 106,861-char
+        # re-inflation stayed invisible behind a plan that reported 4,479.
+        # Which grounding blocks actually survived to the worker. Attachment was
+        # already logged at the builder and the block still never arrived, so
+        # the only useful signal is presence in the final text.
+        _grounded = [
+            name
+            for name, marker in (
+                ("present", "## PRESENT MOMENT"),
+                ("instruments", "## YOUR OWN INSTRUMENTS"),
+                ("receipts", "## WHAT YOU ACTUALLY JUST DID"),
+                # Grounding that cannot be seen cannot be verified — the file
+                # block spent a day being built into a prompt nobody sent.
+                #
+                # DERIVED from the registry, never hand-listed. Written out by
+                # hand, this list immediately drifted: screen and beliefs were
+                # registered as observables and left out here, so a screen
+                # reading that WAS taken reported as not surviving, and an hour
+                # went into looking for a delivery bug that did not exist.
+                *_observable_dispatch_markers(),
+            )
+            if marker in str(system_prompt or "")
+            or any(marker in str(msg.get("content", "") or "") for msg in messages)
+        ]
+        # FINAL word on the budget for an execution turn.
+        #
+        # The earlier raise fired ("raising the reply budget 288 -> 1024") and
+        # was then overwritten by the compact-foreground path, so the caller
+        # still asked for 288 — "Foreground starvation floor raised budget
+        # 284->288 (caller asked 288)" — and a multi-step JSON plan cannot be
+        # written in 288 tokens. Applied here, immediately before dispatch,
+        # after every other budget computation has had its say.
+        if bool(context.get("desktop_execution_contract", False)):
+            _plan_floor_final = 1024
+            if int(max_tokens or 0) < _plan_floor_final:
+                logger.info(
+                    "🖥️ [PLAN BUDGET] Execution turn: %s → %d tokens at dispatch.",
+                    max_tokens,
+                    _plan_floor_final,
+                )
+                max_tokens = _plan_floor_final
+                context["max_tokens"] = max_tokens
+        return _grounded, max_tokens
+
+    @staticmethod
+    def _generate_with_metadata_sink_part_24(_answer_floor_final, context, initial_visible_user_prompt, max_tokens):
+        if 0 < _answer_floor_final and int(max_tokens or 0) < _answer_floor_final:
+            logger.info(
+                "🧠 [ANSWER BUDGET] Answer turn: %s → %d tokens at dispatch.",
+                max_tokens,
+                _answer_floor_final,
+            )
+            max_tokens = _answer_floor_final
+            context["max_tokens"] = max_tokens
+
+        # A deadline that cannot deliver the budget the same request just
+        # computed is two derived numbers contradicting each other, and
+        # neither side could see the other.
+        #
+        # LIVE, 2026-08-27: the floor asked for 896 tokens and the
+        # deliberate lane allowed about 150 seconds. The observed decode
+        # rate made 896 tokens roughly 150 seconds of decoding on its own,
+        # so the generation was cut mid-thought every time and the turn
+        # served nothing. Raising the budget alone made it worse: 1,792
+        # tokens were granted and the clock ended it at 43 seconds.
+        #
+        # The extension is bounded by the two measured quantities that
+        # caused it — the floor and the observed rate — so there is no
+        # invented number here and no open-ended wait. An unmeasured rate
+        # extends nothing.
+        # A turn that has to go and fetch something spends a whole
+        # generation on the call before the answer is even started.
+        #
+        # LIVE, 2026-08-28: a diagnosis turn was offered the right tool,
+        # spent forty-five seconds emitting one call, and the request
+        # deadline expired fifty seconds later with nothing said about what
+        # came back. The clock covered one generation and the turn needed
+        # two.
+        _generations = 1
+        try:
+            from core.intent.capability_selection import (
+                points_at_something_real,
+            )
+
+            if points_at_something_real(initial_visible_user_prompt):
+                _generations = 2
+        except (ImportError, AttributeError, OSError, TypeError, ValueError):
+            _generations = 1
+        return _generations, max_tokens
+
+    def _generate_with_metadata_sink__decode_s(self, _tokens_to_pay_for, messages, system_prompt):
+        _decode_s = _seconds_to_decode(_tokens_to_pay_for)
+        # Reading the prompt is the other half of a generation, and
+        # on this hardware it is the larger half. A turn was given time
+        # to SAY its answer and none to read the question.
+        _prompt_chars_for_clock = len(str(system_prompt or "")) + sum(
+            len(str((msg or {}).get("content") or ""))
+            for msg in (messages or [])
+            if isinstance(msg, dict)
+        )
+        _read_s = _seconds_to_read(_prompt_chars_for_clock)
+        # And what the worker that will serve this says, which is the
+        # number it will cancel itself by.
+        #
+        # A percentile over past readings cannot follow a rate that
+        # halves under memory pressure, and the worker measures its
+        # own. LIVE 2026-09-04, one line apart: "the prompt takes
+        # about 2s to read", granting 25 seconds, and "a 2867-char
+        # prompt takes about 8.8s to read at 82 tok/s", needing 26.3.
+        # Cancelled at 25, every user-facing turn, with the runtime
+        # healthy throughout.
+        _worker_says = 0.0
+        _asking = getattr(self, "_mlx_client", None)
+        _knows = getattr(_asking, "least_time_to_read", None)
+        if callable(_knows):
+            try:
+                _worker_says = float(_knows(_prompt_chars_for_clock) or 0.0)
+            except (TypeError, ValueError):
+                # not a failure: a rate that will not parse is not one.
+                _worker_says = 0.0
+        _read_s = max(_read_s, _worker_says)
+        return _decode_s, _read_s
+
+    @staticmethod
+    def _generate_with_metadata_sink_part_26(_decode_s, _generations, _needed, _read_s, _reserve_the_worker_adds, _tokens_to_pay_for, max_tokens, timeout_val):
+        logger.info(
+            "🧠 [ANSWER CLOCK] %d tokens (%d asked + %d reserve the "
+            "worker adds) decode in about %.0fs and the prompt takes "
+            "about %.0fs to read, at the measured rates, and this turn "
+            "needs %d of them; deadline %.0fs → %.0fs.",
+            _tokens_to_pay_for,
+            max_tokens,
+            _reserve_the_worker_adds,
+            _decode_s,
+            _read_s,
+            _generations,
+            float(timeout_val),
+            _needed,
+        )
+        # Never past the ceiling the wait outside this one
+        # uses. A deadline of 557 seconds inside a wait that
+        # gives up at 480 is two numbers disagreeing again,
+        # with the outer one winning silently.
+        from core.runtime.response_policy import (
+            USER_FACING_COMPLETION_DEADLINE_MAX_S,
+        )
+
+        _cap = float(USER_FACING_COMPLETION_DEADLINE_MAX_S)
+        # Forecasts inform progress reporting. They do not
+        # authorize substituting a less capable cortex.
+        timeout_val = min(_cap, _needed)
+        primary_timeout = max(8.0, timeout_val - _DELIVERY_MARGIN_S)
+        return primary_timeout, timeout_val
+
+    def _generate_with_metadata_sink_serving_lane(self, _grounded, context, initial_visible_user_prompt, max_tokens, messages, morpho_kwargs, system_prompt):
+        serving_lane = self._cortex_serving_lane(
+            initial_visible_user_prompt,
+            context,
+            input_tokens=(
+                estimate_context_tokens(str(system_prompt or ""))
+                + sum(
+                    estimate_context_tokens(str(message.get("content") or "")) + 12
+                    for message in messages
+                    if isinstance(message, dict)
+                )
+            ),
+        )
+        serving_limits = get_active_cortex_serving_limits()
+        if serving_limits is not None and serving_limits.qualified:
+            lane_limits = serving_limits.lane(serving_lane)
+            if lane_limits is not None:
+                admitted_tokens = min(max_tokens, lane_limits.max_output_tokens)
+                if admitted_tokens < max_tokens:
+                    logger.info(
+                        "🧠 [SERVING PROFILE] %s output ceiling reduced %d→%d "
+                        "(profile=%s).",
+                        serving_lane,
+                        max_tokens,
+                        admitted_tokens,
+                        serving_limits.profile_sha256[:12],
+                    )
+                max_tokens = max(1, admitted_tokens)
+                context["max_tokens"] = max_tokens
+                context["cortex_serving_lane"] = serving_lane
+                context["cortex_serving_profile_sha256"] = (
+                    serving_limits.profile_sha256
+                )
+                context["cortex_serving_profile_source"] = serving_limits.source
+        morpho_kwargs["serving_lane"] = serving_lane
+
+        logger.info(
+            "🧭 [GROUNDING] survived to dispatch: %s (sys_prompt=%d)",
+            ",".join(_grounded) or "NONE",
+            len(str(system_prompt or "")),
+        )
+        return max_tokens
+
+    @staticmethod
+    def _generate_with_metadata_sink_part_28(max_tokens, messages, origin, prompt_chars, prompt_mode, request_chars, scaffold_chars, system_prompt):
+        logger.info(
+            "🧠 [ZENITH] Prompt plan: mode=%s messages=%d chars=%d "
+            "(scaffold=%d request=%d ratio=%.1fx sys_prompt=%d) "
+            "origin=%s max_tokens=%d",
+            prompt_mode,
+            len(messages),
+            prompt_chars,
+            scaffold_chars,
+            request_chars,
+            (scaffold_chars / request_chars) if request_chars else float("inf"),
+            len(str(system_prompt or "")),
+            origin or "unknown",
+            max_tokens,
+        )
+        # What the scaffold IS, when it dwarfs the question.
+        #
+        # A ratio is a number nobody can act on. Eight thousand characters of
+        # scaffold against two hundred and fifty of question is the shape of a
+        # real defect, and the log said only that it was thirty-two to one —
+        # so which part of it was eight thousand characters could not be found
+        # without adding this line first.
+        if request_chars and scaffold_chars > (8 * request_chars):
+            logger.info(
+                "🧠 [ZENITH] Scaffold breakdown: %s",
+                "; ".join(
+                    f"{str(msg.get('role', '?'))}={len(str(msg.get('content', '') or ''))}"
+                    f":{str(msg.get('content', '') or '')[:70]!r}"
+                    for msg in messages
+                    if isinstance(msg, dict)
+                ),
+            )
+
+    def _generate_with_metadata_sink__foreground_cap(self, context, initial_visible_user_prompt, morpho_kwargs, visible_user_prompt):
+        _foreground_floor, _foreground_cap, foreground_loops = (
+            self._foreground_compute_profile(initial_visible_user_prompt)
+        )
+        foreground_profile = self._foreground_prompt_profile(
+            visible_user_prompt,
+            context,
+        )
+        # Every _generate_with_client call site passes these EXPLICITLY and also
+        # splats **morpho_kwargs, so any overlap is a guaranteed TypeError —
+        # "got multiple values for keyword argument" — which fails the
+        # inference_gate closed and reaches the person as user_cycle_no_response:
+        # the engine returning nothing at all, in two seconds, while ordinary
+        # conversation through the same engine keeps working. One added key did
+        # exactly that to every desktop turn.
+        #
+        # Scrubbed here rather than trusted to every future writer: the explicit
+        # argument is the authority, and a duplicate in the splat can only ever
+        # be the same value or a bug.
+        for _reserved in _GENERATE_EXPLICIT_KWARGS:
+            morpho_kwargs.pop(_reserved, None)
+        morpho_kwargs.setdefault("clean_user_surface_contract", True)
+        morpho_kwargs.setdefault(
+            "user_surface_validation_prompt",
+            initial_visible_user_prompt or visible_user_prompt,
+        )
+        morpho_kwargs.setdefault(
+            "clean_user_surface_recurrent_loops",
+            foreground_loops,
+        )
+        morpho_kwargs.setdefault(
+            "clean_user_surface_steering_alpha",
+            0.35 if foreground_profile == "extended" else 0.25,
+        )
+
+    @staticmethod
+    def _generate_with_metadata_sink_say_quality_check(local_label, primary_surface_receipt):
+        # Say WHICH quality check rejected the text.
+        #
+        # This refusal is the last step before the person gets
+        # "I couldn't get to an answer I'd stand behind", and it
+        # logged only that retries were exhausted. The reasons
+        # were computed by _surface_quality_failure_reasons,
+        # carried on the receipt as surface_quality_gate_reasons,
+        # and written down nowhere: that key appears ZERO times
+        # in a 20,000-record log full of these refusals.
+        #
+        # So the one canned reply that must never be reachable
+        # was also the least diagnosable thing in the runtime —
+        # every occurrence said a gate had said no, and nothing
+        # said what it objected to. The gate keeps only
+        # INTEGRITY failures (leaks, corruption, prompt
+        # artefacts, text that is not language), so the reason
+        # is exactly what distinguishes a model producing
+        # garbage from a gate that is too strict, and those want
+        # opposite fixes.
+        # Every key the receipt keeps a reason under, not one.
+        #
+        # The fix above read surface_quality_gate_reasons, and
+        # the worker writes its actual objections under
+        # semantic_completion_quality_reasons — the first key is
+        # only written on the telemetry-sanitizer path. Two
+        # names for one fact, so the diagnosis that was added to
+        # end "rejected_for=no_reasons_reported" reported
+        # no_reasons_reported.
+        _quality_reasons = tuple(
+            dict.fromkeys(
+                str(reason).strip()[:120]
+                for key in (
+                    "surface_quality_gate_reasons",
+                    "semantic_completion_quality_reasons",
+                    "telemetry_sanitizer_reasons",
+                    # The fourth. The gate that keeps the best
+                    # rejected draft records its objections
+                    # here, and this is the one that carries
+                    # them on the path a simple "read this file
+                    # and tell me what it says" takes.
+                    "surface_quality_rejected_reasons",
+                )
+                for reason in (
+                    primary_surface_receipt.get(key) or ()
+                )
+                if str(reason).strip()
+            )
+        )
+        # And when there are none, the draft itself.
+        #
+        # Four keys hold reasons and a path was found tonight
+        # that populates none of them. A refusal that can name
+        # neither its objection nor what it objected to is the
+        # least diagnosable thing in the runtime, and it sits
+        # one step before the one canned reply that must never
+        # be reachable. The draft is already kept for the
+        # repair path; nothing was reading it here.
+        _rejected_draft = ""
+        if not _quality_reasons:
+            _rejected_draft = str(
+                primary_surface_receipt.get(
+                    "surface_quality_rejected_text"
+                )
+                or ""
+            ).strip()[:220]
+        if not _quality_reasons and not _rejected_draft:
+            # Four keys and a draft, and this receipt has none
+            # of them. Then the question is no longer what the
+            # gate objected to but whether this is the receipt
+            # the gate wrote, and the only way to tell is to
+            # see what it does carry.
+            logger.warning(
+                "🧠 the refusing receipt carries no reasons and no "
+                "draft; it holds: %s",
+                ",".join(
+                    f"{name}={primary_surface_receipt.get(name)!r}"[:90]
+                    for name in sorted(map(str, primary_surface_receipt))
+                    # Substring, deliberately: `name` is a
+                    # receipt FIELD NAME — `surface_quality`,
+                    # `rejected_by` — and this line exists to
+                    # show what the receipt carries when it
+                    # carries no reason. Narrowing it hides
+                    # the fields worth seeing.
+                    if any(
+                        word in name
+                        for word in (
+                            "quality",
+                            "reason",
+                            "rejected",
+                            "surface",
+                        )
+                    )
+                )
+                or "nothing about quality at all",
+            )
+        logger.warning(
+            "🧠 %s exhausted its worker-owned semantic quality retries; "
+            "preserving the lane and refusing a duplicate inference-gate "
+            "retry. rejected_for=%s%s",
+            local_label,
+            ",".join(str(reason) for reason in _quality_reasons)
+            or "no_reasons_reported",
+            f" draft={_rejected_draft!r}" if _rejected_draft else "",
+        )
+        return _quality_reasons
+
+    @staticmethod
+    def _generate_with_metadata_sink_retry_morpho_kwargs(morpho_kwargs, retry_attempt, somatic_temperature):
+        retry_morpho_kwargs = dict(morpho_kwargs)
+        retry_morpho_kwargs.update(
+            {
+                "disable_prompt_cache": True,
+                "clear_prompt_cache": retry_attempt == 1,
+                "top_p": min(float(retry_morpho_kwargs.get("top_p", 0.9) or 0.9), 0.85),
+                "min_p": max(float(retry_morpho_kwargs.get("min_p", 0.02) or 0.02), 0.02),
+                "repetition_penalty": max(
+                    float(retry_morpho_kwargs.get("repetition_penalty", 1.1) or 1.1),
+                    1.12,
+                ),
+                "repetition_context_size": max(
+                    int(retry_morpho_kwargs.get("repetition_context_size", 64) or 64),
+                    96,
+                ),
+                # The runtime TELEMETRY payload is what the
+                # first attempt drowned in, so it is
+                # skipped. The turn's evidence is not: it
+                # travels in the repair messages built
+                # above, which now carry grounding.
+                "skip_runtime_payload": True,
+                "repair_retains_grounding": True,
+            }
+        )
+        retry_temperature = min(
+            float(somatic_temperature if somatic_temperature is not None else 0.35),
+            0.35,
+        )
+        return retry_morpho_kwargs, retry_temperature
+
+    async def _generate_with_metadata_sink(  # noqa: ASYNC109
+        self,
+        prompt: str,
+        context: dict[str, Any] | None = None,
+        timeout: float | None = None,  # noqa: ASYNC109
+    ) -> Any:
+        """Primary generation endpoint.
+
+        [v7.4] Deadline-Aware Generation:
+        Instead of fragmented local timers, we now use a unified Deadline object.
+        """
+        if context is None:
+            context = {}
+        initial_visible_user_prompt, internal_inference_call = self._generate_with_metadata_sink_part_1(context, prompt)
+        output_contract = requested_output_contract(initial_visible_user_prompt)
+        output_contract_payload = (
+            output_contract.as_dict() if output_contract.constrained else None
+        )
+        state = context.get("state")
+        origin = str(context.get("origin", "") or "").lower()
+        purpose = str(context.get("purpose", "") or "").lower()
+        benchmark_request = bool(context.get("benchmark_request", False)) or (
+            origin in {"baseline", "benchmark"}
+            or purpose == "baseline"
+            or purpose.endswith("_baseline")
+            or "_baseline" in purpose
+        )
+        live_benchmark_request = origin == "benchmark" and not (
+            purpose == "baseline"
+            or purpose.endswith("_baseline")
+            or "_baseline" in purpose
+        )
+        if benchmark_request:
+            context["benchmark_request"] = True
+
+        # Organism-first path: try to answer from the substrate+state without
+        # invoking the LLM. This is bounded on purpose — the mesh handles only
+        # self-reports, acknowledgements, and resource-gated responses. When it
+        # does handle a request, the LLM is never called for that turn.
+        proof_evaluation_contract = bool(context.get("proof_evaluation_contract", False)) or (
+            not benchmark_request and is_proof_evaluation_purpose(purpose)
+        )
+        _seam_early_response = await _refuse_a_cold_protected_lane(
+            benchmark_request=benchmark_request,
+            context=context,
+            initial_visible_user_prompt=initial_visible_user_prompt,
+            origin=origin,
+            output_contract=output_contract,
+            output_contract_payload=output_contract_payload,
+            proof_evaluation_contract=proof_evaluation_contract,
+            self=self,
+            state=state,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
+
+        health_probe = bool(context.get("health_probe", False)) or purpose == "proof_model_lane_probe"
+        # A generation that is not the reply must be able to say so.
+        #
+        # LIVE 2026-08-19: deciding a move on screen answered "left", and the
+        # user-surface gate rejected it as arithmetic_answer_missing — because
+        # the request it was graded against was the deliberation's own prompt,
+        # which mentions a 128 tile. Retries were exhausted, the model returned
+        # nothing, and the pursuit reported that she named no available move.
+        #
+        # The conflation is one clause below: a call is treated as user-facing
+        # when its origin says so OR it asked for the primary tier. Wanting the
+        # good model is not the same as producing the visible answer. Internal
+        # reasoning keeps the primary tier and the foreground lane; what it
+        # stops inheriting is the contract that its output IS the reply.
+        internal_inference = internal_inference_call
+        proof_evaluation_contract = proof_evaluation_contract or (
+            not benchmark_request and is_proof_evaluation_purpose(purpose)
+        )
+        if proof_evaluation_contract:
+            context["proof_evaluation_contract"] = True
+        operator_evidence_contract = bool(context.get("operator_evidence_contract", False))
+        requested_tier = self._normalize_tier(context.get("prefer_tier"))
+        explicit_background = "is_background" in context
+        explicit_foreground = bool(context.get("foreground_request", False))
+        # A planner that runs AS PART OF the turn in progress.
+        #
+        # LIVE, 2026-08-22: the finite-game solver asks the model to translate
+        # the rules into a spec, and that call was refused —
+        # "all_background_endpoints_deferred" — because the foreground turn it
+        # was serving had reserved the lane. The turn then answered from the
+        # model's own guess and got the strategy wrong.
+        #
+        # The flag alone would be an unauthenticated claim on the protected
+        # lane, so it is honoured only when the orchestrator agrees a
+        # foreground turn is actually running. Outside a turn it means
+        # nothing and the request stays background.
+        if not explicit_foreground and context.get("serves_current_turn"):
+            explicit_foreground = self._a_user_turn_is_in_flight()
+        protected_foreground_lane = bool(context.get("protected_foreground_lane", False))
+        deep_probe_request = False
+        try:
+            from core.runtime.turn_analysis import looks_like_deep_mind_probe
+
+            deep_probe_request = looks_like_deep_mind_probe(prompt)
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            logger.debug("Deep-probe classifier unavailable, not treating it as one: %s", exc)
+            deep_probe_request = False
+        if deep_probe_request and (explicit_foreground or self._origin_is_user_facing(origin)):
+            if _FLAG_EMBODIED_CHALLENGE.value():
+                logger.info(
+                    "🛡️ InferenceGate: Suppressing deep-probe logic for Embodied Challenge priority."
+                )
+                deep_probe_request = False
+            else:
+                protected_foreground_lane = True
+                context["deep_mind_probe"] = True
+        deep_handoff, is_background = self._generate_with_metadata_sink_is_background(context, explicit_background, explicit_foreground, origin, purpose, requested_tier)
+        desktop_cognitive_engine_contract = bool(
+            context.get("cognitive_engine_required", False)
+            or context.get("desktop_cognitive_engine_required", False)
+        )
+        protected_compact_capability_contract = bool(
+            context.get("capability_inventory_contract", False)
+            and (
+                desktop_cognitive_engine_contract
+                or context.get("protected_foreground_lane", False)
+                or explicit_foreground
+            )
+        )
+        if requested_tier == "secondary":
+            deep_handoff = True
+        if deep_handoff and not local_deep_solver_enabled():
+            # The lane does not exist on this host, so routing to it spends a
+            # load admission that cannot be granted and comes back with
+            # nothing. The router stopped registering the endpoint at boot;
+            # this is the same fact reaching the other decision that can
+            # select it. Measured live 2026-08-20: "Routing to Solver" on a
+            # foreground chat turn, followed by "lane_budget_exceeded:solver
+            # request 48.4GB + committed 25.3GB > budget 46.1GB" and an empty
+            # generation, twice, ending in an apology.
+            logger.debug(
+                "Deep handoff requested where the deep solver cannot load; "
+                "keeping this turn on the resident cortex."
+            )
+            deep_handoff = False
+            if requested_tier == "secondary":
+                requested_tier = "primary"
+        is_background, strict_primary_proof_lane = self._generate_with_metadata_sink_part_3(context, deep_handoff, explicit_background, health_probe, is_background, live_benchmark_request, origin, proof_evaluation_contract, purpose)
+        if strict_primary_proof_lane:
+            context["proof_primary_lane_required"] = True
+            context["proof_model_tier"] = "primary"
+            if live_benchmark_request:
+                context["foreground_request"] = True
+            requested_tier = "primary"
+            deep_handoff = False
+            is_background = False
+            protected_foreground_lane = True
+        if desktop_cognitive_engine_contract:
+            context["desktop_cognitive_engine_required"] = True
+            # The contract is about the ANSWER, not about every call made
+            # while producing it.
+            #
+            # This forced `primary` for the whole turn, so an internal
+            # tool-loop decision — picking one of eight labelled radio buttons
+            # inside a browser pursuit — inherited the desktop reply's lane and
+            # ran on the 32B at up to 103s a round. A sixty-item form died on
+            # the turn budget having answered nothing, and because this runs
+            # before the trust block, the explicit fast-lane request never even
+            # reached the rule that would have honoured it.
+            #
+            # What the contract requires is that what she SAYS comes from the
+            # real engine. An origin that is not user-facing is not that, and
+            # keeps whatever lane it asked for.
+            if self._origin_is_user_facing(origin):
+                requested_tier = "primary"
+                deep_handoff = False
+                is_background = False
+                protected_foreground_lane = True
+        if is_background:
+            requested_tier = "tertiary"
+            deep_handoff = False
+            background_deferral = self._background_local_deferral_reason(origin=origin)
+            endpoint_deferrals: dict[str, str] = {}
+            if not background_deferral:
+                background_deferral, endpoint_deferrals = (
+                    self._background_endpoint_headroom_deferral()
+                )
+            if background_deferral:
+                self._generate_with_metadata_sink_part_4(background_deferral, origin)
+                return self._refuse_generation(
+                    self.REFUSAL_DEFERRED,
+                    str(background_deferral or "foreground_lane_reserved"),
+                    context=context,
+                    origin=origin,
+                    detail=(
+                        {"endpoint_deferrals": endpoint_deferrals}
+                        if endpoint_deferrals
+                        else None
+                    ),
+                )
+
+        _seam_early_response, requested_tier = await self._generate_with_metadata_sink_part_5(context, is_background, origin, protected_foreground_lane, requested_tier, strict_primary_proof_lane)
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
+
+        # ── Trust gate: process message through trust engine ──────────────
+        # PERF FIX: The trust gate calls UserRecognizer.recognize() which
+        # runs PBKDF2-SHA256 (260K iterations) on every word/phrase in the
+        # prompt to check for the owner passphrase.  This blocks the event
+        # loop for 3-5+ seconds on large prompts.  Fix: offload to thread
+        # pool, and skip entirely for background/autonomous requests.
+        _trust_guidance = ""
+        strict_proof_answer_request = (
+            not benchmark_request and is_strict_proof_answer_prompt(prompt, origin=origin)
+        )
+        # Use the fully resolved routing classification, not merely whether the
+        # caller explicitly stamped `is_background`. Origin-derived background
+        # work such as `origin="system"` must not pay the foreground trust-gate
+        # cost or get re-promoted back into the protected Cortex lane.
+        _is_bg_request = bool(is_background)
+        protected_foreground_lane, requested_tier = await _apply_strict_proof_answer_contract(
+            _is_bg_request=_is_bg_request,
+            context=context,
+            deep_handoff=deep_handoff,
+            deep_probe_request=deep_probe_request,
+            origin=origin,
+            prompt=prompt,
+            protected_foreground_lane=protected_foreground_lane,
+            requested_tier=requested_tier,
+            state=state,
+            strict_proof_answer_request=strict_proof_answer_request,
+        )
+
+        strict_answer_contract = bool(context.get("strict_answer_contract", False))
+        strict_value_contract = bool(context.get("strict_value_contract", False))
+        # A reply that must CARRY a document is not a conversational reply.
+        #
+        # LIVE, 2026-08-20. "build me a small web app… one self-contained
+        # file" was answered with the page written into the reply, and the
+        # reply stopped mid-attribute at `<script type=` — a 4096-token
+        # default scaled to 970 by Phi control and pressure, which is a fair
+        # size for prose and half an HTML page.
+        #
+        # The plan lane already has a floor for the same reason: a turn that
+        # must emit a plan cannot be shrunk below the plan.
+        document_output_contract = bool(
+            context.get("document_output_contract", False)
+        ) or _asks_for_a_document(initial_visible_user_prompt)
+        if document_output_contract:
+            context["document_output_contract"] = True
+        web_interlocutor_contract = bool(context.get("web_interlocutor_contract", False))
+        isolated_generation_contract, strict_max_token_cap = self._generate_with_metadata_sink_source_code_prose(context, operator_evidence_contract, proof_evaluation_contract, strict_answer_contract, strict_proof_answer_request, strict_value_contract, web_interlocutor_contract)
+
+        if not is_background and requested_tier == "secondary":
+            local_deep_block = self._local_deep_solver_block_reason()
+            if local_deep_block:
+                logger.warning(
+                    "🛡️ InferenceGate: local 70B Solver handoff blocked (%s). Staying on Cortex.",
+                    local_deep_block,
+                )
+                context["local_deep_block_reason"] = local_deep_block
+                requested_tier = "primary"
+                deep_handoff = False
+
+        timeout_val = self._requested_timeout_s(
+            timeout,
+            self._default_timeout_for_request(
+                origin,
+                requested_tier,
+                deep_handoff=deep_handoff,
+                is_background=is_background,
+            ),
+        )
+        primary_timeout, fallback_timeout = self._split_attempt_timeouts(
+            timeout_val, requested_tier
+        )
+        lower_local_lane_forbidden = bool(
+            proof_evaluation_contract
+            or strict_primary_proof_lane
+            or operator_evidence_contract
+            or desktop_cognitive_engine_contract
+            or health_probe
+        )
+        if requested_tier == "primary" and lower_local_lane_forbidden:
+            # This contract refuses every lower lane. Reserving 15-40% for a
+            # fallback that is forbidden shortened the only admissible 32B
+            # attempt, then failed closed after spending the reserved time on
+            # nothing. Keep a small delivery margin and give the real lane the
+            # rest; EOS still returns immediately.
+            primary_timeout = max(8.0, timeout_val - 4.0)
+            fallback_timeout = min(4.0, timeout_val)
+        # ONE clock for the whole request.
+        #
+        # Every attempt below used to start a fresh timeout of its own: the
+        # primary attempt, then each scheduled repair at 30–60s, then the
+        # brainstem, then the reflex, then APIAdapter at 30s, then HealthRouter
+        # at another 30s. A caller asking for 45 seconds could wait several
+        # minutes and every individual wait_for was "within budget". This
+        # deadline is the budget the caller actually asked for, and every
+        # window below is capped by what is left of it.
+        request_deadline = get_deadline(float(timeout_val))
+        context["request_deadline_s"] = float(timeout_val)
+        max_tokens = self._requested_max_tokens(
+            context.get("max_tokens"),
+            self._default_max_tokens_for_request(
+                origin,
+                requested_tier,
+                deep_handoff=deep_handoff,
+                is_background=is_background,
+            ),
+        )
+        explicit_max_tokens_cap: int | None = None
+        if "max_tokens" in context:
+            try:
+                explicit_max_tokens_cap = max(1, int(context.get("max_tokens") or 1))
+            except (TypeError, ValueError, OverflowError) as exc:
+                logger.debug("Requested max_tokens is not an integer, applying no explicit cap: %s", exc)
+                explicit_max_tokens_cap = None
+        # Whether the CALLER asked for the floor, or the gate worked it out.
+        #
+        # A floor the caller supplied is the caller's own instruction and beats
+        # the caller's own stale cap — that is what a long-form desktop request
+        # carrying both max_tokens=1536 and user_surface_completion_floor=2560
+        # is asking for. A floor the gate computed is not an instruction, and
+        # raising a declared ceiling with it dispatched a request that asked for
+        # 384 at 1000 while the context still said 384.
+        caller_declared_completion_floor = "user_surface_completion_floor" in context
+        surface_completion_floor = 0
+        # How much room an answer needs is a property of the question, not of
+        # the path that happens to serve it.
+        #
+        # LIVE, 2026-08-27: a question that had to be worked out was routed to
+        # the deliberate lane BECAUSE it was hard, and that lane carried no
+        # desktop contract, so the floor did not apply and the model was
+        # dispatched with 128 tokens. The quick lane, for the same question,
+        # got 896. Choosing the right lane made the budget worse.
+        #
+        # The population is the one the sampling multiplier below already acts
+        # on: user-facing foreground generations. One gate lowers the budget
+        # and one floors it, and they now cover the same turns. A declared
+        # output ceiling and a blocked resource stake still win, as before.
+        _foreground_answer_turn = (
+            not is_background
+            and self._origin_is_user_facing(origin)
+            and not isolated_generation_contract
+            and not health_probe
+            and not benchmark_request
+            and not proof_evaluation_contract
+            and not strict_answer_contract
+        )
+        if (
+            (desktop_cognitive_engine_contract or _foreground_answer_turn)
+            and not bool(context.get("hard_output_token_ceiling", False))
+            and not bool(context.get("resource_stakes_blocked", False))
+        ):
+            max_tokens, surface_completion_floor = self._generate_with_metadata_sink_part_7(caller_declared_completion_floor, context, explicit_max_tokens_cap, initial_visible_user_prompt, max_tokens, surface_completion_floor)
+            if explicit_max_tokens_cap is not None:
+                if caller_declared_completion_floor:
+                    explicit_max_tokens_cap = max(
+                        explicit_max_tokens_cap, surface_completion_floor
+                    )
+                context["max_tokens"] = min(explicit_max_tokens_cap, max_tokens)
+        if "max_tokens" not in context:
+            max_tokens = self._adaptive_max_tokens_for_prompt(
+                initial_visible_user_prompt,
+                base_tokens=max_tokens,
+                origin=origin,
+                requested_tier=requested_tier,
+                is_background=is_background,
+            )
+        # When the cortex is still warming or recovering, refuse to load
+        # the 72B Solver alongside it — they don't fit in 64GB together and
+        # the resulting MemoryGuard panic-eviction creates a thrash loop where
+        # neither lane stays up long enough to answer. Force primary; the
+        # cortex will handle the turn when warmup finishes.
+        if not is_background and requested_tier == "secondary" and not protected_foreground_lane:
+            try:
+                _cortex_lane = self.get_conversation_status() or {}
+                _cortex_state = str(_cortex_lane.get("state", "") or "").lower()
+                if _cortex_state in {"warming", "handshaking", "recovering"}:
+                    logger.info(
+                        "🛡️ InferenceGate: cortex is %s; refusing secondary handoff to avoid "
+                        "%s/Solver memory thrash. Staying on primary.",
+                        _cortex_state,
+                        _primary_lane_label(),
+                    )
+                    requested_tier = "primary"
+                    deep_handoff = False
+            except _INFERENCE_RECOVERABLE_ERRORS as _swap_exc:
+                record_degradation(
+                    "inference_gate",
+                    _swap_exc,
+                    severity="warning",
+                    action="failed safe to primary after secondary coexistence probe failed",
+                )
+                logger.debug("Cortex lane probe before secondary admission failed: %s", _swap_exc)
+                requested_tier = "primary"
+                deep_handoff = False
+
+        admission_snapshot: dict[str, Any] | None = None
+        _seam_early_response, deep_handoff, fallback_timeout, max_tokens, primary_timeout, request_deadline, requested_tier, timeout_val = await _admit_the_foreground_request(
+            context=context,
+            deep_handoff=deep_handoff,
+            desktop_cognitive_engine_contract=desktop_cognitive_engine_contract,
+            fallback_timeout=fallback_timeout,
+            initial_visible_user_prompt=initial_visible_user_prompt,
+            is_background=is_background,
+            max_tokens=max_tokens,
+            origin=origin,
+            primary_timeout=primary_timeout,
+            protected_foreground_lane=protected_foreground_lane,
+            request_deadline=request_deadline,
+            requested_tier=requested_tier,
+            self=self,
+            surface_completion_floor=surface_completion_floor,
+            timeout=timeout,
+            timeout_val=timeout_val,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
+
+        max_tokens, stakes_token_ceiling = self._generate_with_metadata_sink_resource_stakes_scale(benchmark_request, health_probe, isolated_generation_contract, max_tokens, strict_answer_contract)
+        try:
+            from core.container import ServiceContainer
+
+            stakes = ServiceContainer.get("resource_stakes", default=None)
+            deep_handoff, max_tokens, requested_tier, stakes_token_ceiling = _settle_the_token_ceilings(
+                context=context,
+                deep_handoff=deep_handoff,
+                desktop_cognitive_engine_contract=desktop_cognitive_engine_contract,
+                max_tokens=max_tokens,
+                prompt=prompt,
+                protected_compact_capability_contract=protected_compact_capability_contract,
+                requested_tier=requested_tier,
+                self=self,
+                stakes=stakes,
+                stakes_token_ceiling=stakes_token_ceiling,
+                surface_completion_floor=surface_completion_floor,
+            )
+        except _INFERENCE_RECOVERABLE_ERRORS as _stakes_exc:
+            record_degradation(
+                "inference_gate",
+                _stakes_exc,
+                severity="warning",
+                action="kept default resource-stakes action envelope",
+            )
+            logger.debug("ResourceStakesLedger unavailable: %s", _stakes_exc)
+
+        # ── Phi (Integrated Information): scale token budget based on cognitive integration ──
+        # [STABILITY v59] NEVER throttle user-facing foreground requests.
+        # PHI is near-zero during early boot (insufficient IIT data), which
+        # was crushing max_tokens to ~420 on the first few user turns —
+        # making desktop responses catastrophically worse than server mode.
+        # PHI scaling is now restricted to background requests only, and
+        # even then the floor is 0.6x instead of 0.2x.
+        _is_user_facing_for_phi = bool(
+            not is_background
+            and (explicit_foreground or protected_foreground_lane or self._origin_is_user_facing(origin))
+        )
+        if not _is_user_facing_for_phi:
+            try:
+                from core.container import ServiceContainer
+                phi_val = 1.0  # default
+                phi_is_measured = False
+                phi_core = ServiceContainer.get("phi_core", default=None)
+                if phi_core is not None:
+                    if hasattr(phi_core, "get_live_phi"):
+                        # include_surrogate=True means this number may be a
+                        # PROXY, not an exact-MIP integrated-information
+                        # measurement. It still scales the BACKGROUND token
+                        # budget — which is a defensible use of a rough
+                        # signal — but it must not be recorded as Φ, and the
+                        # foreground lane is already excluded above.
+                        phi_val = max(
+                            0.0,
+                            _finite(
+                                phi_core.get_live_phi(include_surrogate=True), 1.0
+                            )
+                            or 1.0,
+                        )
+                        phi_is_measured = False
+                    elif hasattr(phi_core, "_last_result") and phi_core._last_result:
+                        phi_val = max(
+                            0.0, _finite(phi_core._last_result.phi_s, 1.0) or 1.0
+                        )
+                        phi_is_measured = True
+                context["background_budget_signal"] = {
+                    "value": round(float(phi_val), 4),
+                    # The name of the thing, not the name of the ideal.
+                    "kind": "phi_measured" if phi_is_measured else "phi_surrogate",
+                    "scales": "background_token_budget",
+                }
+                
+                # Scale token budget for background requests only:
+                # When Φ is high, allow full budget. When Φ is low, scale down
+                # but never below 60% — the old 20% floor was destructive.
+                #
+                # "Background only" is what this always said and never did.
+                # There was no background check in the condition, so a
+                # background budget control was trimming the answers people
+                # were waiting for, and the signal it scales on is registered
+                # under the name "background_token_budget" a dozen lines above.
+                #
+                # It matters more than a percentage looks. A token budget is a
+                # ceiling and not a reservation: the model stops when it has
+                # finished, so a generous ceiling costs nothing on a turn that
+                # ends early, while a tight one costs the end of a sentence on
+                # the turn that needed the room. Guessing low and guessing high
+                # are not symmetric, and on one laptop serving one person
+                # there is nothing on the other side of the trade.
+                if (
+                    phi_val < 0.8
+                    and is_background
+                    and not strict_answer_contract
+                    and not health_probe
+                    and not isolated_generation_contract
+                    and not benchmark_request
+                    and not document_output_contract
+                ):
+                    phi_scale = max(0.6, 0.6 + 0.4 * (phi_val / 0.8))
+                    max_tokens = max(512, int(max_tokens * phi_scale))
+                    logger.info("🧠 [PHI CONTROL] Integration Φ=%.3f -> scaling token budget by %.2f (max_tokens=%d)", 
+                                phi_val, phi_scale, max_tokens)
+            except _INFERENCE_RECOVERABLE_ERRORS as exc:
+                _record_inference_degradation(
+                    exc,
+                    action="kept unscaled token budget after phi token-budget probe failed",
+                    severity="debug",
+                )
+                logger.debug("Phi token budget scaling skipped: %s", exc)
+
+        morpho_kwargs, somatic_temperature = self._generate_with_metadata_sink_affective_circumplex_let(context)
+        if (
+            not is_background
+            and self._origin_is_user_facing(origin)
+            and not isolated_generation_contract
+        ):
+            max_tokens, somatic_temperature = self._generate_with_metadata_sink_part_10(context, max_tokens, somatic_temperature)
+
+            # ── Homeostatic Coupling: Apply cognitive modifiers to generation ──
+            # These are computed every heartbeat tick from drives + affect + hardware.
+            # temperature_mod: integrity/sovereignty stress → more cautious (lower temp)
+            # depth_mod: energy depletion → fewer tokens; high energy → more
+            # creativity_mod: curiosity-driven exploration width
+            try:
+                _homeo_coupling = ServiceContainer.get("homeostatic_coupling", default=None)
+                if _homeo_coupling:
+                    _mods = _homeo_coupling.get_modifiers()
+                    _temp_factor = self._modulator_factor(
+                        _mods.temperature_mod,
+                        source="homeostatic_coupling.temperature_mod",
+                        low=0.5,
+                        high=1.5,
+                    )
+                    _depth_factor = self._modulator_factor(
+                        _mods.depth_mod,
+                        source="homeostatic_coupling.depth_mod",
+                        low=0.5,
+                        high=2.0,
+                    )
+                    if somatic_temperature is not None:
+                        somatic_temperature = round(somatic_temperature * _temp_factor, 3)
+                    max_tokens = max(384, int(max_tokens * _depth_factor))
+                    logger.debug(
+                        "🫀 HomeostaticCoupling: temp_mod=%.2f depth_mod=%.2f → temp=%.3f tokens=%d",
+                        _mods.temperature_mod,
+                        _mods.depth_mod,
+                        somatic_temperature or 0.0,
+                        max_tokens,
+                    )
+            except _INFERENCE_RECOVERABLE_ERRORS as _hc_e:
+                record_degradation(
+                    "inference_gate",
+                    _hc_e,
+                    severity="warning",
+                    action="kept existing generation parameters without homeostatic coupling",
+                )
+                logger.debug("HomeostaticCoupling modifiers unavailable: %s", _hc_e)
+
+            # ── Homeostasis Engine: Direct drive-based inference modulation ──
+            # Integrity/sovereignty danger → lower temperature (caution)
+            # Low metabolism → fewer tokens (conserve)
+            # High curiosity → slight temp boost (exploration)
+            try:
+                _homeostasis = ServiceContainer.get("homeostasis", default=None)
+                max_tokens, somatic_temperature = self._generate_with_metadata_sink_part_11(_homeostasis, max_tokens, somatic_temperature)
+            except _INFERENCE_RECOVERABLE_ERRORS as _he_e:
+                record_degradation(
+                    "inference_gate",
+                    _he_e,
+                    severity="warning",
+                    action="kept existing generation parameters without homeostasis modifiers",
+                )
+                logger.debug("Homeostasis inference modifiers unavailable: %s", _he_e)
+
+            # ── Morphogenetic substrate → sampling parameters ────────────────
+            # What this does: reads the morphogenetic field's danger, curiosity
+            # and resource-pressure scalars and moves temperature, top_p and
+            # the repetition penalty. That is a real causal path from substrate
+            # state to output distribution, and it is worth having.
+            #
+            # What it is NOT: "curing mind-body dualism" or "true embodied
+            # cognition", which is what this comment used to claim. Nothing
+            # here establishes embodiment; it reads three numbers out of a
+            # service and scales three sampler knobs. The claim outran the
+            # code, and a claim about Aura with no test behind it is the thing
+            # this pass exists to remove (core/organism/model_validation.py).
+            try:
+                from core.container import ServiceContainer
+
+                _rt = ServiceContainer.get("morphogenetic_runtime", default=None)
+                max_tokens, somatic_temperature = _modulate_sampling_from_the_body(
+                    ServiceContainer=ServiceContainer,
+                    _rt=_rt,
+                    context=context,
+                    explicit_foreground=explicit_foreground,
+                    is_background=is_background,
+                    max_tokens=max_tokens,
+                    morpho_kwargs=morpho_kwargs,
+                    protected_compact_capability_contract=protected_compact_capability_contract,
+                    protected_foreground_lane=protected_foreground_lane,
+                    self=self,
+                    somatic_temperature=somatic_temperature,
+                )
+            except _INFERENCE_RECOVERABLE_ERRORS as _m_e:
+                record_degradation(
+                    "inference_gate",
+                    _m_e,
+                    severity="warning",
+                    action="continued without morphogenetic generation-parameter coupling",
+                )
+                logger.debug("Morphogenetic coupling unavailable: %s", _m_e)
+
+            # ── Synaptic Plasticity: Learned generation-style modulation ──
+            # The projection matrix was updated after previous inferences via
+            # reward-modulated Hebbian learning. Now it transforms the current
+            # substrate state into sampling parameter adjustments.
+            try:
+                _plasticity = ServiceContainer.get("synaptic_plasticity", default=None)
+                if _plasticity is not None:
+                    _substrate = ServiceContainer.get("conscious_substrate", default=None)
+                    somatic_temperature = self._generate_with_metadata_sink_part_12(_plasticity, _substrate, morpho_kwargs, somatic_temperature)
+            except _INFERENCE_RECOVERABLE_ERRORS as _sp_e:
+                record_degradation(
+                    "inference_gate",
+                    _sp_e,
+                    severity="warning",
+                    action="continued without synaptic plasticity generation modulation",
+                )
+                logger.debug("SynapticPlasticity coupling unavailable: %s", _sp_e)
+
+            # ── Temporal Continuity: Silence-accumulated modulation ──
+            # The temporal residue from accumulated silence directly adjusts
+            # generation parameters — the system speaks differently after long
+            # silences because real drift accumulated.
+            try:
+                _tc = ServiceContainer.get("temporal_continuity", default=None)
+                if _tc is not None:
+                    _tc.on_inference_start()
+                    _tc_mod = _tc.compute_modulation()
+                    if _tc_mod:
+                        _tc_temp_d = self._modulator_delta(
+                            _tc_mod.get("temperature_delta", 0.0),
+                            source="temporal_continuity.temperature_delta",
+                            limit=0.5,
+                        )
+                        _tc_topp_d = _tc_mod.get("top_p_delta", 0.0)
+                        _tc_rep_d = _tc_mod.get("repetition_penalty_delta", 0.0)
+                        _tc_token_mult = _tc_mod.get("token_budget_multiplier", 1.0)
+                        if somatic_temperature is not None:
+                            somatic_temperature = max(0.1, min(1.5, somatic_temperature + _tc_temp_d))
+                        if _tc_topp_d and "top_p" in morpho_kwargs:
+                            morpho_kwargs["top_p"] = max(0.3, min(0.98, morpho_kwargs["top_p"] + _tc_topp_d))
+                        if _tc_rep_d and "repetition_penalty" in morpho_kwargs:
+                            morpho_kwargs["repetition_penalty"] = max(0.9, min(1.4, morpho_kwargs["repetition_penalty"] + _tc_rep_d))
+                        if _tc_token_mult > 1.0:
+                            max_tokens = int(min(max_tokens * _tc_token_mult, 4096))
+                        logger.debug(
+                            "🕐 TemporalContinuity: temp_d=%.3f token_mult=%.2f",
+                            _tc_temp_d, _tc_token_mult,
+                        )
+            except _INFERENCE_RECOVERABLE_ERRORS as _tc_e:
+                record_degradation(
+                    "inference_gate",
+                    _tc_e,
+                    severity="warning",
+                    action="continued without temporal continuity generation modulation",
+                )
+                logger.debug("TemporalContinuity coupling unavailable: %s", _tc_e)
+
+            # ── Somatic qualia service → sampler perturbations ──
+            # Reads temperature/top_p/repetition/frequency offsets from the
+            # somatic_qualia service and applies them, bounded, to the sampler.
+            # The perturbation is real and measurable at the output.
+            #
+            # "Raw felt perturbation" was the previous label, and the code does
+            # not support it: felt-ness is not established by a service returning
+            # four floats. The mechanism stands on its own without the claim.
+            try:
+                _sq = ServiceContainer.get("somatic_qualia", default=None)
+                somatic_temperature = self._generate_with_metadata_sink_part_13(_sq, morpho_kwargs, somatic_temperature)
+            except _INFERENCE_RECOVERABLE_ERRORS as _sq_e:
+                record_degradation(
+                    "inference_gate",
+                    _sq_e,
+                    severity="warning",
+                    action="continued without somatic qualia generation perturbation",
+                )
+                logger.debug("SomaticQualia coupling unavailable: %s", _sq_e)
+
+            # ── Free Energy: Urgency-based tier escalation ──
+            # When FE is high and rising, prefer deeper model for better reasoning
+            try:
+                _fe_engine = ServiceContainer.get("free_energy_engine", default=None)
+                if _fe_engine and _fe_engine.current:
+                    _fe_state = _fe_engine.current
+                    # High FE + complex action → request deeper model
+                    if (
+                        _fe_state.free_energy > 0.65
+                        and _fe_state.dominant_action in ("update_beliefs", "act_on_world")
+                        and requested_tier == "primary"
+                    ):
+                        # Nudge toward deeper tier if available
+                        if not deep_handoff:
+                            logger.debug(
+                                "⚡ FE urgency (F=%.2f, action=%s): consider deeper reasoning",
+                                _fe_state.free_energy,
+                                _fe_state.dominant_action,
+                            )
+                            # Don't force tier switch — just extend token budget
+                            max_tokens = min(max_tokens + 256, 4096)
+            except _INFERENCE_RECOVERABLE_ERRORS as _fe_e:
+                record_degradation(
+                    "inference_gate",
+                    _fe_e,
+                    severity="warning",
+                    action="continued without free-energy token-budget nudge",
+                )
+                logger.debug("FreeEnergy tier nudge unavailable: %s", _fe_e)
+
+        # Ordinary live conversation must not collapse into a starvation budget
+        # after affective / homeostatic modulation. Explicit caller caps still
+        # win, as do hard resource-stakes blocks and deep-probe turns.
+        if (
+            not is_background
+            and self._origin_is_user_facing(origin)
+            and requested_tier in {"primary", "secondary"}
+            and "max_tokens" not in context
+            and not bool(context.get("resource_stakes_blocked", False))
+            and not deep_probe_request
+            and not isolated_generation_contract
+            and not health_probe
+        ):
+            foreground_floor, foreground_cap, _foreground_loops = (
+                self._foreground_compute_profile(initial_visible_user_prompt)
+            )
+            max_tokens = min(max_tokens, foreground_cap)
+            if max_tokens < foreground_floor:
+                logger.info(
+                    "🧠 Foreground chat compute profile raised budget %d→%d "
+                    "(cap=%d, loops=%d, origin=%s).",
+                    max_tokens,
+                    foreground_floor,
+                    foreground_cap,
+                    _foreground_loops,
+                    origin or "unknown",
+                )
+                max_tokens = foreground_floor
+
+        max_tokens = self._generate_with_metadata_sink_block_above_skipped(context, deep_probe_request, health_probe, is_background, isolated_generation_contract, max_tokens, origin, requested_tier)
+
+        if (
+            not is_background
+            and self._origin_is_user_facing(origin)
+            and not isolated_generation_contract
+            and not health_probe
+            and not benchmark_request
+            and not proof_evaluation_contract
+            and not strict_answer_contract
+        ):
+            somatic_temperature, max_tokens, applied_bias = self._apply_runtime_sampling_biases(
+                base_temperature=somatic_temperature,
+                max_tokens=max_tokens,
+                context=context,
+                state=state,
+                allow_token_scaling="max_tokens" not in context,
+            )
+            if applied_bias["temperature_delta"] or applied_bias["max_tokens_factor"] != 1.0:
+                logger.debug(
+                    "🧠 Runtime sampling bias: temp_delta=%.3f token_factor=%.3f max_tokens=%d",
+                    applied_bias["temperature_delta"],
+                    applied_bias["max_tokens_factor"],
+                    max_tokens,
+                )
+            # A bias may spend less of the budget than it was given. It may not
+            # spend less than the request needs. The completion floor was
+            # applied further up and this multiplier ran after it, so the floor
+            # has to be put back or it was never a floor.
+            #
+            # LIVE, 2026-08-27: a question that had to be worked out carried a
+            # floor of 896 tokens. An integration measure scaled the budget by
+            # its smallest permitted factor and the model was dispatched with
+            # 363, stopping one sentence before the answer. The same principle
+            # is already written where the floor is computed: sampling biases
+            # may make an answer terser, and may not make the surface smaller
+            # than the visible request.
+            try:
+                _floor = int(context.get("user_surface_completion_floor") or 0)
+            except (TypeError, ValueError, OverflowError) as exc:
+                logger.debug("user_surface_completion_floor is not an integer, using no floor: %s", exc)
+                _floor = 0
+            if 0 < _floor and max_tokens < _floor:
+                logger.info(
+                    "🧠 Completion floor restored after sampling bias: %d→%d.",
+                    max_tokens,
+                    _floor,
+                )
+                max_tokens = _floor
+
+        if (
+            not is_background
+            and self._origin_is_user_facing(origin)
+            and requested_tier in {"primary", "secondary"}
+            and "max_tokens" not in context
+            and not bool(context.get("resource_stakes_blocked", False))
+            and not deep_probe_request
+            and not isolated_generation_contract
+            and not health_probe
+        ):
+            foreground_floor, foreground_cap, _foreground_loops = (
+                self._foreground_compute_profile(initial_visible_user_prompt)
+            )
+            bounded = min(max_tokens, foreground_cap)
+            if bounded < foreground_floor:
+                logger.info(
+                    "🧠 Foreground chat post-bias budget floor raised %d→%d "
+                    "(cap=%d, origin=%s).",
+                    bounded,
+                    foreground_floor,
+                    foreground_cap,
+                    origin or "unknown",
+                )
+                max_tokens = foreground_floor
+            else:
+                max_tokens = bounded
+
+        max_tokens = self._generate_with_metadata_sink_part_15(context, deep_probe_request, explicit_max_tokens_cap, is_background, max_tokens, operator_evidence_contract, protected_compact_capability_contract, strict_answer_contract, strict_max_token_cap)
+
+        max_tokens = self._generate_with_metadata_sink_part_16(benchmark_request, context, health_probe, initial_visible_user_prompt, max_tokens, morpho_kwargs)
+
+        output_contract_is_user_facing = bool(
+            not is_background
+            and not isolated_generation_contract
+            and not health_probe
+            and not benchmark_request
+            and (
+                explicit_foreground
+                or self._origin_is_user_facing(origin)
+                or requested_tier in {"primary", "secondary"}
+            )
+        )
+        brief, max_tokens = self._generate_with_metadata_sink_turn_executes_something(context, explicit_max_tokens_cap, max_tokens, morpho_kwargs, output_contract, output_contract_is_user_facing, output_contract_payload, stakes_token_ceiling)
+        provided_messages, use_compact_foreground_context = self._generate_with_metadata_sink_use_compact_foreground_context(context, deep_handoff, initial_visible_user_prompt, is_background, origin, requested_tier)
         context_system_prompt = str(context.get("system_prompt", "") or "").strip()
 
         def _append_unique_system_part(parts: list[str], content: Any) -> None:
@@ -11713,55 +12426,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
         # it, so a long conversation stops re-prefilling itself from token zero.
         # The content is unchanged — only its position.
         contract_grounding_blocks: list[str] = []
-        task_grounding_blocks: list[str] = []
-        ambient_grounding_blocks: list[str] = []
-        # The response contract describes THIS turn — its reason label and the
-        # current local date both change per turn — so it belongs beside the
-        # turn, not in the persistent system prompt. Measured live: it landed at
-        # token 125 and divergence began at "## RESPONSE CONTRACT\n- Reason:
-        # compound_prompt\n- Current local date: ...", stranding 3,884 tokens of
-        # conversation behind it (3% reused).
-        if prompt_contract_block and not isolated_generation_contract:
-            contract_grounding_blocks.append(prompt_contract_block)
-        # Current mind state changes independently of identity and policy. It
-        # belongs with this turn's evidence, never inside the stable system
-        # prefix. The old path inserted it above and then inserted it a second
-        # time into prebuilt messages below. Besides presenting one source twice,
-        # that made every affect tick invalidate the conversation's KV prefix.
-        if living_mind_context and not isolated_generation_contract:
-            ambient_grounding_blocks.append(living_mind_context)
-        await _attach_the_present_moment(
-            ambient_grounding_blocks=ambient_grounding_blocks,
-            isolated_generation_contract=isolated_generation_contract,
-            recent_actions_already_grounded=bool(
-                context.get("recent_actions_already_grounded", False)
-            ),
-            task_grounding_blocks=task_grounding_blocks,
-            visible_user_prompt=visible_user_prompt,
-        )
-        # Keep prompt growth aligned with the actual local model context window
-        # instead of assuming 128k+ headroom on the primary Qwen lane.
-
-        # ── Somatic narrative: brief felt-state line in the system prompt ────────
-        if somatic_temperature is not None and not isolated_generation_contract:
-            try:
-                from core.affect.affective_circumplex import get_circumplex
-
-                _soma_narrative = get_circumplex().describe()
-                if _soma_narrative:
-                    # Felt state changes on every tick; it travels with the rest
-                    # of the volatile grounding, after the conversation.
-                    ambient_grounding_blocks.append(
-                        f"## SOMATIC STATE\n{_soma_narrative}"
-                    )
-            except _INFERENCE_RECOVERABLE_ERRORS as _exc:
-                record_degradation(
-                    "inference_gate",
-                    _exc,
-                    severity="warning",
-                    action="continued without somatic-state prompt section",
-                )
-                logger.debug("Suppressed Exception: %s", _exc)
+        ambient_grounding_blocks, task_grounding_blocks = await self._generate_with_metadata_sink_task_grounding_blocks(context, contract_grounding_blocks, isolated_generation_contract, living_mind_context, prompt_contract_block, somatic_temperature, visible_user_prompt)
 
         prompt_user_facing = bool(
             not benchmark_request
@@ -11774,42 +12439,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             )
         )
 
-        # ── Architecture Self-Awareness: inject relevant subsystem context ──────
-        # Only for user-facing requests that mention architecture/code keywords.
-        if prompt_user_facing and not isolated_generation_contract:
-            try:
-                import re as _re
-
-                _arch_triggers = _re.compile(
-                    r"\b(how|explain|what|which|where|why|trace|show|describe)\b.{0,60}"
-                    r"\b(module|subsystem|file|class|method|function|work|does|handles|manages|routes|sends|wires)\b",
-                    _re.IGNORECASE,
-                )
-                if _arch_triggers.search(visible_user_prompt):
-                    from core.self.architecture_index import get_architecture_index
-
-                    arch_excerpt = get_architecture_index().query(
-                        visible_user_prompt,
-                        max_results=3,
-                    )
-                    if arch_excerpt:
-                        # The excerpt depends on this question, so it travels
-                        # with turn-local grounding. Putting it in the stable
-                        # system prefix invalidates cached conversation tokens
-                        # when the next question is about another subsystem.
-                        task_grounding_blocks.append(str(arch_excerpt))
-            except _INFERENCE_RECOVERABLE_ERRORS as _ae:
-                record_degradation(
-                    "inference_gate",
-                    _ae,
-                    severity="warning",
-                    action="continued without architecture self-awareness excerpt",
-                )
-                logger.debug("ArchIndex injection skipped: %s", _ae)
-            contract_grounding_blocks.append(
-                conversation_reliability_system_block(visible_user_prompt)
-            )
-        history = context.get("history", [])
+        history = self._generate_with_metadata_sink_architecture_self_awareness(context, contract_grounding_blocks, isolated_generation_contract, prompt_user_facing, task_grounding_blocks, visible_user_prompt)
         # An internal decision does not need her whole self in front of it.
         #
         # Measured live: choosing between four named moves loaded a 2385-char
@@ -11898,80 +12528,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                 # extended budget (~26k chars) so the live lane stays responsive
                 # while still carrying substantial living-mind context.
                 foreground_profile = "extended"
-            messages = self._compact_prebuilt_messages(
-                messages,
-                history_limit=(
-                    4
-                    if is_background
-                    else self._foreground_prebuilt_history_limit(
-                        visible_user_prompt,
-                        context,
-                        deep_probe=deep_probe_context,
-                    )
-                ),
-                deep_probe=deep_probe_context,
-                budget_profile=foreground_profile,
-                current_user_content=visible_user_prompt,
-            )
-            # The compacted message set is now AUTHORITATIVE. Turn-local mind
-            # context and reliability guidance are attached below, after this
-            # compaction, as one bounded grounding message.
-            #
-            # `system_prompt` is a separate identity/policy string that grew
-            # independently and is never compacted. It is still handed to the
-            # client alongside these
-            # messages, and the client merges a separately-passed system_prompt
-            # into messages[0] — so it silently undid every compaction above.
-            # Measured live: a 2,399-char compacted system message reached the
-            # worker at 106,861 chars, turning a 278-char question into a
-            # 27,129-token prefill (a 384:1 scaffold-to-request ratio) that
-            # could not produce a first token inside the turn budget. None of
-            # it was visible, because the prompt plan logs the compacted
-            # messages and the re-inflation happens after that.
-            #
-            # The compacted structured messages now carry all system policy.
-            # Passing a scalar copy would let the client merge the unbounded
-            # pre-compaction prompt back into the first system message.
-            system_prompt = ""
-        # Volatile grounding rides LAST, behind the conversation, so the KV
-        # prefix covering the history survives from one turn to the next.
-        # Appended after compaction on purpose: compaction rewrites the history
-        # it is given, and this block must not be trimmed away — it is the
-        # read-not-inferred ground truth (clock, receipts, felt state) that
-        # stops her narrating a present she was never given.
-        has_volatile_grounding = bool(
-            contract_grounding_blocks
-            or task_grounding_blocks
-            or ambient_grounding_blocks
-        )
-        messages, system_prompt = _refresh_volatile_grounding(
-            ambient_grounding_blocks=ambient_grounding_blocks,
-            context=context,
-            contract_grounding_blocks=contract_grounding_blocks,
-            has_volatile_grounding=has_volatile_grounding,
-            messages=messages,
-            self=self,
-            system_prompt=system_prompt,
-            task_grounding_blocks=task_grounding_blocks,
-        )
-        # Cache policy is not a caller preference.
-        #
-        # morpho_kwargs is populated from `context` early, then several
-        # contracts (strict proof, operator evidence, health probe) set
-        # context["disable_prompt_cache"] = True LATER — after the copy. A
-        # caller that passed disable_prompt_cache=False therefore kept its
-        # False in the kwargs that actually reach the worker, and an exact-cold
-        # prompt contract silently ran on reused KV. Re-sync here, once, after
-        # every contract has had its say: policy wins.
-        for _cache_key in ("disable_prompt_cache", "clear_prompt_cache"):
-            if bool(context.get(_cache_key, False)):
-                if not bool(morpho_kwargs.get(_cache_key, False)):
-                    logger.debug(
-                        "Cache policy overrides caller %s=%r for this contract.",
-                        _cache_key,
-                        morpho_kwargs.get(_cache_key),
-                    )
-                morpho_kwargs[_cache_key] = True
+            messages, system_prompt = self._generate_with_metadata_sink_messages(context, deep_probe_context, foreground_profile, is_background, messages, visible_user_prompt)
+        messages, system_prompt = self._generate_with_metadata_sink_volatile_grounding_rides(ambient_grounding_blocks, context, contract_grounding_blocks, messages, morpho_kwargs, system_prompt, task_grounding_blocks)
 
         # Last word on size, in the unit the window is actually measured in.
         # Every budget above this line is in characters; this one is in tokens
@@ -12044,70 +12602,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             if str(msg.get("role", "")).strip().lower() == "system"
         )
         request_chars = max(0, prompt_chars - scaffold_chars)
-        # WHICH authority block moves. The scaffold total said 1809 on one turn
-        # and 1817 on the next, which is enough to make the merged front system
-        # message a different token sequence and cost the whole conversation
-        # its prompt-cache prefix — 17.7s of a 22s turn. A total cannot say
-        # which block did it; a per-block digest can.
-        if logger.isEnabledFor(logging.INFO):
-            _blocks = [
-                (len(str(msg.get("content", "") or "")),
-                 hashlib.sha256(
-                     str(msg.get("content", "") or "").encode("utf-8", "replace")
-                 ).hexdigest()[:8],
-                 str(msg.get("content", "") or "")[:48].replace("\n", "⏎"))
-                for msg in messages
-                if str(msg.get("role", "")).strip().lower() == "system"
-            ]
-            if _blocks:
-                logger.info(
-                    "🧩 [PROMPT BLOCKS] %s",
-                    " | ".join(f"{n}c {d} {h!r}" for n, d, h in _blocks),
-                )
-        # The separately-passed system_prompt is merged into messages[0] at the
-        # client boundary, so it is part of the prefill even though it is not in
-        # `messages` here. Leaving it out of this line is how a 106,861-char
-        # re-inflation stayed invisible behind a plan that reported 4,479.
-        # Which grounding blocks actually survived to the worker. Attachment was
-        # already logged at the builder and the block still never arrived, so
-        # the only useful signal is presence in the final text.
-        _grounded = [
-            name
-            for name, marker in (
-                ("present", "## PRESENT MOMENT"),
-                ("instruments", "## YOUR OWN INSTRUMENTS"),
-                ("receipts", "## WHAT YOU ACTUALLY JUST DID"),
-                # Grounding that cannot be seen cannot be verified — the file
-                # block spent a day being built into a prompt nobody sent.
-                #
-                # DERIVED from the registry, never hand-listed. Written out by
-                # hand, this list immediately drifted: screen and beliefs were
-                # registered as observables and left out here, so a screen
-                # reading that WAS taken reported as not surviving, and an hour
-                # went into looking for a delivery bug that did not exist.
-                *_observable_dispatch_markers(),
-            )
-            if marker in str(system_prompt or "")
-            or any(marker in str(msg.get("content", "") or "") for msg in messages)
-        ]
-        # FINAL word on the budget for an execution turn.
-        #
-        # The earlier raise fired ("raising the reply budget 288 -> 1024") and
-        # was then overwritten by the compact-foreground path, so the caller
-        # still asked for 288 — "Foreground starvation floor raised budget
-        # 284->288 (caller asked 288)" — and a multi-step JSON plan cannot be
-        # written in 288 tokens. Applied here, immediately before dispatch,
-        # after every other budget computation has had its say.
-        if bool(context.get("desktop_execution_contract", False)):
-            _plan_floor_final = 1024
-            if int(max_tokens or 0) < _plan_floor_final:
-                logger.info(
-                    "🖥️ [PLAN BUDGET] Execution turn: %s → %d tokens at dispatch.",
-                    max_tokens,
-                    _plan_floor_final,
-                )
-                max_tokens = _plan_floor_final
-                context["max_tokens"] = max_tokens
+        _grounded, max_tokens = self._generate_with_metadata_sink_authority_block_moves(context, max_tokens, messages, system_prompt)
 
         # FINAL word on the budget for an answer turn, for the same reason the
         # execution floor above is applied here: every earlier raise can be and
@@ -12171,48 +12666,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             # two numbers for one budget, and the model got the larger.
             if explicit_max_tokens_cap is not None and not caller_declared_completion_floor:
                 _answer_floor_final = min(_answer_floor_final, explicit_max_tokens_cap)
-            if 0 < _answer_floor_final and int(max_tokens or 0) < _answer_floor_final:
-                logger.info(
-                    "🧠 [ANSWER BUDGET] Answer turn: %s → %d tokens at dispatch.",
-                    max_tokens,
-                    _answer_floor_final,
-                )
-                max_tokens = _answer_floor_final
-                context["max_tokens"] = max_tokens
-
-            # A deadline that cannot deliver the budget the same request just
-            # computed is two derived numbers contradicting each other, and
-            # neither side could see the other.
-            #
-            # LIVE, 2026-08-27: the floor asked for 896 tokens and the
-            # deliberate lane allowed about 150 seconds. The observed decode
-            # rate made 896 tokens roughly 150 seconds of decoding on its own,
-            # so the generation was cut mid-thought every time and the turn
-            # served nothing. Raising the budget alone made it worse: 1,792
-            # tokens were granted and the clock ended it at 43 seconds.
-            #
-            # The extension is bounded by the two measured quantities that
-            # caused it — the floor and the observed rate — so there is no
-            # invented number here and no open-ended wait. An unmeasured rate
-            # extends nothing.
-            # A turn that has to go and fetch something spends a whole
-            # generation on the call before the answer is even started.
-            #
-            # LIVE, 2026-08-28: a diagnosis turn was offered the right tool,
-            # spent forty-five seconds emitting one call, and the request
-            # deadline expired fifty seconds later with nothing said about what
-            # came back. The clock covered one generation and the turn needed
-            # two.
-            _generations = 1
-            try:
-                from core.intent.capability_selection import (
-                    points_at_something_real,
-                )
-
-                if points_at_something_real(initial_visible_user_prompt):
-                    _generations = 2
-            except (ImportError, AttributeError, OSError, TypeError, ValueError):
-                _generations = 1
+            _generations, max_tokens = self._generate_with_metadata_sink_part_24(_answer_floor_final, context, initial_visible_user_prompt, max_tokens)
 
             # Two entitlements, and only one of them had a clock.
             #
@@ -12256,68 +12710,13 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                     seconds_remaining=float(timeout_val or 0.0),
                 )
                 _tokens_to_pay_for = max_tokens + _reserve_the_worker_adds
-                _decode_s = _seconds_to_decode(_tokens_to_pay_for)
-                # Reading the prompt is the other half of a generation, and
-                # on this hardware it is the larger half. A turn was given time
-                # to SAY its answer and none to read the question.
-                _prompt_chars_for_clock = len(str(system_prompt or "")) + sum(
-                    len(str((msg or {}).get("content") or ""))
-                    for msg in (messages or [])
-                    if isinstance(msg, dict)
-                )
-                _read_s = _seconds_to_read(_prompt_chars_for_clock)
-                # And what the worker that will serve this says, which is the
-                # number it will cancel itself by.
-                #
-                # A percentile over past readings cannot follow a rate that
-                # halves under memory pressure, and the worker measures its
-                # own. LIVE 2026-09-04, one line apart: "the prompt takes
-                # about 2s to read", granting 25 seconds, and "a 2867-char
-                # prompt takes about 8.8s to read at 82 tok/s", needing 26.3.
-                # Cancelled at 25, every user-facing turn, with the runtime
-                # healthy throughout.
-                _worker_says = 0.0
-                _asking = getattr(self, "_mlx_client", None)
-                _knows = getattr(_asking, "least_time_to_read", None)
-                if callable(_knows):
-                    try:
-                        _worker_says = float(_knows(_prompt_chars_for_clock) or 0.0)
-                    except (TypeError, ValueError):
-                        # not a failure: a rate that will not parse is not one.
-                        _worker_says = 0.0
-                _read_s = max(_read_s, _worker_says)
+                _decode_s, _read_s = self._generate_with_metadata_sink__decode_s(_tokens_to_pay_for, messages, system_prompt)
                 if _decode_s > 0.0:
                     _needed = (
                         (_decode_s + _read_s) * _generations
                     ) + _DELIVERY_MARGIN_S
                     if _needed > float(timeout_val):
-                        logger.info(
-                            "🧠 [ANSWER CLOCK] %d tokens (%d asked + %d reserve the "
-                            "worker adds) decode in about %.0fs and the prompt takes "
-                            "about %.0fs to read, at the measured rates, and this turn "
-                            "needs %d of them; deadline %.0fs → %.0fs.",
-                            _tokens_to_pay_for,
-                            max_tokens,
-                            _reserve_the_worker_adds,
-                            _decode_s,
-                            _read_s,
-                            _generations,
-                            float(timeout_val),
-                            _needed,
-                        )
-                        # Never past the ceiling the wait outside this one
-                        # uses. A deadline of 557 seconds inside a wait that
-                        # gives up at 480 is two numbers disagreeing again,
-                        # with the outer one winning silently.
-                        from core.runtime.response_policy import (
-                            USER_FACING_COMPLETION_DEADLINE_MAX_S,
-                        )
-
-                        _cap = float(USER_FACING_COMPLETION_DEADLINE_MAX_S)
-                        # Forecasts inform progress reporting. They do not
-                        # authorize substituting a less capable cortex.
-                        timeout_val = min(_cap, _needed)
-                        primary_timeout = max(8.0, timeout_val - _DELIVERY_MARGIN_S)
+                        primary_timeout, timeout_val = self._generate_with_metadata_sink_part_26(_decode_s, _generations, _needed, _read_s, _reserve_the_worker_adds, _tokens_to_pay_for, max_tokens, timeout_val)
                         # The clock is one object, built when the request was
                         # admitted. Raising the number beside it computed an
                         # extension, logged it, and did not honour it.
@@ -12410,77 +12809,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                     )
                     max_tokens = _affordable
 
-        serving_lane = self._cortex_serving_lane(
-            initial_visible_user_prompt,
-            context,
-            input_tokens=(
-                estimate_context_tokens(str(system_prompt or ""))
-                + sum(
-                    estimate_context_tokens(str(message.get("content") or "")) + 12
-                    for message in messages
-                    if isinstance(message, dict)
-                )
-            ),
-        )
-        serving_limits = get_active_cortex_serving_limits()
-        if serving_limits is not None and serving_limits.qualified:
-            lane_limits = serving_limits.lane(serving_lane)
-            if lane_limits is not None:
-                admitted_tokens = min(max_tokens, lane_limits.max_output_tokens)
-                if admitted_tokens < max_tokens:
-                    logger.info(
-                        "🧠 [SERVING PROFILE] %s output ceiling reduced %d→%d "
-                        "(profile=%s).",
-                        serving_lane,
-                        max_tokens,
-                        admitted_tokens,
-                        serving_limits.profile_sha256[:12],
-                    )
-                max_tokens = max(1, admitted_tokens)
-                context["max_tokens"] = max_tokens
-                context["cortex_serving_lane"] = serving_lane
-                context["cortex_serving_profile_sha256"] = (
-                    serving_limits.profile_sha256
-                )
-                context["cortex_serving_profile_source"] = serving_limits.source
-        morpho_kwargs["serving_lane"] = serving_lane
-
-        logger.info(
-            "🧭 [GROUNDING] survived to dispatch: %s (sys_prompt=%d)",
-            ",".join(_grounded) or "NONE",
-            len(str(system_prompt or "")),
-        )
-        logger.info(
-            "🧠 [ZENITH] Prompt plan: mode=%s messages=%d chars=%d "
-            "(scaffold=%d request=%d ratio=%.1fx sys_prompt=%d) "
-            "origin=%s max_tokens=%d",
-            prompt_mode,
-            len(messages),
-            prompt_chars,
-            scaffold_chars,
-            request_chars,
-            (scaffold_chars / request_chars) if request_chars else float("inf"),
-            len(str(system_prompt or "")),
-            origin or "unknown",
-            max_tokens,
-        )
-        # What the scaffold IS, when it dwarfs the question.
-        #
-        # A ratio is a number nobody can act on. Eight thousand characters of
-        # scaffold against two hundred and fifty of question is the shape of a
-        # real defect, and the log said only that it was thirty-two to one —
-        # so which part of it was eight thousand characters could not be found
-        # without adding this line first.
-        if request_chars and scaffold_chars > (8 * request_chars):
-            logger.info(
-                "🧠 [ZENITH] Scaffold breakdown: %s",
-                "; ".join(
-                    f"{str(msg.get('role', '?'))}={len(str(msg.get('content', '') or ''))}"
-                    f":{str(msg.get('content', '') or '')[:70]!r}"
-                    for msg in messages
-                    if isinstance(msg, dict)
-                ),
-            )
+        max_tokens = self._generate_with_metadata_sink_serving_lane(_grounded, context, initial_visible_user_prompt, max_tokens, messages, morpho_kwargs, system_prompt)
+        self._generate_with_metadata_sink_part_28(max_tokens, messages, origin, prompt_chars, prompt_mode, request_chars, scaffold_chars, system_prompt)
 
         if (
             _is_user_facing
@@ -12497,39 +12827,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             # never answering.
             and bool(initial_visible_user_prompt)
         ):
-            _foreground_floor, _foreground_cap, foreground_loops = (
-                self._foreground_compute_profile(initial_visible_user_prompt)
-            )
-            foreground_profile = self._foreground_prompt_profile(
-                visible_user_prompt,
-                context,
-            )
-            # Every _generate_with_client call site passes these EXPLICITLY and also
-            # splats **morpho_kwargs, so any overlap is a guaranteed TypeError —
-            # "got multiple values for keyword argument" — which fails the
-            # inference_gate closed and reaches the person as user_cycle_no_response:
-            # the engine returning nothing at all, in two seconds, while ordinary
-            # conversation through the same engine keeps working. One added key did
-            # exactly that to every desktop turn.
-            #
-            # Scrubbed here rather than trusted to every future writer: the explicit
-            # argument is the authority, and a duplicate in the splat can only ever
-            # be the same value or a bug.
-            for _reserved in _GENERATE_EXPLICIT_KWARGS:
-                morpho_kwargs.pop(_reserved, None)
-            morpho_kwargs.setdefault("clean_user_surface_contract", True)
-            morpho_kwargs.setdefault(
-                "user_surface_validation_prompt",
-                initial_visible_user_prompt or visible_user_prompt,
-            )
-            morpho_kwargs.setdefault(
-                "clean_user_surface_recurrent_loops",
-                foreground_loops,
-            )
-            morpho_kwargs.setdefault(
-                "clean_user_surface_steering_alpha",
-                0.35 if foreground_profile == "extended" else 0.25,
-            )
+            self._generate_with_metadata_sink__foreground_cap(context, initial_visible_user_prompt, morpho_kwargs, visible_user_prompt)
         client_foreground_request = (
             bool(_is_user_facing or explicit_foreground) and not is_background and not benchmark_request
         )
@@ -12789,110 +13087,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                         )
                     )
                     if primary_surface_quality_rejected and desktop_cognitive_engine_contract:
-                        # Say WHICH quality check rejected the text.
-                        #
-                        # This refusal is the last step before the person gets
-                        # "I couldn't get to an answer I'd stand behind", and it
-                        # logged only that retries were exhausted. The reasons
-                        # were computed by _surface_quality_failure_reasons,
-                        # carried on the receipt as surface_quality_gate_reasons,
-                        # and written down nowhere: that key appears ZERO times
-                        # in a 20,000-record log full of these refusals.
-                        #
-                        # So the one canned reply that must never be reachable
-                        # was also the least diagnosable thing in the runtime —
-                        # every occurrence said a gate had said no, and nothing
-                        # said what it objected to. The gate keeps only
-                        # INTEGRITY failures (leaks, corruption, prompt
-                        # artefacts, text that is not language), so the reason
-                        # is exactly what distinguishes a model producing
-                        # garbage from a gate that is too strict, and those want
-                        # opposite fixes.
-                        # Every key the receipt keeps a reason under, not one.
-                        #
-                        # The fix above read surface_quality_gate_reasons, and
-                        # the worker writes its actual objections under
-                        # semantic_completion_quality_reasons — the first key is
-                        # only written on the telemetry-sanitizer path. Two
-                        # names for one fact, so the diagnosis that was added to
-                        # end "rejected_for=no_reasons_reported" reported
-                        # no_reasons_reported.
-                        _quality_reasons = tuple(
-                            dict.fromkeys(
-                                str(reason).strip()[:120]
-                                for key in (
-                                    "surface_quality_gate_reasons",
-                                    "semantic_completion_quality_reasons",
-                                    "telemetry_sanitizer_reasons",
-                                    # The fourth. The gate that keeps the best
-                                    # rejected draft records its objections
-                                    # here, and this is the one that carries
-                                    # them on the path a simple "read this file
-                                    # and tell me what it says" takes.
-                                    "surface_quality_rejected_reasons",
-                                )
-                                for reason in (
-                                    primary_surface_receipt.get(key) or ()
-                                )
-                                if str(reason).strip()
-                            )
-                        )
-                        # And when there are none, the draft itself.
-                        #
-                        # Four keys hold reasons and a path was found tonight
-                        # that populates none of them. A refusal that can name
-                        # neither its objection nor what it objected to is the
-                        # least diagnosable thing in the runtime, and it sits
-                        # one step before the one canned reply that must never
-                        # be reachable. The draft is already kept for the
-                        # repair path; nothing was reading it here.
-                        _rejected_draft = ""
-                        if not _quality_reasons:
-                            _rejected_draft = str(
-                                primary_surface_receipt.get(
-                                    "surface_quality_rejected_text"
-                                )
-                                or ""
-                            ).strip()[:220]
-                        if not _quality_reasons and not _rejected_draft:
-                            # Four keys and a draft, and this receipt has none
-                            # of them. Then the question is no longer what the
-                            # gate objected to but whether this is the receipt
-                            # the gate wrote, and the only way to tell is to
-                            # see what it does carry.
-                            logger.warning(
-                                "🧠 the refusing receipt carries no reasons and no "
-                                "draft; it holds: %s",
-                                ",".join(
-                                    f"{name}={primary_surface_receipt.get(name)!r}"[:90]
-                                    for name in sorted(map(str, primary_surface_receipt))
-                                    # Substring, deliberately: `name` is a
-                                    # receipt FIELD NAME — `surface_quality`,
-                                    # `rejected_by` — and this line exists to
-                                    # show what the receipt carries when it
-                                    # carries no reason. Narrowing it hides
-                                    # the fields worth seeing.
-                                    if any(
-                                        word in name
-                                        for word in (
-                                            "quality",
-                                            "reason",
-                                            "rejected",
-                                            "surface",
-                                        )
-                                    )
-                                )
-                                or "nothing about quality at all",
-                            )
-                        logger.warning(
-                            "🧠 %s exhausted its worker-owned semantic quality retries; "
-                            "preserving the lane and refusing a duplicate inference-gate "
-                            "retry. rejected_for=%s%s",
-                            local_label,
-                            ",".join(str(reason) for reason in _quality_reasons)
-                            or "no_reasons_reported",
-                            f" draft={_rejected_draft!r}" if _rejected_draft else "",
-                        )
+                        _quality_reasons = self._generate_with_metadata_sink_say_quality_check(local_label, primary_surface_receipt)
                         return self._refuse_generation(
                             self.REFUSAL_EXHAUSTED,
                             "worker_semantic_quality_retries_exhausted",
@@ -13020,34 +13215,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                                 messages,
                             )
                             retry_system_prompt = retry_messages[0]["content"]
-                            retry_morpho_kwargs = dict(morpho_kwargs)
-                            retry_morpho_kwargs.update(
-                                {
-                                    "disable_prompt_cache": True,
-                                    "clear_prompt_cache": retry_attempt == 1,
-                                    "top_p": min(float(retry_morpho_kwargs.get("top_p", 0.9) or 0.9), 0.85),
-                                    "min_p": max(float(retry_morpho_kwargs.get("min_p", 0.02) or 0.02), 0.02),
-                                    "repetition_penalty": max(
-                                        float(retry_morpho_kwargs.get("repetition_penalty", 1.1) or 1.1),
-                                        1.12,
-                                    ),
-                                    "repetition_context_size": max(
-                                        int(retry_morpho_kwargs.get("repetition_context_size", 64) or 64),
-                                        96,
-                                    ),
-                                    # The runtime TELEMETRY payload is what the
-                                    # first attempt drowned in, so it is
-                                    # skipped. The turn's evidence is not: it
-                                    # travels in the repair messages built
-                                    # above, which now carry grounding.
-                                    "skip_runtime_payload": True,
-                                    "repair_retains_grounding": True,
-                                }
-                            )
-                            retry_temperature = min(
-                                float(somatic_temperature if somatic_temperature is not None else 0.35),
-                                0.35,
-                            )
+                            retry_morpho_kwargs, retry_temperature = self._generate_with_metadata_sink_retry_morpho_kwargs(morpho_kwargs, retry_attempt, somatic_temperature)
                             async with self._resource_context(
                                 enabled=True,
                                 priority=True,

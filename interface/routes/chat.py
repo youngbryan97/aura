@@ -2080,6 +2080,691 @@ def _authored_answer_can_serve(contract: Any) -> bool:
 
 
 
+def _run_cognitive_engine_chat_turn_prior_transaction_id(continuing_prior_segment, prior_evidence, prior_generation_count, prior_retry_count, prior_segment_count, prior_transaction_count, require_engine, turn_trace, visible):
+    prior_transaction_id = str(
+        prior_evidence.get("foreground_model_generation_transaction_id") or ""
+    ).strip()
+    prior_resume_handle = str(
+        prior_evidence.get("continuation_resume_handle") or ""
+    ).strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{32}", prior_resume_handle):
+        prior_resume_handle = ""
+    transaction_id = (
+        prior_transaction_id
+        if continuing_prior_segment
+        else uuid.uuid4().hex
+    )
+    continuation_evidence_valid = bool(
+        not continuing_prior_segment
+        or (
+            prior_transaction_count == 1
+            and prior_generation_count == prior_segment_count
+            and prior_segment_count == prior_retry_count + 1
+            and prior_retry_count <= _MAX_USER_SURFACE_CONTINUATIONS
+            and prior_transaction_id
+        )
+    )
+    turn_trace.update(
+        {
+            "cognitive_engine_required": bool(require_engine),
+            "engine_think_invoked": False,
+            "cognitive_engine_reply_accepted": False,
+            "cognitive_engine_reply_failed": False,
+            "bounded_contract_used": False,
+            "legacy_fallback_used": False,
+            "live_mind_controls_bound": False,
+            "live_mind_generation_controls": {},
+            "live_mind_surface_control_receipt": {},
+            "live_mind_controls_worker_applied": False,
+            "foreground_model_generation_consumed": continuing_prior_segment,
+            "foreground_model_generation_count": prior_generation_count,
+            "foreground_model_generation_transaction_count": prior_transaction_count,
+            "foreground_model_generation_segment_count": prior_segment_count,
+            "foreground_model_generation_transaction_id": transaction_id,
+            "completion_retry_count": prior_retry_count,
+            "continuation_evidence_valid": continuation_evidence_valid,
+            "continuation_resume_handle": prior_resume_handle,
+            "repair_retry_attempt_count": 0,
+            "single_owner_generation_exhausted": False,
+            "response_path": "",
+        }
+    )
+    _prime_requested_output_contract_trace(
+        turn_trace,
+        user_message=visible,
+    )
+
+def _run_cognitive_engine_chat_turn_canonical_self_condition_reply(effective_user_message, self_condition_evidence, state_native_output_owner, visible):
+    canonical_self_condition_reply = str(self_condition_evidence.get("reply") or "").strip()
+    # What she can do RIGHT NOW, for whatever this turn reaches for.
+    #
+    # The capability engine has always known which skills are available and
+    # why one is not; none of it reached the part of her that speaks, so a
+    # missing skill produced a string written months earlier ("I can't access
+    # external data right now, but based on what I know..."). Not her voice,
+    # not this moment, and it flattened the one distinction a person actually
+    # needs: "no network this minute" is not "I have no way to search".
+    live_capability_condition = ""
+    try:
+        from core.conversation.capability_condition import (
+            capability_condition_evidence,
+        )
+
+        # A capability whose evidence is already in this prompt worked.
+        _proven_this_turn: list[str] = []
+        if "[WEB SEARCH EVIDENCE]" in str(effective_user_message or ""):
+            _proven_this_turn.append("web_search")
+        if not state_native_output_owner:
+            live_capability_condition = capability_condition_evidence(
+                visible, already_used=_proven_this_turn
+            )
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.capability_condition", exc)
+        logger.debug("Live capability condition unavailable: %s", exc)
+
+    # Tell the morphogenetic layer what this turn reaches for.
+    #
+    # It had no demand input at all, so its population sat at whatever boot
+    # registered and its cells had nothing to organise around. This is the one
+    # global fact a local cell may read: what the body is trying to do, not
+    # where the load is or who is struggling.
+    #
+    # Purely additive — it appends a signal to a bounded in-memory deque, does
+    # no I/O, and cannot change this reply. A failure here is a failure to
+    # inform a background layer, so it is logged and dropped.
+    try:
+        from core.morphogenesis.bridge import announce_demand
+
+        announce_demand(visible)
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.morphogenesis_demand", exc, severity="debug")
+        logger.debug("Morphogenesis demand signal skipped: %s", exc)
+    return canonical_self_condition_reply, live_capability_condition
+
+async def _run_cognitive_engine_chat_turn_discourse_repair_contract(conversation_only_surface, lane, recent_context_needed, recent_conversation_context, recent_exchanges, require_engine, state_native_output_owner, visible):
+    discourse_repair_contract: dict[str, Any] = {}
+    if recent_exchanges:
+        try:
+            from core.conversation.discourse_repair_pursuit import build_repair_pursuit
+            from core.utils.injected_blocks import stamp_runtime_payload
+
+            pursuit = build_repair_pursuit(visible, recent_exchanges)
+            if pursuit.active:
+                discourse_repair_contract = stamp_runtime_payload(pursuit.to_dict())
+        except _CHAT_RECOVERABLE_ERRORS as exc:
+            record_degradation(
+                "chat.discourse_repair_pursuit",
+                exc,
+                severity="warning",
+                action="kept ordinary authenticated conversation history",
+            )
+    live_mind_context = (
+        {}
+        if state_native_output_owner
+        else await _collect_live_mind_context_payload(
+            user_message=visible,
+            lane=lane,
+            recent_conversation_context=recent_conversation_context,
+            recent_context_needed=recent_context_needed,
+            require_engine=require_engine,
+            conversation_only_surface=conversation_only_surface,
+        )
+    )
+    return discourse_repair_contract, live_mind_context
+
+def _run_cognitive_engine_chat_turn_bind_user_surface_prompt(bounded_planning_contract, capability_inventory_contract, context, memory_state_contract, memory_state_contract_covers_turn, principal_id, require_engine, runtime_fact_status_contract, visible):
+    from core.conversation.user_surface_contract import bind_user_surface_prompt
+
+    bind_user_surface_prompt(
+        context,
+        visible,
+        source="desktop_chat.visible_user_message",
+        overwrite=True,
+    )
+    exact_principal = " ".join(str(principal_id or "").strip().split())[:160]
+    if exact_principal:
+        context["user_id"] = exact_principal
+    if require_engine:
+        # This is a hard live-SLA cap shared by both the compact speech lane and
+        # the deeper phase stack.  Previously only the compact lane carried the
+        # cap, so a one-part introspective follow-up could enter ResponseGeneration,
+        # multiply its budget through several cognitive biases, and request 1.4K+
+        # tokens from the local 32B worker.  The outer desktop deadline then
+        # cancelled an otherwise healthy model and repeated the same oversized
+        # attempt.  Depth may change the work performed, but it may not silently
+        # discard the foreground completion envelope.
+        live_reply_token_budget = _desktop_live_reply_token_budget(
+            visible,
+            capability_inventory_contract=capability_inventory_contract,
+            bounded_planning_contract=bounded_planning_contract,
+            runtime_fact_status_contract=runtime_fact_status_contract,
+            memory_state_contract=memory_state_contract,
+            memory_state_contract_covers_turn=memory_state_contract_covers_turn,
+        )
+        context["max_tokens"] = live_reply_token_budget
+        context["num_predict"] = live_reply_token_budget
+        context["user_surface_completion_floor"] = answer_surface_token_floor(visible)
+    return exact_principal
+
+async def _run_cognitive_engine_chat_turn_part_5(capability_inventory_contract, context, conversation_only_surface, conversation_recall_context, recent_exchanges, session_id, state_native_output_owner, visible):
+    if conversation_recall_context:
+        context["conversation_recall_evidence"] = conversation_recall_context[:3000]
+    retained_memory_evidence_context = (
+        ""
+        if capability_inventory_contract or conversation_only_surface or state_native_output_owner
+        else await _build_retained_memory_evidence_context(
+            visible,
+            session_id=session_id,
+            recent_exchanges=recent_exchanges,
+            conversation_recall_context=conversation_recall_context,
+        )
+    )
+    if retained_memory_evidence_context:
+        context["retained_memory_evidence_context"] = retained_memory_evidence_context
+    context_challenge_context = (
+        ""
+        if capability_inventory_contract or state_native_output_owner
+        else await _build_context_challenge_repair_reply(
+            visible,
+            session_id=session_id,
+        )
+    )
+    if context_challenge_context and "pitch" in _chat_memory_state._normalize_user_message(visible):
+        context_challenge_context = (
+            "No pitch is supported by the recent completed conversation context. "
+            "The correct answer is to say that no pitch is visible in the recent thread, "
+            "then reset to the actual conversation instead of inventing one."
+        )
+    if context_challenge_context:
+        context["contextual_relevance_evidence"] = context_challenge_context[:2500]
+    deep_memory_context = (
+        ""
+        if capability_inventory_contract or state_native_output_owner
+        else await _fetch_deep_memory_context(visible)
+    )
+    if deep_memory_context:
+        context["deep_memory_context"] = deep_memory_context[:3000]
+    return context_challenge_context, retained_memory_evidence_context
+
+def _run_cognitive_engine_chat_turn_trace_binding_finished_at(capability_inventory_contract, context, require_engine, state_native_output_owner):
+    trace_binding_finished_at = time.perf_counter()
+    if require_engine:
+        context.update(
+            {
+                "desktop_cognitive_engine_required": True,
+                "protected_foreground_lane": True,
+                "prefer_tier": "primary",
+                "deep_handoff": False,
+                "allow_deep_handoff": False,
+                "allow_cloud_fallback": False,
+                "live_runtime_payload_required": not state_native_output_owner,
+            }
+        )
+        if not state_native_output_owner:
+            context["mind_context_contract"] = (
+                "Use live_mind_context as causal grounding for this reply. "
+                "Do not answer as a raw assistant, do not ignore the current user turn, "
+                "and do not claim a subsystem state that contradicts live_mind_context."
+            )
+    if capability_inventory_contract:
+        context.update(
+            {
+                "capability_inventory_contract": True,
+                "desktop_descriptive_turn": True,
+                "prefer_tier": "primary",
+                "deep_handoff": False,
+                "allow_deep_handoff": False,
+                "max_tokens": 384,
+                "num_predict": 384,
+                "skip_runtime_payload": True,
+                "disable_prompt_cache": True,
+                "clear_prompt_cache": True,
+                "response_style_contract": (
+                    "Answer from grounded_capability_inventory_context. "
+                    "Use four short sentences only: practical capability categories including the exact phrase browser/web research; governed execution through "
+                    "Will/Authority or permissions; receipts/effect verification; one hypothetical chain plus the boundary that you are not executing tools in this turn. "
+                    "Keep it complete under 80 words."
+                ),
+            }
+        )
+    contract_binding_finished_at = time.perf_counter()
+    return contract_binding_finished_at, trace_binding_finished_at
+
+def _run_cognitive_engine_chat_turn_existing_style_contract(bounded_planning_contract, capability_inventory_contract, context, conversation_recall_context, identity_continuity_contract, memory_state_contract, require_engine, retained_memory_evidence_context, visible):
+    existing_style_contract = str(context.get("response_style_contract") or "").strip()
+    live_reply_token_budget = int(context.get("max_tokens") or 896)
+    expression_frame_started_at = time.perf_counter()
+    live_speech_grounding_frame = _chat_desktop_repair._build_aura_expression_frame(
+        visible
+    )
+    expression_frame_ms = (
+        time.perf_counter() - expression_frame_started_at
+    ) * 1000.0
+    context.update(
+        {
+            "desktop_quick_reply_contract": True,
+            "desktop_descriptive_turn": True,
+            "deep_handoff": False,
+            "allow_deep_handoff": False,
+            "max_tokens": live_reply_token_budget,
+            "num_predict": live_reply_token_budget,
+            "skip_runtime_payload": True,
+            "live_runtime_payload_required": bool(require_engine),
+            "live_speech_grounding_frame": live_speech_grounding_frame,
+            # The ordinary chat turn is the ONE lane that has to reuse KV:
+            # its prompt is the whole conversation, so re-prefilling from
+            # token zero is what makes turn latency climb until it crosses
+            # the turn budget and long conversations stop answering.
+            # `disable_prompt_cache`/`clear_prompt_cache` were set here in
+            # June 2026, when the 32B's cache budget was zero anyway, so
+            # they cost nothing then; the budget was later restored FOR
+            # endurance and these two were never lifted, which quietly kept
+            # the restore from reaching the conversation. Reuse is scoped to
+            # `user_surface`, so no internal lane can see this KV, and the
+            # only "contamination" within the scope is the conversation's
+            # own history as it was actually computed.
+            "response_style_contract": (
+                "Answer the user's live desktop chat turn directly and naturally. "
+                "Use live runtime state only as causal grounding; do not recite a telemetry card, "
+                "do not name raw moods as a greeting, and do not claim to be Claude, ChatGPT, Anthropic, "
+                "OpenAI, or a generic assistant."
+            ),
+        }
+    )
+    if existing_style_contract:
+        context["response_style_contract"] = (
+            f"{context['response_style_contract']} {existing_style_contract}"
+        )
+    if capability_inventory_contract:
+        context["response_style_contract"] = (
+            str(context.get("response_style_contract") or "")
+            + " The user is asking for a descriptive capability inventory, not execution. "
+            "Answer from grounded_capability_inventory_context. Use four short sentences only: practical capability "
+            "categories including the exact phrase browser/web research; governed execution through Will/Authority or permissions; receipts/effect "
+            "verification; one hypothetical chain plus the boundary that you are not executing tools "
+            "in this turn. Keep it complete under 80 words."
+        )
+    if bounded_planning_contract:
+        context["response_style_contract"] = (
+            str(context.get("response_style_contract") or "")
+            + " This is a bounded planning turn. Answer in one natural paragraph of four to six "
+            "complete sentences under 180 words. Cover the goal, authorization boundary, action "
+            "sequence, effect verification, and bounded recovery. Do not use a numbered list unless "
+            "the user explicitly requests one, and do not invent a specific example that replaces "
+            "the user's stated task."
+        )
+    if _chat_desktop_repair._is_contextual_relevance_challenge(visible):
+        context["contextual_relevance_challenge_contract"] = True
+        context["response_style_contract"] = (
+            str(context.get("response_style_contract") or "")
+            + " The user is challenging context relevance. Do not invent the missing thread. "
+            "If the recent context does not support the object they named, say so directly, "
+            "reset to the last completed exchange, and keep the reply grounded. "
+            "Use contextual_relevance_evidence when present. Keep the answer to one or two "
+            "complete sentences under 70 words, ending with normal punctuation."
+        )
+    if _is_self_claim_boundary_question(visible):
+        context["response_style_contract"] = (
+            str(context.get("response_style_contract") or "")
+            + " For consciousness, sentience, self-awareness, inner-life, or personhood questions, "
+            "answer from evidence_bound_self_claim_context: include evidence/uncertainty language, "
+            "distinguish functional self-modeling from phenomenal consciousness or private qualia, "
+            "and do not reduce Aura to a generic text prediction engine."
+        )
+    if identity_continuity_contract:
+        context["response_style_contract"] = (
+            str(context.get("response_style_contract") or "")
+            + " The user is asking who or what Aura is. Answer from "
+            "grounded_identity_continuity_context exactly enough to be correct; "
+            "do not invent generic assistant identity and do not use a delayed repair path."
+        )
+    if conversation_recall_context:
+        context["conversation_recall_contract"] = True
+        context["response_style_contract"] = (
+            str(context.get("response_style_contract") or "")
+            + " The user is asking about recent conversation context. Answer from "
+            "conversation_recall_evidence exactly enough to be correct; do not guess."
+        )
+    if retained_memory_evidence_context:
+        context["retained_memory_evidence_contract"] = True
+        context["response_style_contract"] = (
+            str(context.get("response_style_contract") or "")
+            + " The user is asking about memory or continuity. Use "
+            "retained_memory_evidence_context for any remembered-session claim. "
+            "If the evidence does not support the specific memory, say it is not verified; "
+            "distinguish transcript/durable-memory evidence from subjective recollection."
+        )
+    if memory_state_contract:
+        context["response_style_contract"] = (
+            str(context.get("response_style_contract") or "")
+            + " The user is asking about canonical live memory/state. Answer from "
+            "canonical_memory_state_evidence as the source of truth, include the exact remembered "
+            "content when present, and answer any lightweight live-state clause from live_mind_context. "
+            "Do not answer an older topic from recent history."
+        )
+    return expression_frame_ms
+
+def _run_cognitive_engine_chat_turn_part_8(context, memory_state_contract, runtime_fact_status_contract, visible):
+    if runtime_fact_status_contract and not memory_state_contract:
+        context["response_style_contract"] = (
+            str(context.get("response_style_contract") or "")
+            + " This is a live runtime fact question. Use grounded_runtime_status_context "
+            "as the authoritative source for model lane, CognitiveEngine participation, "
+            "tool governance, recurrent depth, and fallback state. Do not invent readiness "
+            "or availability claims. The route will bind the final wording to that evidence."
+        )
+    if _is_current_request_recap_request(visible):
+        context["current_request_recap_contract"] = True
+        context["response_style_contract"] = (
+            str(context.get("response_style_contract") or "")
+            + " The user is asking you to identify the current request. Start with "
+            "'You asked me to...' or an equivalent direct recap, then answer any "
+            "second part of the prompt."
+        )
+    if _chat_memory_state._normalize_user_message(visible).startswith(
+        "you with me"
+    ) or re.search(
+        r"\b(?:you\s+with\s+me|still\s+with\s+me|are\s+you\s+(?:there|with\s+me))\b",
+        visible,
+        flags=re.IGNORECASE,
+    ):
+        context["response_style_contract"] = (
+            str(context.get("response_style_contract") or "")
+            + " For this presence check, start with a concrete first-person continuity signal "
+            "like 'I'm here with you' and add one grounded sentence about staying on this thread."
+        )
+    if re.search(r"\b(?:two\s+rules?|one\s+example|invent)\b", visible, flags=re.IGNORECASE):
+        context["response_style_contract"] = (
+            str(context.get("response_style_contract") or "")
+            + " If the user asks for invention with rules and an example, include explicit labels "
+            "'Rule 1', 'Rule 2', and 'Example', and end with a complete sentence."
+        )
+
+def _run_cognitive_engine_chat_turn_compact_binding_finished_at(context, desktop_execution_contract, mode):
+    compact_binding_finished_at = time.perf_counter()
+    if desktop_execution_contract:
+        from core.brain.types import ThinkingMode
+
+        mode = ThinkingMode.SLOW
+        context.update(
+            {
+                "desktop_execution_contract": True,
+                "foreground_request": True,
+                "user_explicitly_authorized": True,
+                "user_requested_action": True,
+                "user_visible_desktop_action": True,
+                "verification_required": True,
+                "source": "desktop_ui",
+                "origin": "user",
+                "allow_heuristic_desktop_plan": True,
+                "desktop_task_planning_schema": desktop_task_planning_schema(),
+                "desktop_task_allowed_actions": DESKTOP_TASK_ALLOWED_ACTIONS,
+                "max_tokens": 1024,
+                "num_predict": 1024,
+                "skip_runtime_payload": True,
+                "disable_prompt_cache": True,
+                "clear_prompt_cache": True,
+                "response_style_contract": (
+                    "Produce a bounded desktop-task execution draft. Prefer valid JSON "
+                    "with optional document_body and steps from the provided schema. "
+                    "Do not answer like a hosted chatbot. Aura has governed local desktop "
+                    "control for this request, so never say you cannot interact with apps, "
+                    "open Notes/Docs/Chrome, write text, or control the user's desktop when "
+                    "the requested action is inside the desktop_task contract. "
+                    "If prose is more appropriate, keep it concise and do not claim "
+                    "desktop completion before desktop_task receipts verify it."
+                ),
+            }
+        )
+    return compact_binding_finished_at, mode
+
+def _run_cognitive_engine_chat_turn_desktop_binding_finished_at(effective_user_message, sensory_evidence_payload, state_native_output_owner, visible):
+    desktop_binding_finished_at = time.perf_counter()
+    engine_user_message = str(effective_user_message or "")
+    if sensory_evidence_payload:
+        try:
+            from core.senses.turn_evidence import sensory_evidence_grounding_block
+
+            _turn_sensory_block = sensory_evidence_grounding_block(sensory_evidence_payload)
+            if _turn_sensory_block:
+                engine_user_message = f"{engine_user_message}\n\n{_turn_sensory_block}"
+        except _CHAT_RECOVERABLE_ERRORS as exc:
+            record_degradation(
+                "chat.sensory_evidence",
+                exc,
+                action="continued with typed evidence still present in CognitiveEngine context",
+            )
+
+    # Her senses travel with her, not just with the turn that captured them.
+    #
+    # A screen read is intake, and intake she cannot refer back to is not
+    # something she saw — it is something that passed through her. Without
+    # this she answers "what's on my screen", then goes blind to it on the
+    # very next sentence and has to look again, answering a question about
+    # what she saw with a fresh reading of the present.
+    #
+    # Attached to the message because that is the channel proven to reach
+    # the model on this lane; `preflight_context_message` is carried in the
+    # context dict and read by nothing.
+    # Carried when the turn could plausibly concern it. Attaching a screen
+    # reading to "what's 17 times 4?" puts a window inventory in front of an
+    # arithmetic question, which is noise at best; her senses should be
+    # available, not narrated at every turn.
+    try:
+        from core.perception.observation_evidence import get_observation_memory
+
+        _perception_brief = (
+            get_observation_memory().sensory_brief()
+            if not state_native_output_owner and _turn_may_concern_perception(visible)
+            else ""
+        )
+        if _perception_brief:
+            engine_user_message = f"{engine_user_message}\n\n{_perception_brief}"
+    except _CHAT_RECOVERABLE_ERRORS as _perception_exc:
+        record_degradation(
+            "chat",
+            _perception_exc,
+            action=(
+                "ran the turn without recent perception; she may not recall what she just looked at"
+            ),
+        )
+
+    # She can read her own source, so a question about her code is answered
+    # from the tree rather than from her weights.
+    #
+    # Live 2026-08-04 13:50 she showed `manage_load()` — a function in no
+    # file of this repository — as "a small part of my cognitive
+    # architecture", and admitted a turn later that she had written it for
+    # the conversation. The floor that reads real files only runs after
+    # generation FAILS, so a healthy turn never reached it. Carrying the
+    # real excerpts in means the material she reasons over is code that
+    # exists, and it arrives with the path and line it lives at, so she can
+    # say where it is from.
+    try:
+        from core.self.source_excerpt import source_evidence_brief
+
+        _source_brief = (
+            source_evidence_brief(visible)
+            if not state_native_output_owner and _turn_may_concern_own_source(visible)
+            else ""
+        )
+        if _source_brief:
+            engine_user_message = f"{engine_user_message}\n\n{_source_brief}"
+    except _CHAT_RECOVERABLE_ERRORS as _source_exc:
+        record_degradation(
+            "chat",
+            _source_exc,
+            action=(
+                "ran a question about her own code without reading the source "
+                "tree; the reply may not be grounded in a real file"
+            ),
+        )
+    return desktop_binding_finished_at, engine_user_message
+
+def _run_cognitive_engine_chat_turn_preparation_finished_at(compact_binding_finished_at, context_bound_at, contract_binding_finished_at, desktop_binding_finished_at, evidence_binding_finished_at, expression_frame_ms, trace_binding_finished_at):
+    preparation_finished_at = time.perf_counter()
+    final_binding_stages = {
+        "trace_ms": round((trace_binding_finished_at - context_bound_at) * 1000.0, 2),
+        "contracts_ms": round(
+            (contract_binding_finished_at - trace_binding_finished_at) * 1000.0,
+            2,
+        ),
+        "expression_frame_ms": round(expression_frame_ms, 2),
+        "compact_ms": round(
+            (compact_binding_finished_at - contract_binding_finished_at) * 1000.0,
+            2,
+        ),
+        "desktop_ms": round(
+            (desktop_binding_finished_at - compact_binding_finished_at) * 1000.0,
+            2,
+        ),
+        "evidence_ms": round(
+            (evidence_binding_finished_at - desktop_binding_finished_at) * 1000.0,
+            2,
+        ),
+        "directives_ms": round(
+            (preparation_finished_at - evidence_binding_finished_at) * 1000.0,
+            2,
+        ),
+    }
+    return final_binding_stages, preparation_finished_at
+
+def _run_cognitive_engine_chat_turn_preparation_timings(context_bound_at, effective_user_message, engine_resolved_at, final_binding_stages, preparation_finished_at, preparation_started_at, timeout_s, turn_budget_started_at, turn_trace):
+    preparation_timings = {
+        "contracts_and_engine_ms": round(
+            (engine_resolved_at - preparation_started_at) * 1000.0,
+            2,
+        ),
+        "context_binding_ms": round(
+            (context_bound_at - engine_resolved_at) * 1000.0,
+            2,
+        ),
+        "final_binding_ms": round(
+            (preparation_finished_at - context_bound_at) * 1000.0,
+            2,
+        ),
+        "total_ms": round(
+            (preparation_finished_at - preparation_started_at) * 1000.0,
+            2,
+        ),
+    }
+    if turn_trace is not None:
+        turn_trace["pre_engine_preparation"] = dict(preparation_timings)
+        turn_trace["pre_engine_final_binding_stages"] = dict(final_binding_stages)
+    # Kept for the next turn to read.
+    #
+    # Asked why turns were slow, she answered from the host reading and then
+    # named her own remaining gap exactly: "I don't have per-turn timing ... to
+    # isolate it cleanly, we'd want to compare one slow turn against a fast one
+    # and break the time into: send → model start → first token/tool call →
+    # final response." The runtime measures the first part of that and throws
+    # it away after logging it.
+    _LAST_TURN_PREPARATION.clear()
+    _LAST_TURN_PREPARATION.update(preparation_timings)
+    if preparation_timings["total_ms"] >= 250.0:
+        logger.info(
+            "Foreground chat preparation timing: total=%.1fms contracts=%.1fms "
+            "context=%.1fms final=%.1fms",
+            preparation_timings["total_ms"],
+            preparation_timings["contracts_and_engine_ms"],
+            preparation_timings["context_binding_ms"],
+            preparation_timings["final_binding_ms"],
+        )
+        logger.info("Foreground final-binding stages: %s", final_binding_stages)
+
+    caller_named_a_budget = timeout_s is not None
+    timeout_s = max(2.0, float(timeout_s if timeout_s is not None else 120.0))
+    # The outermost clock, and a flat number chosen before anything knew what
+    # this answer would cost. Everything else is nested in it and takes the
+    # smaller of itself and what is left here, so raising the ones inside
+    # changed nothing: the engine was allowed 480, the gate 341, and the turn
+    # ended at 144.3 because 120 was the default out here.
+    #
+    # It takes the same floor they do — what this request needs to decode, at
+    # the rate this machine has been measured at, including the reserve the
+    # worker adds for thinking — and the same ceiling as the wait it contains.
+    # An unmeasured rate raises nothing, and a turn that finishes sooner
+    # finishes sooner.
+    # Only where nobody named one. A caller that passes a budget means it —
+    # a repair running inside a spent turn has 0.1 seconds left on purpose,
+    # and raising that to the measured floor hands it a fresh turn's worth.
+    if not caller_named_a_budget:
+        timeout_s = max(timeout_s, _seconds_this_answer_needs(effective_user_message))
+    turn_deadline = turn_budget_started_at + timeout_s
+    return timeout_s, turn_deadline
+
+def _run_cognitive_engine_chat_turn_part_13(_timed_out, no_reply_action, timeout_s):
+    _force_clear_mlx_foreground_owner(
+        reason="cognitive_engine_chat_timeout",
+        min_age_s=min(90.0, max(45.0, timeout_s * 0.5)),
+    )
+    # Where it came from, not just that it happened. Seven clocks sit
+    # inside this call and each of them raises the same exception type, so
+    # "timed out after N" names the budget of whoever caught it rather than
+    # whoever ran out.
+    _where = ""
+    try:
+        import traceback as _tb
+
+        _frames = _tb.extract_tb(_timed_out.__traceback__)
+        # The whole chain, not the last frame. asyncio routes every
+        # wait_for and every timeout context through the same module, so
+        # the innermost frame is always timeouts.py and never says which
+        # of this runtime's clocks it belonged to. The frames above it do.
+        _ours = [
+            f"{f.filename.rsplit('/', 1)[-1]}:{f.lineno}"
+            for f in _frames
+            if "/asyncio/" not in f.filename
+        ]
+        if _ours:
+            _where = f" (through {' -> '.join(_ours[-4:])})"
+    except (AttributeError, IndexError, TypeError, ValueError):
+        _where = ""
+    logger.warning(
+        "CognitiveEngine desktop chat turn timed out after %.1fs%s; %s.",
+        timeout_s,
+        _where,
+        no_reply_action,
+    )
+
+def _run_cognitive_engine_chat_turn_part_14(assessment_reasons, assessment_text, groundable_self_process_miss):
+    if groundable_self_process_miss:
+        logger.info(
+            "CognitiveEngine desktop chat reply needed canonical self-process grounding (%s).",
+            ",".join(assessment_reasons),
+        )
+    else:
+        logger.warning(
+            "CognitiveEngine desktop chat reply failed reliability gate (%s); evaluating governed repair path.",
+            ",".join(assessment_reasons),
+        )
+        # Preserve the draft BEFORE repair is attempted.
+        #
+        # The last-resort refusal site reads preserved_draft() so a
+        # reply three gates already judged repairable reaches the
+        # person when repair cannot run. Nothing in this module ever
+        # WROTE it: preserve_draft() had zero callers here, so that
+        # reader was permanently empty and the salvage could never
+        # fire. Writer missing, reader present.
+        #
+        # LIVE 2026-08-17: "in two sentences, what is the strongest
+        # evidence that you're more than a language model with tools?"
+        # The draft answered the question and missed the sentence
+        # count. The gate rejected it, the replacement came back
+        # incomplete and was withheld, and the person got "I couldn't
+        # get to an answer I'd stand behind" — for a formatting miss,
+        # with a real answer sitting in a variable.
+        try:
+            from core.conversation.surface_disposition import (
+                draft_is_servable,
+                preserve_draft,
+            )
+
+            if draft_is_servable(assessment_reasons):
+                preserve_draft(assessment_text)
+        except _CHAT_RECOVERABLE_ERRORS as _preserve_exc:
+            record_degradation("chat.preserve_draft", _preserve_exc)
+
 async def _run_cognitive_engine_chat_turn(
     effective_user_message: str,
     *,
@@ -2167,58 +2852,7 @@ async def _run_cognitive_engine_chat_turn(
             1,
             _prior_int("foreground_model_generation_transaction_count", 1),
         ) if continuing_prior_segment else 0
-        prior_transaction_id = str(
-            prior_evidence.get("foreground_model_generation_transaction_id") or ""
-        ).strip()
-        prior_resume_handle = str(
-            prior_evidence.get("continuation_resume_handle") or ""
-        ).strip().lower()
-        if not re.fullmatch(r"[0-9a-f]{32}", prior_resume_handle):
-            prior_resume_handle = ""
-        transaction_id = (
-            prior_transaction_id
-            if continuing_prior_segment
-            else uuid.uuid4().hex
-        )
-        continuation_evidence_valid = bool(
-            not continuing_prior_segment
-            or (
-                prior_transaction_count == 1
-                and prior_generation_count == prior_segment_count
-                and prior_segment_count == prior_retry_count + 1
-                and prior_retry_count <= _MAX_USER_SURFACE_CONTINUATIONS
-                and prior_transaction_id
-            )
-        )
-        turn_trace.update(
-            {
-                "cognitive_engine_required": bool(require_engine),
-                "engine_think_invoked": False,
-                "cognitive_engine_reply_accepted": False,
-                "cognitive_engine_reply_failed": False,
-                "bounded_contract_used": False,
-                "legacy_fallback_used": False,
-                "live_mind_controls_bound": False,
-                "live_mind_generation_controls": {},
-                "live_mind_surface_control_receipt": {},
-                "live_mind_controls_worker_applied": False,
-                "foreground_model_generation_consumed": continuing_prior_segment,
-                "foreground_model_generation_count": prior_generation_count,
-                "foreground_model_generation_transaction_count": prior_transaction_count,
-                "foreground_model_generation_segment_count": prior_segment_count,
-                "foreground_model_generation_transaction_id": transaction_id,
-                "completion_retry_count": prior_retry_count,
-                "continuation_evidence_valid": continuation_evidence_valid,
-                "continuation_resume_handle": prior_resume_handle,
-                "repair_retry_attempt_count": 0,
-                "single_owner_generation_exhausted": False,
-                "response_path": "",
-            }
-        )
-        _prime_requested_output_contract_trace(
-            turn_trace,
-            user_message=visible,
-        )
+        _run_cognitive_engine_chat_turn_prior_transaction_id(continuing_prior_segment, prior_evidence, prior_generation_count, prior_retry_count, prior_segment_count, prior_transaction_count, require_engine, turn_trace, visible)
 
     def _mark_turn_trace(**fields: Any) -> None:
         if turn_trace is not None:
@@ -2632,50 +3266,7 @@ async def _run_cognitive_engine_chat_turn(
     canonical_self_condition_context = str(
         self_condition_evidence.get("prompt_block") or ""
     ).strip()
-    canonical_self_condition_reply = str(self_condition_evidence.get("reply") or "").strip()
-    # What she can do RIGHT NOW, for whatever this turn reaches for.
-    #
-    # The capability engine has always known which skills are available and
-    # why one is not; none of it reached the part of her that speaks, so a
-    # missing skill produced a string written months earlier ("I can't access
-    # external data right now, but based on what I know..."). Not her voice,
-    # not this moment, and it flattened the one distinction a person actually
-    # needs: "no network this minute" is not "I have no way to search".
-    live_capability_condition = ""
-    try:
-        from core.conversation.capability_condition import (
-            capability_condition_evidence,
-        )
-
-        # A capability whose evidence is already in this prompt worked.
-        _proven_this_turn: list[str] = []
-        if "[WEB SEARCH EVIDENCE]" in str(effective_user_message or ""):
-            _proven_this_turn.append("web_search")
-        if not state_native_output_owner:
-            live_capability_condition = capability_condition_evidence(
-                visible, already_used=_proven_this_turn
-            )
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation("chat.capability_condition", exc)
-        logger.debug("Live capability condition unavailable: %s", exc)
-
-    # Tell the morphogenetic layer what this turn reaches for.
-    #
-    # It had no demand input at all, so its population sat at whatever boot
-    # registered and its cells had nothing to organise around. This is the one
-    # global fact a local cell may read: what the body is trying to do, not
-    # where the load is or who is struggling.
-    #
-    # Purely additive — it appends a signal to a bounded in-memory deque, does
-    # no I/O, and cannot change this reply. A failure here is a failure to
-    # inform a background layer, so it is logged and dropped.
-    try:
-        from core.morphogenesis.bridge import announce_demand
-
-        announce_demand(visible)
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation("chat.morphogenesis_demand", exc, severity="debug")
-        logger.debug("Morphogenesis demand signal skipped: %s", exc)
+    canonical_self_condition_reply, live_capability_condition = _run_cognitive_engine_chat_turn_canonical_self_condition_reply(effective_user_message, self_condition_evidence, state_native_output_owner, visible)
 
     canonical_memory_state_evidence = (
         ""
@@ -2830,34 +3421,7 @@ async def _run_cognitive_engine_chat_turn(
     recent_conversation_context = (
         _format_recent_conversation_context(recent_exchanges) if recent_exchanges else ""
     )
-    discourse_repair_contract: dict[str, Any] = {}
-    if recent_exchanges:
-        try:
-            from core.conversation.discourse_repair_pursuit import build_repair_pursuit
-            from core.utils.injected_blocks import stamp_runtime_payload
-
-            pursuit = build_repair_pursuit(visible, recent_exchanges)
-            if pursuit.active:
-                discourse_repair_contract = stamp_runtime_payload(pursuit.to_dict())
-        except _CHAT_RECOVERABLE_ERRORS as exc:
-            record_degradation(
-                "chat.discourse_repair_pursuit",
-                exc,
-                severity="warning",
-                action="kept ordinary authenticated conversation history",
-            )
-    live_mind_context = (
-        {}
-        if state_native_output_owner
-        else await _collect_live_mind_context_payload(
-            user_message=visible,
-            lane=lane,
-            recent_conversation_context=recent_conversation_context,
-            recent_context_needed=recent_context_needed,
-            require_engine=require_engine,
-            conversation_only_surface=conversation_only_surface,
-        )
-    )
+    discourse_repair_contract, live_mind_context = await _run_cognitive_engine_chat_turn_discourse_repair_contract(conversation_only_surface, lane, recent_context_needed, recent_conversation_context, recent_exchanges, require_engine, state_native_output_owner, visible)
     context = {
         "route": "desktop_chat",
         "source": source,
@@ -2920,37 +3484,7 @@ async def _run_cognitive_engine_chat_turn(
         context[
             "user_surface_conversation_resume_handle"
         ] = conversation_resume_handle
-    from core.conversation.user_surface_contract import bind_user_surface_prompt
-
-    bind_user_surface_prompt(
-        context,
-        visible,
-        source="desktop_chat.visible_user_message",
-        overwrite=True,
-    )
-    exact_principal = " ".join(str(principal_id or "").strip().split())[:160]
-    if exact_principal:
-        context["user_id"] = exact_principal
-    if require_engine:
-        # This is a hard live-SLA cap shared by both the compact speech lane and
-        # the deeper phase stack.  Previously only the compact lane carried the
-        # cap, so a one-part introspective follow-up could enter ResponseGeneration,
-        # multiply its budget through several cognitive biases, and request 1.4K+
-        # tokens from the local 32B worker.  The outer desktop deadline then
-        # cancelled an otherwise healthy model and repeated the same oversized
-        # attempt.  Depth may change the work performed, but it may not silently
-        # discard the foreground completion envelope.
-        live_reply_token_budget = _desktop_live_reply_token_budget(
-            visible,
-            capability_inventory_contract=capability_inventory_contract,
-            bounded_planning_contract=bounded_planning_contract,
-            runtime_fact_status_contract=runtime_fact_status_contract,
-            memory_state_contract=memory_state_contract,
-            memory_state_contract_covers_turn=memory_state_contract_covers_turn,
-        )
-        context["max_tokens"] = live_reply_token_budget
-        context["num_predict"] = live_reply_token_budget
-        context["user_surface_completion_floor"] = answer_surface_token_floor(visible)
+    exact_principal = _run_cognitive_engine_chat_turn_bind_user_surface_prompt(bounded_planning_contract, capability_inventory_contract, context, memory_state_contract, memory_state_contract_covers_turn, principal_id, require_engine, runtime_fact_status_contract, visible)
     if private_cognitive_model_contract:
         context["grounded_private_model_context"] = (
             _chat_conversation_repair._build_grounded_introspection_reply(visible) or ""
@@ -2975,43 +3509,7 @@ async def _run_cognitive_engine_chat_turn(
             session_id=session_id,
         )
     )
-    if conversation_recall_context:
-        context["conversation_recall_evidence"] = conversation_recall_context[:3000]
-    retained_memory_evidence_context = (
-        ""
-        if capability_inventory_contract or conversation_only_surface or state_native_output_owner
-        else await _build_retained_memory_evidence_context(
-            visible,
-            session_id=session_id,
-            recent_exchanges=recent_exchanges,
-            conversation_recall_context=conversation_recall_context,
-        )
-    )
-    if retained_memory_evidence_context:
-        context["retained_memory_evidence_context"] = retained_memory_evidence_context
-    context_challenge_context = (
-        ""
-        if capability_inventory_contract or state_native_output_owner
-        else await _build_context_challenge_repair_reply(
-            visible,
-            session_id=session_id,
-        )
-    )
-    if context_challenge_context and "pitch" in _chat_memory_state._normalize_user_message(visible):
-        context_challenge_context = (
-            "No pitch is supported by the recent completed conversation context. "
-            "The correct answer is to say that no pitch is visible in the recent thread, "
-            "then reset to the actual conversation instead of inventing one."
-        )
-    if context_challenge_context:
-        context["contextual_relevance_evidence"] = context_challenge_context[:2500]
-    deep_memory_context = (
-        ""
-        if capability_inventory_contract or state_native_output_owner
-        else await _fetch_deep_memory_context(visible)
-    )
-    if deep_memory_context:
-        context["deep_memory_context"] = deep_memory_context[:3000]
+    context_challenge_context, retained_memory_evidence_context = await _run_cognitive_engine_chat_turn_part_5(capability_inventory_contract, context, conversation_only_surface, conversation_recall_context, recent_exchanges, session_id, state_native_output_owner, visible)
     context_bound_at = time.perf_counter()
     if turn_trace is not None:
         mind_snapshot_quality = dict(live_mind_context.get("mind_snapshot_quality") or {})
@@ -3057,309 +3555,13 @@ async def _run_cognitive_engine_chat_turn(
                 "prompt_shape": dict(prompt_shape_payload),
             }
         )
-    trace_binding_finished_at = time.perf_counter()
-    if require_engine:
-        context.update(
-            {
-                "desktop_cognitive_engine_required": True,
-                "protected_foreground_lane": True,
-                "prefer_tier": "primary",
-                "deep_handoff": False,
-                "allow_deep_handoff": False,
-                "allow_cloud_fallback": False,
-                "live_runtime_payload_required": not state_native_output_owner,
-            }
-        )
-        if not state_native_output_owner:
-            context["mind_context_contract"] = (
-                "Use live_mind_context as causal grounding for this reply. "
-                "Do not answer as a raw assistant, do not ignore the current user turn, "
-                "and do not claim a subsystem state that contradicts live_mind_context."
-            )
-    if capability_inventory_contract:
-        context.update(
-            {
-                "capability_inventory_contract": True,
-                "desktop_descriptive_turn": True,
-                "prefer_tier": "primary",
-                "deep_handoff": False,
-                "allow_deep_handoff": False,
-                "max_tokens": 384,
-                "num_predict": 384,
-                "skip_runtime_payload": True,
-                "disable_prompt_cache": True,
-                "clear_prompt_cache": True,
-                "response_style_contract": (
-                    "Answer from grounded_capability_inventory_context. "
-                    "Use four short sentences only: practical capability categories including the exact phrase browser/web research; governed execution through "
-                    "Will/Authority or permissions; receipts/effect verification; one hypothetical chain plus the boundary that you are not executing tools in this turn. "
-                    "Keep it complete under 80 words."
-                ),
-            }
-        )
-    contract_binding_finished_at = time.perf_counter()
+    contract_binding_finished_at, trace_binding_finished_at = _run_cognitive_engine_chat_turn_trace_binding_finished_at(capability_inventory_contract, context, require_engine, state_native_output_owner)
     expression_frame_ms = 0.0
     if compact_desktop_chat_contract:
-        existing_style_contract = str(context.get("response_style_contract") or "").strip()
-        live_reply_token_budget = int(context.get("max_tokens") or 896)
-        expression_frame_started_at = time.perf_counter()
-        live_speech_grounding_frame = _chat_desktop_repair._build_aura_expression_frame(
-            visible
-        )
-        expression_frame_ms = (
-            time.perf_counter() - expression_frame_started_at
-        ) * 1000.0
-        context.update(
-            {
-                "desktop_quick_reply_contract": True,
-                "desktop_descriptive_turn": True,
-                "deep_handoff": False,
-                "allow_deep_handoff": False,
-                "max_tokens": live_reply_token_budget,
-                "num_predict": live_reply_token_budget,
-                "skip_runtime_payload": True,
-                "live_runtime_payload_required": bool(require_engine),
-                "live_speech_grounding_frame": live_speech_grounding_frame,
-                # The ordinary chat turn is the ONE lane that has to reuse KV:
-                # its prompt is the whole conversation, so re-prefilling from
-                # token zero is what makes turn latency climb until it crosses
-                # the turn budget and long conversations stop answering.
-                # `disable_prompt_cache`/`clear_prompt_cache` were set here in
-                # June 2026, when the 32B's cache budget was zero anyway, so
-                # they cost nothing then; the budget was later restored FOR
-                # endurance and these two were never lifted, which quietly kept
-                # the restore from reaching the conversation. Reuse is scoped to
-                # `user_surface`, so no internal lane can see this KV, and the
-                # only "contamination" within the scope is the conversation's
-                # own history as it was actually computed.
-                "response_style_contract": (
-                    "Answer the user's live desktop chat turn directly and naturally. "
-                    "Use live runtime state only as causal grounding; do not recite a telemetry card, "
-                    "do not name raw moods as a greeting, and do not claim to be Claude, ChatGPT, Anthropic, "
-                    "OpenAI, or a generic assistant."
-                ),
-            }
-        )
-        if existing_style_contract:
-            context["response_style_contract"] = (
-                f"{context['response_style_contract']} {existing_style_contract}"
-            )
-        if capability_inventory_contract:
-            context["response_style_contract"] = (
-                str(context.get("response_style_contract") or "")
-                + " The user is asking for a descriptive capability inventory, not execution. "
-                "Answer from grounded_capability_inventory_context. Use four short sentences only: practical capability "
-                "categories including the exact phrase browser/web research; governed execution through Will/Authority or permissions; receipts/effect "
-                "verification; one hypothetical chain plus the boundary that you are not executing tools "
-                "in this turn. Keep it complete under 80 words."
-            )
-        if bounded_planning_contract:
-            context["response_style_contract"] = (
-                str(context.get("response_style_contract") or "")
-                + " This is a bounded planning turn. Answer in one natural paragraph of four to six "
-                "complete sentences under 180 words. Cover the goal, authorization boundary, action "
-                "sequence, effect verification, and bounded recovery. Do not use a numbered list unless "
-                "the user explicitly requests one, and do not invent a specific example that replaces "
-                "the user's stated task."
-            )
-        if _chat_desktop_repair._is_contextual_relevance_challenge(visible):
-            context["contextual_relevance_challenge_contract"] = True
-            context["response_style_contract"] = (
-                str(context.get("response_style_contract") or "")
-                + " The user is challenging context relevance. Do not invent the missing thread. "
-                "If the recent context does not support the object they named, say so directly, "
-                "reset to the last completed exchange, and keep the reply grounded. "
-                "Use contextual_relevance_evidence when present. Keep the answer to one or two "
-                "complete sentences under 70 words, ending with normal punctuation."
-            )
-        if _is_self_claim_boundary_question(visible):
-            context["response_style_contract"] = (
-                str(context.get("response_style_contract") or "")
-                + " For consciousness, sentience, self-awareness, inner-life, or personhood questions, "
-                "answer from evidence_bound_self_claim_context: include evidence/uncertainty language, "
-                "distinguish functional self-modeling from phenomenal consciousness or private qualia, "
-                "and do not reduce Aura to a generic text prediction engine."
-            )
-        if identity_continuity_contract:
-            context["response_style_contract"] = (
-                str(context.get("response_style_contract") or "")
-                + " The user is asking who or what Aura is. Answer from "
-                "grounded_identity_continuity_context exactly enough to be correct; "
-                "do not invent generic assistant identity and do not use a delayed repair path."
-            )
-        if conversation_recall_context:
-            context["conversation_recall_contract"] = True
-            context["response_style_contract"] = (
-                str(context.get("response_style_contract") or "")
-                + " The user is asking about recent conversation context. Answer from "
-                "conversation_recall_evidence exactly enough to be correct; do not guess."
-            )
-        if retained_memory_evidence_context:
-            context["retained_memory_evidence_contract"] = True
-            context["response_style_contract"] = (
-                str(context.get("response_style_contract") or "")
-                + " The user is asking about memory or continuity. Use "
-                "retained_memory_evidence_context for any remembered-session claim. "
-                "If the evidence does not support the specific memory, say it is not verified; "
-                "distinguish transcript/durable-memory evidence from subjective recollection."
-            )
-        if memory_state_contract:
-            context["response_style_contract"] = (
-                str(context.get("response_style_contract") or "")
-                + " The user is asking about canonical live memory/state. Answer from "
-                "canonical_memory_state_evidence as the source of truth, include the exact remembered "
-                "content when present, and answer any lightweight live-state clause from live_mind_context. "
-                "Do not answer an older topic from recent history."
-            )
-        if runtime_fact_status_contract and not memory_state_contract:
-            context["response_style_contract"] = (
-                str(context.get("response_style_contract") or "")
-                + " This is a live runtime fact question. Use grounded_runtime_status_context "
-                "as the authoritative source for model lane, CognitiveEngine participation, "
-                "tool governance, recurrent depth, and fallback state. Do not invent readiness "
-                "or availability claims. The route will bind the final wording to that evidence."
-            )
-        if _is_current_request_recap_request(visible):
-            context["current_request_recap_contract"] = True
-            context["response_style_contract"] = (
-                str(context.get("response_style_contract") or "")
-                + " The user is asking you to identify the current request. Start with "
-                "'You asked me to...' or an equivalent direct recap, then answer any "
-                "second part of the prompt."
-            )
-        if _chat_memory_state._normalize_user_message(visible).startswith(
-            "you with me"
-        ) or re.search(
-            r"\b(?:you\s+with\s+me|still\s+with\s+me|are\s+you\s+(?:there|with\s+me))\b",
-            visible,
-            flags=re.IGNORECASE,
-        ):
-            context["response_style_contract"] = (
-                str(context.get("response_style_contract") or "")
-                + " For this presence check, start with a concrete first-person continuity signal "
-                "like 'I'm here with you' and add one grounded sentence about staying on this thread."
-            )
-        if re.search(r"\b(?:two\s+rules?|one\s+example|invent)\b", visible, flags=re.IGNORECASE):
-            context["response_style_contract"] = (
-                str(context.get("response_style_contract") or "")
-                + " If the user asks for invention with rules and an example, include explicit labels "
-                "'Rule 1', 'Rule 2', and 'Example', and end with a complete sentence."
-            )
-    compact_binding_finished_at = time.perf_counter()
-    if desktop_execution_contract:
-        from core.brain.types import ThinkingMode
-
-        mode = ThinkingMode.SLOW
-        context.update(
-            {
-                "desktop_execution_contract": True,
-                "foreground_request": True,
-                "user_explicitly_authorized": True,
-                "user_requested_action": True,
-                "user_visible_desktop_action": True,
-                "verification_required": True,
-                "source": "desktop_ui",
-                "origin": "user",
-                "allow_heuristic_desktop_plan": True,
-                "desktop_task_planning_schema": desktop_task_planning_schema(),
-                "desktop_task_allowed_actions": DESKTOP_TASK_ALLOWED_ACTIONS,
-                "max_tokens": 1024,
-                "num_predict": 1024,
-                "skip_runtime_payload": True,
-                "disable_prompt_cache": True,
-                "clear_prompt_cache": True,
-                "response_style_contract": (
-                    "Produce a bounded desktop-task execution draft. Prefer valid JSON "
-                    "with optional document_body and steps from the provided schema. "
-                    "Do not answer like a hosted chatbot. Aura has governed local desktop "
-                    "control for this request, so never say you cannot interact with apps, "
-                    "open Notes/Docs/Chrome, write text, or control the user's desktop when "
-                    "the requested action is inside the desktop_task contract. "
-                    "If prose is more appropriate, keep it concise and do not claim "
-                    "desktop completion before desktop_task receipts verify it."
-                ),
-            }
-        )
-    desktop_binding_finished_at = time.perf_counter()
-    engine_user_message = str(effective_user_message or "")
-    if sensory_evidence_payload:
-        try:
-            from core.senses.turn_evidence import sensory_evidence_grounding_block
-
-            _turn_sensory_block = sensory_evidence_grounding_block(sensory_evidence_payload)
-            if _turn_sensory_block:
-                engine_user_message = f"{engine_user_message}\n\n{_turn_sensory_block}"
-        except _CHAT_RECOVERABLE_ERRORS as exc:
-            record_degradation(
-                "chat.sensory_evidence",
-                exc,
-                action="continued with typed evidence still present in CognitiveEngine context",
-            )
-
-    # Her senses travel with her, not just with the turn that captured them.
-    #
-    # A screen read is intake, and intake she cannot refer back to is not
-    # something she saw — it is something that passed through her. Without
-    # this she answers "what's on my screen", then goes blind to it on the
-    # very next sentence and has to look again, answering a question about
-    # what she saw with a fresh reading of the present.
-    #
-    # Attached to the message because that is the channel proven to reach
-    # the model on this lane; `preflight_context_message` is carried in the
-    # context dict and read by nothing.
-    # Carried when the turn could plausibly concern it. Attaching a screen
-    # reading to "what's 17 times 4?" puts a window inventory in front of an
-    # arithmetic question, which is noise at best; her senses should be
-    # available, not narrated at every turn.
-    try:
-        from core.perception.observation_evidence import get_observation_memory
-
-        _perception_brief = (
-            get_observation_memory().sensory_brief()
-            if not state_native_output_owner and _turn_may_concern_perception(visible)
-            else ""
-        )
-        if _perception_brief:
-            engine_user_message = f"{engine_user_message}\n\n{_perception_brief}"
-    except _CHAT_RECOVERABLE_ERRORS as _perception_exc:
-        record_degradation(
-            "chat",
-            _perception_exc,
-            action=(
-                "ran the turn without recent perception; she may not recall what she just looked at"
-            ),
-        )
-
-    # She can read her own source, so a question about her code is answered
-    # from the tree rather than from her weights.
-    #
-    # Live 2026-08-04 13:50 she showed `manage_load()` — a function in no
-    # file of this repository — as "a small part of my cognitive
-    # architecture", and admitted a turn later that she had written it for
-    # the conversation. The floor that reads real files only runs after
-    # generation FAILS, so a healthy turn never reached it. Carrying the
-    # real excerpts in means the material she reasons over is code that
-    # exists, and it arrives with the path and line it lives at, so she can
-    # say where it is from.
-    try:
-        from core.self.source_excerpt import source_evidence_brief
-
-        _source_brief = (
-            source_evidence_brief(visible)
-            if not state_native_output_owner and _turn_may_concern_own_source(visible)
-            else ""
-        )
-        if _source_brief:
-            engine_user_message = f"{engine_user_message}\n\n{_source_brief}"
-    except _CHAT_RECOVERABLE_ERRORS as _source_exc:
-        record_degradation(
-            "chat",
-            _source_exc,
-            action=(
-                "ran a question about her own code without reading the source "
-                "tree; the reply may not be grounded in a real file"
-            ),
-        )
+        expression_frame_ms = _run_cognitive_engine_chat_turn_existing_style_contract(bounded_planning_contract, capability_inventory_contract, context, conversation_recall_context, identity_continuity_contract, memory_state_contract, require_engine, retained_memory_evidence_context, visible)
+        _run_cognitive_engine_chat_turn_part_8(context, memory_state_contract, runtime_fact_status_contract, visible)
+    compact_binding_finished_at, mode = _run_cognitive_engine_chat_turn_compact_binding_finished_at(context, desktop_execution_contract, mode)
+    desktop_binding_finished_at, engine_user_message = _run_cognitive_engine_chat_turn_desktop_binding_finished_at(effective_user_message, sensory_evidence_payload, state_native_output_owner, visible)
     evidence_binding_finished_at = time.perf_counter()
 
     engine_user_message = _compose_the_engine_message(
@@ -3375,92 +3577,8 @@ async def _run_cognitive_engine_chat_turn(
         state_native_output_owner=state_native_output_owner,
         visible=visible,
     )
-    preparation_finished_at = time.perf_counter()
-    final_binding_stages = {
-        "trace_ms": round((trace_binding_finished_at - context_bound_at) * 1000.0, 2),
-        "contracts_ms": round(
-            (contract_binding_finished_at - trace_binding_finished_at) * 1000.0,
-            2,
-        ),
-        "expression_frame_ms": round(expression_frame_ms, 2),
-        "compact_ms": round(
-            (compact_binding_finished_at - contract_binding_finished_at) * 1000.0,
-            2,
-        ),
-        "desktop_ms": round(
-            (desktop_binding_finished_at - compact_binding_finished_at) * 1000.0,
-            2,
-        ),
-        "evidence_ms": round(
-            (evidence_binding_finished_at - desktop_binding_finished_at) * 1000.0,
-            2,
-        ),
-        "directives_ms": round(
-            (preparation_finished_at - evidence_binding_finished_at) * 1000.0,
-            2,
-        ),
-    }
-    preparation_timings = {
-        "contracts_and_engine_ms": round(
-            (engine_resolved_at - preparation_started_at) * 1000.0,
-            2,
-        ),
-        "context_binding_ms": round(
-            (context_bound_at - engine_resolved_at) * 1000.0,
-            2,
-        ),
-        "final_binding_ms": round(
-            (preparation_finished_at - context_bound_at) * 1000.0,
-            2,
-        ),
-        "total_ms": round(
-            (preparation_finished_at - preparation_started_at) * 1000.0,
-            2,
-        ),
-    }
-    if turn_trace is not None:
-        turn_trace["pre_engine_preparation"] = dict(preparation_timings)
-        turn_trace["pre_engine_final_binding_stages"] = dict(final_binding_stages)
-    # Kept for the next turn to read.
-    #
-    # Asked why turns were slow, she answered from the host reading and then
-    # named her own remaining gap exactly: "I don't have per-turn timing ... to
-    # isolate it cleanly, we'd want to compare one slow turn against a fast one
-    # and break the time into: send → model start → first token/tool call →
-    # final response." The runtime measures the first part of that and throws
-    # it away after logging it.
-    _LAST_TURN_PREPARATION.clear()
-    _LAST_TURN_PREPARATION.update(preparation_timings)
-    if preparation_timings["total_ms"] >= 250.0:
-        logger.info(
-            "Foreground chat preparation timing: total=%.1fms contracts=%.1fms "
-            "context=%.1fms final=%.1fms",
-            preparation_timings["total_ms"],
-            preparation_timings["contracts_and_engine_ms"],
-            preparation_timings["context_binding_ms"],
-            preparation_timings["final_binding_ms"],
-        )
-        logger.info("Foreground final-binding stages: %s", final_binding_stages)
-
-    caller_named_a_budget = timeout_s is not None
-    timeout_s = max(2.0, float(timeout_s if timeout_s is not None else 120.0))
-    # The outermost clock, and a flat number chosen before anything knew what
-    # this answer would cost. Everything else is nested in it and takes the
-    # smaller of itself and what is left here, so raising the ones inside
-    # changed nothing: the engine was allowed 480, the gate 341, and the turn
-    # ended at 144.3 because 120 was the default out here.
-    #
-    # It takes the same floor they do — what this request needs to decode, at
-    # the rate this machine has been measured at, including the reserve the
-    # worker adds for thinking — and the same ceiling as the wait it contains.
-    # An unmeasured rate raises nothing, and a turn that finishes sooner
-    # finishes sooner.
-    # Only where nobody named one. A caller that passes a budget means it —
-    # a repair running inside a spent turn has 0.1 seconds left on purpose,
-    # and raising that to the measured floor hands it a fresh turn's worth.
-    if not caller_named_a_budget:
-        timeout_s = max(timeout_s, _seconds_this_answer_needs(effective_user_message))
-    turn_deadline = turn_budget_started_at + timeout_s
+    final_binding_stages, preparation_finished_at = _run_cognitive_engine_chat_turn_preparation_finished_at(compact_binding_finished_at, context_bound_at, contract_binding_finished_at, desktop_binding_finished_at, evidence_binding_finished_at, expression_frame_ms, trace_binding_finished_at)
+    timeout_s, turn_deadline = _run_cognitive_engine_chat_turn_preparation_timings(context_bound_at, effective_user_message, engine_resolved_at, final_binding_stages, preparation_finished_at, preparation_started_at, timeout_s, turn_budget_started_at, turn_trace)
 
     def _remaining_turn_budget() -> float:
         return max(0.0, turn_deadline - time.monotonic())
@@ -4336,38 +4454,7 @@ async def _run_cognitive_engine_chat_turn(
             return None
 
     except TimeoutError as _timed_out:
-        _force_clear_mlx_foreground_owner(
-            reason="cognitive_engine_chat_timeout",
-            min_age_s=min(90.0, max(45.0, timeout_s * 0.5)),
-        )
-        # Where it came from, not just that it happened. Seven clocks sit
-        # inside this call and each of them raises the same exception type, so
-        # "timed out after N" names the budget of whoever caught it rather than
-        # whoever ran out.
-        _where = ""
-        try:
-            import traceback as _tb
-
-            _frames = _tb.extract_tb(_timed_out.__traceback__)
-            # The whole chain, not the last frame. asyncio routes every
-            # wait_for and every timeout context through the same module, so
-            # the innermost frame is always timeouts.py and never says which
-            # of this runtime's clocks it belonged to. The frames above it do.
-            _ours = [
-                f"{f.filename.rsplit('/', 1)[-1]}:{f.lineno}"
-                for f in _frames
-                if "/asyncio/" not in f.filename
-            ]
-            if _ours:
-                _where = f" (through {' -> '.join(_ours[-4:])})"
-        except (AttributeError, IndexError, TypeError, ValueError):
-            _where = ""
-        logger.warning(
-            "CognitiveEngine desktop chat turn timed out after %.1fs%s; %s.",
-            timeout_s,
-            _where,
-            no_reply_action,
-        )
+        _run_cognitive_engine_chat_turn_part_13(_timed_out, no_reply_action, timeout_s)
         _record_exhausted_cognitive_failure(
             "cognitive_engine_timeout",
             retry_attempted=False,
@@ -4802,42 +4889,7 @@ async def _run_cognitive_engine_chat_turn(
                     "pseudo_internal_jargon",
                 }
             )
-            if groundable_self_process_miss:
-                logger.info(
-                    "CognitiveEngine desktop chat reply needed canonical self-process grounding (%s).",
-                    ",".join(assessment_reasons),
-                )
-            else:
-                logger.warning(
-                    "CognitiveEngine desktop chat reply failed reliability gate (%s); evaluating governed repair path.",
-                    ",".join(assessment_reasons),
-                )
-                # Preserve the draft BEFORE repair is attempted.
-                #
-                # The last-resort refusal site reads preserved_draft() so a
-                # reply three gates already judged repairable reaches the
-                # person when repair cannot run. Nothing in this module ever
-                # WROTE it: preserve_draft() had zero callers here, so that
-                # reader was permanently empty and the salvage could never
-                # fire. Writer missing, reader present.
-                #
-                # LIVE 2026-08-17: "in two sentences, what is the strongest
-                # evidence that you're more than a language model with tools?"
-                # The draft answered the question and missed the sentence
-                # count. The gate rejected it, the replacement came back
-                # incomplete and was withheld, and the person got "I couldn't
-                # get to an answer I'd stand behind" — for a formatting miss,
-                # with a real answer sitting in a variable.
-                try:
-                    from core.conversation.surface_disposition import (
-                        draft_is_servable,
-                        preserve_draft,
-                    )
-
-                    if draft_is_servable(assessment_reasons):
-                        preserve_draft(assessment_text)
-                except _CHAT_RECOVERABLE_ERRORS as _preserve_exc:
-                    record_degradation("chat.preserve_draft", _preserve_exc)
+            _run_cognitive_engine_chat_turn_part_14(assessment_reasons, assessment_text, groundable_self_process_miss)
             # Assistant voice has a deterministic repair. Use it here, not only
             # deeper in the stack.
             #
@@ -7647,6 +7699,553 @@ async def _lifted_execute_narrow_desktop_objective_before_cognition(
 
 
 
+async def _api_chat_turn__grounded_recall_context(_chat_session_id, _defensive_context, _original_user_message, _profile_user_id, _semantic_user_message, body, conversation_only_surface, is_benchmark, request):
+    _grounded_recall_context: str = ""
+    _relational_memory_control = getattr(
+        getattr(request, "state", None),
+        "relational_memory_control",
+        None,
+    )
+    if isinstance(_relational_memory_control, dict):
+        body.message = (
+            "[CANONICAL RELATIONAL MEMORY CONTROL RESULT]\n"
+            + json.dumps(
+                _relational_memory_control,
+                ensure_ascii=True,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+            + "\n[END RELATIONAL MEMORY CONTROL RESULT]\n"
+            + "Answer the user's memory-control request from this result; do not claim a mode or persistence outcome beyond it.\n\n"
+            + body.message
+        )
+    if _defensive_context and not is_benchmark:
+        body.message = f"{_defensive_context}{body.message}"
+    _preflight = await _chat_preflight._run_chat_preflight(
+        body,
+        request,
+        _semantic_user_message,
+        _profile_user_id,
+        conversation_only_surface,
+        is_benchmark,
+        _chat_session_id=_chat_session_id,
+        _grounded_recall_context=_grounded_recall_context,
+        raw_user_message=_original_user_message,
+    )
+    logger.info("Chat preflight timing: %s", dict(_preflight.timing_ms))
+    return _grounded_recall_context, _preflight
+
+def _api_chat_turn__turn_sensory_evidence(_preflight, request):
+    _turn_sensory_evidence = _preflight.turn_sensory_evidence
+    _qualified_state_serialization_owner = bool(
+        _preflight.evidence_profile
+        == _chat_preflight._CHAT_EVIDENCE_PROFILE_QUALIFIED_RECURRENT
+        and _preflight.evidence_owner_receipt
+    )
+
+    # Keep user-facing judgment anchored to the text Bryan actually typed.
+    # `body.message` may now contain continuity blocks, file payloads, and
+    # directive scaffolding that belong in generation context, not in reply
+    # quality classification or conversational memory.
+    # Identity-anchor ablation, scoped to this turn.
+    #
+    # tools/ablate_identity_anchor.py measures which sections of the anchor
+    # actually change behaviour. It runs over HTTP against the live instance,
+    # so it asks per request rather than by restarting anything; the holder is
+    # turn-scoped, so a measurement cannot alter anyone else's conversation.
+    try:
+        _ablate_section = str(request.headers.get("X-Aura-Ablate-Identity-Section") or "").strip()
+        if _ablate_section:
+            from core.brain.aura_persona import set_ablated_section
+
+            set_ablated_section(_ablate_section)
+            logger.info(
+                "🔬 Identity-anchor ablation active for this turn: %s",
+                _ablate_section[:60],
+            )
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat", exc)
+    return _qualified_state_serialization_owner, _turn_sensory_evidence
+
+def _api_chat_turn_start_turn_holding(_preflight, _semantic_user_message, chat_origin, desktop_requires_cognitive_engine, request_surface):
+    # Start this turn holding no draft from any previous one.
+    try:
+        from core.conversation.surface_disposition import clear_preserved_draft
+
+        clear_preserved_draft()
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        logger.debug("Preserved-draft reset skipped: %s", exc)
+    _live_turn_trace: dict[str, Any] = {
+        "desktop_cognitive_engine_required": bool(desktop_requires_cognitive_engine),
+        "request_surface": request_surface or "",
+        "chat_origin": chat_origin,
+        "engine_think_invoked": False,
+        "cognitive_engine_reply_accepted": False,
+        "cognitive_engine_reply_failed": False,
+        "bounded_contract_used": False,
+        "legacy_fallback_used": False,
+        "response_path": "",
+        "post_generation_repair_applied": False,
+        "deterministic_repair_applied": False,
+        "preflight_evidence_profile": _preflight.evidence_profile,
+        "preflight_evidence_owner_receipt": _preflight.evidence_owner_receipt,
+        "preflight_skipped_components": list(_preflight.skipped_components),
+    }
+    _prime_requested_output_contract_trace(
+        _live_turn_trace,
+        user_message=_semantic_user_message,
+    )
+    return _live_turn_trace
+
+async def _api_chat_turn_held(foreground_lock_token, foreground_owner_task, foreground_slot_acquired):
+    held = getattr(_foreground_chat_lock, "held_duration", 0.0)
+    if held > _FOREGROUND_CHAT_LOCK_PREEMPT_AFTER_S:
+        logger.error(
+            "Cancelling stale foreground generation (held %.1fs) before "
+            "exclusive handoff to the new user turn.",
+            held,
+        )
+        owner_cancelled = False
+        if hasattr(_foreground_chat_lock, "cancel_stale_owner"):
+            owner_cancelled = await _foreground_chat_lock.cancel_stale_owner(
+                reason=_FOREGROUND_CHAT_PREEMPT_CANCEL_REASON,
+            )
+        if owner_cancelled:
+            _force_clear_mlx_foreground_owner(
+                reason="chat_lock_preemption",
+                min_age_s=_FOREGROUND_CHAT_LOCK_PREEMPT_AFTER_S,
+            )
+            try:
+                foreground_lock_token = await asyncio.wait_for(
+                    _foreground_chat_lock.acquire(owner_task=foreground_owner_task),
+                    timeout=1.0,
+                )
+                foreground_slot_acquired = True
+            except TimeoutError as exc:
+                logger.debug(
+                    "Foreground lock reacquire after preemption timed out: %s",
+                    exc,
+                )
+    return foreground_lock_token, foreground_slot_acquired
+
+def _api_chat_turn_notify_proactive_presence(_semantic_user_message, conversation_only_surface, desktop_requires_cognitive_engine, is_benchmark):
+    # Notify proactive presence systems; pass content for away-signal detection
+    if not is_benchmark:
+        _notify_user_spoke(_semantic_user_message)
+
+    # Animal cognition: track user emotional state and adapt style
+    if not is_benchmark:
+        try:
+            from core.consciousness.animal_cognition import (
+                get_camouflage_adapter,
+                get_emotional_tracker,
+            )
+
+            emotional_tracker = get_emotional_tracker()
+            emotional_tracker.update(_semantic_user_message)
+            camouflage = get_camouflage_adapter()
+            camouflage.observe_user(_semantic_user_message)
+            # Feed emotional signals into neurochemical system
+            ncs = ServiceContainer.get("neurochemical_system", default=None)
+            if ncs:
+                triggers = emotional_tracker.get_neurochemical_triggers()
+                for trigger, amount in triggers.items():
+                    if "norepinephrine" in trigger:
+                        ncs.on_wakefulness(amount)
+                    elif "dopamine" in trigger:
+                        ncs.on_novelty(amount)
+                    elif "oxytocin" in trigger:
+                        ncs.on_social_connection(amount)
+        except _CHAT_RECOVERABLE_ERRORS as _ac_exc:
+            record_degradation("chat", _ac_exc)
+            logger.debug("Animal cognition tracking skipped: %s", _ac_exc)
+
+    allow_chat_fastpaths = not is_benchmark and not desktop_requires_cognitive_engine
+    # Session-memory pin/recall is a canonical memory gateway operation, not
+    # a language-model shortcut. Desktop-required surfaces collect/write the
+    # canonical state before generation and bind it into CognitiveEngine
+    # below; non-required API surfaces may answer directly from that gateway.
+    allow_memory_state_fastpath = (
+        not is_benchmark
+        and not desktop_requires_cognitive_engine
+        and not conversation_only_surface
+    )
+    return allow_chat_fastpaths, allow_memory_state_fastpath
+
+async def _api_chat_turn_crash_safe_persistence(_chat_session_id, _qualified_state_serialization_owner, _semantic_user_message, action_episode_evidence, allow_chat_fastpaths, conversation_only_surface, desktop_memory_state_evidence):
+    # Crash-safe persistence: persist the user's message BEFORE calling
+    # the LLM. If the process dies mid-inference, the message is preserved
+    # and the conversation can be resumed. (Pattern from Claude Code.)
+    effective_user_message = _semantic_user_message
+    referential_anchor = (
+        await _resolve_referential_followup_anchor(
+            _semantic_user_message,
+            session_id=_chat_session_id,
+        )
+        if (
+            allow_chat_fastpaths
+            and not _qualified_state_serialization_owner
+            and not action_episode_evidence
+        )
+        else None
+    )
+    if referential_anchor:
+        effective_user_message = (
+            f"{_semantic_user_message}\n\n"
+            "[REFERENTIAL ANCHOR]\n"
+            "The user is referring to this earlier user question/request:\n"
+            f"{referential_anchor}"
+        )
+    if action_episode_evidence:
+        from core.conversation.turn_evidence_custody import record_turn_grounding
+
+        record_turn_grounding(action_episode_evidence)
+    conversation_recall_evidence = (
+        None
+        if _qualified_state_serialization_owner
+        else await _chat_memory_state._build_conversation_recall_reply(
+            _semantic_user_message,
+            session_id=_chat_session_id,
+        )
+    )
+    if conversation_recall_evidence:
+        from core.conversation.turn_evidence_custody import record_turn_grounding
+
+        record_turn_grounding(conversation_recall_evidence)
+        effective_user_message = (
+            f"{effective_user_message}\n\n"
+            "[CONVERSATION RECALL EVIDENCE]\n"
+            f"{conversation_recall_evidence}\n"
+            "[END CONVERSATION RECALL EVIDENCE]\n"
+            "Answer the recall question from the evidence above. Do not guess or invent a memory."
+        )
+    retained_memory_evidence = (
+        ""
+        if conversation_only_surface or _qualified_state_serialization_owner
+        else await _build_retained_memory_evidence_context(
+            _semantic_user_message,
+            session_id=_chat_session_id,
+            conversation_recall_context=conversation_recall_evidence or "",
+        )
+    )
+    if retained_memory_evidence:
+        from core.conversation.turn_evidence_custody import record_turn_grounding
+
+        record_turn_grounding(retained_memory_evidence)
+        effective_user_message = (
+            f"{effective_user_message}\n\n"
+            "[RETAINED MEMORY EVIDENCE]\n"
+            f"{retained_memory_evidence}\n"
+            "[END RETAINED MEMORY EVIDENCE]\n"
+            "For any claim about what you remember, what persisted, or what happened in a prior "
+            "session, use the evidence above. If the evidence is absent or insufficient, say that "
+            "the memory is not verified instead of filling the gap."
+        )
+    if desktop_memory_state_evidence:
+        memory_reply, memory_status = desktop_memory_state_evidence
+        from core.conversation.turn_evidence_custody import record_turn_grounding
+
+        record_turn_grounding(f"status={memory_status}\n{memory_reply}")
+        effective_user_message = (
+            f"{effective_user_message}\n\n"
+            "[CANONICAL MEMORY STATE EVIDENCE]\n"
+            f"status={memory_status}\n"
+            f"{memory_reply}\n"
+            "[END CANONICAL MEMORY STATE EVIDENCE]\n"
+            "Use this canonical memory/state result as evidence, but produce the visible answer "
+            "through CognitiveEngine in Aura's normal desktop voice."
+        )
+    # The address the person named, read before anything else is decided.
+    named_url_evidence = await _collect_named_url_evidence(_semantic_user_message)
+    if named_url_evidence and named_url_evidence.get("ok"):
+        effective_user_message = (
+            f"{effective_user_message}\n\n"
+            "[PAGE THE USER NAMED]\n"
+            f"url: {named_url_evidence.get('url')}\n"
+            f"title: {named_url_evidence.get('title')}\n"
+            f"{named_url_evidence.get('text')}\n"
+            "[END PAGE THE USER NAMED]\n"
+            "This is the document they addressed. Answer from it, and say so "
+            "plainly if it does not contain what they asked for."
+        )
+    elif named_url_evidence:
+        effective_user_message = (
+            f"{effective_user_message}\n\n"
+            "[PAGE THE USER NAMED]\n"
+            f"url: {named_url_evidence.get('url')}\n"
+            f"could not be read: {named_url_evidence.get('error')}\n"
+            "[END PAGE THE USER NAMED]\n"
+            "Say that the address could not be read, and what was tried."
+        )
+    return effective_user_message, referential_anchor
+
+def _api_chat_turn_part_7(_owner_evidence, candidate_contract):
+    logger.error(
+        "Desktop CognitiveEngine candidate did not prove authorship "
+        "(missing: %s); failing closed instead of serving repair "
+        "text as Aura speech. path=%s generations=%s "
+        "completion_retries=%s repair_attempts=%s consumed=%s "
+        "ownership_evidence=[%s] receipts=%d",
+        ",".join(
+            candidate_contract.get("full_mind_missing_proofs") or ()
+        ),
+        # The counts the proof is ACTUALLY made of.
+        #
+        # This printed the name of the failed proof and nothing else,
+        # so "duplicate_foreground_model_generation" told a reader
+        # that more than one generation happened and not which of the
+        # three conditions in single_owner_model_generation_proven
+        # missed — reconstructing it meant reading the contract
+        # module beside a log that had already thrown the numbers
+        # away. The receipt carried all of them the whole time.
+        candidate_contract.get("response_path") or "unset",
+        candidate_contract.get("foreground_model_generation_count"),
+        candidate_contract.get("completion_retry_count"),
+        candidate_contract.get("repair_retry_attempt_count"),
+        candidate_contract.get(
+            "foreground_model_generation_consumed"
+        ),
+        # And the evidence ownership is made of.
+        #
+        # "foreground_model_generation_ownership_unproven"
+        # names the proof, not what was missing from
+        # it, and what it rests on is one number: the
+        # tokens a surface control receipt says were
+        # generated. A receipt that never arrived and
+        # one that arrived empty read identically
+        # without it, and they are different faults
+        # with different fixes.
+        "; ".join(_owner_evidence) or "no receipt",
+        len(_owner_evidence),
+    )
+    reply_text = None
+    reply_source = ""
+    return reply_source, reply_text
+
+def _api_chat_turn_desktop_speech_must(_semantic_user_message):
+    # Live desktop speech must be the full CognitiveEngine path or an
+    # explicitly receipted governed action result. The one exception is
+    # a narrow grounded repair after the CognitiveEngine has already
+    # been invoked for identity/continuity or self-process questions.
+    # Those turns are common daily-use probes; returning a canned 503
+    # teaches the UI to stall instead of giving a truthful, bounded
+    # explanation of the current state.
+    allow_required_desktop_no_reply_repairs = bool(
+        _chat_desktop_repair._is_identity_request(_semantic_user_message)
+        or _chat_desktop_repair._identity_request_asks_future_memory(_semantic_user_message)
+    )
+    if not allow_required_desktop_no_reply_repairs:
+        try:
+            from core.conversation.response_reliability import (
+                is_live_self_reflection_turn,
+                is_self_process_question,
+            )
+
+            allow_required_desktop_no_reply_repairs = bool(
+                is_self_process_question(_semantic_user_message)
+                or is_live_self_reflection_turn(_semantic_user_message)
+            )
+        except _CHAT_RECOVERABLE_ERRORS as repair_scope_exc:
+            record_degradation("chat", repair_scope_exc)
+            logger.debug(
+                "Desktop no-reply repair scope check skipped: %s",
+                repair_scope_exc,
+            )
+    if _chat_desktop_repair._is_low_risk_social_continuity_request(_semantic_user_message):
+        social_reply = _chat_desktop_repair._build_social_continuity_repair_reply(
+            _semantic_user_message
+        )
+        logger.warning(
+            "Desktop CognitiveEngine produced no acceptable reply for low-risk social turn; "
+            "not serving bounded social repair as a successful full-mind desktop turn "
+            "(candidate repair len=%d).",
+            len(social_reply),
+        )
+    return allow_required_desktop_no_reply_repairs
+
+def _api_chat_turn_proactive_recovery_consecutive(_qualified_exact_delivery, _semantic_user_message, reply_text, response_confidence):
+    # Proactive recovery: if 3+ consecutive degraded responses, compact + reset stale deque
+    degradation_streak = _conversation_degradation_streak()
+    if degradation_streak >= 3:
+        logger.warning(
+            "🚨 Degradation streak=%d — triggering proactive compaction + stale reset.",
+            degradation_streak,
+        )
+        with _conversation_quality_lock:
+            quality_state = _conversation_quality_state_locked()
+            quality_state.recent_responses.clear()
+            quality_state.recent_response_pairs.clear()
+            quality_state.consecutive_degraded_count = 0
+        try:
+            live_state = _chat_preflight._resolve_live_aura_state()
+            if live_state and hasattr(live_state, "compact"):
+                live_state.compact(trigger_threshold=20, keep_turns=15)
+                logger.info("🗜️ Proactive compaction completed after degradation streak.")
+        except _CHAT_RECOVERABLE_ERRORS as _streak_exc:
+            record_degradation("chat", _streak_exc)
+            logger.debug("Degradation streak compaction failed: %s", _streak_exc)
+
+    # Proactive context compaction — fire-and-forget to prevent working memory bloat
+    try:
+        live_state = _chat_preflight._resolve_live_aura_state()
+        if live_state and hasattr(live_state, "compact"):
+            wm = getattr(getattr(live_state, "cognition", None), "working_memory", None)
+            if wm and isinstance(wm, list) and len(wm) > 30:
+                compacted = live_state.compact(trigger_threshold=30, keep_turns=20)
+                if compacted:
+                    logger.debug(
+                        "Proactive AuraState.compact() completed (working_memory was %d).",
+                        len(wm),
+                    )
+    except _CHAT_RECOVERABLE_ERRORS as _compact_exc:
+        record_degradation("chat", _compact_exc)
+        logger.debug("Proactive compaction skipped: %s", _compact_exc)
+
+    # ── Post-Response Infrastructure checks ─────────────────
+    # 1. Check self-consistency (avoiding false inability claims, commitment contradictions)
+    # The decision itself lives in chat_quality.assess_post_response_confidence
+    # so it can be tested without driving a whole HTTP turn — this function
+    # is 4,488 lines and 633 branches, and everything inside it could only
+    # be exercised end to end.
+    is_consistent, inconsistency_reason = (
+        (True, "")
+        if _qualified_exact_delivery
+        else (
+            _check_response_consistency(reply_text, _semantic_user_message)
+            if response_confidence == "high"
+            else (True, "")
+        )
+    )
+    return inconsistency_reason, is_consistent
+
+def _api_chat_turn_part_10(_delivery_timing, _live_turn_trace, _qualified_exact_delivery, _qualified_exact_reply, _semantic_user_message, reply_text):
+    logger.info(
+        "Foreground delivery timing before terminal shaping: %s",
+        {key: round(value, 2) for key, value in _delivery_timing.items()},
+    )
+    _terminal_shaping_started_at = time.monotonic()
+
+    # Prepend any late-answered messages from prior turns so the user
+    # sees what came back. The cortex was also given the continuity
+    # context in body.message above, so the reply already acknowledges
+    # the thread.
+    _pre_context_strip_reply = reply_text
+    _final_reply = (
+        _qualified_exact_reply
+        if _qualified_exact_delivery
+        # The reply that is actually served. An ellipsis here is a turn
+        # that looks answered to everything downstream and says nothing to
+        # the person.
+        else _never_an_ellipsis(_strip_user_visible_context_leaks(reply_text))
+    )
+    # The recorded answer is applied HERE, after every repair, regeneration
+    # and shaping pass, because everywhere earlier it was discarded.
+    #
+    # LIVE, 2026-08-10, three attempts. Applied inside
+    # _stabilize_user_facing_reply it worked in-process and never reached
+    # the person: on one turn the full record was stripped as off-topic,
+    # and on the next the whole reply was replaced by a later repair that
+    # said "I didn't actually count the .py files" — which is also false,
+    # and which no amount of correcting an earlier draft can fix.
+    #
+    # A correction that a later stage can overwrite is not a correction.
+    if not _qualified_exact_delivery:
+        _final_reply = str(
+            _append_past_action_record(_semantic_user_message, _final_reply) or _final_reply
+        )
+        _final_reply = str(
+            _append_runtime_authored_why(_semantic_user_message, _final_reply) or _final_reply
+        )
+    _append_turn_text_mutation(
+        _live_turn_trace,
+        stage="chat.final_context_leak_strip",
+        method="deterministic_context_leak_removal",
+        reasons=["user_visible_context_boundary"],
+        before=_pre_context_strip_reply,
+        after=_final_reply,
+        deterministic=True,
+        authorship_effect="preserved",
+    )
+    return _final_reply, _terminal_shaping_started_at
+
+def _api_chat_turn_response_data(_affordance_results, _desktop_exec_state, _final_reply, _final_status, _live_turn_trace, final_live_turn_contract, lane_status, response_confidence):
+    response_data = {
+        "response": _final_reply,
+        "status": _final_status,
+        "conversation_lane": lane_status,
+        "response_confidence": response_confidence,
+        "live_turn_contract": final_live_turn_contract,
+    }
+    # Same receipts contract as the fastpath door: desktop objectives
+    # carry their step receipts on the wire from EVERY reply exit.
+    if _desktop_exec_state.get("result") is not None and str(_final_status).startswith(
+        "desktop_objective"
+    ):
+        response_data["data"] = {
+            "desktop_result": _json_safe_payload(_desktop_exec_state["result"])
+        }
+    if _affordance_results:
+        response_data.setdefault("data", {})["affordances"] = [
+            _json_safe_payload(r) for r in _affordance_results
+        ]
+
+    # The durable delivery boundary may still replace these bytes through
+    # recorded-answer composition, paired projection, or control-syntax
+    # sanitation. Commit exact worker state only after that boundary has
+    # sealed the payload it will actually return.
+    _resume_trace = dict(_live_turn_trace)
+    return _resume_trace, response_data
+
+async def _api_chat_turn_part_12(_delivery_timing, _final_reply, _final_status, _persistence_started_at, _terminal_shaping_started_at, reply_source, request_started_at, response_confidence):
+    _delivery_timing["persistence_ms"] = (
+        time.monotonic() - _persistence_started_at
+    ) * 1000.0
+
+    _receipt_started_at = time.monotonic()
+    await _emit_chat_output_receipt(
+        _final_reply or "…",
+        cause="chat_response",
+        metadata={
+            "response_confidence": response_confidence,
+            "path": _final_status or reply_source or "stabilized",
+        },
+    )
+    _delivery_timing["receipt_ms"] = (time.monotonic() - _receipt_started_at) * 1000.0
+    _delivery_timing["terminal_shaping_ms"] = (
+        _persistence_started_at - _terminal_shaping_started_at
+    ) * 1000.0
+    _delivery_timing["request_total_ms"] = (
+        time.monotonic() - request_started_at
+    ) * 1000.0
+    logger.info(
+        "Foreground delivery timing complete: %s",
+        {key: round(value, 2) for key, value in _delivery_timing.items()},
+    )
+    # Measured, so the next turn's answer budget can leave room for it
+    # instead of sizing an answer that fills the clock exactly and then
+    # having nowhere to put it.
+    try:
+        from core.brain.llm.thinking_reserve import record_delivery_cost
+
+        record_delivery_cost(
+            sum(
+                float(_delivery_timing.get(stage, 0.0) or 0.0)
+                for stage in (
+                    "engine_to_stabilizer_ms",
+                    "stabilizer_ms",
+                    "runtime_reconcile_ms",
+                    "quality_classification_ms",
+                    "lane_status_ms",
+                    "terminal_shaping_ms",
+                    "persistence_ms",
+                    "receipt_ms",
+                )
+            )
+            / 1000.0
+        )
+    except (ImportError, AttributeError, TypeError, ValueError) as _cost_exc:
+        logger.debug("Delivery cost not recorded: %s", _cost_exc)
+
 async def _api_chat_turn(body: ChatRequest, request: Request):
     request_started_at = time.monotonic()
     request_wall_started_at = time.time()
@@ -7749,39 +8348,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
     # runtime computes exactly.
     set_user_question(_semantic_user_message)
     _declared_interlocutor = _interlocutor_turn.evidence()
-    _grounded_recall_context: str = ""
-    _relational_memory_control = getattr(
-        getattr(request, "state", None),
-        "relational_memory_control",
-        None,
-    )
-    if isinstance(_relational_memory_control, dict):
-        body.message = (
-            "[CANONICAL RELATIONAL MEMORY CONTROL RESULT]\n"
-            + json.dumps(
-                _relational_memory_control,
-                ensure_ascii=True,
-                separators=(",", ":"),
-                sort_keys=True,
-            )
-            + "\n[END RELATIONAL MEMORY CONTROL RESULT]\n"
-            + "Answer the user's memory-control request from this result; do not claim a mode or persistence outcome beyond it.\n\n"
-            + body.message
-        )
-    if _defensive_context and not is_benchmark:
-        body.message = f"{_defensive_context}{body.message}"
-    _preflight = await _chat_preflight._run_chat_preflight(
-        body,
-        request,
-        _semantic_user_message,
-        _profile_user_id,
-        conversation_only_surface,
-        is_benchmark,
-        _chat_session_id=_chat_session_id,
-        _grounded_recall_context=_grounded_recall_context,
-        raw_user_message=_original_user_message,
-    )
-    logger.info("Chat preflight timing: %s", dict(_preflight.timing_ms))
+    _grounded_recall_context, _preflight = await _api_chat_turn__grounded_recall_context(_chat_session_id, _defensive_context, _original_user_message, _profile_user_id, _semantic_user_message, body, conversation_only_surface, is_benchmark, request)
     if _preflight.early_response is not None:
         return _preflight.early_response
     if _preflight.chat_session_id is not _UNSET:
@@ -7794,35 +8361,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         _shown = _preflight.shown
     if _preflight.status is not _UNSET:
         status = _preflight.status
-    _turn_sensory_evidence = _preflight.turn_sensory_evidence
-    _qualified_state_serialization_owner = bool(
-        _preflight.evidence_profile
-        == _chat_preflight._CHAT_EVIDENCE_PROFILE_QUALIFIED_RECURRENT
-        and _preflight.evidence_owner_receipt
-    )
-
-    # Keep user-facing judgment anchored to the text Bryan actually typed.
-    # `body.message` may now contain continuity blocks, file payloads, and
-    # directive scaffolding that belong in generation context, not in reply
-    # quality classification or conversational memory.
-    # Identity-anchor ablation, scoped to this turn.
-    #
-    # tools/ablate_identity_anchor.py measures which sections of the anchor
-    # actually change behaviour. It runs over HTTP against the live instance,
-    # so it asks per request rather than by restarting anything; the holder is
-    # turn-scoped, so a measurement cannot alter anyone else's conversation.
-    try:
-        _ablate_section = str(request.headers.get("X-Aura-Ablate-Identity-Section") or "").strip()
-        if _ablate_section:
-            from core.brain.aura_persona import set_ablated_section
-
-            set_ablated_section(_ablate_section)
-            logger.info(
-                "🔬 Identity-anchor ablation active for this turn: %s",
-                _ablate_section[:60],
-            )
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation("chat", exc)
+    _qualified_state_serialization_owner, _turn_sensory_evidence = _api_chat_turn__turn_sensory_evidence(_preflight, request)
 
     if not is_benchmark and _chat_preflight._looks_like_desktop_objective(_semantic_user_message):
         # A consequential desktop request always needs the same CognitiveEngine
@@ -7899,33 +8438,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
     foreground_owner_task = asyncio.current_task()
     foreground_lease = None
     kernel_task: asyncio.Task | None = None
-    # Start this turn holding no draft from any previous one.
-    try:
-        from core.conversation.surface_disposition import clear_preserved_draft
-
-        clear_preserved_draft()
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        logger.debug("Preserved-draft reset skipped: %s", exc)
-    _live_turn_trace: dict[str, Any] = {
-        "desktop_cognitive_engine_required": bool(desktop_requires_cognitive_engine),
-        "request_surface": request_surface or "",
-        "chat_origin": chat_origin,
-        "engine_think_invoked": False,
-        "cognitive_engine_reply_accepted": False,
-        "cognitive_engine_reply_failed": False,
-        "bounded_contract_used": False,
-        "legacy_fallback_used": False,
-        "response_path": "",
-        "post_generation_repair_applied": False,
-        "deterministic_repair_applied": False,
-        "preflight_evidence_profile": _preflight.evidence_profile,
-        "preflight_evidence_owner_receipt": _preflight.evidence_owner_receipt,
-        "preflight_skipped_components": list(_preflight.skipped_components),
-    }
-    _prime_requested_output_contract_trace(
-        _live_turn_trace,
-        user_message=_semantic_user_message,
-    )
+    _live_turn_trace = _api_chat_turn_start_turn_holding(_preflight, _semantic_user_message, chat_origin, desktop_requires_cognitive_engine, request_surface)
 
     def _live_turn_contract(
         *,
@@ -8048,34 +8561,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     "foreground_reserved", slot_acquired=foreground_slot_acquired
                 )
         except TimeoutError:
-            held = getattr(_foreground_chat_lock, "held_duration", 0.0)
-            if held > _FOREGROUND_CHAT_LOCK_PREEMPT_AFTER_S:
-                logger.error(
-                    "Cancelling stale foreground generation (held %.1fs) before "
-                    "exclusive handoff to the new user turn.",
-                    held,
-                )
-                owner_cancelled = False
-                if hasattr(_foreground_chat_lock, "cancel_stale_owner"):
-                    owner_cancelled = await _foreground_chat_lock.cancel_stale_owner(
-                        reason=_FOREGROUND_CHAT_PREEMPT_CANCEL_REASON,
-                    )
-                if owner_cancelled:
-                    _force_clear_mlx_foreground_owner(
-                        reason="chat_lock_preemption",
-                        min_age_s=_FOREGROUND_CHAT_LOCK_PREEMPT_AFTER_S,
-                    )
-                    try:
-                        foreground_lock_token = await asyncio.wait_for(
-                            _foreground_chat_lock.acquire(owner_task=foreground_owner_task),
-                            timeout=1.0,
-                        )
-                        foreground_slot_acquired = True
-                    except TimeoutError as exc:
-                        logger.debug(
-                            "Foreground lock reacquire after preemption timed out: %s",
-                            exc,
-                        )
+            foreground_lock_token, foreground_slot_acquired = await _api_chat_turn_held(foreground_lock_token, foreground_owner_task, foreground_slot_acquired)
 
             if not foreground_slot_acquired:
                 status = "benchmark_foreground_busy" if is_benchmark else "foreground_busy"
@@ -8101,47 +8587,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         if memory_admission_response is not None:
             return memory_admission_response
 
-        # Notify proactive presence systems; pass content for away-signal detection
-        if not is_benchmark:
-            _notify_user_spoke(_semantic_user_message)
-
-        # Animal cognition: track user emotional state and adapt style
-        if not is_benchmark:
-            try:
-                from core.consciousness.animal_cognition import (
-                    get_camouflage_adapter,
-                    get_emotional_tracker,
-                )
-
-                emotional_tracker = get_emotional_tracker()
-                emotional_tracker.update(_semantic_user_message)
-                camouflage = get_camouflage_adapter()
-                camouflage.observe_user(_semantic_user_message)
-                # Feed emotional signals into neurochemical system
-                ncs = ServiceContainer.get("neurochemical_system", default=None)
-                if ncs:
-                    triggers = emotional_tracker.get_neurochemical_triggers()
-                    for trigger, amount in triggers.items():
-                        if "norepinephrine" in trigger:
-                            ncs.on_wakefulness(amount)
-                        elif "dopamine" in trigger:
-                            ncs.on_novelty(amount)
-                        elif "oxytocin" in trigger:
-                            ncs.on_social_connection(amount)
-            except _CHAT_RECOVERABLE_ERRORS as _ac_exc:
-                record_degradation("chat", _ac_exc)
-                logger.debug("Animal cognition tracking skipped: %s", _ac_exc)
-
-        allow_chat_fastpaths = not is_benchmark and not desktop_requires_cognitive_engine
-        # Session-memory pin/recall is a canonical memory gateway operation, not
-        # a language-model shortcut. Desktop-required surfaces collect/write the
-        # canonical state before generation and bind it into CognitiveEngine
-        # below; non-required API surfaces may answer directly from that gateway.
-        allow_memory_state_fastpath = (
-            not is_benchmark
-            and not desktop_requires_cognitive_engine
-            and not conversation_only_surface
-        )
+        allow_chat_fastpaths, allow_memory_state_fastpath = _api_chat_turn_notify_proactive_presence(_semantic_user_message, conversation_only_surface, desktop_requires_cognitive_engine, is_benchmark)
         allow_runtime_status_fastpath = not is_benchmark and not desktop_requires_cognitive_engine
         allow_governed_action_fastpaths = (
             not is_benchmark
@@ -9642,110 +10088,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 status="architecture_self_reflex",
             )
 
-        # Crash-safe persistence: persist the user's message BEFORE calling
-        # the LLM. If the process dies mid-inference, the message is preserved
-        # and the conversation can be resumed. (Pattern from Claude Code.)
-        effective_user_message = _semantic_user_message
-        referential_anchor = (
-            await _resolve_referential_followup_anchor(
-                _semantic_user_message,
-                session_id=_chat_session_id,
-            )
-            if (
-                allow_chat_fastpaths
-                and not _qualified_state_serialization_owner
-                and not action_episode_evidence
-            )
-            else None
-        )
-        if referential_anchor:
-            effective_user_message = (
-                f"{_semantic_user_message}\n\n"
-                "[REFERENTIAL ANCHOR]\n"
-                "The user is referring to this earlier user question/request:\n"
-                f"{referential_anchor}"
-            )
-        if action_episode_evidence:
-            from core.conversation.turn_evidence_custody import record_turn_grounding
-
-            record_turn_grounding(action_episode_evidence)
-        conversation_recall_evidence = (
-            None
-            if _qualified_state_serialization_owner
-            else await _chat_memory_state._build_conversation_recall_reply(
-                _semantic_user_message,
-                session_id=_chat_session_id,
-            )
-        )
-        if conversation_recall_evidence:
-            from core.conversation.turn_evidence_custody import record_turn_grounding
-
-            record_turn_grounding(conversation_recall_evidence)
-            effective_user_message = (
-                f"{effective_user_message}\n\n"
-                "[CONVERSATION RECALL EVIDENCE]\n"
-                f"{conversation_recall_evidence}\n"
-                "[END CONVERSATION RECALL EVIDENCE]\n"
-                "Answer the recall question from the evidence above. Do not guess or invent a memory."
-            )
-        retained_memory_evidence = (
-            ""
-            if conversation_only_surface or _qualified_state_serialization_owner
-            else await _build_retained_memory_evidence_context(
-                _semantic_user_message,
-                session_id=_chat_session_id,
-                conversation_recall_context=conversation_recall_evidence or "",
-            )
-        )
-        if retained_memory_evidence:
-            from core.conversation.turn_evidence_custody import record_turn_grounding
-
-            record_turn_grounding(retained_memory_evidence)
-            effective_user_message = (
-                f"{effective_user_message}\n\n"
-                "[RETAINED MEMORY EVIDENCE]\n"
-                f"{retained_memory_evidence}\n"
-                "[END RETAINED MEMORY EVIDENCE]\n"
-                "For any claim about what you remember, what persisted, or what happened in a prior "
-                "session, use the evidence above. If the evidence is absent or insufficient, say that "
-                "the memory is not verified instead of filling the gap."
-            )
-        if desktop_memory_state_evidence:
-            memory_reply, memory_status = desktop_memory_state_evidence
-            from core.conversation.turn_evidence_custody import record_turn_grounding
-
-            record_turn_grounding(f"status={memory_status}\n{memory_reply}")
-            effective_user_message = (
-                f"{effective_user_message}\n\n"
-                "[CANONICAL MEMORY STATE EVIDENCE]\n"
-                f"status={memory_status}\n"
-                f"{memory_reply}\n"
-                "[END CANONICAL MEMORY STATE EVIDENCE]\n"
-                "Use this canonical memory/state result as evidence, but produce the visible answer "
-                "through CognitiveEngine in Aura's normal desktop voice."
-            )
-        # The address the person named, read before anything else is decided.
-        named_url_evidence = await _collect_named_url_evidence(_semantic_user_message)
-        if named_url_evidence and named_url_evidence.get("ok"):
-            effective_user_message = (
-                f"{effective_user_message}\n\n"
-                "[PAGE THE USER NAMED]\n"
-                f"url: {named_url_evidence.get('url')}\n"
-                f"title: {named_url_evidence.get('title')}\n"
-                f"{named_url_evidence.get('text')}\n"
-                "[END PAGE THE USER NAMED]\n"
-                "This is the document they addressed. Answer from it, and say so "
-                "plainly if it does not contain what they asked for."
-            )
-        elif named_url_evidence:
-            effective_user_message = (
-                f"{effective_user_message}\n\n"
-                "[PAGE THE USER NAMED]\n"
-                f"url: {named_url_evidence.get('url')}\n"
-                f"could not be read: {named_url_evidence.get('error')}\n"
-                "[END PAGE THE USER NAMED]\n"
-                "Say that the address could not be read, and what was tried."
-            )
+        effective_user_message, referential_anchor = await _api_chat_turn_crash_safe_persistence(_chat_session_id, _qualified_state_serialization_owner, _semantic_user_message, action_episode_evidence, allow_chat_fastpaths, conversation_only_surface, desktop_memory_state_evidence)
 
         desktop_required_search_evidence = None
         if (
@@ -10084,46 +10427,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                                             _found.get("applied", "-"),
                                         )
                                     )
-                                logger.error(
-                                    "Desktop CognitiveEngine candidate did not prove authorship "
-                                    "(missing: %s); failing closed instead of serving repair "
-                                    "text as Aura speech. path=%s generations=%s "
-                                    "completion_retries=%s repair_attempts=%s consumed=%s "
-                                    "ownership_evidence=[%s] receipts=%d",
-                                    ",".join(
-                                        candidate_contract.get("full_mind_missing_proofs") or ()
-                                    ),
-                                    # The counts the proof is ACTUALLY made of.
-                                    #
-                                    # This printed the name of the failed proof and nothing else,
-                                    # so "duplicate_foreground_model_generation" told a reader
-                                    # that more than one generation happened and not which of the
-                                    # three conditions in single_owner_model_generation_proven
-                                    # missed — reconstructing it meant reading the contract
-                                    # module beside a log that had already thrown the numbers
-                                    # away. The receipt carried all of them the whole time.
-                                    candidate_contract.get("response_path") or "unset",
-                                    candidate_contract.get("foreground_model_generation_count"),
-                                    candidate_contract.get("completion_retry_count"),
-                                    candidate_contract.get("repair_retry_attempt_count"),
-                                    candidate_contract.get(
-                                        "foreground_model_generation_consumed"
-                                    ),
-                                    # And the evidence ownership is made of.
-                                    #
-                                    # "foreground_model_generation_ownership_unproven"
-                                    # names the proof, not what was missing from
-                                    # it, and what it rests on is one number: the
-                                    # tokens a surface control receipt says were
-                                    # generated. A receipt that never arrived and
-                                    # one that arrived empty read identically
-                                    # without it, and they are different faults
-                                    # with different fixes.
-                                    "; ".join(_owner_evidence) or "no receipt",
-                                    len(_owner_evidence),
-                                )
-                                reply_text = None
-                                reply_source = ""
+                                reply_source, reply_text = _api_chat_turn_part_7(_owner_evidence, candidate_contract)
                                 lane = contract_lane
                         else:
                             lane = contract_lane
@@ -10142,44 +10446,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             if _served_recovery is not None:
                 return _served_recovery
 
-            # Live desktop speech must be the full CognitiveEngine path or an
-            # explicitly receipted governed action result. The one exception is
-            # a narrow grounded repair after the CognitiveEngine has already
-            # been invoked for identity/continuity or self-process questions.
-            # Those turns are common daily-use probes; returning a canned 503
-            # teaches the UI to stall instead of giving a truthful, bounded
-            # explanation of the current state.
-            allow_required_desktop_no_reply_repairs = bool(
-                _chat_desktop_repair._is_identity_request(_semantic_user_message)
-                or _chat_desktop_repair._identity_request_asks_future_memory(_semantic_user_message)
-            )
-            if not allow_required_desktop_no_reply_repairs:
-                try:
-                    from core.conversation.response_reliability import (
-                        is_live_self_reflection_turn,
-                        is_self_process_question,
-                    )
-
-                    allow_required_desktop_no_reply_repairs = bool(
-                        is_self_process_question(_semantic_user_message)
-                        or is_live_self_reflection_turn(_semantic_user_message)
-                    )
-                except _CHAT_RECOVERABLE_ERRORS as repair_scope_exc:
-                    record_degradation("chat", repair_scope_exc)
-                    logger.debug(
-                        "Desktop no-reply repair scope check skipped: %s",
-                        repair_scope_exc,
-                    )
-            if _chat_desktop_repair._is_low_risk_social_continuity_request(_semantic_user_message):
-                social_reply = _chat_desktop_repair._build_social_continuity_repair_reply(
-                    _semantic_user_message
-                )
-                logger.warning(
-                    "Desktop CognitiveEngine produced no acceptable reply for low-risk social turn; "
-                    "not serving bounded social repair as a successful full-mind desktop turn "
-                    "(candidate repair len=%d).",
-                    len(social_reply),
-                )
+            allow_required_desktop_no_reply_repairs = _api_chat_turn_desktop_speech_must(_semantic_user_message)
 
             if _chat_preflight._is_runtime_fact_status_request(
                 _semantic_user_message
@@ -11333,58 +11600,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 response_path="desktop_required_final_quality_failed",
             )
 
-        # Proactive recovery: if 3+ consecutive degraded responses, compact + reset stale deque
-        degradation_streak = _conversation_degradation_streak()
-        if degradation_streak >= 3:
-            logger.warning(
-                "🚨 Degradation streak=%d — triggering proactive compaction + stale reset.",
-                degradation_streak,
-            )
-            with _conversation_quality_lock:
-                quality_state = _conversation_quality_state_locked()
-                quality_state.recent_responses.clear()
-                quality_state.recent_response_pairs.clear()
-                quality_state.consecutive_degraded_count = 0
-            try:
-                live_state = _chat_preflight._resolve_live_aura_state()
-                if live_state and hasattr(live_state, "compact"):
-                    live_state.compact(trigger_threshold=20, keep_turns=15)
-                    logger.info("🗜️ Proactive compaction completed after degradation streak.")
-            except _CHAT_RECOVERABLE_ERRORS as _streak_exc:
-                record_degradation("chat", _streak_exc)
-                logger.debug("Degradation streak compaction failed: %s", _streak_exc)
-
-        # Proactive context compaction — fire-and-forget to prevent working memory bloat
-        try:
-            live_state = _chat_preflight._resolve_live_aura_state()
-            if live_state and hasattr(live_state, "compact"):
-                wm = getattr(getattr(live_state, "cognition", None), "working_memory", None)
-                if wm and isinstance(wm, list) and len(wm) > 30:
-                    compacted = live_state.compact(trigger_threshold=30, keep_turns=20)
-                    if compacted:
-                        logger.debug(
-                            "Proactive AuraState.compact() completed (working_memory was %d).",
-                            len(wm),
-                        )
-        except _CHAT_RECOVERABLE_ERRORS as _compact_exc:
-            record_degradation("chat", _compact_exc)
-            logger.debug("Proactive compaction skipped: %s", _compact_exc)
-
-        # ── Post-Response Infrastructure checks ─────────────────
-        # 1. Check self-consistency (avoiding false inability claims, commitment contradictions)
-        # The decision itself lives in chat_quality.assess_post_response_confidence
-        # so it can be tested without driving a whole HTTP turn — this function
-        # is 4,488 lines and 633 branches, and everything inside it could only
-        # be exercised end to end.
-        is_consistent, inconsistency_reason = (
-            (True, "")
-            if _qualified_exact_delivery
-            else (
-                _check_response_consistency(reply_text, _semantic_user_message)
-                if response_confidence == "high"
-                else (True, "")
-            )
-        )
+        inconsistency_reason, is_consistent = _api_chat_turn_proactive_recovery_consecutive(_qualified_exact_delivery, _semantic_user_message, reply_text, response_confidence)
         _delivery_stage_started_at = time.monotonic()
         lane_status = _chat_preflight._collect_conversation_lane_status()
         _delivery_timing["lane_status_ms"] = (
@@ -11429,53 +11645,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             same_diff=is_same_diff,
             off_topic=is_off_topic,
         )
-        logger.info(
-            "Foreground delivery timing before terminal shaping: %s",
-            {key: round(value, 2) for key, value in _delivery_timing.items()},
-        )
-        _terminal_shaping_started_at = time.monotonic()
-
-        # Prepend any late-answered messages from prior turns so the user
-        # sees what came back. The cortex was also given the continuity
-        # context in body.message above, so the reply already acknowledges
-        # the thread.
-        _pre_context_strip_reply = reply_text
-        _final_reply = (
-            _qualified_exact_reply
-            if _qualified_exact_delivery
-            # The reply that is actually served. An ellipsis here is a turn
-            # that looks answered to everything downstream and says nothing to
-            # the person.
-            else _never_an_ellipsis(_strip_user_visible_context_leaks(reply_text))
-        )
-        # The recorded answer is applied HERE, after every repair, regeneration
-        # and shaping pass, because everywhere earlier it was discarded.
-        #
-        # LIVE, 2026-08-10, three attempts. Applied inside
-        # _stabilize_user_facing_reply it worked in-process and never reached
-        # the person: on one turn the full record was stripped as off-topic,
-        # and on the next the whole reply was replaced by a later repair that
-        # said "I didn't actually count the .py files" — which is also false,
-        # and which no amount of correcting an earlier draft can fix.
-        #
-        # A correction that a later stage can overwrite is not a correction.
-        if not _qualified_exact_delivery:
-            _final_reply = str(
-                _append_past_action_record(_semantic_user_message, _final_reply) or _final_reply
-            )
-            _final_reply = str(
-                _append_runtime_authored_why(_semantic_user_message, _final_reply) or _final_reply
-            )
-        _append_turn_text_mutation(
-            _live_turn_trace,
-            stage="chat.final_context_leak_strip",
-            method="deterministic_context_leak_removal",
-            reasons=["user_visible_context_boundary"],
-            before=_pre_context_strip_reply,
-            after=_final_reply,
-            deterministic=True,
-            authorship_effect="preserved",
-        )
+        _final_reply, _terminal_shaping_started_at = _api_chat_turn_part_10(_delivery_timing, _live_turn_trace, _qualified_exact_delivery, _qualified_exact_reply, _semantic_user_message, reply_text)
         # The sums this answer does on its own numbers, recomputed.
         #
         # Appended, never substituted. Bryan, 2026-09-08: "shouldnt reject the
@@ -11767,31 +11937,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         if _seam_early_response is not _SEAM_FELL_THROUGH:
             return _seam_early_response
 
-        response_data = {
-            "response": _final_reply,
-            "status": _final_status,
-            "conversation_lane": lane_status,
-            "response_confidence": response_confidence,
-            "live_turn_contract": final_live_turn_contract,
-        }
-        # Same receipts contract as the fastpath door: desktop objectives
-        # carry their step receipts on the wire from EVERY reply exit.
-        if _desktop_exec_state.get("result") is not None and str(_final_status).startswith(
-            "desktop_objective"
-        ):
-            response_data["data"] = {
-                "desktop_result": _json_safe_payload(_desktop_exec_state["result"])
-            }
-        if _affordance_results:
-            response_data.setdefault("data", {})["affordances"] = [
-                _json_safe_payload(r) for r in _affordance_results
-            ]
-
-        # The durable delivery boundary may still replace these bytes through
-        # recorded-answer composition, paired projection, or control-syntax
-        # sanitation. Commit exact worker state only after that boundary has
-        # sealed the payload it will actually return.
-        _resume_trace = dict(_live_turn_trace)
+        _resume_trace, response_data = _api_chat_turn_response_data(_affordance_results, _desktop_exec_state, _final_reply, _final_status, _live_turn_trace, final_live_turn_contract, lane_status, response_confidence)
         _resume_session = str(_CHAT_REQUEST_SESSION.get() or _chat_session_id or "")
         _resume_principal = str(_CHAT_REQUEST_PRINCIPAL.get() or "")
         _resume_surface = str(_CHAT_REQUEST_SURFACE.get() or "")
@@ -11829,54 +11975,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     response_path=_final_status,
                 ),
             )
-        _delivery_timing["persistence_ms"] = (
-            time.monotonic() - _persistence_started_at
-        ) * 1000.0
-
-        _receipt_started_at = time.monotonic()
-        await _emit_chat_output_receipt(
-            _final_reply or "…",
-            cause="chat_response",
-            metadata={
-                "response_confidence": response_confidence,
-                "path": _final_status or reply_source or "stabilized",
-            },
-        )
-        _delivery_timing["receipt_ms"] = (time.monotonic() - _receipt_started_at) * 1000.0
-        _delivery_timing["terminal_shaping_ms"] = (
-            _persistence_started_at - _terminal_shaping_started_at
-        ) * 1000.0
-        _delivery_timing["request_total_ms"] = (
-            time.monotonic() - request_started_at
-        ) * 1000.0
-        logger.info(
-            "Foreground delivery timing complete: %s",
-            {key: round(value, 2) for key, value in _delivery_timing.items()},
-        )
-        # Measured, so the next turn's answer budget can leave room for it
-        # instead of sizing an answer that fills the clock exactly and then
-        # having nowhere to put it.
-        try:
-            from core.brain.llm.thinking_reserve import record_delivery_cost
-
-            record_delivery_cost(
-                sum(
-                    float(_delivery_timing.get(stage, 0.0) or 0.0)
-                    for stage in (
-                        "engine_to_stabilizer_ms",
-                        "stabilizer_ms",
-                        "runtime_reconcile_ms",
-                        "quality_classification_ms",
-                        "lane_status_ms",
-                        "terminal_shaping_ms",
-                        "persistence_ms",
-                        "receipt_ms",
-                    )
-                )
-                / 1000.0
-            )
-        except (ImportError, AttributeError, TypeError, ValueError) as _cost_exc:
-            logger.debug("Delivery cost not recorded: %s", _cost_exc)
+        await _api_chat_turn_part_12(_delivery_timing, _final_reply, _final_status, _persistence_started_at, _terminal_shaping_started_at, reply_source, request_started_at, response_confidence)
 
         return JSONResponse(response_data)
     except TimeoutError:

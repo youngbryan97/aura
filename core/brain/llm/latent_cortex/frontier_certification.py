@@ -1814,6 +1814,249 @@ def _validate_release_readiness(
     return summary
 
 
+def _verify_frontier_gain_bundle_part_1(prereg, seen_task_payloads, trial, trial_id, trial_reasons):
+    _validate_trial_lineage(trial, trial_reasons)
+    # Each trial must have been scored by the PREREGISTERED scoring
+    # program (its per-trial config may differ; the program may not).
+    if str(trial.get("scorer_implementation_sha256") or "") != str(
+        prereg.get("scorer_implementation_sha256") or ""
+    ):
+        trial_reasons.append(f"{trial_id}:scorer_not_preregistered")
+    task_payload_hash = str(trial.get("task_payload_sha256") or "")
+    if task_payload_hash in seen_task_payloads:
+        trial_reasons.append(f"{trial_id}:duplicate_task_payload")
+    seen_task_payloads.add(task_payload_hash)
+    if trial.get("verifier_blinded") is not True:
+        trial_reasons.append(f"{trial_id}:blinded_verifier_unproven")
+    treatment_information = _trial_information(
+        trial,
+        "treatment",
+        trial_reasons,
+        prereg,
+    )
+    control_information = _trial_information(
+        trial,
+        "control",
+        trial_reasons,
+        prereg,
+    )
+    if (
+        treatment_information is None
+        or control_information is None
+        or treatment_information["source_set_sha256"]
+        != control_information["source_set_sha256"]
+    ):
+        trial_reasons.append(f"{trial_id}:information_mismatch")
+    if str(trial.get("treatment_tool_policy_sha256") or "") != str(
+        trial.get("control_tool_policy_sha256") or ""
+    ) or str(trial.get("treatment_tool_policy_sha256") or "") != str(
+        prereg.get("tool_policy_sha256") or ""
+    ):
+        trial_reasons.append(f"{trial_id}:tool_policy_mismatch")
+    # DECODING PARITY: both arms must run the preregistered decode policy
+    # (seed discipline, sampler, temperature, stop rules, context limit,
+    # tokenizer/template). Without this, an outcome difference can come
+    # from decoding rather than from the latent treatment.
+    treatment_decode = str(trial.get("treatment_decode_policy_sha256") or "")
+    control_decode = str(trial.get("control_decode_policy_sha256") or "")
+    if (
+        not _is_sha256(treatment_decode)
+        or treatment_decode != control_decode
+        or treatment_decode != str(prereg.get("decode_policy_sha256") or "")
+    ):
+        trial_reasons.append(f"{trial_id}:decode_policy_mismatch")
+    return control_information, treatment_information
+
+def _verify_frontier_gain_bundle_part_2(episode_id, installed_app_build_sha256, prereg, seen_control_request_ids, seen_episode_ids, trial, trial_id, trial_reasons, worker_boot_id):
+    if episode_id in seen_episode_ids:
+        trial_reasons.append(f"{trial_id}:duplicate_treatment_episode")
+    seen_episode_ids.add(episode_id)
+    if episode_id != _expected_arm_identifier(trial, "treatment", worker_boot_id):
+        trial_reasons.append(f"{trial_id}:treatment_episode_id_unbound")
+    control_request_id = _validate_control_receipt(
+        trial,
+        prereg,
+        worker_boot_id,
+        installed_app_build_sha256,
+        trial_reasons,
+    )
+    if control_request_id in seen_control_request_ids:
+        trial_reasons.append(f"{trial_id}:duplicate_control_request")
+    seen_control_request_ids.add(control_request_id)
+    if control_request_id != _expected_arm_identifier(
+        trial, "control", worker_boot_id
+    ):
+        trial_reasons.append(f"{trial_id}:control_request_id_unbound")
+    # `params_unchanged` is proven by hashing a fixed-stride SAMPLE of the
+    # parameter tree before and after. How much of the tree that sample
+    # touches decides what the claim is worth: a mutation living entirely
+    # in unsampled tensors leaves both digests identical. The certificate
+    # now measures the coverage instead of taking the verdict on trust.
+    # The control arm only has a parameter tree to measure when it runs on
+    # the resident model. An external frontier control runs on somebody
+    # else's hardware, so demanding a canary from it would be demanding
+    # evidence that cannot exist.
+    canary_arms = (("treatment", "treatment_receipt"),)
+    if str(prereg.get("comparison_kind") or "") != (
+        "resident_32b_vs_external_frontier"
+    ):
+        canary_arms += (("control", "control_receipt"),)
+    return canary_arms
+
+def _verify_frontier_gain_bundle_achieved_power(min_trials, order_by_domain, paired, prereg_alpha, prereg_target_power, prereg_win_share, reasons, task_families):
+    achieved_power: dict[str, float] = {}
+    effective_sample: dict[str, int] = {}
+    for domain, observations in paired.items():
+        if len(observations) < min_trials:
+            reasons.append(f"{domain}:underpowered")
+        # ACHIEVED power, recomputed from the trials that survived admission.
+        # A domain can hold its preregistered trial count and still have lost
+        # every disagreement that carried information, and the count alone
+        # cannot see that.
+        # Independence is counted in FAMILIES, not rows. Forty paraphrases of
+        # one problem are one problem's worth of evidence however many
+        # discordant pairs they generate, so a family contributes at most one.
+        seen_families = {task_families.get(obs.task_id, "") for obs in observations}
+        if "" in seen_families:
+            reasons.append(f"{domain}:task_family_unassigned")
+            seen_families.discard("")
+        effective_sample[domain] = len(seen_families)
+        if len(seen_families) < min_trials:
+            reasons.append(f"{domain}:effective_sample_below_minimum")
+        discordant = len(
+            {
+                task_families.get(observation.task_id, "")
+                for observation in observations
+                if bool(observation.treatment_success)
+                != bool(observation.control_success)
+            }
+            - {""}
+        )
+        power = (
+            _exact_mcnemar_power(discordant, prereg_alpha, prereg_win_share)
+            if prereg_win_share > 0.5
+            else 0.0
+        )
+        achieved_power[domain] = round(power, 6)
+        if prereg_target_power and power < prereg_target_power:
+            reasons.append(f"{domain}:achieved_power_below_target")
+        balance = order_by_domain.get(domain, {})
+        admitted_here = balance.get("treatment_first", 0) + balance.get("control_first", 0)
+        # PER-DOMAIN balance. A run balanced overall can still have given one
+        # domain the treatment first every time, and a domain is the unit the
+        # claim is made about.
+        if admitted_here and abs(
+            balance["treatment_first"] - balance["control_first"]
+        ) > max(1, math.ceil(admitted_here * 0.10)):
+            reasons.append(f"{domain}:run_order_imbalanced")
+    return achieved_power, effective_sample
+
+def _verify_frontier_gain_bundle_admitted_order_total(order_by_domain, order_effect_samples, prereg, reasons, scored_pairs, success_threshold):
+    admitted_order_total = sum(
+        counts["treatment_first"] + counts["control_first"]
+        for counts in order_by_domain.values()
+    )
+    admitted_treatment_first = sum(
+        counts["treatment_first"] for counts in order_by_domain.values()
+    )
+    admitted_control_first = admitted_order_total - admitted_treatment_first
+    if admitted_order_total and abs(
+        admitted_treatment_first - admitted_control_first
+    ) > max(1, math.ceil(admitted_order_total * 0.10)):
+        reasons.append("run_order_imbalanced")
+    # THRESHOLD SENSITIVITY. The gain is a step function of where the pass
+    # line sits, and the line was preregistered — but preregistering a number
+    # does not make the result robust to it. If moving the line a little in
+    # either direction erases or reverses the gain, the claim is about the
+    # line rather than about the treatment.
+    fragile_thresholds: list[float] = []
+    band = prereg.get("threshold_sensitivity_band")
+    if (
+        scored_pairs
+        and success_threshold > 0.0
+        and _finite_number(band)
+        and 0.0 < float(band) <= 0.25
+    ):
+        low = max(0.0, success_threshold - float(band))
+        high = min(1.0, success_threshold + float(band))
+        # The gain only changes at an observed score, so evaluating at the
+        # band edges plus every score inside it is EXACT, not a sample.
+        candidates = {low, high, success_threshold}
+        for treatment_score, control_score in scored_pairs:
+            for score in (treatment_score, control_score):
+                if low <= score <= high:
+                    candidates.add(score)
+        for candidate in sorted(candidates):
+            gain = math.fsum(
+                int(treatment_score >= candidate) - int(control_score >= candidate)
+                for treatment_score, control_score in scored_pairs
+            ) / len(scored_pairs)
+            if gain <= 0.0:
+                fragile_thresholds.append(round(candidate, 6))
+        if fragile_thresholds:
+            reasons.append("outcome_threshold_fragile")
+    # Balance answers "did both orders run?", never "did order matter?".
+    # If the paired gain lives in one order and vanishes in the other, order
+    # is a rival explanation for the whole result.
+    order_effect = 0.0
+    if order_effect_samples["treatment_first"] and order_effect_samples["control_first"]:
+        order_effect = abs(
+            (
+                math.fsum(order_effect_samples["treatment_first"])
+                / len(order_effect_samples["treatment_first"])
+            )
+            - (
+                math.fsum(order_effect_samples["control_first"])
+                / len(order_effect_samples["control_first"])
+            )
+        )
+        max_order_effect = prereg.get("max_order_effect")
+        if _finite_number(max_order_effect) and 0.0 < float(max_order_effect) <= 0.5:
+            if order_effect > float(max_order_effect):
+                reasons.append("order_effect_exceeds_preregistered_maximum")
+    elif admitted_order_total:
+        # One order never ran on an admitted trial, so no order effect can be
+        # estimated at all. Silence here would read as "no effect found".
+        reasons.append("order_effect_unmeasurable")
+    return fragile_thresholds, order_effect
+
+def _verify_frontier_gain_bundle_cp126_ca4271_cccfcb5(bundle, earliest_evaluation_started_at, earliest_task_generated_at, reasons, trusted_transparency_logs):
+    # CP126 89ca4271 + 9cccfcb5: a signature says who wrote a timestamp, never
+    # when the event happened. Both the preregistration and the task
+    # commitment have to be in an append-only log whose root was pinned out of
+    # band, and logged before the work they claim to precede.
+    anchors = bundle.get("timestamp_anchors")
+    anchors = anchors if isinstance(anchors, dict) else {}
+    prereg_logged_at = _validate_timestamp_anchor(
+        anchors.get("preregistration"),
+        event="preregistration",
+        committed_data=str(bundle.get("preregistration_sha256") or ""),
+        trusted_logs=trusted_transparency_logs,
+        reasons=reasons,
+    )
+    if (
+        prereg_logged_at is not None
+        and math.isfinite(earliest_task_generated_at)
+        and prereg_logged_at > earliest_task_generated_at
+    ):
+        # The preregistration reached the log after tasks already existed, so
+        # it could have been written to fit them.
+        reasons.append("preregistration_logged_after_task_generation")
+    commitment_logged_at = _validate_timestamp_anchor(
+        anchors.get("task_commitment"),
+        event="task_commitment",
+        committed_data=str(bundle.get("task_commitment_sha256") or ""),
+        trusted_logs=trusted_transparency_logs,
+        reasons=reasons,
+    )
+    if (
+        commitment_logged_at is not None
+        and math.isfinite(earliest_evaluation_started_at)
+        and commitment_logged_at > earliest_evaluation_started_at
+    ):
+        reasons.append("task_commitment_logged_after_evaluation_started")
+    return commitment_logged_at, prereg_logged_at
+
 def verify_frontier_gain_bundle(
     bundle: Any,
     *,
@@ -2024,56 +2267,7 @@ def verify_frontier_gain_bundle(
             latest_scoring_completed_at = max(
                 latest_scoring_completed_at, float(scoring_completed_at)
             )
-        _validate_trial_lineage(trial, trial_reasons)
-        # Each trial must have been scored by the PREREGISTERED scoring
-        # program (its per-trial config may differ; the program may not).
-        if str(trial.get("scorer_implementation_sha256") or "") != str(
-            prereg.get("scorer_implementation_sha256") or ""
-        ):
-            trial_reasons.append(f"{trial_id}:scorer_not_preregistered")
-        task_payload_hash = str(trial.get("task_payload_sha256") or "")
-        if task_payload_hash in seen_task_payloads:
-            trial_reasons.append(f"{trial_id}:duplicate_task_payload")
-        seen_task_payloads.add(task_payload_hash)
-        if trial.get("verifier_blinded") is not True:
-            trial_reasons.append(f"{trial_id}:blinded_verifier_unproven")
-        treatment_information = _trial_information(
-            trial,
-            "treatment",
-            trial_reasons,
-            prereg,
-        )
-        control_information = _trial_information(
-            trial,
-            "control",
-            trial_reasons,
-            prereg,
-        )
-        if (
-            treatment_information is None
-            or control_information is None
-            or treatment_information["source_set_sha256"]
-            != control_information["source_set_sha256"]
-        ):
-            trial_reasons.append(f"{trial_id}:information_mismatch")
-        if str(trial.get("treatment_tool_policy_sha256") or "") != str(
-            trial.get("control_tool_policy_sha256") or ""
-        ) or str(trial.get("treatment_tool_policy_sha256") or "") != str(
-            prereg.get("tool_policy_sha256") or ""
-        ):
-            trial_reasons.append(f"{trial_id}:tool_policy_mismatch")
-        # DECODING PARITY: both arms must run the preregistered decode policy
-        # (seed discipline, sampler, temperature, stop rules, context limit,
-        # tokenizer/template). Without this, an outcome difference can come
-        # from decoding rather than from the latent treatment.
-        treatment_decode = str(trial.get("treatment_decode_policy_sha256") or "")
-        control_decode = str(trial.get("control_decode_policy_sha256") or "")
-        if (
-            not _is_sha256(treatment_decode)
-            or treatment_decode != control_decode
-            or treatment_decode != str(prereg.get("decode_policy_sha256") or "")
-        ):
-            trial_reasons.append(f"{trial_id}:decode_policy_mismatch")
+        control_information, treatment_information = _verify_frontier_gain_bundle_part_1(prereg, seen_task_payloads, trial, trial_id, trial_reasons)
         order = str(trial.get("run_order") or "")
         if order not in _RUN_ORDERS:
             trial_reasons.append(f"{trial_id}:invalid_run_order")
@@ -2162,39 +2356,7 @@ def verify_frontier_gain_bundle(
             trial_integrity_gaps,
         )
         unproven_integrity_claims.update(trial_integrity_gaps)
-        if episode_id in seen_episode_ids:
-            trial_reasons.append(f"{trial_id}:duplicate_treatment_episode")
-        seen_episode_ids.add(episode_id)
-        if episode_id != _expected_arm_identifier(trial, "treatment", worker_boot_id):
-            trial_reasons.append(f"{trial_id}:treatment_episode_id_unbound")
-        control_request_id = _validate_control_receipt(
-            trial,
-            prereg,
-            worker_boot_id,
-            installed_app_build_sha256,
-            trial_reasons,
-        )
-        if control_request_id in seen_control_request_ids:
-            trial_reasons.append(f"{trial_id}:duplicate_control_request")
-        seen_control_request_ids.add(control_request_id)
-        if control_request_id != _expected_arm_identifier(
-            trial, "control", worker_boot_id
-        ):
-            trial_reasons.append(f"{trial_id}:control_request_id_unbound")
-        # `params_unchanged` is proven by hashing a fixed-stride SAMPLE of the
-        # parameter tree before and after. How much of the tree that sample
-        # touches decides what the claim is worth: a mutation living entirely
-        # in unsampled tensors leaves both digests identical. The certificate
-        # now measures the coverage instead of taking the verdict on trust.
-        # The control arm only has a parameter tree to measure when it runs on
-        # the resident model. An external frontier control runs on somebody
-        # else's hardware, so demanding a canary from it would be demanding
-        # evidence that cannot exist.
-        canary_arms = (("treatment", "treatment_receipt"),)
-        if str(prereg.get("comparison_kind") or "") != (
-            "resident_32b_vs_external_frontier"
-        ):
-            canary_arms += (("control", "control_receipt"),)
+        canary_arms = _verify_frontier_gain_bundle_part_2(episode_id, installed_app_build_sha256, prereg, seen_control_request_ids, seen_episode_ids, trial, trial_id, trial_reasons, worker_boot_id)
         for arm, receipt_key in canary_arms:
             coverage = _parameter_canary_coverage(trial.get(receipt_key))
             if coverage is None:
@@ -2270,117 +2432,8 @@ def verify_frontier_gain_bundle(
         and 0.5 < float(prereg["target_power"]) <= 0.999
         else 0.0
     )
-    achieved_power: dict[str, float] = {}
-    effective_sample: dict[str, int] = {}
-    for domain, observations in paired.items():
-        if len(observations) < min_trials:
-            reasons.append(f"{domain}:underpowered")
-        # ACHIEVED power, recomputed from the trials that survived admission.
-        # A domain can hold its preregistered trial count and still have lost
-        # every disagreement that carried information, and the count alone
-        # cannot see that.
-        # Independence is counted in FAMILIES, not rows. Forty paraphrases of
-        # one problem are one problem's worth of evidence however many
-        # discordant pairs they generate, so a family contributes at most one.
-        seen_families = {task_families.get(obs.task_id, "") for obs in observations}
-        if "" in seen_families:
-            reasons.append(f"{domain}:task_family_unassigned")
-            seen_families.discard("")
-        effective_sample[domain] = len(seen_families)
-        if len(seen_families) < min_trials:
-            reasons.append(f"{domain}:effective_sample_below_minimum")
-        discordant = len(
-            {
-                task_families.get(observation.task_id, "")
-                for observation in observations
-                if bool(observation.treatment_success)
-                != bool(observation.control_success)
-            }
-            - {""}
-        )
-        power = (
-            _exact_mcnemar_power(discordant, prereg_alpha, prereg_win_share)
-            if prereg_win_share > 0.5
-            else 0.0
-        )
-        achieved_power[domain] = round(power, 6)
-        if prereg_target_power and power < prereg_target_power:
-            reasons.append(f"{domain}:achieved_power_below_target")
-        balance = order_by_domain.get(domain, {})
-        admitted_here = balance.get("treatment_first", 0) + balance.get("control_first", 0)
-        # PER-DOMAIN balance. A run balanced overall can still have given one
-        # domain the treatment first every time, and a domain is the unit the
-        # claim is made about.
-        if admitted_here and abs(
-            balance["treatment_first"] - balance["control_first"]
-        ) > max(1, math.ceil(admitted_here * 0.10)):
-            reasons.append(f"{domain}:run_order_imbalanced")
-    admitted_order_total = sum(
-        counts["treatment_first"] + counts["control_first"]
-        for counts in order_by_domain.values()
-    )
-    admitted_treatment_first = sum(
-        counts["treatment_first"] for counts in order_by_domain.values()
-    )
-    admitted_control_first = admitted_order_total - admitted_treatment_first
-    if admitted_order_total and abs(
-        admitted_treatment_first - admitted_control_first
-    ) > max(1, math.ceil(admitted_order_total * 0.10)):
-        reasons.append("run_order_imbalanced")
-    # THRESHOLD SENSITIVITY. The gain is a step function of where the pass
-    # line sits, and the line was preregistered — but preregistering a number
-    # does not make the result robust to it. If moving the line a little in
-    # either direction erases or reverses the gain, the claim is about the
-    # line rather than about the treatment.
-    fragile_thresholds: list[float] = []
-    band = prereg.get("threshold_sensitivity_band")
-    if (
-        scored_pairs
-        and success_threshold > 0.0
-        and _finite_number(band)
-        and 0.0 < float(band) <= 0.25
-    ):
-        low = max(0.0, success_threshold - float(band))
-        high = min(1.0, success_threshold + float(band))
-        # The gain only changes at an observed score, so evaluating at the
-        # band edges plus every score inside it is EXACT, not a sample.
-        candidates = {low, high, success_threshold}
-        for treatment_score, control_score in scored_pairs:
-            for score in (treatment_score, control_score):
-                if low <= score <= high:
-                    candidates.add(score)
-        for candidate in sorted(candidates):
-            gain = math.fsum(
-                int(treatment_score >= candidate) - int(control_score >= candidate)
-                for treatment_score, control_score in scored_pairs
-            ) / len(scored_pairs)
-            if gain <= 0.0:
-                fragile_thresholds.append(round(candidate, 6))
-        if fragile_thresholds:
-            reasons.append("outcome_threshold_fragile")
-    # Balance answers "did both orders run?", never "did order matter?".
-    # If the paired gain lives in one order and vanishes in the other, order
-    # is a rival explanation for the whole result.
-    order_effect = 0.0
-    if order_effect_samples["treatment_first"] and order_effect_samples["control_first"]:
-        order_effect = abs(
-            (
-                math.fsum(order_effect_samples["treatment_first"])
-                / len(order_effect_samples["treatment_first"])
-            )
-            - (
-                math.fsum(order_effect_samples["control_first"])
-                / len(order_effect_samples["control_first"])
-            )
-        )
-        max_order_effect = prereg.get("max_order_effect")
-        if _finite_number(max_order_effect) and 0.0 < float(max_order_effect) <= 0.5:
-            if order_effect > float(max_order_effect):
-                reasons.append("order_effect_exceeds_preregistered_maximum")
-    elif admitted_order_total:
-        # One order never ran on an admitted trial, so no order effect can be
-        # estimated at all. Silence here would read as "no effect found".
-        reasons.append("order_effect_unmeasurable")
+    achieved_power, effective_sample = _verify_frontier_gain_bundle_achieved_power(min_trials, order_by_domain, paired, prereg_alpha, prereg_target_power, prereg_win_share, reasons, task_families)
+    fragile_thresholds, order_effect = _verify_frontier_gain_bundle_admitted_order_total(order_by_domain, order_effect_samples, prereg, reasons, scored_pairs, success_threshold)
 
     task_issuer_id, task_commitment_attestation_sha256 = _validate_task_commitment(
         bundle,
@@ -2406,40 +2459,7 @@ def verify_frontier_gain_bundle(
     except (TypeError, ValueError, OverflowError, RecursionError):
         evidence_hash = ""
         reasons.append("evidence_payload_not_canonical_json")
-    # CP126 89ca4271 + 9cccfcb5: a signature says who wrote a timestamp, never
-    # when the event happened. Both the preregistration and the task
-    # commitment have to be in an append-only log whose root was pinned out of
-    # band, and logged before the work they claim to precede.
-    anchors = bundle.get("timestamp_anchors")
-    anchors = anchors if isinstance(anchors, dict) else {}
-    prereg_logged_at = _validate_timestamp_anchor(
-        anchors.get("preregistration"),
-        event="preregistration",
-        committed_data=str(bundle.get("preregistration_sha256") or ""),
-        trusted_logs=trusted_transparency_logs,
-        reasons=reasons,
-    )
-    if (
-        prereg_logged_at is not None
-        and math.isfinite(earliest_task_generated_at)
-        and prereg_logged_at > earliest_task_generated_at
-    ):
-        # The preregistration reached the log after tasks already existed, so
-        # it could have been written to fit them.
-        reasons.append("preregistration_logged_after_task_generation")
-    commitment_logged_at = _validate_timestamp_anchor(
-        anchors.get("task_commitment"),
-        event="task_commitment",
-        committed_data=str(bundle.get("task_commitment_sha256") or ""),
-        trusted_logs=trusted_transparency_logs,
-        reasons=reasons,
-    )
-    if (
-        commitment_logged_at is not None
-        and math.isfinite(earliest_evaluation_started_at)
-        and commitment_logged_at > earliest_evaluation_started_at
-    ):
-        reasons.append("task_commitment_logged_after_evaluation_started")
+    commitment_logged_at, prereg_logged_at = _verify_frontier_gain_bundle_cp126_ca4271_cccfcb5(bundle, earliest_evaluation_started_at, earliest_task_generated_at, reasons, trusted_transparency_logs)
 
     verified_producer_id, producer_organization = _validate_producer_identity(
         bundle,

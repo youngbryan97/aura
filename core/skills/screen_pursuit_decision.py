@@ -113,6 +113,786 @@ from .screen_pursuit_surface import (
     )
 
 
+async def _decide_the_next_move_how_long_whole(anchor, costs, responds, target_app):
+    from .screen_pursuit import _whats_on_top
+    # How long a whole move takes when she does not stop to put it into
+    # words. Measured between the starts of two cycles, so it is the
+    # reading, the deciding and the act — which is what a pass is being
+    # weighed against.
+    _began_deciding = time.monotonic()
+    if costs["at"] > 0.0:
+        costs["cycle_s"] += _began_deciding - costs["at"]
+        costs["cycles"] += 1.0
+    if costs["at"] > 0.0 and costs.get("was_quiet"):
+        costs["quiet_s"] += _began_deciding - costs["at"]
+        costs["quiet"] += 1.0
+    costs["at"] = _began_deciding
+    costs["was_quiet"] = 0.0
+    # The moves really on offer, named before anything can ask for them.
+    #
+    # A caller with its own policy skips the whole deliberation, and the
+    # part that decides how far to commit reads this — so hoisting one
+    # line out of the branch that used to guard it turned a policy-driven
+    # run into UnboundLocalError on its first move.
+    available: list[Any] = []
+    # Something in front of her work is cleared before anything else.
+    #
+    # Not once it has cost her four moves discovering that nothing
+    # answers: a dialog that owns the keyboard makes every reading and
+    # every keystroke of this cycle meaningless, and a person closes it
+    # and carries on rather than playing on underneath it.
+    # Over the part of the screen she is using, not merely above her
+    # window. Before the answering part is worked out this is None and
+    # anything on top counts, which is the honest reading while she does
+    # not yet know where the task lives.
+    in_front = await _whats_on_top(
+        target_app or anchor["app"], over=responds["state"].band()
+    )
+    return available, in_front
+
+async def _decide_the_next_move_what_she_looking(anchor, drawn, narrate, observation, responds, target_app):
+    from .screen_pursuit import _tell
+    # What she is looking at, kept to the part that answers to her.
+    #
+    # A reading of a screen is everything on it. On the page holding a
+    # game that is the board, the score, two advertising rails and a
+    # copyright line, so what she recalls about "a situation like this
+    # one" is dominated by whichever advertisement was loaded — and two
+    # readings of the same board look like different situations because
+    # the advertising rotated under her.
+    #
+    # Which part is the task is not written anywhere on the page, but it
+    # is answered by what happens when she acts. Until enough acts have
+    # answered it, this is the whole reading, because a guess about where
+    # the task is would be worse.
+    if not drawn["asked"]:
+        drawn["asked"] = True
+        from core.perception.what_the_page_says import where_the_drawing_is
+
+        drawn["where"] = await where_the_drawing_is()
+        if drawn["where"] and narrate:
+            _tell("The page told me where it is drawing — I will look there.")
+
+    # Where the task lives, asked rather than worked out, when it can be.
+    #
+    # The band is normally learned: act, look, and see which places
+    # changed. That is right for anything that cannot be questioned, and
+    # slow — it takes many moves, and until it settles she is reading
+    # browser tabs and advertising rails as part of the thing. A page that
+    # draws its content can say exactly where it draws, and then she knows
+    # on the first cycle what would otherwise take twenty.
+    #
+    # LIVE 2026-08-29: play2048.co draws its board on a canvas. She was
+    # reading the whole screen and finding five of the sixteen places on
+    # it, and no model ever formed.
+    # Not applied twice. When the reading IS the part, every position in
+    # it is already a share of that part, and filtering again would cut
+    # the thing down by its own outline.
+    already = str(observation.get("read_within") or "") == "the part"
+    band = None if already else (drawn["where"] or responds["state"].band())
+    # Whether this reading is OF the thing rather than of everything.
+    #
+    # It was read off "is there a band", which stopped meaning that the
+    # moment a reading could be scoped by photographing only the part —
+    # then the band is None BECAUSE she is already looking at the right
+    # place, and every guard that tested for one read it as the opposite.
+    # She played on without learning anything from a board she was finally
+    # reading properly.
+    # And a picture taken through somebody else's window is not a
+    # reading of the thing however well it is scoped or cropped.
+    looking_at_the_thing = (already or band is not None) and _was_of_that_window(
+        observation, target_app or anchor["app"]
+    )
+    return band, looking_at_the_thing
+
+async def _decide_the_next_move_seen(band, coming, in_the_way, observation, responds, target_app):
+    from .screen_pursuit import logger
+    from core.cognition.what_nobody_could_show import WhatIsHidden
+    from core.perception.where_it_responds import within
+    seen = within(observation, band, responds["state"])
+    # Which places answer to her, not merely their outline. See
+    # what_is_there: furniture inside the outline defines columns the
+    # board does not have, and a rule about sliding along a row cannot
+    # match rows that are not the board's.
+    lattice = responds["lattice"]
+    # Which of the things that could be wrong is left, from what has been
+    # ruled out. Evidence from a failure to produce settles several
+    # candidates at once where a sighting settles one.
+    why_not = WhatIsHidden(
+        candidates=("nothing there", "something over it", "it has ended", "she is early"),
+        parties=("the reading", "the band", "the rule"),
+    )
+    if observation.get("layout"):
+        why_not.could_not_produce("the reading", ["nothing there"])
+    if not responds["state"].nothing_answers():
+        why_not.could_not_produce("the band", ["it has ended"])
+    if not responds["lattice"].looks_covered():
+        why_not.could_not_produce("the rule", ["something over it"])
+    if lattice.looks_covered() and not in_the_way["last"]:
+        # Something is over the thing, and reading through it gives an
+        # answer that looks well formed and is wrong.
+        logger.info(
+            "something is sitting over what she is reading (%s)",
+            why_not.describe(),
+        )
+        # Something that has come before, and what it wanted when it did.
+        coming.it_came(
+            "something over the thing",
+            at=time.monotonic(),
+            needing=["her own window away", "the thing brought forward"],
+        )
+        await _put_her_own_window_away()
+        if target_app:
+            await _bring_the_thing_back_to_the_front(target_app)
+    return lattice, seen
+
+def _decide_the_next_move_part_4(knows, lattice, move_keys, responds):
+    from .screen_pursuit import logger
+    from core.perception.the_lattice_she_holds import TheLatticeSheHolds
+    from core.perception.what_moves_within_itself import MovesWithinItself
+    from core.perception.where_it_responds import the_places_that_answer
+    if lattice.has_changed():
+        # Several readings in a row that will not go into it is the thing
+        # having been replaced — a new game, a resized window — rather than
+        # a run of poor glances.
+        logger.info("what she was looking at has changed shape")
+        responds["lattice"] = lattice = TheLatticeSheHolds()
+        responds["moving"] = MovesWithinItself()
+    answering = the_places_that_answer(responds["state"])
+    # And of those, the ones whose contents move about rather than arrive.
+    #
+    # LIVE 2026-08-31, on the native app with a clean reading of one
+    # window: the tiles landed on columns 0, 3, 4 and 6 of a nine-column
+    # lattice, because a score and a title answer to her too and their
+    # positions were defining columns the board has not got. Five attempts
+    # to tell them apart inside one frame all failed, and had to: in one
+    # picture a board and a score panel are the same object.
+    moving = responds["moving"]
+    if moving.settled():
+        itself = moving.the_thing_itself()
+        if itself:
+            # Not intersected with the band. The band is where things
+            # happen and a score happens as reliably as a board does, so
+            # intersecting throws away places this found and the band
+            # missed, for nothing. Measured on a full run of the chain:
+            # intersecting gave three places and a two-by-two reading.
+            answering = itself
+            # And those places, gathered over acts rather than read off
+            # one glance, are what the grid is built from.
+            was = (responds["lattice"].rows, responds["lattice"].columns)
+            if responds["lattice"].built_from(
+                itself,
+                moving.acts,
+                # A grid worked out from what moves cannot be believed
+                # until she has moved every way she can.
+                tried=responds["state"].tried,
+                available=move_keys,
+            ):
+                now = (responds["lattice"].rows, responds["lattice"].columns)
+                if was != now and knows.rules is not None:
+                    # Everything counted while the grid was the wrong
+                    # shape was counted about a thing that does not exist.
+                    knows.rules.learned_through_a_different_reading()
+        # And which of its places only report, told rather than re-derived.
+        #
+        # The rule learner works this out for itself, and needs many
+        # observations to do it — while every observation it is learning
+        # from is scored against a rule that is wrong about a score every
+        # single time. So it could not get the evidence until it had the
+        # answer. This split is worked out from the same acts and settles
+        # far sooner. Measured on a board with a score above it: the right
+        # rule scored nought out of five.
+        reporting = moving.the_things_that_report()
+        if reporting and knows.rules is not None:
+            told = knows.rules.told_these_report(
+                _placed_in(responds["lattice"], reporting)
+            )
+            if told:
+                logger.info(
+                    "%d place(s) only report; they are not hers to move", told
+                )
+    return answering, lattice
+
+def _decide_the_next_move_laid_out(confirmed_here, got_to, lattice, moves, pending, whole):
+    from .screen_pursuit import logger
+    laid_out = _the_thing_she_is_acting_in(
+        whole,
+        lattice,
+        like=_worth_holding(
+            pending["arranged"], pending["whole"], pending.setdefault("shapes", {})
+        ),
+    )
+    # A frame to work in while the one she will believe is still settling.
+    #
+    # The grid she trusts is built from the places that answer to her,
+    # gathered over acts, and it is right to make that wait until the set
+    # has stopped growing. What it costs is the whole of the beginning:
+    # the set takes on about a place an act, so it is rarely still, and
+    # until it is there is no frame — so no two readings are comparable,
+    # so nothing is learned from the moves she is making meanwhile.
+    # Measured on a run through her own reasoning: three of twenty-nine
+    # moves reached the rule.
+    #
+    # The crop is a second source and a better-behaved one. It sees the
+    # whole of a thing laid out in one glance rather than accumulating it,
+    # so two glances of a steady board offer the same lines and it settles
+    # in a couple of cycles. Offered through the same settling rule, and
+    # replaced the moment the places that answer settle into something
+    # else, because that one is about what she can act on and this one is
+    # only about what is drawn.
+    if not lattice.held and _is_a_thing_laid_out(laid_out):
+        down, across = laid_out.down_at, laid_out.across_at
+        if len(down) >= 2 and len(across) >= 2:
+            corners = [
+                (int(round(x * 100)), int(round(y * 100)))
+                for y in down
+                for x in across
+            ]
+            if lattice.built_from(corners, len(moves)):
+                logger.info(
+                    "holding the frame she can see, for now: %dx%d",
+                    lattice.rows, lattice.columns,
+                )
+
+    # Is this the thing she was asked to act in.
+    #
+    # Checked before a key is pressed rather than after, because a
+    # keystroke into the wrong window is not something a later cycle can
+    # take back.
+    # How far the way in got last time, replayed rather than rethought.
+    if not confirmed_here["value"] and got_to.frontier:
+        logger.info("the way in, as far as it went before: %s", got_to.describe())
+    return laid_out
+
+async def _decide_the_next_move_part_6(anchor, confirmed_here, expect_page, open_page, seen, target_app):
+    confirmed_here["value"] = am_i_there(
+        open_page or expect_page, seen, anchor["page"], anchor["app"]
+    )
+    if confirmed_here["value"]:
+        # Arriving at a window is not the same as reading it.
+        #
+        # This check is about identity — the address, the title, the
+        # name of the window — and it is right to be: words on a
+        # screen can be borrowed from anyone's window. But the pixels
+        # she then reads are whatever is drawn on top, and her own
+        # interface is drawn on top of everything by design. LIVE
+        # 2026-08-31: Chrome held the address she was sent to, she
+        # confirmed she was there, and every reading for eighteen
+        # moves was of her own panels — LIVE NEURAL FEED, TELEMETRY,
+        # MEMORY, SETTINGS. She pressed keys into herself and her
+        # predictions about what would change were correct.
+        #
+        # So before the first key: her own window goes away and the
+        # thing is asked to the front. Asking alone is not enough —
+        # hers is drawn above everything and comes straight back —
+        # and putting hers away alone leaves the wrong window
+        # frontmost. Both, in that order, are what make the pixels
+        # agree with the identity.
+        await _put_her_own_window_away()
+        await _bring_the_thing_back_to_the_front(anchor["app"] or target_app)
+
+def _decide_the_next_move_world_where_she(expected, far, in_flight, laid_out, observation, pending, previous, responds):
+    from .screen_pursuit import logger
+    # Was the world where she said it would be? That is what decides
+    # how far she goes next time, and it is the only thing that does.
+    in_flight.it_landed(previous.chosen.name if previous.chosen else "")
+    if expected["took"] >= 1 and expected["after"] is not None:
+        # Came out, meaning nothing she predicted is missing. Not
+        # meaning identical: in a world that deals a tile after every
+        # move of hers, the board she predicted is never the board
+        # that is there, and asking for identical is asking for a run
+        # that can never come out. What matters is whether her acts
+        # did what she thought — an arrival she never claimed to know
+        # about is the world's business, and she has somewhere else
+        # to put those.
+        said = {
+            (one.row, one.column): one.says
+            for one in getattr(expected["after"], "cells", ())
+        }
+        really = {
+            (one.row, one.column): one.says
+            for one in getattr(laid_out, "cells", ())
+        }
+        same = bool(said) and all(
+            really.get(where) == what for where, what in said.items()
+        )
+        (far.it_was_where_she_said if same else far.it_was_not)(
+            expected["took"]
+        )
+        if not same:
+            logger.info("the run did not come out: %s", far.describe())
+        expected["after"], expected["took"] = None, 0
+    # What leaning on these acts has come to. The tally she found on
+    # the screen herself is the measure where there is one, because
+    # nobody has told her what progress is and something on the screen
+    # has been keeping score the whole time.
+    rose = _how_much_the_tally_moved(
+        responds["moving"], pending["watched"], observation
+    )
+    return rose
+
+def _decide_the_next_move_what_true_time(attempt, can_do, confirmed_here, in_the_way, opens, previous, responds):
+    from .screen_pursuit import logger
+    from core.cognition.two_ways_out import how_long_it_holds
+    # And what was true at the time, so an act that does nothing
+    # can become an act that needs something.
+    opens.she_tried(
+        previous.chosen.name,
+        holding=[
+            one
+            for one in (
+                "the thing in front" if confirmed_here["value"] else "",
+                "nothing over it" if not in_the_way["last"] else "",
+                "a grid she trusts" if responds["lattice"].held else "",
+            )
+            if one
+        ],
+        it_worked=bool(attempt.verdict.observed_change),
+    )
+    # Whether she is alive here or merely still going. Two acts
+    # that work are two ways out; one is a thing standing until
+    # something takes it.
+    stands = how_long_it_holds(
+        can_do,
+        ways_out=lambda one: [
+            name for name in one.told if one.does_something(name)
+        ]
+        if hasattr(one, "told") and hasattr(one, "does_something")
+        else [],
+        room=lambda one: len(getattr(one, "told", ()) or ()),
+    )
+    if not stands.alive and stands.ways_out == 1:
+        logger.info("one way out here: %s", stands.describe())
+
+def _decide_the_next_move_her_own_move(dropped, looking_at_the_thing, pending, previous, responds):
+    # Her own move, and what it did. Three things she already had and
+    # threw away after one glance, which is why she could never try a
+    # move without making it.
+    # Learned from the part that answers to her, once she knows which
+    # part that is.
+    #
+    # Before the band settles a reading is the whole page — the tabs,
+    # the address, the score, a Give Feedback button — and no rule
+    # about what her own act moves can match one. Learning from it
+    # anyway fills the counters with failures that then take longer to
+    # recover from than starting clean. LIVE 2026-08-26: nineteen
+    # moves in, every hypothesis discredited, and she was choosing
+    # blind on a board she could read perfectly well.
+    if (
+        pending["arranged"] is not None
+        and previous.chosen is not None
+        and not looking_at_the_thing
+    ):
+        dropped["not the thing itself"] += 1
+    # And nothing is learned from acts the world was not taking.
+    #
+    # A move that changed nothing is evidence about that move only
+    # while other moves are changing things — then it means "not
+    # here", which is worth knowing. When NOTHING she does changes
+    # anything, it means the thing has ended, and none of it is
+    # evidence about how the thing works.
+    #
+    # Measured live 2026-09-02, three games back to back on the real
+    # app. The first went well: she began already knowing the rule at
+    # 71%, looked ahead on 178 of 220 moves, three moves changed
+    # nothing, and she reached 512. Then it finished, and she went on
+    # pressing keys at a finished board: seventy-eight of eighty-three
+    # moves changed nothing, and what she wrote down at the end was
+    # "this does not move", right 98% of 62 — over a rule that had
+    # been confirmed 236 times. The third game began holding that,
+    # looked ahead on nothing at all, and was over in fifteen moves.
+    #
+    # So one ended game undid everything she knew and cost her the
+    # two after it. What she keeps is only as good as her refusing to
+    # learn from a world that has stopped answering.
+    if (
+        pending["arranged"] is not None
+        and previous.chosen is not None
+        and looking_at_the_thing
+        and responds["state"].nothing_answers()
+    ):
+        dropped["the thing had stopped answering"] += 1
+
+def _decide_the_next_move_part_10(dropped, expected, knows, laid_out, pending, plan, previous, responds, success_when):
+    if expected["took"] > 1:
+        # Several acts, one reading. Which of them did what cannot
+        # be told from a board seen only at the end, and crediting
+        # the first is not weak evidence — it is a claim about an
+        # act that did not produce this.
+        #
+        # LIVE 2026-09-02, the sitting that first went more than
+        # one act between looks: a rule carried in at 82% fell to
+        # one right out of sixty four, because every pair she
+        # learned from named the wrong act.
+        dropped["more than one act, one reading"] += 1
+    elif _in_the_same_grid(
+        responds["lattice"], pending["arranged"], laid_out
+    ):
+        knows.watched(pending["arranged"], previous.chosen.name, laid_out)
+    else:
+        # Counted, because it used to be silent.
+        #
+        # A pair thrown away here is a move she made and learned
+        # nothing from, and nothing said so. LIVE 2026-08-31:
+        # fifty-four moves, one of them watched, and the only
+        # trace was a line saying how this moves is not worked out
+        # yet — which reads as a hard world rather than as
+        # evidence going missing on the way to the learner.
+        dropped["a different frame"] += 1
+    # And whether it left her better off, against the kind of
+    # position it was made from. This is experience turning into
+    # skill: the same triple she learns the world's rules from
+    # also says which move is worth making again from a shape
+    # like that one.
+    went_well = _left_her_better_off(
+        pending["arranged"],
+        laid_out,
+        success_when,
+        plan["held"].approach if plan["held"] is not None else "",
+    )
+    return went_well
+
+def _decide_the_next_move_what_she_what(began_at, cannot_explain, laid_out, narrate, pending, plan, success_when, trying):
+    from .screen_pursuit import _tell
+    # What she was in, what she made of it, and what it came to.
+    #
+    # Two situations she scores alike, one of which went on to do
+    # much better, is a difference her measure cannot account for —
+    # and the only honest place a property nobody wrote can come
+    # from. Gathered here because this is where both halves exist.
+    from core.agency.how_good_is_this import (
+        how_good as _how_good,
+    )
+    from core.agency.how_good_is_this import (
+        how_the_trial_is_going as _how_the_trial_is_going,
+    )
+
+    _worth_here = sum(laid_out.numbers() or (0.0,))
+    if began_at["worth"] is None:
+        began_at["worth"] = _worth_here
+    began_at["seen"] += 1
+    _for = success_when or _what_there_is_to_aim_at(laid_out)
+    if pending["arranged"] is not None and _for:
+        cannot_explain.been_here(
+            pending["arranged"],
+            _how_good(
+                pending["arranged"],
+                toward=_for,
+                approach=plan["held"].approach if plan["held"] is not None else "",
+            ),
+            _worth_here,
+        )
+    if trying["name"]:
+        verdict = _how_the_trial_is_going(trying["name"], _worth_here)
+        if verdict:
+            if narrate:
+                _tell(
+                    f"{trying['name']} {'earned its place' if verdict == 'kept' else 'did not earn its place'}."
+                )
+            trying["name"] = ""
+
+def _decide_the_next_move_part_12(furthest, laid_out, pending, plan, previous, responds, skilled, success_when):
+    skilled.learned(
+        pending["arranged"].as_shape(),
+        previous.chosen.name,
+        _left_her_better_off(
+            pending["arranged"],
+            laid_out,
+            success_when,
+            plan["held"].approach if plan["held"] is not None else "",
+        ),
+    )
+    # And when she has just built the biggest thing she has ever
+    # built here, which is the thing somebody watching came for.
+    # Only once she knows what the thing itself is. Before the
+    # grid settles the reading is the whole window, and the
+    # largest number in it is somebody's best score: LIVE
+    # 2026-09-04, "I have a 5292 on the board" on a board holding
+    # a 4 and two 2s.
+    # And not from a reading taken after it stopped answering.
+    #
+    # What is on the screen then is an ending — an overlay, a
+    # score, a way to begin again — and its words land in the
+    # board's places like anything else. LIVE 2026-09-04: "A
+    # 11619 — the biggest I have made here", said over a finished
+    # game whose best tile was 128.
+    made = (
+        _the_biggest_thing_on_it(
+            laid_out,
+            _placed_in(
+                responds["lattice"],
+                responds["moving"].the_things_that_report(),
+            ),
+        )
+        if responds["lattice"].held
+        and responds["moving"].settled()
+        and not responds["state"].nothing_answers()
+        else 0.0
+    )
+    # A record she has not been able to earn again is not one.
+    #
+    # It is written from a reading, and a reading can be wrong: a
+    # single bad one put 11619 in this record for a board whose
+    # best tile was 128, and because the record only ever goes up
+    # she could never say anything about her own progress here
+    # again. Everything else she carries comes back discounted for
+    # exactly this reason.
+    #
+    # So a carried record has to turn up again before it counts,
+    # which is the same rule the places she remembers are held to.
+    furthest["again"] = max(furthest["again"], made)
+    beaten = (
+        furthest["here"] if furthest["again"] >= furthest["here"] else furthest["again"]
+    )
+    further = _she_got_further(made, beaten)
+    return further, made
+
+def _decide_the_next_move_learned_same_measurement(anchor, attempt, observation, pending, previous, responds, target_app):
+    from core.perception.where_it_responds import noticed, places_and_text
+    # Learned from the same measurement. A move that changed nothing
+    # is the control: whatever still changed across it was changing
+    # on its own, and a page whose advertising animates as often as
+    # the task does cannot be separated any other way.
+    if pending["watched"] and _both_of_the_thing(
+        target_app or anchor["app"], pending["watched"], observation
+    ):
+        # The same places `noticed` uses, so the two sets can be
+        # intersected at all.
+        responds["moving"].saw(
+            places_and_text(pending["watched"]),
+            places_and_text(observation),
+        )
+        noticed(
+            responds["state"],
+            pending["watched"],
+            observation,
+            # Whether the act had an effect, not whether her claim
+            # about it was right.
+            #
+            # These were the same answer while the only claim a move
+            # carried was that the view would differ, and they came
+            # apart the moment a claim could say something. A move
+            # that moved the board and did not do the specific thing
+            # she predicted was being counted as a move that did
+            # nothing — the control for working out which part of the
+            # screen answers to her — so the band stopped settling and
+            # nothing downstream of it could form.
+            worked=attempt.verdict.observed_change,
+            # Which act it was, so a run of one thing doing nothing
+            # is not read as the world having ended.
+            acting=previous.chosen.name if previous.chosen is not None else "",
+        )
+
+def _decide_the_next_move_part_14(ended, holding, looking_at_the_thing, moves, plan):
+    from .screen_pursuit import logger
+    if plan["held"] is not None and holding is False:
+        logger.info("the line she was taking stopped holding: %s", ended)
+    # A pivot is immediate; a first attempt is not retried every move.
+    #
+    # The condition breaking is news and is worth the pass that
+    # answers it. Having no stated approach yet is not news, and a run
+    # that asks for one every cycle pays a full language pass per move
+    # for an answer that was not there last time either.
+    # Asked when there is something to base an approach on.
+    #
+    # This asked on the first cycle, when the only thing she has seen
+    # is a whole screen: on a page holding a game that is the board,
+    # the score, the browser's own tabs and bookmarks, an "Ask Gemini"
+    # button and a copyright line. Live 2026-08-26, she was asked how
+    # she would play and answered by reading the page back, three
+    # runs in a row, because that is what the question was about.
+    #
+    # The part of the screen that answers to her is known a few moves
+    # in, from what changed when she acted. That is the first moment
+    # the question has a subject. The count is still a backstop, so a
+    # screen that never resolves into anything is not a screen she
+    # goes on playing with no line at all.
+    # A pivot costs a move: she cannot judge a line she never tried.
+    #
+    # The condition on a fresh approach is checked on the very next
+    # cycle, before she has acted under it, and an anchor bound to a
+    # tile that merges away breaks at once. Live 2026-08-26: ten
+    # approaches decided for nine moves made, each one a full pass at
+    # her reasoning, and the run spent its whole budget deciding how
+    # to play rather than playing.
+    tried_it = len(moves) > plan["asked_at"]
+    time_to_ask = (
+        holding is False
+        and plan["held"] is not None
+        and tried_it
+        or len(moves) - plan["asked_at"] >= _ask_again_after(plan["asked_at"])
+        or (plan["asked_at"] < 0 and looking_at_the_thing)
+    )
+    return time_to_ask
+
+def _decide_the_next_move_nothing_task_working(can_do, move_keys, observation, offered_a_restart, responds):
+    from .screen_pursuit import logger
+    # When nothing in the task is working, the task itself becomes a
+    # choice. Both ways out are hers, and both are recorded as
+    # decisions with reasons rather than happening to her.
+    available = screen_options(can_do.available() or move_keys)
+    # The ways out are offered when what she is doing has stopped
+    # working, and when the thing itself has stopped responding.
+    #
+    # Two different facts. Predictions breaking says her moves are
+    # wrong; nothing answering at all says the attempt is over — a
+    # finished game, an expired session, a form already submitted.
+    # Measured live: she played to Game Over and went on pressing
+    # arrow keys into a dead board, because a run of broken
+    # predictions had not accumulated in the way the first test
+    # wanted.
+    # Nothing is answering. WHICH of the three is it?
+    #
+    # "Nothing I do changes anything" is a good ending test and a poor
+    # diagnosis: it is equally true of a finished game, a dialog over
+    # the board, and somebody else's window in front. Those want
+    # opposite responses, and collapsing them is what had her pressing
+    # keys into a finished board and narrating moves as though a game
+    # were happening. LIVE 2026-08-29: the page said "Game Over, 940
+    # points scored in 100 moves" and she went on saying "Going right".
+    ended = responds["state"].nothing_answers()
+    # A way to start again, offered where there was none before, is the
+    # thing saying it has finished.
+    #
+    # The other test asks whether what she was acting on is gone, and
+    # on a board that keeps its tiles under a "Play Again" overlay it
+    # never fires — so she went on pressing keys into a game that was
+    # over, which is the failure it exists to prevent. A control that
+    # appears only at the end is better evidence than the absence of
+    # one, and it is general: a finished form, an expired session and
+    # a lost game all put one up.
+    ways_back = restart_controls(observation)
+    appeared = a_way_back_that_was_not_there(
+        ways_back, offered_a_restart["was_there"]
+    )
+    if offered_a_restart["was_there"] is None:
+        # The first reading of this task settles what counts as
+        # furniture here. Nothing before this line has been compared
+        # against, so nothing before it can have appeared.
+        offered_a_restart["was_there"] = ways_back
+    if not ended and appeared:
+        if not offered_a_restart["said"]:
+            offered_a_restart["said"] = True
+            logger.info(
+                "a way to start again has appeared, so this has ended"
+            )
+        ended = True
+    return available, ended
+
+def _decide_the_next_move_act_has_done(available, knows, laid_out, reaches, responds, stretch):
+    from .screen_pursuit import logger
+    # And an act that has done nothing since the last time anything
+    # happened is not the act to take again.
+    #
+    # "It has worked here before" is a lifetime record; the board in
+    # front of her is now. LIVE 2026-09-04: fifteen presses of up
+    # into a board with nothing above anything, each one chosen
+    # because up had worked earlier in the same game.
+    #
+    # The record clears the moment anything answers, so this is the
+    # freshest evidence there is about the next move — and it never
+    # empties the choice, because every act failing is the thing
+    # having ended, which is judged elsewhere.
+    doing_nothing = responds["state"].unanswered_by
+    if doing_nothing:
+        still_worth = [
+            one for one in available if one.name not in doing_nothing
+        ]
+        if still_worth:
+            available = still_worth
+
+    # And of what is left, the one she reaches for.
+    #
+    # Watching somebody clear 2048: two of the four keys, almost
+    # exclusively, and a third only when the board left them nothing
+    # else. Measured on the game, leaning on two of the four reaches
+    # more than twice what taking any legal move reaches, and beats
+    # every property of the board she could have held instead. It is
+    # not a fact about the board, so looking at the board never finds
+    # it; it is found by leaning on things and seeing what came of it.
+    foreseeable = [
+        one.name
+        for one in available
+        if _somewhere_else(laid_out, one.name, _expects(knows)) is not None
+    ] if laid_out is not None and _expects(knows) is not None else []
+    if foreseeable:
+        if not reaches.leaning_on:
+            took_up = reaches.start_a_stretch(foreseeable)
+            if took_up:
+                logger.info("leaning on %s for a while", ", ".join(took_up))
+        elif stretch["rises"] >= len(reaches.ways_of_leaning(foreseeable)):
+            reaches.end_the_stretch()
+            stretch["rises"] = 0
+            reaches.start_a_stretch(foreseeable)
+        # The ones she is leaning on, not one of them.
+        #
+        # A habit that picks the member as well as the set leaves
+        # nothing for looking ahead to do: the choice arrived at the
+        # deliberation with one option in it, every move came back
+        # "the only thing available", and the search she has never
+        # ran. Leaning on two acts means those two are the moves she
+        # considers, and which the position calls for is the question
+        # the model answers.
+        wants = reaches.the_ones_to_consider(foreseeable)
+        # And it has to leave her something to consider.
+        #
+        # A leaning of one act, applied as a filter, is not a
+        # preference — it is the whole policy, and it takes her
+        # looking ahead off the board altogether: the deliberation
+        # arrives with one option and reports "the only thing
+        # available". Her search is worth far more than any leaning
+        # (offline, median 512 against 128 for taking any legal move),
+        # so a habit must never be able to replace it.
+        if len(wants) < 2:
+            wants = ()
+        if wants and len(wants) < len(foreseeable):
+            # Everything she cannot foresee stays on the table: the way
+            # out and the ways of asking are never narrowed by a habit.
+            available = [
+                one
+                for one in available
+                if one.name in wants or one.name not in foreseeable
+            ]
+    return available
+
+def _decide_the_next_move_where_move_she(ahead, aiming_at, available, goal, laid_out, marks, wont):
+    from .screen_pursuit import logger
+    from core.cognition.when_the_move_is_forbidden import a_way_round
+    # And where the move she wants is not one she may make, something
+    # elsewhere that obliges the world to let her.
+    if wont and ahead:
+        blocked = [one for one in ahead if one in wont]
+        if blocked:
+            round_it = a_way_round(
+                blocked[0],
+                allowed=lambda one: one not in wont,
+                elsewhere=[option.name for option in available],
+                they_must_answer=lambda one: float(ahead.get(one, (0.0, ""))[0]),
+                after_they_answer=lambda one: None,
+                worth_of_the_fight=0.0,
+            )
+            if round_it.found and round_it.spend_a_turn_on in ahead:
+                logger.info("cannot take %s — %s", blocked[0], round_it.describe())
+
+    # And a routine move in a fast loop does not always need words.
+    #
+    # What a thought is worth here, rather than how long since the
+    # last one. A counter cannot tell a forced move from the one that
+    # decides the shape of the next thirty, so it spends the same on
+    # both and is wrong about both.
+    # What has worked before from a position of this kind, if anything.
+    #
+    # Recognition is what frees her from deciding. Where it disagrees
+    # with the arithmetic, that disagreement is the surest sign this
+    # position is not the routine one it looked like, and it buys a
+    # thought rather than saving one.
+    kind = laid_out.as_shape() if laid_out is not None else ""
+    # A mark where she has been, so a place is recognised rather than
+    # recalled — and so the way back is on the ground.
+    if kind:
+        marks.she_marked(kind, saying=aiming_at or goal)
+    return kind
+
 async def decide_the_next_move(
     observation: dict[str, Any],
     run: SimpleNamespace,
@@ -141,21 +921,11 @@ async def decide_the_next_move(
     from core.cognition.a_shape_that_makes_it_safe import what_makes_it_safe
     from core.cognition.a_window_not_a_maximum import AWindow, which_act_lands_in_it
     from core.cognition.enough_rather_than_most import the_one_most_likely_to_do
-    from core.cognition.two_ways_out import how_long_it_holds
-    from core.cognition.what_nobody_could_show import WhatIsHidden
     from core.cognition.what_she_cannot_afford_to_lose import what_she_cannot_afford_to_lose
-    from core.cognition.when_the_move_is_forbidden import a_way_round
     from core.cognition.when_to_say_it_outright import whether_to_say_it
     from core.perception.how_it_moves import HowItMoves
-    from core.perception.the_lattice_she_holds import TheLatticeSheHolds
-    from core.perception.what_moves_within_itself import MovesWithinItself
     from core.perception.what_the_world_does import WhatTheWorldDoes
-    from core.perception.where_it_responds import (
-        noticed,
-        places_and_text,
-        the_places_that_answer,
-        within,
-    )
+    from core.perception.where_it_responds import noticed, places_and_text, within
     from core.perception.why_nothing_answers import ELSEWHERE, ENDED, work_out_why
     from core.runtime.what_she_learned import recall
     from core.skills.fluid_executor import Step
@@ -249,39 +1019,7 @@ async def decide_the_next_move(
         logger,
     )
 
-    # How long a whole move takes when she does not stop to put it into
-    # words. Measured between the starts of two cycles, so it is the
-    # reading, the deciding and the act — which is what a pass is being
-    # weighed against.
-    _began_deciding = time.monotonic()
-    if costs["at"] > 0.0:
-        costs["cycle_s"] += _began_deciding - costs["at"]
-        costs["cycles"] += 1.0
-    if costs["at"] > 0.0 and costs.get("was_quiet"):
-        costs["quiet_s"] += _began_deciding - costs["at"]
-        costs["quiet"] += 1.0
-    costs["at"] = _began_deciding
-    costs["was_quiet"] = 0.0
-    # The moves really on offer, named before anything can ask for them.
-    #
-    # A caller with its own policy skips the whole deliberation, and the
-    # part that decides how far to commit reads this — so hoisting one
-    # line out of the branch that used to guard it turned a policy-driven
-    # run into UnboundLocalError on its first move.
-    available: list[Any] = []
-    # Something in front of her work is cleared before anything else.
-    #
-    # Not once it has cost her four moves discovering that nothing
-    # answers: a dialog that owns the keyboard makes every reading and
-    # every keystroke of this cycle meaningless, and a person closes it
-    # and carries on rather than playing on underneath it.
-    # Over the part of the screen she is using, not merely above her
-    # window. Before the answering part is worked out this is None and
-    # anything on top counts, which is the honest reading while she does
-    # not yet know where the task lives.
-    in_front = await _whats_on_top(
-        target_app or anchor["app"], over=responds["state"].band()
-    )
+    available, in_front = await _decide_the_next_move_how_long_whole(anchor, costs, responds, target_app)
     if in_front and in_front != in_the_way["last"]:
         in_the_way["last"] = in_front
         if await clear_what_is_in_front(in_front):
@@ -328,152 +1066,9 @@ async def decide_the_next_move(
         logger.info("no move this cycle: %s", no_move["because"])
         return None
 
-    # What she is looking at, kept to the part that answers to her.
-    #
-    # A reading of a screen is everything on it. On the page holding a
-    # game that is the board, the score, two advertising rails and a
-    # copyright line, so what she recalls about "a situation like this
-    # one" is dominated by whichever advertisement was loaded — and two
-    # readings of the same board look like different situations because
-    # the advertising rotated under her.
-    #
-    # Which part is the task is not written anywhere on the page, but it
-    # is answered by what happens when she acts. Until enough acts have
-    # answered it, this is the whole reading, because a guess about where
-    # the task is would be worse.
-    if not drawn["asked"]:
-        drawn["asked"] = True
-        from core.perception.what_the_page_says import where_the_drawing_is
-
-        drawn["where"] = await where_the_drawing_is()
-        if drawn["where"] and narrate:
-            _tell("The page told me where it is drawing — I will look there.")
-
-    # Where the task lives, asked rather than worked out, when it can be.
-    #
-    # The band is normally learned: act, look, and see which places
-    # changed. That is right for anything that cannot be questioned, and
-    # slow — it takes many moves, and until it settles she is reading
-    # browser tabs and advertising rails as part of the thing. A page that
-    # draws its content can say exactly where it draws, and then she knows
-    # on the first cycle what would otherwise take twenty.
-    #
-    # LIVE 2026-08-29: play2048.co draws its board on a canvas. She was
-    # reading the whole screen and finding five of the sixteen places on
-    # it, and no model ever formed.
-    # Not applied twice. When the reading IS the part, every position in
-    # it is already a share of that part, and filtering again would cut
-    # the thing down by its own outline.
-    already = str(observation.get("read_within") or "") == "the part"
-    band = None if already else (drawn["where"] or responds["state"].band())
-    # Whether this reading is OF the thing rather than of everything.
-    #
-    # It was read off "is there a band", which stopped meaning that the
-    # moment a reading could be scoped by photographing only the part —
-    # then the band is None BECAUSE she is already looking at the right
-    # place, and every guard that tested for one read it as the opposite.
-    # She played on without learning anything from a board she was finally
-    # reading properly.
-    # And a picture taken through somebody else's window is not a
-    # reading of the thing however well it is scoped or cropped.
-    looking_at_the_thing = (already or band is not None) and _was_of_that_window(
-        observation, target_app or anchor["app"]
-    )
-    seen = within(observation, band, responds["state"])
-    # Which places answer to her, not merely their outline. See
-    # what_is_there: furniture inside the outline defines columns the
-    # board does not have, and a rule about sliding along a row cannot
-    # match rows that are not the board's.
-    lattice = responds["lattice"]
-    # Which of the things that could be wrong is left, from what has been
-    # ruled out. Evidence from a failure to produce settles several
-    # candidates at once where a sighting settles one.
-    why_not = WhatIsHidden(
-        candidates=("nothing there", "something over it", "it has ended", "she is early"),
-        parties=("the reading", "the band", "the rule"),
-    )
-    if observation.get("layout"):
-        why_not.could_not_produce("the reading", ["nothing there"])
-    if not responds["state"].nothing_answers():
-        why_not.could_not_produce("the band", ["it has ended"])
-    if not responds["lattice"].looks_covered():
-        why_not.could_not_produce("the rule", ["something over it"])
-    if lattice.looks_covered() and not in_the_way["last"]:
-        # Something is over the thing, and reading through it gives an
-        # answer that looks well formed and is wrong.
-        logger.info(
-            "something is sitting over what she is reading (%s)",
-            why_not.describe(),
-        )
-        # Something that has come before, and what it wanted when it did.
-        coming.it_came(
-            "something over the thing",
-            at=time.monotonic(),
-            needing=["her own window away", "the thing brought forward"],
-        )
-        await _put_her_own_window_away()
-        if target_app:
-            await _bring_the_thing_back_to_the_front(target_app)
-    if lattice.has_changed():
-        # Several readings in a row that will not go into it is the thing
-        # having been replaced — a new game, a resized window — rather than
-        # a run of poor glances.
-        logger.info("what she was looking at has changed shape")
-        responds["lattice"] = lattice = TheLatticeSheHolds()
-        responds["moving"] = MovesWithinItself()
-    answering = the_places_that_answer(responds["state"])
-    # And of those, the ones whose contents move about rather than arrive.
-    #
-    # LIVE 2026-08-31, on the native app with a clean reading of one
-    # window: the tiles landed on columns 0, 3, 4 and 6 of a nine-column
-    # lattice, because a score and a title answer to her too and their
-    # positions were defining columns the board has not got. Five attempts
-    # to tell them apart inside one frame all failed, and had to: in one
-    # picture a board and a score panel are the same object.
-    moving = responds["moving"]
-    if moving.settled():
-        itself = moving.the_thing_itself()
-        if itself:
-            # Not intersected with the band. The band is where things
-            # happen and a score happens as reliably as a board does, so
-            # intersecting throws away places this found and the band
-            # missed, for nothing. Measured on a full run of the chain:
-            # intersecting gave three places and a two-by-two reading.
-            answering = itself
-            # And those places, gathered over acts rather than read off
-            # one glance, are what the grid is built from.
-            was = (responds["lattice"].rows, responds["lattice"].columns)
-            if responds["lattice"].built_from(
-                itself,
-                moving.acts,
-                # A grid worked out from what moves cannot be believed
-                # until she has moved every way she can.
-                tried=responds["state"].tried,
-                available=move_keys,
-            ):
-                now = (responds["lattice"].rows, responds["lattice"].columns)
-                if was != now and knows.rules is not None:
-                    # Everything counted while the grid was the wrong
-                    # shape was counted about a thing that does not exist.
-                    knows.rules.learned_through_a_different_reading()
-        # And which of its places only report, told rather than re-derived.
-        #
-        # The rule learner works this out for itself, and needs many
-        # observations to do it — while every observation it is learning
-        # from is scored against a rule that is wrong about a score every
-        # single time. So it could not get the evidence until it had the
-        # answer. This split is worked out from the same acts and settles
-        # far sooner. Measured on a board with a score above it: the right
-        # rule scored nought out of five.
-        reporting = moving.the_things_that_report()
-        if reporting and knows.rules is not None:
-            told = knows.rules.told_these_report(
-                _placed_in(responds["lattice"], reporting)
-            )
-            if told:
-                logger.info(
-                    "%d place(s) only report; they are not hers to move", told
-                )
+    band, looking_at_the_thing = await _decide_the_next_move_what_she_looking(anchor, drawn, narrate, observation, responds, target_app)
+    lattice, seen = await _decide_the_next_move_seen(band, coming, in_the_way, observation, responds, target_app)
+    answering, lattice = _decide_the_next_move_part_4(knows, lattice, move_keys, responds)
     # The same reading, with a place for each thing in it. What she reads
     # is the string; what her claims are checked against is this.
     # The thing she is acting on, not the page it is drawn on.
@@ -494,79 +1089,9 @@ async def decide_the_next_move(
         answering=answering,
         lattice=lattice,
     )
-    laid_out = _the_thing_she_is_acting_in(
-        whole,
-        lattice,
-        like=_worth_holding(
-            pending["arranged"], pending["whole"], pending.setdefault("shapes", {})
-        ),
-    )
-    # A frame to work in while the one she will believe is still settling.
-    #
-    # The grid she trusts is built from the places that answer to her,
-    # gathered over acts, and it is right to make that wait until the set
-    # has stopped growing. What it costs is the whole of the beginning:
-    # the set takes on about a place an act, so it is rarely still, and
-    # until it is there is no frame — so no two readings are comparable,
-    # so nothing is learned from the moves she is making meanwhile.
-    # Measured on a run through her own reasoning: three of twenty-nine
-    # moves reached the rule.
-    #
-    # The crop is a second source and a better-behaved one. It sees the
-    # whole of a thing laid out in one glance rather than accumulating it,
-    # so two glances of a steady board offer the same lines and it settles
-    # in a couple of cycles. Offered through the same settling rule, and
-    # replaced the moment the places that answer settle into something
-    # else, because that one is about what she can act on and this one is
-    # only about what is drawn.
-    if not lattice.held and _is_a_thing_laid_out(laid_out):
-        down, across = laid_out.down_at, laid_out.across_at
-        if len(down) >= 2 and len(across) >= 2:
-            corners = [
-                (int(round(x * 100)), int(round(y * 100)))
-                for y in down
-                for x in across
-            ]
-            if lattice.built_from(corners, len(moves)):
-                logger.info(
-                    "holding the frame she can see, for now: %dx%d",
-                    lattice.rows, lattice.columns,
-                )
-
-    # Is this the thing she was asked to act in.
-    #
-    # Checked before a key is pressed rather than after, because a
-    # keystroke into the wrong window is not something a later cycle can
-    # take back.
-    # How far the way in got last time, replayed rather than rethought.
-    if not confirmed_here["value"] and got_to.frontier:
-        logger.info("the way in, as far as it went before: %s", got_to.describe())
+    laid_out = _decide_the_next_move_laid_out(confirmed_here, got_to, lattice, moves, pending, whole)
     if not confirmed_here["value"]:
-        confirmed_here["value"] = am_i_there(
-            open_page or expect_page, seen, anchor["page"], anchor["app"]
-        )
-        if confirmed_here["value"]:
-            # Arriving at a window is not the same as reading it.
-            #
-            # This check is about identity — the address, the title, the
-            # name of the window — and it is right to be: words on a
-            # screen can be borrowed from anyone's window. But the pixels
-            # she then reads are whatever is drawn on top, and her own
-            # interface is drawn on top of everything by design. LIVE
-            # 2026-08-31: Chrome held the address she was sent to, she
-            # confirmed she was there, and every reading for eighteen
-            # moves was of her own panels — LIVE NEURAL FEED, TELEMETRY,
-            # MEMORY, SETTINGS. She pressed keys into herself and her
-            # predictions about what would change were correct.
-            #
-            # So before the first key: her own window goes away and the
-            # thing is asked to the front. Asking alone is not enough —
-            # hers is drawn above everything and comes straight back —
-            # and putting hers away alone leaves the wrong window
-            # frontmost. Both, in that order, are what make the pixels
-            # agree with the identity.
-            await _put_her_own_window_away()
-            await _bring_the_thing_back_to_the_front(anchor["app"] or target_app)
+        await _decide_the_next_move_part_6(anchor, confirmed_here, expect_page, open_page, seen, target_app)
         if not confirmed_here["value"]:
             not_there["reason"] = (
                 f"{(open_page or expect_page)!r} is not what is in front of me — "
@@ -611,42 +1136,7 @@ async def decide_the_next_move(
                         well=bool(attempt.progressed),
                     )
                     repeats.she_saw(kind, previous.chosen.name, laid_out)
-        # Was the world where she said it would be? That is what decides
-        # how far she goes next time, and it is the only thing that does.
-        in_flight.it_landed(previous.chosen.name if previous.chosen else "")
-        if expected["took"] >= 1 and expected["after"] is not None:
-            # Came out, meaning nothing she predicted is missing. Not
-            # meaning identical: in a world that deals a tile after every
-            # move of hers, the board she predicted is never the board
-            # that is there, and asking for identical is asking for a run
-            # that can never come out. What matters is whether her acts
-            # did what she thought — an arrival she never claimed to know
-            # about is the world's business, and she has somewhere else
-            # to put those.
-            said = {
-                (one.row, one.column): one.says
-                for one in getattr(expected["after"], "cells", ())
-            }
-            really = {
-                (one.row, one.column): one.says
-                for one in getattr(laid_out, "cells", ())
-            }
-            same = bool(said) and all(
-                really.get(where) == what for where, what in said.items()
-            )
-            (far.it_was_where_she_said if same else far.it_was_not)(
-                expected["took"]
-            )
-            if not same:
-                logger.info("the run did not come out: %s", far.describe())
-            expected["after"], expected["took"] = None, 0
-        # What leaning on these acts has come to. The tally she found on
-        # the screen herself is the measure where there is one, because
-        # nobody has told her what progress is and something on the screen
-        # has been keeping score the whole time.
-        rose = _how_much_the_tally_moved(
-            responds["moving"], pending["watched"], observation
-        )
+        rose = _decide_the_next_move_world_where_she(expected, far, in_flight, laid_out, observation, pending, previous, responds)
         if rose is not None:
             reaches.went(rose)
             if rose > 0:
@@ -696,85 +1186,11 @@ async def decide_the_next_move(
                 )
                 if shape.around and shape.established:
                     logger.debug("what made %r safe: %s", previous.chosen.name, shape.describe())
-            # And what was true at the time, so an act that does nothing
-            # can become an act that needs something.
-            opens.she_tried(
-                previous.chosen.name,
-                holding=[
-                    one
-                    for one in (
-                        "the thing in front" if confirmed_here["value"] else "",
-                        "nothing over it" if not in_the_way["last"] else "",
-                        "a grid she trusts" if responds["lattice"].held else "",
-                    )
-                    if one
-                ],
-                it_worked=bool(attempt.verdict.observed_change),
-            )
-            # Whether she is alive here or merely still going. Two acts
-            # that work are two ways out; one is a thing standing until
-            # something takes it.
-            stands = how_long_it_holds(
-                can_do,
-                ways_out=lambda one: [
-                    name for name in one.told if one.does_something(name)
-                ]
-                if hasattr(one, "told") and hasattr(one, "does_something")
-                else [],
-                room=lambda one: len(getattr(one, "told", ()) or ()),
-            )
-            if not stands.alive and stands.ways_out == 1:
-                logger.info("one way out here: %s", stands.describe())
+            _decide_the_next_move_what_true_time(attempt, can_do, confirmed_here, in_the_way, opens, previous, responds)
             if can_do.dead() and not foreseen.get("acts"):
                 foreseen["acts"] = True
                 logger.info("what works here: %s", can_do.says())
-        # Her own move, and what it did. Three things she already had and
-        # threw away after one glance, which is why she could never try a
-        # move without making it.
-        # Learned from the part that answers to her, once she knows which
-        # part that is.
-        #
-        # Before the band settles a reading is the whole page — the tabs,
-        # the address, the score, a Give Feedback button — and no rule
-        # about what her own act moves can match one. Learning from it
-        # anyway fills the counters with failures that then take longer to
-        # recover from than starting clean. LIVE 2026-08-26: nineteen
-        # moves in, every hypothesis discredited, and she was choosing
-        # blind on a board she could read perfectly well.
-        if (
-            pending["arranged"] is not None
-            and previous.chosen is not None
-            and not looking_at_the_thing
-        ):
-            dropped["not the thing itself"] += 1
-        # And nothing is learned from acts the world was not taking.
-        #
-        # A move that changed nothing is evidence about that move only
-        # while other moves are changing things — then it means "not
-        # here", which is worth knowing. When NOTHING she does changes
-        # anything, it means the thing has ended, and none of it is
-        # evidence about how the thing works.
-        #
-        # Measured live 2026-09-02, three games back to back on the real
-        # app. The first went well: she began already knowing the rule at
-        # 71%, looked ahead on 178 of 220 moves, three moves changed
-        # nothing, and she reached 512. Then it finished, and she went on
-        # pressing keys at a finished board: seventy-eight of eighty-three
-        # moves changed nothing, and what she wrote down at the end was
-        # "this does not move", right 98% of 62 — over a rule that had
-        # been confirmed 236 times. The third game began holding that,
-        # looked ahead on nothing at all, and was over in fifteen moves.
-        #
-        # So one ended game undid everything she knew and cost her the
-        # two after it. What she keeps is only as good as her refusing to
-        # learn from a world that has stopped answering.
-        if (
-            pending["arranged"] is not None
-            and previous.chosen is not None
-            and looking_at_the_thing
-            and responds["state"].nothing_answers()
-        ):
-            dropped["the thing had stopped answering"] += 1
+        _decide_the_next_move_her_own_move(dropped, looking_at_the_thing, pending, previous, responds)
         if (
             pending["arranged"] is not None
             and previous.chosen is not None
@@ -786,134 +1202,12 @@ async def decide_the_next_move(
             # world's doing, and it is free at exactly this moment.
             foretold = knows.rules.expect(pending["arranged"], previous.chosen.name)
             world.watched(foretold, knows.rules.the_thing(laid_out))
-            if expected["took"] > 1:
-                # Several acts, one reading. Which of them did what cannot
-                # be told from a board seen only at the end, and crediting
-                # the first is not weak evidence — it is a claim about an
-                # act that did not produce this.
-                #
-                # LIVE 2026-09-02, the sitting that first went more than
-                # one act between looks: a rule carried in at 82% fell to
-                # one right out of sixty four, because every pair she
-                # learned from named the wrong act.
-                dropped["more than one act, one reading"] += 1
-            elif _in_the_same_grid(
-                responds["lattice"], pending["arranged"], laid_out
-            ):
-                knows.watched(pending["arranged"], previous.chosen.name, laid_out)
-            else:
-                # Counted, because it used to be silent.
-                #
-                # A pair thrown away here is a move she made and learned
-                # nothing from, and nothing said so. LIVE 2026-08-31:
-                # fifty-four moves, one of them watched, and the only
-                # trace was a line saying how this moves is not worked out
-                # yet — which reads as a hard world rather than as
-                # evidence going missing on the way to the learner.
-                dropped["a different frame"] += 1
-            # And whether it left her better off, against the kind of
-            # position it was made from. This is experience turning into
-            # skill: the same triple she learns the world's rules from
-            # also says which move is worth making again from a shape
-            # like that one.
-            went_well = _left_her_better_off(
-                pending["arranged"],
-                laid_out,
-                success_when,
-                plan["held"].approach if plan["held"] is not None else "",
-            )
+            went_well = _decide_the_next_move_part_10(dropped, expected, knows, laid_out, pending, plan, previous, responds, success_when)
             if plan["held"] is not None:
                 lines.learned(A_LINE_HERE, plan["held"].approach, went_well)
                 lines_held[plan["held"].approach] = plan["held"].as_memory()
-            # What she was in, what she made of it, and what it came to.
-            #
-            # Two situations she scores alike, one of which went on to do
-            # much better, is a difference her measure cannot account for —
-            # and the only honest place a property nobody wrote can come
-            # from. Gathered here because this is where both halves exist.
-            from core.agency.how_good_is_this import (
-                how_good as _how_good,
-            )
-            from core.agency.how_good_is_this import (
-                how_the_trial_is_going as _how_the_trial_is_going,
-            )
-
-            _worth_here = sum(laid_out.numbers() or (0.0,))
-            if began_at["worth"] is None:
-                began_at["worth"] = _worth_here
-            began_at["seen"] += 1
-            _for = success_when or _what_there_is_to_aim_at(laid_out)
-            if pending["arranged"] is not None and _for:
-                cannot_explain.been_here(
-                    pending["arranged"],
-                    _how_good(
-                        pending["arranged"],
-                        toward=_for,
-                        approach=plan["held"].approach if plan["held"] is not None else "",
-                    ),
-                    _worth_here,
-                )
-            if trying["name"]:
-                verdict = _how_the_trial_is_going(trying["name"], _worth_here)
-                if verdict:
-                    if narrate:
-                        _tell(
-                            f"{trying['name']} {'earned its place' if verdict == 'kept' else 'did not earn its place'}."
-                        )
-                    trying["name"] = ""
-            skilled.learned(
-                pending["arranged"].as_shape(),
-                previous.chosen.name,
-                _left_her_better_off(
-                    pending["arranged"],
-                    laid_out,
-                    success_when,
-                    plan["held"].approach if plan["held"] is not None else "",
-                ),
-            )
-            # And when she has just built the biggest thing she has ever
-            # built here, which is the thing somebody watching came for.
-            # Only once she knows what the thing itself is. Before the
-            # grid settles the reading is the whole window, and the
-            # largest number in it is somebody's best score: LIVE
-            # 2026-09-04, "I have a 5292 on the board" on a board holding
-            # a 4 and two 2s.
-            # And not from a reading taken after it stopped answering.
-            #
-            # What is on the screen then is an ending — an overlay, a
-            # score, a way to begin again — and its words land in the
-            # board's places like anything else. LIVE 2026-09-04: "A
-            # 11619 — the biggest I have made here", said over a finished
-            # game whose best tile was 128.
-            made = (
-                _the_biggest_thing_on_it(
-                    laid_out,
-                    _placed_in(
-                        responds["lattice"],
-                        responds["moving"].the_things_that_report(),
-                    ),
-                )
-                if responds["lattice"].held
-                and responds["moving"].settled()
-                and not responds["state"].nothing_answers()
-                else 0.0
-            )
-            # A record she has not been able to earn again is not one.
-            #
-            # It is written from a reading, and a reading can be wrong: a
-            # single bad one put 11619 in this record for a board whose
-            # best tile was 128, and because the record only ever goes up
-            # she could never say anything about her own progress here
-            # again. Everything else she carries comes back discounted for
-            # exactly this reason.
-            #
-            # So a carried record has to turn up again before it counts,
-            # which is the same rule the places she remembers are held to.
-            furthest["again"] = max(furthest["again"], made)
-            beaten = (
-                furthest["here"] if furthest["again"] >= furthest["here"] else furthest["again"]
-            )
-            further = _she_got_further(made, beaten)
+            _decide_the_next_move_what_she_what(began_at, cannot_explain, laid_out, narrate, pending, plan, success_when, trying)
+            further, made = _decide_the_next_move_part_12(furthest, laid_out, pending, plan, previous, responds, skilled, success_when)
             if further:
                 furthest["here"] = max(furthest["here"], made)
                 if narrate:
@@ -932,39 +1226,7 @@ async def decide_the_next_move(
                     laid_out.columns,
                     _what_she_could_not_learn_from(dropped),
                 )
-        # Learned from the same measurement. A move that changed nothing
-        # is the control: whatever still changed across it was changing
-        # on its own, and a page whose advertising animates as often as
-        # the task does cannot be separated any other way.
-        if pending["watched"] and _both_of_the_thing(
-            target_app or anchor["app"], pending["watched"], observation
-        ):
-            # The same places `noticed` uses, so the two sets can be
-            # intersected at all.
-            responds["moving"].saw(
-                places_and_text(pending["watched"]),
-                places_and_text(observation),
-            )
-            noticed(
-                responds["state"],
-                pending["watched"],
-                observation,
-                # Whether the act had an effect, not whether her claim
-                # about it was right.
-                #
-                # These were the same answer while the only claim a move
-                # carried was that the view would differ, and they came
-                # apart the moment a claim could say something. A move
-                # that moved the board and did not do the specific thing
-                # she predicted was being counted as a move that did
-                # nothing — the control for working out which part of the
-                # screen answers to her — so the band stopped settling and
-                # nothing downstream of it could form.
-                worked=attempt.verdict.observed_change,
-                # Which act it was, so a run of one thing doing nothing
-                # is not read as the world having ended.
-                acting=previous.chosen.name if previous.chosen is not None else "",
-            )
+        _decide_the_next_move_learned_same_measurement(anchor, attempt, observation, pending, previous, responds, target_app)
         if moves:
             moves[-1]["held"] = attempt.verdict.held
             moves[-1]["outcome"] = attempt.verdict.why()
@@ -1064,44 +1326,7 @@ async def decide_the_next_move(
         # here, before she acts, so a pivot is something she was watching
         # for and not something that happened to her.
         holding, ended = still_holds(plan["held"], seen, len(moves))
-        if plan["held"] is not None and holding is False:
-            logger.info("the line she was taking stopped holding: %s", ended)
-        # A pivot is immediate; a first attempt is not retried every move.
-        #
-        # The condition breaking is news and is worth the pass that
-        # answers it. Having no stated approach yet is not news, and a run
-        # that asks for one every cycle pays a full language pass per move
-        # for an answer that was not there last time either.
-        # Asked when there is something to base an approach on.
-        #
-        # This asked on the first cycle, when the only thing she has seen
-        # is a whole screen: on a page holding a game that is the board,
-        # the score, the browser's own tabs and bookmarks, an "Ask Gemini"
-        # button and a copyright line. Live 2026-08-26, she was asked how
-        # she would play and answered by reading the page back, three
-        # runs in a row, because that is what the question was about.
-        #
-        # The part of the screen that answers to her is known a few moves
-        # in, from what changed when she acted. That is the first moment
-        # the question has a subject. The count is still a backstop, so a
-        # screen that never resolves into anything is not a screen she
-        # goes on playing with no line at all.
-        # A pivot costs a move: she cannot judge a line she never tried.
-        #
-        # The condition on a fresh approach is checked on the very next
-        # cycle, before she has acted under it, and an anchor bound to a
-        # tile that merges away breaks at once. Live 2026-08-26: ten
-        # approaches decided for nine moves made, each one a full pass at
-        # her reasoning, and the run spent its whole budget deciding how
-        # to play rather than playing.
-        tried_it = len(moves) > plan["asked_at"]
-        time_to_ask = (
-            holding is False
-            and plan["held"] is not None
-            and tried_it
-            or len(moves) - plan["asked_at"] >= _ask_again_after(plan["asked_at"])
-            or (plan["asked_at"] < 0 and looking_at_the_thing)
-        )
+        time_to_ask = _decide_the_next_move_part_14(ended, holding, looking_at_the_thing, moves, plan)
         if not holding and time_to_ask:
             plan["asked_at"] = len(moves)
             fresh = await settle_on_an_approach(
@@ -1137,56 +1362,7 @@ async def decide_the_next_move(
         if plan["held"] is not None:
             learned = learned + plan["held"].as_evidence()
 
-        # When nothing in the task is working, the task itself becomes a
-        # choice. Both ways out are hers, and both are recorded as
-        # decisions with reasons rather than happening to her.
-        available = screen_options(can_do.available() or move_keys)
-        # The ways out are offered when what she is doing has stopped
-        # working, and when the thing itself has stopped responding.
-        #
-        # Two different facts. Predictions breaking says her moves are
-        # wrong; nothing answering at all says the attempt is over — a
-        # finished game, an expired session, a form already submitted.
-        # Measured live: she played to Game Over and went on pressing
-        # arrow keys into a dead board, because a run of broken
-        # predictions had not accumulated in the way the first test
-        # wanted.
-        # Nothing is answering. WHICH of the three is it?
-        #
-        # "Nothing I do changes anything" is a good ending test and a poor
-        # diagnosis: it is equally true of a finished game, a dialog over
-        # the board, and somebody else's window in front. Those want
-        # opposite responses, and collapsing them is what had her pressing
-        # keys into a finished board and narrating moves as though a game
-        # were happening. LIVE 2026-08-29: the page said "Game Over, 940
-        # points scored in 100 moves" and she went on saying "Going right".
-        ended = responds["state"].nothing_answers()
-        # A way to start again, offered where there was none before, is the
-        # thing saying it has finished.
-        #
-        # The other test asks whether what she was acting on is gone, and
-        # on a board that keeps its tiles under a "Play Again" overlay it
-        # never fires — so she went on pressing keys into a game that was
-        # over, which is the failure it exists to prevent. A control that
-        # appears only at the end is better evidence than the absence of
-        # one, and it is general: a finished form, an expired session and
-        # a lost game all put one up.
-        ways_back = restart_controls(observation)
-        appeared = a_way_back_that_was_not_there(
-            ways_back, offered_a_restart["was_there"]
-        )
-        if offered_a_restart["was_there"] is None:
-            # The first reading of this task settles what counts as
-            # furniture here. Nothing before this line has been compared
-            # against, so nothing before it can have appeared.
-            offered_a_restart["was_there"] = ways_back
-        if not ended and appeared:
-            if not offered_a_restart["said"]:
-                offered_a_restart["said"] = True
-                logger.info(
-                    "a way to start again has appeared, so this has ended"
-                )
-            ended = True
+        available, ended = _decide_the_next_move_nothing_task_working(can_do, move_keys, observation, offered_a_restart, responds)
         if ended:
             mine_now = target_app or anchor["app"]
             why = work_out_why(
@@ -1281,78 +1457,7 @@ async def decide_the_next_move(
                 she_keeps["said"] = ruled_out
                 logger.info("%s", ruled_out)
 
-        # And an act that has done nothing since the last time anything
-        # happened is not the act to take again.
-        #
-        # "It has worked here before" is a lifetime record; the board in
-        # front of her is now. LIVE 2026-09-04: fifteen presses of up
-        # into a board with nothing above anything, each one chosen
-        # because up had worked earlier in the same game.
-        #
-        # The record clears the moment anything answers, so this is the
-        # freshest evidence there is about the next move — and it never
-        # empties the choice, because every act failing is the thing
-        # having ended, which is judged elsewhere.
-        doing_nothing = responds["state"].unanswered_by
-        if doing_nothing:
-            still_worth = [
-                one for one in available if one.name not in doing_nothing
-            ]
-            if still_worth:
-                available = still_worth
-
-        # And of what is left, the one she reaches for.
-        #
-        # Watching somebody clear 2048: two of the four keys, almost
-        # exclusively, and a third only when the board left them nothing
-        # else. Measured on the game, leaning on two of the four reaches
-        # more than twice what taking any legal move reaches, and beats
-        # every property of the board she could have held instead. It is
-        # not a fact about the board, so looking at the board never finds
-        # it; it is found by leaning on things and seeing what came of it.
-        foreseeable = [
-            one.name
-            for one in available
-            if _somewhere_else(laid_out, one.name, _expects(knows)) is not None
-        ] if laid_out is not None and _expects(knows) is not None else []
-        if foreseeable:
-            if not reaches.leaning_on:
-                took_up = reaches.start_a_stretch(foreseeable)
-                if took_up:
-                    logger.info("leaning on %s for a while", ", ".join(took_up))
-            elif stretch["rises"] >= len(reaches.ways_of_leaning(foreseeable)):
-                reaches.end_the_stretch()
-                stretch["rises"] = 0
-                reaches.start_a_stretch(foreseeable)
-            # The ones she is leaning on, not one of them.
-            #
-            # A habit that picks the member as well as the set leaves
-            # nothing for looking ahead to do: the choice arrived at the
-            # deliberation with one option in it, every move came back
-            # "the only thing available", and the search she has never
-            # ran. Leaning on two acts means those two are the moves she
-            # considers, and which the position calls for is the question
-            # the model answers.
-            wants = reaches.the_ones_to_consider(foreseeable)
-            # And it has to leave her something to consider.
-            #
-            # A leaning of one act, applied as a filter, is not a
-            # preference — it is the whole policy, and it takes her
-            # looking ahead off the board altogether: the deliberation
-            # arrives with one option and reports "the only thing
-            # available". Her search is worth far more than any leaning
-            # (offline, median 512 against 128 for taking any legal move),
-            # so a habit must never be able to replace it.
-            if len(wants) < 2:
-                wants = ()
-            if wants and len(wants) < len(foreseeable):
-                # Everything she cannot foresee stays on the table: the way
-                # out and the ways of asking are never narrowed by a habit.
-                available = [
-                    one
-                    for one in available
-                    if one.name in wants or one.name not in foreseeable
-                ]
+        available = _decide_the_next_move_act_has_done(available, knows, laid_out, reaches, responds, stretch)
 
         # Has she been anywhere LIKE this before.
         #
@@ -1563,39 +1668,7 @@ async def decide_the_next_move(
                 if took is not None and took.clears_it > 0:
                     ahead = {took.name: ahead[took.name]}
 
-        # And where the move she wants is not one she may make, something
-        # elsewhere that obliges the world to let her.
-        if wont and ahead:
-            blocked = [one for one in ahead if one in wont]
-            if blocked:
-                round_it = a_way_round(
-                    blocked[0],
-                    allowed=lambda one: one not in wont,
-                    elsewhere=[option.name for option in available],
-                    they_must_answer=lambda one: float(ahead.get(one, (0.0, ""))[0]),
-                    after_they_answer=lambda one: None,
-                    worth_of_the_fight=0.0,
-                )
-                if round_it.found and round_it.spend_a_turn_on in ahead:
-                    logger.info("cannot take %s — %s", blocked[0], round_it.describe())
-
-        # And a routine move in a fast loop does not always need words.
-        #
-        # What a thought is worth here, rather than how long since the
-        # last one. A counter cannot tell a forced move from the one that
-        # decides the shape of the next thirty, so it spends the same on
-        # both and is wrong about both.
-        # What has worked before from a position of this kind, if anything.
-        #
-        # Recognition is what frees her from deciding. Where it disagrees
-        # with the arithmetic, that disagreement is the surest sign this
-        # position is not the routine one it looked like, and it buys a
-        # thought rather than saving one.
-        kind = laid_out.as_shape() if laid_out is not None else ""
-        # A mark where she has been, so a place is recognised rather than
-        # recalled — and so the way back is on the ground.
-        if kind:
-            marks.she_marked(kind, saying=aiming_at or goal)
+        kind = _decide_the_next_move_where_move_she(ahead, aiming_at, available, goal, laid_out, marks, wont)
         # What she has learned about this KIND of situation, where the
         # world is the sort that repeats. Where it is dealt fresh, a fact
         # about one place is noise she would be storing at her own

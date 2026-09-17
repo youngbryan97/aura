@@ -751,6 +751,208 @@ class ReasoningAmplifierV2:
         time_multiplier = round(max(0.6, min(2.5, 1.0 + 1.2 * push)), 3)
         return mode, sample_budget, time_multiplier
 
+    def _amplify_mode(self, fallbacks, problem, request, sealed_evaluation):
+        mode = ReasoningBudgetPolicy.choose_mode(
+            problem.task_type, risk_level=request.risk_level, explicit=request.mode
+        )
+        # Couple to the live mind: Φ-gated test-time compute. Demand (free energy,
+        # uncertainty, stuck-valence) buys depth; Φ-capacity gates how much depth the
+        # current integration level can spend. Explicit caller mode is never overridden.
+        # A sealed evaluation must be independent of the resident mind's
+        # momentary affect, Phi, free-energy, and service-container state. Apart
+        # from contaminating the comparison, those reads can initialize live
+        # services and persistence from inside an otherwise read-only checkout.
+        affect = {} if sealed_evaluation else self._read_substrate()
+        sample_budget = _admit_sample_budget(request.sample_budget, mode)
+        if request.mode is None:
+            if _flag_on("AURA_PHI_GATED_COMPUTE"):
+                resolved_mode, resolved_samples, time_mult = self._resolve_compute_budget(mode, affect)
+                if resolved_mode is not mode:
+                    fallbacks.append(f"phi_gated:{mode.value}->{resolved_mode.value}")
+                mode = resolved_mode
+                if request.sample_budget is None:
+                    sample_budget = resolved_samples
+                if time_mult != 1.0:
+                    # The caller owns the wall-clock deadline. Affective state
+                    # may spend the admitted samples differently, but it may not
+                    # extend a foreground turn beyond its enclosing contract.
+                    fallbacks.append(f"phi_time_requested_x{time_mult}_caller_capped")
+            elif self._should_deepen(affect):
+                mode = self._deepen(mode)
+                sample_budget = _admit_sample_budget(request.sample_budget, mode)
+                fallbacks.append("substrate_deepened")
+        return mode, sample_budget
+
+    async def _amplify_part_2(self, fallbacks, mode, problem, request, seed_candidates):
+        if seed_candidates:
+            fallbacks.append(f"seed_candidates_admitted:{len(seed_candidates)}")
+        request.context["seed_candidates"] = seed_candidates
+        # Internal operation receipts travel with this request only.  They are
+        # serialized into the final reasoning receipt, never into a model prompt.
+        request.context["_cognitive_operation_receipts"] = []
+        request.context["_resolved_reasoning_mode"] = mode.value
+
+        # Verify the existing cognitive result before spending another model
+        # call.  The incumbent is not an instruction and does not inherit trust:
+        # it faces the same mechanical engines as every generated candidate.
+        # A conclusive pass preserves it; a conclusive failure supplies typed
+        # evidence to the repair/search path; an unchecked result changes
+        # nothing.  This makes amplification sparse rather than reflexive.
+        incumbent_verdict = None
+        if seed_candidates:
+            incumbent_verdict = await self._verify(
+                seed_candidates[0], problem, request.context
+            )
+            request.context["_incumbent_verdict"] = incumbent_verdict
+            if bool(getattr(incumbent_verdict, "checked", False)):
+                if not bool(getattr(incumbent_verdict, "ok", False)):
+                    fallbacks.append("incumbent_refuted")
+                elif self._executable_verdict_is_authoritative(incumbent_verdict):
+                    fallbacks.append("incumbent_verified")
+                else:
+                    fallbacks.append("incumbent_proxy_pass_not_authoritative")
+
+        incumbent_is_clean = bool(
+            incumbent_verdict is not None
+            and getattr(incumbent_verdict, "checked", False)
+            and getattr(incumbent_verdict, "ok", False)
+            and self._executable_verdict_is_authoritative(incumbent_verdict)
+        )
+        return incumbent_is_clean, incumbent_verdict
+
+    async def _amplify_retrieve_failure_mode(self, deadline, fallbacks, incumbent_is_clean, problem, read_only_evaluation, request, sealed_evaluation, start):
+        # 2. retrieve failure-mode guards from prior reasoning.  A mechanically
+        # clean incumbent needs no additional search context.
+        guard_text = ""
+        guards: list[str] = []
+        if not sealed_evaluation and not incumbent_is_clean:
+            try:
+                guard_text = self._ensure_memory().as_guard_text(
+                    problem.objective, task_type=problem.task_type
+                )
+                if guard_text:
+                    guards = [ln[2:] for ln in guard_text.splitlines() if ln.startswith("- ")]
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                record_degradation("amplifier_v2_recall", exc)
+
+        # 2a. procedural memory: condition on PROVEN approaches from similar
+        # solved problems (frontier-general P2 — inference-time compounding).
+        if not sealed_evaluation and not incumbent_is_clean:
+            try:
+                from core.brain.procedural_memory import get_procedural_memory
+
+                playbook_text = get_procedural_memory().as_playbook_text(
+                    problem.objective,
+                    task_type=problem.task_type,
+                    problem_key=problem.objective[:80],
+                    record_usage=not read_only_evaluation,
+                )
+                if playbook_text:
+                    guard_text = f"{playbook_text}\n{guard_text}" if guard_text else playbook_text
+                    fallbacks.append("playbooks_injected")
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                record_degradation("amplifier_v2_playbooks", exc)
+
+        # 2b. ReAct grounding — gather REAL evidence (read repo source spans / recall
+        # memory) so generation is conditioned on fact and the verifier has something
+        # concrete to check. Merged with any caller-supplied evidence.
+        if not incumbent_is_clean and not request.context.get("skip_evidence"):
+            try:
+                gathered = await self._with_deadline(
+                    self._ensure_evidence().render_pack(
+                        problem.objective, task_type=problem.task_type, limit=6
+                    ),
+                    min(deadline, start + 10.0),
+                )
+                for span in gathered or []:
+                    if span and span not in problem.required_evidence:
+                        problem.required_evidence.append(span)
+            except (RuntimeError, AttributeError, TypeError, ValueError, TimeoutError) as exc:
+                record_degradation("amplifier_v2_evidence", exc)
+        return guard_text, guards
+
+    @staticmethod
+    def _amplify_cp126_d45893c2_verification(answer, calibrated_answer, confidence, mode, problem, request, strategy, verified_pass, verifiers_run):
+        # CP126 d45893c2. Verification ran against `answer`; the
+        # calibration gate may then rewrite it into `calibrated_answer`.
+        # Storing the REWRITE under the original verifier's pass lets an
+        # unverified mutation become durable truth and training data.
+        #
+        # The verified text is the artifact that actually earned the
+        # pass, so that is what is persisted. The calibrated text is a
+        # presentation-layer hedge and is still what the caller sees; it
+        # simply does not get to inherit a verdict it never faced.
+        _durable_answer = answer
+        _calibration_diverged = calibrated_answer != answer
+        if verified_pass:
+            # Memoize verifier-clean source-independent derivations for instant re-use.
+            if _flag_on("AURA_REASONING_CACHE") and not request.context.get("skip_cache"):
+                try:
+                    from core.brain.reasoning_solved_cache import get_reasoning_solved_cache
+
+                    get_reasoning_solved_cache().put(
+                        problem.objective,
+                        problem.task_type,
+                        answer=_durable_answer,
+                        confidence=confidence,
+                        mode=mode.value,
+                        verifiers_run=[v for v in verifiers_run if v],
+                        required_evidence=list(request.required_evidence or []),
+                        verified=verified_pass,
+                    )
+                    if _calibration_diverged:
+                        logger.info(
+                            "🧠 [AmplifyV2] cached the VERIFIED text; the "
+                            "calibrated rewrite was not re-verified and is "
+                            "not persisted as truth."
+                        )
+                except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                    record_degradation("amplifier_v2_cache_put", exc)
+            # Capture as a STaR self-improvement training trace (internal bootstrap).
+            try:
+                from core.brain.reasoning_self_improvement import get_reasoning_self_improvement
+
+                get_reasoning_self_improvement().record_win(
+                    problem.objective,
+                    problem.task_type,
+                    answer=_durable_answer,
+                    confidence=confidence,
+                    mode=mode.value,
+                    verified=verified_pass,
+                )
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                record_degradation("amplifier_v2_self_improve", exc)
+            # Distill the WIN into a reusable playbook (P2): strategy shape,
+            # not answer content — and credit any playbooks this problem
+            # was conditioned on (demonstrated transfer earns distillation).
+            try:
+                from core.brain.procedural_memory import get_procedural_memory
+
+                get_procedural_memory().record_win(
+                    objective=problem.objective,
+                    task_type=problem.task_type,
+                    # The third durable sink named by CP126 d45893c2,
+                    # alongside the solved cache and the self-improvement
+                    # trace. All three take the text that was actually
+                    # verified, never the post-hoc calibration rewrite.
+                    answer=_durable_answer,
+                    strategy=f"{mode.value}/{strategy}",
+                    verifiers=[v for v in verifiers_run if v],
+                    confidence=confidence,
+                    problem_key=problem.objective[:80],
+                )
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                record_degradation("amplifier_v2_playbook_capture", exc)
+        elif not verified_pass and not request.context.get("skip_precompute_enqueue"):
+            # Verifier-dirty under the foreground budget — queue an idle deep retry
+            # (off the critical path; the win lands in the cache for next time).
+            try:
+                from core.brain.reasoning_precompute import get_precompute_queue
+
+                get_precompute_queue().enqueue(problem.objective, problem.task_type)
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                record_degradation("amplifier_v2_precompute_enqueue", exc)
+
     @_enforce_request_wall_clock_budget
     async def amplify(self, request: AmplificationRequest) -> AmplifiedAnswer:
         start = time.monotonic()
@@ -838,123 +1040,15 @@ class ReasoningAmplifierV2:
                     },
                 )
 
-        mode = ReasoningBudgetPolicy.choose_mode(
-            problem.task_type, risk_level=request.risk_level, explicit=request.mode
-        )
-        # Couple to the live mind: Φ-gated test-time compute. Demand (free energy,
-        # uncertainty, stuck-valence) buys depth; Φ-capacity gates how much depth the
-        # current integration level can spend. Explicit caller mode is never overridden.
-        # A sealed evaluation must be independent of the resident mind's
-        # momentary affect, Phi, free-energy, and service-container state. Apart
-        # from contaminating the comparison, those reads can initialize live
-        # services and persistence from inside an otherwise read-only checkout.
-        affect = {} if sealed_evaluation else self._read_substrate()
-        sample_budget = _admit_sample_budget(request.sample_budget, mode)
-        if request.mode is None:
-            if _flag_on("AURA_PHI_GATED_COMPUTE"):
-                resolved_mode, resolved_samples, time_mult = self._resolve_compute_budget(mode, affect)
-                if resolved_mode is not mode:
-                    fallbacks.append(f"phi_gated:{mode.value}->{resolved_mode.value}")
-                mode = resolved_mode
-                if request.sample_budget is None:
-                    sample_budget = resolved_samples
-                if time_mult != 1.0:
-                    # The caller owns the wall-clock deadline. Affective state
-                    # may spend the admitted samples differently, but it may not
-                    # extend a foreground turn beyond its enclosing contract.
-                    fallbacks.append(f"phi_time_requested_x{time_mult}_caller_capped")
-            elif self._should_deepen(affect):
-                mode = self._deepen(mode)
-                sample_budget = _admit_sample_budget(request.sample_budget, mode)
-                fallbacks.append("substrate_deepened")
+        mode, sample_budget = self._amplify_mode(fallbacks, problem, request, sealed_evaluation)
 
         seed_candidates = _admit_seed_candidates(
             request.context.get("seed_candidates"),
             limit=sample_budget,
         )
-        if seed_candidates:
-            fallbacks.append(f"seed_candidates_admitted:{len(seed_candidates)}")
-        request.context["seed_candidates"] = seed_candidates
-        # Internal operation receipts travel with this request only.  They are
-        # serialized into the final reasoning receipt, never into a model prompt.
-        request.context["_cognitive_operation_receipts"] = []
-        request.context["_resolved_reasoning_mode"] = mode.value
+        incumbent_is_clean, incumbent_verdict = await self._amplify_part_2(fallbacks, mode, problem, request, seed_candidates)
 
-        # Verify the existing cognitive result before spending another model
-        # call.  The incumbent is not an instruction and does not inherit trust:
-        # it faces the same mechanical engines as every generated candidate.
-        # A conclusive pass preserves it; a conclusive failure supplies typed
-        # evidence to the repair/search path; an unchecked result changes
-        # nothing.  This makes amplification sparse rather than reflexive.
-        incumbent_verdict = None
-        if seed_candidates:
-            incumbent_verdict = await self._verify(
-                seed_candidates[0], problem, request.context
-            )
-            request.context["_incumbent_verdict"] = incumbent_verdict
-            if bool(getattr(incumbent_verdict, "checked", False)):
-                if not bool(getattr(incumbent_verdict, "ok", False)):
-                    fallbacks.append("incumbent_refuted")
-                elif self._executable_verdict_is_authoritative(incumbent_verdict):
-                    fallbacks.append("incumbent_verified")
-                else:
-                    fallbacks.append("incumbent_proxy_pass_not_authoritative")
-
-        incumbent_is_clean = bool(
-            incumbent_verdict is not None
-            and getattr(incumbent_verdict, "checked", False)
-            and getattr(incumbent_verdict, "ok", False)
-            and self._executable_verdict_is_authoritative(incumbent_verdict)
-        )
-
-        # 2. retrieve failure-mode guards from prior reasoning.  A mechanically
-        # clean incumbent needs no additional search context.
-        guard_text = ""
-        guards: list[str] = []
-        if not sealed_evaluation and not incumbent_is_clean:
-            try:
-                guard_text = self._ensure_memory().as_guard_text(
-                    problem.objective, task_type=problem.task_type
-                )
-                if guard_text:
-                    guards = [ln[2:] for ln in guard_text.splitlines() if ln.startswith("- ")]
-            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation("amplifier_v2_recall", exc)
-
-        # 2a. procedural memory: condition on PROVEN approaches from similar
-        # solved problems (frontier-general P2 — inference-time compounding).
-        if not sealed_evaluation and not incumbent_is_clean:
-            try:
-                from core.brain.procedural_memory import get_procedural_memory
-
-                playbook_text = get_procedural_memory().as_playbook_text(
-                    problem.objective,
-                    task_type=problem.task_type,
-                    problem_key=problem.objective[:80],
-                    record_usage=not read_only_evaluation,
-                )
-                if playbook_text:
-                    guard_text = f"{playbook_text}\n{guard_text}" if guard_text else playbook_text
-                    fallbacks.append("playbooks_injected")
-            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation("amplifier_v2_playbooks", exc)
-
-        # 2b. ReAct grounding — gather REAL evidence (read repo source spans / recall
-        # memory) so generation is conditioned on fact and the verifier has something
-        # concrete to check. Merged with any caller-supplied evidence.
-        if not incumbent_is_clean and not request.context.get("skip_evidence"):
-            try:
-                gathered = await self._with_deadline(
-                    self._ensure_evidence().render_pack(
-                        problem.objective, task_type=problem.task_type, limit=6
-                    ),
-                    min(deadline, start + 10.0),
-                )
-                for span in gathered or []:
-                    if span and span not in problem.required_evidence:
-                        problem.required_evidence.append(span)
-            except (RuntimeError, AttributeError, TypeError, ValueError, TimeoutError) as exc:
-                record_degradation("amplifier_v2_evidence", exc)
+        guard_text, guards = await self._amplify_retrieve_failure_mode(deadline, fallbacks, incumbent_is_clean, problem, read_only_evaluation, request, sealed_evaluation, start)
 
         # 3-8. produce a synthesized, verified answer per mode.
         if incumbent_is_clean:
@@ -1120,85 +1214,7 @@ class ReasoningAmplifierV2:
         # arithmetic to evaluate) must never be cached, or a wrong answer gets served as
         # truth forever. The hard bench caught exactly this poisoning.
         if "solved_cache_hit" not in fallbacks and not read_only_evaluation:
-            # CP126 d45893c2. Verification ran against `answer`; the
-            # calibration gate may then rewrite it into `calibrated_answer`.
-            # Storing the REWRITE under the original verifier's pass lets an
-            # unverified mutation become durable truth and training data.
-            #
-            # The verified text is the artifact that actually earned the
-            # pass, so that is what is persisted. The calibrated text is a
-            # presentation-layer hedge and is still what the caller sees; it
-            # simply does not get to inherit a verdict it never faced.
-            _durable_answer = answer
-            _calibration_diverged = calibrated_answer != answer
-            if verified_pass:
-                # Memoize verifier-clean source-independent derivations for instant re-use.
-                if _flag_on("AURA_REASONING_CACHE") and not request.context.get("skip_cache"):
-                    try:
-                        from core.brain.reasoning_solved_cache import get_reasoning_solved_cache
-
-                        get_reasoning_solved_cache().put(
-                            problem.objective,
-                            problem.task_type,
-                            answer=_durable_answer,
-                            confidence=confidence,
-                            mode=mode.value,
-                            verifiers_run=[v for v in verifiers_run if v],
-                            required_evidence=list(request.required_evidence or []),
-                            verified=verified_pass,
-                        )
-                        if _calibration_diverged:
-                            logger.info(
-                                "🧠 [AmplifyV2] cached the VERIFIED text; the "
-                                "calibrated rewrite was not re-verified and is "
-                                "not persisted as truth."
-                            )
-                    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                        record_degradation("amplifier_v2_cache_put", exc)
-                # Capture as a STaR self-improvement training trace (internal bootstrap).
-                try:
-                    from core.brain.reasoning_self_improvement import get_reasoning_self_improvement
-
-                    get_reasoning_self_improvement().record_win(
-                        problem.objective,
-                        problem.task_type,
-                        answer=_durable_answer,
-                        confidence=confidence,
-                        mode=mode.value,
-                        verified=verified_pass,
-                    )
-                except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                    record_degradation("amplifier_v2_self_improve", exc)
-                # Distill the WIN into a reusable playbook (P2): strategy shape,
-                # not answer content — and credit any playbooks this problem
-                # was conditioned on (demonstrated transfer earns distillation).
-                try:
-                    from core.brain.procedural_memory import get_procedural_memory
-
-                    get_procedural_memory().record_win(
-                        objective=problem.objective,
-                        task_type=problem.task_type,
-                        # The third durable sink named by CP126 d45893c2,
-                        # alongside the solved cache and the self-improvement
-                        # trace. All three take the text that was actually
-                        # verified, never the post-hoc calibration rewrite.
-                        answer=_durable_answer,
-                        strategy=f"{mode.value}/{strategy}",
-                        verifiers=[v for v in verifiers_run if v],
-                        confidence=confidence,
-                        problem_key=problem.objective[:80],
-                    )
-                except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                    record_degradation("amplifier_v2_playbook_capture", exc)
-            elif not verified_pass and not request.context.get("skip_precompute_enqueue"):
-                # Verifier-dirty under the foreground budget — queue an idle deep retry
-                # (off the critical path; the win lands in the cache for next time).
-                try:
-                    from core.brain.reasoning_precompute import get_precompute_queue
-
-                    get_precompute_queue().enqueue(problem.objective, problem.task_type)
-                except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                    record_degradation("amplifier_v2_precompute_enqueue", exc)
+            self._amplify_cp126_d45893c2_verification(answer, calibrated_answer, confidence, mode, problem, request, strategy, verified_pass, verifiers_run)
 
         # 10. record the episode so the next one is wiser.
         if not read_only_evaluation:

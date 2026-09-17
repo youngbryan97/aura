@@ -423,11 +423,11 @@ class ProprioceptiveLoop(BasePhase):
             )
             return default
     
-    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
+    async def _execute_new_state(self, state):
         new_state = state.derive("proprioceptive_loop")
         soma = new_state.soma
         self._begin_body_schema_tick(soma)
-        
+
         # 1. Hardware Senses
         if psutil:
             soma.hardware["psutil_available"] = True
@@ -452,7 +452,7 @@ class ProprioceptiveLoop(BasePhase):
                 # nothing. Publishing the correct name is what closes them.
                 soma.hardware["ram_usage"] = mem.percent
                 soma.hardware["vram_usage"] = mem.percent
-                
+
                 # Temperature (macOS may not expose this)
                 soma.hardware["temperature_available"] = False
                 try:
@@ -471,7 +471,7 @@ class ProprioceptiveLoop(BasePhase):
                         action="Disabled temperature channel for this tick and retained CPU/memory body telemetry",
                         severity="debug",
                     )
-                
+
                 # Battery (laptops)
                 soma.hardware["battery_available"] = False
                 try:
@@ -490,7 +490,7 @@ class ProprioceptiveLoop(BasePhase):
                         action="Disabled battery channel for this tick and retained remaining body telemetry",
                         severity="debug",
                     )
-                    
+
             except (ImportError, OSError, AttributeError, RuntimeError, TypeError, ValueError) as e:
                 self._mark_channel_degraded(
                     soma,
@@ -509,7 +509,7 @@ class ProprioceptiveLoop(BasePhase):
                 action="Marked hardware telemetry unavailable; continued with default soma values",
                 severity="warning",
             )
-        
+
         # ── 1a. Her own exertion, which is not the machine's load ────────
         # The host readings say what the computer is doing; most of that is not
         # hers. This is what she spent: how wide a recall she asked for, how
@@ -544,10 +544,10 @@ class ProprioceptiveLoop(BasePhase):
         if self._last_thought_time > 0:
             soma.latency["perception_lag_ms"] = (now - self._last_thought_time) * 1000
         self._last_thought_time = now
-        
+
         if state.cognition.last_thought_at:
             soma.latency["last_thought_ms"] = (now - state.cognition.last_thought_at) * 1000
-        
+
         # Token velocity from the last LLM call
         router = self._get_service(
             "llm_router",
@@ -582,7 +582,7 @@ class ProprioceptiveLoop(BasePhase):
                     severity="warning",
                 )
                 logger.debug("Proprioception token velocity probe failed: %s", _e)
-        
+
         # ── 3. Expressive State (Self-Image) ────────────────────
         # Map affect to expression for GUI unity
         affect = new_state.affect
@@ -601,7 +601,7 @@ class ProprioceptiveLoop(BasePhase):
         else:
             soma.expressive["current_expression"] = "neutral"
             soma.expressive["pulse_rate"] = 1.0
-        
+
         # ── 4. Homeostatic Modifiers ────────────────────────────
         homeo = self._get_service(
             "homeostatic_coupling",
@@ -631,7 +631,7 @@ class ProprioceptiveLoop(BasePhase):
                     severity="warning",
                 )
                 logger.debug("Proprioception homeostatic probe failed: %s", e)
-            
+
         # The body's own load is a strain, and nothing was reporting it as one.
         # Nociception had a resource-exhaustion channel that only the immune
         # system and the degradation sink ever wrote to, so a machine running
@@ -824,6 +824,10 @@ class ProprioceptiveLoop(BasePhase):
 
         # ── 5. Autonomic Reflexes (Phase 23.5) ──────────────────
         await self._autonomic_reflex_check(new_state)
+        return new_state
+
+    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
+        new_state = await self._execute_new_state(state)
         
         return new_state
 

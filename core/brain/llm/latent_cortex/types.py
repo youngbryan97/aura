@@ -685,6 +685,149 @@ class CortexConfig:
     # influence recurrence; None is an honest unmeasured bootstrap.
     critic_blind_spot_evidence: dict[str, Any] | None = None
 
+    def _validate_part_1(self, problems):
+        if (
+            self.prefix_stability_calibrator is not None
+            and not isinstance(self.prefix_stability_calibrator, dict)
+        ):
+            problems.append("prefix_stability_calibrator must be a mapping or null")
+        elif self.prefix_stability_calibrator is not None:
+            calibrator = self.prefix_stability_calibrator
+            if (
+                set(calibrator) != {"mode", "artifact_path", "artifact_sha256"}
+                or calibrator.get("mode") != "learned"
+                or not isinstance(calibrator.get("artifact_path"), str)
+                or not calibrator.get("artifact_path")
+                or len(calibrator.get("artifact_path", "")) > 4096
+                or not isinstance(calibrator.get("artifact_sha256"), str)
+                or len(calibrator.get("artifact_sha256", "")) != 64
+                or any(
+                    character not in "0123456789abcdef"
+                    for character in calibrator.get("artifact_sha256", "")
+                )
+            ):
+                problems.append("prefix_stability_calibrator config is invalid")
+        if self.decode_contract not in ("none", "final_answer_v1"):
+            problems.append("decode_contract must be 'none' or 'final_answer_v1'")
+        if self.decode_incumbent_policy not in {"latent", "vanilla_incumbent"}:
+            problems.append(
+                "decode_incumbent_policy must be latent or vanilla_incumbent"
+            )
+
+    def _validate_part_2(self, problems):
+        if type(self.telemetry_enabled) is not bool:
+            problems.append("telemetry_enabled must be boolean")
+        if type(self.probe_cache_enabled) is not bool:
+            problems.append("probe_cache_enabled must be boolean")
+        # Five learned heads share one contract: off by default, and learned
+        # only with a head file and its digest. One check, five names.
+        for head_name, off_mode in (
+            ("halting", "residual"),
+            ("update_gate", "passthrough"),
+            ("uncertainty_head", "unavailable"),
+            ("mistake_locator", "unavailable"),
+            ("contradiction_head", "unavailable"),
+        ):
+            problems.extend(_learned_head_problems(head_name, getattr(self, head_name), off_mode))
+        if self.contradiction_perturber is not None:
+            if not isinstance(self.contradiction_perturber, dict):
+                problems.append("contradiction_perturber must be a mapping or null")
+            else:
+                try:
+                    from core.brain.llm.latent_cortex.contradiction_perturber import (
+                        ContradictionPerturberConfig,
+                    )
+
+                    ContradictionPerturberConfig.from_value(self.contradiction_perturber)
+                except (TypeError, ValueError) as exc:
+                    problems.append(str(exc))
+        if type(self.local_repair_enabled) is not bool:
+            problems.append("local_repair_enabled must be boolean")
+
+    def _validate_part_3(self, problems):
+        if type(self.answer_replacement_enabled) is not bool:
+            problems.append("answer_replacement_enabled must be boolean")
+        if type(self.objective_program_enabled) is not bool:
+            problems.append("objective_program_enabled must be boolean")
+        if type(self.verified_objective_teacher_enabled) is not bool:
+            problems.append("verified_objective_teacher_enabled must be boolean")
+        if (
+            isinstance(self.answer_replacement_margin, bool)
+            or not isinstance(self.answer_replacement_margin, (int, float))
+            or not math.isfinite(float(self.answer_replacement_margin))
+            or not 0.0 <= float(self.answer_replacement_margin) < 1.0
+        ):
+            problems.append("answer_replacement_margin outside [0, 1)")
+        if self.local_exploration is not None:
+            if not isinstance(self.local_exploration, dict):
+                problems.append("local_exploration must be a mapping or null")
+            else:
+                try:
+                    from core.brain.llm.latent_cortex.local_exploration import (
+                        LocalExplorationConfig,
+                    )
+
+                    LocalExplorationConfig.from_value(self.local_exploration)
+                except (TypeError, ValueError) as exc:
+                    problems.append(str(exc))
+        if self.heterogeneous_integration is not None:
+            if not isinstance(self.heterogeneous_integration, dict):
+                problems.append("heterogeneous_integration must be a mapping or null")
+            else:
+                try:
+                    from core.brain.llm.latent_cortex.heterogeneous_integrator import (
+                        HeterogeneousIntegrationConfig,
+                    )
+
+                    HeterogeneousIntegrationConfig.from_value(self.heterogeneous_integration)
+                except (TypeError, ValueError) as exc:
+                    problems.append(str(exc))
+        if self.transient_negative_constraints is not None:
+            if not isinstance(self.transient_negative_constraints, dict):
+                problems.append("transient_negative_constraints must be a mapping or null")
+            else:
+                try:
+                    from core.brain.llm.latent_cortex.transient_constraints import (
+                        TransientConstraintConfig,
+                    )
+
+                    TransientConstraintConfig.from_value(self.transient_negative_constraints)
+                except (TypeError, ValueError) as exc:
+                    problems.append(str(exc))
+        if self.virtual_quanta is not None:
+            if not isinstance(self.virtual_quanta, dict):
+                problems.append("virtual_quanta must be a mapping or null")
+            else:
+                try:
+                    from core.brain.llm.latent_cortex.virtual_quanta import (
+                        VirtualQuantaConfig,
+                    )
+
+                    VirtualQuantaConfig.from_value(self.virtual_quanta)
+                except (TypeError, ValueError) as exc:
+                    problems.append(str(exc))
+        if self.latent_tree_search is not None:
+            if not isinstance(self.latent_tree_search, dict):
+                problems.append("latent_tree_search must be a mapping or null")
+            else:
+                try:
+                    from core.brain.llm.latent_cortex.latent_tree_search import (
+                        LatentTreeSearchConfig,
+                    )
+
+                    LatentTreeSearchConfig.from_value(self.latent_tree_search)
+                except (TypeError, ValueError) as exc:
+                    problems.append(str(exc))
+        if self.verifier_fusion_evidence is not None:
+            try:
+                from core.brain.llm.latent_cortex.verifier_fusion import (
+                    validate_verifier_fusion_evidence,
+                )
+
+                validate_verifier_fusion_evidence(self.verifier_fusion_evidence)
+            except (TypeError, ValueError) as exc:
+                problems.append(f"verifier_fusion_evidence invalid: {exc}")
+
     def validate(self) -> list[str]:
         """Return a list of human-readable violations (empty ⇒ valid)."""
         problems: list[str] = []
@@ -876,33 +1019,7 @@ class CortexConfig:
             problems.append("prefix_stability_top_p outside [0.1, 1]")
         if not integer_in(self.prefix_stability_seed, -(2**63), 2**63 - 1):
             problems.append("prefix_stability_seed must be a signed 64-bit integer")
-        if (
-            self.prefix_stability_calibrator is not None
-            and not isinstance(self.prefix_stability_calibrator, dict)
-        ):
-            problems.append("prefix_stability_calibrator must be a mapping or null")
-        elif self.prefix_stability_calibrator is not None:
-            calibrator = self.prefix_stability_calibrator
-            if (
-                set(calibrator) != {"mode", "artifact_path", "artifact_sha256"}
-                or calibrator.get("mode") != "learned"
-                or not isinstance(calibrator.get("artifact_path"), str)
-                or not calibrator.get("artifact_path")
-                or len(calibrator.get("artifact_path", "")) > 4096
-                or not isinstance(calibrator.get("artifact_sha256"), str)
-                or len(calibrator.get("artifact_sha256", "")) != 64
-                or any(
-                    character not in "0123456789abcdef"
-                    for character in calibrator.get("artifact_sha256", "")
-                )
-            ):
-                problems.append("prefix_stability_calibrator config is invalid")
-        if self.decode_contract not in ("none", "final_answer_v1"):
-            problems.append("decode_contract must be 'none' or 'final_answer_v1'")
-        if self.decode_incumbent_policy not in {"latent", "vanilla_incumbent"}:
-            problems.append(
-                "decode_incumbent_policy must be latent or vanilla_incumbent"
-            )
+        self._validate_part_1(problems)
         if not integer_in(self.decode_contract_grace_tokens, 0, 4096):
             problems.append("decode_contract_grace_tokens outside [0, 4096]")
         if type(self.verifier_accept_non_regression) is not bool:
@@ -1022,120 +1139,12 @@ class CortexConfig:
             problems.append("fast_weights.canary_rescale_attempts outside [0, 8]")
         if not integer_in(self.fast_weights.canary_max_tokens, 4, 128):
             problems.append("fast_weights.canary_max_tokens outside [4, 128]")
-        if type(self.telemetry_enabled) is not bool:
-            problems.append("telemetry_enabled must be boolean")
-        if type(self.probe_cache_enabled) is not bool:
-            problems.append("probe_cache_enabled must be boolean")
-        # Five learned heads share one contract: off by default, and learned
-        # only with a head file and its digest. One check, five names.
-        for head_name, off_mode in (
-            ("halting", "residual"),
-            ("update_gate", "passthrough"),
-            ("uncertainty_head", "unavailable"),
-            ("mistake_locator", "unavailable"),
-            ("contradiction_head", "unavailable"),
-        ):
-            problems.extend(_learned_head_problems(head_name, getattr(self, head_name), off_mode))
-        if self.contradiction_perturber is not None:
-            if not isinstance(self.contradiction_perturber, dict):
-                problems.append("contradiction_perturber must be a mapping or null")
-            else:
-                try:
-                    from core.brain.llm.latent_cortex.contradiction_perturber import (
-                        ContradictionPerturberConfig,
-                    )
-
-                    ContradictionPerturberConfig.from_value(self.contradiction_perturber)
-                except (TypeError, ValueError) as exc:
-                    problems.append(str(exc))
-        if type(self.local_repair_enabled) is not bool:
-            problems.append("local_repair_enabled must be boolean")
+        self._validate_part_2(problems)
         if not integer_in(self.local_repair_max_attempts, 0, 8):
             problems.append("local_repair_max_attempts outside [0, 8]")
         if not integer_in(self.local_repair_max_tokens, 32, 512):
             problems.append("local_repair_max_tokens outside [32, 512]")
-        if type(self.answer_replacement_enabled) is not bool:
-            problems.append("answer_replacement_enabled must be boolean")
-        if type(self.objective_program_enabled) is not bool:
-            problems.append("objective_program_enabled must be boolean")
-        if type(self.verified_objective_teacher_enabled) is not bool:
-            problems.append("verified_objective_teacher_enabled must be boolean")
-        if (
-            isinstance(self.answer_replacement_margin, bool)
-            or not isinstance(self.answer_replacement_margin, (int, float))
-            or not math.isfinite(float(self.answer_replacement_margin))
-            or not 0.0 <= float(self.answer_replacement_margin) < 1.0
-        ):
-            problems.append("answer_replacement_margin outside [0, 1)")
-        if self.local_exploration is not None:
-            if not isinstance(self.local_exploration, dict):
-                problems.append("local_exploration must be a mapping or null")
-            else:
-                try:
-                    from core.brain.llm.latent_cortex.local_exploration import (
-                        LocalExplorationConfig,
-                    )
-
-                    LocalExplorationConfig.from_value(self.local_exploration)
-                except (TypeError, ValueError) as exc:
-                    problems.append(str(exc))
-        if self.heterogeneous_integration is not None:
-            if not isinstance(self.heterogeneous_integration, dict):
-                problems.append("heterogeneous_integration must be a mapping or null")
-            else:
-                try:
-                    from core.brain.llm.latent_cortex.heterogeneous_integrator import (
-                        HeterogeneousIntegrationConfig,
-                    )
-
-                    HeterogeneousIntegrationConfig.from_value(self.heterogeneous_integration)
-                except (TypeError, ValueError) as exc:
-                    problems.append(str(exc))
-        if self.transient_negative_constraints is not None:
-            if not isinstance(self.transient_negative_constraints, dict):
-                problems.append("transient_negative_constraints must be a mapping or null")
-            else:
-                try:
-                    from core.brain.llm.latent_cortex.transient_constraints import (
-                        TransientConstraintConfig,
-                    )
-
-                    TransientConstraintConfig.from_value(self.transient_negative_constraints)
-                except (TypeError, ValueError) as exc:
-                    problems.append(str(exc))
-        if self.virtual_quanta is not None:
-            if not isinstance(self.virtual_quanta, dict):
-                problems.append("virtual_quanta must be a mapping or null")
-            else:
-                try:
-                    from core.brain.llm.latent_cortex.virtual_quanta import (
-                        VirtualQuantaConfig,
-                    )
-
-                    VirtualQuantaConfig.from_value(self.virtual_quanta)
-                except (TypeError, ValueError) as exc:
-                    problems.append(str(exc))
-        if self.latent_tree_search is not None:
-            if not isinstance(self.latent_tree_search, dict):
-                problems.append("latent_tree_search must be a mapping or null")
-            else:
-                try:
-                    from core.brain.llm.latent_cortex.latent_tree_search import (
-                        LatentTreeSearchConfig,
-                    )
-
-                    LatentTreeSearchConfig.from_value(self.latent_tree_search)
-                except (TypeError, ValueError) as exc:
-                    problems.append(str(exc))
-        if self.verifier_fusion_evidence is not None:
-            try:
-                from core.brain.llm.latent_cortex.verifier_fusion import (
-                    validate_verifier_fusion_evidence,
-                )
-
-                validate_verifier_fusion_evidence(self.verifier_fusion_evidence)
-            except (TypeError, ValueError) as exc:
-                problems.append(f"verifier_fusion_evidence invalid: {exc}")
+        self._validate_part_3(problems)
         if self.escape is not None:
             if not isinstance(self.escape, dict):
                 problems.append("escape must be a mapping or null")

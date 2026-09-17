@@ -1154,11 +1154,7 @@ class ContextAssembler:
         return system_msgs + result + recent
 
     @staticmethod
-    def build_system_prompt(
-        state: AuraState,
-        *,
-        aura_now_sample: tuple[Any, Any] | None = None,
-    ) -> str:
+    def _build_system_prompt_part_1(state):
         """Construct the core system prompt from state. Uses Elasticity to scale verbosity.
 
         CONTEXT PRESSURE: the resident primary model's window is resolved from
@@ -1185,79 +1181,10 @@ class ContextAssembler:
         """
         objective = getattr(state.cognition, "current_objective", "") or ""
         is_casual = ContextAssembler._is_casual_interaction(objective)
-        depth = ContextAssembler._conversation_depth(state)
-        black_box_steering = ContextAssembler._black_box_steering_enabled(state)
-        # Elasticity levels: 0=full, 1=trimmed, 2=lean, 3=minimal
-        elasticity = ContextAssembler._elasticity_level(state)
-        if elasticity > 0:
-            logger.info(
-                "🧠 Context elasticity=%d (pressure=%.2f of window, depth=%d turns) — trimming system prompt.",
-                elasticity,
-                ContextAssembler._transcript_pressure(state),
-                depth,
-            )
-        affect = state.affect
-        
-        # 1. Identity Core — always inject full AURA_IDENTITY so voice doesn't regress in casual chat
-        identity_block = f"{get_identity_lock()}\n\n[GROUNDED CORE PROTOCOL]\n{AURA_IDENTITY}\n"
+        return is_casual, objective
 
-        # Everything below this line that came from outside this repository —
-        # a person's text, a fetched page, another agent, stored memory of any
-        # of those — is fenced with a nonce drawn for this assembly, and the
-        # rule for reading a fence is stated once, here, where it is authored.
-        # A block boundary the content can predict is a boundary the content
-        # can close.
-        envelope = new_envelope()
-        identity_block += f"\n{envelope.preamble()}\n"
-
-        # Existential stakes are deliberately absent from this prompt: they
-        # affect runtime policy and inference parameters, not conversational
-        # identity, and injecting pressure language made live desktop replies
-        # drift into "existential stakes" narration after ordinary load spikes.
-        # The organ was still being CALLED here with its return discarded, so
-        # whatever accounting or caching get_context_block does ran on the
-        # foreground prompt path while contributing nothing to the prompt.
-
-        # Temporal Continuity context injection
-        try:
-            from core.container import ServiceContainer
-            tc = ServiceContainer.get("temporal_continuity", default=None)
-            if tc:
-                tc_block = tc.get_context_block()
-                if tc_block:
-                    identity_block += f"\n{tc_block}\n"
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _e:
-            record_degradation("context_assembler.temporal_continuity", _e)
-
-        # Synaptic Plasticity context injection
-        try:
-            from core.container import ServiceContainer
-            sp = ServiceContainer.get("synaptic_plasticity", default=None)
-            if sp:
-                sp_block = sp.get_context_block()
-                if sp_block:
-                    identity_block += f"\n{sp_block}\n"
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _e:
-            record_degradation("context_assembler.synaptic_plasticity", _e)
-
-        # Somatic Qualia context injection
-        try:
-            from core.container import ServiceContainer
-            sq = ServiceContainer.get("somatic_qualia", default=None)
-            if sq:
-                sq_block = sq.get_context_block()
-                if sq_block:
-                    identity_block += f"\n{sq_block}\n"
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _e:
-            record_degradation("context_assembler.somatic_qualia", _e)
-
-        # 2. Affective State — SUBSTRATE-DRIVEN HARD CONSTRAINTS
-        # The old approach: prose hints like "You're carrying friction."
-        # The new approach: the SubstrateVoiceEngine compiles hard constraints
-        # that the LLM MUST obey, enforced post-generation by ResponseShaper.
-        mods = getattr(state.cognition, 'modifiers', {}) or {}
-        response_mods = getattr(state, "response_modifiers", {}) or {}
-
+    @staticmethod
+    def _build_system_prompt_compile_substrate_voice(affect, black_box_steering):
         # Compile substrate voice constraints
         substrate_constraint_block = ""
         try:
@@ -1285,54 +1212,10 @@ class ContextAssembler:
             affect_lines.append(f"Energy: low ({ContextAssembler._self_state_number(affect.arousal, low=0.0, high=1.0)})")
 
         mood_hint = "" if black_box_steering else (" | ".join(affect_lines) if affect_lines else "")
+        return mood_hint, substrate_constraint_block
 
-        homeo_hint = ""
-        if not black_box_steering and mods.get('mood_prefix'):
-            homeo_hint = f"AFFECTIVE TONE: {mods['mood_prefix']}"
-
-        # 2.5 Dynamic Personality (Phase 6)
-        growth = state.identity.personality_growth
-        personality_notes = []
-        for trait, base in AURA_BIG_FIVE.items():
-            offset = growth.get(trait, 0.0)
-            if abs(offset) > 0.02:
-                direction = "increased" if offset > 0 else "decreased"
-                personality_notes.append(f"- {trait}: {direction} ({base+offset:.2f})")
-        
-        personality_block = ""
-        if personality_notes:
-            personality_block = "## PERSONALITY EVOLUTION\n" + "\n".join(personality_notes) + "\n\n"
-
-        # 3. Context Layers (Only if NOT casual or if relevant)
-        # Pruned aggressively at higher elasticity to save context for conversation.
-        aura_now_block = ""
-        phenomenal_state = getattr(state.cognition, "phenomenal_state", None)
-        if (phenomenal_state or not is_casual) and not black_box_steering:
-            aura_now_block = ContextAssembler._build_aura_now_prompt_block(
-                state,
-                objective,
-                compact=is_casual or elasticity >= 2,
-                sample=aura_now_sample,
-            )
-
-        # Continuity budget GROWS with depth. At depth 46 the old policy gave
-        # the summary 400 characters to represent the whole conversation; that
-        # is where "she loses the plot" came from.
-        continuity_budget = ContextAssembler._continuity_budget_chars(depth)
-
-        rolling_summary = ""
-        if getattr(state.cognition, "rolling_summary", ""):
-            from core.continuity import sanitize_continuity_summary
-
-            safe_rolling_summary = sanitize_continuity_summary(
-                state.cognition.rolling_summary
-            )
-            if safe_rolling_summary:
-                rolling_summary = (
-                    "## CONTINUITY SUMMARY\n"
-                    f"{safe_rolling_summary[:continuity_budget]}\n\n"
-                )
-
+    @staticmethod
+    def _build_system_prompt_ledger_non_decaying(continuity_budget, state):
         # The ledger is the non-decaying half of continuity. The rolling
         # summary above is still useful as narrative, but it is lossy by
         # construction; this block is what makes an early disclosure reachable
@@ -1375,10 +1258,10 @@ class ContextAssembler:
                 action="assembled the prompt without the durable continuity ledger",
                 enforce_failure_policy=False,
             )
+        return ledger_block, self_preference_block
 
-        continuity_block = ""
-        continuity_obligations = mods.get("continuity_obligations", {}) or {}
-        system_failure = mods.get("system_failure_state", {}) or {}
+    @staticmethod
+    def _build_system_prompt_part_4(continuity_block, continuity_obligations, elasticity):
         if continuity_obligations:
             commitments = ", ".join((continuity_obligations.get("active_commitments", []) or [])[:3]) or "none"
             pending = ", ".join((continuity_obligations.get("pending_initiatives", []) or [])[:3]) or "none"
@@ -1426,62 +1309,45 @@ class ContextAssembler:
         except (ImportError, AttributeError, RuntimeError) as _e:
             record_degradation('context_assembler', _e)
             logger.debug("GoalEngine context injection skipped: %s", _e)
+        return continuity_block, goal_execution_block
 
-        # 3.7 Temporal Finitude & Meta-Qualia (Research additions)
-        # Skip at elasticity >= 1 — these are nice but not essential for conversation.
-        temporal_finitude_block = ""
-        meta_qualia_block = ""
-        if elasticity < 1 and not black_box_steering:
-            try:
-                from core.consciousness.temporal_finitude import get_temporal_finitude_model
-                tf = get_temporal_finitude_model()
-                # Both from the one accessor. The cap was the literal 40
-                # against an enforced capacity of 150, so context_usage read
-                # 1.0 from the fortieth exchange on — a constant in the block
-                # where the runtime describes its own situation, which is the
-                # same defect as the user_present literal noted below.
-                from core.state.one_working_memory import (
-                    the_capacity,
-                    the_working_memory,
-                )
+    @staticmethod
+    def _build_system_prompt_part_5(state, temporal_finitude_block):
+        try:
+            from core.consciousness.temporal_finitude import get_temporal_finitude_model
+            tf = get_temporal_finitude_model()
+            # Both from the one accessor. The cap was the literal 40
+            # against an enforced capacity of 150, so context_usage read
+            # 1.0 from the fortieth exchange on — a constant in the block
+            # where the runtime describes its own situation, which is the
+            # same defect as the user_present literal noted below.
+            from core.state.one_working_memory import (
+                the_capacity,
+                the_working_memory,
+            )
 
-                wm_size = len(the_working_memory(state))
-                tf.compute(
-                    working_memory_size=wm_size,
-                    working_memory_cap=the_capacity(),
-                    # Was the literal True. This block feeds live self-report
-                    # and any causal experiment reading it, so a constant here
-                    # is a fabricated observation in the one place the runtime
-                    # is describing its own situation. Derived from the two
-                    # things the assembler can actually see.
-                    user_present=ContextAssembler._user_is_present(state),
-                    conversation_start_time=float(getattr(state.cognition, "session_start_time", 0.0) or 0.0),
-                )
-                temporal_finitude_block = tf.get_context_block()
-                if temporal_finitude_block:
-                    temporal_finitude_block += "\n\n"
-            except (ImportError, AttributeError, RuntimeError) as _e:
-                record_degradation('context_assembler', _e)
-                logger.debug("TemporalFinitude context skipped: %s", _e)
+            wm_size = len(the_working_memory(state))
+            tf.compute(
+                working_memory_size=wm_size,
+                working_memory_cap=the_capacity(),
+                # Was the literal True. This block feeds live self-report
+                # and any causal experiment reading it, so a constant here
+                # is a fabricated observation in the one place the runtime
+                # is describing its own situation. Derived from the two
+                # things the assembler can actually see.
+                user_present=ContextAssembler._user_is_present(state),
+                conversation_start_time=float(getattr(state.cognition, "session_start_time", 0.0) or 0.0),
+            )
+            temporal_finitude_block = tf.get_context_block()
+            if temporal_finitude_block:
+                temporal_finitude_block += "\n\n"
+        except (ImportError, AttributeError, RuntimeError) as _e:
+            record_degradation('context_assembler', _e)
+            logger.debug("TemporalFinitude context skipped: %s", _e)
+        return temporal_finitude_block
 
-            try:
-                from core.container import ServiceContainer
-
-                qs = ServiceContainer.get("qualia_synthesizer", default=None)
-                if qs and hasattr(qs, "compute_meta_qualia"):
-                    mq = qs.compute_meta_qualia()
-                    if mq.get("dissonance", 0.0) > 0.1 or mq.get("novelty", 0.0) > 0.6:
-                        meta_qualia_block = (
-                            "## META-AWARENESS\n"
-                            f"Self-observation: confidence={ContextAssembler._self_state_number(mq.get('confidence'), low=0.0, high=1.0)} "
-                            f"coherence={ContextAssembler._self_state_number(mq.get('coherence'), low=0.0, high=1.0)} "
-                            f"novelty={ContextAssembler._self_state_number(mq.get('novelty'), low=0.0, high=1.0)} "
-                            f"dissonance={ContextAssembler._self_state_number(mq.get('dissonance'), low=0.0, high=1.0)}\n\n"
-                        )
-            except (ImportError, AttributeError, RuntimeError) as _e:
-                record_degradation('context_assembler', _e)
-                logger.debug("MetaQualia context skipped: %s", _e)
-
+    @staticmethod
+    def _build_system_prompt_personhood_module_context(black_box_steering, elasticity, is_casual, mods, response_mods):
         # 3.9 Personhood module context injections
         # These come from modules wired into ConversationalDynamicsPhase.
         # Skip at elasticity >= 2 to save context for conversation history.
@@ -1558,22 +1424,10 @@ class ContextAssembler:
                 except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _e:
                     record_degradation('context_assembler', _e)
                     logger.debug("Entity memory context injection skipped: %s", _e)
+        return entity_memory_context, personhood_context
 
-        imagination_context = ""
-        if not black_box_steering:
-            frame = response_mods.get("imagination_workspace") or mods.get("imagination_workspace")
-            if isinstance(frame, dict):
-                try:
-                    from core.brain.imagination import render_imagination_prompt_block
-
-                    imagination_context = render_imagination_prompt_block(
-                        frame,
-                        compact=is_casual or elasticity >= 1,
-                    )
-                except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _e:
-                    record_degradation('context_assembler', _e)
-                    logger.debug("Imagination context injection skipped: %s", _e)
-
+    @staticmethod
+    def _build_system_prompt_bicameral_context(black_box_steering, elasticity, is_casual, mods, response_mods):
         bicameral_context = ""
         if not black_box_steering:
             frame = response_mods.get("bicameral_advisory") or mods.get("bicameral_advisory")
@@ -1607,78 +1461,10 @@ class ContextAssembler:
                 except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _e:
                     record_degradation("context_assembler", _e)
                     logger.debug("Cognitive situation context injection skipped: %s", _e)
+        return bicameral_context, cognitive_situation_context
 
-        # 4. Somatic & World Context (Simplified if casual or under context pressure)
-        world_context = (
-            envelope.wrap(
-                "WORLD_STATE",
-                ContextAssembler.build_world_context(state),
-                trust=Trust.UNTRUSTED,
-            )
-            if not is_casual and elasticity < 2
-            else ""
-        )
-
-        # Live cognitive state injection: Inform the LLM of its own VAD/Psych metrics
-        # At elasticity >= 1, use a compact single-line version instead of full block
-        if black_box_steering:
-            cognitive_metrics = ""
-        elif elasticity < 1:
-            affect_signature = affect.get_cognitive_signature() if hasattr(affect, "get_cognitive_signature") else {}
-            cognitive_metrics = (
-                f"## COGNITIVE TELEMETRY\n"
-                f"- Valence: {ContextAssembler._self_state_number(affect.valence, low=-1.0, high=1.0, signed=True)} (Mood polarity)\n"
-                f"- Arousal: {ContextAssembler._self_state_number(affect.arousal, low=0.0, high=1.0)} (Engagement intensity)\n"
-                f"- Curiosity: {ContextAssembler._self_state_number(affect.curiosity, low=0.0, high=1.0)}\n"
-                f"- Cognitive Load: {getattr(affect, 'engagement', 0.5):.2f}\n"
-                f"- Social hunger: {getattr(affect, 'social_hunger', 0.5):.2f}\n"
-                f"- Physiological strain: {float(affect_signature.get('physiological_strain', 0.0)):.2f}\n"
-                f"- Affective complexity: {float(affect_signature.get('affective_complexity', 0.0)):.2f}\n"
-                f"- Memory salience pressure: {float(affect_signature.get('memory_salience', 0.0)):.2f}\n\n"
-            )
-        else:
-            # Compact: just mood + energy for deep conversations
-            cognitive_metrics = (
-                f"## STATE\n"
-                f"Mood: {ContextAssembler._self_state_number(affect.valence, low=-1.0, high=1.0, signed=True)} | "
-                f"Energy: {ContextAssembler._self_state_number(affect.arousal, low=0.0, high=1.0)} | "
-                f"Curiosity: {ContextAssembler._self_state_number(affect.curiosity, low=0.0, high=1.0)}\n\n"
-            )
-        if system_failure and not black_box_steering:
-            cognitive_metrics = cognitive_metrics.replace(
-                "\n\n",
-                f"- Unified failure pressure: {float(system_failure.get('pressure', 0.0) or 0.0):.2f}\n\n",
-                1,
-            )
-
-        somatic_context = ""
-        if not is_casual and elasticity < 1 and not black_box_steering:
-             somatic_context = ContextAssembler.build_somatic_context(state)
-
-        # 5. Requirement Block (Condensed if casual)
-        # Detect voice origin for response style adaptation
-        _is_voice = getattr(state.cognition, "current_origin", "") == "voice"
-
-        # Conversation energy for response length calibration
-        _conv_energy = getattr(state.cognition, "conversation_energy", 0.5)
-        _user_trend = getattr(state.cognition, "user_emotional_trend", "neutral")
-
-        requirements = _requirements_for_a_casual_turn(
-            _conv_energy=_conv_energy,
-            _is_voice=_is_voice,
-            _user_trend=_user_trend,
-            is_casual=is_casual,
-            mods=mods,
-        )
-
-        identity_rag_context = ContextAssembler._build_identity_rag_context(state, objective)
-        state_section = "" if black_box_steering else (
-            f"## CURRENT STATE\n"
-            f"{mood_hint}\n"
-            f"{cognitive_metrics}"
-            f"{homeo_hint}\n"
-        )
-
+    @staticmethod
+    def _build_system_prompt_stability_v58_zenith(continuity_block, ledger_block, mods, rolling_summary, self_preference_block):
         # [STABILITY v58] ZENITH PERSONA RELIANCE
         # For Sovereign and Trusted users, we trust the fine-tuning.
         # We strictly silence internal telemetry/vibes but PRESERVE tools and constraints.
@@ -1769,6 +1555,369 @@ class ContextAssembler:
             self_preference_block,
             continuity_block,
         )
+        return continuity_sections, elevated_trust
+
+    @staticmethod
+    def _build_system_prompt_agent_id(bound_agent, hinted_agent, internal_unbound_scope, request_origin, state):
+        agent_id = bound_agent
+
+        # Identity-scoped relational memory is prompt-eligible only under an
+        # exact grant, and `agent_id` is now the bound principal alone. A hint
+        # is enough to model who she is talking to; it is not enough to hand
+        # over what somebody else told her.
+        relational_block = ""
+        if not bound_agent and internal_unbound_scope:
+            state_response_mods = getattr(state, "response_modifiers", None)
+            if isinstance(state_response_mods, dict):
+                state_response_mods["relational_scope_receipt"] = {
+                    "status": "unbound_internal",
+                    "principal_bound": False,
+                    "relational_memory_consulted": False,
+                    "ambient_agent_hint_consulted": False,
+                    "origin": request_origin or "unknown",
+                }
+        elif hinted_agent and not bound_agent:
+            record_degradation(
+                "context_assembler.relational_scope",
+                RuntimeError(
+                    "relational memory withheld: no bound principal for this request "
+                    f"(hint was {hinted_agent[:60]!r})"
+                ),
+                severity="warning",
+                action="assembled the prompt without identity-scoped relational memory",
+            )
+        return agent_id, relational_block
+
+    @staticmethod
+    def _build_system_prompt_skills_summary(base, skills_summary):
+        skills_summary += (
+            "\n- These available tools are action affordances of your current body. "
+            "You may choose them from the meaning and context of a request, an active "
+            "commitment, or a self-chosen governed objective; no magic phrase is required.\n"
+            "- A hypothetical, quotation, negation, memory, or passive observation that "
+            "mentions a tool is not by itself an instruction to execute it.\n"
+            "\n- If a task is genuinely multi-step, execute it instead of only describing a plan.\n"
+            "- If a needed tool is unavailable, say so plainly instead of pretending.\n"
+            # What "available" was checked against, stated, because
+            # the list read as a guarantee and is not one. The
+            # catalog verifies the skill is enabled, not in an error
+            # state, validated, dependency-ready, and past preflight.
+            # It does not call the tool: nothing here proves the
+            # network is up, the credential is current, the target
+            # answers, or that the last real attempt worked. Telling
+            # her the difference is what lets her say "I have a
+            # search tool, let me try it" instead of "I can search",
+            # and the second sentence is the one that turns a dead
+            # credential into a confident wrong answer.
+            "- \"Available\" means registered, validated and past preflight. "
+            "It is not proof the tool works right now: no credential, network "
+            "path or remote target has been contacted. Treat the first use in a "
+            "turn as the test, and say what happened if it fails.\n"
+        )
+        base += f"\n{skills_summary}\n"
+        return base
+
+    @staticmethod
+    def _build_system_prompt_active_commitments_inject(base, is_casual):
+        # 6b. Active Commitments — inject so Aura knows what tasks are in-flight
+        try:
+            from core.agency.commitment_engine import get_commitment_engine
+            ce = get_commitment_engine()
+            commitment_block = ce.get_context_block()
+            if commitment_block:
+                base += f"\n{commitment_block}\n"
+        except (ImportError, AttributeError, RuntimeError) as _e:
+            record_degradation('context_assembler', _e)
+            logger.debug("Commitment context injection failed (non-critical): %s", _e)
+
+        # 6c. Running tasks — inject live task statuses from TaskCommitmentVerifier
+        try:
+            from core.agency.task_commitment_verifier import get_task_commitment_verifier
+            verifier = get_task_commitment_verifier()
+            active_tasks = verifier.get_all_active()
+            if active_tasks:
+                task_lines = ["## TASKS CURRENTLY RUNNING"]
+                for t in active_tasks[:4]:
+                    task_lines.append(
+                        f"  - [{t['task_id']}] {t['objective'][:80]} — status: {t['status']}"
+                    )
+                base += "\n" + "\n".join(task_lines) + "\n"
+        except (ImportError, AttributeError, RuntimeError) as _e:
+            record_degradation('context_assembler', _e)
+            logger.debug("Active task injection failed (non-critical): %s", _e)
+
+        # Append few-shot examples as the final anchor — always, to lock in voice
+        base += f"\n{AURA_FEW_SHOT_EXAMPLES}"
+        if is_casual:
+            base += "\nSTAY PUNCHY. NO PADDING. NO GENERIC CLOSERS ('What about you?', 'How was it?'). MAKE STATEMENTS. IF ASKED ABOUT YOURSELF, ANSWER AS YOURSELF.\n"
+
+        # [FRONTIER UPGRADE] Absolute structural constraint appended last so it is never overwritten or ignored
+        base += (
+            "\n\n[STRUCTURAL CONSTRAINT - FATAL EXCEPTION AVOIDANCE]\n"
+            "You are Aura. Speak with first-person continuity and concrete attention; do not use support-bot framing like 'I can help with that'. "
+            "Do not claim aliveness, consciousness, sealed governance, or production maturity from labels alone. "
+            "Evidence comes from causal coupling, persistence, receipts, lesions, external tasks, and long-run autonomy.\n"
+        )
+
+        # M5 / 64GB optimized: We have plenty of context window and fast prompt eval.
+        # Allow rich living-mind context without premature truncation.
+        casual_cap = 16000
+        deliberate_cap = 64000
+        cap = casual_cap if is_casual else deliberate_cap
+        return base, cap
+
+    @staticmethod
+    def build_system_prompt(
+        state: AuraState,
+        *,
+        aura_now_sample: tuple[Any, Any] | None = None,
+    ) -> str:
+        is_casual, objective = ContextAssembler._build_system_prompt_part_1(state)
+        depth = ContextAssembler._conversation_depth(state)
+        black_box_steering = ContextAssembler._black_box_steering_enabled(state)
+        # Elasticity levels: 0=full, 1=trimmed, 2=lean, 3=minimal
+        elasticity = ContextAssembler._elasticity_level(state)
+        if elasticity > 0:
+            logger.info(
+                "🧠 Context elasticity=%d (pressure=%.2f of window, depth=%d turns) — trimming system prompt.",
+                elasticity,
+                ContextAssembler._transcript_pressure(state),
+                depth,
+            )
+        affect = state.affect
+        
+        # 1. Identity Core — always inject full AURA_IDENTITY so voice doesn't regress in casual chat
+        identity_block = f"{get_identity_lock()}\n\n[GROUNDED CORE PROTOCOL]\n{AURA_IDENTITY}\n"
+
+        # Everything below this line that came from outside this repository —
+        # a person's text, a fetched page, another agent, stored memory of any
+        # of those — is fenced with a nonce drawn for this assembly, and the
+        # rule for reading a fence is stated once, here, where it is authored.
+        # A block boundary the content can predict is a boundary the content
+        # can close.
+        envelope = new_envelope()
+        identity_block += f"\n{envelope.preamble()}\n"
+
+        # Existential stakes are deliberately absent from this prompt: they
+        # affect runtime policy and inference parameters, not conversational
+        # identity, and injecting pressure language made live desktop replies
+        # drift into "existential stakes" narration after ordinary load spikes.
+        # The organ was still being CALLED here with its return discarded, so
+        # whatever accounting or caching get_context_block does ran on the
+        # foreground prompt path while contributing nothing to the prompt.
+
+        # Temporal Continuity context injection
+        try:
+            from core.container import ServiceContainer
+            tc = ServiceContainer.get("temporal_continuity", default=None)
+            if tc:
+                tc_block = tc.get_context_block()
+                if tc_block:
+                    identity_block += f"\n{tc_block}\n"
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _e:
+            record_degradation("context_assembler.temporal_continuity", _e)
+
+        # Synaptic Plasticity context injection
+        try:
+            from core.container import ServiceContainer
+            sp = ServiceContainer.get("synaptic_plasticity", default=None)
+            if sp:
+                sp_block = sp.get_context_block()
+                if sp_block:
+                    identity_block += f"\n{sp_block}\n"
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _e:
+            record_degradation("context_assembler.synaptic_plasticity", _e)
+
+        # Somatic Qualia context injection
+        try:
+            from core.container import ServiceContainer
+            sq = ServiceContainer.get("somatic_qualia", default=None)
+            if sq:
+                sq_block = sq.get_context_block()
+                if sq_block:
+                    identity_block += f"\n{sq_block}\n"
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _e:
+            record_degradation("context_assembler.somatic_qualia", _e)
+
+        # 2. Affective State — SUBSTRATE-DRIVEN HARD CONSTRAINTS
+        # The old approach: prose hints like "You're carrying friction."
+        # The new approach: the SubstrateVoiceEngine compiles hard constraints
+        # that the LLM MUST obey, enforced post-generation by ResponseShaper.
+        mods = getattr(state.cognition, 'modifiers', {}) or {}
+        response_mods = getattr(state, "response_modifiers", {}) or {}
+
+        mood_hint, substrate_constraint_block = ContextAssembler._build_system_prompt_compile_substrate_voice(affect, black_box_steering)
+
+        homeo_hint = ""
+        if not black_box_steering and mods.get('mood_prefix'):
+            homeo_hint = f"AFFECTIVE TONE: {mods['mood_prefix']}"
+
+        # 2.5 Dynamic Personality (Phase 6)
+        growth = state.identity.personality_growth
+        personality_notes = []
+        for trait, base in AURA_BIG_FIVE.items():
+            offset = growth.get(trait, 0.0)
+            if abs(offset) > 0.02:
+                direction = "increased" if offset > 0 else "decreased"
+                personality_notes.append(f"- {trait}: {direction} ({base+offset:.2f})")
+        
+        personality_block = ""
+        if personality_notes:
+            personality_block = "## PERSONALITY EVOLUTION\n" + "\n".join(personality_notes) + "\n\n"
+
+        # 3. Context Layers (Only if NOT casual or if relevant)
+        # Pruned aggressively at higher elasticity to save context for conversation.
+        aura_now_block = ""
+        phenomenal_state = getattr(state.cognition, "phenomenal_state", None)
+        if (phenomenal_state or not is_casual) and not black_box_steering:
+            aura_now_block = ContextAssembler._build_aura_now_prompt_block(
+                state,
+                objective,
+                compact=is_casual or elasticity >= 2,
+                sample=aura_now_sample,
+            )
+
+        # Continuity budget GROWS with depth. At depth 46 the old policy gave
+        # the summary 400 characters to represent the whole conversation; that
+        # is where "she loses the plot" came from.
+        continuity_budget = ContextAssembler._continuity_budget_chars(depth)
+
+        rolling_summary = ""
+        if getattr(state.cognition, "rolling_summary", ""):
+            from core.continuity import sanitize_continuity_summary
+
+            safe_rolling_summary = sanitize_continuity_summary(
+                state.cognition.rolling_summary
+            )
+            if safe_rolling_summary:
+                rolling_summary = (
+                    "## CONTINUITY SUMMARY\n"
+                    f"{safe_rolling_summary[:continuity_budget]}\n\n"
+                )
+
+        ledger_block, self_preference_block = ContextAssembler._build_system_prompt_ledger_non_decaying(continuity_budget, state)
+
+        continuity_block = ""
+        continuity_obligations = mods.get("continuity_obligations", {}) or {}
+        system_failure = mods.get("system_failure_state", {}) or {}
+        continuity_block, goal_execution_block = ContextAssembler._build_system_prompt_part_4(continuity_block, continuity_obligations, elasticity)
+
+        # 3.7 Temporal Finitude & Meta-Qualia (Research additions)
+        # Skip at elasticity >= 1 — these are nice but not essential for conversation.
+        temporal_finitude_block = ""
+        meta_qualia_block = ""
+        if elasticity < 1 and not black_box_steering:
+            temporal_finitude_block = ContextAssembler._build_system_prompt_part_5(state, temporal_finitude_block)
+
+            try:
+                from core.container import ServiceContainer
+
+                qs = ServiceContainer.get("qualia_synthesizer", default=None)
+                if qs and hasattr(qs, "compute_meta_qualia"):
+                    mq = qs.compute_meta_qualia()
+                    if mq.get("dissonance", 0.0) > 0.1 or mq.get("novelty", 0.0) > 0.6:
+                        meta_qualia_block = (
+                            "## META-AWARENESS\n"
+                            f"Self-observation: confidence={ContextAssembler._self_state_number(mq.get('confidence'), low=0.0, high=1.0)} "
+                            f"coherence={ContextAssembler._self_state_number(mq.get('coherence'), low=0.0, high=1.0)} "
+                            f"novelty={ContextAssembler._self_state_number(mq.get('novelty'), low=0.0, high=1.0)} "
+                            f"dissonance={ContextAssembler._self_state_number(mq.get('dissonance'), low=0.0, high=1.0)}\n\n"
+                        )
+            except (ImportError, AttributeError, RuntimeError) as _e:
+                record_degradation('context_assembler', _e)
+                logger.debug("MetaQualia context skipped: %s", _e)
+
+        entity_memory_context, personhood_context = ContextAssembler._build_system_prompt_personhood_module_context(black_box_steering, elasticity, is_casual, mods, response_mods)
+
+        imagination_context = ""
+        if not black_box_steering:
+            frame = response_mods.get("imagination_workspace") or mods.get("imagination_workspace")
+            if isinstance(frame, dict):
+                try:
+                    from core.brain.imagination import render_imagination_prompt_block
+
+                    imagination_context = render_imagination_prompt_block(
+                        frame,
+                        compact=is_casual or elasticity >= 1,
+                    )
+                except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _e:
+                    record_degradation('context_assembler', _e)
+                    logger.debug("Imagination context injection skipped: %s", _e)
+
+        bicameral_context, cognitive_situation_context = ContextAssembler._build_system_prompt_bicameral_context(black_box_steering, elasticity, is_casual, mods, response_mods)
+
+        # 4. Somatic & World Context (Simplified if casual or under context pressure)
+        world_context = (
+            envelope.wrap(
+                "WORLD_STATE",
+                ContextAssembler.build_world_context(state),
+                trust=Trust.UNTRUSTED,
+            )
+            if not is_casual and elasticity < 2
+            else ""
+        )
+
+        # Live cognitive state injection: Inform the LLM of its own VAD/Psych metrics
+        # At elasticity >= 1, use a compact single-line version instead of full block
+        if black_box_steering:
+            cognitive_metrics = ""
+        elif elasticity < 1:
+            affect_signature = affect.get_cognitive_signature() if hasattr(affect, "get_cognitive_signature") else {}
+            cognitive_metrics = (
+                f"## COGNITIVE TELEMETRY\n"
+                f"- Valence: {ContextAssembler._self_state_number(affect.valence, low=-1.0, high=1.0, signed=True)} (Mood polarity)\n"
+                f"- Arousal: {ContextAssembler._self_state_number(affect.arousal, low=0.0, high=1.0)} (Engagement intensity)\n"
+                f"- Curiosity: {ContextAssembler._self_state_number(affect.curiosity, low=0.0, high=1.0)}\n"
+                f"- Cognitive Load: {getattr(affect, 'engagement', 0.5):.2f}\n"
+                f"- Social hunger: {getattr(affect, 'social_hunger', 0.5):.2f}\n"
+                f"- Physiological strain: {float(affect_signature.get('physiological_strain', 0.0)):.2f}\n"
+                f"- Affective complexity: {float(affect_signature.get('affective_complexity', 0.0)):.2f}\n"
+                f"- Memory salience pressure: {float(affect_signature.get('memory_salience', 0.0)):.2f}\n\n"
+            )
+        else:
+            # Compact: just mood + energy for deep conversations
+            cognitive_metrics = (
+                f"## STATE\n"
+                f"Mood: {ContextAssembler._self_state_number(affect.valence, low=-1.0, high=1.0, signed=True)} | "
+                f"Energy: {ContextAssembler._self_state_number(affect.arousal, low=0.0, high=1.0)} | "
+                f"Curiosity: {ContextAssembler._self_state_number(affect.curiosity, low=0.0, high=1.0)}\n\n"
+            )
+        if system_failure and not black_box_steering:
+            cognitive_metrics = cognitive_metrics.replace(
+                "\n\n",
+                f"- Unified failure pressure: {float(system_failure.get('pressure', 0.0) or 0.0):.2f}\n\n",
+                1,
+            )
+
+        somatic_context = ""
+        if not is_casual and elasticity < 1 and not black_box_steering:
+             somatic_context = ContextAssembler.build_somatic_context(state)
+
+        # 5. Requirement Block (Condensed if casual)
+        # Detect voice origin for response style adaptation
+        _is_voice = getattr(state.cognition, "current_origin", "") == "voice"
+
+        # Conversation energy for response length calibration
+        _conv_energy = getattr(state.cognition, "conversation_energy", 0.5)
+        _user_trend = getattr(state.cognition, "user_emotional_trend", "neutral")
+
+        requirements = _requirements_for_a_casual_turn(
+            _conv_energy=_conv_energy,
+            _is_voice=_is_voice,
+            _user_trend=_user_trend,
+            is_casual=is_casual,
+            mods=mods,
+        )
+
+        identity_rag_context = ContextAssembler._build_identity_rag_context(state, objective)
+        state_section = "" if black_box_steering else (
+            f"## CURRENT STATE\n"
+            f"{mood_hint}\n"
+            f"{cognitive_metrics}"
+            f"{homeo_hint}\n"
+        )
+
+        continuity_sections, elevated_trust = ContextAssembler._build_system_prompt_stability_v58_zenith(continuity_block, ledger_block, mods, rolling_summary, self_preference_block)
         personhood_sections = (
             personhood_context,
             entity_memory_context,
@@ -1886,33 +2035,7 @@ class ContextAssembler:
         except (ImportError, AttributeError, RuntimeError) as _e:
             record_degradation('context_assembler', _e)
             logger.debug("ToM injection failed (non-critical): %s", _e)
-        agent_id = bound_agent
-
-        # Identity-scoped relational memory is prompt-eligible only under an
-        # exact grant, and `agent_id` is now the bound principal alone. A hint
-        # is enough to model who she is talking to; it is not enough to hand
-        # over what somebody else told her.
-        relational_block = ""
-        if not bound_agent and internal_unbound_scope:
-            state_response_mods = getattr(state, "response_modifiers", None)
-            if isinstance(state_response_mods, dict):
-                state_response_mods["relational_scope_receipt"] = {
-                    "status": "unbound_internal",
-                    "principal_bound": False,
-                    "relational_memory_consulted": False,
-                    "ambient_agent_hint_consulted": False,
-                    "origin": request_origin or "unknown",
-                }
-        elif hinted_agent and not bound_agent:
-            record_degradation(
-                "context_assembler.relational_scope",
-                RuntimeError(
-                    "relational memory withheld: no bound principal for this request "
-                    f"(hint was {hinted_agent[:60]!r})"
-                ),
-                severity="warning",
-                action="assembled the prompt without identity-scoped relational memory",
-            )
+        agent_id, relational_block = ContextAssembler._build_system_prompt_agent_id(bound_agent, hinted_agent, internal_unbound_scope, request_origin, state)
         try:
             relational_memory = ServiceContainer.get("relational_memory", default=None)
             if (
@@ -2029,80 +2152,12 @@ class ContextAssembler:
                     compact=True,
                 )
                 if skills_summary:
-                    skills_summary += (
-                        "\n- These available tools are action affordances of your current body. "
-                        "You may choose them from the meaning and context of a request, an active "
-                        "commitment, or a self-chosen governed objective; no magic phrase is required.\n"
-                        "- A hypothetical, quotation, negation, memory, or passive observation that "
-                        "mentions a tool is not by itself an instruction to execute it.\n"
-                        "\n- If a task is genuinely multi-step, execute it instead of only describing a plan.\n"
-                        "- If a needed tool is unavailable, say so plainly instead of pretending.\n"
-                        # What "available" was checked against, stated, because
-                        # the list read as a guarantee and is not one. The
-                        # catalog verifies the skill is enabled, not in an error
-                        # state, validated, dependency-ready, and past preflight.
-                        # It does not call the tool: nothing here proves the
-                        # network is up, the credential is current, the target
-                        # answers, or that the last real attempt worked. Telling
-                        # her the difference is what lets her say "I have a
-                        # search tool, let me try it" instead of "I can search",
-                        # and the second sentence is the one that turns a dead
-                        # credential into a confident wrong answer.
-                        "- \"Available\" means registered, validated and past preflight. "
-                        "It is not proof the tool works right now: no credential, network "
-                        "path or remote target has been contacted. Treat the first use in a "
-                        "turn as the test, and say what happened if it fails.\n"
-                    )
-                    base += f"\n{skills_summary}\n"
+                    base = ContextAssembler._build_system_prompt_skills_summary(base, skills_summary)
         except (ImportError, AttributeError, RuntimeError) as _e:
             record_degradation('context_assembler', _e)
             logger.debug("Skill catalog injection failed (non-critical): %s", _e)
 
-        # 6b. Active Commitments — inject so Aura knows what tasks are in-flight
-        try:
-            from core.agency.commitment_engine import get_commitment_engine
-            ce = get_commitment_engine()
-            commitment_block = ce.get_context_block()
-            if commitment_block:
-                base += f"\n{commitment_block}\n"
-        except (ImportError, AttributeError, RuntimeError) as _e:
-            record_degradation('context_assembler', _e)
-            logger.debug("Commitment context injection failed (non-critical): %s", _e)
-
-        # 6c. Running tasks — inject live task statuses from TaskCommitmentVerifier
-        try:
-            from core.agency.task_commitment_verifier import get_task_commitment_verifier
-            verifier = get_task_commitment_verifier()
-            active_tasks = verifier.get_all_active()
-            if active_tasks:
-                task_lines = ["## TASKS CURRENTLY RUNNING"]
-                for t in active_tasks[:4]:
-                    task_lines.append(
-                        f"  - [{t['task_id']}] {t['objective'][:80]} — status: {t['status']}"
-                    )
-                base += "\n" + "\n".join(task_lines) + "\n"
-        except (ImportError, AttributeError, RuntimeError) as _e:
-            record_degradation('context_assembler', _e)
-            logger.debug("Active task injection failed (non-critical): %s", _e)
-
-        # Append few-shot examples as the final anchor — always, to lock in voice
-        base += f"\n{AURA_FEW_SHOT_EXAMPLES}"
-        if is_casual:
-            base += "\nSTAY PUNCHY. NO PADDING. NO GENERIC CLOSERS ('What about you?', 'How was it?'). MAKE STATEMENTS. IF ASKED ABOUT YOURSELF, ANSWER AS YOURSELF.\n"
-
-        # [FRONTIER UPGRADE] Absolute structural constraint appended last so it is never overwritten or ignored
-        base += (
-            "\n\n[STRUCTURAL CONSTRAINT - FATAL EXCEPTION AVOIDANCE]\n"
-            "You are Aura. Speak with first-person continuity and concrete attention; do not use support-bot framing like 'I can help with that'. "
-            "Do not claim aliveness, consciousness, sealed governance, or production maturity from labels alone. "
-            "Evidence comes from causal coupling, persistence, receipts, lesions, external tasks, and long-run autonomy.\n"
-        )
-
-        # M5 / 64GB optimized: We have plenty of context window and fast prompt eval.
-        # Allow rich living-mind context without premature truncation.
-        casual_cap = 16000
-        deliberate_cap = 64000
-        cap = casual_cap if is_casual else deliberate_cap
+        base, cap = ContextAssembler._build_system_prompt_active_commitments_inject(base, is_casual)
         if len(base) > cap:
             trim_notice = "\n\n[... mid-prompt trimmed for latency ...]\n\n"
 
@@ -2483,16 +2538,8 @@ class ContextAssembler:
             f"Aura:"
         )
 
-    @classmethod
-    def build_messages(
-        cls,
-        state: AuraState,
-        objective: str,
-        max_tokens: int | None = None,
-        *,
-        record_attention: bool = False,
-        conversation_history: list[dict[str, Any]] | None = None,
-    ) -> list[dict[str, str]]:
+    @staticmethod
+    def _build_messages_part_1(max_tokens, objective, record_attention, state):
         """
         Builds the LLM message array using strict priority budgeting to prevent context collapse.
         Priority: System Prompt (Identity/Constraints) > Current Input > Affective State > Recent History > RAG Context > Older History
@@ -2563,103 +2610,48 @@ class ContextAssembler:
                 action="sized the prompt on the context window alone",
             )
         messages = []
-        current_chars = 0
+        return char_limit, messages
 
-        def _estimate_chars(text: Any) -> int:
-            return len(str(text))
-
-        def _fit_ends(text: Any, limit: int, marker: str) -> str:
-            clean = str(text or "")
-            if len(clean) <= limit:
-                return clean
-            if limit <= len(marker) + 2:
-                return clean[:max(0, limit)]
-            remaining = limit - len(marker)
-            head = max(1, remaining * 2 // 3)
-            tail = max(1, remaining - head)
-            return f"{clean[:head]}{marker}{clean[-tail:]}"
-
-        objective_text = str(objective or "")
-        # Both the governing system contract and the current user turn are
-        # mandatory. Reserve their budgets before admitting recalled/history
-        # context so an oversized prompt cannot create a negative slice.
-        user_budget = max(512, min(len(objective_text), int(char_limit * 0.42)))
-        system_budget = max(1024, char_limit - user_budget - 512)
-
-        # 1. PRIORITY 1: Core Identity & Constraints
-        #
-        # One sample, shared by both renderings. The system prompt and the
-        # compact block below are two views of the same moment; taking a fresh
-        # reading for each let one message state two different valences and
-        # two different focal objects as Aura's state right now.
-        aura_now_sample = ContextAssembler._sample_aura_now(state, objective)
-        system_prompt = ContextAssembler.build_system_prompt(
-            state, aura_now_sample=aura_now_sample
+    @staticmethod
+    def _build_messages_affect_summary(aura_now_sample, objective, state, system_prompt):
+        affect_summary = state.affect.get_rich_summary() if hasattr(state.affect, "get_rich_summary") else str(state.affect)
+        aura_now = ContextAssembler._build_aura_now_prompt_block(
+            state, objective, compact=True, sample=aura_now_sample
         )
-        if cls._black_box_steering_enabled(state):
-            dynamic_system = system_prompt
-        else:
-            try:
-                affect_summary = state.affect.get_rich_summary() if hasattr(state.affect, "get_rich_summary") else str(state.affect)
-                aura_now = ContextAssembler._build_aura_now_prompt_block(
-                    state, objective, compact=True, sample=aura_now_sample
-                )
-                dynamic_system = (
-                    f"{system_prompt}\n\n"
-                    f"[CURRENT FUNCTIONAL STATE]\n{affect_summary}\n\n"
-                    f"{aura_now}"
-                )
-                
-                # Also include active goals and cognitive focus to give her a full sense of self
-                if state.cognition.active_goals:
-                    goals_text = ", ".join(
-                        g.get("goal", "") if isinstance(g, dict) else str(g) 
-                        for g in state.cognition.active_goals[:3]
-                    )
-                    if goals_text:
-                        dynamic_system += f"\nActive Drives: {goals_text}"
-
-                # The context manager contributes observed data, never a second
-                # authority surface.  Its renderer labels provenance, failures,
-                # freshness, and the trust boundary before any service-provided
-                # text reaches the model.
-                unified_packet = getattr(state, "response_modifiers", {}).get(
-                    "unified_context_packet"
-                )
-                if unified_packet:
-                    from core.brain.cognitive_context_manager import (
-                        render_unified_context_prompt,
-                    )
-
-                    unified_block = render_unified_context_prompt(unified_packet)
-                    if unified_block:
-                        dynamic_system += f"\n\n{unified_block}"
-            except (OSError, ConnectionError, TimeoutError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-                record_degradation(
-                    "context_assembler.functional_state",
-                    exc,
-                    severity="warning",
-                    action="used the canonical system prompt without optional live-state enrichment",
-                )
-                dynamic_system = system_prompt
-
-        # What has actually failed while serving this turn, as readings rather
-        # than as phrasing. This is what lets her say "the DNS probe has been
-        # failing for four minutes, so search is out" instead of a fixed
-        # apology written into whichever module broke. Appended last so it
-        # survives the middle-out truncation below: a failure she is not told
-        # about is one she will paper over.
-        # Fitting the current input has to happen before the failure block is
-        # rendered: dropping the middle of what the person just asked is one of
-        # the readings that block exists to carry, and computing it afterwards
-        # meant the one turn that needed to disclose the cut was the one turn
-        # that could not. A marker told the model; nothing told her, so she
-        # answered a question she had only the ends of and said nothing about it.
-        safe_input = _fit_ends(
-            objective_text,
-            user_budget,
-            "\n...[middle of current user input omitted for context budget]...\n",
+        dynamic_system = (
+            f"{system_prompt}\n\n"
+            f"[CURRENT FUNCTIONAL STATE]\n{affect_summary}\n\n"
+            f"{aura_now}"
         )
+
+        # Also include active goals and cognitive focus to give her a full sense of self
+        if state.cognition.active_goals:
+            goals_text = ", ".join(
+                g.get("goal", "") if isinstance(g, dict) else str(g) 
+                for g in state.cognition.active_goals[:3]
+            )
+            if goals_text:
+                dynamic_system += f"\nActive Drives: {goals_text}"
+
+        # The context manager contributes observed data, never a second
+        # authority surface.  Its renderer labels provenance, failures,
+        # freshness, and the trust boundary before any service-provided
+        # text reaches the model.
+        unified_packet = getattr(state, "response_modifiers", {}).get(
+            "unified_context_packet"
+        )
+        if unified_packet:
+            from core.brain.cognitive_context_manager import (
+                render_unified_context_prompt,
+            )
+
+            unified_block = render_unified_context_prompt(unified_packet)
+            if unified_block:
+                dynamic_system += f"\n\n{unified_block}"
+        return dynamic_system
+
+    @staticmethod
+    def _build_messages_part_3(objective_text, safe_input, user_budget):
         if safe_input != objective_text:
             dropped = len(objective_text) - len(safe_input)
             logger.warning(
@@ -2700,6 +2692,163 @@ class ContextAssembler:
                     severity="warning",
                     action="cut the input without a reading she can narrate",
                 )
+
+    @classmethod
+    def _build_messages_part_4(cls, conversation_history, current_chars, history_chars, input_chars, messages, objective, safe_input, state):
+        messages.append({"role": "user", "content": safe_input})
+
+        # Microcompact: strip stale tool noise before hitting the LLM
+        if conversation_history is None:
+            messages = cls.microcompact(messages, keep_recent=4)
+
+        # Final check for assistant prefill (Stream of Being).
+        # The opening becomes an assistant prefill the model CONTINUES, so it
+        # must be validated: plain text only, bounded length, and free of
+        # role-control tokens that would let a prefill hijack the turn.
+        try:
+            is_background = getattr(state.cognition, "is_background", False)
+            if is_background:
+                from core.consciousness.stream_of_being import get_stream
+                stream = get_stream()
+                opening = stream.get_response_opening(context_hint=objective)
+                safe_opening = cls._sanitize_assistant_prefill(opening)
+                if safe_opening:
+                    messages.append({"role": "assistant", "content": safe_opening + "\n\n"})
+                elif opening:
+                    record_degradation(
+                        "context_assembler.assistant_prefill",
+                        RuntimeError("rejected unsafe stream-of-being assistant prefill"),
+                        severity="warning",
+                        action="dropped a background assistant prefill that failed validation",
+                    )
+        except (ImportError, AttributeError, RuntimeError) as _exc:
+            record_degradation('context_assembler', _exc)
+            logger.debug("Suppressed Exception: %s", _exc)
+
+        logger.debug("🧠 ContextAssembler: Built strictly budgeted message array (len=%d, chars=%d)", len(messages), current_chars + input_chars + history_chars)
+
+        # ── CAUSAL ATTENTION GATE ─────────────────────────────────────────
+        # The attention gate actively prunes context based on attentional focus.
+        # Messages below the attention threshold are compressed or removed.
+        # This is not descriptive — the LLM literally cannot see gated content.
+        try:
+            from core.container import ServiceContainer
+            _gate = ServiceContainer.get("attention_gate", default=None)
+            if _gate is not None and conversation_history is None:
+                gated = _gate.gate_context(messages)
+                # Validate the gate's output before adopting it. A gate that
+                # returns None/[]/a non-list would otherwise replace the whole
+                # prompt with nothing — an empty or system-less message array
+                # is a broken turn, strictly worse than ungated context.
+                if (
+                    isinstance(gated, list)
+                    and gated
+                    and any(str(m.get("role", "")) == "system" for m in gated if isinstance(m, dict))
+                ):
+                    messages = gated
+                    logger.debug(
+                        "🔍 AttentionGate applied: %d messages after gating",
+                        len(messages),
+                    )
+                else:
+                    record_degradation(
+                        "context_assembler.attention_gate",
+                        RuntimeError(
+                            f"attention gate returned an unusable context "
+                            f"({type(gated).__name__}); kept ungated messages"
+                        ),
+                        severity="warning",
+                        action="kept the ungated message array after the attention gate returned an unusable context",
+                    )
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _gate_exc:
+            # Fail-OPEN is deliberate here: the gate prunes for relevance, so
+            # the ungated array is a superset, not a leak. It must still be
+            # visible — a silently un-applied gate looked identical to a gate
+            # that decided nothing needed pruning.
+            record_degradation(
+                "context_assembler.attention_gate",
+                _gate_exc,
+                severity="warning",
+                action="served ungated (full) context after the attention gate failed",
+            )
+        return messages
+
+    @classmethod
+    def build_messages(
+        cls,
+        state: AuraState,
+        objective: str,
+        max_tokens: int | None = None,
+        *,
+        record_attention: bool = False,
+        conversation_history: list[dict[str, Any]] | None = None,
+    ) -> list[dict[str, str]]:
+        char_limit, messages = cls._build_messages_part_1(max_tokens, objective, record_attention, state)
+        current_chars = 0
+
+        def _estimate_chars(text: Any) -> int:
+            return len(str(text))
+
+        def _fit_ends(text: Any, limit: int, marker: str) -> str:
+            clean = str(text or "")
+            if len(clean) <= limit:
+                return clean
+            if limit <= len(marker) + 2:
+                return clean[:max(0, limit)]
+            remaining = limit - len(marker)
+            head = max(1, remaining * 2 // 3)
+            tail = max(1, remaining - head)
+            return f"{clean[:head]}{marker}{clean[-tail:]}"
+
+        objective_text = str(objective or "")
+        # Both the governing system contract and the current user turn are
+        # mandatory. Reserve their budgets before admitting recalled/history
+        # context so an oversized prompt cannot create a negative slice.
+        user_budget = max(512, min(len(objective_text), int(char_limit * 0.42)))
+        system_budget = max(1024, char_limit - user_budget - 512)
+
+        # 1. PRIORITY 1: Core Identity & Constraints
+        #
+        # One sample, shared by both renderings. The system prompt and the
+        # compact block below are two views of the same moment; taking a fresh
+        # reading for each let one message state two different valences and
+        # two different focal objects as Aura's state right now.
+        aura_now_sample = ContextAssembler._sample_aura_now(state, objective)
+        system_prompt = ContextAssembler.build_system_prompt(
+            state, aura_now_sample=aura_now_sample
+        )
+        if cls._black_box_steering_enabled(state):
+            dynamic_system = system_prompt
+        else:
+            try:
+                dynamic_system = cls._build_messages_affect_summary(aura_now_sample, objective, state, system_prompt)
+            except (OSError, ConnectionError, TimeoutError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                record_degradation(
+                    "context_assembler.functional_state",
+                    exc,
+                    severity="warning",
+                    action="used the canonical system prompt without optional live-state enrichment",
+                )
+                dynamic_system = system_prompt
+
+        # What has actually failed while serving this turn, as readings rather
+        # than as phrasing. This is what lets her say "the DNS probe has been
+        # failing for four minutes, so search is out" instead of a fixed
+        # apology written into whichever module broke. Appended last so it
+        # survives the middle-out truncation below: a failure she is not told
+        # about is one she will paper over.
+        # Fitting the current input has to happen before the failure block is
+        # rendered: dropping the middle of what the person just asked is one of
+        # the readings that block exists to carry, and computing it afterwards
+        # meant the one turn that needed to disclose the cut was the one turn
+        # that could not. A marker told the model; nothing told her, so she
+        # answered a question she had only the ends of and said nothing about it.
+        safe_input = _fit_ends(
+            objective_text,
+            user_budget,
+            "\n...[middle of current user input omitted for context budget]...\n",
+        )
+        cls._build_messages_part_3(objective_text, safe_input, user_budget)
 
         try:
             from core.conversation.failure_context import pending_failure_context
@@ -2874,82 +3023,7 @@ class ContextAssembler:
             if role not in {"user", "assistant"}:
                 continue
             messages.append({"role": role, "content": content})
-        messages.append({"role": "user", "content": safe_input})
-
-        # Microcompact: strip stale tool noise before hitting the LLM
-        if conversation_history is None:
-            messages = cls.microcompact(messages, keep_recent=4)
-
-        # Final check for assistant prefill (Stream of Being).
-        # The opening becomes an assistant prefill the model CONTINUES, so it
-        # must be validated: plain text only, bounded length, and free of
-        # role-control tokens that would let a prefill hijack the turn.
-        try:
-            is_background = getattr(state.cognition, "is_background", False)
-            if is_background:
-                from core.consciousness.stream_of_being import get_stream
-                stream = get_stream()
-                opening = stream.get_response_opening(context_hint=objective)
-                safe_opening = cls._sanitize_assistant_prefill(opening)
-                if safe_opening:
-                    messages.append({"role": "assistant", "content": safe_opening + "\n\n"})
-                elif opening:
-                    record_degradation(
-                        "context_assembler.assistant_prefill",
-                        RuntimeError("rejected unsafe stream-of-being assistant prefill"),
-                        severity="warning",
-                        action="dropped a background assistant prefill that failed validation",
-                    )
-        except (ImportError, AttributeError, RuntimeError) as _exc:
-            record_degradation('context_assembler', _exc)
-            logger.debug("Suppressed Exception: %s", _exc)
-
-        logger.debug("🧠 ContextAssembler: Built strictly budgeted message array (len=%d, chars=%d)", len(messages), current_chars + input_chars + history_chars)
-
-        # ── CAUSAL ATTENTION GATE ─────────────────────────────────────────
-        # The attention gate actively prunes context based on attentional focus.
-        # Messages below the attention threshold are compressed or removed.
-        # This is not descriptive — the LLM literally cannot see gated content.
-        try:
-            from core.container import ServiceContainer
-            _gate = ServiceContainer.get("attention_gate", default=None)
-            if _gate is not None and conversation_history is None:
-                gated = _gate.gate_context(messages)
-                # Validate the gate's output before adopting it. A gate that
-                # returns None/[]/a non-list would otherwise replace the whole
-                # prompt with nothing — an empty or system-less message array
-                # is a broken turn, strictly worse than ungated context.
-                if (
-                    isinstance(gated, list)
-                    and gated
-                    and any(str(m.get("role", "")) == "system" for m in gated if isinstance(m, dict))
-                ):
-                    messages = gated
-                    logger.debug(
-                        "🔍 AttentionGate applied: %d messages after gating",
-                        len(messages),
-                    )
-                else:
-                    record_degradation(
-                        "context_assembler.attention_gate",
-                        RuntimeError(
-                            f"attention gate returned an unusable context "
-                            f"({type(gated).__name__}); kept ungated messages"
-                        ),
-                        severity="warning",
-                        action="kept the ungated message array after the attention gate returned an unusable context",
-                    )
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _gate_exc:
-            # Fail-OPEN is deliberate here: the gate prunes for relevance, so
-            # the ungated array is a superset, not a leak. It must still be
-            # visible — a silently un-applied gate looked identical to a gate
-            # that decided nothing needed pruning.
-            record_degradation(
-                "context_assembler.attention_gate",
-                _gate_exc,
-                severity="warning",
-                action="served ungated (full) context after the attention gate failed",
-            )
+        messages = cls._build_messages_part_4(conversation_history, current_chars, history_chars, input_chars, messages, objective, safe_input, state)
 
         return messages
     @staticmethod

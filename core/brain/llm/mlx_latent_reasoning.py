@@ -354,6 +354,233 @@ class _ReasonsInLatentSpace:
             return cancel_ack
         return None
 
+    def _latent_reason_async_admit_action_state_runtime(self, action_state_runtime, wire_action_intervention):
+        from core.brain.llm.latent_cortex.action_state_runtime import (
+            admit_action_state_runtime,
+            provision_action_state_store_custody,
+        )
+
+        binding = self.get_worker_identity_snapshot().get(
+            "worker_action_capture_origin_binding"
+        )
+        if not isinstance(binding, Mapping):
+            raise ValueError("worker capture origin unavailable")
+        candidate_runtime = json.loads(
+            json.dumps(action_state_runtime, allow_nan=False)
+        )
+        candidate_runtime["resident_worker_origin_binding"] = json.loads(
+            json.dumps(binding, allow_nan=False)
+        )
+        provision_action_state_store_custody()
+        admitted_runtime = admit_action_state_runtime(
+            candidate_runtime,
+            worker_launch_challenge=binding.get("launch_challenge"),
+            now_unix=int(time.time()),
+        )
+        if (
+            admitted_runtime.mode == "capture"
+            and wire_action_intervention is not None
+        ):
+            raise ValueError("capture cannot carry an intervention")
+        if admitted_runtime.mode == "restore":
+            if wire_action_intervention is None:
+                raise ValueError("restore requires an intervention")
+            if (
+                wire_action_intervention["authority_payload"]["arm"]
+                != admitted_runtime.arm
+            ):
+                raise ValueError("restore arm differs from intervention")
+        wire_action_state_runtime = candidate_runtime
+        admitted_action_state_runtime = admitted_runtime
+        return admitted_action_state_runtime, wire_action_state_runtime
+
+    def _latent_reason_async_fut(self, bounded_timeout_s, messages, prompt, req_id, request_seq, wire_config):
+        from .mlx_client import _new_shared_future
+        fut = _new_shared_future()
+        self._pending_generations[req_id] = fut
+        self._latent_progress_by_request[req_id] = {
+            "request_id": req_id,
+            "stage": "submitted",
+            "received_at_unix": time.time(),
+        }
+        from core.runtime.chat_delivery_progress import capture_generation_progress
+
+        self._latent_delivery_progress = (req_id, capture_generation_progress())
+        from core.runtime.turn_progress import capture_progress
+
+        self._latent_turn_progress = capture_progress()
+        self._current_gen_future = fut
+        self._active_generations += 1
+        self._active_generation_started_at = time.time()
+        requested_tokens_raw = wire_config.get("decode_max_tokens", 0)
+        requested_tokens = (
+            requested_tokens_raw
+            if type(requested_tokens_raw) is int and requested_tokens_raw > 0
+            else 0
+        )
+        # The last number before the worker, beside the one the client
+        # granted. A budget that shrinks somewhere between them is
+        # invisible from either end: the client's log says 2048 and the
+        # worker's says 399, and nothing says which layer took the
+        # difference.
+        if int(requested_tokens or 0) and int(requested_tokens) < int(
+            getattr(self, "max_tokens", 0) or 0
+        ):
+            logger.info(
+                "🔧 Decode budget on the wire: %d, against a client ceiling "
+                "of %d — something between them reduced it.",
+                int(requested_tokens),
+                int(getattr(self, "max_tokens", 0) or 0),
+            )
+        prompt_chars = len(prompt or "") + sum(
+            len(str(message.get("content") or ""))
+            for message in (messages or [])
+            if isinstance(message, dict)
+        )
+        # What a large prompt is MADE of, at the one boundary every path
+        # crosses.
+        #
+        # The gate logs a breakdown for prompts it assembles; the deep
+        # cognitive path assembles its own and logged nothing. LIVE,
+        # 2026-08-28: a 213-character question was answered from a
+        # 50,359-character prompt that took 191.6 seconds to read — the
+        # whole turn — and there was no way to see what those characters
+        # were.
+        if prompt_chars > 20_000:
+            try:
+                parts = [
+                    f"{str((m or {}).get('role') or '?')}"
+                    f"={len(str((m or {}).get('content') or ''))}"
+                    f":{str((m or {}).get('content') or '')[:60]!r}"
+                    for m in (messages or [])
+                    if isinstance(m, dict)
+                ]
+                if prompt:
+                    parts.insert(0, f"prompt={len(str(prompt))}")
+                logger.info(
+                    "📏 [MLX] %d-char prompt: %s",
+                    prompt_chars,
+                    "; ".join(parts)[:900],
+                )
+                # And inside the biggest one, its sections.
+                #
+                # Knowing a system message is 46,665 characters says only
+                # that something is large. The sections are what somebody
+                # can act on, and they are marked in the text already.
+                biggest = max(
+                    (
+                        str((m or {}).get("content") or "")
+                        for m in (messages or [])
+                        if isinstance(m, dict)
+                    ),
+                    key=len,
+                    default="",
+                )
+                if len(biggest) > 20_000:
+                    import re as _re
+
+                    marks = [
+                        (found.start(), found.group(0).strip())
+                        for found in _re.finditer(
+                            r"^(?:##+ [^\n]{0,60}|\[[A-Z][A-Z _-]{2,60}\])",
+                            biggest,
+                            _re.MULTILINE,
+                        )
+                    ]
+                    if marks:
+                        bounds = [m[0] for m in marks] + [len(biggest)]
+                        sized = sorted(
+                            (
+                                (bounds[i + 1] - bounds[i], marks[i][1])
+                                for i in range(len(marks))
+                            ),
+                            reverse=True,
+                        )
+                        logger.info(
+                            "📏 [MLX] largest message %d chars, biggest "
+                            "sections: %s",
+                            len(biggest),
+                            "; ".join(
+                                f"{name}={size}" for size, name in sized[:12]
+                            )[:700],
+                        )
+            except (AttributeError, TypeError, ValueError):
+                pass
+        self._mark_generation_started(
+            req_id,
+            prompt_chars=prompt_chars,
+            requested_max_tokens=requested_tokens,
+            first_token_hard_ceiling_s=bounded_timeout_s,
+            request_seq=request_seq,
+        )
+        return fut
+
+    def _latent_reason_async_runtime_integrity_safe(self, receipt):
+        from core.brain.llm.latent_cortex.runtime_integrity import (
+            runtime_integrity_safe,
+        )
+
+        integrity_safe = runtime_integrity_safe(
+            receipt.get("runtime_integrity"),
+            require_worker=True,
+            expected_episode_id=str(receipt.get("episode_id") or ""),
+            expected_input_tokens_sha256=str(
+                receipt.get("input_tokens_sha256") or ""
+            ),
+            expected_worker_identity=getattr(
+                self,
+                "_worker_identity",
+                {},
+            ),
+            expected_fast_weights_applied=(
+                receipt.get("fast_weights_applied") is True
+            ),
+            expected_checkpoint_fingerprint=str(
+                receipt.get("checkpoint_fingerprint") or ""
+            ),
+            expected_checkpoint_method=str(
+                receipt.get(
+                    "checkpoint_fingerprint_method"
+                )
+                or ""
+            ),
+            expected_checkpoint_file_count=receipt.get(
+                "checkpoint_file_count"
+            ),
+        )
+        return integrity_safe
+
+    async def _latent_reason_async_part_4(self, deferred_reboot, foreground_owner_cm, fut, lane_fenced, req_id):
+        try:
+            try:
+                if fut is not None:
+                    await asyncio.shield(
+                        self._finish_generation_ownership(
+                            req_id,
+                            fut,
+                            None,
+                            release_lane=not bool(deferred_reboot),
+                        )
+                    )
+            finally:
+                if deferred_reboot:
+                    await asyncio.shield(
+                        self.reboot_worker(
+                            reason=deferred_reboot,
+                            mark_failed=False,
+                        )
+                    )
+                elif lane_fenced and fut is None and self._active_generations <= 0:
+                    await asyncio.shield(self._set_durable_lane_preemptible(True))
+        finally:
+            self._latent_progress_by_request.pop(req_id, None)
+            if getattr(self, "_latent_delivery_progress", (None, None))[0] == req_id:
+                self._latent_delivery_progress = (None, None)
+                self._latent_turn_progress = None
+            self._release_request_lock()
+            if foreground_owner_cm is not None:
+                await foreground_owner_cm.__aexit__(None, None, None)
+
     async def latent_reason_async(
         self,
         prompt: str | None = None,
@@ -383,18 +610,7 @@ class _ReasonsInLatentSpace:
         never spawns a worker just to think — no resident model, no episode.
         Returns ``{"ok": bool, "text": str, "receipt": {...}, "reason": str}``.
         """
-        from .mlx_client import (
-            _AURA_SOURCE_ROOT,
-            _SEAM_FELL_THROUGH,
-            _apply_the_wire_action_intervention,
-            _await_shared_future,
-            _foreground_owner_context,
-            _is_internal_inference,
-            _latent_request_schema_error,
-            _new_shared_future,
-            _record_mlx_degradation,
-            _remaining_budget,
-        )
+        from .mlx_client import _AURA_SOURCE_ROOT, _SEAM_FELL_THROUGH, _apply_the_wire_action_intervention, _await_shared_future, _foreground_owner_context, _is_internal_inference, _latent_request_schema_error, _record_mlx_degradation, _remaining_budget
 
         base = {"ok": False, "text": "", "receipt": {}}
         if self._closed:
@@ -485,43 +701,7 @@ class _ReasonsInLatentSpace:
                     "reason": "action_state_runtime_requires_lab_lane",
                 }
             try:
-                from core.brain.llm.latent_cortex.action_state_runtime import (
-                    admit_action_state_runtime,
-                    provision_action_state_store_custody,
-                )
-
-                binding = self.get_worker_identity_snapshot().get(
-                    "worker_action_capture_origin_binding"
-                )
-                if not isinstance(binding, Mapping):
-                    raise ValueError("worker capture origin unavailable")
-                candidate_runtime = json.loads(
-                    json.dumps(action_state_runtime, allow_nan=False)
-                )
-                candidate_runtime["resident_worker_origin_binding"] = json.loads(
-                    json.dumps(binding, allow_nan=False)
-                )
-                provision_action_state_store_custody()
-                admitted_runtime = admit_action_state_runtime(
-                    candidate_runtime,
-                    worker_launch_challenge=binding.get("launch_challenge"),
-                    now_unix=int(time.time()),
-                )
-                if (
-                    admitted_runtime.mode == "capture"
-                    and wire_action_intervention is not None
-                ):
-                    raise ValueError("capture cannot carry an intervention")
-                if admitted_runtime.mode == "restore":
-                    if wire_action_intervention is None:
-                        raise ValueError("restore requires an intervention")
-                    if (
-                        wire_action_intervention["authority_payload"]["arm"]
-                        != admitted_runtime.arm
-                    ):
-                        raise ValueError("restore arm differs from intervention")
-                wire_action_state_runtime = candidate_runtime
-                admitted_action_state_runtime = admitted_runtime
+                admitted_action_state_runtime, wire_action_state_runtime = self._latent_reason_async_admit_action_state_runtime(action_state_runtime, wire_action_intervention)
             except (
                 ImportError,
                 OSError,
@@ -770,123 +950,7 @@ class _ReasonsInLatentSpace:
             if response_contract is not None:
                 job["response_contract"] = response_contract
 
-            fut = _new_shared_future()
-            self._pending_generations[req_id] = fut
-            self._latent_progress_by_request[req_id] = {
-                "request_id": req_id,
-                "stage": "submitted",
-                "received_at_unix": time.time(),
-            }
-            from core.runtime.chat_delivery_progress import capture_generation_progress
-
-            self._latent_delivery_progress = (req_id, capture_generation_progress())
-            from core.runtime.turn_progress import capture_progress
-
-            self._latent_turn_progress = capture_progress()
-            self._current_gen_future = fut
-            self._active_generations += 1
-            self._active_generation_started_at = time.time()
-            requested_tokens_raw = wire_config.get("decode_max_tokens", 0)
-            requested_tokens = (
-                requested_tokens_raw
-                if type(requested_tokens_raw) is int and requested_tokens_raw > 0
-                else 0
-            )
-            # The last number before the worker, beside the one the client
-            # granted. A budget that shrinks somewhere between them is
-            # invisible from either end: the client's log says 2048 and the
-            # worker's says 399, and nothing says which layer took the
-            # difference.
-            if int(requested_tokens or 0) and int(requested_tokens) < int(
-                getattr(self, "max_tokens", 0) or 0
-            ):
-                logger.info(
-                    "🔧 Decode budget on the wire: %d, against a client ceiling "
-                    "of %d — something between them reduced it.",
-                    int(requested_tokens),
-                    int(getattr(self, "max_tokens", 0) or 0),
-                )
-            prompt_chars = len(prompt or "") + sum(
-                len(str(message.get("content") or ""))
-                for message in (messages or [])
-                if isinstance(message, dict)
-            )
-            # What a large prompt is MADE of, at the one boundary every path
-            # crosses.
-            #
-            # The gate logs a breakdown for prompts it assembles; the deep
-            # cognitive path assembles its own and logged nothing. LIVE,
-            # 2026-08-28: a 213-character question was answered from a
-            # 50,359-character prompt that took 191.6 seconds to read — the
-            # whole turn — and there was no way to see what those characters
-            # were.
-            if prompt_chars > 20_000:
-                try:
-                    parts = [
-                        f"{str((m or {}).get('role') or '?')}"
-                        f"={len(str((m or {}).get('content') or ''))}"
-                        f":{str((m or {}).get('content') or '')[:60]!r}"
-                        for m in (messages or [])
-                        if isinstance(m, dict)
-                    ]
-                    if prompt:
-                        parts.insert(0, f"prompt={len(str(prompt))}")
-                    logger.info(
-                        "📏 [MLX] %d-char prompt: %s",
-                        prompt_chars,
-                        "; ".join(parts)[:900],
-                    )
-                    # And inside the biggest one, its sections.
-                    #
-                    # Knowing a system message is 46,665 characters says only
-                    # that something is large. The sections are what somebody
-                    # can act on, and they are marked in the text already.
-                    biggest = max(
-                        (
-                            str((m or {}).get("content") or "")
-                            for m in (messages or [])
-                            if isinstance(m, dict)
-                        ),
-                        key=len,
-                        default="",
-                    )
-                    if len(biggest) > 20_000:
-                        import re as _re
-
-                        marks = [
-                            (found.start(), found.group(0).strip())
-                            for found in _re.finditer(
-                                r"^(?:##+ [^\n]{0,60}|\[[A-Z][A-Z _-]{2,60}\])",
-                                biggest,
-                                _re.MULTILINE,
-                            )
-                        ]
-                        if marks:
-                            bounds = [m[0] for m in marks] + [len(biggest)]
-                            sized = sorted(
-                                (
-                                    (bounds[i + 1] - bounds[i], marks[i][1])
-                                    for i in range(len(marks))
-                                ),
-                                reverse=True,
-                            )
-                            logger.info(
-                                "📏 [MLX] largest message %d chars, biggest "
-                                "sections: %s",
-                                len(biggest),
-                                "; ".join(
-                                    f"{name}={size}" for size, name in sized[:12]
-                                )[:700],
-                            )
-                except (AttributeError, TypeError, ValueError):
-                    pass
-            self._mark_generation_started(
-                req_id,
-                prompt_chars=prompt_chars,
-                requested_max_tokens=requested_tokens,
-                first_token_hard_ceiling_s=bounded_timeout_s,
-                request_seq=request_seq,
-            )
+            fut = self._latent_reason_async_fut(bounded_timeout_s, messages, prompt, req_id, request_seq, wire_config)
             # CP126 4cc73762. Every phase below is paid out of the SAME
             # remaining budget. Before, the queue put took a 0.5s floor even
             # when less than that was left, and the generation wait then
@@ -983,38 +1047,7 @@ class _ReasonsInLatentSpace:
                     expected=getattr(self, "_worker_identity", {}),
                 )
                 try:
-                    from core.brain.llm.latent_cortex.runtime_integrity import (
-                        runtime_integrity_safe,
-                    )
-
-                    integrity_safe = runtime_integrity_safe(
-                        receipt.get("runtime_integrity"),
-                        require_worker=True,
-                        expected_episode_id=str(receipt.get("episode_id") or ""),
-                        expected_input_tokens_sha256=str(
-                            receipt.get("input_tokens_sha256") or ""
-                        ),
-                        expected_worker_identity=getattr(
-                            self,
-                            "_worker_identity",
-                            {},
-                        ),
-                        expected_fast_weights_applied=(
-                            receipt.get("fast_weights_applied") is True
-                        ),
-                        expected_checkpoint_fingerprint=str(
-                            receipt.get("checkpoint_fingerprint") or ""
-                        ),
-                        expected_checkpoint_method=str(
-                            receipt.get(
-                                "checkpoint_fingerprint_method"
-                            )
-                            or ""
-                        ),
-                        expected_checkpoint_file_count=receipt.get(
-                            "checkpoint_file_count"
-                        ),
-                    )
+                    integrity_safe = self._latent_reason_async_runtime_integrity_safe(receipt)
                 except ImportError:
                     integrity_safe = False
                 if not integrity_safe:
@@ -1276,35 +1309,7 @@ class _ReasonsInLatentSpace:
             )
             return {**base, "reason": f"latent_ipc_failed:{type(exc).__name__}"}
         finally:
-            try:
-                try:
-                    if fut is not None:
-                        await asyncio.shield(
-                            self._finish_generation_ownership(
-                                req_id,
-                                fut,
-                                None,
-                                release_lane=not bool(deferred_reboot),
-                            )
-                        )
-                finally:
-                    if deferred_reboot:
-                        await asyncio.shield(
-                            self.reboot_worker(
-                                reason=deferred_reboot,
-                                mark_failed=False,
-                            )
-                        )
-                    elif lane_fenced and fut is None and self._active_generations <= 0:
-                        await asyncio.shield(self._set_durable_lane_preemptible(True))
-            finally:
-                self._latent_progress_by_request.pop(req_id, None)
-                if getattr(self, "_latent_delivery_progress", (None, None))[0] == req_id:
-                    self._latent_delivery_progress = (None, None)
-                    self._latent_turn_progress = None
-                self._release_request_lock()
-                if foreground_owner_cm is not None:
-                    await foreground_owner_cm.__aexit__(None, None, None)
+            await self._latent_reason_async_part_4(deferred_reboot, foreground_owner_cm, fut, lane_fenced, req_id)
 
     async def encode_hidden(
         self, texts: Sequence[str], *, timeout_s: float = 8.0

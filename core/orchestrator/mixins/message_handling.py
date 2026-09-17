@@ -792,18 +792,8 @@ class MessageHandlingMixin:
             logger.warning("Unified Will gate failed (degraded): %s", _will_err, exc_info=True)
         return _ADMITTED
 
-    async def _process_user_input_core(self, message: str, origin: str = "user") -> str | None:
-        """Actual processing logic — never calls itself, never recurses."""
-        logger.debug("Orchestrator input origin=%s len=%d", origin, len(message or ""))
-        from ...container import ServiceContainer
-
-        normalized_message = str(message or "").strip()
-        if not normalized_message:
-            if self._is_user_facing_origin(origin):
-                logger.info("🫥 Ignoring empty foreground message from origin=%s.", origin)
-            else:
-                logger.debug("🫥 Dropping empty internal message from origin=%s.", origin)
-            return None
+    @staticmethod
+    def _process_user_input_core_message(normalized_message, origin):
         message = normalized_message
 
         try:
@@ -836,17 +826,9 @@ class MessageHandlingMixin:
             origin,
             len(message),
         )
+        return has_contract, message
 
-        if has_contract:
-            somatic_response = await self._check_embodied_reflexes(message)
-            if somatic_response:
-                return somatic_response
-
-        # Deduplication Guard (FINGERPRINTING)
-        msg_hash = self._get_fingerprint(f"{message}_{origin}")
-        if msg_hash == self._last_emitted_fingerprint:
-            logger.info("♻️ Deduplication: Same fingerprint. Skipping.")
-            return None
+    async def _process_user_input_core_part_2(self, message, msg_hash, origin):
         self._last_emitted_fingerprint = msg_hash
 
         # ── UNIFIED WILL GATE ──────────────────────────────────────────
@@ -874,6 +856,240 @@ class MessageHandlingMixin:
         # surface; a runtime quietly serving ungoverned turns is a fact the
         # verdict must be able to express.
         verdict = await self._refusal_from_the_will(message, origin)
+        return verdict
+
+    def _process_user_input_core_current_task(self, message, origin):
+        from ...container import ServiceContainer
+        current_task = asyncio.current_task()
+        self._current_thought_task = current_task
+        self._current_origin = origin
+        self._current_task_is_autonomous = False
+        self.status.is_processing = True
+        self._last_user_interaction_time = time.time()
+        self._extend_foreground_quiet_window(5.0)
+        self._publish_telemetry({"event": "thinking", "origin": origin, "interim": True})
+        self._publish_telemetry({"type": "status", "is_processing": True, "is_idle": False})
+
+        # Notify ConversationalMomentumEngine of new user turn (fire-and-forget)
+        try:
+            cme = ServiceContainer.get("conversational_momentum_engine", default=None)
+            if cme:
+                from core.utils.task_tracker import get_task_tracker
+
+                get_task_tracker().track(
+                    cme.on_new_user_message(message), name="on_new_user_message"
+                )
+        except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _exc:
+            _record_message_degradation(
+                _exc,
+                action="continued user turn after conversational momentum notification failed",
+            )
+            logger.debug("Conversational momentum notification skipped: %s", _exc)
+        return current_task
+
+    async def _process_user_input_core_response(self, _brief_text, history, message, origin):
+        response = await _resolve_generation_result(
+            self._inference_gate.generate(
+                message,
+                context={
+                    "history": history,
+                    "brief": _brief_text,
+                    "origin": origin,
+                    "is_background": False,
+                    "prefer_tier": "primary",
+                    "protected_foreground_lane": True,
+                },
+            )
+        )
+
+        # DR-3: InferenceGate.generate() ALWAYS returns a string (error message at worst).
+        # But even if somehow it returns None/empty, we catch it here. NO FALLTHROUGH.
+        if not response:
+            logger.error(
+                "InferenceGate returned None/empty. Attempting emergency recovery."
+            )
+            # STABILITY FIX: Instead of a generic error, try one more time with
+            # a forced cortex recovery, then give a real response
+            try:
+                gate = self._get_service("inference_gate")
+                if gate and hasattr(gate, "_respawn_cortex_if_needed"):
+                    await gate._respawn_cortex_if_needed()
+                    # Wait briefly for cortex to come up
+                    await asyncio.sleep(3.0)
+                    response = await _resolve_generation_result(
+                        gate.generate(
+                            message,
+                            context={
+                                "history": history,
+                                "origin": origin,
+                                "is_background": False,
+                                "protected_foreground_lane": True,
+                            },
+                        )
+                    )
+            except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as retry_err:
+                _record_message_degradation(
+                    retry_err,
+                    action="returned empty foreground response after emergency retry failed",
+                    severity="error",
+                )
+                logger.debug("Emergency retry failed: %s", retry_err)
+
+            if not response:
+                # Preserve the local failure sentinel for the caller's
+                # governed response-repair path. Remote inference is not
+                # an available recovery substrate.
+                response = ""
+
+        # ── Auto-Continuation Reflex ──────────────────────────────────
+        # If the response ends abruptly without punctuation, it likely
+        # hit a max_tokens cap. Automatically prompt for continuation
+        # and concatenate into one unbroken thought.
+        continuation_count = 0
+        return continuation_count, response
+
+    async def _process_user_input_core_part_5(self, message, origin):
+        logger.info("🤫 Silence Protocol honoured — suppressing output.")
+        try:
+            from core.thought_stream import get_emitter
+
+            get_emitter().emit(
+                "Silence",
+                "Chose not to respond — output suppressed.",
+                level="info",
+                category="SilenceProtocol",
+            )
+            from core.affect.heartstone_values import get_heartstone_values
+
+            get_heartstone_values().on_silence_chosen()
+            from core.affect.affective_circumplex import get_circumplex
+
+            get_circumplex().apply_event(+0.04, -0.08)  # calm, settled
+        except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _exc:
+            _record_message_degradation(
+                _exc,
+                action="preserved silence response after silence telemetry failed",
+            )
+            logger.debug("Silence protocol side-effect skipped: %s", _exc)
+        # Record to history so she knows she stayed silent
+        async with self._lock:
+            self._record_message_in_history(message, origin)
+
+    async def _process_user_input_core_state_commit_limited(self, message, origin, response):
+        from ...container import ServiceContainer
+        # 3. State COMMIT (Limited Lock)
+        async with self._lock:
+            if response:
+                self._record_message_in_history(message, origin)
+                self._record_message_in_history(response, "assistant")
+
+        # ── Response Repetition Detection ─────────────────────────
+        # General-purpose: if she's producing near-identical
+        # responses, inject a metacognitive interrupt so her
+        # next reasoning cycle knows to try something different.
+        try:
+            ring = getattr(self, "_recent_response_ring", None)
+            if ring is None:
+                ring = collections.deque(maxlen=_REPETITION_RING_SIZE)
+                self._recent_response_ring = ring
+            fp = _response_fingerprint(response)
+            consecutive_dupes = sum(1 for prev_fp in ring if prev_fp == fp)
+            ring.append(fp)
+            if consecutive_dupes >= 2:
+                logger.warning(
+                    "🔄 Response Repetition Detected: %d consecutive near-identical responses.",
+                    consecutive_dupes + 1,
+                )
+                metacognitive_warning = (
+                    "[METACOGNITIVE INTERRUPT] You have produced the same response "
+                    f"{consecutive_dupes + 1} times in a row. Your current strategy is "
+                    "NOT working — the environment is not changing in response to your "
+                    "actions. You MUST try a completely different approach. Do not repeat "
+                    "your previous plan. Analyze what went wrong and adapt."
+                )
+                async with self._lock:
+                    self._record_message_in_history(metacognitive_warning, "system")
+        except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _rep_exc:
+            _record_message_degradation(
+                _rep_exc,
+                action="continued response delivery without repetition-ring update",
+            )
+            logger.debug("Repetition detection error: %s", _rep_exc)
+
+        # ── Heartstone outcome signals ─────────────────────────────
+        # Detect positive user tone to evolve Empathy/Curiosity weights
+        try:
+            import re as _re
+
+            _positive_pat = _re.compile(
+                r"\b(thanks?|thank\s+you|great|perfect|awesome|love\s+it|"
+                r"nice|good\s+job|well\s+done|exactly|brilliant|yes[!.]*$)\b",
+                _re.IGNORECASE,
+            )
+            if _positive_pat.search(message):
+                from core.affect.heartstone_values import get_heartstone_values as _ghsv
+
+                _ghsv().on_positive_interaction()
+                from core.affect.affective_circumplex import get_circumplex as _gc
+
+                _gc().apply_event(+0.06, +0.04)
+        except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _exc:
+            _record_message_degradation(
+                _exc,
+                action="continued response delivery without positive-interaction affect update",
+            )
+            logger.debug("Positive interaction affect update skipped: %s", _exc)
+
+        # ── Epistemic Filter: run user messages through for belief retention ──
+        # Long user messages may contain claims worth persisting
+        try:
+            if len(message) > 80:
+                from core.world_model.epistemic_filter import get_epistemic_filter as _gef
+
+                _gef().ingest(
+                    message,
+                    source_type="conversation",
+                    source_label="user",
+                    emit_thoughts=False,
+                )
+        except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _exc:
+            _record_message_degradation(
+                _exc,
+                action="continued response delivery without epistemic filter ingest",
+            )
+            logger.debug("Epistemic filter ingest skipped: %s", _exc)
+
+        # JARVIS activity telemetry
+        jarvis = ServiceContainer.get("jarvis", default=None)
+        if jarvis:
+            jarvis.record_activity(user_input=message, response=response or "")
+            self._fire_and_forget(jarvis.run_cycle(), name="orchestrator.jarvis.run_cycle")
+
+    async def _process_user_input_core(self, message: str, origin: str = "user") -> str | None:
+        """Actual processing logic — never calls itself, never recurses."""
+        logger.debug("Orchestrator input origin=%s len=%d", origin, len(message or ""))
+        from ...container import ServiceContainer
+
+        normalized_message = str(message or "").strip()
+        if not normalized_message:
+            if self._is_user_facing_origin(origin):
+                logger.info("🫥 Ignoring empty foreground message from origin=%s.", origin)
+            else:
+                logger.debug("🫥 Dropping empty internal message from origin=%s.", origin)
+            return None
+        has_contract, message = self._process_user_input_core_message(normalized_message, origin)
+
+        if has_contract:
+            somatic_response = await self._check_embodied_reflexes(message)
+            if somatic_response:
+                return somatic_response
+
+        # Deduplication Guard (FINGERPRINTING)
+        msg_hash = self._get_fingerprint(f"{message}_{origin}")
+        if msg_hash == self._last_emitted_fingerprint:
+            logger.info("♻️ Deduplication: Same fingerprint. Skipping.")
+            return None
+        verdict = await self._process_user_input_core_part_2(message, msg_hash, origin)
         if verdict is not _ADMITTED:
             return verdict
 
@@ -900,31 +1116,7 @@ class MessageHandlingMixin:
                 )
                 return ""
 
-            current_task = asyncio.current_task()
-            self._current_thought_task = current_task
-            self._current_origin = origin
-            self._current_task_is_autonomous = False
-            self.status.is_processing = True
-            self._last_user_interaction_time = time.time()
-            self._extend_foreground_quiet_window(5.0)
-            self._publish_telemetry({"event": "thinking", "origin": origin, "interim": True})
-            self._publish_telemetry({"type": "status", "is_processing": True, "is_idle": False})
-
-            # Notify ConversationalMomentumEngine of new user turn (fire-and-forget)
-            try:
-                cme = ServiceContainer.get("conversational_momentum_engine", default=None)
-                if cme:
-                    from core.utils.task_tracker import get_task_tracker
-
-                    get_task_tracker().track(
-                        cme.on_new_user_message(message), name="on_new_user_message"
-                    )
-            except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _exc:
-                _record_message_degradation(
-                    _exc,
-                    action="continued user turn after conversational momentum notification failed",
-                )
-                logger.debug("Conversational momentum notification skipped: %s", _exc)
+            current_task = self._process_user_input_core_current_task(message, origin)
 
             try:
                 # ── CONSTITUTIONAL CLOSURE: Route through Kernel first ──
@@ -981,64 +1173,7 @@ class MessageHandlingMixin:
                 _brief_text = (
                     brief.to_briefing_text() if hasattr(brief, "to_briefing_text") else str(brief)
                 )
-                response = await _resolve_generation_result(
-                    self._inference_gate.generate(
-                        message,
-                        context={
-                            "history": history,
-                            "brief": _brief_text,
-                            "origin": origin,
-                            "is_background": False,
-                            "prefer_tier": "primary",
-                            "protected_foreground_lane": True,
-                        },
-                    )
-                )
-
-                # DR-3: InferenceGate.generate() ALWAYS returns a string (error message at worst).
-                # But even if somehow it returns None/empty, we catch it here. NO FALLTHROUGH.
-                if not response:
-                    logger.error(
-                        "InferenceGate returned None/empty. Attempting emergency recovery."
-                    )
-                    # STABILITY FIX: Instead of a generic error, try one more time with
-                    # a forced cortex recovery, then give a real response
-                    try:
-                        gate = self._get_service("inference_gate")
-                        if gate and hasattr(gate, "_respawn_cortex_if_needed"):
-                            await gate._respawn_cortex_if_needed()
-                            # Wait briefly for cortex to come up
-                            await asyncio.sleep(3.0)
-                            response = await _resolve_generation_result(
-                                gate.generate(
-                                    message,
-                                    context={
-                                        "history": history,
-                                        "origin": origin,
-                                        "is_background": False,
-                                        "protected_foreground_lane": True,
-                                    },
-                                )
-                            )
-                    except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as retry_err:
-                        _record_message_degradation(
-                            retry_err,
-                            action="returned empty foreground response after emergency retry failed",
-                            severity="error",
-                        )
-                        logger.debug("Emergency retry failed: %s", retry_err)
-
-                    if not response:
-                        # Preserve the local failure sentinel for the caller's
-                        # governed response-repair path. Remote inference is not
-                        # an available recovery substrate.
-                        response = ""
-
-                # ── Auto-Continuation Reflex ──────────────────────────────────
-                # If the response ends abruptly without punctuation, it likely
-                # hit a max_tokens cap. Automatically prompt for continuation
-                # and concatenate into one unbroken thought.
-                continuation_count = 0
+                continuation_count, response = await self._process_user_input_core_response(_brief_text, history, message, origin)
                 while continuation_count < 3 and response and len(response) > 200:
                     last_char = response.strip()[-1] if response.strip() else ""
                     if last_char not in ".!?\"'”’*)\\]}>~`\\n":
@@ -1083,120 +1218,10 @@ class MessageHandlingMixin:
                 from core.brain.inference_gate import InferenceGate
 
                 if response == InferenceGate.SILENCE_SENTINEL:
-                    logger.info("🤫 Silence Protocol honoured — suppressing output.")
-                    try:
-                        from core.thought_stream import get_emitter
-
-                        get_emitter().emit(
-                            "Silence",
-                            "Chose not to respond — output suppressed.",
-                            level="info",
-                            category="SilenceProtocol",
-                        )
-                        from core.affect.heartstone_values import get_heartstone_values
-
-                        get_heartstone_values().on_silence_chosen()
-                        from core.affect.affective_circumplex import get_circumplex
-
-                        get_circumplex().apply_event(+0.04, -0.08)  # calm, settled
-                    except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _exc:
-                        _record_message_degradation(
-                            _exc,
-                            action="preserved silence response after silence telemetry failed",
-                        )
-                        logger.debug("Silence protocol side-effect skipped: %s", _exc)
-                    # Record to history so she knows she stayed silent
-                    async with self._lock:
-                        self._record_message_in_history(message, origin)
+                    await self._process_user_input_core_part_5(message, origin)
                     return None  # Server receives None → sends no message
 
-                # 3. State COMMIT (Limited Lock)
-                async with self._lock:
-                    if response:
-                        self._record_message_in_history(message, origin)
-                        self._record_message_in_history(response, "assistant")
-
-                # ── Response Repetition Detection ─────────────────────────
-                # General-purpose: if she's producing near-identical
-                # responses, inject a metacognitive interrupt so her
-                # next reasoning cycle knows to try something different.
-                try:
-                    ring = getattr(self, "_recent_response_ring", None)
-                    if ring is None:
-                        ring = collections.deque(maxlen=_REPETITION_RING_SIZE)
-                        self._recent_response_ring = ring
-                    fp = _response_fingerprint(response)
-                    consecutive_dupes = sum(1 for prev_fp in ring if prev_fp == fp)
-                    ring.append(fp)
-                    if consecutive_dupes >= 2:
-                        logger.warning(
-                            "🔄 Response Repetition Detected: %d consecutive near-identical responses.",
-                            consecutive_dupes + 1,
-                        )
-                        metacognitive_warning = (
-                            "[METACOGNITIVE INTERRUPT] You have produced the same response "
-                            f"{consecutive_dupes + 1} times in a row. Your current strategy is "
-                            "NOT working — the environment is not changing in response to your "
-                            "actions. You MUST try a completely different approach. Do not repeat "
-                            "your previous plan. Analyze what went wrong and adapt."
-                        )
-                        async with self._lock:
-                            self._record_message_in_history(metacognitive_warning, "system")
-                except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _rep_exc:
-                    _record_message_degradation(
-                        _rep_exc,
-                        action="continued response delivery without repetition-ring update",
-                    )
-                    logger.debug("Repetition detection error: %s", _rep_exc)
-
-                # ── Heartstone outcome signals ─────────────────────────────
-                # Detect positive user tone to evolve Empathy/Curiosity weights
-                try:
-                    import re as _re
-
-                    _positive_pat = _re.compile(
-                        r"\b(thanks?|thank\s+you|great|perfect|awesome|love\s+it|"
-                        r"nice|good\s+job|well\s+done|exactly|brilliant|yes[!.]*$)\b",
-                        _re.IGNORECASE,
-                    )
-                    if _positive_pat.search(message):
-                        from core.affect.heartstone_values import get_heartstone_values as _ghsv
-
-                        _ghsv().on_positive_interaction()
-                        from core.affect.affective_circumplex import get_circumplex as _gc
-
-                        _gc().apply_event(+0.06, +0.04)
-                except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _exc:
-                    _record_message_degradation(
-                        _exc,
-                        action="continued response delivery without positive-interaction affect update",
-                    )
-                    logger.debug("Positive interaction affect update skipped: %s", _exc)
-
-                # ── Epistemic Filter: run user messages through for belief retention ──
-                # Long user messages may contain claims worth persisting
-                try:
-                    if len(message) > 80:
-                        from core.world_model.epistemic_filter import get_epistemic_filter as _gef
-
-                        _gef().ingest(
-                            message,
-                            source_type="conversation",
-                            source_label="user",
-                            emit_thoughts=False,
-                        )
-                except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _exc:
-                    _record_message_degradation(
-                        _exc,
-                        action="continued response delivery without epistemic filter ingest",
-                    )
-                    logger.debug("Epistemic filter ingest skipped: %s", _exc)
-
-                # JARVIS activity telemetry
-                jarvis = ServiceContainer.get("jarvis", default=None)
-                if jarvis:
-                    jarvis.record_activity(user_input=message, response=response or "")
-                    self._fire_and_forget(jarvis.run_cycle(), name="orchestrator.jarvis.run_cycle")
+                await self._process_user_input_core_state_commit_limited(message, origin, response)
 
                 return response
             finally:

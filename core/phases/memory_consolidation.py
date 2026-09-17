@@ -75,65 +75,7 @@ class MemoryConsolidationPhase(BasePhase):
             return default
         return max(0.0, min(1.0, parsed))
 
-    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
-        """
-        Persist recent interactions to long-term storage and prune working memory.
-
-        Detects completed user/assistant turns (or high-arousal forced consolidation),
-        optionally distils content through the SovereignPruner, queues a knowledge
-        evolution entry on the ColdStore, detects and degrades stability on
-        conversational loops, and caps working memory at max_working_memory entries.
-        """
-        # Pure Transformation: Stop direct side-effects.
-        # Create a derived state for any modifications.
-        new_state = await state.derive_async(cause="memory_consolidation_cycles", origin="MemoryConsolidationPhase")
-
-        # 0. Defensive Hygiene: Filter out non-dict trash from working_memory
-        # This prevents AttributeError if objects (like the Orchestrator) leak in.
-        clean_memory = [m for m in new_state.cognition.working_memory if isinstance(m, dict)]
-        if len(clean_memory) != len(new_state.cognition.working_memory):
-            logger.warning("💾 MemoryConsolidation: Dropped %d non-dict items from working memory.", len(new_state.cognition.working_memory) - len(clean_memory))
-            new_state.cognition.working_memory = clean_memory
-
-        try:
-            from core.runtime.proof_policy import is_strict_proof_answer_prompt
-
-            proof_origin = getattr(new_state.cognition, "current_origin", None) or kwargs.get("origin")
-            proof_text = objective or ""
-            for item in reversed(new_state.cognition.working_memory):
-                if isinstance(item, dict) and item.get("role") == "user":
-                    proof_origin = item.get("origin") or proof_origin
-                    proof_text = str(item.get("content", "") or proof_text)
-                    break
-            if is_strict_proof_answer_prompt(proof_text, origin=proof_origin):
-                new_state.cognition.long_term_memory = []
-                new_state.cognition.memory_scores = []
-                new_state.response_modifiers["proof_memory_consolidation_skipped"] = True
-                return new_state
-        except _MEMORY_CONSOLIDATION_ERRORS as exc:
-            self._mark_consolidation_status(
-                new_state,
-                status="partial",
-                stage="strict_proof_consolidation_guard",
-                error=exc,
-            )
-            _record_memory_consolidation_degradation(
-                exc,
-                action="continued memory consolidation after strict proof guard failed",
-                severity="warning",
-                extra={"stage": "strict_proof_consolidation_guard"},
-            )
-
-        # ISSUE-81: Consolidation Skip Fix
-        # Allow consolidation if there's high arousal or a pending action,
-        # even if the turn is not strictly completed.
-        response_modifiers = dict(getattr(new_state, "response_modifiers", {}) or {})
-        imagination_memory_pressure = self._safe_float(
-            response_modifiers.get("imagination_memory_pressure")
-        )
-        bicameral_causal_effects = response_modifiers.get("bicameral_causal_effects")
-        if not isinstance(bicameral_causal_effects, dict):
-            bicameral_causal_effects = {}
+    def _execute_bicameral_memory_priority(self, bicameral_causal_effects, imagination_memory_pressure, new_state, response_modifiers):
         bicameral_memory_priority = self._safe_float(
             response_modifiers.get("bicameral_memory_priority")
             or bicameral_causal_effects.get("memory_priority")
@@ -177,10 +119,10 @@ class MemoryConsolidationPhase(BasePhase):
                     severity="warning",
                     extra={"stage": "consolidation_trigger_probe"},
                 )
-        
-        if len(new_state.cognition.working_memory) < 1:
-            return new_state
-            
+        return bicameral_memory_priority, force_consolidation
+
+    @staticmethod
+    async def _execute_conversational_loop_detection(new_state):
         # 1.1 Conversational Loop Detection (v46)
         # If the latest assistant message repeats a previous one, degrade stability to force shift.
         assistant_msgs = [m for m in new_state.cognition.working_memory if isinstance(m, dict) and m.get("role") == "assistant"]
@@ -247,6 +189,213 @@ class MemoryConsolidationPhase(BasePhase):
         # vResilience: Workaround for slice limitations
         start_idx = max(0, len(new_state.cognition.working_memory) - 2)
         last_msgs = [new_state.cognition.working_memory[i] for i in range(start_idx, len(new_state.cognition.working_memory))]
+        return last_msgs, new_state
+
+    def _execute_store_semantic_retrieval(self, content, new_state, source):
+        # And into the store the semantic retrieval lane reads. The queue below
+        # says the ColdStore processes it asynchronously and nothing did:
+        # `cold.long_term_memory` had no writer anywhere in the tree, so the
+        # semantic lane returned nothing on every retrieval and the column read
+        # 0.0000 through a whole campaign.
+        self._absorb_semantic(new_state, content)
+
+        # Queue the knowledge for the ColdStore to process asynchronously.
+        if new_state.cold is not None:
+            new_state.cold.evolution_log.append({
+                "type": "knowledge_addition",
+                "content": content,
+                "source": source,
+                "timestamp": float(time.time())
+            })
+
+        # Enforce cap on evolution log
+        from ..state.aura_state import MAX_EVOLUTION_LOG
+        if new_state.cold is not None and len(new_state.cold.evolution_log) > MAX_EVOLUTION_LOG:
+            # vResilience: Workaround for slice limitations
+            start_log = len(new_state.cold.evolution_log) - MAX_EVOLUTION_LOG
+            new_state.cold.evolution_log = [new_state.cold.evolution_log[i] for i in range(start_log, len(new_state.cold.evolution_log))]
+
+        logger.debug("MemoryConsolidation: Queued knowledge evolution to ColdStore.")
+
+        # 4. Intelligent Context Trimming (Claude Code pattern: two-pass compression)
+        # Pass 1: Drop verbose tool/skill results first (they're already in episodic memory)
+        # Pass 2: If still over limit, drop oldest non-user messages
+        # Always preserve: most recent user message, system messages, high-importance episodes
+        max_working_memory: int = 30
+        wm = new_state.cognition.working_memory
+        if len(wm) > max_working_memory:
+            # Pass 1: Remove tool/skill result messages (most verbose, already persisted)
+            trimmed = []
+            dropped_tools = 0
+            for msg in wm:
+                if not isinstance(msg, dict):
+                    continue
+                content = str(msg.get("content", ""))
+                metadata = msg.get("metadata", {}) or {}
+                is_tool_result = (
+                    str(metadata.get("type", "")).lower() in {"skill_result", "tool_result"}
+                    or content.startswith("[SKILL RESULT:")
+                    or content.startswith("[TOOL RESULT:")
+                )
+                if is_tool_result and len(trimmed) > 2:
+                    dropped_tools += 1
+                    continue
+                trimmed.append(msg)
+
+            if dropped_tools > 0:
+                logger.info("🧹 Context trim pass 1: dropped %d tool results (%d→%d)", dropped_tools, len(wm), len(trimmed))
+                wm = trimmed
+
+            # Pass 2: If still over, keep most recent messages with bias toward user turns
+            # IMPORTANT: Messages with >2000 chars of user content are treated as
+            # "high-importance" (stories, code blocks, etc.) and are exempt from pruning
+            if len(wm) > max_working_memory:
+                # Always keep last 4 messages (current conversation turn)
+                tail = wm[-4:]
+                older = wm[:-4]
+                # Choose what to keep by INDEX, then emit in the order it
+                # happened.
+                #
+                # This selected the same messages and concatenated them as
+                # `kept_user_and_large + kept_recent_non_user + tail`, which is
+                # not a conversation. On a plain alternating exchange of 18
+                # turns it produced:
+                #
+                #   U1 U2 U3 ... U16  A7 A8 ... A16  U17 A17 U18 A18
+                #
+                # Sixteen consecutive user messages, then ten consecutive
+                # replies. Every answer was torn away from the question it
+                # answered, and A1-A6 were dropped outright. What she reasoned
+                # over was a transcript that never happened — answers appearing
+                # to respond to whichever question happened to precede them
+                # after the shuffle.
+                #
+                # Reordering also reshapes the KV prefix on every trim, so the
+                # prompt cache could never reuse more than the system block:
+                # measured live, "prefix diverges at token 226 (9% of 2561
+                # reused)".
+                # Kept as EXCHANGES, not as loose messages.
+                #
+                # Preferring user turns on their own kept questions and dropped
+                # the answers, so the retained history contained runs of seven
+                # consecutive user messages — a conversation in which she was
+                # asked seven things and replied to none. She then reasons over
+                # her own unanswered questions, which is its own invitation to
+                # invent what was said.
+                #
+                # A question and the reply it drew are one unit of context, so
+                # they are kept or dropped together.
+                priority: list[int] = []
+                for index, message in enumerate(older):
+                    if not isinstance(message, dict):
+                        continue
+                    is_user = message.get("role") == "user"
+                    is_large = len(str(message.get("content", ""))) > 2000
+                    if not (is_user or is_large):
+                        continue
+                    priority.append(index)
+                    if is_user:
+                        answer = index + 1
+                        if (
+                            answer < len(older)
+                            and isinstance(older[answer], dict)
+                            and older[answer].get("role") == "assistant"
+                        ):
+                            priority.append(answer)
+                # Sorted and de-duplicated: an answer can be reached both as a
+                # large message and as its question's partner.
+                priority = sorted(dict.fromkeys(priority))
+                # The priority set alone can exceed the budget: a long
+                # conversation is mostly user turns, so `remaining` went
+                # NEGATIVE and every one of them was kept regardless. Forty
+                # turns produced 42 retained messages against a limit of 30 —
+                # the trim did nothing exactly when it was needed most, and the
+                # context it was protecting kept growing.
+                budget_for_older = max(0, max_working_memory - len(tail))
+                if len(priority) > budget_for_older:
+                    priority = priority[-budget_for_older:]
+                keep_indices = set(priority)
+                remaining = budget_for_older - len(keep_indices)
+                if remaining > 0:
+                    fill = [
+                        index
+                        for index, message in enumerate(older)
+                        if isinstance(message, dict)
+                        and index not in keep_indices
+                        and message.get("role") != "user"
+                        and len(str(message.get("content", ""))) <= 2000
+                    ]
+                    keep_indices.update(fill[-remaining:])
+                wm = [older[index] for index in sorted(keep_indices)] + tail
+                logger.info("🧹 Context trim pass 2: %d messages retained", len(wm))
+
+            new_state.cognition.working_memory = wm
+
+    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
+        """
+        Persist recent interactions to long-term storage and prune working memory.
+
+        Detects completed user/assistant turns (or high-arousal forced consolidation),
+        optionally distils content through the SovereignPruner, queues a knowledge
+        evolution entry on the ColdStore, detects and degrades stability on
+        conversational loops, and caps working memory at max_working_memory entries.
+        """
+        # Pure Transformation: Stop direct side-effects.
+        # Create a derived state for any modifications.
+        new_state = await state.derive_async(cause="memory_consolidation_cycles", origin="MemoryConsolidationPhase")
+
+        # 0. Defensive Hygiene: Filter out non-dict trash from working_memory
+        # This prevents AttributeError if objects (like the Orchestrator) leak in.
+        clean_memory = [m for m in new_state.cognition.working_memory if isinstance(m, dict)]
+        if len(clean_memory) != len(new_state.cognition.working_memory):
+            logger.warning("💾 MemoryConsolidation: Dropped %d non-dict items from working memory.", len(new_state.cognition.working_memory) - len(clean_memory))
+            new_state.cognition.working_memory = clean_memory
+
+        try:
+            from core.runtime.proof_policy import is_strict_proof_answer_prompt
+
+            proof_origin = getattr(new_state.cognition, "current_origin", None) or kwargs.get("origin")
+            proof_text = objective or ""
+            for item in reversed(new_state.cognition.working_memory):
+                if isinstance(item, dict) and item.get("role") == "user":
+                    proof_origin = item.get("origin") or proof_origin
+                    proof_text = str(item.get("content", "") or proof_text)
+                    break
+            if is_strict_proof_answer_prompt(proof_text, origin=proof_origin):
+                new_state.cognition.long_term_memory = []
+                new_state.cognition.memory_scores = []
+                new_state.response_modifiers["proof_memory_consolidation_skipped"] = True
+                return new_state
+        except _MEMORY_CONSOLIDATION_ERRORS as exc:
+            self._mark_consolidation_status(
+                new_state,
+                status="partial",
+                stage="strict_proof_consolidation_guard",
+                error=exc,
+            )
+            _record_memory_consolidation_degradation(
+                exc,
+                action="continued memory consolidation after strict proof guard failed",
+                severity="warning",
+                extra={"stage": "strict_proof_consolidation_guard"},
+            )
+
+        # ISSUE-81: Consolidation Skip Fix
+        # Allow consolidation if there's high arousal or a pending action,
+        # even if the turn is not strictly completed.
+        response_modifiers = dict(getattr(new_state, "response_modifiers", {}) or {})
+        imagination_memory_pressure = self._safe_float(
+            response_modifiers.get("imagination_memory_pressure")
+        )
+        bicameral_causal_effects = response_modifiers.get("bicameral_causal_effects")
+        if not isinstance(bicameral_causal_effects, dict):
+            bicameral_causal_effects = {}
+        bicameral_memory_priority, force_consolidation = self._execute_bicameral_memory_priority(bicameral_causal_effects, imagination_memory_pressure, new_state, response_modifiers)
+        
+        if len(new_state.cognition.working_memory) < 1:
+            return new_state
+            
+        last_msgs, new_state = await self._execute_conversational_loop_detection(new_state)
         
         # Check for turn completion OR forced consolidation
         is_completed_turn = len(last_msgs) == 2 and last_msgs[0].get("role") == "user" and last_msgs[1].get("role") == "assistant"
@@ -409,144 +558,7 @@ class MemoryConsolidationPhase(BasePhase):
                 )
                 logger.debug("MemoryConsolidation: MemoryFacade commit failed: %s", e)
  
-        # And into the store the semantic retrieval lane reads. The queue below
-        # says the ColdStore processes it asynchronously and nothing did:
-        # `cold.long_term_memory` had no writer anywhere in the tree, so the
-        # semantic lane returned nothing on every retrieval and the column read
-        # 0.0000 through a whole campaign.
-        self._absorb_semantic(new_state, content)
-
-        # Queue the knowledge for the ColdStore to process asynchronously.
-        if new_state.cold is not None:
-            new_state.cold.evolution_log.append({
-                "type": "knowledge_addition",
-                "content": content,
-                "source": source,
-                "timestamp": float(time.time())
-            })
-        
-        # Enforce cap on evolution log
-        from ..state.aura_state import MAX_EVOLUTION_LOG
-        if new_state.cold is not None and len(new_state.cold.evolution_log) > MAX_EVOLUTION_LOG:
-            # vResilience: Workaround for slice limitations
-            start_log = len(new_state.cold.evolution_log) - MAX_EVOLUTION_LOG
-            new_state.cold.evolution_log = [new_state.cold.evolution_log[i] for i in range(start_log, len(new_state.cold.evolution_log))]
-        
-        logger.debug("MemoryConsolidation: Queued knowledge evolution to ColdStore.")
-
-        # 4. Intelligent Context Trimming (Claude Code pattern: two-pass compression)
-        # Pass 1: Drop verbose tool/skill results first (they're already in episodic memory)
-        # Pass 2: If still over limit, drop oldest non-user messages
-        # Always preserve: most recent user message, system messages, high-importance episodes
-        max_working_memory: int = 30
-        wm = new_state.cognition.working_memory
-        if len(wm) > max_working_memory:
-            # Pass 1: Remove tool/skill result messages (most verbose, already persisted)
-            trimmed = []
-            dropped_tools = 0
-            for msg in wm:
-                if not isinstance(msg, dict):
-                    continue
-                content = str(msg.get("content", ""))
-                metadata = msg.get("metadata", {}) or {}
-                is_tool_result = (
-                    str(metadata.get("type", "")).lower() in {"skill_result", "tool_result"}
-                    or content.startswith("[SKILL RESULT:")
-                    or content.startswith("[TOOL RESULT:")
-                )
-                if is_tool_result and len(trimmed) > 2:
-                    dropped_tools += 1
-                    continue
-                trimmed.append(msg)
-
-            if dropped_tools > 0:
-                logger.info("🧹 Context trim pass 1: dropped %d tool results (%d→%d)", dropped_tools, len(wm), len(trimmed))
-                wm = trimmed
-
-            # Pass 2: If still over, keep most recent messages with bias toward user turns
-            # IMPORTANT: Messages with >2000 chars of user content are treated as
-            # "high-importance" (stories, code blocks, etc.) and are exempt from pruning
-            if len(wm) > max_working_memory:
-                # Always keep last 4 messages (current conversation turn)
-                tail = wm[-4:]
-                older = wm[:-4]
-                # Choose what to keep by INDEX, then emit in the order it
-                # happened.
-                #
-                # This selected the same messages and concatenated them as
-                # `kept_user_and_large + kept_recent_non_user + tail`, which is
-                # not a conversation. On a plain alternating exchange of 18
-                # turns it produced:
-                #
-                #   U1 U2 U3 ... U16  A7 A8 ... A16  U17 A17 U18 A18
-                #
-                # Sixteen consecutive user messages, then ten consecutive
-                # replies. Every answer was torn away from the question it
-                # answered, and A1-A6 were dropped outright. What she reasoned
-                # over was a transcript that never happened — answers appearing
-                # to respond to whichever question happened to precede them
-                # after the shuffle.
-                #
-                # Reordering also reshapes the KV prefix on every trim, so the
-                # prompt cache could never reuse more than the system block:
-                # measured live, "prefix diverges at token 226 (9% of 2561
-                # reused)".
-                # Kept as EXCHANGES, not as loose messages.
-                #
-                # Preferring user turns on their own kept questions and dropped
-                # the answers, so the retained history contained runs of seven
-                # consecutive user messages — a conversation in which she was
-                # asked seven things and replied to none. She then reasons over
-                # her own unanswered questions, which is its own invitation to
-                # invent what was said.
-                #
-                # A question and the reply it drew are one unit of context, so
-                # they are kept or dropped together.
-                priority: list[int] = []
-                for index, message in enumerate(older):
-                    if not isinstance(message, dict):
-                        continue
-                    is_user = message.get("role") == "user"
-                    is_large = len(str(message.get("content", ""))) > 2000
-                    if not (is_user or is_large):
-                        continue
-                    priority.append(index)
-                    if is_user:
-                        answer = index + 1
-                        if (
-                            answer < len(older)
-                            and isinstance(older[answer], dict)
-                            and older[answer].get("role") == "assistant"
-                        ):
-                            priority.append(answer)
-                # Sorted and de-duplicated: an answer can be reached both as a
-                # large message and as its question's partner.
-                priority = sorted(dict.fromkeys(priority))
-                # The priority set alone can exceed the budget: a long
-                # conversation is mostly user turns, so `remaining` went
-                # NEGATIVE and every one of them was kept regardless. Forty
-                # turns produced 42 retained messages against a limit of 30 —
-                # the trim did nothing exactly when it was needed most, and the
-                # context it was protecting kept growing.
-                budget_for_older = max(0, max_working_memory - len(tail))
-                if len(priority) > budget_for_older:
-                    priority = priority[-budget_for_older:]
-                keep_indices = set(priority)
-                remaining = budget_for_older - len(keep_indices)
-                if remaining > 0:
-                    fill = [
-                        index
-                        for index, message in enumerate(older)
-                        if isinstance(message, dict)
-                        and index not in keep_indices
-                        and message.get("role") != "user"
-                        and len(str(message.get("content", ""))) <= 2000
-                    ]
-                    keep_indices.update(fill[-remaining:])
-                wm = [older[index] for index in sorted(keep_indices)] + tail
-                logger.info("🧹 Context trim pass 2: %d messages retained", len(wm))
-
-            new_state.cognition.working_memory = wm
+        self._execute_store_semantic_retrieval(content, new_state, source)
             
         return new_state
 

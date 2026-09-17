@@ -3544,38 +3544,7 @@ class LatentCortexEngine:
         )
 
     # ── The integrated episode ──────────────────────────────────────────
-    def _reason_episode(
-        self,
-        prompt: str | None = None,
-        *,
-        messages: list | None = None,
-        token_ids: list[int] | None = None,
-        budget: ComputeBudget | None = None,
-        verifier: Callable[[str], float] | None = None,
-        domain: str = "general",
-        decode_max_tokens: int | None = None,
-        ablate_slot: int | None = None,
-        ablate_mode: str = "zero",
-        cognitive_context: list | None = None,
-        action_policy_evidence: dict[str, Any] | None = None,
-        action_intervention: dict[str, Any] | None = None,
-        action_intervention_consumption: dict[str, Any] | None = None,
-        external_execution_offer: dict[str, Any] | None = None,
-        cancel_check: Callable[[], bool] | None = None,
-        progress: Callable[[dict], None] | None = None,
-        capture_decode_logprobs: bool = False,
-        decode_sentence_grace_tokens: int | None = None,
-        sample_seed: int | None = None,
-        incumbent_artifact: Any | None = None,
-        episode_id: str | None = None,
-        action_continuation_capture: Callable[[Any], None] | None = None,
-        action_continuation_restore: Any | None = None,
-        action_continuation_runner_state: Mapping[str, Any] | None = None,
-        action_continuation_capture_only: bool = False,
-        action_continuation_restore_verified: Callable[[str], None] | None = None,
-        nonparametric_memory_enabled: bool = True,
-        memory_principal: str = "",
-    ) -> LatentReasoningResult:
+    def _reason_episode_part_1(self, capture_decode_logprobs, decode_sentence_grace_tokens, incumbent_artifact, sample_seed):
         if type(capture_decode_logprobs) is not bool:
             raise TypeError("capture_decode_logprobs must be boolean")
         # An incumbent artifact under a latent-owned policy is a contradiction
@@ -3602,6 +3571,8 @@ class LatentCortexEngine:
             type(sample_seed) is not int or not 0 <= sample_seed <= 0xFFFFFFFF
         ):
             raise ValueError("sample_seed must be null or an integer inside [0, 2^32-1]")
+
+    def _reason_episode_part_2(self, action_continuation_capture, action_continuation_capture_only, action_continuation_restore, action_continuation_restore_verified, action_continuation_runner_state, episode_id, memory_principal, nonparametric_memory_enabled):
         if episode_id is not None and (
             not isinstance(episode_id, str)
             or not episode_id
@@ -3660,6 +3631,226 @@ class LatentCortexEngine:
 
         self._coda_adapter_activation = RecurrenceAdapterActivation()
         self._callback_faults = {}
+        return receipt
+
+    def _reason_episode_read_actual_serialized(self, budget, context_items, messages, policy_evidence, prompt, receipt, tokens, verifier):
+        # Read the actual serialized prefix; model names and requested modes
+        # do not establish which channel the tokenizer left open.
+        decode_prefix = getattr(self.tokenizer, "decode", None)
+        self._episode_native_thinking = bool(
+            callable(decode_prefix)
+            and str(decode_prefix(tokens)).rstrip().endswith("<think>")
+        )
+        if self._episode_native_thinking:
+            receipt.flag("native_thinking_prefix_open")
+        verification_objective = str(prompt or "")
+        if not verification_objective and messages:
+            for message in reversed(messages):
+                if isinstance(message, dict) and message.get("role") == "user":
+                    content = message.get("content")
+                    if isinstance(content, str) and content.strip():
+                        verification_objective = content
+                        break
+        self._admit_input_length(len(tokens), budget)
+        encoded_tokens = json.dumps(tokens, separators=(",", ":"), allow_nan=False).encode("ascii")
+        receipt.input_tokens_sha256 = hashlib.sha256(encoded_tokens).hexdigest()
+        receipt.input_token_count = len(tokens)
+        budget.bind_information(
+            self._information_receipt(
+                encoded_tokens=encoded_tokens,
+                token_count=len(tokens),
+                context_items=context_items,
+                policy_evidence=policy_evidence,
+                verifier=verifier,
+            )
+        )
+        return encoded_tokens, verification_objective
+
+    def _reason_episode_part_4(self, budget, decode_max_tokens, incumbent_artifact, receipt, tokens):
+        receipt.decode_temperature = float(self.config.decode_temperature)
+        receipt.decode_top_p = float(self.config.decode_top_p)
+        receipt.decode_bridge_policy = self.config.decode_bridge_policy
+        receipt.decode_incumbent_policy = self.config.decode_incumbent_policy
+        receipt.verifier_probe_max_tokens = self.config.verifier_probe_max_tokens
+        receipt.verifier_probe_contract = self.config.verifier_probe_contract
+        receipt.decode_contract_required = self.config.decode_contract == "final_answer_v1"
+        receipt.decode_contract_grace_tokens = (
+            self.config.decode_contract_grace_tokens if receipt.decode_contract_required else 0
+        )
+
+        self.invariant.pre_episode()
+        self._episode_invariant_armed = True
+        receipt.checkpoint_fingerprint = self.invariant.file_receipt.get("fingerprint", "")
+        receipt.checkpoint_fingerprint_method = self.invariant.file_receipt.get("method", "")
+        receipt.checkpoint_file_count = int(self.invariant.file_receipt.get("files", 0) or 0)
+        validated_incumbent = None
+        if incumbent_artifact is not None:
+            # The policy contradiction is refused at the call boundary above,
+            # before anything runs; this is what still needs the runtime.
+            if self.tokenizer is None:
+                raise ValueError("an incumbent artifact requires the serving tokenizer")
+            from core.brain.llm.latent_cortex.incumbent_artifact import (
+                validate_incumbent_artifact,
+            )
+
+            validated_incumbent = validate_incumbent_artifact(
+                incumbent_artifact,
+                input_tokens=tokens,
+                checkpoint_fingerprint=receipt.checkpoint_fingerprint,
+                checkpoint_fingerprint_method=receipt.checkpoint_fingerprint_method,
+                max_tokens=(
+                    decode_max_tokens
+                    if decode_max_tokens is not None
+                    else self.config.decode_max_tokens
+                ),
+                n_layers=self.n_layers,
+                decode=lambda values: self._decode_public_text(list(values), receipt=receipt),
+            )
+            receipt.incumbent_artifact = dict(validated_incumbent.receipt)
+            budget.charge_layer_apps(
+                int(validated_incumbent.receipt["compute"]["transformer_layer_apps"]),
+                operation="bound_incumbent_generation",
+            )
+
+        failure_reason = ""
+        return failure_reason, validated_incumbent
+
+    def _reason_episode_ok_says_machinery(self, budget, episode_started, failure_reason, progress, receipt, verifier):
+        # `ok` says the machinery ran. These two say what it established.
+        receipt.verifier_identity = (
+            f"{type(verifier).__module__}.{type(verifier).__qualname__}"
+            if verifier is not None
+            else ""
+        )
+        receipt.quality_verified = bool(
+            verifier is not None
+            and receipt.branch_selection_admitted
+            and not receipt.has_flag("branch_verifier_skipped_budget")
+        )
+        receipt.gain_established = bool(
+            receipt.quality_verified
+            and receipt.fast_weight_verifier.get("decision")
+            == "accepted_causal_improvement"
+        )
+        for channel, kind in sorted(self._callback_faults.items()):
+            # Monitoring health is reported separately from model success: a
+            # consumer that lost stage updates must not read the gap as an
+            # authoritative absence of stages.
+            receipt.flag(f"{channel}_callback_failed:{kind}")
+        receipt.last_stage = "complete" if not failure_reason else receipt.last_stage
+        receipt.stage_timings_s["total"] = round(
+            max(0.0, time.monotonic() - episode_started),
+            6,
+        )
+        self._emit_progress(
+            progress,
+            {
+                "stage": "complete" if not failure_reason else "failed",
+                "last_stage": receipt.last_stage,
+                "elapsed_s": receipt.stage_timings_s["total"],
+                "reason": failure_reason,
+                "spent_layer_apps": int(budget.spent_layer_apps),
+            },
+        )
+        receipt.budget = budget.to_receipt()
+        self._flush_consolidation_export(receipt, failure_reason=failure_reason or "")
+        from core.brain.llm.latent_cortex.causal_receipt import (
+            build_causal_receipt,
+        )
+
+        receipt.causal_receipt = build_causal_receipt(receipt.to_dict())
+
+    @staticmethod
+    def _reason_episode_part_6(failure_reason, out_tokens, receipt):
+        if not failure_reason and receipt.decode_termination not in {
+            "eos",
+            # The public answer contract completed: one FINAL_ANSWER JSON
+            # object closed and parsed — the strongest completion signal a
+            # contract task has (CP180).
+            "contract_complete",
+            # A bounded negative output remains valid scientific evidence.
+            # The live service rejects it as product-incomplete.
+            "token_limit_contract_incomplete",
+            "token_limit",
+            # The limit landed mid-sentence and sampling continued a few
+            # model-chosen tokens to the natural boundary — a complete
+            # answer, receipted under its own termination kind.
+            "token_limit_sentence_grace",
+            # Ran out of layer-app budget mid-decode, with tokens already
+            # sampled. The comment just below spells out why a wall-clock
+            # stop is accepted, and every word of it applies here: the
+            # product-quality gate judges whether the text stands as an
+            # answer, not which budget dimension ended sampling. Three
+            # dimensions bound a decode — tokens, wall clock, layer
+            # applications — and only two were listed, so the third killed
+            # live turns with "decode_incomplete:budget_exhausted" and the
+            # person got "I couldn't get to an answer I'd stand behind".
+            # Exhausting before the first token is a different termination
+            # and is deliberately NOT accepted.
+            "budget_exhausted",
+            # Time pressure ended decoding at a sentence boundary (the
+            # wall-clock analogue of the token-limit grace). A time-bounded
+            # stop has the same epistemic status as a token-bounded one:
+            # the product-quality gate — terminal completeness, facet and
+            # subject coverage — judges whether the text stands as an
+            # answer, not the budget dimension that ended sampling.
+            "wall_reserve_sentence_grace",
+            # Raw "wall_reserve" is deliberately absent. It now means the
+            # reserve was crossed with no sentence boundary reached — a known
+            # fragment. The wind-down above emits the accepted kind when the
+            # text actually ends somewhere.
+            # A separately generated, exactly round-tripped repair cleared
+            # the confidence-bound authority gate and replaced the ordinary
+            # neural decode.
+            "confidence_bound_replacement",
+        }:
+            failure_reason = f"decode_incomplete:{receipt.decode_termination}"
+        if not failure_reason and not out_tokens:
+            # An immediate EOS appends nothing and terminates as "eos", which
+            # the acceptance set above reads as a complete decode. The episode
+            # then returned ok with no answer in it. "The tokenizer said stop"
+            # is a different claim from "here is the answer".
+            receipt.flag("decode_produced_no_tokens")
+            failure_reason = "decode_incomplete:no_tokens_generated"
+        if receipt.params_unchanged is False:
+            receipt.flag("checkpoint_invariant_violated")
+            failure_reason = failure_reason or "checkpoint_invariant_violated"
+        return failure_reason
+
+    def _reason_episode(
+        self,
+        prompt: str | None = None,
+        *,
+        messages: list | None = None,
+        token_ids: list[int] | None = None,
+        budget: ComputeBudget | None = None,
+        verifier: Callable[[str], float] | None = None,
+        domain: str = "general",
+        decode_max_tokens: int | None = None,
+        ablate_slot: int | None = None,
+        ablate_mode: str = "zero",
+        cognitive_context: list | None = None,
+        action_policy_evidence: dict[str, Any] | None = None,
+        action_intervention: dict[str, Any] | None = None,
+        action_intervention_consumption: dict[str, Any] | None = None,
+        external_execution_offer: dict[str, Any] | None = None,
+        cancel_check: Callable[[], bool] | None = None,
+        progress: Callable[[dict], None] | None = None,
+        capture_decode_logprobs: bool = False,
+        decode_sentence_grace_tokens: int | None = None,
+        sample_seed: int | None = None,
+        incumbent_artifact: Any | None = None,
+        episode_id: str | None = None,
+        action_continuation_capture: Callable[[Any], None] | None = None,
+        action_continuation_restore: Any | None = None,
+        action_continuation_runner_state: Mapping[str, Any] | None = None,
+        action_continuation_capture_only: bool = False,
+        action_continuation_restore_verified: Callable[[str], None] | None = None,
+        nonparametric_memory_enabled: bool = True,
+        memory_principal: str = "",
+    ) -> LatentReasoningResult:
+        self._reason_episode_part_1(capture_decode_logprobs, decode_sentence_grace_tokens, incumbent_artifact, sample_seed)
+        receipt = self._reason_episode_part_2(action_continuation_capture, action_continuation_capture_only, action_continuation_restore, action_continuation_restore_verified, action_continuation_runner_state, episode_id, memory_principal, nonparametric_memory_enabled)
         # Every probe decode inherits the episode's cancellation channel and
         # its cleanup reserve. Threading them through fifteen call sites is
         # how they went missing; the single-flight guard makes one place the
@@ -3761,36 +3952,7 @@ class LatentCortexEngine:
         # the one-call contract.
         self._episode_receipt = receipt
         tokens = self._encode(prompt, messages, token_ids)
-        # Read the actual serialized prefix; model names and requested modes
-        # do not establish which channel the tokenizer left open.
-        decode_prefix = getattr(self.tokenizer, "decode", None)
-        self._episode_native_thinking = bool(
-            callable(decode_prefix)
-            and str(decode_prefix(tokens)).rstrip().endswith("<think>")
-        )
-        if self._episode_native_thinking:
-            receipt.flag("native_thinking_prefix_open")
-        verification_objective = str(prompt or "")
-        if not verification_objective and messages:
-            for message in reversed(messages):
-                if isinstance(message, dict) and message.get("role") == "user":
-                    content = message.get("content")
-                    if isinstance(content, str) and content.strip():
-                        verification_objective = content
-                        break
-        self._admit_input_length(len(tokens), budget)
-        encoded_tokens = json.dumps(tokens, separators=(",", ":"), allow_nan=False).encode("ascii")
-        receipt.input_tokens_sha256 = hashlib.sha256(encoded_tokens).hexdigest()
-        receipt.input_token_count = len(tokens)
-        budget.bind_information(
-            self._information_receipt(
-                encoded_tokens=encoded_tokens,
-                token_count=len(tokens),
-                context_items=context_items,
-                policy_evidence=policy_evidence,
-                verifier=verifier,
-            )
-        )
+        encoded_tokens, verification_objective = self._reason_episode_read_actual_serialized(budget, context_items, messages, policy_evidence, prompt, receipt, tokens, verifier)
         if sample_seed is None and self.config.decode_temperature > 0.0:
             # Derived from this episode's own commitment, so it is stable for
             # the same inputs and different across episodes. A fresh random
@@ -3803,52 +3965,7 @@ class LatentCortexEngine:
                 "big",
             )
         metered_verifier = self._meter_verifier(verifier, budget)
-        receipt.decode_temperature = float(self.config.decode_temperature)
-        receipt.decode_top_p = float(self.config.decode_top_p)
-        receipt.decode_bridge_policy = self.config.decode_bridge_policy
-        receipt.decode_incumbent_policy = self.config.decode_incumbent_policy
-        receipt.verifier_probe_max_tokens = self.config.verifier_probe_max_tokens
-        receipt.verifier_probe_contract = self.config.verifier_probe_contract
-        receipt.decode_contract_required = self.config.decode_contract == "final_answer_v1"
-        receipt.decode_contract_grace_tokens = (
-            self.config.decode_contract_grace_tokens if receipt.decode_contract_required else 0
-        )
-
-        self.invariant.pre_episode()
-        self._episode_invariant_armed = True
-        receipt.checkpoint_fingerprint = self.invariant.file_receipt.get("fingerprint", "")
-        receipt.checkpoint_fingerprint_method = self.invariant.file_receipt.get("method", "")
-        receipt.checkpoint_file_count = int(self.invariant.file_receipt.get("files", 0) or 0)
-        validated_incumbent = None
-        if incumbent_artifact is not None:
-            # The policy contradiction is refused at the call boundary above,
-            # before anything runs; this is what still needs the runtime.
-            if self.tokenizer is None:
-                raise ValueError("an incumbent artifact requires the serving tokenizer")
-            from core.brain.llm.latent_cortex.incumbent_artifact import (
-                validate_incumbent_artifact,
-            )
-
-            validated_incumbent = validate_incumbent_artifact(
-                incumbent_artifact,
-                input_tokens=tokens,
-                checkpoint_fingerprint=receipt.checkpoint_fingerprint,
-                checkpoint_fingerprint_method=receipt.checkpoint_fingerprint_method,
-                max_tokens=(
-                    decode_max_tokens
-                    if decode_max_tokens is not None
-                    else self.config.decode_max_tokens
-                ),
-                n_layers=self.n_layers,
-                decode=lambda values: self._decode_public_text(list(values), receipt=receipt),
-            )
-            receipt.incumbent_artifact = dict(validated_incumbent.receipt)
-            budget.charge_layer_apps(
-                int(validated_incumbent.receipt["compute"]["transformer_layer_apps"]),
-                operation="bound_incumbent_generation",
-            )
-
-        failure_reason = ""
+        failure_reason, validated_incumbent = self._reason_episode_part_4(budget, decode_max_tokens, incumbent_artifact, receipt, tokens)
         continuation_captured_only = False
         out_tokens: list[int] = []
         decode_token_logprobs: list[float] = []
@@ -4069,49 +4186,7 @@ class LatentCortexEngine:
                     action="refused output because the post-episode invariant probe failed",
                     severity="critical",
                 )
-        # `ok` says the machinery ran. These two say what it established.
-        receipt.verifier_identity = (
-            f"{type(verifier).__module__}.{type(verifier).__qualname__}"
-            if verifier is not None
-            else ""
-        )
-        receipt.quality_verified = bool(
-            verifier is not None
-            and receipt.branch_selection_admitted
-            and not receipt.has_flag("branch_verifier_skipped_budget")
-        )
-        receipt.gain_established = bool(
-            receipt.quality_verified
-            and receipt.fast_weight_verifier.get("decision")
-            == "accepted_causal_improvement"
-        )
-        for channel, kind in sorted(self._callback_faults.items()):
-            # Monitoring health is reported separately from model success: a
-            # consumer that lost stage updates must not read the gap as an
-            # authoritative absence of stages.
-            receipt.flag(f"{channel}_callback_failed:{kind}")
-        receipt.last_stage = "complete" if not failure_reason else receipt.last_stage
-        receipt.stage_timings_s["total"] = round(
-            max(0.0, time.monotonic() - episode_started),
-            6,
-        )
-        self._emit_progress(
-            progress,
-            {
-                "stage": "complete" if not failure_reason else "failed",
-                "last_stage": receipt.last_stage,
-                "elapsed_s": receipt.stage_timings_s["total"],
-                "reason": failure_reason,
-                "spent_layer_apps": int(budget.spent_layer_apps),
-            },
-        )
-        receipt.budget = budget.to_receipt()
-        self._flush_consolidation_export(receipt, failure_reason=failure_reason or "")
-        from core.brain.llm.latent_cortex.causal_receipt import (
-            build_causal_receipt,
-        )
-
-        receipt.causal_receipt = build_causal_receipt(receipt.to_dict())
+        self._reason_episode_ok_says_machinery(budget, episode_started, failure_reason, progress, receipt, verifier)
         if continuation_captured_only:
             receipt.last_stage = "action_state_captured"
             receipt.halting_reason = "action_state_captured_before_first_action"
@@ -4123,59 +4198,7 @@ class LatentCortexEngine:
                 decode_token_logprobs=decode_token_logprobs,
                 answer_replacement_private=answer_replacement_private,
             )
-        if not failure_reason and receipt.decode_termination not in {
-            "eos",
-            # The public answer contract completed: one FINAL_ANSWER JSON
-            # object closed and parsed — the strongest completion signal a
-            # contract task has (CP180).
-            "contract_complete",
-            # A bounded negative output remains valid scientific evidence.
-            # The live service rejects it as product-incomplete.
-            "token_limit_contract_incomplete",
-            "token_limit",
-            # The limit landed mid-sentence and sampling continued a few
-            # model-chosen tokens to the natural boundary — a complete
-            # answer, receipted under its own termination kind.
-            "token_limit_sentence_grace",
-            # Ran out of layer-app budget mid-decode, with tokens already
-            # sampled. The comment just below spells out why a wall-clock
-            # stop is accepted, and every word of it applies here: the
-            # product-quality gate judges whether the text stands as an
-            # answer, not which budget dimension ended sampling. Three
-            # dimensions bound a decode — tokens, wall clock, layer
-            # applications — and only two were listed, so the third killed
-            # live turns with "decode_incomplete:budget_exhausted" and the
-            # person got "I couldn't get to an answer I'd stand behind".
-            # Exhausting before the first token is a different termination
-            # and is deliberately NOT accepted.
-            "budget_exhausted",
-            # Time pressure ended decoding at a sentence boundary (the
-            # wall-clock analogue of the token-limit grace). A time-bounded
-            # stop has the same epistemic status as a token-bounded one:
-            # the product-quality gate — terminal completeness, facet and
-            # subject coverage — judges whether the text stands as an
-            # answer, not the budget dimension that ended sampling.
-            "wall_reserve_sentence_grace",
-            # Raw "wall_reserve" is deliberately absent. It now means the
-            # reserve was crossed with no sentence boundary reached — a known
-            # fragment. The wind-down above emits the accepted kind when the
-            # text actually ends somewhere.
-            # A separately generated, exactly round-tripped repair cleared
-            # the confidence-bound authority gate and replaced the ordinary
-            # neural decode.
-            "confidence_bound_replacement",
-        }:
-            failure_reason = f"decode_incomplete:{receipt.decode_termination}"
-        if not failure_reason and not out_tokens:
-            # An immediate EOS appends nothing and terminates as "eos", which
-            # the acceptance set above reads as a complete decode. The episode
-            # then returned ok with no answer in it. "The tokenizer said stop"
-            # is a different claim from "here is the answer".
-            receipt.flag("decode_produced_no_tokens")
-            failure_reason = "decode_incomplete:no_tokens_generated"
-        if receipt.params_unchanged is False:
-            receipt.flag("checkpoint_invariant_violated")
-            failure_reason = failure_reason or "checkpoint_invariant_violated"
+        failure_reason = self._reason_episode_part_6(failure_reason, out_tokens, receipt)
         if failure_reason:
             # A bounded decode can be an invalid product answer while still
             # being valid raw-policy evidence. Preserve only that explicitly

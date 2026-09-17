@@ -5334,6 +5334,135 @@ class UnifiedRecurrentController(nn.Module):
         return {**body, "receipt_sha256": _canonical_sha256(body)}
 
 
+def _unified_recurrent_hidden_states_part_1(controller, detach_problem_evidence, initial_state_logit_trajectory, initial_state_teacher_values, problem_evidence, state_slot_start, state_teacher_forcing_probability, tokens):
+    if detach_problem_evidence:
+        problem_evidence = mx.stop_gradient(problem_evidence)
+    problem_evidence = controller.ground_literal_evidence(
+        problem_evidence,
+        tokens[:, :state_slot_start],
+    )
+    # A recurrent machine must start from the problem's state, not from one
+    # task-independent learned vector.  The prediction uses only the public
+    # prefix and remains the sole source at inference; exact initial values
+    # are an annealed training authority only.
+    initial_state_logits = controller.initial_state_logits(
+        problem_evidence,
+        tokens[:, :state_slot_start],
+    )
+    state_probabilities = controller.straight_through_probabilities(
+        initial_state_logits
+    )
+    if initial_state_logit_trajectory is not None:
+        initial_state_logit_trajectory.append(initial_state_logits)
+    if (
+        initial_state_teacher_values is not None
+        and state_teacher_forcing_probability > 0.0
+    ):
+        teacher_initial = controller.exact_probabilities(
+            initial_state_teacher_values,
+            slots=controller.config.state_slots,
+            cardinality=controller.config.state_cardinality,
+        )
+        state_probabilities = (
+            (1.0 - state_teacher_forcing_probability) * state_probabilities
+            + state_teacher_forcing_probability * teacher_initial
+        )
+    return problem_evidence, state_probabilities
+
+def _unified_recurrent_hidden_states_action_probabilities(action_logits, action_probability_history, action_teacher_values, controller, iteration, public_action_values, state_teacher_forcing_probability, typed_action_lesion):
+    action_probabilities = controller.straight_through_probabilities(
+        action_logits
+    )
+    if public_action_values is not None:
+        action_probabilities = controller.exact_probabilities(
+            public_action_values[iteration],
+            slots=controller.config.action_slots,
+            cardinality=controller.config.action_cardinality,
+        )
+    if typed_action_lesion:
+        action_probabilities = controller.exact_probabilities(
+            (ACTION_NULL,) * (controller.config.action_slots - 1) + (0,),
+            slots=controller.config.action_slots,
+            cardinality=controller.config.action_cardinality,
+        )
+    if (
+        action_teacher_values is not None
+        and state_teacher_forcing_probability > 0.0
+    ):
+        teacher_action = controller.exact_probabilities(
+            action_teacher_values[iteration],
+            slots=controller.config.action_slots,
+            cardinality=controller.config.action_cardinality,
+        )
+        action_probabilities = (
+            (1.0 - state_teacher_forcing_probability)
+            * action_probabilities
+            + state_teacher_forcing_probability * teacher_action
+        )
+    action_state = controller.commit_action_probabilities(
+        action_probabilities
+    )
+    action_probability_history.append(action_probabilities)
+    return action_probabilities, action_state
+
+def _unified_recurrent_hidden_states_part_3(action_state, active, controller, hidden, iteration, post_state, pre_state, process_tape, process_tape_masks):
+    process_tape.extend(
+        (
+            controller.encode_process_tape_entry(
+                pre_state,
+                step=iteration,
+                kind="state_pre",
+            ),
+            controller.encode_process_tape_entry(
+                action_state,
+                step=iteration,
+                kind="action",
+            ),
+            controller.encode_process_tape_entry(
+                post_state,
+                step=iteration,
+                kind="state_post",
+            ),
+            controller.encode_process_tape_entry(
+                post_state - pre_state,
+                step=iteration,
+                kind="state_delta",
+            ),
+        )
+    )
+    process_tape_masks.extend(
+        (
+            mx.broadcast_to(
+                active[:, None],
+                (
+                    int(hidden.shape[0]),
+                    controller.config.state_slots,
+                ),
+            ),
+            mx.broadcast_to(
+                active[:, None],
+                (
+                    int(hidden.shape[0]),
+                    controller.config.action_slots,
+                ),
+            ),
+            mx.broadcast_to(
+                active[:, None],
+                (
+                    int(hidden.shape[0]),
+                    controller.config.state_slots,
+                ),
+            ),
+            mx.broadcast_to(
+                active[:, None],
+                (
+                    int(hidden.shape[0]),
+                    controller.config.state_slots,
+                ),
+            ),
+        )
+    )
+
 def unified_recurrent_hidden_states(
     model: Any,
     tokens: Any,
@@ -5520,38 +5649,7 @@ def unified_recurrent_hidden_states(
         # parse the public problem statement.
         with recurrent_iteration(0):
             problem_evidence = _run(window, anchor[:, :state_slot_start, :])
-        if detach_problem_evidence:
-            problem_evidence = mx.stop_gradient(problem_evidence)
-        problem_evidence = controller.ground_literal_evidence(
-            problem_evidence,
-            tokens[:, :state_slot_start],
-        )
-        # A recurrent machine must start from the problem's state, not from one
-        # task-independent learned vector.  The prediction uses only the public
-        # prefix and remains the sole source at inference; exact initial values
-        # are an annealed training authority only.
-        initial_state_logits = controller.initial_state_logits(
-            problem_evidence,
-            tokens[:, :state_slot_start],
-        )
-        state_probabilities = controller.straight_through_probabilities(
-            initial_state_logits
-        )
-        if initial_state_logit_trajectory is not None:
-            initial_state_logit_trajectory.append(initial_state_logits)
-        if (
-            initial_state_teacher_values is not None
-            and state_teacher_forcing_probability > 0.0
-        ):
-            teacher_initial = controller.exact_probabilities(
-                initial_state_teacher_values,
-                slots=controller.config.state_slots,
-                cardinality=controller.config.state_cardinality,
-            )
-            state_probabilities = (
-                (1.0 - state_teacher_forcing_probability) * state_probabilities
-                + state_teacher_forcing_probability * teacher_initial
-            )
+        problem_evidence, state_probabilities = _unified_recurrent_hidden_states_part_1(controller, detach_problem_evidence, initial_state_logit_trajectory, initial_state_teacher_values, problem_evidence, state_slot_start, state_teacher_forcing_probability, tokens)
         hidden = controller.commit_state_probabilities(
             hidden,
             state_slot_start=state_slot_start,
@@ -5608,39 +5706,7 @@ def unified_recurrent_hidden_states(
                     action_workspace_trajectory=action_workspace_trajectory,
                     action_kernel_feature_trajectory=action_kernel_feature_trajectory,
                 )
-                action_probabilities = controller.straight_through_probabilities(
-                    action_logits
-                )
-                if public_action_values is not None:
-                    action_probabilities = controller.exact_probabilities(
-                        public_action_values[iteration],
-                        slots=controller.config.action_slots,
-                        cardinality=controller.config.action_cardinality,
-                    )
-                if typed_action_lesion:
-                    action_probabilities = controller.exact_probabilities(
-                        (ACTION_NULL,) * (controller.config.action_slots - 1) + (0,),
-                        slots=controller.config.action_slots,
-                        cardinality=controller.config.action_cardinality,
-                    )
-                if (
-                    action_teacher_values is not None
-                    and state_teacher_forcing_probability > 0.0
-                ):
-                    teacher_action = controller.exact_probabilities(
-                        action_teacher_values[iteration],
-                        slots=controller.config.action_slots,
-                        cardinality=controller.config.action_cardinality,
-                    )
-                    action_probabilities = (
-                        (1.0 - state_teacher_forcing_probability)
-                        * action_probabilities
-                        + state_teacher_forcing_probability * teacher_action
-                    )
-                action_state = controller.commit_action_probabilities(
-                    action_probabilities
-                )
-                action_probability_history.append(action_probabilities)
+                action_probabilities, action_state = _unified_recurrent_hidden_states_action_probabilities(action_logits, action_probability_history, action_teacher_values, controller, iteration, public_action_values, state_teacher_forcing_probability, typed_action_lesion)
                 prior_action_probabilities = action_probabilities
                 state_logits = controller.state_transition_logits(
                     problem_evidence,
@@ -5697,62 +5763,7 @@ def unified_recurrent_hidden_states(
                         :, state_slot_start:state_stop, :
                     ]
                     post_state = hidden[:, state_slot_start:state_stop, :]
-                    process_tape.extend(
-                        (
-                            controller.encode_process_tape_entry(
-                                pre_state,
-                                step=iteration,
-                                kind="state_pre",
-                            ),
-                            controller.encode_process_tape_entry(
-                                action_state,
-                                step=iteration,
-                                kind="action",
-                            ),
-                            controller.encode_process_tape_entry(
-                                post_state,
-                                step=iteration,
-                                kind="state_post",
-                            ),
-                            controller.encode_process_tape_entry(
-                                post_state - pre_state,
-                                step=iteration,
-                                kind="state_delta",
-                            ),
-                        )
-                    )
-                    process_tape_masks.extend(
-                        (
-                            mx.broadcast_to(
-                                active[:, None],
-                                (
-                                    int(hidden.shape[0]),
-                                    controller.config.state_slots,
-                                ),
-                            ),
-                            mx.broadcast_to(
-                                active[:, None],
-                                (
-                                    int(hidden.shape[0]),
-                                    controller.config.action_slots,
-                                ),
-                            ),
-                            mx.broadcast_to(
-                                active[:, None],
-                                (
-                                    int(hidden.shape[0]),
-                                    controller.config.state_slots,
-                                ),
-                            ),
-                            mx.broadcast_to(
-                                active[:, None],
-                                (
-                                    int(hidden.shape[0]),
-                                    controller.config.state_slots,
-                                ),
-                            ),
-                        )
-                    )
+                    _unified_recurrent_hidden_states_part_3(action_state, active, controller, hidden, iteration, post_state, pre_state, process_tape, process_tape_masks)
                 if state_probability_trajectory is not None:
                     state_probability_trajectory.append(state_probabilities)
                 # Process acquisition and answer emission are distinct graphs.

@@ -109,6 +109,38 @@ async def _run_phase(
         return None
 
 
+def _init_cognitive_sensory_layer_learned_cognitive_systems():
+    # Learned cognitive systems replace rigid if/else rules with adaptive,
+    # data-driven systems. Each is optional, but every deferral is recorded.
+    cognitive_services = {
+        "sentiment_tracker": ("core.cognitive.sentiment_tracker", "get_sentiment_tracker"),
+        "anomaly_detector": ("core.cognitive.anomaly_detector", "AnomalyDetector"),
+        "strange_loop": ("core.cognitive.strange_loop", "get_strange_loop"),
+        "homeostatic_rl": ("core.cognitive.homeostatic_rl", "get_homeostatic_rl"),
+        "topology_evolution": ("core.cognitive.topology_evolution", "TopologyEvolution"),
+        "autopoiesis": ("core.cognitive.autopoiesis", "get_autopoiesis_engine"),
+        "adaptive_immune_system": (
+            "core.adaptation.adaptive_immunity",
+            "get_adaptive_immune_system",
+        ),
+        "autonomous_resilience_mesh": (
+            "core.adaptation.autonomous_resilience",
+            "get_autonomous_resilience_mesh",
+        ),
+    }
+    alife_services = {
+        "criticality_regulator": (
+            "core.consciousness.criticality_regulator",
+            "get_criticality_regulator",
+        ),
+        "alife_dynamics": ("core.consciousness.alife_dynamics", "ALifeDynamics"),
+        "alife_extensions": ("core.consciousness.alife_extensions", "ALifeExtensions"),
+        "endogenous_fitness": ("core.consciousness.endogenous_fitness", "get_endogenous_fitness"),
+    }
+    all_services = {**cognitive_services, **alife_services}
+    registered_count = 0
+    return all_services, registered_count
+
 async def init_cognitive_sensory_layer(orchestrator: Any) -> dict[str, Any]:
     """Initialize the higher-order cognitive and sensory services."""
     report = _boot_report(orchestrator)
@@ -892,35 +924,7 @@ async def init_cognitive_sensory_layer(orchestrator: Any) -> dict[str, Any]:
         severity="critical",
     )
 
-    # Learned cognitive systems replace rigid if/else rules with adaptive,
-    # data-driven systems. Each is optional, but every deferral is recorded.
-    cognitive_services = {
-        "sentiment_tracker": ("core.cognitive.sentiment_tracker", "get_sentiment_tracker"),
-        "anomaly_detector": ("core.cognitive.anomaly_detector", "AnomalyDetector"),
-        "strange_loop": ("core.cognitive.strange_loop", "get_strange_loop"),
-        "homeostatic_rl": ("core.cognitive.homeostatic_rl", "get_homeostatic_rl"),
-        "topology_evolution": ("core.cognitive.topology_evolution", "TopologyEvolution"),
-        "autopoiesis": ("core.cognitive.autopoiesis", "get_autopoiesis_engine"),
-        "adaptive_immune_system": (
-            "core.adaptation.adaptive_immunity",
-            "get_adaptive_immune_system",
-        ),
-        "autonomous_resilience_mesh": (
-            "core.adaptation.autonomous_resilience",
-            "get_autonomous_resilience_mesh",
-        ),
-    }
-    alife_services = {
-        "criticality_regulator": (
-            "core.consciousness.criticality_regulator",
-            "get_criticality_regulator",
-        ),
-        "alife_dynamics": ("core.consciousness.alife_dynamics", "ALifeDynamics"),
-        "alife_extensions": ("core.consciousness.alife_extensions", "ALifeExtensions"),
-        "endogenous_fitness": ("core.consciousness.endogenous_fitness", "get_endogenous_fitness"),
-    }
-    all_services = {**cognitive_services, **alife_services}
-    registered_count = 0
+    all_services, registered_count = _init_cognitive_sensory_layer_learned_cognitive_systems()
     for service_name, (module_path, factory_name) in all_services.items():
         try:
             module = importlib.import_module(module_path)

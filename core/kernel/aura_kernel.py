@@ -1208,6 +1208,185 @@ class AuraKernel:
             )
             logger.debug("Tracer failed: %s", e)
 
+    def _tick_body_part_1(self, bound_objective, priority, state):
+        state.cognition.current_objective = bound_objective
+        get_executive_authority().record_objective_binding(
+            state,
+            bound_objective,
+            source="aura_kernel.tick",
+            mode="unitary_tick",
+            reason="kernel_tick_bound",
+        )
+
+        # Linear Pipeline execution
+        volition = self.volition_level
+
+        # Phases that only belong in background autonomous ticks.
+        # Running them during a user-facing (priority) tick blocks the response
+        # for up to 60s per phase and is never needed for conversation.
+        #
+        # Pass numbering restarts here. It used to be monotonic for the
+        # process, which made AURA_PASS_BISECT_LIMIT=5 mean "the first
+        # five passes since boot" — right on the first tick and total
+        # silence on every tick after it. The documented behaviour, and
+        # the only useful one, is per-tick.
+        _begin_pass_run(f"kernel_tick/{'priority' if priority else 'background'}")
+        # Same shape and the same reason as the pass run above: one record
+        # per tick, opened here, so "why did she do that" can be answered
+        # from what the runtime measured rather than from what the model
+        # would say about itself afterwards.
+        _provenance = open_tick(objective=bound_objective, priority=priority)
+        return _provenance, volition
+
+    async def _tick_body_part_2(self, _provenance, entry, objective, start_time, turn_origin):
+        close_tick(_provenance)
+
+        # Cognitive health is a materialized projection of the completed
+        # state, not a write owned by every phase that derives a state.
+        # Refresh it once outside phase provenance so contracts attribute
+        # only the transformations each phase actually performed.
+        refresh_cognitive_health = getattr(
+            self.state,
+            "_refresh_cognitive_health",
+            None,
+        )
+        if callable(refresh_cognitive_health):
+            try:
+                refresh_cognitive_health()
+            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                _record_kernel_degradation(
+                    exc,
+                    action="completed tick with the prior cognitive-health projection",
+                    severity="warning",
+                )
+
+        # Flush deferred storage side-effects (eternal_append, db_write, etc.)
+        # [STABILITY v53] Timeout guard — storage intents can hang on slow I/O
+        try:
+            await asyncio.wait_for(self._process_storage_intents(), timeout=10.0)
+        except TimeoutError:
+            logger.warning(
+                "⚠️ [STABILITY] Storage intents timed out (10s) — skipping for this tick."
+            )
+
+        # ── CONSTITUTIONAL CLOSURE ──────────────────────────────────────
+        # Stamp this tick's arbitration into the canonical state before commit.
+        # Every committed state is self-documenting about the decision chain.
+        try:
+            self.state.cognition.last_kernel_cycle_id = entry.tick_id if entry else None
+            self.state.cognition.last_action_source = (
+                self.state.cognition.current_origin or "kernel"
+            )
+
+            from core.executive.executive_core import get_executive_core
+
+            _exec = get_executive_core()
+            if _exec is not None:
+                _exec_stats = _exec.get_stats() if hasattr(_exec, "get_stats") else {}
+                self.state.cognition.kernel_decision_count = int(
+                    _exec_stats.get("approved", 0) or 0
+                )
+                self.state.cognition.kernel_veto_count = int(
+                    _exec_stats.get("rejected", 0) or 0
+                )
+                _recent = _exec_stats.get("recent_decisions", []) or []
+                self.state.cognition.last_veto_reasons = [
+                    str(d.get("reason", ""))
+                    for d in _recent
+                    if isinstance(d, dict) and d.get("outcome") == "rejected"
+                ][-5:]
+        except (ImportError, AttributeError, RuntimeError) as _cc_err:
+            _record_kernel_degradation(
+                _cc_err,
+                action="continued tick without constitutional closure state stamp",
+                severity="error",
+            )
+            logger.error("Constitutional closure stamp failed: %s", _cc_err, exc_info=True)
+        # ────────────────────────────────────────────────────────────────
+
+        # A foreground objective is a live turn, not a durable autonomous
+        # goal. Close it before persistence so proxy serialization cannot
+        # race the post-return cleanup.
+        self._finalize_foreground_turn_state(
+            objective=objective,
+            turn_origin=turn_origin,
+        )
+
+        # Persistence
+        # [STABILITY v53] Timeout guard — vault commit can hang on slow disk/network
+        try:
+            await asyncio.wait_for(self._commit_vault(objective), timeout=10.0)
+        except TimeoutError:
+            logger.warning(
+                "⚠️ [STABILITY] Vault commit timed out (10s) — state not persisted this tick."
+            )
+
+        # Cognitive Ledger: record this tick as a structured transition
+        try:
+            from core.resilience.cognitive_ledger import (
+                Transition,
+                TransitionType,
+                compute_state_hash,
+                get_cognitive_ledger,
+            )
+
+            ledger = get_cognitive_ledger()
+            state_hash = compute_state_hash(self.state)
+            ledger.append(
+                Transition.create(
+                    ttype=TransitionType.TICK_COMPLETE,
+                    subsystem="kernel",
+                    cause=objective[:120] if objective else "tick",
+                    payload={
+                        "phi": round(self.state.phi, 4),
+                        "valence": round(self.state.affect.valence, 3),
+                        "mode": self.state.cognition.current_mode.value,
+                        "response_len": len(self.state.cognition.last_response or ""),
+                        "cycle": self.status.cycle_count,
+                    },
+                    prior_hash=state_hash,
+                    confidence=1.0
+                    - (self.state.free_energy if hasattr(self.state, "free_energy") else 0.0),
+                )
+            )
+        except (ImportError, AttributeError, RuntimeError) as _ledger_err:
+            _record_kernel_degradation(
+                _ledger_err,
+                action="completed tick without cognitive ledger transition",
+            )
+            logger.debug("Ledger tick record failed (non-critical): %s", _ledger_err)
+
+        # Visual Update
+        await self._pulse_mirror()
+
+        # 2. Feedback Loop: End
+        response = self.state.cognition.last_response
+        self.feedback_observer.end_tick(entry, response, self.state, start_time)
+
+        # Record phase health in StabilityGuardian
+        try:
+            if self._guardian is None:
+                from core.container import ServiceContainer
+
+                self._guardian = ServiceContainer.get("stability_guardian", default=None)
+
+            if self._guardian:
+                self._guardian.record_tick_health(entry)
+        except (ImportError, AttributeError, RuntimeError) as e:
+            _record_kernel_degradation(
+                e,
+                action="completed tick without stability guardian health record",
+            )
+            logger.debug("StabilityGuardian: Health record skipped: %s", e)
+
+        # Log the loop summary
+        logger.info("LOOP| %s", entry.summary())
+
+        await self._trace_the_tick(objective, response)
+
+        # Record completion timestamp for telemetry staleness detection
+        self._last_tick_completed_at = time.time()
+
     async def _tick_body(self, objective, priority, turn_origin, state):
         """Body lifted verbatim out of ``AuraKernel.tick``.
 
@@ -1312,33 +1491,7 @@ class AuraKernel:
                     severity="error",
                 )
                 bound_objective = objective
-            state.cognition.current_objective = bound_objective
-            get_executive_authority().record_objective_binding(
-                state,
-                bound_objective,
-                source="aura_kernel.tick",
-                mode="unitary_tick",
-                reason="kernel_tick_bound",
-            )
-
-            # Linear Pipeline execution
-            volition = self.volition_level
-
-            # Phases that only belong in background autonomous ticks.
-            # Running them during a user-facing (priority) tick blocks the response
-            # for up to 60s per phase and is never needed for conversation.
-            #
-            # Pass numbering restarts here. It used to be monotonic for the
-            # process, which made AURA_PASS_BISECT_LIMIT=5 mean "the first
-            # five passes since boot" — right on the first tick and total
-            # silence on every tick after it. The documented behaviour, and
-            # the only useful one, is per-tick.
-            _begin_pass_run(f"kernel_tick/{'priority' if priority else 'background'}")
-            # Same shape and the same reason as the pass run above: one record
-            # per tick, opened here, so "why did she do that" can be answered
-            # from what the runtime measured rather than from what the model
-            # would say about itself afterwards.
-            _provenance = open_tick(objective=bound_objective, priority=priority)
+            _provenance, volition = self._tick_body_part_1(bound_objective, priority, state)
             for phase in self._phases:
                 phase_name = phase.__class__.__name__
 
@@ -1509,153 +1662,7 @@ class AuraKernel:
 
                 self.state.updated_at = time.time()
 
-            close_tick(_provenance)
-
-            # Cognitive health is a materialized projection of the completed
-            # state, not a write owned by every phase that derives a state.
-            # Refresh it once outside phase provenance so contracts attribute
-            # only the transformations each phase actually performed.
-            refresh_cognitive_health = getattr(
-                self.state,
-                "_refresh_cognitive_health",
-                None,
-            )
-            if callable(refresh_cognitive_health):
-                try:
-                    refresh_cognitive_health()
-                except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-                    _record_kernel_degradation(
-                        exc,
-                        action="completed tick with the prior cognitive-health projection",
-                        severity="warning",
-                    )
-
-            # Flush deferred storage side-effects (eternal_append, db_write, etc.)
-            # [STABILITY v53] Timeout guard — storage intents can hang on slow I/O
-            try:
-                await asyncio.wait_for(self._process_storage_intents(), timeout=10.0)
-            except TimeoutError:
-                logger.warning(
-                    "⚠️ [STABILITY] Storage intents timed out (10s) — skipping for this tick."
-                )
-
-            # ── CONSTITUTIONAL CLOSURE ──────────────────────────────────────
-            # Stamp this tick's arbitration into the canonical state before commit.
-            # Every committed state is self-documenting about the decision chain.
-            try:
-                self.state.cognition.last_kernel_cycle_id = entry.tick_id if entry else None
-                self.state.cognition.last_action_source = (
-                    self.state.cognition.current_origin or "kernel"
-                )
-
-                from core.executive.executive_core import get_executive_core
-
-                _exec = get_executive_core()
-                if _exec is not None:
-                    _exec_stats = _exec.get_stats() if hasattr(_exec, "get_stats") else {}
-                    self.state.cognition.kernel_decision_count = int(
-                        _exec_stats.get("approved", 0) or 0
-                    )
-                    self.state.cognition.kernel_veto_count = int(
-                        _exec_stats.get("rejected", 0) or 0
-                    )
-                    _recent = _exec_stats.get("recent_decisions", []) or []
-                    self.state.cognition.last_veto_reasons = [
-                        str(d.get("reason", ""))
-                        for d in _recent
-                        if isinstance(d, dict) and d.get("outcome") == "rejected"
-                    ][-5:]
-            except (ImportError, AttributeError, RuntimeError) as _cc_err:
-                _record_kernel_degradation(
-                    _cc_err,
-                    action="continued tick without constitutional closure state stamp",
-                    severity="error",
-                )
-                logger.error("Constitutional closure stamp failed: %s", _cc_err, exc_info=True)
-            # ────────────────────────────────────────────────────────────────
-
-            # A foreground objective is a live turn, not a durable autonomous
-            # goal. Close it before persistence so proxy serialization cannot
-            # race the post-return cleanup.
-            self._finalize_foreground_turn_state(
-                objective=objective,
-                turn_origin=turn_origin,
-            )
-
-            # Persistence
-            # [STABILITY v53] Timeout guard — vault commit can hang on slow disk/network
-            try:
-                await asyncio.wait_for(self._commit_vault(objective), timeout=10.0)
-            except TimeoutError:
-                logger.warning(
-                    "⚠️ [STABILITY] Vault commit timed out (10s) — state not persisted this tick."
-                )
-
-            # Cognitive Ledger: record this tick as a structured transition
-            try:
-                from core.resilience.cognitive_ledger import (
-                    Transition,
-                    TransitionType,
-                    compute_state_hash,
-                    get_cognitive_ledger,
-                )
-
-                ledger = get_cognitive_ledger()
-                state_hash = compute_state_hash(self.state)
-                ledger.append(
-                    Transition.create(
-                        ttype=TransitionType.TICK_COMPLETE,
-                        subsystem="kernel",
-                        cause=objective[:120] if objective else "tick",
-                        payload={
-                            "phi": round(self.state.phi, 4),
-                            "valence": round(self.state.affect.valence, 3),
-                            "mode": self.state.cognition.current_mode.value,
-                            "response_len": len(self.state.cognition.last_response or ""),
-                            "cycle": self.status.cycle_count,
-                        },
-                        prior_hash=state_hash,
-                        confidence=1.0
-                        - (self.state.free_energy if hasattr(self.state, "free_energy") else 0.0),
-                    )
-                )
-            except (ImportError, AttributeError, RuntimeError) as _ledger_err:
-                _record_kernel_degradation(
-                    _ledger_err,
-                    action="completed tick without cognitive ledger transition",
-                )
-                logger.debug("Ledger tick record failed (non-critical): %s", _ledger_err)
-
-            # Visual Update
-            await self._pulse_mirror()
-
-            # 2. Feedback Loop: End
-            response = self.state.cognition.last_response
-            self.feedback_observer.end_tick(entry, response, self.state, start_time)
-
-            # Record phase health in StabilityGuardian
-            try:
-                if self._guardian is None:
-                    from core.container import ServiceContainer
-
-                    self._guardian = ServiceContainer.get("stability_guardian", default=None)
-
-                if self._guardian:
-                    self._guardian.record_tick_health(entry)
-            except (ImportError, AttributeError, RuntimeError) as e:
-                _record_kernel_degradation(
-                    e,
-                    action="completed tick without stability guardian health record",
-                )
-                logger.debug("StabilityGuardian: Health record skipped: %s", e)
-
-            # Log the loop summary
-            logger.info("LOOP| %s", entry.summary())
-
-            await self._trace_the_tick(objective, response)
-
-            # Record completion timestamp for telemetry staleness detection
-            self._last_tick_completed_at = time.time()
+            await self._tick_body_part_2(_provenance, entry, objective, start_time, turn_origin)
 
             return entry
         finally:

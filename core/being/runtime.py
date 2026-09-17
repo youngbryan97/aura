@@ -617,25 +617,8 @@ class BeingRuntime:
             )
         return 0.5
 
-    def action_policy(
-        self,
-        now: AuraNow,
-        *,
-        domain: str = "",
-        priority: float = 0.5,
-        context: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Derive action constraints from the live AuraNow state + welfare.
-
-        This is the operational bridge between the "inner life" substrate and
-        behavior. Welfare, body, affect, active-inference prediction,
-        workspace ignition, and ownership model MUST change consequential
-        decisions — not merely decorate prompts.
-
-        MANDATORY: Body cost is paid for every consequential action.
-        """
-        domain_name = str(domain or "").strip().lower()
-        context = dict(context or {})
+    @staticmethod
+    def _action_policy_cp126_a67ee_these(context, domain_name):
         # CP126 310a67ee: these converted qualifying writes from defer to
         # constrain on the strength of caller-supplied booleans alone. The
         # flags now require a capability token bound to this domain+action.
@@ -683,13 +666,10 @@ class BeingRuntime:
             )
             and not context.get("high_risk_memory_write")
         )
-        foreground_continuity_state = bool(
-            domain_name == "state_mutation"
-            and attested_context_flag(
-                context, "foreground_continuity_state",
-                domain=domain_name, action="foreground_continuity_state",
-            )
-        )
+        return continuity_memory_write, internal_evidence_memory_write
+
+    @staticmethod
+    def _action_policy_internal_runtime_maintenance(context, domain_name):
         internal_runtime_maintenance = bool(
             domain_name == "file_write"
             and context.get("effect_scope") == "private_runtime_maintenance"
@@ -718,46 +698,9 @@ class BeingRuntime:
             )
             and context.get("verification_required")
         )
-        # CP126 c62962b4: consequential status was a duplicated inline string
-        # allowlist, so a misspelled or newly added domain silently skipped
-        # body accounting and every consequential defer. It is now one
-        # module-level set, and an UNKNOWN domain is treated as consequential
-        # — the fail-closed direction.
-        constraints: list[str] = []
-        blocks: list[str] = []
-        defers: list[str] = []
+        return explicit_foreground_desktop_tool, internal_runtime_maintenance
 
-        nominally_consequential = is_consequential_domain(domain_name)
-        passive_observation = is_runtime_bound_passive_observation(
-            domain_name,
-            context,
-        )
-        consequential = nominally_consequential and not passive_observation
-        # A source-bound append of already-observed runtime evidence is still a
-        # consequential write, so body and integrity accounting remain active.
-        # It does not require deliberative workspace, prediction, or agency to
-        # reconstruct an answer: those gates can only discard the observation.
-        deliberative_consequential = consequential and not internal_evidence_memory_write
-        unknown_domain = bool(domain_name) and domain_name not in KNOWN_ACTION_DOMAINS
-        if unknown_domain:
-            constraints.append(
-                f"unknown_action_domain_treated_as_consequential: {domain_name!r}"
-            )
-        if passive_observation:
-            constraints.append("runtime_bound_passive_observation:read_only")
-        repair_lane = (
-            domain_name in {"stabilization", "reflection"}
-            or is_internal_recovery_context(domain_name, context)
-            or internal_runtime_maintenance
-        )
-
-        body_pressure = float(now.body.total_pressure)
-        distress = float(now.affect.distress)
-        controllability = float(now.prediction.controllability)
-        free_energy = float(now.prediction.free_energy)
-        ignition = float(now.workspace.ignition_strength)
-        agency = float(now.ownership.agency_confidence)
-
+    def _action_policy_welfare_driven_constraints(self, consequential, constraints, context, defers, domain_name, internal_evidence_memory_write, priority, repair_lane):
         # Welfare-driven constraints.
         welfare = getattr(self, "_last_welfare", None)
         if welfare is not None:
@@ -843,21 +786,10 @@ class BeingRuntime:
                 constraints.append("body_cost_accounting_failed")
                 if not repair_lane:
                     defers.append("body_cost_accounting_required_before_action")
+        return body_cost_estimate, welfare
 
-        if ignition < 0.12:
-            constraints.append(f"aura_now_workspace_low: ignition={ignition:.3f}")
-            if deliberative_consequential and not repair_lane:
-                defers.append("workspace_not_ignited")
-        elif ignition < 0.35:
-            constraints.append(f"aura_now_workspace_strained: ignition={ignition:.3f}")
-
-        if agency < 0.28:
-            constraints.append(f"aura_now_ownership_low: agency={agency:.3f}")
-            if deliberative_consequential and not repair_lane:
-                blocks.append("ownership_too_low_for_consequential_action")
-        elif agency < 0.50:
-            constraints.append(f"aura_now_ownership_mixed: agency={agency:.3f}")
-
+    @staticmethod
+    def _action_policy_part_4(body_pressure, consequential, constraints, controllability, defers, deliberative_consequential, distress, free_energy, repair_lane):
         if controllability < 0.18:
             constraints.append(f"aura_now_controllability_low: controllability={controllability:.3f}")
             if deliberative_consequential and not repair_lane:
@@ -886,24 +818,8 @@ class BeingRuntime:
             if deliberative_consequential and not repair_lane:
                 defers.append("prediction_error_requires_observation_or_plan")
 
-        if (
-            not now.workspace.broadcast_targets
-            and deliberative_consequential
-            and not repair_lane
-        ):
-            constraints.append("aura_now_no_workspace_broadcast")
-            defers.append("no_workspace_broadcast_for_consequential_action")
-
-        # Felt-state coherence gate: if the kernel and being felt tracks have diverged
-        # (Aura's action-regulating state and her reasoning/speech state disagree), that
-        # is an internal model mismatch. Acting consequentially on an incoherent self is
-        # exactly when to be conservative — defer until the felt-state is reconciled.
-        unified = getattr(self, "_last_unified_felt", None)
-        if unified is not None and not unified.coherent:
-            constraints.append(f"aura_now_felt_incoherent: coherence={unified.coherence:.3f}")
-            if deliberative_consequential and not repair_lane:
-                defers.append("felt_state_incoherent_resolve_before_action")
-
+    @staticmethod
+    def _action_policy_part_5(blocks, consequential, constraints, context, defers, domain_name, explicit_foreground_desktop_tool):
         if explicit_foreground_desktop_tool and defers and not blocks:
             desktop_soft_defers = {
                 "action_controllability_too_low",
@@ -955,6 +871,113 @@ class BeingRuntime:
                     "being_runtime", exc, severity="debug",
                     action="continued without autonomy-latitude widening this action",
                 )
+        return defers
+
+    def action_policy(
+        self,
+        now: AuraNow,
+        *,
+        domain: str = "",
+        priority: float = 0.5,
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Derive action constraints from the live AuraNow state + welfare.
+
+        This is the operational bridge between the "inner life" substrate and
+        behavior. Welfare, body, affect, active-inference prediction,
+        workspace ignition, and ownership model MUST change consequential
+        decisions — not merely decorate prompts.
+
+        MANDATORY: Body cost is paid for every consequential action.
+        """
+        domain_name = str(domain or "").strip().lower()
+        context = dict(context or {})
+        continuity_memory_write, internal_evidence_memory_write = self._action_policy_cp126_a67ee_these(context, domain_name)
+        foreground_continuity_state = bool(
+            domain_name == "state_mutation"
+            and attested_context_flag(
+                context, "foreground_continuity_state",
+                domain=domain_name, action="foreground_continuity_state",
+            )
+        )
+        explicit_foreground_desktop_tool, internal_runtime_maintenance = self._action_policy_internal_runtime_maintenance(context, domain_name)
+        # CP126 c62962b4: consequential status was a duplicated inline string
+        # allowlist, so a misspelled or newly added domain silently skipped
+        # body accounting and every consequential defer. It is now one
+        # module-level set, and an UNKNOWN domain is treated as consequential
+        # — the fail-closed direction.
+        constraints: list[str] = []
+        blocks: list[str] = []
+        defers: list[str] = []
+
+        nominally_consequential = is_consequential_domain(domain_name)
+        passive_observation = is_runtime_bound_passive_observation(
+            domain_name,
+            context,
+        )
+        consequential = nominally_consequential and not passive_observation
+        # A source-bound append of already-observed runtime evidence is still a
+        # consequential write, so body and integrity accounting remain active.
+        # It does not require deliberative workspace, prediction, or agency to
+        # reconstruct an answer: those gates can only discard the observation.
+        deliberative_consequential = consequential and not internal_evidence_memory_write
+        unknown_domain = bool(domain_name) and domain_name not in KNOWN_ACTION_DOMAINS
+        if unknown_domain:
+            constraints.append(
+                f"unknown_action_domain_treated_as_consequential: {domain_name!r}"
+            )
+        if passive_observation:
+            constraints.append("runtime_bound_passive_observation:read_only")
+        repair_lane = (
+            domain_name in {"stabilization", "reflection"}
+            or is_internal_recovery_context(domain_name, context)
+            or internal_runtime_maintenance
+        )
+
+        body_pressure = float(now.body.total_pressure)
+        distress = float(now.affect.distress)
+        controllability = float(now.prediction.controllability)
+        free_energy = float(now.prediction.free_energy)
+        ignition = float(now.workspace.ignition_strength)
+        agency = float(now.ownership.agency_confidence)
+
+        body_cost_estimate, welfare = self._action_policy_welfare_driven_constraints(consequential, constraints, context, defers, domain_name, internal_evidence_memory_write, priority, repair_lane)
+
+        if ignition < 0.12:
+            constraints.append(f"aura_now_workspace_low: ignition={ignition:.3f}")
+            if deliberative_consequential and not repair_lane:
+                defers.append("workspace_not_ignited")
+        elif ignition < 0.35:
+            constraints.append(f"aura_now_workspace_strained: ignition={ignition:.3f}")
+
+        if agency < 0.28:
+            constraints.append(f"aura_now_ownership_low: agency={agency:.3f}")
+            if deliberative_consequential and not repair_lane:
+                blocks.append("ownership_too_low_for_consequential_action")
+        elif agency < 0.50:
+            constraints.append(f"aura_now_ownership_mixed: agency={agency:.3f}")
+
+        self._action_policy_part_4(body_pressure, consequential, constraints, controllability, defers, deliberative_consequential, distress, free_energy, repair_lane)
+
+        if (
+            not now.workspace.broadcast_targets
+            and deliberative_consequential
+            and not repair_lane
+        ):
+            constraints.append("aura_now_no_workspace_broadcast")
+            defers.append("no_workspace_broadcast_for_consequential_action")
+
+        # Felt-state coherence gate: if the kernel and being felt tracks have diverged
+        # (Aura's action-regulating state and her reasoning/speech state disagree), that
+        # is an internal model mismatch. Acting consequentially on an incoherent self is
+        # exactly when to be conservative — defer until the felt-state is reconciled.
+        unified = getattr(self, "_last_unified_felt", None)
+        if unified is not None and not unified.coherent:
+            constraints.append(f"aura_now_felt_incoherent: coherence={unified.coherence:.3f}")
+            if deliberative_consequential and not repair_lane:
+                defers.append("felt_state_incoherent_resolve_before_action")
+
+        defers = self._action_policy_part_5(blocks, consequential, constraints, context, defers, domain_name, explicit_foreground_desktop_tool)
 
         if blocks:
             outcome = "refuse"

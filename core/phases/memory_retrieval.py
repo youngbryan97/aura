@@ -221,6 +221,128 @@ class MemoryRetrievalPhase(BasePhase):
     def __init__(self, container: Any):
         self.container = container
 
+    @staticmethod
+    def _execute_what_she_means(percept_cue, query, spoken_to, state):
+        # What she means to do next cues what comes back to her, when nobody has
+        # just spoken. The question on those turns was the objective routing set
+        # from input text, so her open goals and initiatives never entered it,
+        # and in the subject-core runs no displacement of deliberation reached
+        # memory at all. The most urgent open intention joins the question the
+        # way an entity cue does; a turn someone spoke on is asked what they
+        # said.
+        if not spoken_to:
+            try:
+                from core.state.aura_state import _normalize_goal_text
+
+                open_intentions = [
+                    item
+                    for item in list(getattr(state.cognition, "active_goals", None) or [])
+                    + list(getattr(state.cognition, "pending_initiatives", None) or [])
+                    if isinstance(item, dict)
+                ]
+                pressing = max(
+                    open_intentions,
+                    key=lambda item: _safe_float(item.get("urgency", item.get("priority"))),
+                    default=None,
+                )
+                cue = _normalize_goal_text(pressing) if pressing is not None else ""
+                if cue and len(cue) <= 240 and cue.lower() not in query.lower():
+                    query = f"{query} {cue}".strip()[:2000]
+            except _MEMORY_RECOVERABLE_ERRORS as exc:
+                _record_memory_degradation(
+                    exc,
+                    action="searched without the most pressing intention as a cue",
+                    stage="intention_cue",
+                )
+
+        # What she perceives cues what comes back, when nobody has just spoken.
+        # Retrieval was asked what someone said or what she was working on, so
+        # a percept reached affect, the workspace and the world model and never
+        # reached memory. In the content runs every percept class brought back
+        # exactly the same memories, and no subject-core run kept a P -> M edge.
+        # The most salient percept memory has not yet taken joins the question
+        # the way the most pressing intention does.
+        if not spoken_to and percept_cue and percept_cue.lower() not in query.lower():
+            query = f"{query} {percept_cue}".strip()[:2000]
+        return query
+
+    @staticmethod
+    def _execute_metadata(affect_sources, content, effective_memory_salience, item, memory_candidates, partner_id, shared_texts, state):
+        metadata = _safe_metadata(item.get("metadata", {}))
+        emotional_valence = _safe_float(metadata.get("emotional_valence"))
+        importance = _safe_float(metadata.get("importance"))
+        score = _safe_float(item.get("score"))
+        salience = effective_memory_salience
+        valence_alignment = 1.0 - min(
+            1.0,
+            abs(
+                _safe_float(getattr(state.affect, "valence", 0.0))
+                - emotional_valence
+            ),
+        )
+        weighted_score = round(
+            (score * 0.35)
+            + (importance * 0.25)
+            + (valence_alignment * 0.25)
+            + (salience * 0.15),
+            3,
+        )
+        memory_candidates.append(
+            (weighted_score, f"[memory score={weighted_score:.3f}] {content}")
+        )
+        # Whether the person she is with now was part of it.
+        # The principal a personal record was written for is
+        # stored with it; a record written for somebody else
+        # never reaches here. See `_shared_with`.
+        if _shared_with(metadata, partner_id):
+            shared_texts.add(f"[memory score={weighted_score:.3f}] {content}")
+
+        affect_sources.append((content, emotional_valence, importance))
+        return importance
+
+    @staticmethod
+    def _execute_part_3(memories, new_state, recall_key, recalled_valence_total, recalled_with_feeling, returns, scores):
+        from core.memory.reliving import get_match_ledger
+        new_state.cognition.long_term_memory = memories
+        new_state.cognition.memory_scores = scores
+        # And what she recalled changes which percepts she takes as meant. See
+        # core/state/percepts.py `prime_stream`.
+        try:
+            from core.state.percepts import prime_stream
+
+            prime_stream(getattr(new_state, "world", None), list(zip(memories, scores, strict=True)))
+        except _MEMORY_RECOVERABLE_ERRORS as exc:
+            _record_memory_degradation(
+                exc,
+                action="kept the recollections without priming the percept stream",
+                stage="percept_priming",
+            )
+        new_state.cognition.last_retrieval_query = recall_key
+        # And say that something came back to her.
+        #
+        # The affect phase has carried a mapping from `memory_replay` to
+        # sadness, joy, trust, nostalgia, warmth and belonging since it was
+        # written, and nothing in the tree has ever emitted that percept: a
+        # reader with no writer, so recall could put something in front of her
+        # and her feeling never heard about it. The intensity is the best match
+        # score, so a faint recollection moves affect faintly and there is no
+        # threshold to choose.
+        # Whether this is a recall she relives or one she looked up. A match
+        # far above the matches she usually gets brings the feeling back with
+        # it, and the feeling is the one stored with what came back — the same
+        # quantity the affective hit above is computed from.
+        # See core/memory/reliving.py.
+        recalled_feeling = (
+            recalled_valence_total / recalled_with_feeling if recalled_with_feeling else 0.0
+        )
+        reliving = get_match_ledger().reading(
+            float(scores[0]) if scores else 0.0,
+            recalled_feeling,
+            returns=returns,
+        )
+        new_state.cognition.relived = reliving.as_dict()
+        return recalled_feeling, reliving
+
     async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         """
         Retrieve relevant long-term memories for the most recent user message.
@@ -452,47 +574,7 @@ class MemoryRetrievalPhase(BasePhase):
                 stage="entity_cue_targeting",
             )
 
-        # What she means to do next cues what comes back to her, when nobody has
-        # just spoken. The question on those turns was the objective routing set
-        # from input text, so her open goals and initiatives never entered it,
-        # and in the subject-core runs no displacement of deliberation reached
-        # memory at all. The most urgent open intention joins the question the
-        # way an entity cue does; a turn someone spoke on is asked what they
-        # said.
-        if not spoken_to:
-            try:
-                from core.state.aura_state import _normalize_goal_text
-
-                open_intentions = [
-                    item
-                    for item in list(getattr(state.cognition, "active_goals", None) or [])
-                    + list(getattr(state.cognition, "pending_initiatives", None) or [])
-                    if isinstance(item, dict)
-                ]
-                pressing = max(
-                    open_intentions,
-                    key=lambda item: _safe_float(item.get("urgency", item.get("priority"))),
-                    default=None,
-                )
-                cue = _normalize_goal_text(pressing) if pressing is not None else ""
-                if cue and len(cue) <= 240 and cue.lower() not in query.lower():
-                    query = f"{query} {cue}".strip()[:2000]
-            except _MEMORY_RECOVERABLE_ERRORS as exc:
-                _record_memory_degradation(
-                    exc,
-                    action="searched without the most pressing intention as a cue",
-                    stage="intention_cue",
-                )
-
-        # What she perceives cues what comes back, when nobody has just spoken.
-        # Retrieval was asked what someone said or what she was working on, so
-        # a percept reached affect, the workspace and the world model and never
-        # reached memory. In the content runs every percept class brought back
-        # exactly the same memories, and no subject-core run kept a P -> M edge.
-        # The most salient percept memory has not yet taken joins the question
-        # the way the most pressing intention does.
-        if not spoken_to and percept_cue and percept_cue.lower() not in query.lower():
-            query = f"{query} {percept_cue}".strip()[:2000]
+        query = self._execute_what_she_means(percept_cue, query, spoken_to, state)
 
         # The question and the depth it is asked at. The same words asked with a
         # different limit are a different recall: affect's memory salience, the
@@ -504,7 +586,7 @@ class MemoryRetrievalPhase(BasePhase):
         # doubles, so the second asking looks one deeper and the eighth three,
         # and because the depth is part of the key below, a repeat is no longer
         # skipped. See core/memory/reliving.py.
-        from core.memory.reliving import deeper, get_match_ledger, get_return_ledger
+        from core.memory.reliving import deeper, get_return_ledger
 
         # Keyed on what actually repeats. By this point the query carries the
         # entity cues and the most pressing intention, and both move every
@@ -760,36 +842,7 @@ class MemoryRetrievalPhase(BasePhase):
                 if isinstance(item, dict):
                     content = _safe_text(item.get("content") or item.get("text"), max_chars=2_000)
                     if content:
-                        metadata = _safe_metadata(item.get("metadata", {}))
-                        emotional_valence = _safe_float(metadata.get("emotional_valence"))
-                        importance = _safe_float(metadata.get("importance"))
-                        score = _safe_float(item.get("score"))
-                        salience = effective_memory_salience
-                        valence_alignment = 1.0 - min(
-                            1.0,
-                            abs(
-                                _safe_float(getattr(state.affect, "valence", 0.0))
-                                - emotional_valence
-                            ),
-                        )
-                        weighted_score = round(
-                            (score * 0.35)
-                            + (importance * 0.25)
-                            + (valence_alignment * 0.25)
-                            + (salience * 0.15),
-                            3,
-                        )
-                        memory_candidates.append(
-                            (weighted_score, f"[memory score={weighted_score:.3f}] {content}")
-                        )
-                        # Whether the person she is with now was part of it.
-                        # The principal a personal record was written for is
-                        # stored with it; a record written for somebody else
-                        # never reaches here. See `_shared_with`.
-                        if _shared_with(metadata, partner_id):
-                            shared_texts.add(f"[memory score={weighted_score:.3f}] {content}")
-
-                        affect_sources.append((content, emotional_valence, importance))
+                        importance = self._execute_metadata(affect_sources, content, effective_memory_salience, item, memory_candidates, partner_id, shared_texts, state)
                 elif item:
                     memory_candidates.append(
                         (0.35, f"[memory] {_safe_text(item, max_chars=2_000)}")
@@ -915,44 +968,7 @@ class MemoryRetrievalPhase(BasePhase):
 
         # Derive new state with retrieved context
         new_state = state.derive("memory_retrieval")
-        new_state.cognition.long_term_memory = memories
-        new_state.cognition.memory_scores = scores
-        # And what she recalled changes which percepts she takes as meant. See
-        # core/state/percepts.py `prime_stream`.
-        try:
-            from core.state.percepts import prime_stream
-
-            prime_stream(getattr(new_state, "world", None), list(zip(memories, scores, strict=True)))
-        except _MEMORY_RECOVERABLE_ERRORS as exc:
-            _record_memory_degradation(
-                exc,
-                action="kept the recollections without priming the percept stream",
-                stage="percept_priming",
-            )
-        new_state.cognition.last_retrieval_query = recall_key
-        # And say that something came back to her.
-        #
-        # The affect phase has carried a mapping from `memory_replay` to
-        # sadness, joy, trust, nostalgia, warmth and belonging since it was
-        # written, and nothing in the tree has ever emitted that percept: a
-        # reader with no writer, so recall could put something in front of her
-        # and her feeling never heard about it. The intensity is the best match
-        # score, so a faint recollection moves affect faintly and there is no
-        # threshold to choose.
-        # Whether this is a recall she relives or one she looked up. A match
-        # far above the matches she usually gets brings the feeling back with
-        # it, and the feeling is the one stored with what came back — the same
-        # quantity the affective hit above is computed from.
-        # See core/memory/reliving.py.
-        recalled_feeling = (
-            recalled_valence_total / recalled_with_feeling if recalled_with_feeling else 0.0
-        )
-        reliving = get_match_ledger().reading(
-            float(scores[0]) if scores else 0.0,
-            recalled_feeling,
-            returns=returns,
-        )
-        new_state.cognition.relived = reliving.as_dict()
+        recalled_feeling, reliving = self._execute_part_3(memories, new_state, recall_key, recalled_valence_total, recalled_with_feeling, returns, scores)
         # Joint recall: whether what came back is something she and the person
         # she is with now were both part of. "Remember the Time" asks fifteen
         # times and every one is a memory marked as theirs together.

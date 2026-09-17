@@ -7,7 +7,7 @@ import logging
 import re
 import time
 import urllib.parse
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -350,6 +350,20 @@ def _note_unauthored(objective: str, why: str) -> None:
 
 
 from .desktop_research import _ResearchesBeforeItWrites
+
+
+def _open_url_target_for(
+    url: str, preferred_browser: str | None, *, requires_editable_focus: bool = False
+) -> Any:
+    """The open_url step target: the URL alone, or with the browser and focus need."""
+    if preferred_browser:
+        payload: dict[str, Any] = {"url": url, "browser": preferred_browser}
+        if requires_editable_focus:
+            payload["requires_editable_focus"] = True
+        return payload
+    if requires_editable_focus:
+        return {"url": url, "requires_editable_focus": True}
+    return url
 
 
 class DesktopTaskSkill(_ResearchesBeforeItWrites, BaseSkill):
@@ -3508,6 +3522,340 @@ class DesktopTaskSkill(_ResearchesBeforeItWrites, BaseSkill):
                 steps.append(step)
         return steps
 
+    def _os_setting_steps(
+        self,
+        text: str,
+        os_setting_requests: Sequence[tuple[str, str]],
+        preferred_browser: str | None,
+    ) -> list[DesktopTaskStep]:
+        """The steps that drive each requested OS setting, image-valued ones fetched first."""
+        steps: list[DesktopTaskStep] = []
+        # General OS-setting control. The affordance registry is the single
+        # source of truth for which settings Aura can drive and how; this
+        # loop never names a specific setting, so a new one (volume, dark
+        # mode, …) is recognized for free. Image-valued settings (wallpaper)
+        # fetch their image first, through the same governed image gateway.
+        for domain, value in os_setting_requests:
+            affordance = get_affordance(domain)
+            if affordance is None:
+                continue
+            local_image_path = ""
+            if affordance.needs_image:
+                candidate = Path(str(value or "")).expanduser()
+                if candidate.is_absolute():
+                    local_image_path = str(candidate)
+            if affordance.needs_image and not local_image_path:
+                # Save where the person said, not where the code prefers.
+                #
+                # "download it to my Desktop, and set it as my wallpaper" put
+                # a real 1.3MB grizzly PNG in ~/Documents, because the
+                # destination was hardcoded. The image was correct and the
+                # wallpaper was set; it simply was not where Bryan asked for
+                # it, which is the difference between following an
+                # instruction and approximating one.
+                image_path = (
+                    f"{self._requested_image_folder(text)}/"
+                    f"{self._safe_filename(value)[:40] or 'image'}_{domain}.png"
+                )
+                steps.append(
+                    DesktopTaskStep(
+                        action="fetch_topic_image",
+                        target={"topic": value, "path": image_path},
+                        reason=f"Fetch the image for the requested {domain} through the governed network gateway, with source-page evidence.",
+                        expect="Image file exists with a recorded source page URL.",
+                    )
+                )
+                # Not image_path: the extension is a guess until the fetch
+                # reports what it was served.
+                control_value = FETCHED_IMAGE_PATH_SENTINEL
+            elif local_image_path:
+                control_value = local_image_path
+            else:
+                control_value = value
+            steps.append(
+                DesktopTaskStep(
+                    action="system_control",
+                    target={"domain": domain, "value": control_value},
+                    reason=f"Drive the {domain} setting to the requested value through governed System Events, recording the prior state for reversibility.",
+                    expect=f"Read-back confirms the {domain} goal-state.",
+                )
+            )
+            if affordance.needs_image and self._wants_image_source_shown(text):
+                steps.append(
+                    DesktopTaskStep(
+                        action="open_url",
+                        target=_open_url_target_for(FETCHED_IMAGE_SOURCE_SENTINEL, preferred_browser),
+                        reason="Show the user where the image was found (source page from the fetch receipt).",
+                        expect=f"{preferred_browser or 'Default browser'} accepts the image source page URL.",
+                    )
+                )
+        return steps
+
+    def _derive_single_objective_steps_local_image_setting_values(self, lowered, os_setting_requests, text):
+        local_image_setting_values = {
+            value
+            for domain, value in os_setting_requests
+            if (affordance := get_affordance(domain)) is not None
+            and affordance.needs_image
+            and Path(str(value or "")).expanduser().is_absolute()
+        }
+        image_setting_topic = next(
+            (
+                value
+                for domain, value in os_setting_requests
+                if (affordance := get_affordance(domain)) is not None
+                and affordance.needs_image
+                and not Path(str(value or "")).expanduser().is_absolute()
+            ),
+            "",
+        )
+        image_query = image_setting_topic or self._extract_image_query(text)
+        explicit_image_retrieval = bool(
+            re.search(r"\b(?:find|search|look\s+up|get|download|fetch)\b", lowered)
+        )
+        if local_image_setting_values and not explicit_image_retrieval:
+            # The image is already a named local artifact. Extensions such as
+            # `.png` are evidence about that value, not a request to open an
+            # image-search tab or fetch another file.
+            image_query = ""
+        wants_image = bool(image_query) or bool(
+            mentions_object_class(text, "image")
+            and (not local_image_setting_values or explicit_image_retrieval)
+        )
+        return image_query, wants_image
+
+    def _derive_single_objective_steps_image_reference_only(self, image_query, lowered, text, wants_document, web_document_url):
+        image_reference_only = bool(image_query) and not any(
+            token in lowered
+            for token in (
+                "article",
+                "articles",
+                "news",
+                "research",
+                "report",
+                "reports",
+                "sources",
+            )
+        )
+        wants_search = (not image_reference_only) and (
+            any(token in lowered for token in ("search", "look up", "news", "article"))
+            or ("google" in lowered and not web_document_url)
+        )
+        # "open notes" and "notes app" were literal tokens here, so naming any
+        # other application dropped out of the interactive lane and the text
+        # landed in a file on disk instead of in the app the person asked for.
+        # The general question is whether the objective names an application
+        # you can write in, which the app answers itself.
+        wants_interactive_text_entry = wants_document and (
+            bool(web_document_url)
+            or any(token in lowered for token in ("type", "paste", "start typing"))
+            or bool(self._named_writable_app(text))
+        )
+        return wants_interactive_text_entry, wants_search
+
+    def _derive_single_objective_steps_part_3(self, _native_note_written, body, lowered, steps, web_document_url, writing_app):
+        if (not _native_note_written) and writing_app and not (
+            steps and self._step_opens_app(steps[-1], writing_app)
+        ):
+            steps.append(
+                DesktopTaskStep(
+                    action="open_app",
+                    target=writing_app,
+                    reason=(
+                        f"Re-focus {writing_app} immediately before text entry so "
+                        "browser/image/search tabs cannot steal the paste target."
+                    ),
+                    expect=f"{writing_app} is frontmost before writing.",
+                )
+            )
+        if not (_native_note_written and not web_document_url):
+            steps.append(
+                DesktopTaskStep(
+                    action="set_clipboard",
+                    target=body,
+                    reason="Stage the CognitiveEngine-composed document body for the active writing surface.",
+                    expect="Clipboard contains the composed body.",
+                )
+            )
+        if web_document_url:
+            steps.append(
+                DesktopTaskStep(
+                    action="wait",
+                    target="2",
+                    reason="Allow the web document surface to finish loading before paste.",
+                    expect="Wait completes within the bounded desktop-task budget.",
+                )
+            )
+        if (not web_document_url) and (not _native_note_written) and any(
+            marker in lowered for marker in ("note", "textedit", "pages", "word", "document", "journal")
+        ):
+            if any(step.action == "open_app" for step in steps):
+                steps.append(
+                    DesktopTaskStep(
+                        action="wait",
+                        target="2",
+                        reason=(
+                            "Allow the writing app to finish launching and take "
+                            "focus before keyboard staging — a cold launch loses "
+                            "the shortcuts to whatever currently has focus."
+                        ),
+                        expect="Wait completes within the bounded desktop-task budget.",
+                    )
+                )
+            steps.append(
+                DesktopTaskStep(
+                    action="hotkey",
+                    target="command+n",
+                    reason="Create a new editable note or document in the focused app.",
+                    expect="The focused app accepts the new-document shortcut.",
+                )
+            )
+        if not (_native_note_written and not web_document_url):
+            steps.append(
+                DesktopTaskStep(
+                    action="hotkey",
+                    target="command+v",
+                    reason="Paste the staged document body into the active writing surface.",
+                    expect="The focused writing surface accepts the paste shortcut.",
+                )
+            )
+
+    def _derive_single_objective_steps_part_4(self, artifact_image_path, body, filename_stem, folder_path, steps, text, text_path, wants_pdf):
+        steps.append(
+            DesktopTaskStep(
+                action="write_text_file",
+                target={
+                    "path": text_path,
+                    "content": body,
+                    "overwrite": False,
+                },
+                reason="Write a durable text artifact before PDF rendering.",
+                expect="Text artifact exists with the composed body.",
+            )
+        )
+        if wants_pdf:
+            steps.append(
+                DesktopTaskStep(
+                    action="render_text_pdf",
+                    target={
+                        "path": f"{folder_path}/{filename_stem}.pdf",
+                        "title": self._artifact_document_title(text),
+                        "body": body,
+                        "overwrite": False,
+                        **(
+                            {"image_path": FETCHED_IMAGE_PATH_SENTINEL}
+                            if artifact_image_path
+                            else {}
+                        ),
+                    },
+                    reason="Render the same verified text body into a PDF artifact.",
+                    expect="PDF artifact exists and starts with a PDF header.",
+                )
+            )
+
+    @staticmethod
+    def _derive_single_objective_steps_part_5(steps, text):
+        if not steps:
+            steps.append(
+                DesktopTaskStep(
+                    action="read_screen_text",
+                    target="",
+                    reason="Observe the current desktop before attempting an underspecified action.",
+                    expect="Foreground screen text or an explicit permission failure is returned.",
+                )
+            )
+        # A delay the person asked for is part of the request, not decoration.
+        # "Wait 5 seconds, then tell me what is on my screen" planned one
+        # read_screen_text and answered in 1s — the observation was of the
+        # wrong moment, and "Completed 1/1 governed desktop steps" reported it
+        # as the whole request done. Measured live 2026-08-03.
+        requested_wait = _requested_wait_seconds(text)
+        if requested_wait > 0.0 and not any(step.action == "wait" for step in steps):
+            steps.insert(
+                0,
+                DesktopTaskStep(
+                    action="wait",
+                    target=f"{requested_wait:g}",
+                    reason=f"The request asks to wait {requested_wait:g}s before observing.",
+                    expect="Wait completes within the bounded desktop-task budget.",
+                ),
+            )
+
+    def _derive_single_objective_steps_wants_artifact_file(self, folder_path, lowered, steps, text, wants_document, wants_folder, wants_interactive_text_entry, wants_pdf):
+        wants_artifact_file = wants_folder or wants_pdf or bool(
+            re.search(r"\b(?:save|export|write|create)\b.*\b(?:file|folder|directory|pdf|artifact)\b", lowered)
+        ) or (wants_document and not wants_interactive_text_entry)
+
+        if wants_folder or wants_artifact_file:
+            steps.append(
+                DesktopTaskStep(
+                    action="create_folder",
+                    target={"path": folder_path},
+                    reason="Create the requested artifact folder inside an allowed desktop root.",
+                    expect="Folder exists.",
+                )
+            )
+
+        apps = self._extract_apps(text)
+        for app in self._generic_open_app_mentions(text):
+            if app not in apps:
+                apps.append(app)
+
+        for app in apps[:4]:
+            steps.append(
+                DesktopTaskStep(
+                    action="open_app",
+                    target=app,
+                    reason=f"Open {app} because the objective names that app or surface.",
+                    expect=f"{app} accepts focus or reports a launch error.",
+                )
+            )
+        return apps, wants_artifact_file
+
+    def _derive_single_objective_steps_writing_app(self, apps, body, lowered, steps, text, web_document_url):
+        writing_app = "" if web_document_url else self._writing_app_from_apps(apps)
+
+        # ASK THE APP, do not recognise it.
+        #
+        # This used to read `if writing_app == "Notes"`, which is one app
+        # hardcoded on a machine that happens to have Notes — Bryan's
+        # objection, and the right one. Every scriptable macOS app
+        # publishes a dictionary describing how it holds text, so
+        # text_target_for() derives the route for whatever app was named:
+        # Notes answers note.body, TextEdit document.text, Reminders
+        # reminder.body. None of those is written down anywhere.
+        #
+        # Keystrokes stay the route for an app with no dictionary, which
+        # is the honest fallback rather than a special case: typing needs
+        # the app to hold the front from cmd+n through cmd+v, and on a
+        # real desktop the browser takes focus back mid-sequence — live
+        # 2026-07-28 that failed repeatedly with "did not become
+        # frontmost (observed=Google Chrome)". The app still opens
+        # visibly either way, and the text is streamed in so the writing
+        # is watchable, then read back to verify.
+        _native_note_written = False
+        _write_target = self._app_text_target(writing_app) if writing_app else ""
+        if _write_target:
+            _native_note_written = True
+            topic = self._extract_requested_writing_topic(text)
+            steps.append(
+                DesktopTaskStep(
+                    action="write_in_app",
+                    target={
+                        "app": writing_app,
+                        "title": self._note_title_for(text, topic),
+                        "body": body,
+                    },
+                    reason=(
+                        f"Write into {writing_app} through the scripting "
+                        f"interface it publishes ({_write_target}), which "
+                        "does not depend on window focus."
+                    ),
+                    expect=f"{writing_app} holds a document with the composed body.",
+                )
+            )
+        self._derive_single_objective_steps_part_3(_native_note_written, body, lowered, steps, web_document_url, writing_app)
+
     def _derive_single_objective_steps(
         self,
         objective: str,
@@ -3642,105 +3990,17 @@ class DesktopTaskSkill(_ResearchesBeforeItWrites, BaseSkill):
         )
         wants_pdf = self._explicit_pdf_requested(text)
         os_setting_requests = detect_os_settings(text)
-        local_image_setting_values = {
-            value
-            for domain, value in os_setting_requests
-            if (affordance := get_affordance(domain)) is not None
-            and affordance.needs_image
-            and Path(str(value or "")).expanduser().is_absolute()
-        }
-        image_setting_topic = next(
-            (
-                value
-                for domain, value in os_setting_requests
-                if (affordance := get_affordance(domain)) is not None
-                and affordance.needs_image
-                and not Path(str(value or "")).expanduser().is_absolute()
-            ),
-            "",
-        )
-        image_query = image_setting_topic or self._extract_image_query(text)
-        explicit_image_retrieval = bool(
-            re.search(r"\b(?:find|search|look\s+up|get|download|fetch)\b", lowered)
-        )
-        if local_image_setting_values and not explicit_image_retrieval:
-            # The image is already a named local artifact. Extensions such as
-            # `.png` are evidence about that value, not a request to open an
-            # image-search tab or fetch another file.
-            image_query = ""
-        wants_image = bool(image_query) or bool(
-            mentions_object_class(text, "image")
-            and (not local_image_setting_values or explicit_image_retrieval)
-        )
+        image_query, wants_image = self._derive_single_objective_steps_local_image_setting_values(lowered, os_setting_requests, text)
         web_document_url = self._web_document_url(text)
-        image_reference_only = bool(image_query) and not any(
-            token in lowered
-            for token in (
-                "article",
-                "articles",
-                "news",
-                "research",
-                "report",
-                "reports",
-                "sources",
-            )
-        )
-        wants_search = (not image_reference_only) and (
-            any(token in lowered for token in ("search", "look up", "news", "article"))
-            or ("google" in lowered and not web_document_url)
-        )
-        # "open notes" and "notes app" were literal tokens here, so naming any
-        # other application dropped out of the interactive lane and the text
-        # landed in a file on disk instead of in the app the person asked for.
-        # The general question is whether the objective names an application
-        # you can write in, which the app answers itself.
-        wants_interactive_text_entry = wants_document and (
-            bool(web_document_url)
-            or any(token in lowered for token in ("type", "paste", "start typing"))
-            or bool(self._named_writable_app(text))
-        )
-        wants_artifact_file = wants_folder or wants_pdf or bool(
-            re.search(r"\b(?:save|export|write|create)\b.*\b(?:file|folder|directory|pdf|artifact)\b", lowered)
-        ) or (wants_document and not wants_interactive_text_entry)
-
-        if wants_folder or wants_artifact_file:
-            steps.append(
-                DesktopTaskStep(
-                    action="create_folder",
-                    target={"path": folder_path},
-                    reason="Create the requested artifact folder inside an allowed desktop root.",
-                    expect="Folder exists.",
-                )
-            )
-
-        apps = self._extract_apps(text)
-        for app in self._generic_open_app_mentions(text):
-            if app not in apps:
-                apps.append(app)
-
-        for app in apps[:4]:
-            steps.append(
-                DesktopTaskStep(
-                    action="open_app",
-                    target=app,
-                    reason=f"Open {app} because the objective names that app or surface.",
-                    expect=f"{app} accepts focus or reports a launch error.",
-                )
-            )
+        wants_interactive_text_entry, wants_search = self._derive_single_objective_steps_image_reference_only(image_query, lowered, text, wants_document, web_document_url)
+        apps, wants_artifact_file = self._derive_single_objective_steps_wants_artifact_file(folder_path, lowered, steps, text, wants_document, wants_folder, wants_interactive_text_entry, wants_pdf)
 
         preferred_browser = self._preferred_browser(text)
         engine_hint = self._search_engine_hint(text)
         browser_label = preferred_browser or "Default browser"
 
         def _open_url_target(url: str, *, requires_editable_focus: bool = False):
-            if preferred_browser:
-                payload = {"url": url, "browser": preferred_browser}
-                if requires_editable_focus:
-                    payload["requires_editable_focus"] = True
-                return payload
-            if requires_editable_focus:
-                return {"url": url, "requires_editable_focus": True}
-            return url
+            return _open_url_target_for(url, preferred_browser, requires_editable_focus=requires_editable_focus)
 
         query = self._extract_search_query(text)
         search_url = self._search_url(query, engine=engine_hint) if query else ""
@@ -3824,112 +4084,7 @@ class DesktopTaskSkill(_ResearchesBeforeItWrites, BaseSkill):
                 image_search_url=image_search_url,
                 search_url=search_url,
             )
-            writing_app = "" if web_document_url else self._writing_app_from_apps(apps)
-
-            # ASK THE APP, do not recognise it.
-            #
-            # This used to read `if writing_app == "Notes"`, which is one app
-            # hardcoded on a machine that happens to have Notes — Bryan's
-            # objection, and the right one. Every scriptable macOS app
-            # publishes a dictionary describing how it holds text, so
-            # text_target_for() derives the route for whatever app was named:
-            # Notes answers note.body, TextEdit document.text, Reminders
-            # reminder.body. None of those is written down anywhere.
-            #
-            # Keystrokes stay the route for an app with no dictionary, which
-            # is the honest fallback rather than a special case: typing needs
-            # the app to hold the front from cmd+n through cmd+v, and on a
-            # real desktop the browser takes focus back mid-sequence — live
-            # 2026-07-28 that failed repeatedly with "did not become
-            # frontmost (observed=Google Chrome)". The app still opens
-            # visibly either way, and the text is streamed in so the writing
-            # is watchable, then read back to verify.
-            _native_note_written = False
-            _write_target = self._app_text_target(writing_app) if writing_app else ""
-            if _write_target:
-                _native_note_written = True
-                topic = self._extract_requested_writing_topic(text)
-                steps.append(
-                    DesktopTaskStep(
-                        action="write_in_app",
-                        target={
-                            "app": writing_app,
-                            "title": self._note_title_for(text, topic),
-                            "body": body,
-                        },
-                        reason=(
-                            f"Write into {writing_app} through the scripting "
-                            f"interface it publishes ({_write_target}), which "
-                            "does not depend on window focus."
-                        ),
-                        expect=f"{writing_app} holds a document with the composed body.",
-                    )
-                )
-            if (not _native_note_written) and writing_app and not (
-                steps and self._step_opens_app(steps[-1], writing_app)
-            ):
-                steps.append(
-                    DesktopTaskStep(
-                        action="open_app",
-                        target=writing_app,
-                        reason=(
-                            f"Re-focus {writing_app} immediately before text entry so "
-                            "browser/image/search tabs cannot steal the paste target."
-                        ),
-                        expect=f"{writing_app} is frontmost before writing.",
-                    )
-                )
-            if not (_native_note_written and not web_document_url):
-                steps.append(
-                    DesktopTaskStep(
-                        action="set_clipboard",
-                        target=body,
-                        reason="Stage the CognitiveEngine-composed document body for the active writing surface.",
-                        expect="Clipboard contains the composed body.",
-                    )
-                )
-            if web_document_url:
-                steps.append(
-                    DesktopTaskStep(
-                        action="wait",
-                        target="2",
-                        reason="Allow the web document surface to finish loading before paste.",
-                        expect="Wait completes within the bounded desktop-task budget.",
-                    )
-                )
-            if (not web_document_url) and (not _native_note_written) and any(
-                marker in lowered for marker in ("note", "textedit", "pages", "word", "document", "journal")
-            ):
-                if any(step.action == "open_app" for step in steps):
-                    steps.append(
-                        DesktopTaskStep(
-                            action="wait",
-                            target="2",
-                            reason=(
-                                "Allow the writing app to finish launching and take "
-                                "focus before keyboard staging — a cold launch loses "
-                                "the shortcuts to whatever currently has focus."
-                            ),
-                            expect="Wait completes within the bounded desktop-task budget.",
-                        )
-                    )
-                steps.append(
-                    DesktopTaskStep(
-                        action="hotkey",
-                        target="command+n",
-                        reason="Create a new editable note or document in the focused app.",
-                        expect="The focused app accepts the new-document shortcut.",
-                    )
-                )
-            if not (_native_note_written and not web_document_url):
-                steps.append(
-                    DesktopTaskStep(
-                        action="hotkey",
-                        target="command+v",
-                        reason="Paste the staged document body into the active writing surface.",
-                        expect="The focused writing surface accepts the paste shortcut.",
-                    )
-                )
+            self._derive_single_objective_steps_writing_app(apps, body, lowered, steps, text, web_document_url)
 
         artifact_image_path = ""
         if wants_image and wants_artifact_file and image_query:
@@ -3943,65 +4098,7 @@ class DesktopTaskSkill(_ResearchesBeforeItWrites, BaseSkill):
                 )
             )
 
-        # General OS-setting control. The affordance registry is the single
-        # source of truth for which settings Aura can drive and how; this
-        # loop never names a specific setting, so a new one (volume, dark
-        # mode, …) is recognized for free. Image-valued settings (wallpaper)
-        # fetch their image first, through the same governed image gateway.
-        for domain, value in os_setting_requests:
-            affordance = get_affordance(domain)
-            if affordance is None:
-                continue
-            local_image_path = ""
-            if affordance.needs_image:
-                candidate = Path(str(value or "")).expanduser()
-                if candidate.is_absolute():
-                    local_image_path = str(candidate)
-            if affordance.needs_image and not local_image_path:
-                # Save where the person said, not where the code prefers.
-                #
-                # "download it to my Desktop, and set it as my wallpaper" put
-                # a real 1.3MB grizzly PNG in ~/Documents, because the
-                # destination was hardcoded. The image was correct and the
-                # wallpaper was set; it simply was not where Bryan asked for
-                # it, which is the difference between following an
-                # instruction and approximating one.
-                image_path = (
-                    f"{self._requested_image_folder(text)}/"
-                    f"{self._safe_filename(value)[:40] or 'image'}_{domain}.png"
-                )
-                steps.append(
-                    DesktopTaskStep(
-                        action="fetch_topic_image",
-                        target={"topic": value, "path": image_path},
-                        reason=f"Fetch the image for the requested {domain} through the governed network gateway, with source-page evidence.",
-                        expect="Image file exists with a recorded source page URL.",
-                    )
-                )
-                # Not image_path: the extension is a guess until the fetch
-                # reports what it was served.
-                control_value = FETCHED_IMAGE_PATH_SENTINEL
-            elif local_image_path:
-                control_value = local_image_path
-            else:
-                control_value = value
-            steps.append(
-                DesktopTaskStep(
-                    action="system_control",
-                    target={"domain": domain, "value": control_value},
-                    reason=f"Drive the {domain} setting to the requested value through governed System Events, recording the prior state for reversibility.",
-                    expect=f"Read-back confirms the {domain} goal-state.",
-                )
-            )
-            if affordance.needs_image and self._wants_image_source_shown(text):
-                steps.append(
-                    DesktopTaskStep(
-                        action="open_url",
-                        target=_open_url_target(FETCHED_IMAGE_SOURCE_SENTINEL),
-                        reason="Show the user where the image was found (source page from the fetch receipt).",
-                        expect=f"{browser_label} accepts the image source page URL.",
-                    )
-                )
+        steps.extend(self._os_setting_steps(text, os_setting_requests, preferred_browser))
 
         if wants_document and wants_artifact_file:
             body = self._document_body_with_references(
@@ -4018,37 +4115,7 @@ class DesktopTaskSkill(_ResearchesBeforeItWrites, BaseSkill):
             else:
                 filename_stem = self._artifact_filename_stem(text)
                 text_path = f"{folder_path}/{filename_stem}.txt"
-            steps.append(
-                DesktopTaskStep(
-                    action="write_text_file",
-                    target={
-                        "path": text_path,
-                        "content": body,
-                        "overwrite": False,
-                    },
-                    reason="Write a durable text artifact before PDF rendering.",
-                    expect="Text artifact exists with the composed body.",
-                )
-            )
-            if wants_pdf:
-                steps.append(
-                    DesktopTaskStep(
-                        action="render_text_pdf",
-                        target={
-                            "path": f"{folder_path}/{filename_stem}.pdf",
-                            "title": self._artifact_document_title(text),
-                            "body": body,
-                            "overwrite": False,
-                            **(
-                                {"image_path": FETCHED_IMAGE_PATH_SENTINEL}
-                                if artifact_image_path
-                                else {}
-                            ),
-                        },
-                        reason="Render the same verified text body into a PDF artifact.",
-                        expect="PDF artifact exists and starts with a PDF header.",
-                    )
-                )
+            self._derive_single_objective_steps_part_4(artifact_image_path, body, filename_stem, folder_path, steps, text, text_path, wants_pdf)
         if image_query and wants_artifact_file and self._wants_image_source_shown(text):
             steps.append(
                 DesktopTaskStep(
@@ -4059,31 +4126,7 @@ class DesktopTaskSkill(_ResearchesBeforeItWrites, BaseSkill):
                 )
             )
 
-        if not steps:
-            steps.append(
-                DesktopTaskStep(
-                    action="read_screen_text",
-                    target="",
-                    reason="Observe the current desktop before attempting an underspecified action.",
-                    expect="Foreground screen text or an explicit permission failure is returned.",
-                )
-            )
-        # A delay the person asked for is part of the request, not decoration.
-        # "Wait 5 seconds, then tell me what is on my screen" planned one
-        # read_screen_text and answered in 1s — the observation was of the
-        # wrong moment, and "Completed 1/1 governed desktop steps" reported it
-        # as the whole request done. Measured live 2026-08-03.
-        requested_wait = _requested_wait_seconds(text)
-        if requested_wait > 0.0 and not any(step.action == "wait" for step in steps):
-            steps.insert(
-                0,
-                DesktopTaskStep(
-                    action="wait",
-                    target=f"{requested_wait:g}",
-                    reason=f"The request asks to wait {requested_wait:g}s before observing.",
-                    expect="Wait completes within the bounded desktop-task budget.",
-                ),
-            )
+        self._derive_single_objective_steps_part_5(steps, text)
         return steps
 
 
@@ -5326,6 +5369,359 @@ class DesktopTaskSkill(_ResearchesBeforeItWrites, BaseSkill):
             "result_text": report.get("result_text", ""),
         }
 
+    async def _execute_receipt(self, failures, index, objective, planner, receipts, reference_error, step, steps):
+        receipt = {
+            "index": index,
+            "action": step.action,
+            "reason": step.reason,
+            "expect": step.expect,
+            "critical": step.critical,
+            "ok": False,
+            "effect_verified": False,
+            "effect_evidence": reference_error,
+            "attempts": 0,
+            "result": {
+                "ok": False,
+                "status": "desktop_step_reference_unresolved",
+                "error": reference_error,
+            },
+        }
+        receipts.append(receipt)
+        await self._emit_durable_step_receipt(
+            receipt,
+            objective=objective,
+            planner=planner,
+            tool="desktop_task",
+        )
+        failures.append(receipt)
+        self._emit_progress(
+            index=index,
+            total=len(steps),
+            action=step.action,
+            state="blocked",
+            detail=reference_error,
+            level="warning",
+        )
+        return receipt
+
+    async def _execute_reference_error(self, failures, index, objective, planner, receipts, resolved_step):
+        reference_error = (
+            "no fetched image path available to apply"
+        )
+        receipt = {
+            "index": index,
+            "action": resolved_step.action,
+            "reason": resolved_step.reason,
+            "expect": resolved_step.expect,
+            "critical": resolved_step.critical,
+            "ok": False,
+            "effect_verified": False,
+            "effect_evidence": reference_error,
+            "attempts": 0,
+            "result": {
+                "ok": False,
+                "status": "desktop_step_reference_unresolved",
+                "error": reference_error,
+            },
+        }
+        receipts.append(receipt)
+        await self._emit_durable_step_receipt(
+            receipt,
+            objective=objective,
+            planner=planner,
+            tool="desktop_task",
+        )
+        failures.append(receipt)
+        return receipt, reference_error
+
+    async def _execute_reference_error_3(self, failures, index, objective, planner, receipts, resolved_step):
+        reference_error = "no fetched image path available for PDF rendering"
+        receipt = {
+            "index": index,
+            "action": resolved_step.action,
+            "reason": resolved_step.reason,
+            "expect": resolved_step.expect,
+            "critical": resolved_step.critical,
+            "ok": False,
+            "effect_verified": False,
+            "effect_evidence": reference_error,
+            "attempts": 0,
+            "result": {
+                "ok": False,
+                "status": "desktop_step_reference_unresolved",
+                "error": reference_error,
+            },
+        }
+        receipts.append(receipt)
+        await self._emit_durable_step_receipt(
+            receipt,
+            objective=objective,
+            planner=planner,
+            tool="desktop_task",
+        )
+        failures.append(receipt)
+        return receipt, reference_error
+
+    async def _execute_reference_error_4(self, failures, index, objective, planner, receipts, resolved_step):
+        reference_error = "no fetched-image source URL available to show"
+        receipt = {
+            "index": index,
+            "action": resolved_step.action,
+            "reason": resolved_step.reason,
+            "expect": resolved_step.expect,
+            "critical": resolved_step.critical,
+            "ok": False,
+            "effect_verified": False,
+            "effect_evidence": reference_error,
+            "attempts": 0,
+            "result": {
+                "ok": False,
+                "status": "desktop_step_reference_unresolved",
+                "error": reference_error,
+            },
+        }
+        receipts.append(receipt)
+        await self._emit_durable_step_receipt(
+            receipt,
+            objective=objective,
+            planner=planner,
+            tool="desktop_task",
+        )
+        failures.append(receipt)
+        return receipt, reference_error
+
+    async def _execute_reference_error_5(self, failures, index, objective, planner, receipts, resolved_step):
+        reference_error = "no fetched-image source URL available to show"
+        receipt = {
+            "index": index,
+            "action": resolved_step.action,
+            "reason": resolved_step.reason,
+            "expect": resolved_step.expect,
+            "critical": resolved_step.critical,
+            "ok": False,
+            "effect_verified": False,
+            "effect_evidence": reference_error,
+            "attempts": 0,
+            "result": {
+                "ok": False,
+                "status": "desktop_step_reference_unresolved",
+                "error": reference_error,
+            },
+        }
+        receipts.append(receipt)
+        await self._emit_durable_step_receipt(
+            receipt,
+            objective=objective,
+            planner=planner,
+            tool="desktop_task",
+        )
+        failures.append(receipt)
+        return receipt, reference_error
+
+    @staticmethod
+    def _execute_target_text(current_surface_requires_editable_focus, expected_clipboard_chars, expected_clipboard_sha256, expected_frontmost_app, resolved_step, step_context, target):
+        target_text = str(target or "").lower()
+        write_commit_action = (
+            resolved_step.action == "type"
+            or (
+                resolved_step.action == "hotkey"
+                and (
+                    "command" in target_text
+                    or "cmd" in target_text
+                )
+                and any(token in target_text for token in ("+v", "+n", "enter", "return"))
+            )
+        )
+        if (
+            write_commit_action
+            and expected_frontmost_app
+        ):
+            step_context["desktop_task_expected_frontmost_app"] = expected_frontmost_app
+            step_context["desktop_task_write_surface_app"] = expected_frontmost_app
+            step_context["desktop_task_prior_verified_frontmost_app"] = expected_frontmost_app
+            step_context["desktop_task_allow_unavailable_frontmost_from_prior"] = True
+        if write_commit_action and current_surface_requires_editable_focus:
+            step_context["desktop_task_requires_editable_focus"] = True
+        if (
+            resolved_step.action == "hotkey"
+            and "v" in target_text
+            and ("command" in target_text or "cmd" in target_text)
+            and expected_clipboard_sha256
+        ):
+            step_context["desktop_task_expected_clipboard_sha256"] = expected_clipboard_sha256
+            step_context["desktop_task_expected_clipboard_chars"] = expected_clipboard_chars
+        return target_text, write_commit_action
+
+    def _execute_part_7(self, index, objective, planner, resolved_step, step_context, steps):
+        step_context.update(
+            {
+                "origin": step_context.get("origin") or "desktop_task",
+                "route": "desktop_task.computer_use",
+                "objective": objective,
+                "foreground_request": True,
+                "user_requested_action": True,
+                "user_explicitly_authorized": True,
+                "desktop_task_step": index,
+                "desktop_task_step_total": len(steps),
+                "desktop_task_planner": planner,
+                "desktop_task_reason": resolved_step.reason,
+                "desktop_task_expect": resolved_step.expect,
+            }
+        )
+        self._emit_progress(
+            index=index,
+            total=len(steps),
+            action=resolved_step.action,
+            state="starting",
+            detail=resolved_step.reason or "Executing governed desktop action.",
+        )
+        attempt_limit = (
+            2 if resolved_step.action in DESKTOP_TASK_RETRY_SAFE_ACTIONS else 1
+        )
+        attempt = 0
+        return attempt, attempt_limit
+
+    @staticmethod
+    async def _execute_attempt(attempt, capability_engine, payload, result, step_context):
+        attempt += 1
+        step_context["desktop_task_attempt"] = attempt
+        try:
+            result = await capability_engine.execute(
+                "computer_use",
+                payload,
+                context=step_context,
+            )
+        except (
+            AttributeError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+            OSError,
+            TimeoutError,
+        ) as exc:
+            record_degradation(
+                "desktop_task",
+                exc,
+                action="recorded failed desktop step after governed computer_use exception",
+                severity="degraded",
+            )
+            result = {
+                "ok": False,
+                "status": "computer_use_exception",
+                "error": str(exc),
+            }
+        if not isinstance(result, dict):
+            result = {"ok": bool(result), "result": result}
+        return attempt, result
+
+    def _execute_critical_failures(self, document_provenance, failures, objective, planner, receipts, research_context, steps, task_context):
+        critical_failures = [receipt for receipt in failures if receipt.get("critical", True)]
+        completed_all_steps = len(receipts) == len(steps)
+        ok = not critical_failures and completed_all_steps
+        status = (
+            "completed_with_warnings"
+            if ok and failures
+            else "completed"
+            if ok
+            else "failed"
+        )
+        completed_count = sum(1 for receipt in receipts if receipt.get("ok"))
+        observation = self._observation_evidence(receipts, objective)
+        semantic_evidence = self._semantic_completion_evidence(
+            objective=objective,
+            task_context=task_context,
+            receipts=receipts,
+            all_effects_verified=ok,
+        )
+        payload = {
+            "ok": ok,
+            "status": status,
+            **(
+                {}
+                if ok
+                else {
+                    "error": self._failure_cause(
+                        critical_failures or failures, objective=objective
+                    )
+                }
+            ),
+            "objective": objective,
+            "steps_requested": len(steps),
+            "steps_completed": completed_count,
+            "receipts": receipts,
+            "failures": failures,
+            "planner": planner,
+            "document_provenance": document_provenance,
+            "research": {
+                "query": task_context.get("desktop_task_research_query"),
+                "sources": task_context.get("desktop_task_research_sources") or [],
+                "error": task_context.get("desktop_task_research_error"),
+                "summary": task_context.get("desktop_task_research_summary"),
+                "synthesis": task_context.get("desktop_task_research_synthesis"),
+                "deep": task_context.get("desktop_task_research_deep"),
+                "pressure_limited": task_context.get(
+                    "desktop_task_research_pressure_limited"
+                ),
+                "timing_ms": task_context.get("desktop_task_research_timing_ms") or {},
+            } if research_context else None,
+            # The perception, typed as evidence for THIS request. The
+            # response lane renders it into the reasoning context so she can
+            # answer the question rather than continue the buffer.
+            "observation": (
+                observation.for_reasoning() if observation is not None else None
+            ),
+            "observation_meta": (
+                observation.to_dict() if observation is not None else None
+            ),
+            # What she SAW, said plainly, built natively from the capture.
+            # The surface that answers "what's on my screen" reads this
+            # rather than digging the raw text out of a receipt — a screen
+            # is read by the OS, not narrated by a 32B, and the capture is
+            # evidence rather than a reply.
+            "observation_description": (
+                observation.describe() if observation is not None else None
+            ),
+            "summary": (
+                # An observation's answer is what was SEEN. A step count is a
+                # progress report about the machinery, and handing it back for
+                # "what do you see?" reports that the looking happened without
+                # ever saying what was there. This is the FALLBACK; the
+                # reasoning above forms the real answer.
+                self._describe_screen_observation(receipts)
+                or f"Desktop task completed {completed_count}/{len(steps)} governed "
+                f"computer-use steps through {planner or 'unknown'} planning."
+            ),
+            "semantic_evidence": semantic_evidence,
+        }
+        from core.runtime.skill_contract import (
+            SkillExecutionResult,
+            SkillStatus,
+            evaluate_action_expectation,
+        )
+
+        expectation = self._semantic_completion_contract(objective)
+        verdict = evaluate_action_expectation(
+            SkillExecutionResult(
+                skill=self.name,
+                status=SkillStatus.SUCCESS_VERIFIED,
+                output=payload,
+                expectation=expectation,
+            )
+        )
+        if verdict is not None:
+            payload["action_expectation"] = expectation.to_dict()
+            payload["semantic_completion"] = verdict.to_evidence()
+            if not verdict.passed and ok:
+                missing = verdict.unsatisfied_predicates + verdict.unknown_predicates
+                payload["ok"] = False
+                payload["status"] = verdict.status.value
+                payload["error"] = "semantic completion incomplete: " + "; ".join(missing)
+                payload["summary"] = (
+                    f"Desktop task completed {completed_count}/{len(steps)} mechanical steps, "
+                    f"but still requires: {', '.join(missing)}."
+                )
+        return payload
+
     async def execute(self, params: Any, context: dict[str, Any]) -> dict[str, Any]:
         if isinstance(params, dict):
             params = DesktopTaskParams(**params)
@@ -5634,38 +6030,7 @@ class DesktopTaskSkill(_ResearchesBeforeItWrites, BaseSkill):
         for index, step in enumerate(steps, start=1):
             references_ok, resolved_step, reference_error = self._resolve_step_target(step, receipts)
             if not references_ok:
-                receipt = {
-                    "index": index,
-                    "action": step.action,
-                    "reason": step.reason,
-                    "expect": step.expect,
-                    "critical": step.critical,
-                    "ok": False,
-                    "effect_verified": False,
-                    "effect_evidence": reference_error,
-                    "attempts": 0,
-                    "result": {
-                        "ok": False,
-                        "status": "desktop_step_reference_unresolved",
-                        "error": reference_error,
-                    },
-                }
-                receipts.append(receipt)
-                await self._emit_durable_step_receipt(
-                    receipt,
-                    objective=objective,
-                    planner=planner,
-                    tool="desktop_task",
-                )
-                failures.append(receipt)
-                self._emit_progress(
-                    index=index,
-                    total=len(steps),
-                    action=step.action,
-                    state="blocked",
-                    detail=reference_error,
-                    level="warning",
-                )
+                receipt = await self._execute_receipt(failures, index, objective, planner, receipts, reference_error, step, steps)
                 if step.critical and params.stop_on_error:
                     break
                 continue
@@ -5674,33 +6039,7 @@ class DesktopTaskSkill(_ResearchesBeforeItWrites, BaseSkill):
             if resolved_step.action == "system_control" and isinstance(target, dict):
                 if target.get("value") == FETCHED_IMAGE_PATH_SENTINEL:
                     if not last_image_path:
-                        reference_error = (
-                            "no fetched image path available to apply"
-                        )
-                        receipt = {
-                            "index": index,
-                            "action": resolved_step.action,
-                            "reason": resolved_step.reason,
-                            "expect": resolved_step.expect,
-                            "critical": resolved_step.critical,
-                            "ok": False,
-                            "effect_verified": False,
-                            "effect_evidence": reference_error,
-                            "attempts": 0,
-                            "result": {
-                                "ok": False,
-                                "status": "desktop_step_reference_unresolved",
-                                "error": reference_error,
-                            },
-                        }
-                        receipts.append(receipt)
-                        await self._emit_durable_step_receipt(
-                            receipt,
-                            objective=objective,
-                            planner=planner,
-                            tool="desktop_task",
-                        )
-                        failures.append(receipt)
+                        receipt, reference_error = await self._execute_reference_error(failures, index, objective, planner, receipts, resolved_step)
                         if resolved_step.critical and params.stop_on_error:
                             break
                         continue
@@ -5708,31 +6047,7 @@ class DesktopTaskSkill(_ResearchesBeforeItWrites, BaseSkill):
             if resolved_step.action == "render_text_pdf" and isinstance(target, dict):
                 if target.get("image_path") == FETCHED_IMAGE_PATH_SENTINEL:
                     if not last_image_path:
-                        reference_error = "no fetched image path available for PDF rendering"
-                        receipt = {
-                            "index": index,
-                            "action": resolved_step.action,
-                            "reason": resolved_step.reason,
-                            "expect": resolved_step.expect,
-                            "critical": resolved_step.critical,
-                            "ok": False,
-                            "effect_verified": False,
-                            "effect_evidence": reference_error,
-                            "attempts": 0,
-                            "result": {
-                                "ok": False,
-                                "status": "desktop_step_reference_unresolved",
-                                "error": reference_error,
-                            },
-                        }
-                        receipts.append(receipt)
-                        await self._emit_durable_step_receipt(
-                            receipt,
-                            objective=objective,
-                            planner=planner,
-                            tool="desktop_task",
-                        )
-                        failures.append(receipt)
+                        receipt, reference_error = await self._execute_reference_error_3(failures, index, objective, planner, receipts, resolved_step)
                         if resolved_step.critical and params.stop_on_error:
                             break
                         continue
@@ -5742,62 +6057,14 @@ class DesktopTaskSkill(_ResearchesBeforeItWrites, BaseSkill):
                 # fetch receipt — the source page is only known at runtime.
                 if isinstance(target, dict) and target.get("url") == FETCHED_IMAGE_SOURCE_SENTINEL:
                     if not last_image_page_url:
-                        reference_error = "no fetched-image source URL available to show"
-                        receipt = {
-                            "index": index,
-                            "action": resolved_step.action,
-                            "reason": resolved_step.reason,
-                            "expect": resolved_step.expect,
-                            "critical": resolved_step.critical,
-                            "ok": False,
-                            "effect_verified": False,
-                            "effect_evidence": reference_error,
-                            "attempts": 0,
-                            "result": {
-                                "ok": False,
-                                "status": "desktop_step_reference_unresolved",
-                                "error": reference_error,
-                            },
-                        }
-                        receipts.append(receipt)
-                        await self._emit_durable_step_receipt(
-                            receipt,
-                            objective=objective,
-                            planner=planner,
-                            tool="desktop_task",
-                        )
-                        failures.append(receipt)
+                        receipt, reference_error = await self._execute_reference_error_4(failures, index, objective, planner, receipts, resolved_step)
                         if resolved_step.critical and params.stop_on_error:
                             break
                         continue
                     target = dict(target, url=last_image_page_url)
                 elif target == FETCHED_IMAGE_SOURCE_SENTINEL:
                     if not last_image_page_url:
-                        reference_error = "no fetched-image source URL available to show"
-                        receipt = {
-                            "index": index,
-                            "action": resolved_step.action,
-                            "reason": resolved_step.reason,
-                            "expect": resolved_step.expect,
-                            "critical": resolved_step.critical,
-                            "ok": False,
-                            "effect_verified": False,
-                            "effect_evidence": reference_error,
-                            "attempts": 0,
-                            "result": {
-                                "ok": False,
-                                "status": "desktop_step_reference_unresolved",
-                                "error": reference_error,
-                            },
-                        }
-                        receipts.append(receipt)
-                        await self._emit_durable_step_receipt(
-                            receipt,
-                            objective=objective,
-                            planner=planner,
-                            tool="desktop_task",
-                        )
-                        failures.append(receipt)
+                        receipt, reference_error = await self._execute_reference_error_5(failures, index, objective, planner, receipts, resolved_step)
                         if resolved_step.critical and params.stop_on_error:
                             break
                         continue
@@ -5812,62 +6079,8 @@ class DesktopTaskSkill(_ResearchesBeforeItWrites, BaseSkill):
                 "y": int(resolved_step.y),
             }
             step_context = self._child_step_context(task_context)
-            target_text = str(target or "").lower()
-            write_commit_action = (
-                resolved_step.action == "type"
-                or (
-                    resolved_step.action == "hotkey"
-                    and (
-                        "command" in target_text
-                        or "cmd" in target_text
-                    )
-                    and any(token in target_text for token in ("+v", "+n", "enter", "return"))
-                )
-            )
-            if (
-                write_commit_action
-                and expected_frontmost_app
-            ):
-                step_context["desktop_task_expected_frontmost_app"] = expected_frontmost_app
-                step_context["desktop_task_write_surface_app"] = expected_frontmost_app
-                step_context["desktop_task_prior_verified_frontmost_app"] = expected_frontmost_app
-                step_context["desktop_task_allow_unavailable_frontmost_from_prior"] = True
-            if write_commit_action and current_surface_requires_editable_focus:
-                step_context["desktop_task_requires_editable_focus"] = True
-            if (
-                resolved_step.action == "hotkey"
-                and "v" in target_text
-                and ("command" in target_text or "cmd" in target_text)
-                and expected_clipboard_sha256
-            ):
-                step_context["desktop_task_expected_clipboard_sha256"] = expected_clipboard_sha256
-                step_context["desktop_task_expected_clipboard_chars"] = expected_clipboard_chars
-            step_context.update(
-                {
-                    "origin": step_context.get("origin") or "desktop_task",
-                    "route": "desktop_task.computer_use",
-                    "objective": objective,
-                    "foreground_request": True,
-                    "user_requested_action": True,
-                    "user_explicitly_authorized": True,
-                    "desktop_task_step": index,
-                    "desktop_task_step_total": len(steps),
-                    "desktop_task_planner": planner,
-                    "desktop_task_reason": resolved_step.reason,
-                    "desktop_task_expect": resolved_step.expect,
-                }
-            )
-            self._emit_progress(
-                index=index,
-                total=len(steps),
-                action=resolved_step.action,
-                state="starting",
-                detail=resolved_step.reason or "Executing governed desktop action.",
-            )
-            attempt_limit = (
-                2 if resolved_step.action in DESKTOP_TASK_RETRY_SAFE_ACTIONS else 1
-            )
-            attempt = 0
+            target_text, write_commit_action = self._execute_target_text(current_surface_requires_editable_focus, expected_clipboard_chars, expected_clipboard_sha256, expected_frontmost_app, resolved_step, step_context, target)
+            attempt, attempt_limit = self._execute_part_7(index, objective, planner, resolved_step, step_context, steps)
             result: dict[str, Any] = {}
             effect_verified = False
             effect_evidence = "step did not execute"
@@ -5891,35 +6104,7 @@ class DesktopTaskSkill(_ResearchesBeforeItWrites, BaseSkill):
                     logger.debug("hold_focus skipped for %s: %s", _focus_app, exc)
 
             while attempt < attempt_limit:
-                attempt += 1
-                step_context["desktop_task_attempt"] = attempt
-                try:
-                    result = await capability_engine.execute(
-                        "computer_use",
-                        payload,
-                        context=step_context,
-                    )
-                except (
-                    AttributeError,
-                    RuntimeError,
-                    TypeError,
-                    ValueError,
-                    OSError,
-                    TimeoutError,
-                ) as exc:
-                    record_degradation(
-                        "desktop_task",
-                        exc,
-                        action="recorded failed desktop step after governed computer_use exception",
-                        severity="degraded",
-                    )
-                    result = {
-                        "ok": False,
-                        "status": "computer_use_exception",
-                        "error": str(exc),
-                    }
-                if not isinstance(result, dict):
-                    result = {"ok": bool(result), "result": result}
+                attempt, result = await self._execute_attempt(attempt, capability_engine, payload, result, step_context)
                 effect_verified, effect_evidence = self._verify_step_effect(
                     resolved_step,
                     result,
@@ -6011,109 +6196,5 @@ class DesktopTaskSkill(_ResearchesBeforeItWrites, BaseSkill):
                     detail=effect_evidence,
                 )
 
-        critical_failures = [receipt for receipt in failures if receipt.get("critical", True)]
-        completed_all_steps = len(receipts) == len(steps)
-        ok = not critical_failures and completed_all_steps
-        status = (
-            "completed_with_warnings"
-            if ok and failures
-            else "completed"
-            if ok
-            else "failed"
-        )
-        completed_count = sum(1 for receipt in receipts if receipt.get("ok"))
-        observation = self._observation_evidence(receipts, objective)
-        semantic_evidence = self._semantic_completion_evidence(
-            objective=objective,
-            task_context=task_context,
-            receipts=receipts,
-            all_effects_verified=ok,
-        )
-        payload = {
-            "ok": ok,
-            "status": status,
-            **(
-                {}
-                if ok
-                else {
-                    "error": self._failure_cause(
-                        critical_failures or failures, objective=objective
-                    )
-                }
-            ),
-            "objective": objective,
-            "steps_requested": len(steps),
-            "steps_completed": completed_count,
-            "receipts": receipts,
-            "failures": failures,
-            "planner": planner,
-            "document_provenance": document_provenance,
-            "research": {
-                "query": task_context.get("desktop_task_research_query"),
-                "sources": task_context.get("desktop_task_research_sources") or [],
-                "error": task_context.get("desktop_task_research_error"),
-                "summary": task_context.get("desktop_task_research_summary"),
-                "synthesis": task_context.get("desktop_task_research_synthesis"),
-                "deep": task_context.get("desktop_task_research_deep"),
-                "pressure_limited": task_context.get(
-                    "desktop_task_research_pressure_limited"
-                ),
-                "timing_ms": task_context.get("desktop_task_research_timing_ms") or {},
-            } if research_context else None,
-            # The perception, typed as evidence for THIS request. The
-            # response lane renders it into the reasoning context so she can
-            # answer the question rather than continue the buffer.
-            "observation": (
-                observation.for_reasoning() if observation is not None else None
-            ),
-            "observation_meta": (
-                observation.to_dict() if observation is not None else None
-            ),
-            # What she SAW, said plainly, built natively from the capture.
-            # The surface that answers "what's on my screen" reads this
-            # rather than digging the raw text out of a receipt — a screen
-            # is read by the OS, not narrated by a 32B, and the capture is
-            # evidence rather than a reply.
-            "observation_description": (
-                observation.describe() if observation is not None else None
-            ),
-            "summary": (
-                # An observation's answer is what was SEEN. A step count is a
-                # progress report about the machinery, and handing it back for
-                # "what do you see?" reports that the looking happened without
-                # ever saying what was there. This is the FALLBACK; the
-                # reasoning above forms the real answer.
-                self._describe_screen_observation(receipts)
-                or f"Desktop task completed {completed_count}/{len(steps)} governed "
-                f"computer-use steps through {planner or 'unknown'} planning."
-            ),
-            "semantic_evidence": semantic_evidence,
-        }
-        from core.runtime.skill_contract import (
-            SkillExecutionResult,
-            SkillStatus,
-            evaluate_action_expectation,
-        )
-
-        expectation = self._semantic_completion_contract(objective)
-        verdict = evaluate_action_expectation(
-            SkillExecutionResult(
-                skill=self.name,
-                status=SkillStatus.SUCCESS_VERIFIED,
-                output=payload,
-                expectation=expectation,
-            )
-        )
-        if verdict is not None:
-            payload["action_expectation"] = expectation.to_dict()
-            payload["semantic_completion"] = verdict.to_evidence()
-            if not verdict.passed and ok:
-                missing = verdict.unsatisfied_predicates + verdict.unknown_predicates
-                payload["ok"] = False
-                payload["status"] = verdict.status.value
-                payload["error"] = "semantic completion incomplete: " + "; ".join(missing)
-                payload["summary"] = (
-                    f"Desktop task completed {completed_count}/{len(steps)} mechanical steps, "
-                    f"but still requires: {', '.join(missing)}."
-                )
+        payload = self._execute_critical_failures(document_provenance, failures, objective, planner, receipts, research_context, steps, task_context)
         return payload

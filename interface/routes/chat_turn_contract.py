@@ -274,6 +274,297 @@ _RUNTIME_GROUNDING_RESPONSE_PATHS = frozenset(
 )
 
 
+def _build_live_turn_contract_payload_latent_cortex_receipt(raw_latent_receipt, raw_runtime_identity, trace):
+    latent_cortex_receipt = {
+        key: raw_latent_receipt.get(key)
+        for key in (
+            "episode_id",
+            "checkpoint_fingerprint",
+            "checkpoint_fingerprint_method",
+            "checkpoint_file_count",
+            "worker_boot_id",
+            "worker_pid",
+            "worker_model_path",
+            "worker_model_parameter_count",
+            "worker_model_stored_parameter_element_count",
+            "worker_model_parameter_count_basis",
+            "worker_source_sha256",
+            "worker_affective_steering_active",
+            "worker_affective_steering_alpha",
+            "episode_affective_steering_applied",
+            "episode_affective_steering_alpha",
+            "request_payload_sha256",
+            "input_tokens_sha256",
+            "input_token_count",
+            "input_context_compaction",
+            "params_unchanged",
+            "schedule_hash",
+            "n_slots",
+            "n_branches",
+            "steps_taken",
+            "halting_reason",
+            "decode_requested_tokens",
+            "decode_generated_tokens",
+            "decode_termination",
+            "decode_temperature",
+            "decode_top_p",
+            "decode_newline_suppressions",
+            "decode_repetition_penalty_applied",
+            "decode_bridge_applied",
+            "decode_bridge_policy",
+            "decode_bridge_token_count",
+            "decode_bridge_tokens_sha256",
+            "decode_bridge_logits_digest",
+            "output_quality",
+            "verifier_guidance",
+            "generative_verifier",
+            "verifier_probe_max_tokens",
+            "verifier_probe_contract",
+            "contract_repair",
+            "latent_opt_applied",
+            "latent_opt_mode",
+            "latent_opt_loss_trail",
+            "latent_opt_attempts",
+            "latent_opt_steps",
+            "latent_opt_rejected",
+            "latent_opt_budget_exhausted",
+            "latent_opt_verifier",
+            "fast_weights_applied",
+            "fast_weights_erased",
+            "fast_weights_layers",
+            "fast_weight_optimization_attempts",
+            "fast_weight_optimized_steps",
+            "fast_weight_rejected_steps",
+            "fast_weight_budget_exhausted",
+            "fast_weight_optimizer",
+            "fast_weight_loss_trail",
+            "fast_weight_gradient_norm_trail",
+            "fast_weight_accepted_step_sizes",
+            "fast_weight_line_search_backtracks",
+            "fast_weight_canaries",
+            "fast_weight_verifier",
+            "last_stage",
+            "stage_timings_s",
+            "budget",
+            "honest_flags",
+        )
+        if key in raw_latent_receipt
+    }
+    latent_cortex_receipt["runtime_identity"] = {
+        key: raw_runtime_identity.get(key)
+        for key in (
+            "schema",
+            "identity_bound",
+            "launch_mode",
+            "installed_app_required",
+            "installed_app_verified",
+            "source_verified",
+            "source_commit",
+            "source_branch",
+            "workspace_state_sha256",
+            "source_dirty",
+            "source_change_count",
+            "shell_assets_sha256",
+            "bundle_identifier",
+            "app_executable_sha256",
+            "launch_manifest_sha256",
+            "issues",
+        )
+        if key in raw_runtime_identity
+    }
+    preflight_evidence_profile = str(trace.get("preflight_evidence_profile") or "")
+    return latent_cortex_receipt, preflight_evidence_profile
+
+def _build_live_turn_contract_payload_raw_surface_control_receipt(trace):
+    raw_surface_control_receipt = trace.get("live_mind_surface_control_receipt")
+    live_mind_surface_control_receipt = (
+        {
+            key: raw_surface_control_receipt.get(key)
+            for key in (
+                "enabled",
+                "live_mind_controls_bound",
+                "clean_user_surface_contract",
+                "surface_validation_prompt_present",
+                "surface_alpha_applied",
+                "surface_alpha_applied_ok",
+                "recurrent_runtime_loops_applied",
+                "recurrent_runtime_loops_applied_ok",
+                "surface_quality_gate_enabled",
+                "surface_quality_gate_passed",
+                "surface_quality_gate_attempts",
+                "surface_quality_gate_reasons",
+                "surface_quality_gate_error",
+                "latent_final_output_quality",
+                "generation_max_tokens",
+                "caller_requested_max_tokens",
+                "adaptive_suggested_max_tokens",
+                "output_contract_generation_floor",
+                "generated_tokens",
+                "semantic_output_token_cap",
+                "hard_output_token_ceiling",
+                "instruction_shape_repair_applied",
+                "deterministic_repair_applied",
+                "authorship_replacement_applied",
+                "authorship_augmentation_applied",
+                "model_replacement_applied",
+                "text_mutations",
+                "text_mutation_count",
+                "exact_reply_token_count",
+                "exact_reply_required_termination_headroom",
+                "exact_reply_available_termination_headroom",
+                "exact_reply_content_capacity_sufficient",
+                "exact_reply_termination_headroom_sufficient",
+                "exact_reply_token_ceiling_valid",
+                "exact_reply_native_capacity_sufficient",
+                "requested_output_contract",
+                "applied",
+            )
+            if key in raw_surface_control_receipt
+        }
+        if isinstance(raw_surface_control_receipt, dict)
+        else {}
+    )
+    text_mutations = merge_text_mutations(
+        live_mind_surface_control_receipt.get("text_mutations"),
+        trace.get("text_mutations"),
+    )
+    live_mind_surface_control_receipt["text_mutations"] = text_mutations
+    live_mind_surface_control_receipt["text_mutation_count"] = len(text_mutations)
+    return live_mind_surface_control_receipt, text_mutations
+
+def _build_live_turn_contract_payload_live_mind_controls_structurally_bound(live_mind_context_required, live_mind_controls_application_satisfied, live_mind_controls_bound, live_mind_surface_quality_gate_passed, qualified_recurrent_path_proven):
+    live_mind_controls_structurally_bound = bool(
+        (not live_mind_context_required)
+        or qualified_recurrent_path_proven
+        or (
+            live_mind_controls_bound
+            and live_mind_controls_application_satisfied
+            and live_mind_surface_quality_gate_passed
+        )
+    )
+    accepted_full_mind_response_paths = {
+        "cognitive_engine",
+        "protected_foreground",
+        "cognitive_engine_completion_retry",
+        # A completion retry that ran and then correctly KEPT the original.
+        #
+        # chat.py sets this path when completion_incumbent_preserved is true —
+        # the retry happened, was compared against the incumbent, and the
+        # incumbent won. That is the retry machinery working at its best, and
+        # it was in neither this set nor the single-owner clause below, so the
+        # turn was refused and the person got "I couldn't get to an answer I'd
+        # stand behind" instead of the answer that had already been judged the
+        # better of two.
+        #
+        # Measured live 2026-08-18:
+        #   missing: response_path:cognitive_engine_completion_incumbent,
+        #            duplicate_foreground_model_generation
+        #   path=cognitive_engine_completion_incumbent generations=3
+        #   completion_retries=2 consumed=True
+        # Three generations for one incumbent plus two retries is exactly
+        # 1 + completion_retry_count — the arithmetic already agreed. Only the
+        # name was unrecognised.
+        "cognitive_engine_completion_incumbent",
+        "cognitive_engine_repair_retry",
+        "cognitive_engine_devocatived",
+        "cognitive_engine_desktop_plan",
+        "cognitive_engine_memory_state_grounding",
+        "cognitive_engine_identity_continuity_grounding",
+        "cognitive_engine_runtime_fact_grounding",
+        "cognitive_engine_capability_tail_grounding",
+        "cognitive_engine_capability_catalog_grounding",
+        "cognitive_engine_self_process_grounding",
+        "cognitive_engine_self_condition",
+        "cognitive_engine_self_condition_grounding",
+        "cognitive_engine_self_condition_semantic_completion",
+        "cognitive_engine_bounded_planning",
+        "cognitive_engine_latent_cortex",
+        "cognitive_engine_qualified_recurrent",
+    }
+    return accepted_full_mind_response_paths, live_mind_controls_structurally_bound
+
+def _build_live_turn_contract_payload_authored_generation_source_proven(authorship_replacement_applied, bounded_contract_used, engine_reply_accepted, engine_reply_failed, engine_think_invoked, legacy_fallback_used, protected_foreground_generation_proven, response_path):
+    authored_generation_source_proven = bool(
+        (engine_think_invoked and engine_reply_accepted)
+        or (
+            response_path == "protected_foreground"
+            and protected_foreground_generation_proven
+        )
+    )
+    # Whose words these are, apart from whether they were good enough.
+    #
+    # `authored_generation_source_proven` requires the engine to have ACCEPTED
+    # the reply, so authorship and quality are one flag. They are different
+    # facts, and the last-resort salvage site needs the first: it exists
+    # because of the second.
+    #
+    # LIVE, 2026-08-28: twelve reasoning questions came back with the canned
+    # apology. The engine had run, written a real partial answer, judged it not
+    # good enough, and the salvage refused to serve it for want of a proof that
+    # said "the engine accepted this" — at a site reached only when it did not.
+    # `single_owner_model_generation_proven` is deliberately NOT required here,
+    # and the reason is what that proof is for. It answers "which of several
+    # answers is being served as the one" — it enumerates the retry paths and
+    # their exact generation counts, and a gate-level retry matches none of
+    # them, so an ordinary second attempt reads as two owners.
+    #
+    # The salvage site does not choose between answers. It serves the single
+    # preserved draft or nothing. What it needs to know is that those words
+    # came from the engine rather than from repair machinery, a legacy
+    # fallback, or runtime substitution, and the conditions below say exactly
+    # that.
+    #
+    # LIVE, 2026-08-28: eleven of twelve reasoning questions came back with the
+    # canned apology, the last gate being duplicate_foreground_model_generation
+    # on a turn whose only duplication was retrying once.
+    engine_authored_the_text = bool(
+        engine_think_invoked
+        and not engine_reply_failed
+        and not bounded_contract_used
+        and not legacy_fallback_used
+        and not authorship_replacement_applied
+    )
+    return authored_generation_source_proven, engine_authored_the_text
+
+def _build_live_turn_contract_payload_part_5(architecture_context_bound, authored_answer_completion_proven, foreground_model_generation_transaction_count, missing_proofs, semantic_completion_expected, semantic_completion_receipt_present, semantic_completion_satisfied, single_owner_model_generation_proven, trace):
+    if not single_owner_model_generation_proven:
+        missing_proofs.append(
+            "duplicate_foreground_model_generation"
+            if foreground_model_generation_transaction_count > 1
+            else "foreground_model_generation_ownership_unproven"
+        )
+    if not authored_answer_completion_proven:
+        # Which of the four, because they call for different actions and one
+        # of them is not a statement about the answer at all.
+        #
+        # This name was reported for a draft cut off mid-clause, for a draft
+        # judged semantically short, for a retry that had already given up —
+        # and for a turn where nobody checked, because the receipt carrying
+        # the verdict was never bound. Only the first is fixed by continuing
+        # the generation. The last says the bookkeeping is missing, which is
+        # the same category as live_mind_controls_unbound beside it, and it
+        # is fatal here while that one is disclosed.
+        #
+        # LIVE 2026-08-29: a turn that had listed a directory, read an API
+        # reference, run the library's code and written a reply was refused
+        # under this name with completion_retries=0. Nothing had been cut off.
+        # Both missing proofs were one absent receipt, and the name sent the
+        # investigation after a truncation that never happened.
+        if trace.get("completion_retry_exhausted"):
+            missing_proofs.append("authored_answer_incomplete:retry_exhausted")
+        elif trace.get("reply_generation_incomplete"):
+            missing_proofs.append("authored_answer_incomplete:generation_cut_off")
+        elif trace.get("semantic_completion_incomplete"):
+            missing_proofs.append("authored_answer_incomplete:semantically_short")
+        elif semantic_completion_expected and not semantic_completion_receipt_present:
+            missing_proofs.append("authored_answer_incomplete:nobody_checked")
+        elif semantic_completion_expected and not semantic_completion_satisfied:
+            missing_proofs.append("authored_answer_incomplete:semantic_contract_unmet")
+        else:
+            missing_proofs.append("authored_answer_incomplete")
+    if not architecture_context_bound:
+        missing_proofs.append("architecture_context_unbound")
+
 def _build_live_turn_contract_payload(
     *,
     desktop_required: bool,
@@ -500,104 +791,7 @@ def _build_live_turn_contract_payload(
             )
         )
     )
-    latent_cortex_receipt = {
-        key: raw_latent_receipt.get(key)
-        for key in (
-            "episode_id",
-            "checkpoint_fingerprint",
-            "checkpoint_fingerprint_method",
-            "checkpoint_file_count",
-            "worker_boot_id",
-            "worker_pid",
-            "worker_model_path",
-            "worker_model_parameter_count",
-            "worker_model_stored_parameter_element_count",
-            "worker_model_parameter_count_basis",
-            "worker_source_sha256",
-            "worker_affective_steering_active",
-            "worker_affective_steering_alpha",
-            "episode_affective_steering_applied",
-            "episode_affective_steering_alpha",
-            "request_payload_sha256",
-            "input_tokens_sha256",
-            "input_token_count",
-            "input_context_compaction",
-            "params_unchanged",
-            "schedule_hash",
-            "n_slots",
-            "n_branches",
-            "steps_taken",
-            "halting_reason",
-            "decode_requested_tokens",
-            "decode_generated_tokens",
-            "decode_termination",
-            "decode_temperature",
-            "decode_top_p",
-            "decode_newline_suppressions",
-            "decode_repetition_penalty_applied",
-            "decode_bridge_applied",
-            "decode_bridge_policy",
-            "decode_bridge_token_count",
-            "decode_bridge_tokens_sha256",
-            "decode_bridge_logits_digest",
-            "output_quality",
-            "verifier_guidance",
-            "generative_verifier",
-            "verifier_probe_max_tokens",
-            "verifier_probe_contract",
-            "contract_repair",
-            "latent_opt_applied",
-            "latent_opt_mode",
-            "latent_opt_loss_trail",
-            "latent_opt_attempts",
-            "latent_opt_steps",
-            "latent_opt_rejected",
-            "latent_opt_budget_exhausted",
-            "latent_opt_verifier",
-            "fast_weights_applied",
-            "fast_weights_erased",
-            "fast_weights_layers",
-            "fast_weight_optimization_attempts",
-            "fast_weight_optimized_steps",
-            "fast_weight_rejected_steps",
-            "fast_weight_budget_exhausted",
-            "fast_weight_optimizer",
-            "fast_weight_loss_trail",
-            "fast_weight_gradient_norm_trail",
-            "fast_weight_accepted_step_sizes",
-            "fast_weight_line_search_backtracks",
-            "fast_weight_canaries",
-            "fast_weight_verifier",
-            "last_stage",
-            "stage_timings_s",
-            "budget",
-            "honest_flags",
-        )
-        if key in raw_latent_receipt
-    }
-    latent_cortex_receipt["runtime_identity"] = {
-        key: raw_runtime_identity.get(key)
-        for key in (
-            "schema",
-            "identity_bound",
-            "launch_mode",
-            "installed_app_required",
-            "installed_app_verified",
-            "source_verified",
-            "source_commit",
-            "source_branch",
-            "workspace_state_sha256",
-            "source_dirty",
-            "source_change_count",
-            "shell_assets_sha256",
-            "bundle_identifier",
-            "app_executable_sha256",
-            "launch_manifest_sha256",
-            "issues",
-        )
-        if key in raw_runtime_identity
-    }
-    preflight_evidence_profile = str(trace.get("preflight_evidence_profile") or "")
+    latent_cortex_receipt, preflight_evidence_profile = _build_live_turn_contract_payload_latent_cortex_receipt(raw_latent_receipt, raw_runtime_identity, trace)
     raw_preflight_evidence_owner = trace.get("preflight_evidence_owner_receipt")
     preflight_evidence_owner = (
         {
@@ -652,60 +846,7 @@ def _build_live_turn_contract_payload(
     live_mind_controls_bound = bool(
         trace.get("live_mind_controls_bound") and live_mind_generation_controls_present
     )
-    raw_surface_control_receipt = trace.get("live_mind_surface_control_receipt")
-    live_mind_surface_control_receipt = (
-        {
-            key: raw_surface_control_receipt.get(key)
-            for key in (
-                "enabled",
-                "live_mind_controls_bound",
-                "clean_user_surface_contract",
-                "surface_validation_prompt_present",
-                "surface_alpha_applied",
-                "surface_alpha_applied_ok",
-                "recurrent_runtime_loops_applied",
-                "recurrent_runtime_loops_applied_ok",
-                "surface_quality_gate_enabled",
-                "surface_quality_gate_passed",
-                "surface_quality_gate_attempts",
-                "surface_quality_gate_reasons",
-                "surface_quality_gate_error",
-                "latent_final_output_quality",
-                "generation_max_tokens",
-                "caller_requested_max_tokens",
-                "adaptive_suggested_max_tokens",
-                "output_contract_generation_floor",
-                "generated_tokens",
-                "semantic_output_token_cap",
-                "hard_output_token_ceiling",
-                "instruction_shape_repair_applied",
-                "deterministic_repair_applied",
-                "authorship_replacement_applied",
-                "authorship_augmentation_applied",
-                "model_replacement_applied",
-                "text_mutations",
-                "text_mutation_count",
-                "exact_reply_token_count",
-                "exact_reply_required_termination_headroom",
-                "exact_reply_available_termination_headroom",
-                "exact_reply_content_capacity_sufficient",
-                "exact_reply_termination_headroom_sufficient",
-                "exact_reply_token_ceiling_valid",
-                "exact_reply_native_capacity_sufficient",
-                "requested_output_contract",
-                "applied",
-            )
-            if key in raw_surface_control_receipt
-        }
-        if isinstance(raw_surface_control_receipt, dict)
-        else {}
-    )
-    text_mutations = merge_text_mutations(
-        live_mind_surface_control_receipt.get("text_mutations"),
-        trace.get("text_mutations"),
-    )
-    live_mind_surface_control_receipt["text_mutations"] = text_mutations
-    live_mind_surface_control_receipt["text_mutation_count"] = len(text_mutations)
+    live_mind_surface_control_receipt, text_mutations = _build_live_turn_contract_payload_raw_surface_control_receipt(trace)
     live_mind_controls_worker_applied = bool(
         live_mind_surface_control_receipt.get("live_mind_controls_bound")
         and live_mind_surface_control_receipt.get("applied")
@@ -818,54 +959,7 @@ def _build_live_turn_contract_payload(
         and bool(trace.get("qualified_recurrent_receipt"))
         and not trace.get("qualified_recurrent_delivery_errors")
     )
-    live_mind_controls_structurally_bound = bool(
-        (not live_mind_context_required)
-        or qualified_recurrent_path_proven
-        or (
-            live_mind_controls_bound
-            and live_mind_controls_application_satisfied
-            and live_mind_surface_quality_gate_passed
-        )
-    )
-    accepted_full_mind_response_paths = {
-        "cognitive_engine",
-        "protected_foreground",
-        "cognitive_engine_completion_retry",
-        # A completion retry that ran and then correctly KEPT the original.
-        #
-        # chat.py sets this path when completion_incumbent_preserved is true —
-        # the retry happened, was compared against the incumbent, and the
-        # incumbent won. That is the retry machinery working at its best, and
-        # it was in neither this set nor the single-owner clause below, so the
-        # turn was refused and the person got "I couldn't get to an answer I'd
-        # stand behind" instead of the answer that had already been judged the
-        # better of two.
-        #
-        # Measured live 2026-08-18:
-        #   missing: response_path:cognitive_engine_completion_incumbent,
-        #            duplicate_foreground_model_generation
-        #   path=cognitive_engine_completion_incumbent generations=3
-        #   completion_retries=2 consumed=True
-        # Three generations for one incumbent plus two retries is exactly
-        # 1 + completion_retry_count — the arithmetic already agreed. Only the
-        # name was unrecognised.
-        "cognitive_engine_completion_incumbent",
-        "cognitive_engine_repair_retry",
-        "cognitive_engine_devocatived",
-        "cognitive_engine_desktop_plan",
-        "cognitive_engine_memory_state_grounding",
-        "cognitive_engine_identity_continuity_grounding",
-        "cognitive_engine_runtime_fact_grounding",
-        "cognitive_engine_capability_tail_grounding",
-        "cognitive_engine_capability_catalog_grounding",
-        "cognitive_engine_self_process_grounding",
-        "cognitive_engine_self_condition",
-        "cognitive_engine_self_condition_grounding",
-        "cognitive_engine_self_condition_semantic_completion",
-        "cognitive_engine_bounded_planning",
-        "cognitive_engine_latent_cortex",
-        "cognitive_engine_qualified_recurrent",
-    }
+    accepted_full_mind_response_paths, live_mind_controls_structurally_bound = _build_live_turn_contract_payload_live_mind_controls_structurally_bound(live_mind_context_required, live_mind_controls_application_satisfied, live_mind_controls_bound, live_mind_surface_quality_gate_passed, qualified_recurrent_path_proven)
     latent_cortex_response_path = response_path == "cognitive_engine_latent_cortex"
     latent_cortex_path_proven = bool(
         latent_cortex_response_path
@@ -955,46 +1049,7 @@ def _build_live_turn_contract_payload(
     protected_foreground_generation_proven = bool(
         trace.get("protected_foreground_generation_proven")
     )
-    authored_generation_source_proven = bool(
-        (engine_think_invoked and engine_reply_accepted)
-        or (
-            response_path == "protected_foreground"
-            and protected_foreground_generation_proven
-        )
-    )
-    # Whose words these are, apart from whether they were good enough.
-    #
-    # `authored_generation_source_proven` requires the engine to have ACCEPTED
-    # the reply, so authorship and quality are one flag. They are different
-    # facts, and the last-resort salvage site needs the first: it exists
-    # because of the second.
-    #
-    # LIVE, 2026-08-28: twelve reasoning questions came back with the canned
-    # apology. The engine had run, written a real partial answer, judged it not
-    # good enough, and the salvage refused to serve it for want of a proof that
-    # said "the engine accepted this" — at a site reached only when it did not.
-    # `single_owner_model_generation_proven` is deliberately NOT required here,
-    # and the reason is what that proof is for. It answers "which of several
-    # answers is being served as the one" — it enumerates the retry paths and
-    # their exact generation counts, and a gate-level retry matches none of
-    # them, so an ordinary second attempt reads as two owners.
-    #
-    # The salvage site does not choose between answers. It serves the single
-    # preserved draft or nothing. What it needs to know is that those words
-    # came from the engine rather than from repair machinery, a legacy
-    # fallback, or runtime substitution, and the conditions below say exactly
-    # that.
-    #
-    # LIVE, 2026-08-28: eleven of twelve reasoning questions came back with the
-    # canned apology, the last gate being duplicate_foreground_model_generation
-    # on a turn whose only duplication was retrying once.
-    engine_authored_the_text = bool(
-        engine_think_invoked
-        and not engine_reply_failed
-        and not bounded_contract_used
-        and not legacy_fallback_used
-        and not authorship_replacement_applied
-    )
+    authored_generation_source_proven, engine_authored_the_text = _build_live_turn_contract_payload_authored_generation_source_proven(authorship_replacement_applied, bounded_contract_used, engine_reply_accepted, engine_reply_failed, engine_think_invoked, legacy_fallback_used, protected_foreground_generation_proven, response_path)
     authentic_cognitive_reply = bool(
         authored_generation_source_proven
         and not engine_reply_failed
@@ -1100,43 +1155,7 @@ def _build_live_turn_contract_payload(
         missing_proofs.append("latent_cortex_output_quality_unproven")
     if qualified_recurrent_response_path and not qualified_recurrent_path_proven:
         missing_proofs.append("qualified_recurrent_path_unproven")
-    if not single_owner_model_generation_proven:
-        missing_proofs.append(
-            "duplicate_foreground_model_generation"
-            if foreground_model_generation_transaction_count > 1
-            else "foreground_model_generation_ownership_unproven"
-        )
-    if not authored_answer_completion_proven:
-        # Which of the four, because they call for different actions and one
-        # of them is not a statement about the answer at all.
-        #
-        # This name was reported for a draft cut off mid-clause, for a draft
-        # judged semantically short, for a retry that had already given up —
-        # and for a turn where nobody checked, because the receipt carrying
-        # the verdict was never bound. Only the first is fixed by continuing
-        # the generation. The last says the bookkeeping is missing, which is
-        # the same category as live_mind_controls_unbound beside it, and it
-        # is fatal here while that one is disclosed.
-        #
-        # LIVE 2026-08-29: a turn that had listed a directory, read an API
-        # reference, run the library's code and written a reply was refused
-        # under this name with completion_retries=0. Nothing had been cut off.
-        # Both missing proofs were one absent receipt, and the name sent the
-        # investigation after a truncation that never happened.
-        if trace.get("completion_retry_exhausted"):
-            missing_proofs.append("authored_answer_incomplete:retry_exhausted")
-        elif trace.get("reply_generation_incomplete"):
-            missing_proofs.append("authored_answer_incomplete:generation_cut_off")
-        elif trace.get("semantic_completion_incomplete"):
-            missing_proofs.append("authored_answer_incomplete:semantically_short")
-        elif semantic_completion_expected and not semantic_completion_receipt_present:
-            missing_proofs.append("authored_answer_incomplete:nobody_checked")
-        elif semantic_completion_expected and not semantic_completion_satisfied:
-            missing_proofs.append("authored_answer_incomplete:semantic_contract_unmet")
-        else:
-            missing_proofs.append("authored_answer_incomplete")
-    if not architecture_context_bound:
-        missing_proofs.append("architecture_context_unbound")
+    _build_live_turn_contract_payload_part_5(architecture_context_bound, authored_answer_completion_proven, foreground_model_generation_transaction_count, missing_proofs, semantic_completion_expected, semantic_completion_receipt_present, semantic_completion_satisfied, single_owner_model_generation_proven, trace)
     if not live_mind_snapshot_bound:
         missing_proofs.append("live_mind_snapshot_not_ready")
     if not live_mind_controls_structurally_bound:

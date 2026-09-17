@@ -9902,6 +9902,212 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                 severity="warning",
             )
 
+    def _response_listener_loop_part_1(self, res):
+        try:
+            if (
+                self._init_done
+                or self._init_future is None
+                or self._init_future.done()
+            ):
+                raise RuntimeError(
+                    "worker_capture_bootstrap_outside_initialization"
+                )
+            raw_capture_identity = res.get(
+                "worker_action_capture_identity"
+            )
+            if not isinstance(raw_capture_identity, Mapping):
+                raise TypeError("worker_capture_bootstrap_identity_missing")
+            self._accept_worker_capture_bootstrap(raw_capture_identity)
+            self._mark_progress()
+        except (
+            ImportError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ) as capture_bootstrap_exc:
+            _record_mlx_degradation(
+                capture_bootstrap_exc,
+                action=(
+                    "refused worker initialization because its early "
+                    "capture identity was not bound to this spawn"
+                ),
+                severity="critical",
+            )
+            if self._init_future and not self._init_future.done():
+                _set_shared_future_result(
+                    self._init_future,
+                    {
+                        "status": "error",
+                        "action": "init",
+                        "message": (
+                            "worker_capture_bootstrap_invalid:"
+                            f"{type(capture_bootstrap_exc).__name__}"
+                        ),
+                    },
+                )
+
+    async def _response_listener_loop_part_2(self, owned_generation, res):
+        from core.container import ServiceContainer
+        self._record_worker_job_activity(res)
+        self._last_heartbeat = time.time()
+        self._mark_progress()
+        try:
+            # The pulse takes the mycelium's class lock, which
+            # the vault sync worker holds while it snapshots
+            # the topology. Waiting for it here is waiting on
+            # the loop thread (5.5s, stall dump 2026-09-15).
+            await run_io_bound(self._pulse_mycelial_worker, res)
+        except (
+            ImportError,
+            AttributeError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ) as root_exc:
+            logger.debug(
+                "MLX worker heartbeat root publication failed: %s",
+                root_exc,
+            )
+        # Worker-reported progress evidence: the heartbeat now
+        # carries the inference-loop's own stall verdict, so a
+        # wedged decode loop is visible BEFORE the worker-side
+        # watchdog (360s) or a caller timeout fires. Surface it
+        # once per stall episode; liveness semantics stay as-is.
+        worker_reported_stall = bool(res.get("loop_stalled"))
+        stalled, stall_threshold_s = self._confirm_worker_reported_loop_stall(res)
+        if worker_reported_stall and stalled and not self._worker_loop_stall_reported:
+            self._worker_loop_stall_reported = True
+            _record_mlx_degradation(
+                RuntimeError(
+                    "worker_loop_stalled:"
+                    f"request={res.get('request_id') or '<unknown>'}:"
+                    f"age_s={res.get('job_age_s')}:"
+                    f"budget_s={stall_threshold_s:.1f}"
+                ),
+                action="worker heartbeat exceeded the active request's progress budget",
+                severity="error",
+            )
+            self.soft_cancel_active_generation("worker_loop_stalled")
+            if not self._deferred_reboot_reason:
+                self._deferred_reboot_reason = "recoverable_token_progress_stalled"
+        elif not worker_reported_stall or not stalled:
+            self._worker_loop_stall_reported = False
+        if bool(res.get("ipc_broken")) and not self._worker_ipc_broken_reported:
+            self._worker_ipc_broken_reported = True
+            _record_mlx_degradation(
+                RuntimeError("worker_response_pipe_broken"),
+                action="worker heartbeat reports a broken response pipe; expecting worker exit",
+                severity="critical",
+            )
+        owner_id, fencing_token, _receipt_id = self._durable_model_lane_owner_snapshot()
+        if fencing_token > 0 and owner_id:
+            try:
+                from core.runtime.model_lane_control import (
+                    get_model_lane_controller,
+                )
+
+                self._schedule_durable_lane_renewal(
+                    get_model_lane_controller(),
+                    owner_id,
+                    fencing_token,
+                    owned_generation,
+                )
+            except (
+                OSError,
+                RuntimeError,
+                AttributeError,
+                TypeError,
+                ValueError,
+                TimeoutError,
+            ) as exc:
+                _record_mlx_degradation(
+                    exc,
+                    action="could not schedule durable model-lane renewal",
+                    severity="critical",
+                )
+        audit = ServiceContainer.get("subsystem_audit", default=None)
+        if audit:
+            tier_name = (
+                "mlx_heavy" if _model_is_heavy_lane(self.model_path) else "mlx_light"
+            )
+            audit.heartbeat(tier_name)
+
+    async def _response_listener_loop_before_routing_terminal(self, owned_response, req_id, res):
+        # Before routing: a terminal frame for a cancelled request
+        # is the acknowledgement, and it must be recorded even when
+        # the caller has already abandoned the future.
+        if isinstance(res, dict):
+            self._note_soft_cancel_acknowledgement(res)
+        future = self._pending_generations.pop(req_id, None) if req_id else None
+        delivered = bool(
+            future and await self._route_terminal_worker_response(
+                str(req_id), future, res,
+            )
+        )
+        # A generation can finish after the caller has already
+        # abandoned it and started another turn. Never hand a
+        # response with an old request id to the current future.
+        #
+        # CP126 49d694a1: the id-less fallback (`not req_id or ...`)
+        # let a stale or malformed terminal frame COMPLETE the
+        # current request with another turn's content. The worker
+        # stamps every response with its job id, so an id-less
+        # terminal frame is malformed by construction — the error
+        # route already rejects it, and so does this one now.
+        if (
+            not delivered
+            and self._current_gen_future
+            and not self._current_gen_future.done()
+            and req_id
+            and req_id == self._current_request_id
+        ):
+            delivered = _set_shared_future_result(self._current_gen_future, res)
+        if owned_response:
+            _observe_worker_prompt_tokenization(res)
+            self._schedule_endogenous_terminal_response(res)
+        return delivered, future
+
+    def _response_listener_loop_worker_memory_sentinel(self, res):
+        # The worker's memory sentinel is about to hard-exit the
+        # process. This frame is intentionally id-less (it is not
+        # a request result) — attribute the imminent death to
+        # every in-flight request NOW instead of letting each one
+        # discover it via timeout against a dead process.
+        fuse_message = str(res.get("message") or "worker_memory_fuse")
+        _record_mlx_degradation(
+            RuntimeError(f"worker_memory_fuse:{fuse_message}"),
+            action="worker memory fuse tripped; failing in-flight requests with attribution",
+            severity="critical",
+        )
+        logger.critical("🛑 [MLX] %s", fuse_message)
+        for pending_id, pending in list(self._pending_generations.items()):
+            if pending is not None and not pending.done():
+                _set_shared_future_result(
+                    pending,
+                    {
+                        "status": "error",
+                        "action": "generate",
+                        "id": str(pending_id),
+                        "message": f"worker_memory_fuse:{fuse_message}",
+                        "memory_pressure": res.get("memory_pressure") or {},
+                    },
+                )
+        self._pending_generations.clear()
+        current_fut = self._current_gen_future
+        if current_fut is not None and not current_fut.done():
+            _set_shared_future_result(
+                current_fut,
+                {
+                    "status": "error",
+                    "action": "generate",
+                    "id": self._current_request_id,
+                    "message": f"worker_memory_fuse:{fuse_message}",
+                    "memory_pressure": res.get("memory_pressure") or {},
+                },
+            )
+        self._release_detached_request_lock()
+        self._clear_detached_worker_requests()
+
     async def _response_listener_loop(
         self,
         response_queue: Any | None = None,
@@ -9913,7 +10119,6 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
         """
         import queue
 
-        from core.container import ServiceContainer
 
         owned_queue = self._res_q if response_queue is None else response_queue
         owned_generation = (
@@ -9986,48 +10191,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                 req_id = res.get("id")
 
                 if action == "capture_identity_bootstrap":
-                    try:
-                        if (
-                            self._init_done
-                            or self._init_future is None
-                            or self._init_future.done()
-                        ):
-                            raise RuntimeError(
-                                "worker_capture_bootstrap_outside_initialization"
-                            )
-                        raw_capture_identity = res.get(
-                            "worker_action_capture_identity"
-                        )
-                        if not isinstance(raw_capture_identity, Mapping):
-                            raise TypeError("worker_capture_bootstrap_identity_missing")
-                        self._accept_worker_capture_bootstrap(raw_capture_identity)
-                        self._mark_progress()
-                    except (
-                        ImportError,
-                        RuntimeError,
-                        TypeError,
-                        ValueError,
-                    ) as capture_bootstrap_exc:
-                        _record_mlx_degradation(
-                            capture_bootstrap_exc,
-                            action=(
-                                "refused worker initialization because its early "
-                                "capture identity was not bound to this spawn"
-                            ),
-                            severity="critical",
-                        )
-                        if self._init_future and not self._init_future.done():
-                            _set_shared_future_result(
-                                self._init_future,
-                                {
-                                    "status": "error",
-                                    "action": "init",
-                                    "message": (
-                                        "worker_capture_bootstrap_invalid:"
-                                        f"{type(capture_bootstrap_exc).__name__}"
-                                    ),
-                                },
-                            )
+                    self._response_listener_loop_part_1(res)
                     continue
 
                 # Remember correlation before a terminal route removes the
@@ -10043,89 +10207,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
 
                 # 1. Update SubsystemAudit Heartbeat
                 if status == "heartbeat":
-                    self._record_worker_job_activity(res)
-                    self._last_heartbeat = time.time()
-                    self._mark_progress()
-                    try:
-                        # The pulse takes the mycelium's class lock, which
-                        # the vault sync worker holds while it snapshots
-                        # the topology. Waiting for it here is waiting on
-                        # the loop thread (5.5s, stall dump 2026-09-15).
-                        await run_io_bound(self._pulse_mycelial_worker, res)
-                    except (
-                        ImportError,
-                        AttributeError,
-                        RuntimeError,
-                        TypeError,
-                        ValueError,
-                    ) as root_exc:
-                        logger.debug(
-                            "MLX worker heartbeat root publication failed: %s",
-                            root_exc,
-                        )
-                    # Worker-reported progress evidence: the heartbeat now
-                    # carries the inference-loop's own stall verdict, so a
-                    # wedged decode loop is visible BEFORE the worker-side
-                    # watchdog (360s) or a caller timeout fires. Surface it
-                    # once per stall episode; liveness semantics stay as-is.
-                    worker_reported_stall = bool(res.get("loop_stalled"))
-                    stalled, stall_threshold_s = self._confirm_worker_reported_loop_stall(res)
-                    if worker_reported_stall and stalled and not self._worker_loop_stall_reported:
-                        self._worker_loop_stall_reported = True
-                        _record_mlx_degradation(
-                            RuntimeError(
-                                "worker_loop_stalled:"
-                                f"request={res.get('request_id') or '<unknown>'}:"
-                                f"age_s={res.get('job_age_s')}:"
-                                f"budget_s={stall_threshold_s:.1f}"
-                            ),
-                            action="worker heartbeat exceeded the active request's progress budget",
-                            severity="error",
-                        )
-                        self.soft_cancel_active_generation("worker_loop_stalled")
-                        if not self._deferred_reboot_reason:
-                            self._deferred_reboot_reason = "recoverable_token_progress_stalled"
-                    elif not worker_reported_stall or not stalled:
-                        self._worker_loop_stall_reported = False
-                    if bool(res.get("ipc_broken")) and not self._worker_ipc_broken_reported:
-                        self._worker_ipc_broken_reported = True
-                        _record_mlx_degradation(
-                            RuntimeError("worker_response_pipe_broken"),
-                            action="worker heartbeat reports a broken response pipe; expecting worker exit",
-                            severity="critical",
-                        )
-                    owner_id, fencing_token, _receipt_id = self._durable_model_lane_owner_snapshot()
-                    if fencing_token > 0 and owner_id:
-                        try:
-                            from core.runtime.model_lane_control import (
-                                get_model_lane_controller,
-                            )
-
-                            self._schedule_durable_lane_renewal(
-                                get_model_lane_controller(),
-                                owner_id,
-                                fencing_token,
-                                owned_generation,
-                            )
-                        except (
-                            OSError,
-                            RuntimeError,
-                            AttributeError,
-                            TypeError,
-                            ValueError,
-                            TimeoutError,
-                        ) as exc:
-                            _record_mlx_degradation(
-                                exc,
-                                action="could not schedule durable model-lane renewal",
-                                severity="critical",
-                            )
-                    audit = ServiceContainer.get("subsystem_audit", default=None)
-                    if audit:
-                        tier_name = (
-                            "mlx_heavy" if _model_is_heavy_lane(self.model_path) else "mlx_light"
-                        )
-                        audit.heartbeat(tier_name)
+                    await self._response_listener_loop_part_2(owned_generation, res)
                     continue
                 if status in {"progress", "token"}:
                     self._record_worker_stream_progress(res, status=status, action=action)
@@ -10148,38 +10230,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                         _set_shared_future_result(self._init_future, res)
                         continue
                 elif action in _TERMINAL_WORKER_ACTIONS:
-                    # Before routing: a terminal frame for a cancelled request
-                    # is the acknowledgement, and it must be recorded even when
-                    # the caller has already abandoned the future.
-                    if isinstance(res, dict):
-                        self._note_soft_cancel_acknowledgement(res)
-                    future = self._pending_generations.pop(req_id, None) if req_id else None
-                    delivered = bool(
-                        future and await self._route_terminal_worker_response(
-                            str(req_id), future, res,
-                        )
-                    )
-                    # A generation can finish after the caller has already
-                    # abandoned it and started another turn. Never hand a
-                    # response with an old request id to the current future.
-                    #
-                    # CP126 49d694a1: the id-less fallback (`not req_id or ...`)
-                    # let a stale or malformed terminal frame COMPLETE the
-                    # current request with another turn's content. The worker
-                    # stamps every response with its job id, so an id-less
-                    # terminal frame is malformed by construction — the error
-                    # route already rejects it, and so does this one now.
-                    if (
-                        not delivered
-                        and self._current_gen_future
-                        and not self._current_gen_future.done()
-                        and req_id
-                        and req_id == self._current_request_id
-                    ):
-                        delivered = _set_shared_future_result(self._current_gen_future, res)
-                    if owned_response:
-                        _observe_worker_prompt_tokenization(res)
-                        self._schedule_endogenous_terminal_response(res)
+                    delivered, future = await self._response_listener_loop_before_routing_terminal(owned_response, req_id, res)
                     if delivered:
                         self._mark_progress()
                         continue
@@ -10214,45 +10265,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                     )
                     continue
                 elif status == "error" and action == "memory_fuse":
-                    # The worker's memory sentinel is about to hard-exit the
-                    # process. This frame is intentionally id-less (it is not
-                    # a request result) — attribute the imminent death to
-                    # every in-flight request NOW instead of letting each one
-                    # discover it via timeout against a dead process.
-                    fuse_message = str(res.get("message") or "worker_memory_fuse")
-                    _record_mlx_degradation(
-                        RuntimeError(f"worker_memory_fuse:{fuse_message}"),
-                        action="worker memory fuse tripped; failing in-flight requests with attribution",
-                        severity="critical",
-                    )
-                    logger.critical("🛑 [MLX] %s", fuse_message)
-                    for pending_id, pending in list(self._pending_generations.items()):
-                        if pending is not None and not pending.done():
-                            _set_shared_future_result(
-                                pending,
-                                {
-                                    "status": "error",
-                                    "action": "generate",
-                                    "id": str(pending_id),
-                                    "message": f"worker_memory_fuse:{fuse_message}",
-                                    "memory_pressure": res.get("memory_pressure") or {},
-                                },
-                            )
-                    self._pending_generations.clear()
-                    current_fut = self._current_gen_future
-                    if current_fut is not None and not current_fut.done():
-                        _set_shared_future_result(
-                            current_fut,
-                            {
-                                "status": "error",
-                                "action": "generate",
-                                "id": self._current_request_id,
-                                "message": f"worker_memory_fuse:{fuse_message}",
-                                "memory_pressure": res.get("memory_pressure") or {},
-                            },
-                        )
-                    self._release_detached_request_lock()
-                    self._clear_detached_worker_requests()
+                    self._response_listener_loop_worker_memory_sentinel(res)
                     continue
                 elif status == "error":
                     init_error = (
@@ -10608,6 +10621,335 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             waited += slice_s
         return waited
 
+    async def _ensure_worker_alive_inner_part_1(self, listener_alive, silence, stale_after):
+        _record_mlx_degradation(
+            TimeoutError(
+                f"worker for {os.path.basename(self.model_path)} passed the "
+                f"alive+init check but has been silent {silence:.1f}s "
+                f"(limit {stale_after:.1f}s, listener_alive={listener_alive})"
+            ),
+            action="recycled a worker that looked ready and was not responding",
+            severity="error",
+        )
+        logger.warning(
+            "♻️ [MLX] %s is alive and initialised but silent for %.1fs; "
+            "recycling instead of admitting it as ready.",
+            os.path.basename(self.model_path),
+            silence,
+        )
+        # Torn down INLINE, not via reboot_worker: this runs while
+        # holding the lifecycle lock, and reboot_worker acquires it.
+        # Calling it here would block for its whole escalation ladder
+        # and then perform an unsynchronised reboot — turning a
+        # recovery into the wedge it was recovering from. The
+        # stale-handshake branch below does the same thing for the
+        # same reason.
+        self._set_lane_state("recovering", "ready_check_worker_silent")
+        self._init_done = False
+        if self._init_future is not None:
+            _cancel_shared_future(self._init_future)
+            self._init_future = None
+        _doomed, self._process = self._process, None
+        await asyncio.get_running_loop().run_in_executor(
+            None,
+            functools.partial(
+                self._release_worker_process,
+                _doomed,
+                reason="ready_check_worker_silent",
+            ),
+        )
+        self._reset_worker_scoped_state()
+        self._replace_ipc_queues()
+        return _doomed
+
+    async def _ensure_worker_alive_inner_part_2(self, handshake_age, handshake_budget):
+        logger.warning(
+            "♻️ [MLX] Worker handshake stuck for %.0fs (>%.0fs budget) on %s — recycling.",
+            handshake_age,
+            handshake_budget,
+            os.path.basename(self.model_path),
+        )
+        self._set_lane_state("recovering", "stale_handshake")
+        try:
+            if self._init_future and not self._init_future.done():
+                self._init_future.set_exception(
+                    RuntimeError("stale_handshake_recycled")
+                )
+        except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+            _record_mlx_degradation(
+                _exc,
+                action="recycled stale handshake despite init-future notification failure",
+            )
+            logger.debug("Suppressed stale-handshake future-set: %s", _exc)
+        self._init_future = None
+        _doomed, self._process = self._process, None
+        await asyncio.get_running_loop().run_in_executor(
+            None,
+            functools.partial(
+                self._release_worker_process,
+                _doomed,
+                reason="stale_handshake",
+            ),
+        )
+        self._init_done = False
+        self._last_heartbeat = 0.0
+        self._last_progress_at = 0.0
+        self._drain_queue()
+        self._replace_ipc_queues()
+        return _doomed
+
+    async def _ensure_worker_alive_inner_part_3(self):
+        logger.warning(
+            "♻️ [MLX] Worker alive but init lifecycle is missing. Recycling %s.",
+            os.path.basename(self.model_path),
+        )
+        self._set_lane_state("recovering", "missing_init_lifecycle")
+        _doomed, self._process = self._process, None
+        await asyncio.get_running_loop().run_in_executor(
+            None,
+            functools.partial(
+                self._release_worker_process,
+                _doomed,
+                reason="missing_init_lifecycle",
+            ),
+        )
+        self._init_done = False
+        self._last_heartbeat = 0.0
+        self._last_progress_at = 0.0
+        self._drain_queue()
+
+        # Prevent zombie threads from stealing messages
+        self._replace_ipc_queues()
+
+        init_future = _new_shared_future()
+        self._init_future = init_future
+        self._set_lane_state("spawning")
+        logger.info(
+            "📡 [MLX] Respawning worker for %s...", os.path.basename(self.model_path)
+        )
+        return init_future
+
+    def _ensure_worker_alive_inner__sf(self, detail, exc, foreground_request):
+        _sf = getattr(self, "_consecutive_spawn_failures", 0) + 1
+        self._consecutive_spawn_failures = _sf
+        self._spawn_backoff_until = time.time() + min(
+            300.0, 10.0 * (2 ** min(_sf - 1, 5))
+        )
+        # CP126 ee4ccfcc: the backoff carried no cause, so the
+        # runtime-availability probe cleared every one of them.
+        # A healthy `import mlx` says nothing about an OOM, a
+        # corrupt checkpoint or a refused memory admission.
+        self._spawn_backoff_cause = (
+            "runtime_unavailable"
+            if "mlx_runtime_probe_failed:" in detail
+            else "spawn_failure"
+        )
+        if "mlx_runtime_probe_failed:" in detail:
+            self._mark_runtime_unavailable(
+                detail.split("mlx_runtime_probe_failed:", 1)[1]
+            )
+        else:
+            self._set_lane_state("failed", detail)
+        _record_mlx_degradation(
+            exc,
+            action="marked lane failed or runtime unavailable and applied spawn backoff",
+            severity="error",
+        )
+        self._record_degraded_event(
+            "spawn_failed",
+            detail=f"{os.path.basename(self.model_path)}:{detail}",
+            severity="error",
+            foreground_request=foreground_request,
+        )
+        logger.error(
+            "🛑 [MLX] Worker respawn aborted for %s: %s (backoff %.0fs)",
+            os.path.basename(self.model_path),
+            detail,
+            min(300.0, 10.0 * (2 ** min(_sf - 1, 5))),
+        )
+        self._init_future = None
+
+    def _ensure_worker_alive_inner_bug_fix_exponential(self, _spawn_fails, detail, exc, foreground_request):
+        # [BUG FIX] Exponential backoff: 10s, 30s, 60s, 120s, 300s
+        self._consecutive_spawn_failures = _spawn_fails + 1
+        backoff = min(300.0, 10.0 * (2 ** min(_spawn_fails, 5)))
+        self._spawn_backoff_until = time.time() + backoff
+        # See CP126 ee4ccfcc: a runtime probe may only clear the
+        # backoffs a runtime failure caused.
+        self._spawn_backoff_cause = (
+            "runtime_unavailable"
+            if "mlx_runtime_probe_failed:" in detail
+            else "spawn_failure"
+        )
+        if "mlx_runtime_probe_failed:" in detail:
+            self._mark_runtime_unavailable(
+                detail.split("mlx_runtime_probe_failed:", 1)[1]
+            )
+        else:
+            self._set_lane_state("failed", detail)
+        _record_mlx_degradation(
+            exc,
+            action="marked lane failed or runtime unavailable and applied spawn backoff",
+            severity="error",
+        )
+        self._record_degraded_event(
+            "spawn_failed",
+            detail=f"{os.path.basename(self.model_path)}:{detail}",
+            severity="error",
+            foreground_request=foreground_request,
+        )
+        logger.error(
+            "🛑 [MLX] Worker spawn aborted for %s: %s (attempt %d, backoff %.0fs)",
+            os.path.basename(self.model_path),
+            detail,
+            self._consecutive_spawn_failures,
+            backoff,
+        )
+        self._init_future = None
+
+    def _ensure_worker_alive_inner_readiness_earned_announced(self, res):
+        # READINESS IS EARNED, NOT ANNOUNCED. CP126 34c42774:
+        # any dict with status=ok used to set init_done,
+        # heartbeats and lane=ready, and only THEN copy the
+        # recurrence receipt and worker identity. A worker
+        # that never reported recurrence, or reported a
+        # malformed identity, was already serving by the time
+        # anyone looked. The invariants are checked first and
+        # the handshake fails if they do not hold — which
+        # feeds the existing one-shot retry.
+        readiness_errors = self._init_receipt_errors(res)
+        attested_worker_identity: dict[str, Any] = {}
+        raw_worker_identity = res.get("worker_identity")
+        if not readiness_errors and isinstance(raw_worker_identity, Mapping):
+            try:
+                attested_worker_identity = (
+                    self._attest_worker_capture_origin(raw_worker_identity)
+                )
+            except (
+                ImportError,
+                RuntimeError,
+                TypeError,
+                ValueError,
+            ) as capture_origin_exc:
+                _record_mlx_degradation(
+                    capture_origin_exc,
+                    action=(
+                        "refused READY because the worker capture key was not "
+                        "bound to this parent spawn"
+                    ),
+                    severity="error",
+                )
+                readiness_errors.append(
+                    "worker_capture_launch_attestation_invalid"
+                )
+        if not readiness_errors:
+            from core.brain.llm.token_budget_evidence import MIN_OBSERVATIONS
+
+            calibration_count = _observe_worker_token_budget_calibration(res)
+            if calibration_count < MIN_OBSERVATIONS:
+                readiness_errors.append(
+                    "token_budget_calibration_not_admitted:"
+                    f"{calibration_count}/{MIN_OBSERVATIONS}"
+                )
+        return attested_worker_identity, readiness_errors
+
+    async def _ensure_worker_alive_inner_part_7(self, readiness_errors):
+        _record_mlx_degradation(
+            ValueError("init_receipt_invalid:" + ",".join(readiness_errors)),
+            action="refused READY on an unvalidated worker init receipt",
+            severity="error",
+        )
+        self._init_done = False
+        self._worker_identity = {}
+        self._recurrent_depth_status = {}
+        # Every field the receipt was supposed to establish
+        # is cleared together. Leaving one behind lets the
+        # PREVIOUS worker's claim certify this one.
+        self._recurrent_adapter_activation = {}
+        self._unified_recurrent_shadow_status = {}
+        self._unified_recurrent_shadow_probe_status = {}
+        self._unified_recurrent_shadow_canary_status = {}
+        self._unified_recurrent_qualified_activation_status = {}
+        self._set_lane_state(
+            "failed",
+            "init_receipt_invalid",
+        )
+        # This is terminal evidence from this exact
+        # worker. Re-reading the same completed future
+        # cannot repair it and used to leave an alive,
+        # permanently handshaking process behind. Retire
+        # the untrusted generation and perform at most one
+        # real spawn retry.
+        await self.reboot_worker(
+            reason="init_receipt_invalid",
+            mark_failed=False,
+        )
+
+    def _ensure_worker_alive_inner_part_8(self, attested_worker_identity, res):
+        self._init_done = True
+        self._last_heartbeat = time.time()
+        self._last_ready_at = self._last_heartbeat
+        self._mark_progress()
+        self._set_lane_state("ready")
+        recurrent_status = res.get("recurrent_depth")
+        # Always REPLACE: preserving the previous worker's
+        # status when the new receipt is absent/malformed let
+        # an old active=true certify a new worker that never
+        # reported recurrence.
+        self._recurrent_depth_status = (
+            recurrent_status if isinstance(recurrent_status, dict) else {}
+        )
+        adapter_activation = res.get("recurrent_adapter_activation")
+        self._recurrent_adapter_activation = (
+            adapter_activation
+            if isinstance(adapter_activation, dict)
+            else {}
+        )
+        shadow_status = res.get("unified_recurrent_shadow")
+        self._unified_recurrent_shadow_status = (
+            copy.deepcopy(shadow_status)
+            if isinstance(shadow_status, dict)
+            else {}
+        )
+        self._unified_recurrent_shadow_probe_status = {}
+        self._unified_recurrent_shadow_canary_status = {}
+        qualified_status = res.get(
+            "unified_recurrent_qualified_activation"
+        )
+        self._unified_recurrent_qualified_activation_status = (
+            copy.deepcopy(qualified_status)
+            if isinstance(qualified_status, dict)
+            else {}
+        )
+        if not isinstance(recurrent_status, dict):
+            _record_mlx_degradation(
+                ValueError("missing_recurrent_depth_receipt"),
+                action="cleared stale recurrence status after init receipt omitted it",
+            )
+        self._worker_identity = attested_worker_identity
+        try:
+            self._attest_mycelial_worker(res)
+        except (
+            ImportError,
+            AttributeError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ) as root_exc:
+            _record_mlx_degradation(
+                root_exc,
+                action=(
+                    "kept validated worker ready while Mycelium "
+                    "root attestation failed"
+                ),
+                severity="warning",
+            )
+        self._steering_disposition = str(
+            res.get("steering_disposition") or ""
+        )
+        raw_steering = res.get("steering_active")
+        return raw_steering
+
     async def _ensure_worker_alive_inner(
         self,
         *,
@@ -10703,44 +11045,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                 if silence <= stale_after and listener_alive:
                     self._set_lane_state("ready")
                     return True  # Already healthy, release gate
-                _record_mlx_degradation(
-                    TimeoutError(
-                        f"worker for {os.path.basename(self.model_path)} passed the "
-                        f"alive+init check but has been silent {silence:.1f}s "
-                        f"(limit {stale_after:.1f}s, listener_alive={listener_alive})"
-                    ),
-                    action="recycled a worker that looked ready and was not responding",
-                    severity="error",
-                )
-                logger.warning(
-                    "♻️ [MLX] %s is alive and initialised but silent for %.1fs; "
-                    "recycling instead of admitting it as ready.",
-                    os.path.basename(self.model_path),
-                    silence,
-                )
-                # Torn down INLINE, not via reboot_worker: this runs while
-                # holding the lifecycle lock, and reboot_worker acquires it.
-                # Calling it here would block for its whole escalation ladder
-                # and then perform an unsynchronised reboot — turning a
-                # recovery into the wedge it was recovering from. The
-                # stale-handshake branch below does the same thing for the
-                # same reason.
-                self._set_lane_state("recovering", "ready_check_worker_silent")
-                self._init_done = False
-                if self._init_future is not None:
-                    _cancel_shared_future(self._init_future)
-                    self._init_future = None
-                _doomed, self._process = self._process, None
-                await asyncio.get_running_loop().run_in_executor(
-                    None,
-                    functools.partial(
-                        self._release_worker_process,
-                        _doomed,
-                        reason="ready_check_worker_silent",
-                    ),
-                )
-                self._reset_worker_scoped_state()
-                self._replace_ipc_queues()
+                _doomed = await self._ensure_worker_alive_inner_part_1(listener_alive, silence, stale_after)
 
             if self._process and self._process.is_alive() and not self._init_done:
                 # Stale-handshake watchdog: if the worker process has been
@@ -10759,39 +11064,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                     and self._lane_state == "handshaking"
                     and handshake_age > handshake_budget
                 ):
-                    logger.warning(
-                        "♻️ [MLX] Worker handshake stuck for %.0fs (>%.0fs budget) on %s — recycling.",
-                        handshake_age,
-                        handshake_budget,
-                        os.path.basename(self.model_path),
-                    )
-                    self._set_lane_state("recovering", "stale_handshake")
-                    try:
-                        if self._init_future and not self._init_future.done():
-                            self._init_future.set_exception(
-                                RuntimeError("stale_handshake_recycled")
-                            )
-                    except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-                        _record_mlx_degradation(
-                            _exc,
-                            action="recycled stale handshake despite init-future notification failure",
-                        )
-                        logger.debug("Suppressed stale-handshake future-set: %s", _exc)
-                    self._init_future = None
-                    _doomed, self._process = self._process, None
-                    await asyncio.get_running_loop().run_in_executor(
-                        None,
-                        functools.partial(
-                            self._release_worker_process,
-                            _doomed,
-                            reason="stale_handshake",
-                        ),
-                    )
-                    self._init_done = False
-                    self._last_heartbeat = 0.0
-                    self._last_progress_at = 0.0
-                    self._drain_queue()
-                    self._replace_ipc_queues()
+                    _doomed = await self._ensure_worker_alive_inner_part_2(handshake_age, handshake_budget)
                     # Fall through into the missing-init-lifecycle path on
                     # the next iteration of caller's outer loop.
 
@@ -10804,34 +11077,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                     init_future = self._init_future
                     should_wait_init = True
                 else:
-                    logger.warning(
-                        "♻️ [MLX] Worker alive but init lifecycle is missing. Recycling %s.",
-                        os.path.basename(self.model_path),
-                    )
-                    self._set_lane_state("recovering", "missing_init_lifecycle")
-                    _doomed, self._process = self._process, None
-                    await asyncio.get_running_loop().run_in_executor(
-                        None,
-                        functools.partial(
-                            self._release_worker_process,
-                            _doomed,
-                            reason="missing_init_lifecycle",
-                        ),
-                    )
-                    self._init_done = False
-                    self._last_heartbeat = 0.0
-                    self._last_progress_at = 0.0
-                    self._drain_queue()
-
-                    # Prevent zombie threads from stealing messages
-                    self._replace_ipc_queues()
-
-                    init_future = _new_shared_future()
-                    self._init_future = init_future
-                    self._set_lane_state("spawning")
-                    logger.info(
-                        "📡 [MLX] Respawning worker for %s...", os.path.basename(self.model_path)
-                    )
+                    init_future = await self._ensure_worker_alive_inner_part_3()
                     try:
                         self._process = await self._spawn_worker()
                         self._process_started_at = time.time()
@@ -10842,44 +11088,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                         detail = str(exc)
                         if self._handle_optional_deep_solver_memory_refusal(exc):
                             return False
-                        _sf = getattr(self, "_consecutive_spawn_failures", 0) + 1
-                        self._consecutive_spawn_failures = _sf
-                        self._spawn_backoff_until = time.time() + min(
-                            300.0, 10.0 * (2 ** min(_sf - 1, 5))
-                        )
-                        # CP126 ee4ccfcc: the backoff carried no cause, so the
-                        # runtime-availability probe cleared every one of them.
-                        # A healthy `import mlx` says nothing about an OOM, a
-                        # corrupt checkpoint or a refused memory admission.
-                        self._spawn_backoff_cause = (
-                            "runtime_unavailable"
-                            if "mlx_runtime_probe_failed:" in detail
-                            else "spawn_failure"
-                        )
-                        if "mlx_runtime_probe_failed:" in detail:
-                            self._mark_runtime_unavailable(
-                                detail.split("mlx_runtime_probe_failed:", 1)[1]
-                            )
-                        else:
-                            self._set_lane_state("failed", detail)
-                        _record_mlx_degradation(
-                            exc,
-                            action="marked lane failed or runtime unavailable and applied spawn backoff",
-                            severity="error",
-                        )
-                        self._record_degraded_event(
-                            "spawn_failed",
-                            detail=f"{os.path.basename(self.model_path)}:{detail}",
-                            severity="error",
-                            foreground_request=foreground_request,
-                        )
-                        logger.error(
-                            "🛑 [MLX] Worker respawn aborted for %s: %s (backoff %.0fs)",
-                            os.path.basename(self.model_path),
-                            detail,
-                            min(300.0, 10.0 * (2 ** min(_sf - 1, 5))),
-                        )
-                        self._init_future = None
+                        self._ensure_worker_alive_inner__sf(detail, exc, foreground_request)
                         return False
                     if self._listener_task:
                         _cancel_task_threadsafe(self._listener_task)
@@ -10929,42 +11138,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                     detail = str(exc)
                     if self._handle_optional_deep_solver_memory_refusal(exc):
                         return False
-                    # [BUG FIX] Exponential backoff: 10s, 30s, 60s, 120s, 300s
-                    self._consecutive_spawn_failures = _spawn_fails + 1
-                    backoff = min(300.0, 10.0 * (2 ** min(_spawn_fails, 5)))
-                    self._spawn_backoff_until = time.time() + backoff
-                    # See CP126 ee4ccfcc: a runtime probe may only clear the
-                    # backoffs a runtime failure caused.
-                    self._spawn_backoff_cause = (
-                        "runtime_unavailable"
-                        if "mlx_runtime_probe_failed:" in detail
-                        else "spawn_failure"
-                    )
-                    if "mlx_runtime_probe_failed:" in detail:
-                        self._mark_runtime_unavailable(
-                            detail.split("mlx_runtime_probe_failed:", 1)[1]
-                        )
-                    else:
-                        self._set_lane_state("failed", detail)
-                    _record_mlx_degradation(
-                        exc,
-                        action="marked lane failed or runtime unavailable and applied spawn backoff",
-                        severity="error",
-                    )
-                    self._record_degraded_event(
-                        "spawn_failed",
-                        detail=f"{os.path.basename(self.model_path)}:{detail}",
-                        severity="error",
-                        foreground_request=foreground_request,
-                    )
-                    logger.error(
-                        "🛑 [MLX] Worker spawn aborted for %s: %s (attempt %d, backoff %.0fs)",
-                        os.path.basename(self.model_path),
-                        detail,
-                        self._consecutive_spawn_failures,
-                        backoff,
-                    )
-                    self._init_future = None
+                    self._ensure_worker_alive_inner_bug_fix_exponential(_spawn_fails, detail, exc, foreground_request)
                     return False
                 if self._listener_task:
                     _cancel_task_threadsafe(self._listener_task)
@@ -10995,80 +11169,9 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                             fut, stall_s=handshake_timeout
                         )
                     if res.get("status") == "ok":
-                        # READINESS IS EARNED, NOT ANNOUNCED. CP126 34c42774:
-                        # any dict with status=ok used to set init_done,
-                        # heartbeats and lane=ready, and only THEN copy the
-                        # recurrence receipt and worker identity. A worker
-                        # that never reported recurrence, or reported a
-                        # malformed identity, was already serving by the time
-                        # anyone looked. The invariants are checked first and
-                        # the handshake fails if they do not hold — which
-                        # feeds the existing one-shot retry.
-                        readiness_errors = self._init_receipt_errors(res)
-                        attested_worker_identity: dict[str, Any] = {}
-                        raw_worker_identity = res.get("worker_identity")
-                        if not readiness_errors and isinstance(raw_worker_identity, Mapping):
-                            try:
-                                attested_worker_identity = (
-                                    self._attest_worker_capture_origin(raw_worker_identity)
-                                )
-                            except (
-                                ImportError,
-                                RuntimeError,
-                                TypeError,
-                                ValueError,
-                            ) as capture_origin_exc:
-                                _record_mlx_degradation(
-                                    capture_origin_exc,
-                                    action=(
-                                        "refused READY because the worker capture key was not "
-                                        "bound to this parent spawn"
-                                    ),
-                                    severity="error",
-                                )
-                                readiness_errors.append(
-                                    "worker_capture_launch_attestation_invalid"
-                                )
-                        if not readiness_errors:
-                            from core.brain.llm.token_budget_evidence import MIN_OBSERVATIONS
-
-                            calibration_count = _observe_worker_token_budget_calibration(res)
-                            if calibration_count < MIN_OBSERVATIONS:
-                                readiness_errors.append(
-                                    "token_budget_calibration_not_admitted:"
-                                    f"{calibration_count}/{MIN_OBSERVATIONS}"
-                                )
+                        attested_worker_identity, readiness_errors = self._ensure_worker_alive_inner_readiness_earned_announced(res)
                         if readiness_errors:
-                            _record_mlx_degradation(
-                                ValueError("init_receipt_invalid:" + ",".join(readiness_errors)),
-                                action="refused READY on an unvalidated worker init receipt",
-                                severity="error",
-                            )
-                            self._init_done = False
-                            self._worker_identity = {}
-                            self._recurrent_depth_status = {}
-                            # Every field the receipt was supposed to establish
-                            # is cleared together. Leaving one behind lets the
-                            # PREVIOUS worker's claim certify this one.
-                            self._recurrent_adapter_activation = {}
-                            self._unified_recurrent_shadow_status = {}
-                            self._unified_recurrent_shadow_probe_status = {}
-                            self._unified_recurrent_shadow_canary_status = {}
-                            self._unified_recurrent_qualified_activation_status = {}
-                            self._set_lane_state(
-                                "failed",
-                                "init_receipt_invalid",
-                            )
-                            # This is terminal evidence from this exact
-                            # worker. Re-reading the same completed future
-                            # cannot repair it and used to leave an alive,
-                            # permanently handshaking process behind. Retire
-                            # the untrusted generation and perform at most one
-                            # real spawn retry.
-                            await self.reboot_worker(
-                                reason="init_receipt_invalid",
-                                mark_failed=False,
-                            )
+                            await self._ensure_worker_alive_inner_part_7(readiness_errors)
                             if not _init_retry:
                                 return await self._ensure_worker_alive_inner(
                                     request_is_background=request_is_background,
@@ -11079,68 +11182,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                                     _init_retry=True,
                                 )
                             return False
-                        self._init_done = True
-                        self._last_heartbeat = time.time()
-                        self._last_ready_at = self._last_heartbeat
-                        self._mark_progress()
-                        self._set_lane_state("ready")
-                        recurrent_status = res.get("recurrent_depth")
-                        # Always REPLACE: preserving the previous worker's
-                        # status when the new receipt is absent/malformed let
-                        # an old active=true certify a new worker that never
-                        # reported recurrence.
-                        self._recurrent_depth_status = (
-                            recurrent_status if isinstance(recurrent_status, dict) else {}
-                        )
-                        adapter_activation = res.get("recurrent_adapter_activation")
-                        self._recurrent_adapter_activation = (
-                            adapter_activation
-                            if isinstance(adapter_activation, dict)
-                            else {}
-                        )
-                        shadow_status = res.get("unified_recurrent_shadow")
-                        self._unified_recurrent_shadow_status = (
-                            copy.deepcopy(shadow_status)
-                            if isinstance(shadow_status, dict)
-                            else {}
-                        )
-                        self._unified_recurrent_shadow_probe_status = {}
-                        self._unified_recurrent_shadow_canary_status = {}
-                        qualified_status = res.get(
-                            "unified_recurrent_qualified_activation"
-                        )
-                        self._unified_recurrent_qualified_activation_status = (
-                            copy.deepcopy(qualified_status)
-                            if isinstance(qualified_status, dict)
-                            else {}
-                        )
-                        if not isinstance(recurrent_status, dict):
-                            _record_mlx_degradation(
-                                ValueError("missing_recurrent_depth_receipt"),
-                                action="cleared stale recurrence status after init receipt omitted it",
-                            )
-                        self._worker_identity = attested_worker_identity
-                        try:
-                            self._attest_mycelial_worker(res)
-                        except (
-                            ImportError,
-                            AttributeError,
-                            RuntimeError,
-                            TypeError,
-                            ValueError,
-                        ) as root_exc:
-                            _record_mlx_degradation(
-                                root_exc,
-                                action=(
-                                    "kept validated worker ready while Mycelium "
-                                    "root attestation failed"
-                                ),
-                                severity="warning",
-                            )
-                        self._steering_disposition = str(
-                            res.get("steering_disposition") or ""
-                        )
-                        raw_steering = res.get("steering_active")
+                        raw_steering = self._ensure_worker_alive_inner_part_8(attested_worker_identity, res)
                         if raw_steering is not None:
                             try:
                                 if isinstance(raw_steering, bool):
@@ -11385,6 +11427,388 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             return False
         return (time.time() - last) <= window
 
+    def _wait_for_generation_result_remaining(self, deadline, foreground_request, hard_cap, progress_owned_completion, token_stall_after, wait_started):
+        remaining = deadline.remaining
+        if not progress_owned_completion and remaining is not None and remaining <= 0.0:
+            if not self._still_producing(
+                within_s=token_stall_after, foreground_request=foreground_request
+            ):
+                raise TimeoutError
+            # Tokens are still arriving, so the answer is being written.
+            # Cancelling here throws away work that is going fine, and
+            # what comes back instead is half a reply or an apology.
+            #
+            # This runtime serves one person on one laptop. Nothing is
+            # queued behind this turn and nothing is being billed, so the
+            # only thing a deadline buys is the illusion of control over
+            # something that is already working. What actually needs
+            # catching — a wedged worker, a decode looping forever — is
+            # caught by the stall checks below and by the sentinel that
+            # reads the output, neither of which asks what time it is.
+            #
+            # Still bounded: the hard cap above ends the wait for anything
+            # pathological, and a generation that goes quiet fails on the
+            # very next slice.
+            if not self._said_it_is_taking_longer:
+                self._said_it_is_taking_longer = True
+                logger.info(
+                    "⏳ [MLX] Past the deadline and still producing tokens; "
+                    "waiting for the answer rather than cancelling it "
+                    "(bounded at %.0fs).",
+                    hard_cap,
+                )
+
+        # An expired soft deadline can still have an active decode. A
+        # zero-second future wait spins the parent instead of observing it.
+        slice_timeout = 2.0
+        if not progress_owned_completion:
+            if remaining and remaining > 0.0:
+                slice_timeout = min(slice_timeout, remaining)
+            slice_timeout = min(
+                slice_timeout, max(0.001, hard_cap - (time.monotonic() - wait_started))
+            )
+        return slice_timeout
+
+    async def _wait_for_generation_result_part_2(self):
+        self._rebase_after_system_sleep()
+
+        # OBSERVATION and ENFORCEMENT are separated. They used to share
+        # one try block, so a failure while ABORTING (queue cleanup,
+        # future cancellation) was reported as "probe unavailable" and
+        # the loop kept waiting with lifecycle state half-cleared —
+        # the request neither aborted nor honestly failed.
+        memory_snapshot = None
+        try:
+            memory_snapshot = await asyncio.to_thread(get_memory_pressure_snapshot)
+            if memory_snapshot.should_gc:
+                await asyncio.to_thread(gc.collect)
+        except (OSError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            # Unobserved pressure is not observed headroom. Heavy lanes
+            # are the allocation that pushes this host over, so a blind
+            # probe is recorded rather than shrugged off at debug.
+            if self._is_primary_or_deep_lane():
+                _record_mlx_degradation(
+                    exc,
+                    action=(
+                        "live memory-pressure probe unavailable during heavy "
+                        "generation; abort decision could not be made"
+                    ),
+                    severity="warning",
+                )
+            else:
+                logger.debug("MLX live memory pressure probe unavailable: %s", exc)
+        return memory_snapshot
+
+    def _wait_for_generation_result_part_3(self, foreground_request, future, memory_snapshot, req_id):
+        logger.error(
+            "🛑 [MLX] Aborting generation for %s under live memory pressure: %s",
+            os.path.basename(self.model_path),
+            memory_snapshot.reason,
+        )
+        self._pending_generations.pop(req_id, None)
+        self._record_degraded_event(
+            "generation_aborted_memory_pressure",
+            detail=f"{os.path.basename(self.model_path)}:{memory_snapshot.reason}",
+            severity="critical",
+            foreground_request=foreground_request,
+        )
+        try:
+            self.force_abort_active_generation("memory_pressure_during_generation")
+            _cancel_shared_future(future)
+        except (
+            OSError,
+            AttributeError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ) as abort_exc:
+            # The abort itself failed. Critical pressure WAS
+            # observed and cleanup cannot be proven, so the
+            # request ends terminally with that on the record
+            # instead of quietly resuming the wait.
+            _record_mlx_degradation(
+                abort_exc,
+                action=(
+                    "memory-pressure abort failed; generation state "
+                    "could not be proven clean"
+                ),
+                severity="critical",
+            )
+            self._record_degraded_event(
+                "generation_abort_failed_memory_pressure",
+                detail=(
+                    f"{os.path.basename(self.model_path)}:"
+                    f"{type(abort_exc).__name__}"
+                ),
+                severity="critical",
+                foreground_request=foreground_request,
+            )
+
+    def _wait_for_generation_result_current_runtime_progress(self, foreground_request, request_started_at):
+        current_runtime_progress = max(
+            self._last_heartbeat,
+            self._last_progress_at,
+            self._last_ready_at,
+        )
+        progress_baseline = float(
+            getattr(self, "_current_request_progress_baseline_at", 0.0) or 0.0
+        )
+        has_runtime_progress_after_request = current_runtime_progress > max(
+            request_started_at + 0.5,
+            progress_baseline + 0.5,
+        )
+        # Heartbeats stretch the first-token SLA; they never waive
+        # it. Round 14 live proof: a LIVELOCKED generation (worker
+        # heartbeating, zero tokens) ran 185s to the endpoint
+        # deadline because runtime progress exempted it forever.
+        # Past the hard ceiling, silence is wedged no matter how
+        # alive the worker claims to be.
+        livelock_ceiling = self._first_token_hard_ceiling(
+            foreground_request=foreground_request
+        )
+        # Reading a long question is not silence.
+        #
+        # The livelock ceiling asks how long a worker may go without
+        # producing a token before it is wedged, and it was answered
+        # without reference to how much there was to read. A prompt of
+        # 8,618 characters takes about eighteen seconds to prefill at
+        # the rate this host was measured at, and the ceiling was
+        # twenty: LIVE 2026-08-26, "Cortex still sending heartbeats
+        # (1.8s ago) but produced no token in 20.2s. Recycling the
+        # lane." Every large question recycled a warm 20GB model,
+        # which made the next one slower still.
+        #
+        # The same floor the request ceiling already uses. It only
+        # ever raises this, and only by what the reading actually
+        # costs.
+        livelock_ceiling = max(
+            livelock_ceiling,
+            self._prefill_floor_seconds(self._current_prompt_chars),
+            # A lane that has never produced a token is still reading
+            # its weights. Silence there is the load, not a wedge.
+            self._cold_lane_first_token_allowance(),
+        )
+        return has_runtime_progress_after_request, livelock_ceiling
+
+    def _wait_for_generation_result_ceiling_about_fire(self, request_started_at):
+        # Which ceiling is about to fire matters, because the two mean
+        # opposite things about the worker.
+        #
+        # The LIVELOCK ceiling is the formula above — heartbeats with
+        # zero tokens for far longer than any healthy generation. That
+        # is a wedged worker and recycling it is correct.
+        #
+        # The DEADLINE ceiling is the caller's remaining wall-clock
+        # minus a small reserve. Hitting it says nothing about the
+        # worker's health; it says this turn ran out of time. The
+        # abandonment branch below tests the two apart before it
+        # decides whether to throw away a warm 20GB model.
+        elapsed_without_token = time.time() - request_started_at
+        # Reading the prompt is not silence.
+        #
+        # A first-token deadline asks "has anything come out yet",
+        # and before the first token can exist the whole prompt has
+        # to be read. On this host that is measured at about 720
+        # tokens a second, so a two-thousand-token prompt spends
+        # nearly three seconds in prefill by design — and a caller
+        # whose budget is four seconds cancels the request at the
+        # moment prefill finishes, every time, for reasons that have
+        # nothing to do with the worker.
+        #
+        # LIVE 2026-08-26: every decision she made while playing was
+        # cancelled this way. "her reasoning produced nothing (no
+        # text came back)" over and over, so she chose her moves from
+        # the consequence record alone and never held a plan — which
+        # from outside looks exactly like a mind that is not
+        # thinking.
+        #
+        # Prefill progress is progress, and stronger evidence than
+        # the heartbeat already consulted here: a worker advancing
+        # through the prompt is doing the work that produces the
+        # first token. The livelock ceiling still applies, so a
+        # genuinely wedged prefill is still caught.
+        prefilling = (
+            self._current_prefill_tokens_total > 0
+            and self._current_prefill_tokens_processed
+            < self._current_prefill_tokens_total
+            and (time.time() - self._last_progress_at) < 5.0
+        )
+        return elapsed_without_token, prefilling
+
+    def _wait_for_generation_result_ceiling_fired_decides(self, elapsed_without_token, first_token_sla, foreground_request, future, hard_first_token_ceiling, livelock_ceiling, req_id):
+        # Which ceiling fired decides what this line is allowed to
+        # claim. hard_first_token_ceiling is min(livelock, the
+        # caller's deadline), so exceeding it usually means the
+        # TURN ran out of budget, not that the worker is wedged.
+        # The branch below already tested the two apart correctly
+        # and kept the warm lane; only this message did not, and
+        # it is the one a person reads. Live 2026-08-03, two
+        # consecutive lines:
+        #
+        #   🛑 HARD CEILING exceeded (livelocked: heartbeats but
+        #      zero tokens) ... 18.4s elapsed, hard=16.8s
+        #   ⏱️ ...but is healthy (heartbeat 0.7s ago, livelock
+        #      ceiling 20.0s). KEEPING the warm lane.
+        #
+        # 18.4s was under the 20.0s livelock ceiling. Nothing was
+        # livelocked. Reporting a budget overrun as a wedged
+        # worker sends someone hunting a fault that did not
+        # happen — and at error severity it recruits the incident
+        # machinery to hunt it too.
+        livelocked = elapsed_without_token > livelock_ceiling
+        if livelocked:
+            logger.error(
+                "🛑 [MLX] First-token LIVELOCK for %s: heartbeats but zero tokens "
+                "in %.1fs (livelock ceiling %.1fs, sla=%.1fs).",
+                os.path.basename(self.model_path),
+                elapsed_without_token,
+                livelock_ceiling,
+                first_token_sla,
+            )
+        elif elapsed_without_token > hard_first_token_ceiling:
+            logger.warning(
+                "⏱️ [MLX] First-token deadline exceeded for %s (%.1fs elapsed, "
+                "turn budget %.1fs, sla=%.1fs). The worker is not wedged — the "
+                "livelock ceiling is %.1fs.",
+                os.path.basename(self.model_path),
+                elapsed_without_token,
+                hard_first_token_ceiling,
+                first_token_sla,
+                livelock_ceiling,
+            )
+        else:
+            logger.warning(
+                "⏱️ [MLX] First-token SLA exceeded for %s (%.1fs elapsed, "
+                "sla=%.1fs) with no runtime progress.",
+                os.path.basename(self.model_path),
+                elapsed_without_token,
+                first_token_sla,
+            )
+        self._pending_generations.pop(req_id, None)
+        self._record_degraded_event(
+            "first_token_sla_exceeded",
+            detail=(
+                f"{os.path.basename(self.model_path)}>{first_token_sla:.1f}s"
+                f"{self._pressure_receipt_suffix()}"
+            ),
+            # A healthy worker that ran past this turn's budget is
+            # expected backpressure, which CLAUDE.md says to record
+            # below error. Only a real livelock is an error.
+            severity="error" if livelocked else "warning",
+            foreground_request=foreground_request,
+        )
+        # If we abandon a foreground generation, its eventual
+        # output must never survive into the next turn. Fresh
+        # heartbeats mean this is recoverable, not that the warm
+        # lane is safe to keep carrying an orphaned request.
+        heartbeat_age = (
+            time.time() - self._last_heartbeat if self._last_heartbeat > 0 else 999.0
+        )
+        # LIVE DEFECT, 2026-07-25. Bryan asked a follow-up and got
+        # nothing back. The trace:
+        #
+        #   First-token HARD CEILING exceeded (82.5s, hard=82.0s)
+        #   Cortex still sending heartbeats (1.8s ago). Recycling...
+        #   Abort ... arrived after the generation finished;
+        #     nothing to abort, leaving the worker up.
+        #
+        # The 82.0s ceiling was not the livelock formula — that
+        # computes ~450s here. It was the caller's deadline minus
+        # the reserve, from an 86s inference-gate budget. And the
+        # generation FINISHED, a few seconds after we stopped
+        # waiting. The worker was never wedged; the turn was
+        # simply slower than its budget under 80% RAM.
+        #
+        # Recycling it cost a 20GB reload, which made the NEXT
+        # turn slower, which made the next deadline likelier to
+        # expire. That is the cascade, and the recycle was the
+        # part of it we chose.
+        #
+        # Orphaned output is already fenced three ways below and
+        # above: the pending generation is dropped, the request id
+        # no longer matches, and the worker is soft-cancelled
+        # between tokens. Destroying a warm 20GB model was never
+        # what kept late text out of the next turn.
+        #
+        # `livelocked` is computed once above, where it also picks
+        # the wording of the line the operator reads.
+        if heartbeat_age > 30.0:
+            self._deferred_reboot_reason = "first_token_sla_exceeded"
+        elif livelocked:
+            logger.warning(
+                "🛡️ [MLX] Cortex still sending heartbeats (%.1fs ago) but produced "
+                "no token in %.1fs (livelock ceiling %.1fs). Recycling the lane.",
+                heartbeat_age,
+                elapsed_without_token,
+                livelock_ceiling,
+            )
+            self._deferred_reboot_reason = "recoverable_first_token_sla_exceeded"
+        else:
+            logger.warning(
+                "⏱️ [MLX] Cortex ran past this turn's deadline (%.1fs elapsed, "
+                "budget %.1fs) but is healthy (heartbeat %.1fs ago, livelock "
+                "ceiling %.1fs). Cancelling the request and KEEPING the warm lane.",
+                elapsed_without_token,
+                hard_first_token_ceiling,
+                heartbeat_age,
+                livelock_ceiling,
+            )
+            self._record_degraded_event(
+                "first_token_deadline_exceeded_worker_healthy",
+                detail=(
+                    f"{os.path.basename(self.model_path)}"
+                    f">{hard_first_token_ceiling:.1f}s"
+                    f"{self._pressure_receipt_suffix()}"
+                ),
+                severity="warning",
+                foreground_request=foreground_request,
+            )
+            # We chose to end this generation while the worker was
+            # healthy. Publish that so the router scores the empty
+            # result as our deferral rather than as Cortex damage.
+            self._deliberate_no_text_reason = (
+                "first_token_deadline_exceeded_worker_healthy"
+            )
+        # Ask the worker to drop the orphaned generation between
+        # tokens — the abandoned output then never arrives at all,
+        # instead of relying solely on a worker recycle.
+        self.soft_cancel_active_generation("abandoned_first_token_sla")
+        _cancel_shared_future(future)
+
+    def _wait_for_generation_result_part_7(self, foreground_request, future, req_id, token_stall_after):
+        logger.error(
+            "🛑 [MLX] Token progress stalled during generation for %s (>%.1fs).",
+            os.path.basename(self.model_path),
+            token_stall_after,
+        )
+        self._pending_generations.pop(req_id, None)
+        self._record_degraded_event(
+            "token_progress_stalled",
+            detail=(
+                f"{os.path.basename(self.model_path)}>{token_stall_after:.1f}s"
+                f"{self._pressure_receipt_suffix()}"
+            ),
+            severity="error",
+            foreground_request=foreground_request,
+        )
+        # Same principle as the first-token SLA: fresh heartbeats
+        # keep this recoverable, but the abandoned generation must
+        # be isolated from future foreground turns.
+        heartbeat_age = (
+            time.time() - self._last_heartbeat if self._last_heartbeat > 0 else 999.0
+        )
+        if heartbeat_age > 30.0:
+            self._deferred_reboot_reason = "token_progress_stalled"
+        else:
+            logger.warning(
+                "🛡️ [MLX] Cortex still sending heartbeats (%.1fs ago). "
+                "Recycling after this abandoned foreground request so late text cannot bleed into the next turn.",
+                heartbeat_age,
+            )
+            self._deferred_reboot_reason = "recoverable_token_progress_stalled"
+        self.soft_cancel_active_generation("abandoned_token_stall")
+        _cancel_shared_future(future)
+
     async def _wait_for_generation_result(
         self,
         req_id: str,
@@ -11410,78 +11834,14 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
         )
         progress_owned_completion = progress_owned_completion and foreground_request
         while progress_owned_completion or (time.monotonic() - wait_started) <= hard_cap:
-            remaining = deadline.remaining
-            if not progress_owned_completion and remaining is not None and remaining <= 0.0:
-                if not self._still_producing(
-                    within_s=token_stall_after, foreground_request=foreground_request
-                ):
-                    raise TimeoutError
-                # Tokens are still arriving, so the answer is being written.
-                # Cancelling here throws away work that is going fine, and
-                # what comes back instead is half a reply or an apology.
-                #
-                # This runtime serves one person on one laptop. Nothing is
-                # queued behind this turn and nothing is being billed, so the
-                # only thing a deadline buys is the illusion of control over
-                # something that is already working. What actually needs
-                # catching — a wedged worker, a decode looping forever — is
-                # caught by the stall checks below and by the sentinel that
-                # reads the output, neither of which asks what time it is.
-                #
-                # Still bounded: the hard cap above ends the wait for anything
-                # pathological, and a generation that goes quiet fails on the
-                # very next slice.
-                if not self._said_it_is_taking_longer:
-                    self._said_it_is_taking_longer = True
-                    logger.info(
-                        "⏳ [MLX] Past the deadline and still producing tokens; "
-                        "waiting for the answer rather than cancelling it "
-                        "(bounded at %.0fs).",
-                        hard_cap,
-                    )
-
-            # An expired soft deadline can still have an active decode. A
-            # zero-second future wait spins the parent instead of observing it.
-            slice_timeout = 2.0
-            if not progress_owned_completion:
-                if remaining and remaining > 0.0:
-                    slice_timeout = min(slice_timeout, remaining)
-                slice_timeout = min(
-                    slice_timeout, max(0.001, hard_cap - (time.monotonic() - wait_started))
-                )
+            slice_timeout = self._wait_for_generation_result_remaining(deadline, foreground_request, hard_cap, progress_owned_completion, token_stall_after, wait_started)
             try:
                 return await _await_shared_future(future, timeout_s=slice_timeout)
             except TimeoutError:
                 if future.done():
                     return future.result()
 
-                self._rebase_after_system_sleep()
-
-                # OBSERVATION and ENFORCEMENT are separated. They used to share
-                # one try block, so a failure while ABORTING (queue cleanup,
-                # future cancellation) was reported as "probe unavailable" and
-                # the loop kept waiting with lifecycle state half-cleared —
-                # the request neither aborted nor honestly failed.
-                memory_snapshot = None
-                try:
-                    memory_snapshot = await asyncio.to_thread(get_memory_pressure_snapshot)
-                    if memory_snapshot.should_gc:
-                        await asyncio.to_thread(gc.collect)
-                except (OSError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-                    # Unobserved pressure is not observed headroom. Heavy lanes
-                    # are the allocation that pushes this host over, so a blind
-                    # probe is recorded rather than shrugged off at debug.
-                    if self._is_primary_or_deep_lane():
-                        _record_mlx_degradation(
-                            exc,
-                            action=(
-                                "live memory-pressure probe unavailable during heavy "
-                                "generation; abort decision could not be made"
-                            ),
-                            severity="warning",
-                        )
-                    else:
-                        logger.debug("MLX live memory pressure probe unavailable: %s", exc)
+                memory_snapshot = await self._wait_for_generation_result_part_2()
 
                 if (
                     memory_snapshot is not None
@@ -11496,49 +11856,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                         observed=(f"{os.path.basename(self.model_path)}:{memory_snapshot.reason}"),
                     )
                     if not live_override.active:
-                        logger.error(
-                            "🛑 [MLX] Aborting generation for %s under live memory pressure: %s",
-                            os.path.basename(self.model_path),
-                            memory_snapshot.reason,
-                        )
-                        self._pending_generations.pop(req_id, None)
-                        self._record_degraded_event(
-                            "generation_aborted_memory_pressure",
-                            detail=f"{os.path.basename(self.model_path)}:{memory_snapshot.reason}",
-                            severity="critical",
-                            foreground_request=foreground_request,
-                        )
-                        try:
-                            self.force_abort_active_generation("memory_pressure_during_generation")
-                            _cancel_shared_future(future)
-                        except (
-                            OSError,
-                            AttributeError,
-                            RuntimeError,
-                            TypeError,
-                            ValueError,
-                        ) as abort_exc:
-                            # The abort itself failed. Critical pressure WAS
-                            # observed and cleanup cannot be proven, so the
-                            # request ends terminally with that on the record
-                            # instead of quietly resuming the wait.
-                            _record_mlx_degradation(
-                                abort_exc,
-                                action=(
-                                    "memory-pressure abort failed; generation state "
-                                    "could not be proven clean"
-                                ),
-                                severity="critical",
-                            )
-                            self._record_degraded_event(
-                                "generation_abort_failed_memory_pressure",
-                                detail=(
-                                    f"{os.path.basename(self.model_path)}:"
-                                    f"{type(abort_exc).__name__}"
-                                ),
-                                severity="critical",
-                                foreground_request=foreground_request,
-                            )
+                        self._wait_for_generation_result_part_3(foreground_request, future, memory_snapshot, req_id)
                         return None
 
                 if self._process is not None and not self._process.is_alive():
@@ -11558,49 +11876,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
 
                 self._refresh_worker_job_activity()
                 request_started_at = self._current_request_started_at
-                current_runtime_progress = max(
-                    self._last_heartbeat,
-                    self._last_progress_at,
-                    self._last_ready_at,
-                )
-                progress_baseline = float(
-                    getattr(self, "_current_request_progress_baseline_at", 0.0) or 0.0
-                )
-                has_runtime_progress_after_request = current_runtime_progress > max(
-                    request_started_at + 0.5,
-                    progress_baseline + 0.5,
-                )
-                # Heartbeats stretch the first-token SLA; they never waive
-                # it. Round 14 live proof: a LIVELOCKED generation (worker
-                # heartbeating, zero tokens) ran 185s to the endpoint
-                # deadline because runtime progress exempted it forever.
-                # Past the hard ceiling, silence is wedged no matter how
-                # alive the worker claims to be.
-                livelock_ceiling = self._first_token_hard_ceiling(
-                    foreground_request=foreground_request
-                )
-                # Reading a long question is not silence.
-                #
-                # The livelock ceiling asks how long a worker may go without
-                # producing a token before it is wedged, and it was answered
-                # without reference to how much there was to read. A prompt of
-                # 8,618 characters takes about eighteen seconds to prefill at
-                # the rate this host was measured at, and the ceiling was
-                # twenty: LIVE 2026-08-26, "Cortex still sending heartbeats
-                # (1.8s ago) but produced no token in 20.2s. Recycling the
-                # lane." Every large question recycled a warm 20GB model,
-                # which made the next one slower still.
-                #
-                # The same floor the request ceiling already uses. It only
-                # ever raises this, and only by what the reading actually
-                # costs.
-                livelock_ceiling = max(
-                    livelock_ceiling,
-                    self._prefill_floor_seconds(self._current_prompt_chars),
-                    # A lane that has never produced a token is still reading
-                    # its weights. Silence there is the load, not a wedge.
-                    self._cold_lane_first_token_allowance(),
-                )
+                has_runtime_progress_after_request, livelock_ceiling = self._wait_for_generation_result_current_runtime_progress(foreground_request, request_started_at)
                 hard_first_token_ceiling = livelock_ceiling
                 request_hard_ceiling = float(
                     getattr(self, "_current_first_token_hard_ceiling_s", 0.0) or 0.0
@@ -11610,48 +11886,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                         hard_first_token_ceiling,
                         request_hard_ceiling,
                     )
-                # Which ceiling is about to fire matters, because the two mean
-                # opposite things about the worker.
-                #
-                # The LIVELOCK ceiling is the formula above — heartbeats with
-                # zero tokens for far longer than any healthy generation. That
-                # is a wedged worker and recycling it is correct.
-                #
-                # The DEADLINE ceiling is the caller's remaining wall-clock
-                # minus a small reserve. Hitting it says nothing about the
-                # worker's health; it says this turn ran out of time. The
-                # abandonment branch below tests the two apart before it
-                # decides whether to throw away a warm 20GB model.
-                elapsed_without_token = time.time() - request_started_at
-                # Reading the prompt is not silence.
-                #
-                # A first-token deadline asks "has anything come out yet",
-                # and before the first token can exist the whole prompt has
-                # to be read. On this host that is measured at about 720
-                # tokens a second, so a two-thousand-token prompt spends
-                # nearly three seconds in prefill by design — and a caller
-                # whose budget is four seconds cancels the request at the
-                # moment prefill finishes, every time, for reasons that have
-                # nothing to do with the worker.
-                #
-                # LIVE 2026-08-26: every decision she made while playing was
-                # cancelled this way. "her reasoning produced nothing (no
-                # text came back)" over and over, so she chose her moves from
-                # the consequence record alone and never held a plan — which
-                # from outside looks exactly like a mind that is not
-                # thinking.
-                #
-                # Prefill progress is progress, and stronger evidence than
-                # the heartbeat already consulted here: a worker advancing
-                # through the prompt is doing the work that produces the
-                # first token. The livelock ceiling still applies, so a
-                # genuinely wedged prefill is still caught.
-                prefilling = (
-                    self._current_prefill_tokens_total > 0
-                    and self._current_prefill_tokens_processed
-                    < self._current_prefill_tokens_total
-                    and (time.time() - self._last_progress_at) < 5.0
-                )
+                elapsed_without_token, prefilling = self._wait_for_generation_result_ceiling_about_fire(request_started_at)
                 advancing_prefill = (
                     self._current_prefill_tokens_total > 0
                     and self._current_prefill_tokens_processed < self._current_prefill_tokens_total
@@ -11690,144 +11925,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                         or elapsed_without_token > hard_first_token_ceiling
                     )
                 ):
-                    # Which ceiling fired decides what this line is allowed to
-                    # claim. hard_first_token_ceiling is min(livelock, the
-                    # caller's deadline), so exceeding it usually means the
-                    # TURN ran out of budget, not that the worker is wedged.
-                    # The branch below already tested the two apart correctly
-                    # and kept the warm lane; only this message did not, and
-                    # it is the one a person reads. Live 2026-08-03, two
-                    # consecutive lines:
-                    #
-                    #   🛑 HARD CEILING exceeded (livelocked: heartbeats but
-                    #      zero tokens) ... 18.4s elapsed, hard=16.8s
-                    #   ⏱️ ...but is healthy (heartbeat 0.7s ago, livelock
-                    #      ceiling 20.0s). KEEPING the warm lane.
-                    #
-                    # 18.4s was under the 20.0s livelock ceiling. Nothing was
-                    # livelocked. Reporting a budget overrun as a wedged
-                    # worker sends someone hunting a fault that did not
-                    # happen — and at error severity it recruits the incident
-                    # machinery to hunt it too.
-                    livelocked = elapsed_without_token > livelock_ceiling
-                    if livelocked:
-                        logger.error(
-                            "🛑 [MLX] First-token LIVELOCK for %s: heartbeats but zero tokens "
-                            "in %.1fs (livelock ceiling %.1fs, sla=%.1fs).",
-                            os.path.basename(self.model_path),
-                            elapsed_without_token,
-                            livelock_ceiling,
-                            first_token_sla,
-                        )
-                    elif elapsed_without_token > hard_first_token_ceiling:
-                        logger.warning(
-                            "⏱️ [MLX] First-token deadline exceeded for %s (%.1fs elapsed, "
-                            "turn budget %.1fs, sla=%.1fs). The worker is not wedged — the "
-                            "livelock ceiling is %.1fs.",
-                            os.path.basename(self.model_path),
-                            elapsed_without_token,
-                            hard_first_token_ceiling,
-                            first_token_sla,
-                            livelock_ceiling,
-                        )
-                    else:
-                        logger.warning(
-                            "⏱️ [MLX] First-token SLA exceeded for %s (%.1fs elapsed, "
-                            "sla=%.1fs) with no runtime progress.",
-                            os.path.basename(self.model_path),
-                            elapsed_without_token,
-                            first_token_sla,
-                        )
-                    self._pending_generations.pop(req_id, None)
-                    self._record_degraded_event(
-                        "first_token_sla_exceeded",
-                        detail=(
-                            f"{os.path.basename(self.model_path)}>{first_token_sla:.1f}s"
-                            f"{self._pressure_receipt_suffix()}"
-                        ),
-                        # A healthy worker that ran past this turn's budget is
-                        # expected backpressure, which CLAUDE.md says to record
-                        # below error. Only a real livelock is an error.
-                        severity="error" if livelocked else "warning",
-                        foreground_request=foreground_request,
-                    )
-                    # If we abandon a foreground generation, its eventual
-                    # output must never survive into the next turn. Fresh
-                    # heartbeats mean this is recoverable, not that the warm
-                    # lane is safe to keep carrying an orphaned request.
-                    heartbeat_age = (
-                        time.time() - self._last_heartbeat if self._last_heartbeat > 0 else 999.0
-                    )
-                    # LIVE DEFECT, 2026-07-25. Bryan asked a follow-up and got
-                    # nothing back. The trace:
-                    #
-                    #   First-token HARD CEILING exceeded (82.5s, hard=82.0s)
-                    #   Cortex still sending heartbeats (1.8s ago). Recycling...
-                    #   Abort ... arrived after the generation finished;
-                    #     nothing to abort, leaving the worker up.
-                    #
-                    # The 82.0s ceiling was not the livelock formula — that
-                    # computes ~450s here. It was the caller's deadline minus
-                    # the reserve, from an 86s inference-gate budget. And the
-                    # generation FINISHED, a few seconds after we stopped
-                    # waiting. The worker was never wedged; the turn was
-                    # simply slower than its budget under 80% RAM.
-                    #
-                    # Recycling it cost a 20GB reload, which made the NEXT
-                    # turn slower, which made the next deadline likelier to
-                    # expire. That is the cascade, and the recycle was the
-                    # part of it we chose.
-                    #
-                    # Orphaned output is already fenced three ways below and
-                    # above: the pending generation is dropped, the request id
-                    # no longer matches, and the worker is soft-cancelled
-                    # between tokens. Destroying a warm 20GB model was never
-                    # what kept late text out of the next turn.
-                    #
-                    # `livelocked` is computed once above, where it also picks
-                    # the wording of the line the operator reads.
-                    if heartbeat_age > 30.0:
-                        self._deferred_reboot_reason = "first_token_sla_exceeded"
-                    elif livelocked:
-                        logger.warning(
-                            "🛡️ [MLX] Cortex still sending heartbeats (%.1fs ago) but produced "
-                            "no token in %.1fs (livelock ceiling %.1fs). Recycling the lane.",
-                            heartbeat_age,
-                            elapsed_without_token,
-                            livelock_ceiling,
-                        )
-                        self._deferred_reboot_reason = "recoverable_first_token_sla_exceeded"
-                    else:
-                        logger.warning(
-                            "⏱️ [MLX] Cortex ran past this turn's deadline (%.1fs elapsed, "
-                            "budget %.1fs) but is healthy (heartbeat %.1fs ago, livelock "
-                            "ceiling %.1fs). Cancelling the request and KEEPING the warm lane.",
-                            elapsed_without_token,
-                            hard_first_token_ceiling,
-                            heartbeat_age,
-                            livelock_ceiling,
-                        )
-                        self._record_degraded_event(
-                            "first_token_deadline_exceeded_worker_healthy",
-                            detail=(
-                                f"{os.path.basename(self.model_path)}"
-                                f">{hard_first_token_ceiling:.1f}s"
-                                f"{self._pressure_receipt_suffix()}"
-                            ),
-                            severity="warning",
-                            foreground_request=foreground_request,
-                        )
-                        # We chose to end this generation while the worker was
-                        # healthy. Publish that so the router scores the empty
-                        # result as our deferral rather than as Cortex damage.
-                        self._deliberate_no_text_reason = (
-                            "first_token_deadline_exceeded_worker_healthy"
-                        )
-                    # Ask the worker to drop the orphaned generation between
-                    # tokens — the abandoned output then never arrives at all,
-                    # instead of relying solely on a worker recycle.
-                    self.soft_cancel_active_generation("abandoned_first_token_sla")
-                    _cancel_shared_future(future)
+                    self._wait_for_generation_result_ceiling_fired_decides(elapsed_without_token, first_token_sla, foreground_request, future, hard_first_token_ceiling, livelock_ceiling, req_id)
                     return None
 
                 # Reading is work here too, and this clock could not see it.
@@ -11862,38 +11960,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                     and last_token_progress > 0.0
                     and (time.time() - last_token_progress) > token_stall_after
                 ):
-                    logger.error(
-                        "🛑 [MLX] Token progress stalled during generation for %s (>%.1fs).",
-                        os.path.basename(self.model_path),
-                        token_stall_after,
-                    )
-                    self._pending_generations.pop(req_id, None)
-                    self._record_degraded_event(
-                        "token_progress_stalled",
-                        detail=(
-                            f"{os.path.basename(self.model_path)}>{token_stall_after:.1f}s"
-                            f"{self._pressure_receipt_suffix()}"
-                        ),
-                        severity="error",
-                        foreground_request=foreground_request,
-                    )
-                    # Same principle as the first-token SLA: fresh heartbeats
-                    # keep this recoverable, but the abandoned generation must
-                    # be isolated from future foreground turns.
-                    heartbeat_age = (
-                        time.time() - self._last_heartbeat if self._last_heartbeat > 0 else 999.0
-                    )
-                    if heartbeat_age > 30.0:
-                        self._deferred_reboot_reason = "token_progress_stalled"
-                    else:
-                        logger.warning(
-                            "🛡️ [MLX] Cortex still sending heartbeats (%.1fs ago). "
-                            "Recycling after this abandoned foreground request so late text cannot bleed into the next turn.",
-                            heartbeat_age,
-                        )
-                        self._deferred_reboot_reason = "recoverable_token_progress_stalled"
-                    self.soft_cancel_active_generation("abandoned_token_stall")
-                    _cancel_shared_future(future)
+                    self._wait_for_generation_result_part_7(foreground_request, future, req_id, token_stall_after)
                     return None
 
                 last_progress = max(
@@ -12738,6 +12805,387 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                         severity="error",
                     )
 
+    def _generate_inner_contract_generation_floor(self, adaptive_suggested_max_tokens, foreground_request, hard_output_token_ceiling, kwargs, progress_owned_completion, requested_output_contract):
+        contract_generation_floor = _requested_output_contract_generation_floor(
+            requested_output_contract
+        )
+        generation_max_tokens = _bounded_generation_max_tokens(
+            kwargs.get("max_tokens", self.max_tokens),
+            adaptive_suggested_max_tokens,
+            hard_output_token_ceiling,
+            self.max_tokens,
+            requested_output_contract,
+            user_surface_completion_floor=kwargs.get(
+                "user_surface_completion_floor"
+            ),
+            preserve_user_surface_completion_floor=bool(
+                kwargs.get("clean_user_surface_contract", False)
+            ),
+            preserve_admitted_capacity=bool(
+                progress_owned_completion and foreground_request
+            ),
+            # A call that carries a program is sized by what it has to say,
+            # not by how depleted she is.
+            tool_call_floor=(
+                kwargs.get("max_tokens")
+                if _tools_can_carry_a_document(_offered_for_budgeting(kwargs))
+                else None
+            ),
+        )
+        return contract_generation_floor, generation_max_tokens
+
+    def _generate_inner_whether_somebody_waiting(self, _bridge, foreground_request, kwargs, progress_owned_completion, req):
+        # Whether somebody is waiting for this one. The worker lets a
+        # foreground generation that is still producing tokens run past its
+        # deadline rather than cancelling a working answer; background work
+        # still yields, so a dream cycle cannot sit on the one GPU while a
+        # person waits.
+        req["foreground_request"] = bool(foreground_request)
+        req["progress_owned_completion"] = bool(progress_owned_completion and foreground_request)
+
+        # CP126 cac5c1a3: normalise the sampling parameters BEFORE the
+        # mandatory stop sequences are appended, so the caller's list is
+        # bounded and typed and the defaults below are never displaced by it.
+        sampling_faults = _normalize_generation_params(req)
+        if sampling_faults:
+            req["sampling_contract_faults"] = sampling_faults
+            _record_mlx_degradation(
+                ValueError(f"generation parameters out of contract: {sampling_faults}"),
+                action="substituted defaults for out-of-contract sampling parameters",
+                severity="warning",
+            )
+
+        # [STABILITY v57/v61] Add default stop sequences to prevent prompt bleed.
+        # Keep human-readable role labels line-boundary anchored. Bare labels
+        # like ``Assistant:`` can occur in normal prose and caused valid live
+        # answers to be clipped before the response reliability gate saw them.
+        default_stops = [
+            "<|im_end|>",
+            "<|im_start|>",
+            "\nuser:",
+            "\nassistant:",
+            "\nUser:",
+            "\nAssistant:",
+        ]
+        for stop in default_stops:
+            if stop not in req["stop_sequences"]:
+                req["stop_sequences"].append(stop)
+        # z_Aura rides along the same way. The worker cannot reach the
+        # substrate, the goal system, or anything else in this process, so
+        # the state travels as declared floats on the job. A worker with no
+        # trained head ignores the field; the receipt says which happened.
+        attach_endogenous_state(
+            req,
+            model_path=self.model_path,
+            override=kwargs.get("endogenous_state"),
+        )
+
+        # Activation-steering offsets ride along when present; the worker
+        # consumes them if its build supports residual-stream injection,
+        # otherwise it ignores the field with no harm.
+        if _bridge is not None and getattr(_bridge, "layer_offsets", None):
+            req["layer_offsets"] = _bridge.layer_offsets
+        if _bridge is not None and getattr(_bridge, "extra_stop_sequences", None):
+            # EXTEND the request's stop list — rebuilding it from the caller
+            # kwargs erased every mandatory anti-bleed default appended above.
+            for stop in _bridge.extra_stop_sequences:
+                if stop not in req["stop_sequences"]:
+                    req["stop_sequences"].append(stop)
+
+    def _generate_inner_part_3(self, deadline, foreground_request, fut, prompt, req, req_id):
+        self._pending_generations[req_id] = fut
+        self._current_gen_future = fut
+        self._active_generations += 1
+        self._active_generation_started_at = time.time()
+        first_token_hard_ceiling = self._deadline_bound_first_token_hard_ceiling(
+            deadline.remaining,
+            foreground_request=foreground_request,
+        )
+        self._mark_generation_started(
+            req_id,
+            prompt_chars=len(prompt or ""),
+            requested_max_tokens=req.get("max_tokens", self.max_tokens),
+            first_token_hard_ceiling_s=first_token_hard_ceiling,
+            request_seq=int(req.get("seq", 0)),
+        )
+        foreground_watchdog = self._start_foreground_first_token_watchdog(
+            req_id,
+            foreground_request=foreground_request,
+            hard_ceiling_s=first_token_hard_ceiling,
+        )
+        # Ship the caller's production deadline to the worker so its decode
+        # loop can stop cooperatively instead of burning GPU past the point
+        # anyone is waiting (the worker previously had NO request deadline —
+        # only the 360s hard watchdog).
+        try:
+            _remaining_s = float(deadline.remaining or 0.0)
+            if _remaining_s > 0.0:
+                # Reserve a DELIVERY MARGIN. A cooperative stop is only worth
+                # anything if the partial answer can cross IPC and be consumed
+                # before the caller's own deadline. Handing the worker the
+                # caller's full remaining budget made the two expire together,
+                # so a decode that stopped politely at token 149 was abandoned
+                # by a gate that had already given up — measured live as
+                # "Cortex consumed 77.5s without usable text" immediately
+                # followed by "Abort arrived after the generation finished;
+                # nothing to abort, leaving the worker up". The tokens existed;
+                # nobody was left waiting for them.
+                #
+                # The floor keeps the margin from eating a short budget whole:
+                # a worker that gets less than half the request is worse than
+                # one that occasionally misses the handoff.
+                _delivery_margin_s = max(1.5, min(6.0, _remaining_s * 0.08))
+                _worker_budget_s = max(
+                    _remaining_s * 0.5, _remaining_s - _delivery_margin_s
+                )
+                req["deadline_unix"] = time.time() + _worker_budget_s
+        except (AttributeError, TypeError, ValueError):
+            logger.debug("Request deadline unavailable; worker decodes unbounded.")
+        # CP126 a838a49b: this used to read
+        # `max(0.5, min(2.0, deadline.remaining or 2.0))`, which turned an
+        # ALREADY-EXPIRED budget (remaining == 0.0, falsy) into a 2-second
+        # wait and floored every sub-half-second remainder up to 0.5s — so a
+        # request could block past its own hard deadline and seed exactly the
+        # ownership/event-loop cascades this path exists to prevent. Never
+        # enqueue past the deadline; refuse instead.
+        _enqueue_remaining = 0.0
+        try:
+            _enqueue_remaining = max(0.0, float(deadline.remaining or 0.0))
+        except (AttributeError, TypeError, ValueError):
+            _enqueue_remaining = 2.0
+        return _enqueue_remaining, foreground_watchdog
+
+    def _generate_inner_part_4(self, foreground_request, owner_label, prompt, res):
+        self._record_surface_control_receipt_from_response(res)
+        self._record_throughput_sample(
+            res,
+            prompt=prompt,
+            foreground_request=foreground_request,
+        )
+        self._record_interoception_from_response(
+            res,
+            foreground_request=foreground_request,
+            owner_label=owner_label,
+        )
+        raw_text = res.get("text", "")
+        if not isinstance(raw_text, str):
+            # A malformed cross-process payload must fail through the
+            # typed empty-response path, not raise AttributeError.
+            _record_mlx_degradation(
+                TypeError(f"worker text payload was {type(raw_text).__name__}"),
+                action="treated non-string worker text as empty response",
+            )
+            raw_text = ""
+        text = raw_text.strip()
+        self._mark_progress()
+        generation_stop_reason = str(
+            res.get("generation_stop_reason") or ""
+        ).strip().lower()
+        return generation_stop_reason, text
+
+    def _generate_inner_cooperative_stop(self, generation_stop_reason, kwargs, res, text):
+        cooperative_stop = bool(
+            res.get("soft_cancelled")
+            or generation_stop_reason in {
+                "soft_cancelled",
+                "deadline_exceeded",
+            }
+        )
+        quality_rejection_reasons = _surface_quality_rejection_reasons(
+            self.get_last_surface_control_receipt()
+        )
+        # A tool call is not prose and must not be judged as prose.
+        #
+        # The surface quality gate reads a draft as an answer somebody
+        # is about to be shown: prompt artifacts, boilerplate, leaked
+        # internal text. A generation that was offered tools and
+        # answered with a tool call is none of those. It is the model
+        # saying what to run next, and the loop that offered the tools
+        # is the thing waiting to read it.
+        #
+        # LIVE 2026-08-29: asked to read a library's docs and use it,
+        # turn four of the tool loop emitted a complete, correct
+        # code_repl call — the right library, the right arguments, the
+        # invoice posted the right way round. It was rejected as
+        # "prompt_artifact" because it is angle brackets rather than
+        # sentences, the generation returned nothing, and the turn
+        # ended on "I couldn't get to an answer I'd stand behind"
+        # after four successful tool calls.
+        #
+        # Only a complete, parseable call earns this, and only when
+        # the request actually offered tools. Everything else the gate
+        # catches, it still catches.
+        if quality_rejection_reasons and text and kwargs.get("tools"):
+            if _text_is_a_complete_tool_call(text):
+                logger.info(
+                    "🔧 [MLX] the draft the quality gate refused (%s) is a "
+                    "complete tool call, and tools were offered — handing "
+                    "it to the loop that asked for it.",
+                    ",".join(quality_rejection_reasons),
+                )
+                quality_rejection_reasons = ()
+        return cooperative_stop, quality_rejection_reasons
+
+    def _generate_inner_worker_decoded_draft(self, quality_rejection_reasons):
+        # The worker decoded a draft but could not make it directly
+        # servable before this request ended. Keep it bound to the
+        # turn as suppressed recovery evidence; an empty result
+        # without that custody is indistinguishable from a model
+        # failure and needlessly opens the Cortex circuit.
+        self._preserve_lane_after_surface_quality_rejection()
+        self._record_suppressed_draft(
+            _rejected_surface_draft(
+                self.get_last_surface_control_receipt()
+            ),
+            _surface_quality_rejected_draft_reasons(
+                self.get_last_surface_control_receipt()
+            ),
+        )
+        # A gate that destroys an answer has to say what it
+        # destroyed. Without the text, a rejection is a label:
+        # nothing downstream, and nobody reading the log later, can
+        # tell a correct answer thrown away from a bad one caught.
+        #
+        # LIVE, 2026-08-27: a worked-through arithmetic derivation
+        # was rejected for internal_task_prompt_leak after two
+        # minutes of generation, and none of the three leak
+        # detectors fired on the text that had been served for the
+        # same question one turn earlier. The draft was preserved
+        # in memory as recovery evidence and never written down, so
+        # the reason it was rejected could not be reproduced.
+        _rejected_text = str(
+            _rejected_surface_draft(
+                self.get_last_surface_control_receipt()
+            )
+            or ""
+        )
+        logger.warning(
+            "🛡️ [MLX] Worker rejected the visible draft for semantic "
+            "quality (%s); preserving the resident lane. "
+            "draft_chars=%d head=%r tail=%r",
+            ",".join(quality_rejection_reasons),
+            len(_rejected_text),
+            _rejected_text[:400],
+            _rejected_text[-200:] if len(_rejected_text) > 400 else "",
+        )
+
+    async def _generate_inner_origin_label(self, foreground_request, kwargs, req_id):
+        origin_label = str(kwargs.get("origin", "") or "")
+        purpose_label = str(kwargs.get("purpose", "") or "")
+        expected_cancel_reason = self._consume_expected_generation_cancellation(req_id)
+        from core.runtime.what_stops_it import current as current_execution
+
+        owner_stopped = current_execution(whose="mlx_generation").stopping.stopped
+        # Cancelling the parent future does not reach the worker process.
+        # Signal only this request before cleanup clears its sequence.
+        if self._current_request_id == req_id:
+            cancellation = self.soft_cancel_active_generation("generation_caller_cancelled")
+            if cancellation.get("requested") and self.is_alive():
+                acknowledged = await asyncio.shield(self._soft_cancel_acknowledged())
+                if not acknowledged:
+                    self._deferred_reboot_reason = "cancelled_worker_not_acknowledged"
+                    self._record_degraded_event(
+                        "generation_cancel_not_acknowledged",
+                        detail=os.path.basename(self.model_path),
+                        severity="error",
+                        foreground_request=foreground_request,
+                    )
+        # CP126 9edfb10c. This used to be the labels alone, so ANY request
+        # could suppress a cancellation degradation by calling itself
+        # "baseline" — a self-signed excuse for the exact signal that says
+        # the lane is misbehaving. A benchmark cancellation is only
+        # expected when the PROCESS is actually a benchmark run, which is
+        # a property of how the runtime was launched and not of a string
+        # the request supplied about itself.
+        benchmark_baseline_cancel = _benchmark_run_context_active() and (
+            origin_label.strip().lower() == "baseline"
+            or purpose_label.strip().lower().endswith("_baseline")
+        )
+        shutdown_cancel = _runtime_shutdown_requested()
+        if expected_cancel_reason:
+            logger.info(
+                "🧹 [MLX] Generation cancelled for %s during expected reboot (%s).",
+                os.path.basename(self.model_path),
+                expected_cancel_reason,
+            )
+        elif owner_stopped:
+            logger.info(
+                "Generation cancelled for %s by its execution owner.",
+                os.path.basename(self.model_path),
+            )
+        elif benchmark_baseline_cancel:
+            logger.info(
+                "🧪 [MLX] Baseline generation cancelled for %s by benchmark timeout.",
+                os.path.basename(self.model_path),
+            )
+        elif shutdown_cancel:
+            logger.info(
+                "🛑 [MLX] Generation cancelled for %s during runtime shutdown.",
+                os.path.basename(self.model_path),
+            )
+        else:
+            logger.warning(
+                "🛑 [MLX] Generation cancelled for %s. Preserving worker unless it is unhealthy.",
+                os.path.basename(self.model_path),
+            )
+        self._pending_generations.pop(req_id, None)
+        if (
+            not expected_cancel_reason
+            and not owner_stopped
+            and not benchmark_baseline_cancel
+            and not shutdown_cancel
+            and (
+                foreground_request
+                or (
+                    self._is_primary_or_deep_lane()
+                    and self._lane_state not in {"cold", "warming", "recovering"}
+                )
+            )
+        ):
+            self._record_degraded_event(
+                "generation_cancelled",
+                detail=os.path.basename(self.model_path),
+                severity="warning",
+                foreground_request=foreground_request,
+            )
+        if not expected_cancel_reason and not shutdown_cancel and self._worker_unhealthy():
+            self._deferred_reboot_reason = "cancelled_unhealthy"
+        raise
+
+    def _generate_inner_person_turn_losing(self, foreground_request, fut, req_id):
+        # A person's turn losing its deadline is an error; a background
+        # request's budget running out under load is the backpressure the
+        # budget exists to apply, and the degraded event below records it.
+        logger.log(
+            logging.ERROR if foreground_request else logging.INFO,
+            "🛑 [MLX] Generation deadline reached for %s (%s).",
+            os.path.basename(self.model_path),
+            "foreground" if foreground_request else "background",
+        )
+        self._pending_generations.pop(req_id, None)
+        _cancel_shared_future(fut)
+        self._record_degraded_event(
+            "generation_deadline_reached",
+            detail=os.path.basename(self.model_path),
+            severity="warning",
+            foreground_request=foreground_request,
+        )
+        if self._worker_unhealthy(stale_after=self._stale_after(during_generation=True)):
+            self._deferred_reboot_reason = "generation_timeout_unhealthy"
+        else:
+            self._mark_healthy_generation_deadline(
+                foreground_request=foreground_request,
+            )
+        if foreground_request and self._deliberate_no_text_reason:
+            logger.warning(
+                "⏳ [MLX] Deadline reached while worker still looks healthy; "
+                "soft-cancelling the abandoned generation and preserving the warm lane."
+            )
+        elif self._deliberate_no_text_reason:
+            logger.warning(
+                "⏳ [MLX] Deadline reached but worker still looks healthy; leaving lane warm."
+            )
+
     async def _generate_inner(
         self,
         prompt: str,
@@ -12865,32 +13313,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             requested_output_contract = {}
         hard_output_token_ceiling = kwargs.get("hard_output_token_ceiling")
         adaptive_suggested_max_tokens = _bridge_get("max_tokens", self.max_tokens)
-        contract_generation_floor = _requested_output_contract_generation_floor(
-            requested_output_contract
-        )
-        generation_max_tokens = _bounded_generation_max_tokens(
-            kwargs.get("max_tokens", self.max_tokens),
-            adaptive_suggested_max_tokens,
-            hard_output_token_ceiling,
-            self.max_tokens,
-            requested_output_contract,
-            user_surface_completion_floor=kwargs.get(
-                "user_surface_completion_floor"
-            ),
-            preserve_user_surface_completion_floor=bool(
-                kwargs.get("clean_user_surface_contract", False)
-            ),
-            preserve_admitted_capacity=bool(
-                progress_owned_completion and foreground_request
-            ),
-            # A call that carries a program is sized by what it has to say,
-            # not by how depleted she is.
-            tool_call_floor=(
-                kwargs.get("max_tokens")
-                if _tools_can_carry_a_document(_offered_for_budgeting(kwargs))
-                else None
-            ),
-        )
+        contract_generation_floor, generation_max_tokens = self._generate_inner_contract_generation_floor(adaptive_suggested_max_tokens, foreground_request, hard_output_token_ceiling, kwargs, progress_owned_completion, requested_output_contract)
 
         prompt = _prompt_within_prefill_ceiling(prompt, model_path=self.model_path,
                                                 origin=str(kwargs.get("origin", "") or ""))
@@ -12909,62 +13332,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             requested_output_contract=requested_output_contract,
             self=self,
         )
-        # Whether somebody is waiting for this one. The worker lets a
-        # foreground generation that is still producing tokens run past its
-        # deadline rather than cancelling a working answer; background work
-        # still yields, so a dream cycle cannot sit on the one GPU while a
-        # person waits.
-        req["foreground_request"] = bool(foreground_request)
-        req["progress_owned_completion"] = bool(progress_owned_completion and foreground_request)
-
-        # CP126 cac5c1a3: normalise the sampling parameters BEFORE the
-        # mandatory stop sequences are appended, so the caller's list is
-        # bounded and typed and the defaults below are never displaced by it.
-        sampling_faults = _normalize_generation_params(req)
-        if sampling_faults:
-            req["sampling_contract_faults"] = sampling_faults
-            _record_mlx_degradation(
-                ValueError(f"generation parameters out of contract: {sampling_faults}"),
-                action="substituted defaults for out-of-contract sampling parameters",
-                severity="warning",
-            )
-
-        # [STABILITY v57/v61] Add default stop sequences to prevent prompt bleed.
-        # Keep human-readable role labels line-boundary anchored. Bare labels
-        # like ``Assistant:`` can occur in normal prose and caused valid live
-        # answers to be clipped before the response reliability gate saw them.
-        default_stops = [
-            "<|im_end|>",
-            "<|im_start|>",
-            "\nuser:",
-            "\nassistant:",
-            "\nUser:",
-            "\nAssistant:",
-        ]
-        for stop in default_stops:
-            if stop not in req["stop_sequences"]:
-                req["stop_sequences"].append(stop)
-        # z_Aura rides along the same way. The worker cannot reach the
-        # substrate, the goal system, or anything else in this process, so
-        # the state travels as declared floats on the job. A worker with no
-        # trained head ignores the field; the receipt says which happened.
-        attach_endogenous_state(
-            req,
-            model_path=self.model_path,
-            override=kwargs.get("endogenous_state"),
-        )
-
-        # Activation-steering offsets ride along when present; the worker
-        # consumes them if its build supports residual-stream injection,
-        # otherwise it ignores the field with no harm.
-        if _bridge is not None and getattr(_bridge, "layer_offsets", None):
-            req["layer_offsets"] = _bridge.layer_offsets
-        if _bridge is not None and getattr(_bridge, "extra_stop_sequences", None):
-            # EXTEND the request's stop list — rebuilding it from the caller
-            # kwargs erased every mandatory anti-bleed default appended above.
-            for stop in _bridge.extra_stop_sequences:
-                if stop not in req["stop_sequences"]:
-                    req["stop_sequences"].append(stop)
+        self._generate_inner_whether_somebody_waiting(_bridge, foreground_request, kwargs, progress_owned_completion, req)
 
         if self._active_generations <= 0 and not await self._set_durable_lane_preemptible(False):
             logger.info(
@@ -12975,66 +13343,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
 
         foreground_watchdog = None
         fut = _new_shared_future()
-        self._pending_generations[req_id] = fut
-        self._current_gen_future = fut
-        self._active_generations += 1
-        self._active_generation_started_at = time.time()
-        first_token_hard_ceiling = self._deadline_bound_first_token_hard_ceiling(
-            deadline.remaining,
-            foreground_request=foreground_request,
-        )
-        self._mark_generation_started(
-            req_id,
-            prompt_chars=len(prompt or ""),
-            requested_max_tokens=req.get("max_tokens", self.max_tokens),
-            first_token_hard_ceiling_s=first_token_hard_ceiling,
-            request_seq=int(req.get("seq", 0)),
-        )
-        foreground_watchdog = self._start_foreground_first_token_watchdog(
-            req_id,
-            foreground_request=foreground_request,
-            hard_ceiling_s=first_token_hard_ceiling,
-        )
-        # Ship the caller's production deadline to the worker so its decode
-        # loop can stop cooperatively instead of burning GPU past the point
-        # anyone is waiting (the worker previously had NO request deadline —
-        # only the 360s hard watchdog).
-        try:
-            _remaining_s = float(deadline.remaining or 0.0)
-            if _remaining_s > 0.0:
-                # Reserve a DELIVERY MARGIN. A cooperative stop is only worth
-                # anything if the partial answer can cross IPC and be consumed
-                # before the caller's own deadline. Handing the worker the
-                # caller's full remaining budget made the two expire together,
-                # so a decode that stopped politely at token 149 was abandoned
-                # by a gate that had already given up — measured live as
-                # "Cortex consumed 77.5s without usable text" immediately
-                # followed by "Abort arrived after the generation finished;
-                # nothing to abort, leaving the worker up". The tokens existed;
-                # nobody was left waiting for them.
-                #
-                # The floor keeps the margin from eating a short budget whole:
-                # a worker that gets less than half the request is worse than
-                # one that occasionally misses the handoff.
-                _delivery_margin_s = max(1.5, min(6.0, _remaining_s * 0.08))
-                _worker_budget_s = max(
-                    _remaining_s * 0.5, _remaining_s - _delivery_margin_s
-                )
-                req["deadline_unix"] = time.time() + _worker_budget_s
-        except (AttributeError, TypeError, ValueError):
-            logger.debug("Request deadline unavailable; worker decodes unbounded.")
-        # CP126 a838a49b: this used to read
-        # `max(0.5, min(2.0, deadline.remaining or 2.0))`, which turned an
-        # ALREADY-EXPIRED budget (remaining == 0.0, falsy) into a 2-second
-        # wait and floored every sub-half-second remainder up to 0.5s — so a
-        # request could block past its own hard deadline and seed exactly the
-        # ownership/event-loop cascades this path exists to prevent. Never
-        # enqueue past the deadline; refuse instead.
-        _enqueue_remaining = 0.0
-        try:
-            _enqueue_remaining = max(0.0, float(deadline.remaining or 0.0))
-        except (AttributeError, TypeError, ValueError):
-            _enqueue_remaining = 2.0
+        _enqueue_remaining, foreground_watchdog = self._generate_inner_part_3(deadline, foreground_request, fut, prompt, req, req_id)
         if _enqueue_remaining <= 0.0:
             await asyncio.shield(
                 self._finish_generation_ownership(
@@ -13098,113 +13407,10 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             if not res:
                 return None
             if res.get("status") == "ok":
-                self._record_surface_control_receipt_from_response(res)
-                self._record_throughput_sample(
-                    res,
-                    prompt=prompt,
-                    foreground_request=foreground_request,
-                )
-                self._record_interoception_from_response(
-                    res,
-                    foreground_request=foreground_request,
-                    owner_label=owner_label,
-                )
-                raw_text = res.get("text", "")
-                if not isinstance(raw_text, str):
-                    # A malformed cross-process payload must fail through the
-                    # typed empty-response path, not raise AttributeError.
-                    _record_mlx_degradation(
-                        TypeError(f"worker text payload was {type(raw_text).__name__}"),
-                        action="treated non-string worker text as empty response",
-                    )
-                    raw_text = ""
-                text = raw_text.strip()
-                self._mark_progress()
-                generation_stop_reason = str(
-                    res.get("generation_stop_reason") or ""
-                ).strip().lower()
-                cooperative_stop = bool(
-                    res.get("soft_cancelled")
-                    or generation_stop_reason in {
-                        "soft_cancelled",
-                        "deadline_exceeded",
-                    }
-                )
-                quality_rejection_reasons = _surface_quality_rejection_reasons(
-                    self.get_last_surface_control_receipt()
-                )
-                # A tool call is not prose and must not be judged as prose.
-                #
-                # The surface quality gate reads a draft as an answer somebody
-                # is about to be shown: prompt artifacts, boilerplate, leaked
-                # internal text. A generation that was offered tools and
-                # answered with a tool call is none of those. It is the model
-                # saying what to run next, and the loop that offered the tools
-                # is the thing waiting to read it.
-                #
-                # LIVE 2026-08-29: asked to read a library's docs and use it,
-                # turn four of the tool loop emitted a complete, correct
-                # code_repl call — the right library, the right arguments, the
-                # invoice posted the right way round. It was rejected as
-                # "prompt_artifact" because it is angle brackets rather than
-                # sentences, the generation returned nothing, and the turn
-                # ended on "I couldn't get to an answer I'd stand behind"
-                # after four successful tool calls.
-                #
-                # Only a complete, parseable call earns this, and only when
-                # the request actually offered tools. Everything else the gate
-                # catches, it still catches.
-                if quality_rejection_reasons and text and kwargs.get("tools"):
-                    if _text_is_a_complete_tool_call(text):
-                        logger.info(
-                            "🔧 [MLX] the draft the quality gate refused (%s) is a "
-                            "complete tool call, and tools were offered — handing "
-                            "it to the loop that asked for it.",
-                            ",".join(quality_rejection_reasons),
-                        )
-                        quality_rejection_reasons = ()
+                generation_stop_reason, text = self._generate_inner_part_4(foreground_request, owner_label, prompt, res)
+                cooperative_stop, quality_rejection_reasons = self._generate_inner_cooperative_stop(generation_stop_reason, kwargs, res, text)
                 if quality_rejection_reasons and (not text or cooperative_stop):
-                    # The worker decoded a draft but could not make it directly
-                    # servable before this request ended. Keep it bound to the
-                    # turn as suppressed recovery evidence; an empty result
-                    # without that custody is indistinguishable from a model
-                    # failure and needlessly opens the Cortex circuit.
-                    self._preserve_lane_after_surface_quality_rejection()
-                    self._record_suppressed_draft(
-                        _rejected_surface_draft(
-                            self.get_last_surface_control_receipt()
-                        ),
-                        _surface_quality_rejected_draft_reasons(
-                            self.get_last_surface_control_receipt()
-                        ),
-                    )
-                    # A gate that destroys an answer has to say what it
-                    # destroyed. Without the text, a rejection is a label:
-                    # nothing downstream, and nobody reading the log later, can
-                    # tell a correct answer thrown away from a bad one caught.
-                    #
-                    # LIVE, 2026-08-27: a worked-through arithmetic derivation
-                    # was rejected for internal_task_prompt_leak after two
-                    # minutes of generation, and none of the three leak
-                    # detectors fired on the text that had been served for the
-                    # same question one turn earlier. The draft was preserved
-                    # in memory as recovery evidence and never written down, so
-                    # the reason it was rejected could not be reproduced.
-                    _rejected_text = str(
-                        _rejected_surface_draft(
-                            self.get_last_surface_control_receipt()
-                        )
-                        or ""
-                    )
-                    logger.warning(
-                        "🛡️ [MLX] Worker rejected the visible draft for semantic "
-                        "quality (%s); preserving the resident lane. "
-                        "draft_chars=%d head=%r tail=%r",
-                        ",".join(quality_rejection_reasons),
-                        len(_rejected_text),
-                        _rejected_text[:400],
-                        _rejected_text[-200:] if len(_rejected_text) > 400 else "",
-                    )
+                    self._generate_inner_worker_decoded_draft(quality_rejection_reasons)
                     return None
                 if not text and not cooperative_stop:
                     # Empty warmup can prove process/shader liveness, but it
@@ -13341,120 +13547,9 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             )
             return None
         except asyncio.CancelledError:
-            origin_label = str(kwargs.get("origin", "") or "")
-            purpose_label = str(kwargs.get("purpose", "") or "")
-            expected_cancel_reason = self._consume_expected_generation_cancellation(req_id)
-            from core.runtime.what_stops_it import current as current_execution
-
-            owner_stopped = current_execution(whose="mlx_generation").stopping.stopped
-            # Cancelling the parent future does not reach the worker process.
-            # Signal only this request before cleanup clears its sequence.
-            if self._current_request_id == req_id:
-                cancellation = self.soft_cancel_active_generation("generation_caller_cancelled")
-                if cancellation.get("requested") and self.is_alive():
-                    acknowledged = await asyncio.shield(self._soft_cancel_acknowledged())
-                    if not acknowledged:
-                        self._deferred_reboot_reason = "cancelled_worker_not_acknowledged"
-                        self._record_degraded_event(
-                            "generation_cancel_not_acknowledged",
-                            detail=os.path.basename(self.model_path),
-                            severity="error",
-                            foreground_request=foreground_request,
-                        )
-            # CP126 9edfb10c. This used to be the labels alone, so ANY request
-            # could suppress a cancellation degradation by calling itself
-            # "baseline" — a self-signed excuse for the exact signal that says
-            # the lane is misbehaving. A benchmark cancellation is only
-            # expected when the PROCESS is actually a benchmark run, which is
-            # a property of how the runtime was launched and not of a string
-            # the request supplied about itself.
-            benchmark_baseline_cancel = _benchmark_run_context_active() and (
-                origin_label.strip().lower() == "baseline"
-                or purpose_label.strip().lower().endswith("_baseline")
-            )
-            shutdown_cancel = _runtime_shutdown_requested()
-            if expected_cancel_reason:
-                logger.info(
-                    "🧹 [MLX] Generation cancelled for %s during expected reboot (%s).",
-                    os.path.basename(self.model_path),
-                    expected_cancel_reason,
-                )
-            elif owner_stopped:
-                logger.info(
-                    "Generation cancelled for %s by its execution owner.",
-                    os.path.basename(self.model_path),
-                )
-            elif benchmark_baseline_cancel:
-                logger.info(
-                    "🧪 [MLX] Baseline generation cancelled for %s by benchmark timeout.",
-                    os.path.basename(self.model_path),
-                )
-            elif shutdown_cancel:
-                logger.info(
-                    "🛑 [MLX] Generation cancelled for %s during runtime shutdown.",
-                    os.path.basename(self.model_path),
-                )
-            else:
-                logger.warning(
-                    "🛑 [MLX] Generation cancelled for %s. Preserving worker unless it is unhealthy.",
-                    os.path.basename(self.model_path),
-                )
-            self._pending_generations.pop(req_id, None)
-            if (
-                not expected_cancel_reason
-                and not owner_stopped
-                and not benchmark_baseline_cancel
-                and not shutdown_cancel
-                and (
-                    foreground_request
-                    or (
-                        self._is_primary_or_deep_lane()
-                        and self._lane_state not in {"cold", "warming", "recovering"}
-                    )
-                )
-            ):
-                self._record_degraded_event(
-                    "generation_cancelled",
-                    detail=os.path.basename(self.model_path),
-                    severity="warning",
-                    foreground_request=foreground_request,
-                )
-            if not expected_cancel_reason and not shutdown_cancel and self._worker_unhealthy():
-                self._deferred_reboot_reason = "cancelled_unhealthy"
-            raise
+            await self._generate_inner_origin_label(foreground_request, kwargs, req_id)
         except TimeoutError:
-            # A person's turn losing its deadline is an error; a background
-            # request's budget running out under load is the backpressure the
-            # budget exists to apply, and the degraded event below records it.
-            logger.log(
-                logging.ERROR if foreground_request else logging.INFO,
-                "🛑 [MLX] Generation deadline reached for %s (%s).",
-                os.path.basename(self.model_path),
-                "foreground" if foreground_request else "background",
-            )
-            self._pending_generations.pop(req_id, None)
-            _cancel_shared_future(fut)
-            self._record_degraded_event(
-                "generation_deadline_reached",
-                detail=os.path.basename(self.model_path),
-                severity="warning",
-                foreground_request=foreground_request,
-            )
-            if self._worker_unhealthy(stale_after=self._stale_after(during_generation=True)):
-                self._deferred_reboot_reason = "generation_timeout_unhealthy"
-            else:
-                self._mark_healthy_generation_deadline(
-                    foreground_request=foreground_request,
-                )
-            if foreground_request and self._deliberate_no_text_reason:
-                logger.warning(
-                    "⏳ [MLX] Deadline reached while worker still looks healthy; "
-                    "soft-cancelling the abandoned generation and preserving the warm lane."
-                )
-            elif self._deliberate_no_text_reason:
-                logger.warning(
-                    "⏳ [MLX] Deadline reached but worker still looks healthy; leaving lane warm."
-                )
+            self._generate_inner_person_turn_losing(foreground_request, fut, req_id)
             return None
         finally:
             await asyncio.shield(

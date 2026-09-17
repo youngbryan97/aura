@@ -288,24 +288,8 @@ class CognitiveRoutingPhase(BasePhase):
                 stage="parallel_branch.spawn",
             )
 
-    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
-        """
-        Classify the current input and set the cognitive mode and LLM tier on state.
-
-        Normalises the last working-memory message, determines whether the turn is
-        user-facing or autonomous, optionally calls the LLM router for intent
-        classification, and writes the resolved CognitiveMode, model_tier, and
-        deep_handoff flag into the derived state.  Spawns a ParallelThoughtStream
-        branch for DELIBERATE turns.
-        """
-        # 1. No stimuli = no routing needed (unless autonomous objective already set)
-        if (
-            not state.cognition.working_memory
-            and not state.cognition.current_objective
-            and not objective
-        ):
-            return state
-
+    @staticmethod
+    def _execute_last_msg(state):
         last_msg = state.cognition.working_memory[-1] if state.cognition.working_memory else None
         if isinstance(last_msg, dict):
             decoded_payload, decoded_origin, was_decoded = decode_stringified_priority_message(
@@ -341,6 +325,158 @@ class CognitiveRoutingPhase(BasePhase):
             "test",
             "benchmark",
         )
+        return last_msg, user_origins
+
+    def _execute_selected_mode(self, input_text, new_state, request_mood, routing_origin, semantic_work, state):
+        selected_mode = (
+            CognitiveMode.DELIBERATE
+            if (
+                semantic_work.requires_deliberation
+                or state.cognition.current_mode is CognitiveMode.DELIBERATE
+            )
+            else CognitiveMode.REACTIVE
+        )
+        logger.info(
+            "🧭 Routing: inline dialogue kept on CHAT lane with %s cognition "
+            "(%d typed obligations, floor=%d).",
+            selected_mode.name,
+            semantic_work.obligation_count,
+            semantic_work.answer_token_floor,
+        )
+        new_state.cognition.current_mode = selected_mode
+        new_state.cognition.current_objective = input_text
+        new_state.cognition.current_origin = routing_origin
+        new_state.response_modifiers["intent_type"] = "CHAT"
+        new_state.response_modifiers["semantic_intent"] = (
+            "structured_reasoning"
+            if selected_mode is CognitiveMode.DELIBERATE
+            else "casual"
+        )
+        new_state.response_modifiers["request_mood"] = request_mood.mood.value
+        new_state.response_modifiers["request_mood_reasons"] = list(
+            request_mood.reasons
+        )
+        new_state.response_modifiers["temporal_scope"] = (
+            request_mood.temporal_scope
+        )
+        new_state.response_modifiers["model_tier"] = "primary"
+        new_state.response_modifiers["deep_handoff"] = False
+        new_state.response_modifiers.pop("matched_skills", None)
+        self._record_user_objective(
+            new_state,
+            input_text,
+            routing_origin=routing_origin,
+            mode=str(selected_mode.value),
+        )
+
+    def _execute_analysis(self, input_text, is_autonomous, lower_input, matched_skills, new_state, previous_user_text):
+        analysis = analyze_turn(
+            input_text,
+            matched_skills=matched_skills,
+            previous_user_text=previous_user_text,
+        )
+        cognitive_mode = CognitiveMode.REACTIVE
+        new_state.response_modifiers["intent_type"] = analysis.intent_type
+        new_state.response_modifiers["semantic_intent"] = analysis.semantic_mode
+        new_state.response_modifiers["request_mood"] = analysis.request_mood
+        new_state.response_modifiers["request_mood_reasons"] = list(
+            analysis.request_mood_reasons
+        )
+        new_state.response_modifiers["temporal_scope"] = analysis.temporal_scope
+        logger.info(
+            "🧭 CognitiveRouting: deterministic intent=%s semantic=%s live_voice=%s",
+            analysis.intent_type,
+            analysis.semantic_mode,
+            analysis.requires_live_aura_voice,
+        )
+        if not analysis.is_execution_report and (
+            analysis.intent_type == "TASK"
+            or analysis.suggests_deliberate_mode
+            or self._has_deliberate_keywords(input_text)
+        ):
+            cognitive_mode = CognitiveMode.DELIBERATE
+
+        # Casual Bypass: If autonomous or matches casual keywords, force REACTIVE
+        #
+        # A detected TASK outranks a casual keyword. _CASUAL_KEYWORDS holds
+        # ordinary English — "sentences", "words", "feeling" — and matching
+        # any of them threw away a deterministic task detection. Live
+        # 2026-07-27: "Open the Notes app and write a new note titled Orca
+        # Field Notes with a couple of SENTENCES about orcas" was routed
+        # "intent=TASK via ['desktop_task']" and then immediately bypassed to
+        # REACTIVE, so nothing executed and the conversational lane answered
+        # "I can't actually open apps or write notes" — denying a capability
+        # she has, because the request mentioned sentences.
+        #
+        # Casualness is a guess about TONE. A deterministic intent and a
+        # matched skill are evidence about WHAT WAS ASKED, and evidence wins.
+        # Autonomous turns still bypass: nobody is waiting on those.
+        deterministic_task = bool(
+            analysis.intent_type == "TASK" or matched_skills
+        )
+        if is_autonomous or (
+            any(kw in lower_input for kw in _CASUAL_KEYWORDS)
+            and not deterministic_task
+        ):
+            logger.info("🧭 Routing: Casual/Autonomous bypass. Forcing REACTIVE.")
+            cognitive_mode = CognitiveMode.REACTIVE
+        elif deterministic_task and any(
+            kw in lower_input for kw in _CASUAL_KEYWORDS
+        ):
+            logger.info(
+                "🧭 Routing: casual keyword present but a task was detected "
+                "(%s, skills=%s) — keeping the task lane.",
+                analysis.intent_type,
+                list(matched_skills or ())[:4],
+            )
+        return analysis, cognitive_mode
+
+    def _execute_part_4(self, analysis, deep_handoff, input_text, is_deep_mind_probe, is_learning_bundle, new_state, routing_origin, user_origins):
+        new_state.response_modifiers["deep_handoff"] = deep_handoff
+        if (
+            routing_origin in user_origins
+            and not analysis.is_execution_report
+            and not is_deep_mind_probe
+            and not is_learning_bundle
+        ):
+            try:
+                cap = self.container.get("capability_engine", default=None)
+                if (
+                    cap
+                    and hasattr(cap, "detect_intent")
+                    and analysis.request_mood != "mention"
+                ):
+                    new_state.response_modifiers["matched_skills"] = list(
+                        cap.detect_intent(input_text) or []
+                    )
+            except _ROUTING_RECOVERABLE_ERRORS as exc:
+                _record_routing_degradation(
+                    exc,
+                    action="continued route without matched skill cache",
+                    severity="warning",
+                    stage="detect_intent.cache",
+                )
+                logger.debug("🧭 Routing: matched_skills cache skipped: %s", exc)
+
+    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
+        """
+        Classify the current input and set the cognitive mode and LLM tier on state.
+
+        Normalises the last working-memory message, determines whether the turn is
+        user-facing or autonomous, optionally calls the LLM router for intent
+        classification, and writes the resolved CognitiveMode, model_tier, and
+        deep_handoff flag into the derived state.  Spawns a ParallelThoughtStream
+        branch for DELIBERATE turns.
+        """
+        # 1. No stimuli = no routing needed (unless autonomous objective already set)
+        if (
+            not state.cognition.working_memory
+            and not state.cognition.current_objective
+            and not objective
+        ):
+            return state
+
+        last_msg, user_origins = self._execute_last_msg(state)
         active_objective = state.cognition.current_objective or objective
         active_origin = (
             (state.cognition.current_origin if active_objective else None)
@@ -512,46 +648,7 @@ class CognitiveRoutingPhase(BasePhase):
             and _looks_like_simple_dialogue_request(input_text)
             and not looks_like_deep_mind_probe(input_text)
         ):
-            selected_mode = (
-                CognitiveMode.DELIBERATE
-                if (
-                    semantic_work.requires_deliberation
-                    or state.cognition.current_mode is CognitiveMode.DELIBERATE
-                )
-                else CognitiveMode.REACTIVE
-            )
-            logger.info(
-                "🧭 Routing: inline dialogue kept on CHAT lane with %s cognition "
-                "(%d typed obligations, floor=%d).",
-                selected_mode.name,
-                semantic_work.obligation_count,
-                semantic_work.answer_token_floor,
-            )
-            new_state.cognition.current_mode = selected_mode
-            new_state.cognition.current_objective = input_text
-            new_state.cognition.current_origin = routing_origin
-            new_state.response_modifiers["intent_type"] = "CHAT"
-            new_state.response_modifiers["semantic_intent"] = (
-                "structured_reasoning"
-                if selected_mode is CognitiveMode.DELIBERATE
-                else "casual"
-            )
-            new_state.response_modifiers["request_mood"] = request_mood.mood.value
-            new_state.response_modifiers["request_mood_reasons"] = list(
-                request_mood.reasons
-            )
-            new_state.response_modifiers["temporal_scope"] = (
-                request_mood.temporal_scope
-            )
-            new_state.response_modifiers["model_tier"] = "primary"
-            new_state.response_modifiers["deep_handoff"] = False
-            new_state.response_modifiers.pop("matched_skills", None)
-            self._record_user_objective(
-                new_state,
-                input_text,
-                routing_origin=routing_origin,
-                mode=str(selected_mode.value),
-            )
+            self._execute_selected_mode(input_text, new_state, request_mood, routing_origin, semantic_work, state)
             return new_state
 
         # Fast skill detection before any LLM routing so tool use stays reliable
@@ -655,65 +752,7 @@ class CognitiveRoutingPhase(BasePhase):
                 )
                 return new_state
 
-        analysis = analyze_turn(
-            input_text,
-            matched_skills=matched_skills,
-            previous_user_text=previous_user_text,
-        )
-        cognitive_mode = CognitiveMode.REACTIVE
-        new_state.response_modifiers["intent_type"] = analysis.intent_type
-        new_state.response_modifiers["semantic_intent"] = analysis.semantic_mode
-        new_state.response_modifiers["request_mood"] = analysis.request_mood
-        new_state.response_modifiers["request_mood_reasons"] = list(
-            analysis.request_mood_reasons
-        )
-        new_state.response_modifiers["temporal_scope"] = analysis.temporal_scope
-        logger.info(
-            "🧭 CognitiveRouting: deterministic intent=%s semantic=%s live_voice=%s",
-            analysis.intent_type,
-            analysis.semantic_mode,
-            analysis.requires_live_aura_voice,
-        )
-        if not analysis.is_execution_report and (
-            analysis.intent_type == "TASK"
-            or analysis.suggests_deliberate_mode
-            or self._has_deliberate_keywords(input_text)
-        ):
-            cognitive_mode = CognitiveMode.DELIBERATE
-
-        # Casual Bypass: If autonomous or matches casual keywords, force REACTIVE
-        #
-        # A detected TASK outranks a casual keyword. _CASUAL_KEYWORDS holds
-        # ordinary English — "sentences", "words", "feeling" — and matching
-        # any of them threw away a deterministic task detection. Live
-        # 2026-07-27: "Open the Notes app and write a new note titled Orca
-        # Field Notes with a couple of SENTENCES about orcas" was routed
-        # "intent=TASK via ['desktop_task']" and then immediately bypassed to
-        # REACTIVE, so nothing executed and the conversational lane answered
-        # "I can't actually open apps or write notes" — denying a capability
-        # she has, because the request mentioned sentences.
-        #
-        # Casualness is a guess about TONE. A deterministic intent and a
-        # matched skill are evidence about WHAT WAS ASKED, and evidence wins.
-        # Autonomous turns still bypass: nobody is waiting on those.
-        deterministic_task = bool(
-            analysis.intent_type == "TASK" or matched_skills
-        )
-        if is_autonomous or (
-            any(kw in lower_input for kw in _CASUAL_KEYWORDS)
-            and not deterministic_task
-        ):
-            logger.info("🧭 Routing: Casual/Autonomous bypass. Forcing REACTIVE.")
-            cognitive_mode = CognitiveMode.REACTIVE
-        elif deterministic_task and any(
-            kw in lower_input for kw in _CASUAL_KEYWORDS
-        ):
-            logger.info(
-                "🧭 Routing: casual keyword present but a task was detected "
-                "(%s, skills=%s) — keeping the task lane.",
-                analysis.intent_type,
-                list(matched_skills or ())[:4],
-            )
+        analysis, cognitive_mode = self._execute_analysis(input_text, is_autonomous, lower_input, matched_skills, new_state, previous_user_text)
 
         # Tone classification cannot revoke reasoning selected for this turn.
         if (
@@ -786,31 +825,7 @@ class CognitiveRoutingPhase(BasePhase):
             analysis=analysis,
         )
         new_state.response_modifiers["model_tier"] = model_tier
-        new_state.response_modifiers["deep_handoff"] = deep_handoff
-        if (
-            routing_origin in user_origins
-            and not analysis.is_execution_report
-            and not is_deep_mind_probe
-            and not is_learning_bundle
-        ):
-            try:
-                cap = self.container.get("capability_engine", default=None)
-                if (
-                    cap
-                    and hasattr(cap, "detect_intent")
-                    and analysis.request_mood != "mention"
-                ):
-                    new_state.response_modifiers["matched_skills"] = list(
-                        cap.detect_intent(input_text) or []
-                    )
-            except _ROUTING_RECOVERABLE_ERRORS as exc:
-                _record_routing_degradation(
-                    exc,
-                    action="continued route without matched skill cache",
-                    severity="warning",
-                    stage="detect_intent.cache",
-                )
-                logger.debug("🧭 Routing: matched_skills cache skipped: %s", exc)
+        self._execute_part_4(analysis, deep_handoff, input_text, is_deep_mind_probe, is_learning_bundle, new_state, routing_origin, user_origins)
         if not is_autonomous and routing_origin in user_origins:
             self._record_user_objective(
                 new_state,

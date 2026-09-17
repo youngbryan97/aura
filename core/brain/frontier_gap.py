@@ -2343,30 +2343,7 @@ def _validate_model_stability(raw: Any, *, measurement_subject: str) -> dict[str
     }
 
 
-def validate_capability_report(
-    report: Any,
-    *,
-    trusted_evaluator_keys: Mapping[str, str] | None,
-    trusted_worker_keys: Mapping[str, str] | None = None,
-    trusted_verifiers: Mapping[str, Mapping[str, str]] | None = None,
-    trusted_run_keys: Mapping[str, str] | None = None,
-    trusted_release_keys: Mapping[str, str] | None = None,
-    source_tree_resolver: Callable[[str], str] | None,
-    source_component_resolver: Callable[[str, str], str] | None,
-    model_manifest_resolver: Callable[[Mapping[str, Any]], Mapping[str, Any]]
-    | None = resolve_model_manifest,
-    require_resolved_model: bool = False,
-    verification_time_unix: float | None = None,
-    require_fresh_challenge: bool = False,
-    output_token_counter: Callable[[str], int] | None = None,
-    require_measured_output_tokens: bool = False,
-    workspace_resolver: Callable[[], Mapping[str, Any]] | None = None,
-    require_resolved_workspace: bool = False,
-    require_complete_component_coverage: bool = False,
-    require_bound_runtime_identity: bool = False,
-    key_custody: Mapping[str, Mapping[str, Any]] | None = None,
-    require_attested_custody: bool = False,
-) -> dict[str, Any]:
+def _validate_capability_report_part_1(report, trusted_evaluator_keys, trusted_release_keys, trusted_run_keys, trusted_verifiers, trusted_worker_keys):
     """Recompute a v5 claim from signed execution and correctness evidence.
 
     ``model_manifest_resolver`` opens the declared checkpoint and compares it
@@ -2417,22 +2394,9 @@ def validate_capability_report(
         run_keys=trusted_run_keys,
         release_keys=trusted_release_keys,
     )
-    seed = normalized.get("seed")
-    per_class = normalized.get("per_class")
-    if isinstance(seed, bool) or not isinstance(seed, int):
-        raise ValueError("capability report seed is invalid")
-    if isinstance(per_class, bool) or not isinstance(per_class, int) or per_class <= 0:
-        raise ValueError("capability report per_class is invalid")
+    return normalized, trust_basis
 
-    source_stability = _validate_source_stability(
-        normalized.get("source_stability"),
-        source_tree_resolver=source_tree_resolver,
-        source_component_resolver=source_component_resolver,
-    )
-    source_identity = validate_source_identity(
-        normalized.get("source_identity"),
-        trusted_release_keys=trusted_release_keys,
-    )
+def _validate_capability_report_part_2(normalized, source_identity, source_stability):
     if (
         source_identity["commit_sha"] != source_stability["after"]["commit_sha"]
         or source_identity["tree_sha"] != source_stability["after"]["tree_sha"]
@@ -2458,6 +2422,9 @@ def validate_capability_report(
         raw_model_window,
         measurement_subject=f"aura_model:{raw_model_digest}",
     )
+    return model_stability, runtime_manifest
+
+def _validate_capability_report_part_3(model_manifest_resolver, model_stability, normalized, require_resolved_model, runtime_manifest):
     if runtime_manifest["base_model_manifest_sha256"] != model_stability["before"][
         "manifest_sha256"
     ]:
@@ -2495,6 +2462,321 @@ def validate_capability_report(
             "candidate model manifest was not resolved against the checkpoint: "
             f"{model_resolution.get('reason') or 'unknown'}"
         )
+    return model_files, model_resolution
+
+def _validate_capability_report_part_4(expected_freeze, normalized, per_class, reference, require_fresh_challenge, seed, trusted_evaluator_keys, trusted_verifiers, verification_time_unix):
+    if canonical_json_bytes(normalized.get("task_spec")) != canonical_json_bytes(
+        reference.task_spec
+    ) or canonical_json_bytes(normalized.get("challenge")) != canonical_json_bytes(
+        reference.challenge
+    ):
+        raise ValueError("candidate task or challenge differs from the reference run")
+    challenge = validate_challenge_bundle(
+        normalized["challenge"],
+        trusted_evaluator_keys=trusted_evaluator_keys,
+        expected_identity_freeze_sha256=expected_freeze,
+        verification_time_unix=verification_time_unix,
+        require_fresh=require_fresh_challenge,
+    )
+    manifest = battery_manifest(
+        seed=seed,
+        per_class=per_class,
+        challenge_nonce=challenge["nonce"],
+    )
+    task_spec = validate_task_spec(
+        normalized["task_spec"],
+        trusted_evaluator_keys=trusted_evaluator_keys,
+        trusted_verifiers=trusted_verifiers,
+        challenge=challenge,
+        expected_items=manifest["items"],
+        battery_version=BATTERY_VERSION,
+        seed=seed,
+        per_class=per_class,
+    )
+    return challenge, task_spec
+
+def _validate_capability_report_correctness_raw(challenge, evidence_items, items, normalized, outputs, run_id, task_spec, trusted_verifiers):
+    correctness_raw = normalized.get("correctness_receipts")
+    if not isinstance(correctness_raw, list) or len(correctness_raw) != len(items):
+        raise ValueError("capability independent correctness receipts are incomplete")
+    correctness_receipts: list[dict[str, Any]] = []
+    for index, (receipt, item, output) in enumerate(
+        zip(correctness_raw, items, outputs, strict=True)
+    ):
+        correctness = validate_correctness_receipt(
+            receipt,
+            trusted_verifiers=trusted_verifiers,
+            verifier_identity=task_spec["verifier_identity"],
+            bindings={
+                "run_id": run_id,
+                "item_id": item.item_id,
+                "output_sha256": output["output_sha256"],
+                "task_spec_sha256": task_spec["task_spec_sha256"],
+                "challenge_bundle_sha256": challenge["bundle_sha256"],
+                "expected_answer_commitment_sha256": (
+                    item.expected_answer_commitment_sha256
+                ),
+                "hidden_case_commitment_sha256": (
+                    item.hidden_case_commitment_sha256
+                ),
+            },
+        )
+        evidence = evidence_items[index]
+        if canonical_json_bytes(evidence.get("correctness_receipt")) != canonical_json_bytes(
+            correctness["envelope"]
+        ):
+            raise ValueError("capability item omits or contradicts its correctness receipt")
+        if evidence.get("correct") is not correctness["payload"]["correct"]:
+            raise ValueError("candidate-local score contradicts independent correctness")
+        correctness_receipts.append(correctness)
+    return correctness_receipts
+
+def _validate_capability_report_part_6(challenge, correctness_receipts, items, normalized, outputs, per_class, reference, require_attested_custody, seed):
+    if (
+        require_attested_custody
+        and normalized["actor_independence"]["independence"] != "custody_attested"
+    ):
+        raise ValueError(
+            "evidence roles are not attested to distinct custodians: "
+            f"{normalized['actor_independence']['independence']}"
+        )
+
+    correct_by_class = {task_class: 0 for task_class in _BATTERY_BUILDERS}
+    count_by_class = {task_class: 0 for task_class in _BATTERY_BUILDERS}
+    for item, receipt, output in zip(
+        items, correctness_receipts, outputs, strict=True
+    ):
+        _regrade_against_deterministic_grader(
+            item=item,
+            answer=str(output["answer"]),
+            signed_correct=receipt["payload"]["correct"],
+            subject="capability candidate",
+        )
+        count_by_class[item.task_class] += 1
+        correct_by_class[item.task_class] += int(receipt["payload"]["correct"])
+    expected_classes = {
+        task_class: ClassResult(
+            task_class=task_class,
+            n=count_by_class[task_class],
+            candidate_correct=correct_by_class[task_class],
+            reference_score=float(reference.scores[task_class]),
+        ).to_dict()
+        for task_class in _BATTERY_BUILDERS
+    }
+    observed_classes = normalized.get("classes")
+    if not isinstance(observed_classes, list):
+        raise ValueError("capability class scores are not verifier-reproducible")
+    # Cardinality and key uniqueness FIRST: coercing the rows straight into a
+    # dict let a duplicate task_class row overwrite its twin, so extra or
+    # contradictory rows could vanish and the survivor still compare equal.
+    observed_keys = [
+        str(cell.get("task_class")) for cell in observed_classes if isinstance(cell, dict)
+    ]
+    if (
+        len(observed_classes) != len(expected_classes)
+        or len(observed_keys) != len(observed_classes)
+        or len(set(observed_keys)) != len(observed_keys)
+    ):
+        raise ValueError("capability class rows are duplicated or malformed")
+    if {
+        str(cell.get("task_class")): cell for cell in observed_classes if isinstance(cell, dict)
+    } != expected_classes:
+        raise ValueError("capability class scores are not verifier-reproducible")
+    expected_candidate = round(sum(correct_by_class.values()) / len(items), 4)
+    expected_gap = round(
+        sum(float(cell["gap"]) for cell in expected_classes.values())
+        / len(expected_classes),
+        4,
+    )
+    if _finite_float(
+        normalized.get("overall_candidate_score"), field_name="overall candidate score"
+    ) != expected_candidate:
+        raise ValueError("capability candidate score is not verifier-reproducible")
+    if _finite_float(normalized.get("overall_gap"), field_name="overall gap") != expected_gap:
+        raise ValueError("capability gap is not verifier-reproducible")
+    expected_stratum = comparison_stratum_sha256(
+        per_class=per_class,
+        reference_runtime_manifest_sha256=reference.effective_runtime_manifest[
+            "manifest_sha256"
+        ],
+        seed=seed,
+        challenge_bundle_sha256=challenge["bundle_sha256"],
+        reference_scores=reference.scores,
+    )
+    if normalized.get("comparison_stratum_sha256") != expected_stratum:
+        raise ValueError("capability comparison stratum is invalid")
+    if normalized.get("challenge_id") != challenge["challenge_id"]:
+        raise ValueError("capability challenge identity is invalid")
+    execution = normalized.get("execution")
+    if not isinstance(execution, dict) or execution.get("attempted") != len(items) or execution.get(
+        "completed"
+    ) != len(items):
+        raise ValueError("capability execution count is incomplete")
+    for field_name in ("failed", "invalid", "empty", "disqualifying_fallbacks"):
+        if execution.get(field_name) != 0:
+            raise ValueError(f"capability execution has nonzero {field_name}")
+    return execution
+
+def _validate_capability_report_counters_above_report(correctness_receipts, evidence_items, execution, normalized, output_token_counter, outputs, require_measured_output_tokens, source_stability, worker_receipts):
+    # The counters above are the REPORT'S. Derive them from the item evidence
+    # and require agreement: clean counters could otherwise sit over
+    # contradictory answers, execution errors and fallback lists.
+    recomputed = _recomputed_execution_summary(
+        evidence_items=evidence_items,
+        worker_receipts=worker_receipts,
+        correctness_receipts=correctness_receipts,
+    )
+    disagreements = [
+        field_name
+        for field_name, value in recomputed.items()
+        if execution.get(field_name) != value
+    ]
+    if disagreements:
+        raise ValueError(
+            "capability execution summary contradicts the item evidence: "
+            f"{','.join(sorted(disagreements))}"
+        )
+    token_measurement = measure_output_tokens(
+        outputs,
+        worker_receipts,
+        token_counter=output_token_counter,
+    )
+    if token_measurement["over_budget"]:
+        raise ValueError(
+            "capability output exceeds the matched token budget: "
+            f"{','.join(token_measurement['over_budget'])}"
+        )
+    if token_measurement["disagreements"]:
+        raise ValueError(
+            "capability output token count contradicts the worker receipt: "
+            f"{','.join(token_measurement['disagreements'])}"
+        )
+    if require_measured_output_tokens and token_measurement["measured"] is not True:
+        raise ValueError(
+            "capability output tokens were not measured: "
+            f"{token_measurement['reason']}"
+        )
+    if normalized.get("eligibility_reasons") not in ([], None):
+        raise ValueError("claim-eligible capability report contains rejection reasons")
+    if normalized.get("reference_validation_error") not in (None, ""):
+        raise ValueError("claim-eligible capability report contains a reference error")
+    normalized["source_stability"] = source_stability
+    normalized["source_provenance"] = source_stability["after"]
+    return token_measurement
+
+def _validate_capability_report_part_8(model_resolution, normalized, reference, require_complete_component_coverage, run, runtime_manifest, source_stability, worker_receipts, workspace_resolver):
+    normalized["effective_runtime_manifest"] = runtime_manifest
+    normalized["model_manifest_resolution"] = model_resolution
+    # Derived AFTER the signed windows are verified: the provenance dicts are
+    # hashed into source_stability's window digest, so anything added to them
+    # would break the signature it is meant to describe.
+    normalized["source_component_coverage"] = source_component_coverage(
+        source_stability["after"].get("execution_component_sha256") or {}
+    )
+    if (
+        require_complete_component_coverage
+        and normalized["source_component_coverage"]["complete"] is not True
+    ):
+        raise ValueError(
+            "capability source attestation does not cover its execution closure: "
+            f"{normalized['source_component_coverage']['covered']}"
+            f"/{normalized['source_component_coverage']['closure_size']}"
+        )
+    normalized["workspace_resolution"] = resolve_workspace_state(
+        source_stability["after"],
+        workspace_resolver=workspace_resolver,
+    )
+    normalized["battery_scope"] = battery_scope()
+    normalized["non_disclosure"] = candidate_non_disclosure(
+        reference_measured_at=float(reference.measured_at),
+        candidate_run_started=float(run["payload"]["started_at_unix"]),
+        candidate_worker_receipts=worker_receipts,
+    )
+
+def _validate_capability_report_part_9(model_files, model_stability, normalized, require_bound_runtime_identity, require_resolved_workspace, run, runtime_manifest, source_stability, token_measurement):
+    normalized["runtime_identity_binding"] = runtime_identity_binding(
+        runtime_manifest,
+        source_components=(
+            source_stability["after"].get("execution_component_sha256") or {}
+        ),
+        model_files=model_files,
+        tokenizer_paths=model_stability["before"]["roles"]["tokenizer"],
+    )
+    if (
+        require_bound_runtime_identity
+        and normalized["runtime_identity_binding"]["complete"] is not True
+    ):
+        raise ValueError(
+            "effective runtime identity is not bound to measured material: "
+            f"{','.join(normalized['runtime_identity_binding']['unbound'])}"
+        )
+    normalized["stability_bracketing"] = [
+        stability_bracketing(
+            source_stability,
+            run_started=float(run["payload"]["started_at_unix"]),
+            run_completed=float(run["payload"]["completed_at_unix"]),
+            subject="capability source",
+        ),
+        stability_bracketing(
+            model_stability,
+            run_started=float(run["payload"]["started_at_unix"]),
+            run_completed=float(run["payload"]["completed_at_unix"]),
+            subject="capability model",
+        ),
+    ]
+    if (
+        require_resolved_workspace
+        and normalized["workspace_resolution"]["resolved"] is not True
+    ):
+        raise ValueError(
+            "capability workspace was not independently resolved: "
+            f"{normalized['workspace_resolution']['reason']}"
+        )
+    normalized["output_token_measurement"] = token_measurement
+
+def validate_capability_report(
+    report: Any,
+    *,
+    trusted_evaluator_keys: Mapping[str, str] | None,
+    trusted_worker_keys: Mapping[str, str] | None = None,
+    trusted_verifiers: Mapping[str, Mapping[str, str]] | None = None,
+    trusted_run_keys: Mapping[str, str] | None = None,
+    trusted_release_keys: Mapping[str, str] | None = None,
+    source_tree_resolver: Callable[[str], str] | None,
+    source_component_resolver: Callable[[str, str], str] | None,
+    model_manifest_resolver: Callable[[Mapping[str, Any]], Mapping[str, Any]]
+    | None = resolve_model_manifest,
+    require_resolved_model: bool = False,
+    verification_time_unix: float | None = None,
+    require_fresh_challenge: bool = False,
+    output_token_counter: Callable[[str], int] | None = None,
+    require_measured_output_tokens: bool = False,
+    workspace_resolver: Callable[[], Mapping[str, Any]] | None = None,
+    require_resolved_workspace: bool = False,
+    require_complete_component_coverage: bool = False,
+    require_bound_runtime_identity: bool = False,
+    key_custody: Mapping[str, Mapping[str, Any]] | None = None,
+    require_attested_custody: bool = False,
+) -> dict[str, Any]:
+    normalized, trust_basis = _validate_capability_report_part_1(report, trusted_evaluator_keys, trusted_release_keys, trusted_run_keys, trusted_verifiers, trusted_worker_keys)
+    seed = normalized.get("seed")
+    per_class = normalized.get("per_class")
+    if isinstance(seed, bool) or not isinstance(seed, int):
+        raise ValueError("capability report seed is invalid")
+    if isinstance(per_class, bool) or not isinstance(per_class, int) or per_class <= 0:
+        raise ValueError("capability report per_class is invalid")
+
+    source_stability = _validate_source_stability(
+        normalized.get("source_stability"),
+        source_tree_resolver=source_tree_resolver,
+        source_component_resolver=source_component_resolver,
+    )
+    source_identity = validate_source_identity(
+        normalized.get("source_identity"),
+        trusted_release_keys=trusted_release_keys,
+    )
+    model_stability, runtime_manifest = _validate_capability_report_part_2(normalized, source_identity, source_stability)
+    model_files, model_resolution = _validate_capability_report_part_3(model_manifest_resolver, model_stability, normalized, require_resolved_model, runtime_manifest)
 
     reference_raw = normalized.get("reference")
     if not isinstance(reference_raw, dict):
@@ -2528,34 +2810,7 @@ def validate_capability_report(
     reference_digest = sha256_json(reference.to_dict())
     if normalized.get("reference_artifact_sha256") != reference_digest:
         raise ValueError("capability report is not bound to its reference artifact")
-    if canonical_json_bytes(normalized.get("task_spec")) != canonical_json_bytes(
-        reference.task_spec
-    ) or canonical_json_bytes(normalized.get("challenge")) != canonical_json_bytes(
-        reference.challenge
-    ):
-        raise ValueError("candidate task or challenge differs from the reference run")
-    challenge = validate_challenge_bundle(
-        normalized["challenge"],
-        trusted_evaluator_keys=trusted_evaluator_keys,
-        expected_identity_freeze_sha256=expected_freeze,
-        verification_time_unix=verification_time_unix,
-        require_fresh=require_fresh_challenge,
-    )
-    manifest = battery_manifest(
-        seed=seed,
-        per_class=per_class,
-        challenge_nonce=challenge["nonce"],
-    )
-    task_spec = validate_task_spec(
-        normalized["task_spec"],
-        trusted_evaluator_keys=trusted_evaluator_keys,
-        trusted_verifiers=trusted_verifiers,
-        challenge=challenge,
-        expected_items=manifest["items"],
-        battery_version=BATTERY_VERSION,
-        seed=seed,
-        per_class=per_class,
-    )
+    challenge, task_spec = _validate_capability_report_part_4(expected_freeze, normalized, per_class, reference, require_fresh_challenge, seed, trusted_evaluator_keys, trusted_verifiers, verification_time_unix)
     items = build_battery(
         seed=seed,
         per_class=per_class,
@@ -2659,39 +2914,7 @@ def validate_capability_report(
             }
         )
 
-    correctness_raw = normalized.get("correctness_receipts")
-    if not isinstance(correctness_raw, list) or len(correctness_raw) != len(items):
-        raise ValueError("capability independent correctness receipts are incomplete")
-    correctness_receipts: list[dict[str, Any]] = []
-    for index, (receipt, item, output) in enumerate(
-        zip(correctness_raw, items, outputs, strict=True)
-    ):
-        correctness = validate_correctness_receipt(
-            receipt,
-            trusted_verifiers=trusted_verifiers,
-            verifier_identity=task_spec["verifier_identity"],
-            bindings={
-                "run_id": run_id,
-                "item_id": item.item_id,
-                "output_sha256": output["output_sha256"],
-                "task_spec_sha256": task_spec["task_spec_sha256"],
-                "challenge_bundle_sha256": challenge["bundle_sha256"],
-                "expected_answer_commitment_sha256": (
-                    item.expected_answer_commitment_sha256
-                ),
-                "hidden_case_commitment_sha256": (
-                    item.hidden_case_commitment_sha256
-                ),
-            },
-        )
-        evidence = evidence_items[index]
-        if canonical_json_bytes(evidence.get("correctness_receipt")) != canonical_json_bytes(
-            correctness["envelope"]
-        ):
-            raise ValueError("capability item omits or contradicts its correctness receipt")
-        if evidence.get("correct") is not correctness["payload"]["correct"]:
-            raise ValueError("candidate-local score contradicts independent correctness")
-        correctness_receipts.append(correctness)
+    correctness_receipts = _validate_capability_report_correctness_raw(challenge, evidence_items, items, normalized, outputs, run_id, task_spec, trusted_verifiers)
 
     run = validate_run_envelope(
         run_raw,
@@ -2729,201 +2952,12 @@ def validate_capability_report(
         run_envelope=run,
         custody=key_custody,
     )
-    if (
-        require_attested_custody
-        and normalized["actor_independence"]["independence"] != "custody_attested"
-    ):
-        raise ValueError(
-            "evidence roles are not attested to distinct custodians: "
-            f"{normalized['actor_independence']['independence']}"
-        )
-
-    correct_by_class = {task_class: 0 for task_class in _BATTERY_BUILDERS}
-    count_by_class = {task_class: 0 for task_class in _BATTERY_BUILDERS}
-    for item, receipt, output in zip(
-        items, correctness_receipts, outputs, strict=True
-    ):
-        _regrade_against_deterministic_grader(
-            item=item,
-            answer=str(output["answer"]),
-            signed_correct=receipt["payload"]["correct"],
-            subject="capability candidate",
-        )
-        count_by_class[item.task_class] += 1
-        correct_by_class[item.task_class] += int(receipt["payload"]["correct"])
-    expected_classes = {
-        task_class: ClassResult(
-            task_class=task_class,
-            n=count_by_class[task_class],
-            candidate_correct=correct_by_class[task_class],
-            reference_score=float(reference.scores[task_class]),
-        ).to_dict()
-        for task_class in _BATTERY_BUILDERS
-    }
-    observed_classes = normalized.get("classes")
-    if not isinstance(observed_classes, list):
-        raise ValueError("capability class scores are not verifier-reproducible")
-    # Cardinality and key uniqueness FIRST: coercing the rows straight into a
-    # dict let a duplicate task_class row overwrite its twin, so extra or
-    # contradictory rows could vanish and the survivor still compare equal.
-    observed_keys = [
-        str(cell.get("task_class")) for cell in observed_classes if isinstance(cell, dict)
-    ]
-    if (
-        len(observed_classes) != len(expected_classes)
-        or len(observed_keys) != len(observed_classes)
-        or len(set(observed_keys)) != len(observed_keys)
-    ):
-        raise ValueError("capability class rows are duplicated or malformed")
-    if {
-        str(cell.get("task_class")): cell for cell in observed_classes if isinstance(cell, dict)
-    } != expected_classes:
-        raise ValueError("capability class scores are not verifier-reproducible")
-    expected_candidate = round(sum(correct_by_class.values()) / len(items), 4)
-    expected_gap = round(
-        sum(float(cell["gap"]) for cell in expected_classes.values())
-        / len(expected_classes),
-        4,
-    )
-    if _finite_float(
-        normalized.get("overall_candidate_score"), field_name="overall candidate score"
-    ) != expected_candidate:
-        raise ValueError("capability candidate score is not verifier-reproducible")
-    if _finite_float(normalized.get("overall_gap"), field_name="overall gap") != expected_gap:
-        raise ValueError("capability gap is not verifier-reproducible")
-    expected_stratum = comparison_stratum_sha256(
-        per_class=per_class,
-        reference_runtime_manifest_sha256=reference.effective_runtime_manifest[
-            "manifest_sha256"
-        ],
-        seed=seed,
-        challenge_bundle_sha256=challenge["bundle_sha256"],
-        reference_scores=reference.scores,
-    )
-    if normalized.get("comparison_stratum_sha256") != expected_stratum:
-        raise ValueError("capability comparison stratum is invalid")
-    if normalized.get("challenge_id") != challenge["challenge_id"]:
-        raise ValueError("capability challenge identity is invalid")
-    execution = normalized.get("execution")
-    if not isinstance(execution, dict) or execution.get("attempted") != len(items) or execution.get(
-        "completed"
-    ) != len(items):
-        raise ValueError("capability execution count is incomplete")
-    for field_name in ("failed", "invalid", "empty", "disqualifying_fallbacks"):
-        if execution.get(field_name) != 0:
-            raise ValueError(f"capability execution has nonzero {field_name}")
-    # The counters above are the REPORT'S. Derive them from the item evidence
-    # and require agreement: clean counters could otherwise sit over
-    # contradictory answers, execution errors and fallback lists.
-    recomputed = _recomputed_execution_summary(
-        evidence_items=evidence_items,
-        worker_receipts=worker_receipts,
-        correctness_receipts=correctness_receipts,
-    )
-    disagreements = [
-        field_name
-        for field_name, value in recomputed.items()
-        if execution.get(field_name) != value
-    ]
-    if disagreements:
-        raise ValueError(
-            "capability execution summary contradicts the item evidence: "
-            f"{','.join(sorted(disagreements))}"
-        )
-    token_measurement = measure_output_tokens(
-        outputs,
-        worker_receipts,
-        token_counter=output_token_counter,
-    )
-    if token_measurement["over_budget"]:
-        raise ValueError(
-            "capability output exceeds the matched token budget: "
-            f"{','.join(token_measurement['over_budget'])}"
-        )
-    if token_measurement["disagreements"]:
-        raise ValueError(
-            "capability output token count contradicts the worker receipt: "
-            f"{','.join(token_measurement['disagreements'])}"
-        )
-    if require_measured_output_tokens and token_measurement["measured"] is not True:
-        raise ValueError(
-            "capability output tokens were not measured: "
-            f"{token_measurement['reason']}"
-        )
-    if normalized.get("eligibility_reasons") not in ([], None):
-        raise ValueError("claim-eligible capability report contains rejection reasons")
-    if normalized.get("reference_validation_error") not in (None, ""):
-        raise ValueError("claim-eligible capability report contains a reference error")
-    normalized["source_stability"] = source_stability
-    normalized["source_provenance"] = source_stability["after"]
+    execution = _validate_capability_report_part_6(challenge, correctness_receipts, items, normalized, outputs, per_class, reference, require_attested_custody, seed)
+    token_measurement = _validate_capability_report_counters_above_report(correctness_receipts, evidence_items, execution, normalized, output_token_counter, outputs, require_measured_output_tokens, source_stability, worker_receipts)
     normalized["source_identity"] = source_identity
     normalized["candidate_model"] = model_stability
-    normalized["effective_runtime_manifest"] = runtime_manifest
-    normalized["model_manifest_resolution"] = model_resolution
-    # Derived AFTER the signed windows are verified: the provenance dicts are
-    # hashed into source_stability's window digest, so anything added to them
-    # would break the signature it is meant to describe.
-    normalized["source_component_coverage"] = source_component_coverage(
-        source_stability["after"].get("execution_component_sha256") or {}
-    )
-    if (
-        require_complete_component_coverage
-        and normalized["source_component_coverage"]["complete"] is not True
-    ):
-        raise ValueError(
-            "capability source attestation does not cover its execution closure: "
-            f"{normalized['source_component_coverage']['covered']}"
-            f"/{normalized['source_component_coverage']['closure_size']}"
-        )
-    normalized["workspace_resolution"] = resolve_workspace_state(
-        source_stability["after"],
-        workspace_resolver=workspace_resolver,
-    )
-    normalized["battery_scope"] = battery_scope()
-    normalized["non_disclosure"] = candidate_non_disclosure(
-        reference_measured_at=float(reference.measured_at),
-        candidate_run_started=float(run["payload"]["started_at_unix"]),
-        candidate_worker_receipts=worker_receipts,
-    )
-    normalized["runtime_identity_binding"] = runtime_identity_binding(
-        runtime_manifest,
-        source_components=(
-            source_stability["after"].get("execution_component_sha256") or {}
-        ),
-        model_files=model_files,
-        tokenizer_paths=model_stability["before"]["roles"]["tokenizer"],
-    )
-    if (
-        require_bound_runtime_identity
-        and normalized["runtime_identity_binding"]["complete"] is not True
-    ):
-        raise ValueError(
-            "effective runtime identity is not bound to measured material: "
-            f"{','.join(normalized['runtime_identity_binding']['unbound'])}"
-        )
-    normalized["stability_bracketing"] = [
-        stability_bracketing(
-            source_stability,
-            run_started=float(run["payload"]["started_at_unix"]),
-            run_completed=float(run["payload"]["completed_at_unix"]),
-            subject="capability source",
-        ),
-        stability_bracketing(
-            model_stability,
-            run_started=float(run["payload"]["started_at_unix"]),
-            run_completed=float(run["payload"]["completed_at_unix"]),
-            subject="capability model",
-        ),
-    ]
-    if (
-        require_resolved_workspace
-        and normalized["workspace_resolution"]["resolved"] is not True
-    ):
-        raise ValueError(
-            "capability workspace was not independently resolved: "
-            f"{normalized['workspace_resolution']['reason']}"
-        )
-    normalized["output_token_measurement"] = token_measurement
+    _validate_capability_report_part_8(model_resolution, normalized, reference, require_complete_component_coverage, run, runtime_manifest, source_stability, worker_receipts, workspace_resolver)
+    _validate_capability_report_part_9(model_files, model_stability, normalized, require_bound_runtime_identity, require_resolved_workspace, run, runtime_manifest, source_stability, token_measurement)
     return normalized
 
 

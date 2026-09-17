@@ -4520,44 +4520,7 @@ def _collect_morphogenesis_status() -> dict[str, Any]:
     return morphogenesis_data
 
 
-async def _collect_api_health_payload(
-    *,
-    allow_owner_loop_reads: bool = True,
-) -> dict[str, Any]:
-    """Build the rich UI health payload outside the public request path."""
-
-    orch       = ServiceContainer.peek("orchestrator", default=None)
-    rt         = _get_runtime_state_safe()
-    runtime_payload = rt.get("state", {}) if isinstance(rt.get("state"), dict) else {}
-    status_obj = getattr(orch, "status", None)
-
-    initialized = getattr(status_obj, "initialized", False)
-    connected   = orch is not None and getattr(status_obj, "running", False)
-
-    try:
-        cpu = psutil.cpu_percent(interval=None)
-        ram = psutil.virtual_memory().percent
-        per_cpu = psutil.cpu_percent(interval=None, percpu=True)
-        p_core = per_cpu[0] if len(per_cpu) > 1 else cpu
-    except _SYSTEM_RECOVERABLE_ERRORS as e:
-        record_degradation('system', e)
-        logger.debug("Hardware stats collection failed: %s", e)
-        cpu, ram, p_core = 0, 0, 0
-
-    orch_status = {}
-    if orch and hasattr(orch, "get_status"):
-        try:
-            orch_status = orch.get_status()
-        except _SYSTEM_RECOVERABLE_ERRORS as e:
-            record_degradation('system', e)
-            logger.debug("get_status failed: %s", e)
-    conversation_lane = _collect_conversation_lane_status_resilient()
-    boot_snapshot, _ = build_boot_health_snapshot(
-        orch,
-        rt,
-        is_gui_proxy=str(_FLAG_GUI_PROXY.value()) == "1",
-        conversation_lane=conversation_lane,
-    )
+async def _collect_api_health_payload_connected(allow_owner_loop_reads, boot_snapshot):
     connected = bool(
         boot_snapshot.get("system_ready", False)
         or (
@@ -4595,28 +4558,9 @@ async def _collect_api_health_payload(
     except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("Liquid state/VAD lookup failed: %s", e)
-    curiosity_status = orch_status.get("curiosity_status", {})
+    return connected, ls_data
 
-    transcendence_data = {"meta_evolution": {"active": False, "acceleration_factor": 1.0}}
-    try:
-        meta = ServiceContainer.peek("meta_cognition", default=None)
-        if meta:
-            transcendence_data["meta_evolution"] = meta.get_health()
-            transcendence_data["meta_evolution"]["active"] = True
-    except _SYSTEM_RECOVERABLE_ERRORS as e:
-        record_degradation('system', e)
-        logger.debug("Transcendence status collection failed: %s", e)
-
-    # Agency: derive from energy + curiosity + active autonomous thought.
-    _energy_raw = _normalize_percentish(ls_data.get("energy")) or 0.0
-    _curiosity_raw = _normalize_percentish(ls_data.get("curiosity")) or 0.0
-    thought_task = getattr(orch, "_current_thought_task", None) if orch else None
-    try:
-        _thinking = bool(thought_task and hasattr(thought_task, "done") and not thought_task.done())
-    except _SYSTEM_RECOVERABLE_ERRORS as e:
-        record_degradation("system", e)
-        logger.debug("Current thought task status failed: %s", e)
-        _thinking = False
+async def _collect_api_health_payload__agency_score(_curiosity_raw, _energy_raw, _thinking, allow_owner_loop_reads, curiosity_status, orch, orch_status, p_core, transcendence_data):
     _agency_score = (_energy_raw * 0.4 + _curiosity_raw * 0.4 + (30.0 if _thinking else 0.0))
     _agency_score = min(100.0, max(0.0, _agency_score))
 
@@ -4685,81 +4629,9 @@ async def _collect_api_health_payload(
     except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation("system", e)
         logger.debug("Moral health collection failed: %s", e)
+    return cortex, moral_data
 
-    homeo_data = {}
-    try:
-        homeostasis = ServiceContainer.peek("homeostasis", default=None)
-        homeo_data = homeostasis.get_health() if homeostasis and hasattr(homeostasis, "get_health") else {}
-    except _SYSTEM_RECOVERABLE_ERRORS as e:
-        record_degradation("system", e)
-        logger.debug("Homeostasis health collection failed: %s", e)
-    homeostasis_payload = _collect_homeostasis_public_payload(
-        homeo_data if isinstance(homeo_data, dict) else {}
-    )
-    liquid_state_payload = _collect_liquid_state_payload(
-        cast(dict[str, Any], ls_data if isinstance(ls_data, dict) else {}),
-        runtime_state=runtime_payload if isinstance(runtime_payload, dict) else {},
-        homeostasis_data=homeostasis_payload,
-    )
-    soma_data = await _collect_soma_payload(refresh=allow_owner_loop_reads)
-
-    social_data = {"depth": 0.0}
-    try:
-        social = ServiceContainer.peek("social", default=None)
-        social_data = social.get_health() if social and hasattr(social, "get_health") else social_data
-    except _SYSTEM_RECOVERABLE_ERRORS as e:
-        record_degradation("system", e)
-        logger.debug("Social health collection failed: %s", e)
-
-    swarm_data = {"active_count": 0}
-    try:
-        swarm_data = orch.swarm_status if orch and hasattr(orch, 'swarm_status') else swarm_data
-    except _SYSTEM_RECOVERABLE_ERRORS as e:
-        record_degradation("system", e)
-        logger.debug("Swarm status collection failed: %s", e)
-
-    executive_closure_data = {}
-    try:
-        executive_closure_data = orch_status.get("executive_closure", {}) or {}
-        if not executive_closure_data:
-            executive_closure = ServiceContainer.peek("executive_closure", default=None)
-            if executive_closure and hasattr(executive_closure, "get_status"):
-                executive_closure_data = executive_closure.get_status()
-    except _SYSTEM_RECOVERABLE_ERRORS as e:
-        record_degradation('system', e)
-        logger.debug("Executive closure status collection failed: %s", e)
-
-    consciousness_evidence = {}
-    try:
-        consciousness_evidence = orch_status.get("consciousness_evidence", {}) or {}
-        if not consciousness_evidence:
-            evidence = ServiceContainer.peek("consciousness_evidence", default=None)
-            if evidence and hasattr(evidence, "snapshot"):
-                consciousness_evidence = evidence.snapshot()
-    except _SYSTEM_RECOVERABLE_ERRORS as e:
-        record_degradation('system', e)
-        logger.debug("Consciousness evidence collection failed: %s", e)
-
-    executive_authority_data = {}
-    try:
-        executive_authority = ServiceContainer.peek("executive_authority", default=None)
-        if executive_authority and hasattr(executive_authority, "get_status"):
-            executive_authority_data = executive_authority.get_status()
-    except _SYSTEM_RECOVERABLE_ERRORS as e:
-        record_degradation('system', e)
-        logger.debug("Executive authority status collection failed: %s", e)
-
-    interaction_signals_data = {}
-    try:
-        interaction_signals = ServiceContainer.peek("interaction_signals", default=None)
-        if interaction_signals and hasattr(interaction_signals, "get_status"):
-            interaction_signals_data = interaction_signals.get_status()
-    except _SYSTEM_RECOVERABLE_ERRORS as e:
-        record_degradation('system', e)
-        logger.debug("Interaction signal status collection failed: %s", e)
-
-    # ── Resilience Status ──
-    resilience_data: dict[str, Any] = {"circuit_breakers": {}, "snapshot": "unknown", "llm_tier": "unknown"}
+def _collect_api_health_payload_part_3(conversation_lane, orch, resilience_data):
     try:
         voice = ServiceContainer.peek("voice_engine", default=None)
         if voice:
@@ -4850,10 +4722,9 @@ async def _collect_api_health_payload(
     except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("Mycelial network status collection failed: %s", e)
+    return mycelial_data, qualia_data
 
-    # ── PNEUMA Engine Status ──
-    pneuma_data: dict[str, Any] = {"temperature": 0.7, "arousal": 0.0, "stability": 0.0,
-                   "attractor_count": 0, "efe_score": 0.0, "online": False, "_stale": True}
+def _collect_api_health_payload_part_4(pneuma_data):
     try:
         pn = ServiceContainer.peek("pneuma", default=None)
         if pn:
@@ -4991,7 +4862,9 @@ async def _collect_api_health_payload(
     except _SYSTEM_RECOVERABLE_ERRORS as _exc:
         record_degradation('system', _exc)
         logger.debug("User recognizer status collection failed: %s", _exc)
+    return mhaf_data, security_data
 
+async def _collect_api_health_payload_circadian_state(allow_owner_loop_reads):
     # ── Circadian State ──
     circadian_data: dict[str, Any] = {}
     try:
@@ -5037,6 +4910,186 @@ async def _collect_api_health_payload(
     except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("Consolidator status failed: %s", e)
+    return circadian_data, substrate_data
+
+def _collect_api_health_payload_payload(payload):
+    payload = _apply_runtime_revision_truth(payload)
+    shutdown = _shutdown_health_status()
+    shutdown_request = shutdown.get("request")
+    if isinstance(shutdown_request, dict) and shutdown_request.get("requested") is True:
+        payload["status"] = "stopping"
+        payload["healthy"] = False
+        payload["connected"] = False
+        payload["conversation_ready"] = False
+        payload["runtime_probe_healthy"] = False
+        payload["certification_ready"] = False
+        payload["shutdown"] = shutdown
+        required_probe_payload = payload.get("required_probes")
+        if isinstance(required_probe_payload, dict):
+            required_probe_payload["all_passed"] = False
+        blockers = [str(item) for item in payload.get("blockers", [])]
+        if "runtime_shutdown" not in blockers:
+            blockers.insert(0, "runtime_shutdown")
+        payload["blockers"] = blockers
+        readiness = payload.get("readiness_contract")
+        if isinstance(readiness, dict):
+            readiness["healthy"] = False
+            readiness["system_ready"] = False
+            readiness["conversation_ready"] = False
+            readiness["runtime_probe_healthy"] = False
+            readiness["certification_ready"] = False
+            readiness["blockers"] = blockers
+    else:
+        payload["shutdown"] = shutdown
+
+    safe_payload = _json_safe(payload)
+    return safe_payload
+
+async def _collect_api_health_payload(
+    *,
+    allow_owner_loop_reads: bool = True,
+) -> dict[str, Any]:
+    """Build the rich UI health payload outside the public request path."""
+
+    orch       = ServiceContainer.peek("orchestrator", default=None)
+    rt         = _get_runtime_state_safe()
+    runtime_payload = rt.get("state", {}) if isinstance(rt.get("state"), dict) else {}
+    status_obj = getattr(orch, "status", None)
+
+    initialized = getattr(status_obj, "initialized", False)
+    connected   = orch is not None and getattr(status_obj, "running", False)
+
+    try:
+        cpu = psutil.cpu_percent(interval=None)
+        ram = psutil.virtual_memory().percent
+        per_cpu = psutil.cpu_percent(interval=None, percpu=True)
+        p_core = per_cpu[0] if len(per_cpu) > 1 else cpu
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
+        record_degradation('system', e)
+        logger.debug("Hardware stats collection failed: %s", e)
+        cpu, ram, p_core = 0, 0, 0
+
+    orch_status = {}
+    if orch and hasattr(orch, "get_status"):
+        try:
+            orch_status = orch.get_status()
+        except _SYSTEM_RECOVERABLE_ERRORS as e:
+            record_degradation('system', e)
+            logger.debug("get_status failed: %s", e)
+    conversation_lane = _collect_conversation_lane_status_resilient()
+    boot_snapshot, _ = build_boot_health_snapshot(
+        orch,
+        rt,
+        is_gui_proxy=str(_FLAG_GUI_PROXY.value()) == "1",
+        conversation_lane=conversation_lane,
+    )
+    connected, ls_data = await _collect_api_health_payload_connected(allow_owner_loop_reads, boot_snapshot)
+    curiosity_status = orch_status.get("curiosity_status", {})
+
+    transcendence_data = {"meta_evolution": {"active": False, "acceleration_factor": 1.0}}
+    try:
+        meta = ServiceContainer.peek("meta_cognition", default=None)
+        if meta:
+            transcendence_data["meta_evolution"] = meta.get_health()
+            transcendence_data["meta_evolution"]["active"] = True
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
+        record_degradation('system', e)
+        logger.debug("Transcendence status collection failed: %s", e)
+
+    # Agency: derive from energy + curiosity + active autonomous thought.
+    _energy_raw = _normalize_percentish(ls_data.get("energy")) or 0.0
+    _curiosity_raw = _normalize_percentish(ls_data.get("curiosity")) or 0.0
+    thought_task = getattr(orch, "_current_thought_task", None) if orch else None
+    try:
+        _thinking = bool(thought_task and hasattr(thought_task, "done") and not thought_task.done())
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
+        record_degradation("system", e)
+        logger.debug("Current thought task status failed: %s", e)
+        _thinking = False
+    cortex, moral_data = await _collect_api_health_payload__agency_score(_curiosity_raw, _energy_raw, _thinking, allow_owner_loop_reads, curiosity_status, orch, orch_status, p_core, transcendence_data)
+
+    homeo_data = {}
+    try:
+        homeostasis = ServiceContainer.peek("homeostasis", default=None)
+        homeo_data = homeostasis.get_health() if homeostasis and hasattr(homeostasis, "get_health") else {}
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
+        record_degradation("system", e)
+        logger.debug("Homeostasis health collection failed: %s", e)
+    homeostasis_payload = _collect_homeostasis_public_payload(
+        homeo_data if isinstance(homeo_data, dict) else {}
+    )
+    liquid_state_payload = _collect_liquid_state_payload(
+        cast(dict[str, Any], ls_data if isinstance(ls_data, dict) else {}),
+        runtime_state=runtime_payload if isinstance(runtime_payload, dict) else {},
+        homeostasis_data=homeostasis_payload,
+    )
+    soma_data = await _collect_soma_payload(refresh=allow_owner_loop_reads)
+
+    social_data = {"depth": 0.0}
+    try:
+        social = ServiceContainer.peek("social", default=None)
+        social_data = social.get_health() if social and hasattr(social, "get_health") else social_data
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
+        record_degradation("system", e)
+        logger.debug("Social health collection failed: %s", e)
+
+    swarm_data = {"active_count": 0}
+    try:
+        swarm_data = orch.swarm_status if orch and hasattr(orch, 'swarm_status') else swarm_data
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
+        record_degradation("system", e)
+        logger.debug("Swarm status collection failed: %s", e)
+
+    executive_closure_data = {}
+    try:
+        executive_closure_data = orch_status.get("executive_closure", {}) or {}
+        if not executive_closure_data:
+            executive_closure = ServiceContainer.peek("executive_closure", default=None)
+            if executive_closure and hasattr(executive_closure, "get_status"):
+                executive_closure_data = executive_closure.get_status()
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
+        record_degradation('system', e)
+        logger.debug("Executive closure status collection failed: %s", e)
+
+    consciousness_evidence = {}
+    try:
+        consciousness_evidence = orch_status.get("consciousness_evidence", {}) or {}
+        if not consciousness_evidence:
+            evidence = ServiceContainer.peek("consciousness_evidence", default=None)
+            if evidence and hasattr(evidence, "snapshot"):
+                consciousness_evidence = evidence.snapshot()
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
+        record_degradation('system', e)
+        logger.debug("Consciousness evidence collection failed: %s", e)
+
+    executive_authority_data = {}
+    try:
+        executive_authority = ServiceContainer.peek("executive_authority", default=None)
+        if executive_authority and hasattr(executive_authority, "get_status"):
+            executive_authority_data = executive_authority.get_status()
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
+        record_degradation('system', e)
+        logger.debug("Executive authority status collection failed: %s", e)
+
+    interaction_signals_data = {}
+    try:
+        interaction_signals = ServiceContainer.peek("interaction_signals", default=None)
+        if interaction_signals and hasattr(interaction_signals, "get_status"):
+            interaction_signals_data = interaction_signals.get_status()
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
+        record_degradation('system', e)
+        logger.debug("Interaction signal status collection failed: %s", e)
+
+    # ── Resilience Status ──
+    resilience_data: dict[str, Any] = {"circuit_breakers": {}, "snapshot": "unknown", "llm_tier": "unknown"}
+    mycelial_data, qualia_data = _collect_api_health_payload_part_3(conversation_lane, orch, resilience_data)
+
+    # ── PNEUMA Engine Status ──
+    pneuma_data: dict[str, Any] = {"temperature": 0.7, "arousal": 0.0, "stability": 0.0,
+                   "attractor_count": 0, "efe_score": 0.0, "online": False, "_stale": True}
+    mhaf_data, security_data = _collect_api_health_payload_part_4(pneuma_data)
+
+    circadian_data, substrate_data = await _collect_api_health_payload_circadian_state(allow_owner_loop_reads)
 
     # ── Morphogenesis Status ──
     morphogenesis_data = _collect_morphogenesis_status()
@@ -5211,36 +5264,7 @@ async def _collect_api_health_payload(
             "timestamp": datetime.now(tz=UTC).isoformat()
         }
 
-    payload = _apply_runtime_revision_truth(payload)
-    shutdown = _shutdown_health_status()
-    shutdown_request = shutdown.get("request")
-    if isinstance(shutdown_request, dict) and shutdown_request.get("requested") is True:
-        payload["status"] = "stopping"
-        payload["healthy"] = False
-        payload["connected"] = False
-        payload["conversation_ready"] = False
-        payload["runtime_probe_healthy"] = False
-        payload["certification_ready"] = False
-        payload["shutdown"] = shutdown
-        required_probe_payload = payload.get("required_probes")
-        if isinstance(required_probe_payload, dict):
-            required_probe_payload["all_passed"] = False
-        blockers = [str(item) for item in payload.get("blockers", [])]
-        if "runtime_shutdown" not in blockers:
-            blockers.insert(0, "runtime_shutdown")
-        payload["blockers"] = blockers
-        readiness = payload.get("readiness_contract")
-        if isinstance(readiness, dict):
-            readiness["healthy"] = False
-            readiness["system_ready"] = False
-            readiness["conversation_ready"] = False
-            readiness["runtime_probe_healthy"] = False
-            readiness["certification_ready"] = False
-            readiness["blockers"] = blockers
-    else:
-        payload["shutdown"] = shutdown
-
-    safe_payload = _json_safe(payload)
+    safe_payload = _collect_api_health_payload_payload(payload)
     return safe_payload if isinstance(safe_payload, dict) else {"status": "degraded"}
 
 

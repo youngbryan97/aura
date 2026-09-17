@@ -1259,6 +1259,104 @@ def _argument_literal_boundaries() -> tuple:
     return ("Argument references do not split parsed literal atoms.",)
 
 
+def _assign_typed_arguments_ranked_options(by_register, definition_registers, evidence_by_position, evidence_lookup, factor_lookup, factors_by_position, input_spans, inputs, model):
+    ranked_options = sorted(
+        (
+            (score, definition_registers[candidate_index], span, candidate_index)
+            for candidate_index, candidates in by_register.items()
+            for score, span in _retained_argument_mentions(
+                candidates,
+                overlap_complete=(
+                    model.training_receipt.get("argument_proposal_retention")
+                    == "overlap_dominance_v3"
+                ),
+                literal_anchor=(
+                    input_spans[definition_registers[candidate_index]]
+                    if model.training_receipt.get("argument_proposal_retention")
+                    == "ranked_with_literal_anchors_v2"
+                    and definition_registers[candidate_index] < len(inputs)
+                    else None
+                ),
+            )
+        ),
+        key=lambda item: (-item[0], item[1], item[2].start, item[2].end, item[3]),
+    )
+    options = [(score, register, span) for score, register, span, _index in ranked_options]
+    if factor_lookup is not None:
+        factors_by_position.append(tuple(factor_lookup[index, span]
+            for _score, _register, span, index in ranked_options))
+    if evidence_lookup is not None:
+        evidence_by_position.append(tuple(evidence_lookup[index, span]
+            for _score, _register, span, index in ranked_options))
+    return options, ranked_options
+
+def _assign_typed_arguments_candidates(inputs, model, operation_nodes, options_by_position, partial, prefix_feasible, states):
+    candidates: list[
+        tuple[
+            float,
+            tuple[tuple[int, ...], ...],
+            tuple[tuple[TokenSpan, ...], ...],
+            tuple[tuple[int, ...], ...],
+        ]
+    ] = []
+    for total, arguments, spans, dependencies in states:
+        continuations = (
+            _prefix_feasible_arguments(
+                options_by_position,
+                arguments=arguments,
+                spans=spans,
+                dependencies=dependencies,
+                operation_nodes=operation_nodes,
+                n_inputs=len(inputs),
+                contract=model.register_use_contract,
+                beam=_ARGUMENT_BEAM,
+            )
+            if prefix_feasible else partial
+        )
+        for step_score, step_arguments, step_spans in continuations:
+            if any(
+                _overlap(current, previous)
+                for current in step_spans
+                for previous_step in spans
+                for previous in previous_step
+            ):
+                continue
+            step_dependencies = tuple(
+                sorted(
+                    register - len(inputs)
+                    for register in set(step_arguments)
+                    if register >= len(inputs)
+                )
+            )
+            candidate_dependencies = (*dependencies, step_dependencies)
+            if (
+                _operation_order(
+                    candidate_dependencies,
+                    operation_nodes,
+                    require_connected=False,
+                )
+                is None
+            ):
+                continue
+            use_counts: Counter[int] = Counter(
+                register for values in (*arguments, step_arguments) for register in values
+            )
+            if not model.register_use_contract.allows_partial(
+                use_counts,
+                n_inputs=len(inputs),
+            ):
+                continue
+            candidates.append(
+                (
+                    total + step_score,
+                    (*arguments, step_arguments),
+                    (*spans, step_spans),
+                    candidate_dependencies,
+                )
+            )
+    states = sorted(candidates, key=lambda item: (-item[0], item[1]))[:_ARGUMENT_BEAM]
+    return states
+
 def _assign_typed_arguments(
     *,
     model: CompositionalSemanticProgramTransducer,
@@ -1510,34 +1608,7 @@ def _assign_typed_arguments(
                         )
             if not by_register:
                 return None
-            ranked_options = sorted(
-                (
-                    (score, definition_registers[candidate_index], span, candidate_index)
-                    for candidate_index, candidates in by_register.items()
-                    for score, span in _retained_argument_mentions(
-                        candidates,
-                        overlap_complete=(
-                            model.training_receipt.get("argument_proposal_retention")
-                            == "overlap_dominance_v3"
-                        ),
-                        literal_anchor=(
-                            input_spans[definition_registers[candidate_index]]
-                            if model.training_receipt.get("argument_proposal_retention")
-                            == "ranked_with_literal_anchors_v2"
-                            and definition_registers[candidate_index] < len(inputs)
-                            else None
-                        ),
-                    )
-                ),
-                key=lambda item: (-item[0], item[1], item[2].start, item[2].end, item[3]),
-            )
-            options = [(score, register, span) for score, register, span, _index in ranked_options]
-            if factor_lookup is not None:
-                factors_by_position.append(tuple(factor_lookup[index, span]
-                    for _score, _register, span, index in ranked_options))
-            if evidence_lookup is not None:
-                evidence_by_position.append(tuple(evidence_lookup[index, span]
-                    for _score, _register, span, index in ranked_options))
+            options, ranked_options = _assign_typed_arguments_ranked_options(by_register, definition_registers, evidence_by_position, evidence_lookup, factor_lookup, factors_by_position, input_spans, inputs, model)
             if joint_definitions:
                 definitions_by_position.append(tuple(
                     definition_labels[index] for _score, _register, _span, index in ranked_options
@@ -1574,70 +1645,7 @@ def _assign_typed_arguments(
             chart_factors.append(factors_by_position)
             chart_relation_evidence.append(evidence_by_position)
             continue
-        candidates: list[
-            tuple[
-                float,
-                tuple[tuple[int, ...], ...],
-                tuple[tuple[TokenSpan, ...], ...],
-                tuple[tuple[int, ...], ...],
-            ]
-        ] = []
-        for total, arguments, spans, dependencies in states:
-            continuations = (
-                _prefix_feasible_arguments(
-                    options_by_position,
-                    arguments=arguments,
-                    spans=spans,
-                    dependencies=dependencies,
-                    operation_nodes=operation_nodes,
-                    n_inputs=len(inputs),
-                    contract=model.register_use_contract,
-                    beam=_ARGUMENT_BEAM,
-                )
-                if prefix_feasible else partial
-            )
-            for step_score, step_arguments, step_spans in continuations:
-                if any(
-                    _overlap(current, previous)
-                    for current in step_spans
-                    for previous_step in spans
-                    for previous in previous_step
-                ):
-                    continue
-                step_dependencies = tuple(
-                    sorted(
-                        register - len(inputs)
-                        for register in set(step_arguments)
-                        if register >= len(inputs)
-                    )
-                )
-                candidate_dependencies = (*dependencies, step_dependencies)
-                if (
-                    _operation_order(
-                        candidate_dependencies,
-                        operation_nodes,
-                        require_connected=False,
-                    )
-                    is None
-                ):
-                    continue
-                use_counts: Counter[int] = Counter(
-                    register for values in (*arguments, step_arguments) for register in values
-                )
-                if not model.register_use_contract.allows_partial(
-                    use_counts,
-                    n_inputs=len(inputs),
-                ):
-                    continue
-                candidates.append(
-                    (
-                        total + step_score,
-                        (*arguments, step_arguments),
-                        (*spans, step_spans),
-                        candidate_dependencies,
-                    )
-                )
-        states = sorted(candidates, key=lambda item: (-item[0], item[1]))[:_ARGUMENT_BEAM]
+        states = _assign_typed_arguments_candidates(inputs, model, operation_nodes, options_by_position, partial, prefix_feasible, states)
         if not states:
             return None
     if global_constraint:

@@ -753,19 +753,7 @@ def _validate_measurement_pair(
         raise ValueError("runtime-integrity comparison does not reconstruct")
 
 
-def validate_runtime_integrity_receipt(
-    value: Mapping[str, Any],
-    *,
-    require_worker: bool,
-    expected_episode_id: str | None = None,
-    expected_input_tokens_sha256: str | None = None,
-    expected_worker_identity: Mapping[str, Any] | None = None,
-    expected_fast_weights_applied: bool | None = None,
-    expected_fast_weights_attach_attempted: bool | None = None,
-    expected_checkpoint_fingerprint: str | None = None,
-    expected_checkpoint_method: str | None = None,
-    expected_checkpoint_file_count: int | None = None,
-) -> dict[str, Any]:
+def _validate_runtime_integrity_receipt_part_1(expected_checkpoint_file_count, expected_checkpoint_fingerprint, expected_checkpoint_method, expected_episode_id, expected_fast_weights_applied, expected_fast_weights_attach_attempted, expected_input_tokens_sha256, expected_worker_identity, value):
     if not isinstance(value, Mapping) or set(value) != _TOP_LEVEL_FIELDS:
         raise ValueError("runtime-integrity fields do not match schema")
     payload = {
@@ -1151,6 +1139,22 @@ def validate_runtime_integrity_receipt(
         expected_reasons.append("worker_identity_unbound")
     if not set(expected_reasons).issubset(set(verdict["reasons"])):
         raise ValueError("runtime-integrity reasons omit a measured failure")
+    return expected_worker_bound
+
+def validate_runtime_integrity_receipt(
+    value: Mapping[str, Any],
+    *,
+    require_worker: bool,
+    expected_episode_id: str | None = None,
+    expected_input_tokens_sha256: str | None = None,
+    expected_worker_identity: Mapping[str, Any] | None = None,
+    expected_fast_weights_applied: bool | None = None,
+    expected_fast_weights_attach_attempted: bool | None = None,
+    expected_checkpoint_fingerprint: str | None = None,
+    expected_checkpoint_method: str | None = None,
+    expected_checkpoint_file_count: int | None = None,
+) -> dict[str, Any]:
+    expected_worker_bound = _validate_runtime_integrity_receipt_part_1(expected_checkpoint_file_count, expected_checkpoint_fingerprint, expected_checkpoint_method, expected_episode_id, expected_fast_weights_applied, expected_fast_weights_attach_attempted, expected_input_tokens_sha256, expected_worker_identity, value)
     if require_worker and not expected_worker_bound:
         raise ValueError("runtime-integrity worker binding is required")
     return dict(value)
