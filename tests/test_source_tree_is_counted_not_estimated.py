@@ -112,3 +112,36 @@ def test_a_source_question_does_not_count_model_weights() -> None:
 )
 def test_an_ordinary_turn_asks_for_no_count(question: str) -> None:
     assert requested_filesystem_count(question) is None
+
+
+def test_the_reading_carries_sizes_largest_first(tmp_path):
+    """LIVE 2026-09-16: "which one is the largest by bytes" was answered with
+    a guess (conscious_core.py, against phi_core.py at 125,814 bytes) because
+    the listing carried names and no sizes."""
+    from core.conversation.filesystem_check import _count_in
+
+    (tmp_path / "small.py").write_text("x = 1\n")
+    (tmp_path / "large.py").write_text("y = 2\n" * 100)
+    (tmp_path / "mid.py").write_text("z = 3\n" * 10)
+    counted = _count_in(tmp_path, ".py")
+    assert counted is not None and counted.count == 3
+    assert [name for name, _ in counted.sizes] == ["large.py", "mid.py", "small.py"]
+    assert counted.sizes[0][1] == 600
+
+
+def test_a_directory_named_consciousness_is_not_a_claim_about_hers():
+    """LIVE 2026-09-16: the count question carried the word consciousness in a
+    path, the reply was held to the self-claim evidence boundary, and a
+    correct answer from the cortex was rejected and replaced by a fallback."""
+    from core.conversation.response_reliability import _requires_self_claim_evidence_boundary
+
+    assert not _requires_self_claim_evidence_boundary(
+        "How many Python files are under core/consciousness in your source tree, "
+        "and which one is the largest by bytes?"
+    )
+    assert not _requires_self_claim_evidence_boundary("what does core.consciousness.phi_core do?")
+    assert not _requires_self_claim_evidence_boundary("what's in the consciousness/ folder")
+    assert _requires_self_claim_evidence_boundary("are you conscious?")
+    assert _requires_self_claim_evidence_boundary(
+        "is there a self-aware mode in core/consciousness/self_awareness.py and are you self-aware?"
+    )

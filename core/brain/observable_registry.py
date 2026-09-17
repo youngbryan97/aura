@@ -312,6 +312,15 @@ async def _read_count(prompt: str) -> str:
     if not counted.exists:
         return f"There is no directory at {counted.path}."
     kind = f"{counted.suffix} " if counted.suffix else ""
+    # Largest first, with sizes: a count answers "how many", and the sizes
+    # answer "which is the largest" from the reading rather than a guess.
+    if counted.sizes:
+        listed = ", ".join(f"{name} ({size:,} bytes)" for name, size in counted.sizes[:40])
+        more = "" if len(counted.sizes) <= 40 else f", and {len(counted.sizes) - 40} smaller"
+        return (
+            f"{counted.path} contains {counted.count} {kind}file(s), largest first: "
+            f"{listed}{more}"
+        )
     listed = ", ".join(counted.names[:40]) or "nothing"
     return f"{counted.path} contains {counted.count} {kind}file(s): {listed}"
 

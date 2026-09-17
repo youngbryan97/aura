@@ -2426,6 +2426,13 @@ def is_cognitive_engine_failure_envelope(reply_text: Any) -> bool:
     return bool(_COGNITIVE_ENGINE_FAILURE_ENVELOPE_RE.search(str(reply_text or "")))
 
 
+#: A path (two or more segments joined by slashes), a dotted module, a Python
+#: file name, or anything in backticks: names, never prose.
+_NAMED_CODE_TOKEN_RE = re.compile(
+    r"`[^`]*`|(?<!\S)(?:[\w.~-]*/[\w./~-]+|[\w.~-]+/)|\b\w+\.py\b|\b\w+(?:\.\w+){2,}\b"
+)
+
+
 def _requires_self_claim_evidence_boundary(prompt: Any) -> bool:
     """Return true only for actual consciousness/personhood/selfhood claims.
 
@@ -2435,7 +2442,12 @@ def _requires_self_claim_evidence_boundary(prompt: Any) -> bool:
     still must stay evidence-bounded.
     """
 
-    text = _normalize(prompt)
+    # A word inside a path, a module name or a code span names a thing on
+    # disk, not a claim about her. LIVE 2026-09-16: "How many Python files
+    # are under core/consciousness in your source tree" made the count a
+    # consciousness claim, and a correct answer from the cortex was rejected
+    # for missing_self_claim_evidence_boundary and replaced by a fallback.
+    text = _normalize(_NAMED_CODE_TOKEN_RE.sub(" ", str(prompt or "")))
     if not text:
         return False
     if re.search(
