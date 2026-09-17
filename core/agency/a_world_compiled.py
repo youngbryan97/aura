@@ -329,16 +329,16 @@ def search(
     """
     started = time.monotonic()
     ends_at = started + max(0.0, float(budget_s))
-    # A pass that has run to twice its budget is abandoned where it stands,
+    # A pass still running when the time is up is abandoned where it stands,
     # and the last finished pass is what she has.
-    give_up_at = ends_at + max(0.0, float(budget_s))
+    give_up_at = ends_at
     here = world.board(state)
     pushes = [action for action in actions if action in _PUSHES]
     ticks = [0]
 
     def best_from(board: tuple[int, ...], depth: int, likely: float, memo: dict) -> float:
         ticks[0] += 1
-        if depth > 1 and not ticks[0] % 256 and time.monotonic() > give_up_at:
+        if depth > 1 and not ticks[0] % 64 and time.monotonic() > give_up_at:
             raise _OutOfTime
         key = (board, depth)
         known = memo.get(key)
@@ -373,7 +373,6 @@ def search(
 
     scored: dict[str, tuple[float, tuple[int, ...]]] = {}
     finished = 0
-    last_took = 0.0
     best_before = best_before_that = ""
     depth = max(1, int(fixed_depth)) if fixed_depth else 1
     while depth <= (max(1, int(fixed_depth)) if fixed_depth else _DEEPEST):
@@ -403,19 +402,15 @@ def search(
         finished = depth
         if fixed_depth or settled:
             break
-        took = time.monotonic() - pass_began
-        # What the next level will cost, from what the last two cost. Assumed
-        # to be the whole breadth of acts and replies, it was projected many
-        # times over: most of a level is already worked out or too unlikely
-        # to follow, and the search stopped a level short of the depth that
-        # wins. Before there are two passes to compare, the breadth is all
-        # there is to go on.
-        if last_took > 0.0:
-            growth = max(2.0, took / last_took)
-        else:
-            growth = float(max(2, len(pushes)) * max(1, len(world.replies(here))))
-        last_took = took
-        if time.monotonic() + took * growth > ends_at:
+        # A level is started while any time remains and abandoned when it
+        # runs out, rather than refused because it looks too expensive to
+        # finish. Guessing what the next level costs from what the last one
+        # did left five sixths of the time unspent — 47 ms of 300, a third of
+        # her moves decided one level shallower than the clock allowed — and
+        # the time she saves is time she spends waiting for the world.
+        # Nothing is lost when a level does not finish: what comes back is
+        # the last one that did.
+        if time.monotonic() >= ends_at:
             break
         depth += 1
     return scored, finished
