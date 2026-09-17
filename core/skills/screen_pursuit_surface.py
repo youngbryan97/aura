@@ -30,6 +30,14 @@ async def window_bounds(app_name: str) -> tuple[int, int, int, int] | None:
     """The front window rectangle of `app_name` in pixels, or None."""
     if not app_name:
         return None
+    # Asked of the window server first. The same question through System
+    # Events is a subprocess and, for a name no process answers to, a timeout:
+    # measured 2026-09-17, fourteen seconds of every cycle.
+    from core.capabilities import window_server
+
+    found = window_server.window_of(app_name)
+    if found is not None:
+        return found.bounds
     from core.capabilities.host_automation import get_host_automation
 
     script = (
@@ -272,6 +280,39 @@ def _value_is_on_screen(value: str, observation: dict[str, Any]) -> bool:
         and not labelled_by(region, regions)
         for region in regions
     )
+
+
+def where_the_goal_shows(observation: dict[str, Any], success_when: str) -> list[tuple[float, float]]:
+    """Where on the reading the finishing condition is showing, run by run.
+
+    The same test :func:`goal_reached` applies, asked of each positioned run of
+    text so the answer says where. A condition that only matches across runs,
+    with no one run satisfying it, has no place and comes back empty.
+    """
+    pattern = str(success_when or "").strip()
+    if not pattern:
+        return []
+    bare_value = bool(re.fullmatch(r"[0-9][0-9,]*", pattern))
+    values = re.findall(r"\b\d[\d,]*\b", pattern)
+    layout = list(observation.get("layout") or [])
+    found: list[tuple[float, float]] = []
+    for region in layout:
+        said = str(region.get("text") or "")
+        if bare_value:
+            hit = _matches(pattern, said, whole_region=True) and not labelled_by(region, layout)
+        else:
+            hit = _matches(pattern, said) or (
+                len(values) == 1
+                and _matches(values[0], said, whole_region=True)
+                and not labelled_by(region, layout)
+            )
+        if not hit:
+            continue
+        try:
+            found.append((float(region.get("center_x", 0.0)), float(region.get("center_y", 0.0))))
+        except (TypeError, ValueError):
+            continue
+    return found
 
 
 def goal_reached(
@@ -529,10 +570,34 @@ async def press(key: str, *, expect_app: str = "") -> bool:
     if not _bound_to_a_window(name, expect_app):
         logger.info("not pressing %r: nothing is bound to receive it", name)
         return False
+    if await _send_to_the_window(expect_app, [name]) == 1:
+        return True
     from core.capabilities.host_automation import get_host_automation
 
     receipt = await get_host_automation().hotkey(name, expect_app=expect_app)
     return bool(getattr(receipt, "success", False))
+
+
+async def _send_to_the_window(app: str, keys: Sequence[str]) -> int:
+    """Keys addressed to the process that owns ``app``'s window. How many went.
+
+    A keystroke through System Events goes to whatever is in front when it
+    arrives, which is why every one of them had to check the front window
+    first and could still be beaten to it by a click. Addressed to the
+    process, it reaches the application it was meant for and nothing else,
+    whatever the person is doing with the rest of the screen.
+
+    Nought when there is no window to address, and the caller then presses the
+    old way, guard and all.
+    """
+    if not str(app or "").strip():
+        return 0
+    from core.capabilities import window_server
+
+    window = window_server.window_of(app)
+    if window is None or window.pid <= 0:
+        return 0
+    return window_server.post_keys(window.pid, list(keys))
 
 
 async def press_many(keys: Sequence[str], *, expect_app: str = "") -> int:
@@ -554,6 +619,9 @@ async def press_many(keys: Sequence[str], *, expect_app: str = "") -> int:
     if not all(_bound_to_a_window(key, expect_app) for key in wanted):
         logger.info("not pressing %s: nothing is bound to receive them", wanted)
         return 0
+    sent = await _send_to_the_window(expect_app, wanted)
+    if sent:
+        return sent
     from core.capabilities.host_automation import get_host_automation
 
     receipt = await get_host_automation().hotkeys(wanted, expect_app=expect_app)

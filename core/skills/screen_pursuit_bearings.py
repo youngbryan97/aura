@@ -816,6 +816,12 @@ def _was_of_that_window(reading: Any, app: str) -> bool:
     A reading from before this was recorded says nothing either way, and
     ``True`` is what "says nothing" has always meant here.
     """
+    owner = str((reading or {}).get("owner") or "")
+    if owner and (reading or {}).get("window_number"):
+        # Taken by window number: the pixels are that window's own, whatever
+        # was in front of it, so the question is only whose window it was.
+        mine, theirs = app.strip().lower(), owner.strip().lower()
+        return bool(mine) and (mine in theirs or theirs in mine)
     if not (reading or {}).get("her_window_showing", True):
         # Her window is exactly where it was and none of it is on the screen
         # that was photographed.

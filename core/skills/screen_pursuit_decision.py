@@ -204,7 +204,10 @@ async def _decide_the_next_move_what_she_looking(anchor, drawn, narrate, observa
     # reading properly.
     # And a picture taken through somebody else's window is not a
     # reading of the thing however well it is scoped or cropped.
-    looking_at_the_thing = (already or band is not None) and _was_of_that_window(
+    # Or when the places of a grid are in the picture itself. Then which part
+    # is the thing is seen, not learned, and there is nothing to wait for.
+    sees_its_places = bool(observation.get("grids"))
+    looking_at_the_thing = (already or band is not None or sees_its_places) and _was_of_that_window(
         observation, target_app or anchor["app"]
     )
     return band, looking_at_the_thing
@@ -1981,7 +1984,22 @@ async def decide_the_next_move(
         int(getattr(responds["state"], "acts", 0) or 0),
         int(getattr(responds["state"], "effective", 0) or 0),
     )
-    if not follow_on and foresee is not None and pending["arranged"] is not None:
+    # A world that adds things of its own between acts cannot be predicted past
+    # the next of them: what the model foresees after one act is the board
+    # without the thing the world is about to put on it, so a second act is
+    # chosen for a board that will not exist. Looking after every act is the
+    # only honest pace there, and looking is a third of a second.
+    if follow_on and knows.rules is not None and (
+        knows.rules.world_adds_things() or world.acts_with_arrivals >= 2
+    ):
+        follow_on = []
+    if (
+        not follow_on
+        and foresee is not None
+        and pending["arranged"] is not None
+        and (knows.rules is None or not knows.rules.world_adds_things())
+        and world.acts_with_arrivals < 2
+    ):
         going = far.how_many(trusted=float(knows.rules.confidence()))
         if going > 1:
             follow_on, _ = _the_rest_of_the_run(

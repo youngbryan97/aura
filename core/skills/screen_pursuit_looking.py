@@ -842,12 +842,20 @@ async def _settled_after(
     seen = before
     moved = False
     while time.monotonic() - started < (patience or _how_long_to_wait()):
-        await asyncio.sleep(0.3)
+        await asyncio.sleep(0.3 if before.get("settled") is None else 0.1)
         try:
             now = await asyncio.wait_for(read_screen(app), timeout=OBSERVE_TIMEOUT_S)
         except TimeoutError:
             continue
         said = _reading(now)
+        # A reading that was only taken once its pixels had stopped changing
+        # is already the second look. Changed and still is finished, and the
+        # extra reading used to confirm it cost most of a move.
+        if said != was and now.get("settled") is True:
+            _ANSWERING_TOOK["longest"] = max(
+                _ANSWERING_TOOK["longest"], time.monotonic() - started
+            )
+            return now, True
         if not moved and said != was:
             moved = True
             _ANSWERING_TOOK["longest"] = max(
@@ -862,7 +870,10 @@ async def _settled_after(
             # two — and a reading is most of what a move costs. Measured on
             # the real board: about four seconds a move, of which nearly two
             # were the second look.
-            if arrived is not None:
+            # Only a still picture can show what she foretold having landed. A
+            # picture taken while the world was still adding its own piece
+            # matches the prediction and then disagrees with the next move.
+            if arrived is not None and now.get("settled") is not False:
                 try:
                     if arrived(now):
                         return now, True

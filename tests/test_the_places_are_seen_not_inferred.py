@@ -1,0 +1,150 @@
+"""The places of a laid-out thing are in the picture, empty ones included.
+
+LIVE 2026-09-17, the 2048 desktop app. A reading made only of recognised text
+had no way to see a square with nothing in it, so the grid was inferred from
+where tiles had been seen over many moves, and after thirty moves she had
+learned nothing about how the board moved: every pair was "not the thing
+itself" or "a different frame". And macOS Vision returned a "2" and an "8"
+from a clean capture while leaving out a "4" and a "2" in plain sight.
+
+These are drawn pictures, not screenshots, so what is asserted is the reading
+of structure: panels of one size at one pitch are a grid, a place with nothing
+in it is still a place, text lying across the places belongs to none of them,
+and a frame held between glances survives the jitter of finding an edge a
+pixel over.
+"""
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+cv2 = pytest.importorskip("cv2")
+
+from core.perception.what_the_pixels_show import Looker, grids_in, panels_in  # noqa: E402
+from core.perception.where_it_responds import what_is_there  # noqa: E402
+
+
+def _a_board(filled: dict[tuple[int, int], tuple[int, int, int]], side: int = 4) -> np.ndarray:
+    """A window with a title bar of text, a button, and a grid of squares."""
+    picture = np.full((620, 520, 3), (238, 244, 249), np.uint8)
+    cv2.rectangle(picture, (330, 30), (480, 70), (100, 120, 140), -1)
+    cv2.rectangle(picture, (40, 110), (480, 550), (160, 173, 187), -1)
+    pitch, size, left, top = 110, 96, 47, 117
+    for row in range(side):
+        for column in range(side):
+            colour = filled.get((row, column), (180, 193, 205))
+            x, y = left + column * pitch, top + row * pitch
+            cv2.rectangle(picture, (x, y), (x + size, y + size), colour, -1)
+    return picture
+
+
+def test_a_grid_is_found_with_its_empty_places():
+    picture = _a_board({(0, 0): (218, 228, 238), (3, 2): (121, 177, 242)})
+    grids = grids_in(panels_in(picture))
+    assert len(grids) == 1
+    grid = grids[0]
+    assert (grid.rows, grid.columns) == (4, 4)
+    # Every place is there, not only the two with something in them.
+    assert grid.where(grid.across_at[1], grid.down_at[2]) == (2, 1)
+
+
+def test_one_button_is_not_a_grid():
+    picture = np.full((300, 300, 3), 240, np.uint8)
+    cv2.rectangle(picture, (40, 40), (140, 90), (90, 90, 90), -1)
+    assert grids_in(panels_in(picture)) == []
+
+
+def _words_at(grid, spots: dict[tuple[int, int], str]) -> list[dict]:
+    return [
+        {
+            "text": said,
+            "center_x": grid.across_at[column],
+            "center_y": grid.down_at[row],
+            "width": grid.cell_width * 0.3,
+            "height": grid.cell_height * 0.3,
+        }
+        for (row, column), said in spots.items()
+    ]
+
+
+def test_what_each_place_says_is_read_into_it_and_empty_places_stay_empty():
+    picture = _a_board({(0, 0): (218, 228, 238), (1, 3): (121, 177, 242)})
+    grid = grids_in(panels_in(picture))[0]
+    reading = Looker().read(picture, words=_words_at(grid, {(0, 0): "2", (1, 3): "8"}))
+    says = reading["grids"][0]["says"]
+    assert says[0] == "2"
+    assert says[1 * 4 + 3] == "8"
+    assert says.count("") == 14
+
+
+def test_text_lying_across_the_places_belongs_to_none_of_them():
+    picture = _a_board({(0, 0): (218, 228, 238)})
+    grid = grids_in(panels_in(picture))[0]
+    across = {
+        "text": "Game over!",
+        "center_x": grid.across_at[1],
+        "center_y": grid.down_at[1],
+        "width": grid.cell_width * 3.0,
+        "height": grid.cell_height * 0.4,
+    }
+    words = _words_at(grid, {(0, 0): "2"}) + [across]
+    reading = Looker().read(picture, words=words)
+    assert "Game over!" not in reading["grids"][0]["says"]
+    assert reading["grids"][0]["covered"] is True
+
+
+def test_a_look_already_read_is_recognised_without_reading_it_again():
+    colour = (121, 177, 242)
+    picture = _a_board({(0, 0): colour, (2, 2): colour})
+    grid = grids_in(panels_in(picture))[0]
+    looker = Looker()
+    looker.read(picture, words=_words_at(grid, {(0, 0): "8", (2, 2): "8"}))
+    # The same look, and the recognition pass that would have read it is not
+    # given the word this time.
+    later = looker.read(picture, words=_words_at(grid, {(0, 0): "8"}))
+    assert later["grids"][0]["says"][2 * 4 + 2] == "8"
+
+
+def _observation(down, across, says):
+    return {
+        "ok": True,
+        "text": " ".join(s for s in says if s),
+        "layout": [],
+        "grids": [
+            {
+                "rows": 4,
+                "columns": 4,
+                "down_at": list(down),
+                "across_at": list(across),
+                "cell_width": 0.15,
+                "cell_height": 0.12,
+                "says": list(says),
+            }
+        ],
+    }
+
+
+def test_an_arrangement_comes_from_the_grid_in_the_pixels():
+    says = ["2"] + [""] * 14 + ["4"]
+    seen = what_is_there(_observation((0.3, 0.42, 0.54, 0.66), (0.2, 0.35, 0.5, 0.65), says), None)
+    assert (seen.rows, seen.columns) == (4, 4)
+    assert seen.occupied() == 2
+    assert seen.at(3, 3).says == "4"
+
+
+def test_the_frame_held_between_glances_survives_an_edge_found_a_pixel_over():
+    from core.perception.the_lattice_she_holds import TheLatticeSheHolds
+
+    lattice = TheLatticeSheHolds()
+    says = ["2"] + [""] * 15
+    first = what_is_there(
+        _observation((0.3, 0.42, 0.54, 0.66), (0.2, 0.35, 0.5, 0.65), says), None, lattice=lattice
+    )
+    second = what_is_there(
+        _observation((0.301, 0.419, 0.541, 0.66), (0.2, 0.351, 0.5, 0.649), says),
+        None,
+        like=first,
+        lattice=lattice,
+    )
+    assert second.down_at == first.down_at
+    assert second.across_at == first.across_at

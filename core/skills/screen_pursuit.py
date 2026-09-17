@@ -283,7 +283,19 @@ async def read_screen(
     a band portable across window sizes and monitors.
     """
     from core.capabilities.host_automation import get_host_automation
+    from core.perception.what_the_pixels_show import look_at_window
 
+    # From the window's own pixels, when the window server can be asked.
+    #
+    # A capture by window number cannot contain anything drawn over the
+    # window, takes a tenth of a second rather than a subprocess and a file,
+    # and comes back with the places a grid has whether or not anything is
+    # written in them. The path below is kept for when there is no window
+    # server to ask.
+    if app_name:
+        seen = await look_at_window(app_name, over)
+        if seen is not None:
+            return seen
     window = await window_bounds(app_name) if app_name else None
     # Read the thing at the size the thing is.
     #
@@ -1231,6 +1243,59 @@ async def pursue_on_screen(
             region_top=region_top,
             region_bottom=region_bottom,
         )
+        # Met where she is acting, or only in the furniture around it.
+        #
+        # A window that names its own purpose says the finishing words from
+        # the first glance: an app called 2048 has "2048" as its heading, a
+        # build tool says "Build succeeded" in its history, a form says
+        # "Submit" before anything is filled in. LIVE 2026-09-17: asked to
+        # play until a 2048 tile, the run ended on its first reading, twice,
+        # "already true after 0 moves", because the heading was a run of text
+        # that said 2048 and nothing else.
+        #
+        # Where she can see the thing she is acting in, the condition counts
+        # only inside it.
+        if reached:
+            reached = _met_where_she_acts(observation)
+        return _already_or_not(reached)
+
+    def _met_where_she_acts(observation: dict[str, Any]) -> bool:
+        from .screen_pursuit_surface import where_the_goal_shows
+
+        places = where_the_goal_shows(observation, success_when)
+        if not places:
+            # Matched across runs with no one place to it; nothing to judge by
+            # position, so the reading stands as it was.
+            return True
+        outlines: list[tuple[float, float, float, float]] = []
+        for grid in observation.get("grids") or []:
+            try:
+                across, down = list(grid["across_at"]), list(grid["down_at"])
+                half_w, half_h = float(grid["cell_width"]) / 2.0, float(grid["cell_height"]) / 2.0
+                outlines.append(
+                    (across[0] - half_w, down[0] - half_h, across[-1] + half_w, down[-1] + half_h)
+                )
+            except (KeyError, IndexError, TypeError, ValueError):
+                continue
+        if outlines:
+            inside = [
+                (x, y)
+                for x, y in places
+                if any(l <= x <= r and t <= y <= b for l, t, r, b in outlines)
+            ]
+            if not inside and not furniture_said["value"]:
+                furniture_said["value"] = True
+                logger.info(
+                    "%r is on screen outside the thing she is acting in; that is the page, not the goal",
+                    success_when,
+                )
+            return bool(inside)
+        # Without the thing's own places she cannot tell furniture from a
+        # result, and the reading stands as it always did: a condition met
+        # before she moved is reported as met before she moved.
+        return True
+
+    def _already_or_not(reached: bool) -> bool:
         # True before she did anything is not something she did.
         #
         # A run that reports success off its first reading has not achieved
@@ -1247,6 +1312,9 @@ async def pursue_on_screen(
         ):
             already["value"] = True
         return reached
+
+    #: Whether it has been said that the goal's words are furniture here.
+    furniture_said: dict[str, Any] = {"value": False}
 
     async def clear_blocker(observation: dict[str, Any]) -> Step | None:
         """Lifted to screen_pursuit_blockers.py; the scope is handed over per call."""
