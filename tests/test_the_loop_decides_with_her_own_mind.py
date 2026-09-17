@@ -266,22 +266,41 @@ async def test_an_injected_policy_still_wins(screen):
 
 @pytest.mark.asyncio
 async def test_the_moves_offered_are_the_ones_the_caller_named(screen):
-    think = _thinks("tab")
+    think = _thinks("tab", "tab", "tab", "tab", "tab", "tab")
+    # Nothing she presses moves this screen, so she is lost and asks — which
+    # is when what she offers a mind is a fact worth asserting. With a screen
+    # that answers she plays the routine moves without words, and in two
+    # cycles she never asked anything at all.
+    screen["works"] = set()
     await sp.pursue_on_screen(
         goal="move through the fields",
         success_when="never happens",
         think=think,
         move_keys=("tab", "return"),
-        max_cycles=2,
+        max_cycles=6,
         max_seconds=10.0,
         narrate=False,
         lived=False,
         spine=_Store(),
         graph=_Store(),
     )
-    offered = [line for call in think.asked for line in call if line.startswith("Available move")]
-    assert any("tab" in line for line in offered)
-    assert not any("up" in line for line in offered)
+    asks = [
+        [line for line in call if line.startswith("Available move")]
+        for call in think.asked
+    ]
+    asks = [lines for lines in asks if lines]
+    assert asks, "she never asked anything"
+    # What the caller named, and nothing else, for as long as any of it works.
+    first = asks[0]
+    assert any("tab" in line for line in first)
+    assert any("return" in line for line in first)
+    assert not any("up" in line or "left" in line or "right" in line for line in first)
+    # She widens only after the named keys have proved inert here, which is a
+    # different capability and has its own tests.
+    from core.agency.what_i_can_do_here import WhatWorksHere
+
+    knows_them = WhatWorksHere(told=("tab", "return"))
+    assert knows_them.available() == ("tab", "return")
 
 
 @pytest.mark.asyncio

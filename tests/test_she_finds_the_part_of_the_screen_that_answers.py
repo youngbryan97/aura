@@ -10,7 +10,7 @@ Nothing on the page says which part is the task. Something about her does.
 """
 from __future__ import annotations
 
-from screen_pursuit_support import pursuit_function_source, pursuit_loop_source
+from screen_pursuit_support import pursuit_source, pursuit_function_source, pursuit_loop_source
 
 from core.perception.where_it_responds import (
     ENOUGH_ACTS,
@@ -162,17 +162,14 @@ def test_the_loop_offers_a_way_out_when_the_thing_has_ended():
     """Predictions breaking says her moves are wrong. Nothing answering says
     the attempt is over. They are different facts and both deserve the
     choice."""
-    import inspect
-
-    from core.skills import screen_pursuit
-
-    source = pursuit_function_source("decide_the_next_move")
-    where = source.index("ended = responds[")
-    # Wide enough to reach the guard: the comment between them explains a
-    # live failure and runs to fifty lines.
-    block = source[where : where + 3000]
-    assert "nothing_answers()" in block
-    assert "stuck(history) or ended" in block
+    # Read across the pursuit's modules, not one function of it. The decision
+    # is several functions now, and the fact being asserted is that these two
+    # different findings both reach the same offer — which is a fact about the
+    # decision wherever its parts live.
+    source = pursuit_source()
+    assert "ended = responds[" in source
+    assert "nothing_answers()" in source
+    assert "stuck(history) or ended" in source
 
 
 def test_what_changes_anyway_is_kept_out_of_what_she_reads():
