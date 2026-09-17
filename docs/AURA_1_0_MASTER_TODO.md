@@ -218,6 +218,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   answer that ended at a sentence boundary with the budget not exhausted. One
   turn on a loaded host; the grace path itself (a channel that runs to the
   limit and needs the boundary held) has not yet been exercised live.
+  2026-09-16, live: "How many Python files are under core/consciousness in
+  your source tree, and which one is the largest by bytes?" First answer
+  (fallback, smaller model): 171 files, largest conscious_core.py; wrong
+  largest, and the cortex's own answer was rejected for
+  missing_self_claim_evidence_boundary because the word consciousness was
+  in a path. Second answer: the context-repair template, because "which
+  one" read as a challenge to the thread. Three routings fixed: the search
+  gate settles on a folder in her tree (it had sent the question to
+  web_search, where the Will vetoed it); a word inside a path, dotted
+  module, file name or code span is a name, not a claim about her; a
+  pronoun with its set in the same message is not a challenge. The count
+  reading carries every file's size, largest first. Re-ask pending on the
+  build that carries all four.
 - [ ] R04 Live-validate progress-aware owner cleanup (2aefb6f46); audit other
   eviction paths and cross-client ownership, not only the patched function.
 - [ ] R05 Resolve empty latent answers without exposing private reasoning.
@@ -326,6 +339,39 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   health snapshot refresh exceeding 8s; the streak of 1.5–11s lags between
   22:49 and 22:51Z that produced no dump because each was under the 5s
   watchdog line. Resident replay on this build follows.
+  2026-09-16, a loaded host (load 34 to 124 on 18 cores, other agents' jobs).
+  A day of stalls that were not the loop's: the loop thread was getting 2% of
+  a core. Every monitor now tells starved from stuck by the thread's own CPU
+  clock (core/runtime/thread_cpu.py reads another thread's clock through mach
+  thread_info; proved against time.thread_time). The stall watchdog reports
+  starvation once a minute and dumps nothing (33 dumps an hour before); the
+  loop monitor and the hypervisor count a starved sample and open no freeze
+  (52 CRITICAL degradations in 22 minutes before). A lag monitor's own record
+  is load, not survival evidence, so it can no longer reach the Will's veto
+  (a read-only file count was refused at 0.76 with mem_threat 0.03).
+  Real loop blocks found the same day, both fixed: the API server's event
+  loop held for fifty minutes inside the chat preflight encoding every
+  evidence anchor through the resident encoder (anchors are part of routing
+  readiness now; the preflight classifies sight on a thread; the boot warmup
+  waits for the cortex instead of giving up), and the snippet verdict's BSD
+  grep at 6-9 CPU-seconds (an in-process walk, under one).
+  Every wall budget on a fixed-cost step measured the host, not the step,
+  and killed healthy work: the MLX probe (56.6s of wall on 16.6s of CPU),
+  the live-mind activation (17s against 15s, boot died), the kernel boot
+  stage (cancelled at 106s mid-organ), the 27B worker (declared dead at 9GB
+  loaded, twice), git symbolic-ref in the provenance snapshot (boot died
+  past 3.0s). The bound is on the work now: subprocess_gateway.run() bounds
+  every one of its 79 callers by the child's CPU and CPU progress
+  (TimeoutExpired as before); await_while_it_progresses and
+  await_while_the_task_moves (core/runtime/progress_bound.py) bound the
+  live-mind activation and every resilient boot stage by their own motion;
+  the cortex dead-man clock and the init handshake restart on the worker's
+  RSS and CPU. Two boot paths no boot had taken in months died under the
+  same load: the state vault's supervisor spec (restart_policy "permanent"
+  since April; one builder now, on the running vault's path). And the exit:
+  a fatal path left through sys.exit and the interpreter joined an executor
+  thread for forty minutes; every path leaves through the finalizer's
+  os._exit.
 - [x] R07 Reconcile health probe expiry, false readiness, and actual failures.
   CLOSED 2026-09-08: [transport and live reconciliation](evidence/R07_HEALTH_AUTHORITY_2026-09-08.md).
   HTTP health, readiness and heartbeat now use the same versioned snapshot;
@@ -479,6 +525,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     cause; the head re-earns on graded evidence.
   - `System: CPU 0.0%` in the health pulse at load 15: two samplers diffing
     against one psutil baseline (7c83ee2d4). FIXED.
+  2026-09-16. A late state-vault handshake is a wait, not a fault (three
+  degradations per boot were filed while the vault came up on attempt four);
+  starved-loop samples are counted and said once a minute at warning, never
+  as a freeze or a critical; the deferral consequence ledger and the
+  immunity bridge report backpressure at info and record a degradation only
+  when stuck.
 - [x] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
   CLOSED 2026-09-12. The full acceptance matrix now passes: ordinary, tool,
@@ -1326,6 +1378,24 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   the test double was the only thing that answered it. Codex took the mask
   to the resident 27B: 3/3 exact public task answers at EOS with zero
   processor refusals ([resident shape result](evidence/G05_RESIDENT_SHAPE_RESULT_2026-09-14.md)).
+  2026-09-16. The method-size ratchet by one sweep rather than one function
+  at a time: tools/refactor/extract_self_contained_blocks.py moves runs of
+  statements that leave by falling through out of outsized functions into
+  helpers that take what they read and return what is read after
+  (evaluation-ordered, path-sensitive name analysis; comprehension and
+  handler scopes; loop-carried returns; guarded imports stay put). Two
+  passes: 54 functions, then 11. 94 outsized at the day's start, 65 now;
+  42 grown-or-new, 20 now. Before the sweep, by hand: the salvaged boot
+  initialiser, the reply assessor's reason sets, the observables tuple, the
+  validation installer (80 tests and claims, same order), the recurrent
+  controller's init (141 parameters, bit-identical), the service
+  registration body (221 calls, same order), the receipt contract, the
+  integrity block (66 keys), five learned-head checks as one, the Will
+  gate, the kernel's thought trace, the morphogenesis status collector.
+  Remaining: 20 functions the sweep cannot cut safely (returns and yields
+  in every run), largest _mlx_worker_loop at 5,141 and
+  _generate_with_metadata_sink at 3,525. Full chunked suite running on the
+  sweep at 20:39.
 - [ ] Q07 Refresh semantic ledger near code freeze; reconcile changed or
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,
