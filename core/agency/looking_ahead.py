@@ -12,10 +12,9 @@ this scale: work out what thinking costs, work out what is available, spend
 the second on the first.
 
 A world that adds something of its own after every act — a dealt tile, another
-person, a page that refreshes — makes a deep future less trustworthy than a
-shallow one, whatever the arithmetic says. So what a later level is worth is
-discounted, and the discount is not a preference: it is the share of her own
-predictions that have been holding.
+person, a page that refreshes — is averaged over at every level rather than
+chosen for, and a move is judged by what the situation comes to at the far end
+of the search.
 """
 
 from __future__ import annotations
@@ -27,7 +26,8 @@ from typing import Any, Sequence
 from core.agency.how_good_is_this import how_good, why
 
 __all__ = [
-    "as_far_as_the_world_lets_her",
+    "forget_how_far_she_saw",
+    "how_far_she_can_see",
     "how_deep_to_look",
     "look_ahead",
     "worth_finding_out",
@@ -47,6 +47,25 @@ _UNMEASURED_LEVEL_S = 0.02
 
 #: What a level of looking has actually cost, measured.
 _A_LEVEL: dict[str, float] = {"seconds": 0.0}
+
+#: How many of her own acts ahead the last search saw, whichever way it ran.
+_SAW: dict[str, int] = {"acts": 0}
+
+
+def forget_how_far_she_saw() -> None:
+    """A new run starts without having looked."""
+    _SAW["acts"] = 0
+
+
+def how_far_she_can_see() -> int:
+    """How many of her own acts ahead her last look reached. Nought before any.
+
+    A question other parts of her decision ask about themselves. Ruling moves
+    out before looking is worth it when looking is short-sighted; once she can
+    see what a move leads to, a guess about which moves deserve a look costs
+    more than the look.
+    """
+    return int(_SAW["acts"])
 
 
 class _AlreadyWorkedOut:
@@ -88,40 +107,6 @@ class _AlreadyWorkedOut:
         said = how_good(state, **how)
         self.worth[key] = said
         return said
-
-
-def as_far_as_the_world_lets_her(state: Any, world: Any) -> int:
-    """How many acts ahead the arithmetic still describes something that could
-    happen.
-
-    The world puts things of its own into a thing between her acts. Every
-    level of looking is one more act, so it is one more of the world's
-    additions — and once those exceed the room the thing has left, the future
-    being scored is one that cannot exist, whatever the arithmetic says.
-
-    This used to be a fixed four, with that reasoning written beside it. Four
-    is right on a nearly full board and wrong on an empty one, which is
-    exactly where looking deeper pays: a board with fourteen free places and a
-    world that deals one thing a move has fourteen acts of honest arithmetic
-    in it, and she was stopping at four.
-
-    Nought means no limit, which is the honest answer for a world that adds
-    nothing of its own and for one she has not watched.
-    """
-    often = getattr(world, "how_often", None)
-    if not callable(often):
-        return 0
-    try:
-        rate = float(often() or 0.0)
-    except (TypeError, ValueError):
-        return 0
-    if rate <= 0.0:
-        return 0
-    try:
-        room = int(state.places()) - int(state.occupied())
-    except (AttributeError, TypeError, ValueError):
-        return 0
-    return max(1, int(room / rate))
 
 
 def how_deep_to_look(
@@ -316,8 +301,12 @@ def look_ahead(
     world: Any = None,
     weights: Any = None,
     depth: int = 0,
+    settles_how_far: bool = True,
 ) -> dict[str, tuple[float, str]]:
     """Every move available, scored by where it leads and how sure that is.
+
+    ``settles_how_far`` is False for a quick look taken inside another
+    decision, whose shallow depth says nothing about how far she can see.
 
     ``knows`` is anything that can say what a state would become — the rules
     she worked out by watching. When it cannot, this returns nothing, which is
@@ -337,6 +326,15 @@ def look_ahead(
     trust = float(getattr(knows, "confidence", lambda: 0.0)() or 0.0)
     if trust <= 0.0:
         return {}
+    # On a compiled world when the rule allows one: the same judgement, fast
+    # enough that the clock buys the depth it is asking for.
+    fast = _through_a_compiled_world(
+        knows, state, actions,
+        toward=toward, approach=approach, budget_s=budget_s,
+        world=world, weights=weights, depth=depth, settles_how_far=settles_how_far,
+    )
+    if fast is not None:
+        return fast
 
     # NOT bound to what the superlative names right now. Measured, and it
     # costs half her play. See `bound_to` for the reasoning and the numbers
@@ -352,10 +350,13 @@ def look_ahead(
         len(actions),
         budget_s,
         branching=max(2, len(actions)) * max(1, _how_many_ways(world, state)),
-        no_further_than=as_far_as_the_world_lets_her(state, world),
     )
     known = _AlreadyWorkedOut()
     here_now = _reading(state)
+
+    def dead_end() -> float:
+        weighed = weights if weights is not None else _default_weights()
+        return -(1.0 + sum(abs(float(value)) for value in weighed.values()))
 
     def one_pass(how_far: int) -> dict[str, tuple[float, str]]:
         found: dict[str, tuple[float, str]] = {}
@@ -365,33 +366,21 @@ def look_ahead(
                 # A move that would change nothing has not gone anywhere.
                 #
                 # Scored like any other, it collects the value of the
-                # situation it left alone, once at every level of the search —
-                # so standing still outscores every move that costs something
-                # to make. Measured against a null on 2026-08-26: choosing
-                # this way was WORSE than choosing at random, with 78% of
-                # moves doing nothing.
+                # situation it left alone — so standing still outscores every
+                # move that costs something to make. Measured against a null
+                # on 2026-08-26: choosing this way was WORSE than choosing at
+                # random, with 78% of moves doing nothing.
                 #
                 # Ruling one out before making it is the whole point of being
                 # able to try a move without making it.
                 continue
-            here = known.what_it_is_worth(
-                future,
-                toward=toward,
-                approach=approach,
-                weights=weights,
-                knows=knows,
-                acts=actions,
-            )
-            onward = _after_the_world(
-                expect, future, actions, how_far - 1,
-                toward=toward, approach=approach, trust=trust, world=world,
+            value = _what_it_leads_to(
+                expect, future, actions, how_far,
+                toward=toward, approach=approach, world=world,
                 weights=weights, known=known, knows=knows,
-                been=frozenset({here_now}),
+                been=frozenset({here_now}), dead=dead_end(),
             )
-            found[action] = (
-                here + trust * onward,
-                why(future, toward=toward, approach=approach),
-            )
+            found[action] = (value, why(future, toward=toward, approach=approach))
         return found
 
     # Deeper while the clock allows, rather than a guess at how deep it will
@@ -407,8 +396,15 @@ def look_ahead(
     if not fixed_depth and scored:
         ends_at = started + max(0.0, budget_s)
         a_pass = time.monotonic() - started
-        ceiling = as_far_as_the_world_lets_her(state, world)
-        while (ceiling <= 0 or depth < ceiling) and a_pass > 0.0:
+        # No ceiling but the clock. There used to be one — the room left, over
+        # how often the world adds something — on the reasoning that past it
+        # the arithmetic describes a board that cannot exist. It does not: a
+        # merge makes room, and the world's replies at every level are worked
+        # out from the room there actually is. What the ceiling did was stop
+        # the search at one level on exactly the crowded boards where a second
+        # level decides whether the game goes on. Measured 2026-09-17: one
+        # level on a board with one place free, whatever the budget.
+        while a_pass > 0.0:
             # Only a level there is time to FINISH. A pass abandoned halfway
             # is a pass that cost the budget and answered nothing.
             branching = max(2, len(actions)) * max(1, _how_many_ways(world, state))
@@ -423,6 +419,8 @@ def look_ahead(
             a_pass = time.monotonic() - deeper_at
 
     spent = time.monotonic() - started
+    if settles_how_far:
+        _SAW["acts"] = int(depth) if scored else 0
     if scored and depth and not fixed_depth:
         _a_level_took(spent / float(depth))
     logger.debug(
@@ -443,7 +441,13 @@ def _how_many_ways(world: Any, state: Any) -> int:
         return 1
 
 
-def _after_the_world(
+def _default_weights() -> dict[str, float]:
+    from core.agency.how_good_is_this import AS_GOOD_A_GUESS_AS_ANY  # noqa: PLC0415
+
+    return AS_GOOD_A_GUESS_AS_ANY
+
+
+def _what_it_leads_to(
     expect: Any,
     state: Any,
     actions: Sequence[str],
@@ -451,21 +455,38 @@ def _after_the_world(
     *,
     toward: str,
     approach: str,
-    trust: float,
     world: Any = None,
     weights: Any = None,
     known: Any = None,
     knows: Any = None,
     been: frozenset[str] = frozenset(),
+    dead: float = -1.0,
 ) -> float:
-    """What this comes to once the world has had its turn, and she has hers.
+    """What a situation her act has just made comes to, ``depth`` of her acts on.
 
-    Her own move is the best she can find. What the world does is not hers to
-    pick, so it is averaged over rather than chosen — which is the whole
-    difference between working out what will happen and hoping.
+    Judged at the far end only. With one act left, it is what the situation
+    is worth. With more, it is her best from each way the world might answer,
+    averaged by how often each way happens — her move is hers to pick, the
+    world's is not.
+
+    Adding each level's worth to the level below counted a situation that
+    looks good early once for every level it was passed through, which
+    rewards looking good over ending well. Measured 2026-09-17 on a sliding
+    board with the same terms and weights: judged at the far end, 2048 in
+    fifteen games of sixteen; with each level added in, three of six.
     """
-    if depth <= 0:
-        return 0.0
+    if depth <= 1:
+        return (
+            known.what_it_is_worth(
+                state, toward=toward, approach=approach, weights=weights,
+                knows=knows, acts=actions,
+            )
+            if known is not None
+            else how_good(
+                state, toward=toward, approach=approach, weights=weights,
+                knows=knows, acts=actions,
+            )
+        )
     ways = ()
     might = getattr(world, "might_do", None)
     if callable(might):
@@ -475,16 +496,16 @@ def _after_the_world(
             ways = ()
     if not ways:
         return _best_from(
-            expect, state, actions, depth,
-            toward=toward, approach=approach, trust=trust, world=world, weights=weights,
-            known=known, knows=knows, been=been,
+            expect, state, actions, depth - 1,
+            toward=toward, approach=approach, world=world, weights=weights,
+            known=known, knows=knows, been=been, dead=dead,
         )
     return sum(
         share
         * _best_from(
-            expect, way, actions, depth,
-            toward=toward, approach=approach, trust=trust, world=world, weights=weights,
-            known=known, knows=knows, been=been,
+            expect, way, actions, depth - 1,
+            toward=toward, approach=approach, world=world, weights=weights,
+            known=known, knows=knows, been=been, dead=dead,
         )
         for way, share in ways
     )
@@ -498,14 +519,14 @@ def _best_from(
     *,
     toward: str,
     approach: str,
-    trust: float,
     world: Any = None,
     weights: Any = None,
     known: Any = None,
     knows: Any = None,
     been: frozenset[str] = frozenset(),
+    dead: float = -1.0,
 ) -> float:
-    """The best this could still come to, that many levels on.
+    """The best this could still come to, with ``depth`` of her acts to make.
 
     ``been`` is the line already walked to get here. A future already on it
     is not reached: going back somewhere is not progress, and a search that
@@ -519,9 +540,11 @@ def _best_from(
     the rest of the budget, because the line that stepped back could step
     forward again and collect the higher reading a second time. Two squares,
     eighty moves, a perfectly correct model of the world, and nought arrivals.
+
+    A situation where no act changes anything is worth ``dead``, below
+    anything a live situation can be worth. One whose only acts go back along
+    the line already walked is worth what it is worth: the line ends there.
     """
-    if depth <= 0:
-        return 0.0
     here_now = _reading(state)
     if known is not None:
         # The same situation, the same distance from the end, is the same
@@ -533,7 +556,8 @@ def _best_from(
             known.hits += 1
             return remembered
     walked = been | {here_now}
-    best = 0.0
+    best: float | None = None
+    somewhere_to_go = False
     for action in actions:
         future = (
             known.what_it_becomes(expect, state, action)
@@ -542,36 +566,133 @@ def _best_from(
         )
         if future is None or _reading(future) == here_now:
             continue
+        somewhere_to_go = True
         if _reading(future) in walked:
             continue
-        here = (
-            known.what_it_is_worth(
-                future,
-                toward=toward,
-                approach=approach,
-                weights=weights,
-                knows=knows,
-                acts=actions,
-            )
-            if known is not None
-            else how_good(
-                future,
-                toward=toward,
-                approach=approach,
-                weights=weights,
-                knows=knows,
-                acts=actions,
-            )
+        value = _what_it_leads_to(
+            expect, future, actions, depth,
+            toward=toward, approach=approach, world=world, weights=weights,
+            known=known, knows=knows, been=walked, dead=dead,
         )
-        onward = _after_the_world(
-            expect, future, actions, depth - 1,
-            toward=toward, approach=approach, trust=trust, world=world, weights=weights,
-            known=known, knows=knows, been=walked,
+        best = value if best is None or value > best else best
+    if best is not None:
+        found = best
+    elif somewhere_to_go:
+        # Every act from here goes back along the line she came by. The line
+        # ends here rather than being closed off, and it comes to what this
+        # situation is worth.
+        found = _what_it_leads_to(
+            expect, state, actions, 1,
+            toward=toward, approach=approach, world=world, weights=weights,
+            known=known, knows=knows, been=walked, dead=dead,
         )
-        best = max(best, here + trust * onward)
+    else:
+        found = dead
     if known is not None:
-        known.onward[(here_now, depth, been)] = best
-    return best
+        known.onward[(here_now, depth, been)] = found
+    return found
+
+
+def _through_a_compiled_world(
+    knows: Any,
+    state: Any,
+    actions: Sequence[str],
+    *,
+    toward: str,
+    approach: str,
+    budget_s: float,
+    world: Any,
+    weights: Any,
+    depth: int,
+    settles_how_far: bool = True,
+) -> dict[str, tuple[float, str]] | None:
+    """The same search on a compiled world, or None when the world cannot be one.
+
+    Her own terms and weights judge every situation. The terms that need the
+    whole arrangement — whether her stated line still holds, anything she
+    invented — are asked of it, once per situation the search meets.
+    """
+    from core.agency.a_world_compiled import compiled, search  # noqa: PLC0415
+    from core.agency.how_good_is_this import INVENTED, a_line_judge  # noqa: PLC0415
+
+    made = compiled(knows, world, state, actions)
+    if made is None:
+        return None
+    weighed = weights if weights is not None else _default_weights()
+    wants_line = bool(str(approach or "").strip()) and bool(float(weighed.get("line", 0.0) or 0.0))
+    line_holds = a_line_judge(approach) if wants_line else None
+    # Her stated line decides between the moves the search cannot tell apart,
+    # and does not outweigh what the search can see. A line is a claim about
+    # what lies past the horizon; on a world she can search several moves
+    # deep, most of that is in front of her. Scored at full weight inside the
+    # search it pulled every situation toward the line whatever came of it —
+    # measured 2026-09-17 through her whole loop on the same seed, a line
+    # about a corner took her from a 1024 in one game to three games lost and
+    # nothing past 1024. So the search judges without it, and the line then
+    # orders the moves that finished level with the best.
+    invented = dict(INVENTED)
+    shapes: dict[tuple[int, ...], Any] = {}
+    values: dict[tuple[int, ...], float] = {}
+
+    def as_arrangement(board: tuple[int, ...]) -> Any:
+        found = shapes.get(board)
+        if found is None:
+            found = made.arrangement(board, like=state)
+            shapes[board] = found
+        return found
+
+    def worth(board: tuple[int, ...]) -> float:
+        known = values.get(board)
+        if known is not None:
+            return known
+        # How many ways are left to move is what the search itself works out,
+        # level by level, and a situation with none is scored as closed. As a
+        # term it is one move's look at the same question, and at full weight
+        # it outweighed everything else: measured 2026-09-17 on four games, a
+        # 512 in every one with it, and 1024, 1024, 2048, 2048 without.
+        said = made.terms(board, toward=toward, actions=actions, freedom=False)
+        for name, measure in invented.items():
+            try:
+                said[name] = float(measure.read(as_arrangement(board)))
+            except (AttributeError, TypeError, ValueError):
+                continue
+        value = sum(said[name] * float(weighed.get(name, 0.0)) for name in said)
+        values[board] = value
+        return value
+
+    dead = -(1.0 + sum(abs(float(value)) for value in weighed.values()))
+    started = time.monotonic()
+    scored, reached = search(
+        made, state, actions, budget_s=budget_s, worth=worth, dead=dead, fixed_depth=depth
+    )
+    if settles_how_far:
+        _SAW["acts"] = int(reached) if scored else 0
+    logger.debug(
+        "looked %d ahead on a compiled world over %d move(s) in %.3fs",
+        reached, len(actions), time.monotonic() - started,
+    )
+    if line_holds is not None and len(scored) > 1:
+        from core.agency.worth_thinking_about import TOO_CLOSE_TO_CALL  # noqa: PLC0415
+
+        values = [value for value, _after in scored.values()]
+        best = max(values)
+        spread = best - min(values)
+        trust = float(getattr(knows, "confidence", lambda: 0.0)() or 0.0)
+        # Level with the best means inside what her own model could have got
+        # wrong about the difference, and never less than the smallest
+        # difference that means anything.
+        level = max(TOO_CLOSE_TO_CALL, (1.0 - max(0.0, min(1.0, trust))) * spread)
+        scored = {
+            action: (
+                value + (level * line_holds(as_arrangement(after)) if best - value <= level else 0.0),
+                after,
+            )
+            for action, (value, after) in scored.items()
+        }
+    return {
+        action: (value, why(as_arrangement(after), toward=toward, approach=approach))
+        for action, (value, after) in scored.items()
+    }
 
 
 def _a_level_took(seconds: float) -> None:

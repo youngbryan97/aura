@@ -17,10 +17,19 @@ budget was really measuring on the idle host.
 from __future__ import annotations
 
 import asyncio
+import threading
 import time
+import weakref
 from collections.abc import Awaitable, Callable
 
-__all__ = ["await_while_it_progresses", "await_while_the_task_moves", "innermost_await"]
+from core.runtime.thread_cpu import thread_cpu_seconds
+
+__all__ = [
+    "await_while_it_progresses",
+    "await_while_the_task_moves",
+    "innermost_await",
+    "run_on_a_thread_while_it_works",
+]
 
 
 async def await_while_it_progresses[T](
@@ -67,6 +76,17 @@ def innermost_await(task: asyncio.Task[object]) -> tuple[object, ...]:
     is running, or that has moved on to a different line or a different
     awaitable, gives a different key. Cheap enough to read every period.
     """
+    return _position(task)[0]
+
+
+def _position(task: asyncio.Task[object]) -> tuple[tuple[object, ...], object]:
+    """The key ``innermost_await`` builds, and the innermost object itself.
+
+    The key alone cannot tell two awaits apart when the second is at the
+    same line and its object took the freed address of the first — a loop
+    of ``await asyncio.sleep(0.05)`` read as one await that never moved. The
+    caller holds the object weakly: a different live object is a move.
+    """
     coro: object = task.get_coro()
     key: list[object] = []
     depth = 0
@@ -81,7 +101,20 @@ def innermost_await(task: asyncio.Task[object]) -> tuple[object, ...]:
         if nxt is None:
             break
         coro = nxt
-    return tuple(key)
+    return tuple(key), coro
+
+
+def _hold(obj: object) -> object:
+    try:
+        return weakref.ref(obj)
+    except TypeError:
+        return obj
+
+
+def _same_object(held: object, obj: object) -> bool:
+    if isinstance(held, weakref.ref):
+        return held() is obj
+    return held is obj
 
 
 async def await_while_the_task_moves[T](
@@ -105,7 +138,8 @@ async def await_while_the_task_moves[T](
     task = asyncio.ensure_future(awaitable)
     stall_s = max(0.0, float(stall_s))
     period = max(0.05, min(1.0, stall_s / 10.0)) if stall_s else 1.0
-    last = innermost_await(task)
+    last, innermost = _position(task)
+    held = _hold(innermost)
     still_for = 0.0
     last_wake = time.monotonic()
     while True:
@@ -115,9 +149,9 @@ async def await_while_the_task_moves[T](
         now = time.monotonic()
         observed = min(now - last_wake, 2.0 * period)
         last_wake = now
-        seen = innermost_await(task)
-        if seen != last:
-            last, still_for = seen, 0.0
+        seen, innermost = _position(task)
+        if seen != last or not _same_object(held, innermost):
+            last, held, still_for = seen, _hold(innermost), 0.0
             continue
         still_for += observed
         if still_for >= stall_s:
@@ -125,3 +159,39 @@ async def await_while_the_task_moves[T](
             raise TimeoutError(
                 f"{name} sat on one await for {still_for:.1f}s of observed time"
             )
+
+
+async def run_on_a_thread_while_it_works[T](
+    fn: Callable[..., T],
+    /,
+    *args: object,
+    stall_s: float,
+    name: str,
+) -> T:
+    """Run ``fn`` on a worker thread; give up only when that thread stops working.
+
+    A health probe or a status snapshot on a thread was bounded by a fixed
+    wall budget. On a host loaded 30 to 120 on 18 cores the probe was still
+    running its lines, slowly, when the budget ran out (2026-09-16: the
+    control-plane reconcile fell over seven times in forty minutes and the
+    Skynet probes thirty-five). The thread's own CPU time is its progress: a
+    thread that is being scheduled is working, and one that has sat on a
+    lock or a socket for ``stall_s`` of observed wall is not.
+
+    This is the bound for work that is done on the CPU. A wait on a network
+    peer legitimately uses none, and needs a bound of its own kind.
+    """
+    ident: list[int | None] = [None]
+
+    def _run() -> T:
+        ident[0] = threading.get_ident()
+        return fn(*args)
+
+    def _progress() -> object:
+        if ident[0] is None:
+            return None
+        return thread_cpu_seconds(ident[0])
+
+    return await await_while_it_progresses(
+        asyncio.to_thread(_run), progress=_progress, stall_s=stall_s, name=name
+    )

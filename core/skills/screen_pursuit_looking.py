@@ -381,6 +381,17 @@ PASSES_ON_ITS_OWN = frozenset({
 })
 
 
+#: Refusals that are about whatever happens to be in front of the display,
+#: rather than about reading at all. A picture of one window by its number
+#: holds that window and nothing else, so these are asked again of it.
+ABOUT_WHAT_IS_IN_FRONT = frozenset({
+    "private_foreground",
+    "private_visible",
+    "foreground_unknown",
+    "browser_title_unknown",
+})
+
+
 def _what_being_refused_a_look_means(why: str) -> str:
     """The refusal in her own words, and what would change it."""
     return {
@@ -412,7 +423,7 @@ def _what_being_refused_a_look_means(why: str) -> str:
     }.get(str(why or ""), f"I am not able to read the screen ({why or 'no reason given'})")
 
 
-async def wait_for_a_screen_to_look_at(ends_at: float) -> bool:
+async def wait_for_a_screen_to_look_at(ends_at: float, *, app: str = "") -> bool:
     """Wait for a locked screen, rather than failing at one.
 
     A locked screen is a condition that passes, like a model still warming.
@@ -424,10 +435,38 @@ async def wait_for_a_screen_to_look_at(ends_at: float) -> bool:
     the work was given. Checked about once a second because that is the
     granularity of the thing being waited for: a person reaching over and
     unlocking. Checking faster cannot see it sooner.
+
+    A refusal about what is in front is not a refusal about her own window.
+    LIVE 2026-09-17: asked from a browser to play a desktop game, she waited
+    on "I cannot tell which page is in front" — the browser's page, which no
+    picture of the game's window could have held. With ``app`` named, those
+    refusals are put again to the window she will actually read.
     """
     from core.security.screen_capture_policy import (
         evaluate_screen_capture_admission_async,
+        evaluate_window_capture_admission_async,
     )
+
+    async def may_she_look() -> Any:
+        # The whole screen first: when all of it may be read, so may any one
+        # window in it, and the answer costs nothing.
+        admission = await evaluate_screen_capture_admission_async()
+        why = str(getattr(admission.reason, "value", admission.reason) or "")
+        if admission.allowed or not app or why not in ABOUT_WHAT_IS_IN_FRONT:
+            return admission
+        try:
+            from core.capabilities import window_server  # noqa: PLC0415
+
+            window = await asyncio.to_thread(window_server.window_of, app)
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "screen_pursuit", exc, severity="info",
+                action="kept the whole screen's answer, having no window to ask about",
+            )
+            return admission
+        if window is None:
+            return admission
+        return await evaluate_window_capture_admission_async(window.owner, window.title)
 
     # Let the settings land before believing a refusal.
     #
@@ -449,7 +488,7 @@ async def wait_for_a_screen_to_look_at(ends_at: float) -> bool:
     told = ""
     while True:
         try:
-            admission = await evaluate_screen_capture_admission_async()
+            admission = await may_she_look()
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             _WHY_SHE_CANNOT_LOOK["value"] = ""
             return True
@@ -768,7 +807,19 @@ def _expected_of(chosen: Any) -> str:
 #: The longest a change has taken to appear, and how long a poll takes, both
 #: measured rather than chosen. Waiting is bounded by what this world has
 #: actually done, so a slow surface is waited for and a fast one is not.
-_ANSWERING_TOOK: dict[str, float] = {"longest": 0.0}
+_ANSWERING_TOOK: dict[str, float] = {"longest": 0.0, "quickest": 0.0}
+
+
+def _before_looking_again() -> float:
+    """How long to leave the world alone between looks.
+
+    Half the quickest answer she has ever seen from it: sleeping less than
+    that cannot step over an answer, and a reading of a window costs less
+    than a tenth of a second, so waiting longer than the world needs is the
+    expensive half of a move. Before she has seen one answer there is no
+    measurement and she looks at once, because the look is the measurement.
+    """
+    return max(0.0, _ANSWERING_TOOK["quickest"] * 0.5)
 
 
 def _how_long_to_wait() -> float:
@@ -781,6 +832,14 @@ def _how_long_to_wait() -> float:
     """
     longest = _ANSWERING_TOOK["longest"]
     return max(1.0, longest * 2) if longest else 4.0
+
+
+def _answering_took(seconds: float) -> None:
+    """Remember how long the world took to answer this time."""
+    took = max(0.0, float(seconds))
+    _ANSWERING_TOOK["longest"] = max(_ANSWERING_TOOK["longest"], took)
+    quickest = _ANSWERING_TOOK["quickest"]
+    _ANSWERING_TOOK["quickest"] = took if not quickest else min(quickest, took)
 
 
 async def _settled_after(
@@ -842,17 +901,21 @@ async def _settled_after(
     seen = before
     moved = False
     while time.monotonic() - started < (patience or _how_long_to_wait()):
-        await asyncio.sleep(0.3)
+        await asyncio.sleep(0.3 if before.get("settled") is None else _before_looking_again())
         try:
             now = await asyncio.wait_for(read_screen(app), timeout=OBSERVE_TIMEOUT_S)
         except TimeoutError:
             continue
         said = _reading(now)
+        # A reading that was only taken once its pixels had stopped changing
+        # is already the second look. Changed and still is finished, and the
+        # extra reading used to confirm it cost most of a move.
+        if said != was and now.get("settled") is True:
+            _answering_took(time.monotonic() - started)
+            return now, True
         if not moved and said != was:
             moved = True
-            _ANSWERING_TOOK["longest"] = max(
-                _ANSWERING_TOOK["longest"], time.monotonic() - started
-            )
+            _answering_took(time.monotonic() - started)
             # Where she foretold the result, recognising it is knowing it has
             # landed.
             #
@@ -862,7 +925,10 @@ async def _settled_after(
             # two — and a reading is most of what a move costs. Measured on
             # the real board: about four seconds a move, of which nearly two
             # were the second look.
-            if arrived is not None:
+            # Only a still picture can show what she foretold having landed. A
+            # picture taken while the world was still adding its own piece
+            # matches the prediction and then disagrees with the next move.
+            if arrived is not None and now.get("settled") is not False:
                 try:
                     if arrived(now):
                         return now, True

@@ -113,6 +113,10 @@ from .screen_pursuit_surface import (
     )
 
 
+#: What an extracted block returns when it fell through to the code after it.
+_FALL_THROUGH = object()
+
+
 async def _decide_the_next_move_how_long_whole(anchor, costs, responds, target_app):
     from .screen_pursuit import _whats_on_top
     # How long a whole move takes when she does not stop to put it into
@@ -200,7 +204,10 @@ async def _decide_the_next_move_what_she_looking(anchor, drawn, narrate, observa
     # reading properly.
     # And a picture taken through somebody else's window is not a
     # reading of the thing however well it is scoped or cropped.
-    looking_at_the_thing = (already or band is not None) and _was_of_that_window(
+    # Or when the places of a grid are in the picture itself. Then which part
+    # is the thing is seen, not learned, and there is nothing to wait for.
+    sees_its_places = bool(observation.get("grids"))
+    looking_at_the_thing = (already or band is not None or sees_its_places) and _was_of_that_window(
         observation, target_app or anchor["app"]
     )
     return band, looking_at_the_thing
@@ -241,7 +248,8 @@ async def _decide_the_next_move_seen(band, coming, in_the_way, observation, resp
             at=time.monotonic(),
             needing=["her own window away", "the thing brought forward"],
         )
-        await _put_her_own_window_away()
+        if not observation.get("window_number"):
+            await _put_her_own_window_away()
         if target_app:
             await _bring_the_thing_back_to_the_front(target_app)
     return lattice, seen
@@ -364,7 +372,7 @@ def _decide_the_next_move_laid_out(confirmed_here, got_to, lattice, moves, pendi
         logger.info("the way in, as far as it went before: %s", got_to.describe())
     return laid_out
 
-async def _decide_the_next_move_part_6(anchor, confirmed_here, expect_page, open_page, seen, target_app):
+async def _decide_the_next_move_part_6(anchor, confirmed_here, expect_page, open_page, seen, target_app, seen_by_window=False):
     confirmed_here["value"] = am_i_there(
         open_page or expect_page, seen, anchor["page"], anchor["app"]
     )
@@ -388,7 +396,13 @@ async def _decide_the_next_move_part_6(anchor, confirmed_here, expect_page, open
         # and putting hers away alone leaves the wrong window
         # frontmost. Both, in that order, are what make the pixels
         # agree with the identity.
-        await _put_her_own_window_away()
+        #
+        # Not where the reading was taken by window number: those pixels
+        # are the window's own, whatever is drawn over it, and her keys go
+        # to its process. Putting her window away then only hides the
+        # conversation from the person watching her play.
+        if not seen_by_window:
+            await _put_her_own_window_away()
         await _bring_the_thing_back_to_the_front(anchor["app"] or target_app)
 
 def _decide_the_next_move_world_where_she(expected, far, in_flight, laid_out, observation, pending, previous, responds):
@@ -683,7 +697,7 @@ def _decide_the_next_move_learned_same_measurement(anchor, attempt, observation,
             acting=previous.chosen.name if previous.chosen is not None else "",
         )
 
-def _decide_the_next_move_part_14(ended, holding, looking_at_the_thing, moves, plan):
+def _decide_the_next_move_part_14(ended, holding, looking_at_the_thing, moves, plan, costs=None):
     from .screen_pursuit import logger
     if plan["held"] is not None and holding is False:
         logger.info("the line she was taking stopped holding: %s", ended)
@@ -716,16 +730,24 @@ def _decide_the_next_move_part_14(ended, holding, looking_at_the_thing, moves, p
     # her reasoning, and the run spent its whole budget deciding how
     # to play rather than playing.
     tried_it = len(moves) > plan["asked_at"]
+    since = len(moves) - plan["asked_at"]
+    # What a pass costs in moves not made, measured on this run. Asking every
+    # few moves is right where a pass is nearly free and wrong where one costs
+    # the time of ten moves: then it is most of what she does.
+    dear = max(1.0, _a_pass_in_moves(costs or {}))
+    # And each time the same line came back, twice as long before asking again.
+    patience = 2 ** min(6, int(plan.get("same_again", 0)))
     time_to_ask = (
         holding is False
         and plan["held"] is not None
         and tried_it
-        or len(moves) - plan["asked_at"] >= _ask_again_after(plan["asked_at"])
+        and since >= patience
+        or since >= _ask_again_after(plan["asked_at"]) * dear * patience
         or (plan["asked_at"] < 0 and looking_at_the_thing)
     )
     return time_to_ask
 
-def _decide_the_next_move_nothing_task_working(can_do, move_keys, observation, offered_a_restart, responds):
+def _decide_the_next_move_nothing_task_working(can_do, move_keys, observation, offered_a_restart, responds, knows=None, laid_out=None):
     from .screen_pursuit import logger
     # When nothing in the task is working, the task itself becomes a
     # choice. Both ways out are hers, and both are recorded as
@@ -777,7 +799,66 @@ def _decide_the_next_move_nothing_task_working(can_do, move_keys, observation, o
                 "a way to start again has appeared, so this has ended"
             )
         ended = True
+    # And what her own model says. Where the rule she trusts says that none of
+    # her acts would change anything, the thing has finished, and pressing
+    # each of them to find that out is asking a question she has the answer
+    # to. The other tests need every act to have failed in a row, which a
+    # habit of using only some of them can keep from ever happening.
+    if not ended and knows is not None and laid_out is not None and getattr(laid_out, "cells", None):
+        rules = getattr(knows, "rules", None)
+        if rules is not None and rules.rule() is not None:
+            names = [str(key) for key in (can_do.available() or move_keys)]
+            futures = [rules.expect(laid_out, name) for name in names]
+            if names and all(
+                future is not None and future.as_text() == laid_out.as_text() for future in futures
+            ):
+                if not offered_a_restart.get("model_said"):
+                    offered_a_restart["model_said"] = True
+                    logger.info("none of her acts would change anything here, so this has ended")
+                ended = True
     return available, ended
+
+def _what_she_says_as_she_moves(
+    key: str,
+    laid_out: Any,
+    knows: Any,
+    ahead: dict[str, tuple[float, str]],
+    *,
+    weights: Any,
+    toward: str,
+    approach: str,
+    biggest_so_far: float,
+) -> str:
+    """One line for the move she is about to make. Empty when there is no model to say it from."""
+    from core.agency.how_good_is_this import AS_GOOD_A_GUESS_AS_ANY, terms
+    from core.agency.saying_what_a_move_does import what_a_move_does, why_this_one
+
+    rules = getattr(knows, "rules", None)
+    if rules is None or laid_out is None or rules.rule() is None:
+        return ""
+    try:
+        after = rules.expect(laid_out, key)
+    except (AttributeError, TypeError, ValueError):
+        after = None
+    if after is None:
+        return ""
+    because = ""
+    others = [
+        (value, name) for name, (value, _why) in (ahead or {}).items() if name != key
+    ]
+    if others:
+        _value, runner_up = max(others)
+        other_after = rules.expect(laid_out, runner_up)
+        if other_after is not None:
+            names = list(ahead)
+            because = why_this_one(
+                terms(after, toward=toward, approach=approach, knows=rules, acts=names),
+                terms(other_after, toward=toward, approach=approach, knows=rules, acts=names),
+                weights or AS_GOOD_A_GUESS_AS_ANY,
+                runner_up_name=runner_up,
+            )
+    return what_a_move_does(laid_out, key, after, biggest_so_far=biggest_so_far, because=because)
+
 
 def _decide_the_next_move_act_has_done(available, knows, laid_out, reaches, responds, stretch):
     from .screen_pursuit import logger
@@ -845,6 +926,16 @@ def _decide_the_next_move_act_has_done(available, knows, laid_out, reaches, resp
         # so a habit must never be able to replace it.
         if len(wants) < 2:
             wants = ()
+        # And only while she cannot see past the next move. A leaning is what
+        # stands in for foresight; once her look reaches further, narrowing
+        # the moves it considers removes the one that would have saved the
+        # position. LIVE 2026-09-17, through her whole loop on a board she
+        # could search three deep: every decision between down and left,
+        # never up or right, lost at a 128.
+        from core.agency.looking_ahead import how_far_she_can_see
+
+        if how_far_she_can_see() >= 2:
+            wants = ()
         if wants and len(wants) < len(foreseeable):
             # Everything she cannot foresee stays on the table: the way
             # out and the ways of asking are never narrowed by a habit.
@@ -893,6 +984,102 @@ def _decide_the_next_move_where_move_she(ahead, aiming_at, available, goal, laid
         marks.she_marked(kind, saying=aiming_at or goal)
     return kind
 
+async def _decide_the_next_move_blocker(blocker_attempts, clear_blocker, needs_person, no_move, observation):
+    from .screen_pursuit import MAX_BLOCKER_ATTEMPTS, logger
+    blocker = await clear_blocker(observation)
+    if blocker is not None:
+        # Verified, not assumed. A blocker still present after the previous
+        # attempt means that attempt did not work, whatever its receipt
+        # said.
+        if blocker_attempts["count"] >= MAX_BLOCKER_ATTEMPTS:
+            blocker_attempts["last"] = blocker.name
+            no_move["because"] = "something is in front of it that will not move"
+            return None
+        blocker_attempts["count"] += 1
+        blocker_attempts["dismissed"] += 1
+        blocker_attempts["last"] = blocker.name
+        return blocker
+    if needs_person["reason"]:
+        no_move["because"] = "declining what is in front of it"
+        return None
+    blocker_attempts["count"] = 0
+    if not observation.get("ok"):
+        # What the reading actually said went wrong.
+        #
+        # Every failed read was reported as something being in front of
+        # the thing and waited out. A read that timed out on a busy
+        # machine, a capture that errored, a window that had gone — all
+        # of them came back as an occlusion, which is a diagnosis of a
+        # cause nobody had established, and the answer to it is to wait,
+        # so she waited. Live 2026-09-07: three of those in a row ended
+        # the run as "no move available" after seventeen moves, with
+        # nothing on screen in front of anything.
+        went_wrong = str(observation.get("error") or "").strip()
+        no_move["because"] = (
+            f"the last reading did not come back: {went_wrong}"
+            if went_wrong
+            else "the last reading did not come back, and did not say why"
+        )
+        logger.info("no move this cycle: %s", no_move["because"])
+        return None
+    return _FALL_THROUGH
+
+def _decide_the_next_move_while_there_something(available, chosen, laid_out, no_move, responds, she_keeps):
+    from .screen_pursuit import logger
+    from core.cognition.what_she_cannot_afford_to_lose import what_she_cannot_afford_to_lose
+    from core.cognition.when_to_say_it_outright import whether_to_say_it
+    # Not while there is something here she cannot get back.
+    #
+    # Starting over is the one act of hers that destroys what she
+    # has made. Everywhere else a bad move costs a move; here it
+    # costs the whole thing, and she reaches for it exactly when
+    # she is stuck — which is also when a position is at its most
+    # developed and worth the most.
+    #
+    # What is precious is not declared. Take a part of the thing
+    # away and ask whether what she is holding survives without
+    # it: a board's largest tile is what "the largest thing is at
+    # the far end" rests on, so losing it is losing the plan, and
+    # a board of small ones costs nothing to leave.
+    keeping = she_keeps.get("it")
+    if keeping is not None and laid_out is not None and available:
+        precious = what_she_cannot_afford_to_lose(
+            laid_out,
+            holding=keeping.holds,
+            parts_of=lambda one: list(getattr(one, "cells", ())),
+            without=_the_same_thing_without,
+        )
+        others = [
+            one.name for one in available if one.name != START_OVER
+        ]
+        if precious and others:
+            # And how sure she would have to be, given what it
+            # costs to be wrong. Starting over destroys what is
+            # here; another move costs a move. Those are different
+            # sizes, so the certainty needed is not a level — it
+            # is the comparison.
+            say_it = whether_to_say_it(
+                how_sure=float(chosen.confidence),
+                being_wrong_costs=float(len(precious)),
+                another_look_costs=1.0,
+                waiting_might_lose_it=(
+                    1.0 if responds["state"].nothing_answers() else 0.0
+                ),
+                what_it_is_worth=float(len(precious)),
+            )
+            if not say_it.now:
+                logger.info(
+                    "not starting over: %d thing(s) she cannot get back "
+                    "(%s)",
+                    len(precious),
+                    say_it.describe(),
+                )
+                no_move["because"] = (
+                    "there is something here worth keeping"
+                )
+                return None
+    return _FALL_THROUGH
+
 async def decide_the_next_move(
     observation: dict[str, Any],
     run: SimpleNamespace,
@@ -921,8 +1108,6 @@ async def decide_the_next_move(
     from core.cognition.a_shape_that_makes_it_safe import what_makes_it_safe
     from core.cognition.a_window_not_a_maximum import AWindow, which_act_lands_in_it
     from core.cognition.enough_rather_than_most import the_one_most_likely_to_do
-    from core.cognition.what_she_cannot_afford_to_lose import what_she_cannot_afford_to_lose
-    from core.cognition.when_to_say_it_outright import whether_to_say_it
     from core.perception.how_it_moves import HowItMoves
     from core.perception.what_the_world_does import WhatTheWorldDoes
     from core.perception.where_it_responds import noticed, places_and_text, within
@@ -1029,42 +1214,9 @@ async def decide_the_next_move(
             no_move["because"] = "a blocker was cleared, so this cycle is spent"
             return None
 
-    blocker = await clear_blocker(observation)
-    if blocker is not None:
-        # Verified, not assumed. A blocker still present after the previous
-        # attempt means that attempt did not work, whatever its receipt
-        # said.
-        if blocker_attempts["count"] >= MAX_BLOCKER_ATTEMPTS:
-            blocker_attempts["last"] = blocker.name
-            no_move["because"] = "something is in front of it that will not move"
-            return None
-        blocker_attempts["count"] += 1
-        blocker_attempts["dismissed"] += 1
-        blocker_attempts["last"] = blocker.name
-        return blocker
-    if needs_person["reason"]:
-        no_move["because"] = "declining what is in front of it"
-        return None
-    blocker_attempts["count"] = 0
-    if not observation.get("ok"):
-        # What the reading actually said went wrong.
-        #
-        # Every failed read was reported as something being in front of
-        # the thing and waited out. A read that timed out on a busy
-        # machine, a capture that errored, a window that had gone — all
-        # of them came back as an occlusion, which is a diagnosis of a
-        # cause nobody had established, and the answer to it is to wait,
-        # so she waited. Live 2026-09-07: three of those in a row ended
-        # the run as "no move available" after seventeen moves, with
-        # nothing on screen in front of anything.
-        went_wrong = str(observation.get("error") or "").strip()
-        no_move["because"] = (
-            f"the last reading did not come back: {went_wrong}"
-            if went_wrong
-            else "the last reading did not come back, and did not say why"
-        )
-        logger.info("no move this cycle: %s", no_move["because"])
-        return None
+    _left__ = await _decide_the_next_move_blocker(blocker_attempts, clear_blocker, needs_person, no_move, observation)
+    if _left__ is not _FALL_THROUGH:
+        return _left__
 
     band, looking_at_the_thing = await _decide_the_next_move_what_she_looking(anchor, drawn, narrate, observation, responds, target_app)
     lattice, seen = await _decide_the_next_move_seen(band, coming, in_the_way, observation, responds, target_app)
@@ -1091,7 +1243,10 @@ async def decide_the_next_move(
     )
     laid_out = _decide_the_next_move_laid_out(confirmed_here, got_to, lattice, moves, pending, whole)
     if not confirmed_here["value"]:
-        await _decide_the_next_move_part_6(anchor, confirmed_here, expect_page, open_page, seen, target_app)
+        await _decide_the_next_move_part_6(
+            anchor, confirmed_here, expect_page, open_page, seen, target_app,
+            seen_by_window=bool(observation.get("window_number")),
+        )
         if not confirmed_here["value"]:
             not_there["reason"] = (
                 f"{(open_page or expect_page)!r} is not what is in front of me — "
@@ -1281,9 +1436,37 @@ async def decide_the_next_move(
         # and look up. Being stuck is the signal, because a run of broken
         # predictions means the current approach is not working whatever
         # the reason.
-        if knowledge["held"] is None or (
-            stuck(history) and knowledge["relearned"] < MAX_RELEARNS
-        ):
+        # In real time, words are for when acting and looking have stopped
+        # carrying her: her last few predictions broke and she cannot see past
+        # the next move. Everywhere else the world does not wait while she
+        # reads up, states a line or talks a move over — asked to play, she
+        # plays, and finds out what her acts do by doing them. LIVE 2026-09-17:
+        # a lookup, an interpretation and a plan before the first key, a plan
+        # asked for again every few moves, and every one of them a pause in a
+        # game somebody was watching.
+        from core.agency.looking_ahead import how_far_she_can_see
+
+        # Lost is two things together. She cannot see past the next move, and
+        # acting has stopped teaching her anything: her last predictions all
+        # broke, or she has tried every act and still has no model of what
+        # they do. Before either, acting and looking is the reasoning, and it
+        # is faster than words.
+        sees = (
+            knows.rules is not None
+            and knows.rules.rule() is not None
+            and how_far_she_can_see() >= 2
+        )
+        # Every act still thought to do something here, taken at least once.
+        # Read from the moves she made rather than from where changes were
+        # seen, because an act she made that changed nothing is still an act
+        # she has tried.
+        made_moves = {str(move.get("key") or "") for move in moves}
+        tried_everything = all(
+            str(name) in made_moves for name in (can_do.available() or move_keys)
+        )
+        no_model = knows.rules is None or knows.rules.rule() is None
+        lost = not sees and (stuck(history) or (tried_everything and no_model))
+        if lost and (knowledge["held"] is None or knowledge["relearned"] < MAX_RELEARNS):
             if knowledge["held"] is not None:
                 knowledge["relearned"] += 1
             relearning = knowledge["held"] is not None
@@ -1305,7 +1488,7 @@ async def decide_the_next_move(
         # a corner" is a fact about the game; what it means depends on
         # where the tiles actually are, and that comparison is the step
         # between reading something and playing differently.
-        if knowledge["held"] is not None and knowledge["held"].known and not knowledge["meant"]:
+        if lost and knowledge["held"] is not None and knowledge["held"].known and not knowledge["meant"]:
             knowledge["meant"] = await work_out_what_it_means(
                 knowledge["held"],
                 seen,
@@ -1326,7 +1509,7 @@ async def decide_the_next_move(
         # here, before she acts, so a pivot is something she was watching
         # for and not something that happened to her.
         holding, ended = still_holds(plan["held"], seen, len(moves))
-        time_to_ask = _decide_the_next_move_part_14(ended, holding, looking_at_the_thing, moves, plan)
+        time_to_ask = lost and _decide_the_next_move_part_14(ended, holding, looking_at_the_thing, moves, plan, costs)
         if not holding and time_to_ask:
             plan["asked_at"] = len(moves)
             fresh = await settle_on_an_approach(
@@ -1345,8 +1528,18 @@ async def decide_the_next_move(
             )
             if fresh is not None:
                 changing = plan["held"] is not None
+                # The same line again is not a new line. Asking and getting the
+                # answer she already had says the question is not what is
+                # changing, so it is not said again and she waits longer before
+                # putting it again. LIVE 2026-09-17, a plan about a corner the
+                # board did not yet hold: judged broken on every move, asked
+                # again on every move, and announced on every move.
+                same = changing and " ".join(fresh.approach.split()).casefold() == " ".join(
+                    plan["held"].approach.split()
+                ).casefold()
+                plan["same_again"] = plan.get("same_again", 0) + 1 if same else 0
                 plan["held"] = fresh
-                plan["changes"] += 1 if changing else 0
+                plan["changes"] += 1 if changing and not same else 0
                 # Held where the rest of her can see it, not in this loop.
                 doing.going_about_it(
                     fresh.approach,
@@ -1356,18 +1549,29 @@ async def decide_the_next_move(
                     spine=spine,
                     lived=lived,
                 )
-                if narrate:
+                if narrate and not same:
                     said = fresh.narrate()
                     _tell(f"{said} ({ended})" if changing and ended else said)
         if plan["held"] is not None:
             learned = learned + plan["held"].as_evidence()
 
-        available, ended = _decide_the_next_move_nothing_task_working(can_do, move_keys, observation, offered_a_restart, responds)
+        available, ended = _decide_the_next_move_nothing_task_working(
+            can_do, move_keys, observation, offered_a_restart, responds, knows=knows, laid_out=laid_out
+        )
         if ended:
             mine_now = target_app or anchor["app"]
             why = work_out_why(
                 mine=mine_now,
-                in_front=await _frontmost(),
+                # A picture taken by window number is of her window whatever
+                # is in front, and keys addressed to its process reach it
+                # whatever is in front. Another application in front is then
+                # not a reason nothing answers: the person may simply be
+                # watching the conversation while she plays.
+                in_front=(
+                    str(observation.get("owner") or mine_now)
+                    if observation.get("window_number")
+                    else await _frontmost()
+                ),
                 on_top=await _whats_on_top(mine_now, over=responds["state"].band()),
                 still_there=_is_a_thing_laid_out(laid_out),
             )
@@ -1442,14 +1646,27 @@ async def decide_the_next_move(
         # What she has decided to keep true takes moves off the table
         # before anything looks ahead, which is where holding something
         # pays: the tree it searches is smaller at every level.
-        wont, ruled_out = _moves_she_will_not_make(
-            she_keeps,
-            went,
-            laid_out,
-            [option.name for option in available],
-            knows,
-            len(moves),
-            world,
+        #
+        # Only while looking is short-sighted. Once her last look saw past the
+        # next move, what a move leads to is in front of her, and a property
+        # guessed from a handful of positions removes moves the look would
+        # have kept. LIVE 2026-09-17, through her whole loop on a board she
+        # could search three deep: "holding that it holds two 32s, so not
+        # down, up", two moves to choose from all game, lost at a 128.
+        from core.agency.looking_ahead import how_far_she_can_see
+
+        wont, ruled_out = (
+            _moves_she_will_not_make(
+                she_keeps,
+                went,
+                laid_out,
+                [option.name for option in available],
+                knows,
+                len(moves),
+                world,
+            )
+            if how_far_she_can_see() < 2
+            else (frozenset(), "")
         )
         if wont:
             available = [one for one in available if one.name not in wont]
@@ -1528,16 +1745,25 @@ async def decide_the_next_move(
         ahead: dict[str, tuple[float, str]] = {}
         # What she is playing for, which the request does not always say.
         aiming_at = success_when or _what_there_is_to_aim_at(laid_out)
+        pending["aiming_at"] = aiming_at
         if worth_comparing(aiming_at, held_line):
             # As far ahead as there is time to look, which is decided from
             # what a level of looking has been measured costing.
+            # About as long to think as it takes to look. Looking is the pace
+            # the world already sets on every move; thinking far past it makes
+            # a move stand still on screen for what a further level mostly
+            # confirms. Measured 2026-09-17 on eight simulated games: at 0.3s
+            # a move all eight reached 2048, and a two-second allowance won the
+            # same eight with pauses of nearly three seconds.
+            looks = list(getattr(run, "reading_took", None) or [])
+            a_look = (sum(looks) / len(looks)) if looks else 0.3
             ahead = look_ahead(
                 knows.rules,
                 laid_out,
                 [option.name for option in available],
                 toward=aiming_at,
                 approach=held_line,
-                budget_s=max(0.05, min(2.0, (ends_at - time.monotonic()) * 0.02)),
+                budget_s=max(0.05, min(2.0, (ends_at - time.monotonic()) * 0.02, max(0.3, a_look))),
                 world=world,
                 # What matters HERE, once she has watched enough to say.
                 weights=matters.weights(),
@@ -1694,7 +1920,9 @@ async def decide_the_next_move(
         asking, because_of = worth_a_pass(
             ahead,
             stakes=weight,
-            since_words=len(moves) - asked["at"],
+            # Moves since she last said anything. Narrating every move is
+            # saying something every move, so silence is no reason for a pass.
+            since_words=0 if narrate else len(moves) - asked["at"],
             horizon=LANGUAGE_EVERY,
             unusual=unusual or not moves or restarts["count"] > asked["after_restarts"],
             recognised=recognised,
@@ -1707,6 +1935,13 @@ async def decide_the_next_move(
             # clock. Live on a resident model it was about ten.
             costs_moves=_a_pass_in_moves(costs),
         )
+        if asking and not (lost or offered_pacing):
+            # A pass is for when she is lost, or when there is a choice about
+            # her own pace to make. Otherwise the move is made from what she
+            # can see, at the speed the world is going.
+            asking, because_of = False, f"playing in real time ({because_of})"
+        if len(available) == 1:
+            asking, because_of = False, "there is only one thing to do"
         if recognised and not asking:
             skilled.took(kind)
         if asking != last_call["asked"] or last_call["why"] != because_of:
@@ -1741,6 +1976,8 @@ async def decide_the_next_move(
             costs["passes"] += 1.0
         else:
             costs["was_quiet"] = 1.0
+        pending["ahead"] = dict(ahead or {})
+        pending["held_line"] = held_line
         if not chosen.reached:
             # Stop rather than press something for no reason. A loop that
             # keeps acting once its judgement is out of reach is the exact
@@ -1776,56 +2013,17 @@ async def decide_the_next_move(
             return None
 
         if key == START_OVER:
-            # Not while there is something here she cannot get back.
-            #
-            # Starting over is the one act of hers that destroys what she
-            # has made. Everywhere else a bad move costs a move; here it
-            # costs the whole thing, and she reaches for it exactly when
-            # she is stuck — which is also when a position is at its most
-            # developed and worth the most.
-            #
-            # What is precious is not declared. Take a part of the thing
-            # away and ask whether what she is holding survives without
-            # it: a board's largest tile is what "the largest thing is at
-            # the far end" rests on, so losing it is losing the plan, and
-            # a board of small ones costs nothing to leave.
-            keeping = she_keeps.get("it")
-            if keeping is not None and laid_out is not None and available:
-                precious = what_she_cannot_afford_to_lose(
-                    laid_out,
-                    holding=keeping.holds,
-                    parts_of=lambda one: list(getattr(one, "cells", ())),
-                    without=_the_same_thing_without,
+            # What she cannot get back is only at stake while she can still
+            # act on it. A thing that has ended has already taken it.
+            _left__ = (
+                _FALL_THROUGH
+                if ended
+                else _decide_the_next_move_while_there_something(
+                    available, chosen, laid_out, no_move, responds, she_keeps
                 )
-                others = [
-                    one.name for one in available if one.name != START_OVER
-                ]
-                if precious and others:
-                    # And how sure she would have to be, given what it
-                    # costs to be wrong. Starting over destroys what is
-                    # here; another move costs a move. Those are different
-                    # sizes, so the certainty needed is not a level — it
-                    # is the comparison.
-                    say_it = whether_to_say_it(
-                        how_sure=float(chosen.confidence),
-                        being_wrong_costs=float(len(precious)),
-                        another_look_costs=1.0,
-                        waiting_might_lose_it=(
-                            1.0 if responds["state"].nothing_answers() else 0.0
-                        ),
-                        what_it_is_worth=float(len(precious)),
-                    )
-                    if not say_it.now:
-                        logger.info(
-                            "not starting over: %d thing(s) she cannot get back "
-                            "(%s)",
-                            len(precious),
-                            say_it.describe(),
-                        )
-                        no_move["because"] = (
-                            "there is something here worth keeping"
-                        )
-                        return None
+            )
+            if _left__ is not _FALL_THROUGH:
+                return _left__
             params = dict(chosen.chosen.params)
             label = str(params.get("label") or "")
             rx, ry = float(params.get("x", 0.0)), float(params.get("y", 0.0))
@@ -1926,6 +2124,23 @@ async def decide_the_next_move(
     # sequence were written from what landed, and a plan of one has no
     # follow-ons.
     about_to = {"key": key, "because": because, "at": time.time()}
+    # What she says as she makes it: what her rule says the move does, and
+    # why it beat the next best. Said for every move when she was asked to
+    # narrate, because a person watching wants each move and what it was for.
+    move_said = (
+        _what_she_says_as_she_moves(
+            key,
+            laid_out,
+            knows,
+            pending.get("ahead") or {},
+            weights=matters.weights(),
+            toward=str(pending.get("aiming_at") or success_when or ""),
+            approach=str(pending.get("held_line") or ""),
+            biggest_so_far=max(float(furthest.get("here") or 0.0), float(furthest.get("again") or 0.0)),
+        )
+        if narrate
+        else ""
+    )
     # Nothing is said here on purpose.
     #
     # Every decision is published to the deliberation stream as it is
@@ -1946,7 +2161,7 @@ async def decide_the_next_move(
         ahead_now = look_ahead(
             knows.rules, board, list(names),
             toward=aiming_at, approach=held_line,
-            budget_s=0.05, world=world, weights=matters.weights(),
+            budget_s=0.05, world=world, weights=matters.weights(), settles_how_far=False,
         )
         return max(ahead_now, key=lambda one: ahead_now[one][0]) if ahead_now else ""
 
@@ -1963,7 +2178,22 @@ async def decide_the_next_move(
         int(getattr(responds["state"], "acts", 0) or 0),
         int(getattr(responds["state"], "effective", 0) or 0),
     )
-    if not follow_on and foresee is not None and pending["arranged"] is not None:
+    # A world that adds things of its own between acts cannot be predicted past
+    # the next of them: what the model foresees after one act is the board
+    # without the thing the world is about to put on it, so a second act is
+    # chosen for a board that will not exist. Looking after every act is the
+    # only honest pace there, and looking is a third of a second.
+    if follow_on and knows.rules is not None and (
+        knows.rules.world_adds_things() or world.acts_with_arrivals >= 2
+    ):
+        follow_on = []
+    if (
+        not follow_on
+        and foresee is not None
+        and pending["arranged"] is not None
+        and (knows.rules is None or not knows.rules.world_adds_things())
+        and world.acts_with_arrivals < 2
+    ):
         going = far.how_many(trusted=float(knows.rules.confidence()))
         if going > 1:
             follow_on, _ = _the_rest_of_the_run(
@@ -2016,6 +2246,7 @@ async def decide_the_next_move(
         return await carry_out_the_move(
             SimpleNamespace(
                 about_to=about_to,
+                move_said=move_said,
                 anchor=anchor,
                 at_rest=at_rest,
                 busy=busy,

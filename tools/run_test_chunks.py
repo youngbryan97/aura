@@ -169,11 +169,14 @@ def run_chunk(
     cmd = [python]
     if coverage:
         cmd += ["-m", "coverage", "run", "--parallel-mode"]
+    # One line per file rather than -q's bare dots: when a chunk times out,
+    # the last unfinished line names the file that hung. -rfE keeps the
+    # FAILED lines the retry pass parses.
     cmd += [
         "-m",
         "pytest",
         *[str(f) for f in files],
-        "-q",
+        "-rfE",
         "-p",
         "no:cacheprovider",
     ]
@@ -204,9 +207,20 @@ def run_chunk(
         return False, message, []
     try:
         proc = subprocess.run(cmd, cwd=ROOT, timeout=timeout_s, capture_output=True, text=True)
-    except subprocess.TimeoutExpired:
-        note_progress(progress_file, f"TIMEOUT chunk {index}/{total}")
-        return False, f"chunk {index}/{total} TIMEOUT after {timeout_s:.0f}s", []
+    except subprocess.TimeoutExpired as exc:
+        # The chunk's output up to the kill is the only evidence of which
+        # file hung; a timeout that discarded it (2026-09-16, chunk 2 of 40)
+        # left forty minutes of run with nothing to bisect.
+        partial = exc.stdout if isinstance(exc.stdout, str) else (exc.stdout or b"").decode("utf-8", "replace")
+        tail = partial.rstrip().splitlines()[-12:]
+        in_flight = next(
+            (line.split()[0] for line in reversed(tail) if line.split()[:1] and line.split()[0].endswith(".py")),
+            "unknown",
+        )
+        sys.stdout.write("\n".join(tail) + "\n")
+        print(f"    in flight when killed: {in_flight}", flush=True)
+        note_progress(progress_file, f"TIMEOUT chunk {index}/{total} in_flight={in_flight}")
+        return False, f"chunk {index}/{total} TIMEOUT after {timeout_s:.0f}s (in flight: {in_flight})", []
     sys.stdout.write(proc.stdout)
     sys.stderr.write(proc.stderr)
     failed_ids = parse_failed_node_ids(proc.stdout)

@@ -2448,3 +2448,31 @@ def restores_environ():
     finally:
         os.environ.clear()
         os.environ.update(snapshot)
+
+
+@pytest.fixture(autouse=True)
+def _the_hosts_own_screen_is_not_the_subject(monkeypatch):
+    """Whether this machine's screen is locked is not a fact about the code.
+
+    A pursuit asks the capture policy whether it may look before it does
+    anything, and the policy reads the real session. So a suite run while the
+    host's screen was locked failed every test that runs a pursuit — twelve in
+    one file, twenty-four in another — with "she never moved", which is the
+    honest behaviour of the thing under test and says nothing about it. Tests
+    about being refused a look patch these themselves, and their patch lands
+    after this one.
+    """
+    try:
+        from core.security import screen_capture_policy as policy
+    except ImportError:
+        return
+
+    async def a_screen_she_may_read(*_args, **_kwargs):
+        return policy.ScreenCaptureAdmission(allowed=True)
+
+    for name in (
+        "evaluate_screen_capture_admission_async",
+        "evaluate_window_capture_admission_async",
+    ):
+        if hasattr(policy, name):
+            monkeypatch.setattr(policy, name, a_screen_she_may_read)

@@ -111,7 +111,7 @@ Three categories must not be rewritten:
 
 ```bash
 make smoke     # ~100 contract tests, <10s — after every change
-make test      # full suite, 6 bounded chunks (40,123 offline tests, 2026-08-21)
+make test      # full suite, 6 bounded chunks (~45,600 offline tests, 2026-09-15)
 make lint compile governance-lint layering
 make quality   # the aggregate sweep
 ```

@@ -67,7 +67,7 @@ from core.health.degraded_events import record_degraded_event
 from core.memory import embedding_model
 from core.runtime.effect_boundary import effect_sink
 from core.runtime.errors import record_degradation
-from core.runtime.lockdep import checked_lock
+from core.runtime.lockdep import LockRank, checked_lock
 
 logger = logging.getLogger("Aura.VectorMemory")
 
@@ -184,6 +184,14 @@ class EmbeddingEngine:
         self._initialized = False
         self._lane_lease: Any | None = None
         self._lifecycle_lock = checked_lock("vector_memory_engine.lifecycle_lock", reentrant=True)
+        #: One encode at a time per engine. The fast tokenizer inside the
+        #: sentence-transformer is a Rust object that refuses concurrent use
+        #: ("Already borrowed"); two threads warming at once at boot hit it
+        #: (2026-09-16: the chat dependency warmup failed its first attempt
+        #: while a turn's anchor warm ran beside it). The lifecycle lock
+        #: guards the lifecycle; this guards the tokenizer and the forward
+        #: pass, off the event loop, where a wait costs only the waiter.
+        self._encode_lock = checked_lock("vector_memory_engine.encode", rank=LockRank.LEAF)
         self._loader: threading.Thread | None = None
         self._closing = False
         #: Encodes running right now, outside the lifecycle lock. Eviction
@@ -508,6 +516,26 @@ class EmbeddingEngine:
         release_transients = len(flat_views) > len(texts) or any(
             view.token_count >= embedding_model.OPERATIONAL_INPUT_TOKENS // 2 for view in flat_views
         )
+        with self._encode_lock:
+            return self._encode_batches(
+                model, texts, batches, owners, vectors_by_owner, weights_by_owner, cursor,
+                release_transients, background=background, query_task=query_task,
+            )
+
+    def _encode_batches(
+        self,
+        model: Any,
+        texts: list[str],
+        batches: Any,
+        owners: list[int],
+        vectors_by_owner: list[list[np.ndarray]],
+        weights_by_owner: list[list[float]],
+        cursor: int,
+        release_transients: bool,
+        *,
+        background: bool,
+        query_task: str | None,
+    ) -> list[tuple[np.ndarray, np.ndarray]]:
         try:
             for batch in batches:
                 if background and self._background_should_defer():

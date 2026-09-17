@@ -80,3 +80,26 @@ def test_the_move_path_waits_at_all() -> None:
     # under the size gate's ceiling. Asked for by name rather than sliced.
     act = pursuit_function_source("carry_out_the_move")
     assert "_settled_after(" in act, "a keystroke must be given time to land"
+
+
+def test_the_pause_between_looks_is_half_the_quickest_answer_she_has_seen():
+    """A look costs less than a tenth of a second, so a tenth of a second of waiting was the move."""
+    from core.skills.screen_pursuit_looking import (
+        _ANSWERING_TOOK,
+        _answering_took,
+        _before_looking_again,
+    )
+
+    was = dict(_ANSWERING_TOOK)
+    try:
+        _ANSWERING_TOOK["longest"] = _ANSWERING_TOOK["quickest"] = 0.0
+        # Nothing measured yet: she looks at once, because the look measures it.
+        assert _before_looking_again() == 0.0
+        _answering_took(0.5)
+        _answering_took(0.2)
+        _answering_took(0.9)
+        assert _ANSWERING_TOOK["longest"] == 0.9
+        # Never long enough to step over the quickest answer the world gave.
+        assert _before_looking_again() == 0.1
+    finally:
+        _ANSWERING_TOOK.update(was)

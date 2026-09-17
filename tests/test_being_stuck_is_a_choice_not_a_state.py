@@ -105,7 +105,7 @@ def screen(monkeypatch):
     async def identity():
         return {"url": "https://play2048.co/", "title": "2048", "error": ""}
 
-    async def there_is_a_screen(_ends_at):
+    async def there_is_a_screen(_ends_at, **_of_what):
         return True
 
     # The fixture IS the screen, so the gate that asks whether there is one has
@@ -173,7 +173,11 @@ async def test_when_nothing_works_she_can_begin_again(screen, monkeypatch):
         goal="raise the number",
         success_when="never happens",
         think=_thinks("up", "up", "up", "start over"),
-        max_cycles=6,
+        # Enough cycles for the words to be reached. She plays the routine
+        # moves without asking for any — a cycle that does not think does not
+        # take a reply off this queue — so "start over" is the fourth reply
+        # she asks for rather than the fourth move she makes.
+        max_cycles=9,
         # Enough clock for the cycles this needs. A move whose verification
         # fails is retried with a growing backoff, which is the executor
         # working, and six of those do not fit in ten seconds — so the run

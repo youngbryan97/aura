@@ -19,6 +19,7 @@ from core.bus.actor_bus import ActorBus
 from core.health.degraded_events import record_degraded_event
 from core.runtime import resource_psutil as psutil
 from core.runtime.errors import record_degradation
+from core.runtime.progress_bound import await_while_the_task_moves
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.scheduler import TaskSpec, scheduler
 from core.supervisor.tree import ActorSpec
@@ -1040,7 +1041,7 @@ class RobustOrchestrator(
 
             if getattr(self, "substrate", None):
                 logger.info("🚩 [ORCHESTRATOR] Starting Substrate...")
-                await asyncio.wait_for(self.substrate.start(), timeout=15.0)
+                await await_while_the_task_moves(self.substrate.start(), stall_s=15.0, name='start:self.substrate.start()')
                 logger.info("🚩 [ORCHESTRATOR] Substrate started.")
 
             self.status.start_time = time.time()
@@ -1048,12 +1049,12 @@ class RobustOrchestrator(
             # Sensory systems are initialized in _async_init_subsystems or below
             if hasattr(self, "_start_sensory_systems"):
                 logger.info("🚩 [ORCHESTRATOR] Starting Sensory Systems...")
-                await asyncio.wait_for(self._start_sensory_systems(), timeout=15.0)
+                await await_while_the_task_moves(self._start_sensory_systems(), stall_s=15.0, name='start:self._start_sensory_systems()')
                 logger.info("🚩 [ORCHESTRATOR] Sensory Systems started.")
 
             # Start Actor-Kernel Sensory Gate (Phase 1)
             logger.info("🚩 [ORCHESTRATOR] Starting Sensory Actor...")
-            await asyncio.wait_for(self._start_sensory_actor(), timeout=15.0)
+            await await_while_the_task_moves(self._start_sensory_actor(), stall_s=15.0, name='start:self._start_sensory_actor()')
             logger.info("🚩 [ORCHESTRATOR] Sensory Actor started.")
 
             # --- Live Multimodal Vision Start ---
@@ -1077,16 +1078,16 @@ class RobustOrchestrator(
 
                     logger.error("Failed to start Continuous Sensory Buffer: %s", e)
             if hasattr(self, "belief_sync") and self.belief_sync:
-                await asyncio.wait_for(self.belief_sync.start(), timeout=15.0)
+                await await_while_the_task_moves(self.belief_sync.start(), stall_s=15.0, name='start:self.belief_sync.start()')
             if hasattr(self, "attention_summarizer") and self.attention_summarizer:
-                await asyncio.wait_for(self.attention_summarizer.start(), timeout=15.0)
+                await await_while_the_task_moves(self.attention_summarizer.start(), stall_s=15.0, name='start:self.attention_summarizer.start()')
             swarm_protocol = getattr(self, "swarm_protocol", None)
             if swarm_protocol and hasattr(swarm_protocol, "start"):
-                await asyncio.wait_for(swarm_protocol.start(), timeout=15.0)
+                await await_while_the_task_moves(swarm_protocol.start(), stall_s=15.0, name='start:swarm_protocol.start()')
             try:
                 delegator = ServiceContainer.get("agent_delegator", default=None)
                 if delegator and hasattr(delegator, "start"):
-                    await asyncio.wait_for(delegator.start(), timeout=15.0)
+                    await await_while_the_task_moves(delegator.start(), stall_s=15.0, name='start:delegator.start()')
             except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
                 _record_main_degradation(
                     e,
@@ -1570,7 +1571,7 @@ class RobustOrchestrator(
             ):
                 res = self.consciousness.start()
                 if res and inspect.isawaitable(res):
-                    await asyncio.wait_for(res, timeout=15.0)
+                    await await_while_the_task_moves(res, stall_s=15.0, name='start:res')
                 logger.info("✓ Consciousness stream activated")
             elif _foreground_only_runtime():
                 logger.info(
@@ -1580,7 +1581,7 @@ class RobustOrchestrator(
                 if hasattr(self.curiosity, "start"):
                     res = self.curiosity.start()
                     if res and inspect.isawaitable(res):
-                        await asyncio.wait_for(res, timeout=15.0)
+                        await await_while_the_task_moves(res, stall_s=15.0, name='start:res')
                 logger.info("✓ Curiosity background loop started")
 
             # Start Aegis Sentinel (Phase XXIII)
@@ -1596,7 +1597,7 @@ class RobustOrchestrator(
                 if hasattr(self.proactive_comm, "start"):
                     res = self.proactive_comm.start()
                     if res and inspect.isawaitable(res):
-                        await asyncio.wait_for(res, timeout=15.0)
+                        await await_while_the_task_moves(res, stall_s=15.0, name='start:res')
                 logger.info("✓ Proactive Communication loop started")
 
             # Start Narrative Engine (v11.0)
@@ -1605,11 +1606,11 @@ class RobustOrchestrator(
                 and hasattr(self, "narrative_engine")
                 and self.narrative_engine
             ):
-                await asyncio.wait_for(self.narrative_engine.start(), timeout=15.0)
+                await await_while_the_task_moves(self.narrative_engine.start(), stall_s=15.0, name='start:self.narrative_engine.start()')
 
             # Start Agency Core background tasks
             if not _foreground_only_runtime() and hasattr(self, "agency_core") and self.agency_core:
-                await asyncio.wait_for(self.agency_core.initialize(), timeout=15.0)
+                await await_while_the_task_moves(self.agency_core.initialize(), stall_s=15.0, name='start:self.agency_core.initialize()')
 
             # Start Sovereign Ears
             await _start_the_reflection_organs(
@@ -1619,7 +1620,7 @@ class RobustOrchestrator(
             # Start Pulse Manager (Proactive Awareness)
             if self.pulse_manager:
                 logger.info("🚩 [ORCHESTRATOR] Starting Pulse Manager...")
-                await asyncio.wait_for(self.pulse_manager.start(), timeout=10.0)
+                await await_while_the_task_moves(self.pulse_manager.start(), stall_s=10.0, name='start:self.pulse_manager.start()')
                 logger.info("✓ Pulse Manager active (Proactive Awareness)")
 
             # Start Inter-process Event Listeners
@@ -1632,7 +1633,7 @@ class RobustOrchestrator(
                 if hasattr(self.cognition, "initialize"):
                     res = self.cognition.initialize()
                     if res and inspect.isawaitable(res):
-                        await asyncio.wait_for(res, timeout=15.0)
+                        await await_while_the_task_moves(res, stall_s=15.0, name='start:res')
                 logger.info("✓ Advanced Cognitive Layer (Learning, Memory, Beliefs) initialized")
 
             # Initialize AgencyCore and SubsystemAudit
@@ -1689,7 +1690,7 @@ class RobustOrchestrator(
                 self._integrity_monitor = SystemIntegrityMonitor(
                     data_dir=str(config.paths.data_dir)
                 )
-                await asyncio.wait_for(self._integrity_monitor.start(), timeout=10.0)
+                await await_while_the_task_moves(self._integrity_monitor.start(), stall_s=10.0, name='start:self._integrity_monitor.start()')
                 ServiceContainer.register_instance("integrity_monitor", self._integrity_monitor)
                 from core.utils.task_tracker import get_task_tracker
 
@@ -1736,14 +1737,14 @@ class RobustOrchestrator(
                 )
                 ServiceContainer.register_instance("scheduler", scheduler, required=False)
                 if not scheduler.is_alive():
-                    await asyncio.wait_for(scheduler.start(), timeout=5.0)
+                    await await_while_the_task_moves(scheduler.start(), stall_s=5.0, name='start:scheduler.start()')
                 if not scheduler.is_alive():
                     raise RuntimeError("scheduler heartbeat unavailable in foreground-only boot")
             else:
-                await asyncio.wait_for(self._register_scheduled_tasks(), timeout=10.0)
+                await await_while_the_task_moves(self._register_scheduled_tasks(), stall_s=10.0, name='start:self._register_scheduled_tasks()')
                 ServiceContainer.register_instance("scheduler", scheduler, required=False)
                 if not scheduler.is_alive():
-                    await asyncio.wait_for(scheduler.start(), timeout=5.0)
+                    await await_while_the_task_moves(scheduler.start(), stall_s=5.0, name='start:scheduler.start()')
                 if not scheduler.is_alive():
                     raise RuntimeError("scheduler start returned without live main loop")
 
@@ -1988,7 +1989,7 @@ class RobustOrchestrator(
                     logger.debug("Suppressed Exception: %s", _exc)
                 logger.info("🌀 [SCHEDULER] Triggering Meta-Evolution Cycle...")
                 try:
-                    await asyncio.wait_for(self.meta_cognition.evolve(), timeout=30.0)
+                    await await_while_the_task_moves(self.meta_cognition.evolve(), stall_s=30.0, name='_register_scheduled_tasks:self.meta_cognition.evolve()')
                 except TimeoutError:
                     logger.warning("🌀 Meta-Evolution timed out after 30s — skipping this cycle.")
                 except _ORCHESTRATOR_RECOVERABLE_ERRORS as exc:

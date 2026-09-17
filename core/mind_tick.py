@@ -17,6 +17,7 @@ from core.health.degraded_events import record_degraded_event
 from core.predictive.trajectory_predictor import TrajectoryPredictor
 from core.runtime.errors import record_degradation
 from core.runtime.pipeline_blueprint import instantiate_legacy_runtime_phases
+from core.runtime.progress_bound import run_on_a_thread_while_it_works
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.utils.resilience import CircuitBreaker
 from core.utils.task_tracker import get_task_tracker
@@ -586,8 +587,8 @@ class MindTick(_KnowsWhetherItIsStillAlive):
             # sensor read — a thermal probe on a throttling machine —
             # stalls the whole rhythm. Off-thread and bounded: this is
             # telemetry, and stale telemetry beats a stopped heartbeat.
-            await asyncio.wait_for(
-                asyncio.to_thread(get_world_state().update), timeout=5.0
+            await run_on_a_thread_while_it_works(
+                get_world_state().update, stall_s=5.0, name="mind_tick.world_state"
             )
             self._mark_loop_progress("world_state")
         except TimeoutError:

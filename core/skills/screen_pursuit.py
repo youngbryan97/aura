@@ -283,7 +283,20 @@ async def read_screen(
     a band portable across window sizes and monitors.
     """
     from core.capabilities.host_automation import get_host_automation
+    from core.perception.what_the_pixels_show import look_at_window
 
+    # From the window's own pixels, when the window server can be asked.
+    #
+    # A capture by window number cannot contain anything drawn over the
+    # window, takes a tenth of a second rather than a subprocess and a file,
+    # and comes back with the places a grid has whether or not anything is
+    # written in them. The path below is kept for when there is no window
+    # server to ask.
+    if app_name:
+        seen = await look_at_window(app_name, over)
+        if seen is not None:
+            return seen
+        logger.info("reading %r from a picture of its rectangle, not from its own pixels", app_name)
     window = await window_bounds(app_name) if app_name else None
     # Read the thing at the size the thing is.
     #
@@ -534,6 +547,14 @@ WORTH_TRYING_AT = 0.4
 
 async def _frontmost() -> str:
     """The application in front, for a run that was never told which one."""
+    try:
+        from core.capabilities import window_server
+
+        owner = window_server.front_owner()
+        if owner:
+            return owner
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as why:
+        logger.debug("the window server could not say what is in front: %s", why)
     try:
         from core.capabilities.host_automation import get_host_automation
 
@@ -1028,7 +1049,11 @@ async def pursue_on_screen(
     ends_at = began + float(max_seconds)
     if deadline_at > 0.0:
         ends_at = min(ends_at, float(deadline_at))
-    if not await wait_for_a_screen_to_look_at(ends_at):
+    # How far she could see is a fact about this run, not the last one.
+    from core.agency.looking_ahead import forget_how_far_she_saw
+
+    forget_how_far_she_saw()
+    if not await wait_for_a_screen_to_look_at(ends_at, app=target_app):
         why = _WHY_SHE_CANNOT_LOOK["value"]
         return {
             "ok": False,
@@ -1231,6 +1256,59 @@ async def pursue_on_screen(
             region_top=region_top,
             region_bottom=region_bottom,
         )
+        # Met where she is acting, or only in the furniture around it.
+        #
+        # A window that names its own purpose says the finishing words from
+        # the first glance: an app called 2048 has "2048" as its heading, a
+        # build tool says "Build succeeded" in its history, a form says
+        # "Submit" before anything is filled in. LIVE 2026-09-17: asked to
+        # play until a 2048 tile, the run ended on its first reading, twice,
+        # "already true after 0 moves", because the heading was a run of text
+        # that said 2048 and nothing else.
+        #
+        # Where she can see the thing she is acting in, the condition counts
+        # only inside it.
+        if reached:
+            reached = _met_where_she_acts(observation)
+        return _already_or_not(reached)
+
+    def _met_where_she_acts(observation: dict[str, Any]) -> bool:
+        from .screen_pursuit_surface import where_the_goal_shows
+
+        places = where_the_goal_shows(observation, success_when)
+        if not places:
+            # Matched across runs with no one place to it; nothing to judge by
+            # position, so the reading stands as it was.
+            return True
+        outlines: list[tuple[float, float, float, float]] = []
+        for grid in observation.get("grids") or []:
+            try:
+                across, down = list(grid["across_at"]), list(grid["down_at"])
+                half_w, half_h = float(grid["cell_width"]) / 2.0, float(grid["cell_height"]) / 2.0
+                outlines.append(
+                    (across[0] - half_w, down[0] - half_h, across[-1] + half_w, down[-1] + half_h)
+                )
+            except (KeyError, IndexError, TypeError, ValueError):
+                continue
+        if outlines:
+            inside = [
+                (x, y)
+                for x, y in places
+                if any(l <= x <= r and t <= y <= b for l, t, r, b in outlines)
+            ]
+            if not inside and not furniture_said["value"]:
+                furniture_said["value"] = True
+                logger.info(
+                    "%r is on screen outside the thing she is acting in; that is the page, not the goal",
+                    success_when,
+                )
+            return bool(inside)
+        # Without the thing's own places she cannot tell furniture from a
+        # result, and the reading stands as it always did: a condition met
+        # before she moved is reported as met before she moved.
+        return True
+
+    def _already_or_not(reached: bool) -> bool:
         # True before she did anything is not something she did.
         #
         # A run that reports success off its first reading has not achieved
@@ -1247,6 +1325,9 @@ async def pursue_on_screen(
         ):
             already["value"] = True
         return reached
+
+    #: Whether it has been said that the goal's words are furniture here.
+    furniture_said: dict[str, Any] = {"value": False}
 
     async def clear_blocker(observation: dict[str, Any]) -> Step | None:
         """Lifted to screen_pursuit_blockers.py; the scope is handed over per call."""
@@ -1449,6 +1530,7 @@ async def pursue_on_screen(
                 stakes=stakes,
                 stretch=stretch,
                 success_when=success_when,
+                reading_took=reading_took,
                 target_app=target_app,
                 think=think,
                 trying=trying,
@@ -1555,6 +1637,23 @@ async def pursue_on_screen(
 
     if not moves:
         first = await observe()
+        # What the place says it is for, when she was not told what finishing
+        # is. "Play until you win" names no thing to wait for; the place
+        # usually does — a board saying to get to a tile, a wizard saying what
+        # done looks like — and it is the thing that would know. Where the
+        # person named a finish, theirs stands.
+        if first.get("ok") and not success_when:
+            from core.cognition.what_the_place_says import what_this_place_tells_her
+
+            written = "\n".join(
+                str(region.get("text") or "") for region in first.get("layout") or []
+            ) or str(first.get("text") or "")
+            told = what_this_place_tells_her(written, asked=goal, success_when=success_when)
+            if told.states:
+                success_when = told.aim or told.states
+                logger.info("finishing here is %r, as the place says", success_when)
+                if narrate and told.worth_saying:
+                    _tell(told.said_out_loud())
         if first.get("ok") and satisfied(first):
             already["value"] = False
             fresh = restart_control(first)

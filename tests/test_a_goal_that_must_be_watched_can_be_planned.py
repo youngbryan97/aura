@@ -259,9 +259,13 @@ def test_the_pursuit_declares_its_own_limit_so_the_layers_can_read_it():
         time_for,
     )
 
+    # A goal with no end runs for the budget; a goal that names its end is
+    # kept at until it is met, as far as the most anyone is asked to wait.
+    open_ended = read_watched_goal("keep playing 2048 and see how it moves")
+    assert open_ended.as_target()["max_seconds"] == time_for()
     goal = read_watched_goal("play 2048 until you get 128")
     declared = goal.as_target()["max_seconds"]
-    assert declared == time_for()
+    assert declared == PURSUIT_CEILING_S
     assert PURSUIT_SECONDS <= declared <= PURSUIT_CEILING_S
 
 

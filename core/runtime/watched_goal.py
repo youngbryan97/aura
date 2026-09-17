@@ -89,6 +89,10 @@ PURSUIT_CEILING_S = 3600.0
 #: work: seconds are only how long that many cycles take.
 PURSUIT_CYCLES = 200
 
+#: The most cycles a goal with a named end is given: the most a pursuit
+#: accepts. What stops it sooner is the end being met, or no progress.
+UNTIL_IT_IS_MET_CYCLES = 2000
+
 #: What one cycle of a pursuit has been measured taking on this machine.
 _A_CYCLE: dict[str, float] = {"seconds": 0.0}
 
@@ -200,6 +204,7 @@ class WatchedGoal:
     #: whatever is already in front of her.
     where: str = ""
     max_seconds: float = field(default_factory=time_for)
+    max_cycles: int = PURSUIT_CYCLES
     detail: dict[str, Any] = field(default_factory=dict)
 
     def as_target(self) -> dict[str, Any]:
@@ -211,6 +216,7 @@ class WatchedGoal:
             "region_top": self.region_top,
             "region_bottom": self.region_bottom,
             "max_seconds": self.max_seconds,
+            "max_cycles": self.max_cycles,
         }
         if self.target_app:
             payload["target_app"] = self.target_app
@@ -227,6 +233,21 @@ def _continuation(text: str) -> str:
         if found:
             return found.group(0).strip().lower()
     return ""
+
+
+#: Where one clause of a request ends and the next begins: the end of a
+#: sentence, or a comma or semicolon before the next thing being asked.
+_CLAUSE_ENDS = re.compile(r"[.?!;]\s|[.?!;]$|,\s", re.IGNORECASE)
+
+#: Words for the task's own end, which name no thing on screen to wait for.
+#: "Until you win" and "beat it" ask for whatever finishing is in the place
+#: being worked in, and the place usually says what that is.
+ITS_OWN_END = ("win", "wins", "won", "beat", "beats", "finish", "finishes", "complete", "completes", "clear", "clears", "solve", "solves")
+
+
+def asks_for_its_own_end(text: str) -> bool:
+    """Whether the request asks for the task to be won, beaten or finished."""
+    return bool(re.search(rf"\b(?:{'|'.join(ITS_OWN_END)})\b", str(text or ""), re.IGNORECASE))
 
 
 def _condition_clauses(text: str) -> list[str]:
@@ -250,7 +271,10 @@ def _condition_clauses(text: str) -> list[str]:
         # classic one with numbered tiles" cut at "numbered ti|les", and what
         # she was left waiting for was the word "are".
         for at in re.finditer(rf"\b{re.escape(word)}\b", text, flags=re.IGNORECASE):
-            clause = text[at.end() :].strip(" ,.—-")
+            # A condition ends where its own clause does. Run on to the end of
+            # the request, "play until you win, and narrate each move" waited
+            # for the word "move" — the rider's last word, not the finish.
+            clause = _CLAUSE_ENDS.split(text[at.end() :], maxsplit=1)[0].strip(" ,.—-")
             if clause:
                 found.append((at.start(), clause))
     found.sort(key=lambda pair: pair[0])
@@ -279,6 +303,12 @@ def _finishing_test(clause: str) -> str:
     number = re.search(r"\b(\d[\d,]{0,9})\b", clause)
     if number:
         return number.group(1).replace(",", "")
+    # "Until you win" names no thing on the screen, and the last plain word of
+    # whatever follows it is not one either: "play until you win, narrate
+    # every move" was a run waiting for the word "move". What finishing looks
+    # like here is for the place to say.
+    if asks_for_its_own_end(clause):
+        return ""
     words = re.findall(r"[A-Za-z][A-Za-z\-]{2,}", clause)
     skip = {
         "the", "a", "an", "you", "it", "its", "get", "gets", "got", "reach", "reaches",
@@ -939,6 +969,17 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
     if not app and not where and "://" not in text and not _they_said_on_the_web(text):
         app = named_game or _an_application_here(text, only_chosen=True)
     in_browser = bool(where) or names_any(app, BROWSERS) or "://" in text
+    # How much work the goal allows is set by the goal. "Until you get a 2048
+    # tile" names its own end, and a game that reaches one takes about a
+    # thousand moves: two hundred cycles stopped every such run a fifth of the
+    # way there. With an end named, she keeps at it until it is met, until she
+    # stops getting anywhere, or until the most anyone is asked to wait. With
+    # none, the sized budget stands, because then the budget is the end.
+    open_ended = not condition and not asks_for_its_own_end(text)
+    if condition and condition.lower() in ITS_OWN_END:
+        # "Until you win" names the end by its name and not by what shows it.
+        # What shows it is read off the place when she gets there.
+        condition = ""
     return WatchedGoal(
         where=where,
         goal=text[:400],
@@ -949,5 +990,7 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
         # the condition before a single move is made.
         region_top=CHROME_BAND_TOP if in_browser else 0.0,
         region_bottom=1.0,
+        max_seconds=time_for() if open_ended else PURSUIT_CEILING_S,
+        max_cycles=PURSUIT_CYCLES if open_ended else UNTIL_IT_IS_MET_CYCLES,
         detail={"continuation": cue},
     )

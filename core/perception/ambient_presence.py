@@ -384,6 +384,14 @@ class AmbientPresence(_CarriesTheBubble):
         speak faster, act slower, or accept that some of it goes unsaid — as
         a choice rather than a silent loss.
         """
+        # Only the bubble can fall behind. It shows one line at a time and
+        # holds each long enough to read; the conversation window receives
+        # every line the moment it is said. Measured 2026-09-17 with the full
+        # window open: the bubble queue was always behind at a move a second,
+        # so every move was offered as a choice about pacing and bought a
+        # language pass for a surface nobody was looking at.
+        if self.mode is not PresenceMode.BUBBLE or not self.drawing_surface_attached():
+            return {"waiting": 0, "showing": 0, "capacity": 0}
         with self._lock:
             return {
                 "waiting": len(self._narration),

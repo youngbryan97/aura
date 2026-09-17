@@ -1721,10 +1721,16 @@ def _correct_false_capability_denials(reply: object) -> object:
         # went unmentioned.
         offered = [name for name in denial.skills if name in relevant]
         named = ", ".join((offered or list(denial.skills))[:3])
-        truth = (
-            f"I can {denial.subject} — {named} are registered and enabled right "
-            "now, so if that failed it was the attempt and not the capability."
-        )
+        if getattr(denial, "named_skill", False):
+            truth = (
+                f"I do have {denial.subject} — it is registered and enabled right "
+                "now, so if that failed it was the attempt and not the capability."
+            )
+        else:
+            truth = (
+                f"I can {denial.subject} — {named} are registered and enabled right "
+                "now, so if that failed it was the attempt and not the capability."
+            )
         corrected = corrected.replace(denial.sentence, truth, 1)
         logger.warning(
             "🧭 Replaced a false capability denial (%s); registry has %s.",

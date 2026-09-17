@@ -441,6 +441,42 @@ def require_screen_capture_admission(
     return admission
 
 
+def evaluate_window_capture_admission(owner: str, title: str) -> ScreenCaptureAdmission:
+    """Whether one window may be read, when only that window will be captured.
+
+    A picture of one window taken by its number holds that window's pixels and
+    nothing else, so the question is about that window: whether it is private,
+    and whether the session is locked. Asking about every visible window, as a
+    whole-display capture must, refuses a game because a password manager is
+    open beside it, which protects nothing the capture could have exposed.
+    """
+
+    if not screen_allowed():
+        return ScreenCaptureAdmission(
+            allowed=False,
+            reason=ScreenCaptureDenial.RUNTIME_SETTING_DISABLED,
+            authority="runtime_setting",
+        )
+    if sys.platform == "darwin":
+        try:
+            import Quartz
+
+            session = Quartz.CGSessionCopyCurrentDictionary() or {}
+        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+            session = {}
+        if bool(session.get("CGSSessionScreenIsLocked", False)):
+            return ScreenCaptureAdmission(
+                allowed=False,
+                reason=ScreenCaptureDenial.SESSION_LOCKED,
+                authority="one_window",
+            )
+    return _admission_from_context((owner, title), authority="one_window")
+
+
+async def evaluate_window_capture_admission_async(owner: str, title: str) -> ScreenCaptureAdmission:
+    return await asyncio.to_thread(evaluate_window_capture_admission, owner, title)
+
+
 async def evaluate_screen_capture_admission_async() -> ScreenCaptureAdmission:
     """Run the bounded metadata probe off the event loop."""
 
@@ -461,6 +497,8 @@ __all__ = [
     "ScreenCaptureDenial",
     "evaluate_screen_capture_admission",
     "evaluate_screen_capture_admission_async",
+    "evaluate_window_capture_admission",
+    "evaluate_window_capture_admission_async",
     "is_private_screen_context",
     "require_screen_capture_admission",
     "require_screen_capture_admission_async",

@@ -225,7 +225,11 @@ def ways_out(observation: dict[str, Any], *, ended: bool = False) -> list[Any]:
     """
     from core.agency.deliberate_action import ActionOption, Expectation
 
-    options: list[Any] = [
+    # Seeing it through is a way of carrying on with something still going. A
+    # thing that has ended has nothing left to see through, and offering it
+    # beside starting again made a finished game a choice between two ways of
+    # doing nothing about it.
+    options: list[Any] = [] if ended else [
         ActionOption(
             name=SEE_IT_THROUGH,
             detail="keep playing this out and learn from how it ends",
@@ -430,12 +434,21 @@ ENOUGH_TO_BE_A_THING = 4
 
 
 def _is_a_thing_laid_out(reading: Any) -> bool:
-    """Whether this reading holds something arranged in rows and columns."""
+    """Whether this reading holds something arranged in rows and columns.
+
+    Places seen in the picture are the arrangement whether or not anything is
+    in them. Counting occupants is for places inferred from text, where prose
+    with a few numbers in it would otherwise pass: on a fresh board of two
+    tiles she scrolled six screenfuls looking for the board she was reading
+    (offline, drawn as pixels, 2026-09-17).
+    """
     rows = int(getattr(reading, "rows", 0) or 0)
     columns = int(getattr(reading, "columns", 0) or 0)
     occupied = getattr(reading, "occupied", None)
     if rows < 2 or columns < 2 or not callable(occupied):
         return False
+    if getattr(reading, "places_seen", False) is True:
+        return True
     return occupied() >= ENOUGH_TO_BE_A_THING
 
 
@@ -816,6 +829,12 @@ def _was_of_that_window(reading: Any, app: str) -> bool:
     A reading from before this was recorded says nothing either way, and
     ``True`` is what "says nothing" has always meant here.
     """
+    owner = str((reading or {}).get("owner") or "")
+    if owner and (reading or {}).get("window_number"):
+        # Taken by window number: the pixels are that window's own, whatever
+        # was in front of it, so the question is only whose window it was.
+        mine, theirs = app.strip().lower(), owner.strip().lower()
+        return bool(mine) and (mine in theirs or theirs in mine)
     if not (reading or {}).get("her_window_showing", True):
         # Her window is exactly where it was and none of it is on the screen
         # that was photographed.
@@ -1049,6 +1068,12 @@ def _the_biggest_thing_on_it(reading: Any, reporting: Sequence[tuple[int, int]] 
     return max(found, default=0.0)
 
 
+def _a(said: str) -> str:
+    from core.agency.saying_what_a_move_does import _a as article  # noqa: PLC0415
+
+    return article(said)
+
+
 def _she_got_further(made: float, furthest: float) -> str:
     """What to say when she has just built the biggest thing she has here.
 
@@ -1059,8 +1084,9 @@ def _she_got_further(made: float, furthest: float) -> str:
     if made <= furthest:
         return ""
     if furthest <= 0.0:
-        return f"I have a {made:g} on the board."
-    return f"A {made:g} — the biggest I have made here. The best before was {furthest:g}."
+        return f"I have {_a(f'{made:g}')} on the board."
+    said = _a(f"{made:g}")
+    return f"{said[:1].upper()}{said[1:]} — the biggest I have made here. The best before was {furthest:g}."
 
 
 def _what_there_is_to_aim_at(reading: Any) -> str:

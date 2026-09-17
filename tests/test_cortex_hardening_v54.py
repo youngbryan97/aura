@@ -295,3 +295,30 @@ class TestConversationLaneStatus(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_a_lane_that_went_cold_is_not_still_carrying_why_it_rebooted():
+    """A reason to reboot is not a reason to refuse the endpoint for ever.
+
+    LIVE 2026-09-17: one soft-cancel the worker never acknowledged rebooted
+    the reflex lane, which then sat cold with that reason as its current
+    error. Every validation read it as a fresh failure — 74 "Circuit OPEN for
+    Reflex" in one window, on a worker nobody had asked to do anything — and
+    every background plan that wanted the tier it serves found nothing in it.
+    """
+    from core.brain.llm.mlx_client import MLXLocalClient as MLXClient
+
+    lane = MLXClient.__new__(MLXClient)
+    lane._lane_state = "ready"
+    lane._lane_error = ""
+    lane._lane_transition_at = 0.0
+    lane._lane_transition_monotonic_at = 0.0
+
+    MLXClient._set_lane_state(lane, "recovering", "cancelled_worker_not_acknowledged")
+    assert lane._lane_error == "cancelled_worker_not_acknowledged"
+    MLXClient._set_lane_state(lane, "cold")
+    assert lane._lane_error == ""
+    # A lane that failed keeps what it failed with.
+    MLXClient._set_lane_state(lane, "failed", "spawn_refused")
+    MLXClient._set_lane_state(lane, "failed")
+    assert lane._lane_error == "spawn_refused"

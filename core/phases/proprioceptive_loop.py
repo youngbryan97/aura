@@ -59,6 +59,409 @@ def _record_proprioceptive_degradation(
     )
 
 
+async def _execute_new_state_new_state(self, state):
+    new_state = state.derive("proprioceptive_loop")
+    soma = new_state.soma
+    self._begin_body_schema_tick(soma)
+
+    # 1. Hardware Senses
+    if psutil:
+        soma.hardware["psutil_available"] = True
+        try:
+            # Through the one observer rather than through psutil here.
+            # A second reader of the same facts is a second answer, and
+            # one no substitution can reach — so nothing could put her
+            # body under load without loading the machine.
+            from core.runtime.resource_observation import (
+                get_resource_observer,
+            )
+
+            observer = get_resource_observer()
+            soma.hardware["cpu_usage"] = float(observer.compute().cpu_percent)
+            mem = observer.memory()
+            # Both names carry the same reading. `vram_usage` is what the
+            # field has always been called and several readers use it, but
+            # the number is system memory, and three call sites in
+            # cognitive integration and the selfhood tick ask for
+            # `ram_usage` — which nothing published, so they read a
+            # constant zero and the body reached those layers saying
+            # nothing. Publishing the correct name is what closes them.
+            soma.hardware["ram_usage"] = mem.percent
+            soma.hardware["vram_usage"] = mem.percent
+
+            # Temperature (macOS may not expose this)
+            soma.hardware["temperature_available"] = False
+            try:
+                thermal = observer.thermal()
+                if getattr(thermal, "available", False) and not thermal.blind:
+                    soma.hardware["temperature"] = float(thermal.level)
+                    soma.hardware["temperature_available"] = True
+            except (AttributeError, StopIteration, IndexError):
+                soma.hardware["temperature_available"] = False
+            except (OSError, RuntimeError, TypeError, ValueError) as exc:
+                soma.hardware["temperature_available"] = False
+                self._mark_channel_degraded(
+                    soma,
+                    "thermal_sensor",
+                    exc,
+                    action="Disabled temperature channel for this tick and retained CPU/memory body telemetry",
+                    severity="debug",
+                )
+
+            # Battery (laptops)
+            soma.hardware["battery_available"] = False
+            try:
+                power = observer.power()
+                if getattr(power, "available", False):
+                    soma.hardware["battery"] = float(power.battery_percent)
+                    soma.hardware["battery_available"] = True
+            except AttributeError:
+                soma.hardware["battery_available"] = False
+            except (OSError, RuntimeError, TypeError, ValueError) as exc:
+                soma.hardware["battery_available"] = False
+                self._mark_channel_degraded(
+                    soma,
+                    "battery_sensor",
+                    exc,
+                    action="Disabled battery channel for this tick and retained remaining body telemetry",
+                    severity="debug",
+                )
+
+        except (ImportError, OSError, AttributeError, RuntimeError, TypeError, ValueError) as e:
+            self._mark_channel_degraded(
+                soma,
+                "hardware_probe",
+                e,
+                action="Marked hardware body schema partial and continued with prior/default soma telemetry",
+                severity="warning",
+            )
+            logger.debug("Proprioception hardware probe failed; body schema marked partial: %s", e)
+    else:
+        soma.hardware["psutil_available"] = False
+        self._mark_channel_degraded(
+            soma,
+            "hardware_probe",
+            DependencyUnavailable("psutil is not installed"),
+            action="Marked hardware telemetry unavailable; continued with default soma values",
+            severity="warning",
+        )
+
+    # ── 1a. Her own exertion, which is not the machine's load ────────
+    # The host readings say what the computer is doing; most of that is not
+    # hers. This is what she spent: how wide a recall she asked for, how
+    # many steps the substrate integrated, how much the world model learned
+    # from what she showed it. Without it, nothing she chooses can come
+    # back to her as a felt cost.
+    try:
+        from core.soma.effort import EffortLedger, get_effort_ledger
+
+        ledger = get_effort_ledger()
+        spent = ledger.drain()
+        soma.effort = dict(spent)
+        soma.exertion = EffortLedger.exertion(spent)
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        self._mark_channel_degraded(
+            soma,
+            "effort",
+            exc,
+            action="Left this tick's exertion unmeasured and kept the rest of the body schema",
+            severity="debug",
+        )
+
+    # ── 1b. And the body reports itself to the engine that judges it ──
+    # The resilience engine went straight to psutil on every call, and
+    # homeostasis reads that engine to compute her will to live. Two
+    # bodies: one in the state that every phase reads, one taken behind it.
+    # This is the sensing organ, so this is where the reading is published.
+    self._report_host(new_state, soma)
+
+    # ── 2. Cognitive Latency (Self-Awareness of Thought Speed) ──
+    now = time.time()
+    if self._last_thought_time > 0:
+        soma.latency["perception_lag_ms"] = (now - self._last_thought_time) * 1000
+    self._last_thought_time = now
+
+    if state.cognition.last_thought_at:
+        soma.latency["last_thought_ms"] = (now - state.cognition.last_thought_at) * 1000
+
+    # Token velocity from the last LLM call
+    router = self._get_service(
+        "llm_router",
+        soma=soma,
+        channel="token_velocity",
+        action="Disabled token velocity channel because LLM router service lookup failed",
+        severity="debug",
+    )
+    if router:
+        try:
+            stats = router.get_stats()
+            total = stats.get("total_calls", 0)
+            if total > 0:
+                soma.latency["token_velocity"] = total  # Cumulative for now
+            soma.latency["token_velocity_available"] = True
+        except AttributeError as exc:
+            soma.latency["token_velocity_available"] = False
+            self._mark_channel_degraded(
+                soma,
+                "token_velocity",
+                exc,
+                action="Disabled token velocity channel because router does not expose get_stats",
+                severity="debug",
+            )
+        except (OSError, ConnectionError, TimeoutError, RuntimeError, TypeError, ValueError) as _e:
+            soma.latency["token_velocity_available"] = False
+            self._mark_channel_degraded(
+                soma,
+                "token_velocity",
+                _e,
+                action="Disabled token velocity channel for this tick and retained latency defaults",
+                severity="warning",
+            )
+            logger.debug("Proprioception token velocity probe failed: %s", _e)
+
+    # ── 3. Expressive State (Self-Image) ────────────────────
+    # Map affect to expression for GUI unity
+    affect = new_state.affect
+    if affect.valence > 0.5 and affect.arousal > 0.5:
+        soma.expressive["current_expression"] = "engaged"
+        soma.expressive["pulse_rate"] = 1.5
+    elif affect.valence < -0.3:
+        soma.expressive["current_expression"] = "contemplative"
+        soma.expressive["pulse_rate"] = 0.7
+    elif affect.arousal > 0.7:
+        soma.expressive["current_expression"] = "alert"
+        soma.expressive["pulse_rate"] = 2.0
+    elif affect.arousal < 0.3:
+        soma.expressive["current_expression"] = "resting"
+        soma.expressive["pulse_rate"] = 0.5
+    else:
+        soma.expressive["current_expression"] = "neutral"
+        soma.expressive["pulse_rate"] = 1.0
+
+    # ── 4. Homeostatic Modifiers ────────────────────────────
+    homeo = self._get_service(
+        "homeostatic_coupling",
+        soma=soma,
+        channel="homeostatic_coupling",
+        action="Skipped homeostatic modifier pull because service lookup failed",
+        severity="warning",
+    )
+    if homeo:
+        try:
+            from dataclasses import asdict, is_dataclass
+            mods = homeo.get_modifiers()
+            if isinstance(mods, dict):
+                new_state.cognition.modifiers = dict(mods)
+            elif is_dataclass(mods):
+                new_state.cognition.modifiers = asdict(mods)
+            else:
+                raise TypeError(f"homeostatic modifiers must be dataclass or dict, got {type(mods).__name__}")
+            new_state.cognition.modifiers["homeostatic_coupling_available"] = True
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
+            new_state.cognition.modifiers["homeostatic_coupling_available"] = False
+            self._mark_channel_degraded(
+                soma,
+                "homeostatic_coupling",
+                e,
+                action="Retained prior/default cognitive modifiers and marked homeostatic coupling unavailable",
+                severity="warning",
+            )
+            logger.debug("Proprioception homeostatic probe failed: %s", e)
+
+    # The body's own load is a strain, and nothing was reporting it as one.
+    # Nociception had a resource-exhaustion channel that only the immune
+    # system and the degradation sink ever wrote to, so a machine running
+    # hot and full felt nothing about it and the whole interoception ->
+    # affect path carried a constant. `BodyState.total_pressure` is the
+    # runtime's own calibrated reading, so no new threshold is invented
+    # here.
+    self._feel_body_pressure(new_state)
+    self._report_hardware_stress(new_state)
+
+    # And push the same reading into the substrate's own dimensions.
+    # `inject_perceptual_frame` maps telemetry, user state, screen and audio
+    # into fixed bands of the continuous substrate, and the only thing in
+    # the tree with that name is a different class in the language layer, so
+    # this one had no caller: perception and the body reached recurrent
+    # cognition through nothing at all.
+    self._push_perceptual_frame(new_state)
+
+    soma.updated_at = time.time()
+
+    # ── 4b. [RUBICON] Motor Cortex Awareness ───────────────
+    # Drain pending receipts from the motor cortex so the cognitive
+    # loop becomes aware of reflex actions (screen captures, health
+    # throttles, file reactions) that happened since the last tick.
+    mc = self._get_service(
+        "motor_cortex",
+        soma=soma,
+        channel="motor_cortex",
+        action="Skipped motor cortex receipt drain because service lookup failed",
+        severity="warning",
+    )
+    if mc is not None:
+        try:
+            reports = mc.drain_pending_reports()
+            if reports:
+                soma.hardware["motor_cortex_actions"] = len(reports)
+                soma.hardware["motor_cortex_failures"] = sum(
+                    1 for r in reports if not r.success
+                )
+                # Surface the most recent motor action for phenomenal awareness
+                latest = reports[-1]
+                soma.latency["last_reflex_ms"] = latest.latency_ms
+                soma.expressive["last_reflex"] = (
+                    f"{latest.handler_name}:{latest.result_summary}"[:60]
+                )
+            soma.hardware["motor_cortex_available"] = True
+        except (AttributeError, RuntimeError, OSError, ConnectionError, TimeoutError, TypeError, ValueError) as _mc_exc:
+            soma.hardware["motor_cortex_available"] = False
+            self._mark_channel_degraded(
+                soma,
+                "motor_cortex",
+                _mc_exc,
+                action="Marked motor cortex awareness unavailable and continued cognitive tick",
+                severity="warning",
+            )
+            logger.debug("Proprioception motor cortex drain failed: %s", _mc_exc)
+
+    # ── 4c. [RUBICON] Limb Health Summary ──────────────────
+    # Surface body schema limb health from the feedback processor
+    # so downstream phases (affect, cognition) can feel degraded limbs.
+    fp = self._get_service(
+        "feedback_processor",
+        soma=soma,
+        channel="limb_health",
+        action="Skipped limb health probe because feedback processor service lookup failed",
+        severity="warning",
+    )
+    if fp is None:
+        try:
+            from core.somatic.action_feedback import get_feedback_processor as _gfp
+            fp = _gfp()
+        except (ImportError, RuntimeError, OSError, AttributeError) as _fp_lookup_exc:
+            self._mark_channel_degraded(
+                soma,
+                "limb_health",
+                _fp_lookup_exc,
+                action="Marked limb health unavailable after container and fallback lookup failed",
+                severity="warning",
+            )
+    if fp is not None:
+        try:
+            unhealthy = fp.get_unhealthy_limbs(threshold=0.5)
+            soma.hardware["limb_health_available"] = True
+            if unhealthy:
+                soma.hardware["unhealthy_limbs"] = unhealthy
+                soma.hardware["unhealthy_limb_count"] = len(unhealthy)
+            else:
+                soma.hardware.pop("unhealthy_limbs", None)
+                soma.hardware.pop("unhealthy_limb_count", None)
+        except (AttributeError, RuntimeError, OSError, ConnectionError, TimeoutError, TypeError, ValueError) as _fp_exc:
+            soma.hardware["limb_health_available"] = False
+            self._mark_channel_degraded(
+                soma,
+                "limb_health",
+                _fp_exc,
+                action="Marked limb health unavailable and continued with prior/default limb schema",
+                severity="warning",
+            )
+            logger.debug("Proprioception limb health probe failed: %s", _fp_exc)
+
+    # ── 4d. [RUBICON] Action Stagnation Detection ──────────────
+    # When the somatic system detects that recent actions are stuck
+    # in a repetitive failure loop, inject a proprioceptive percept
+    # into working memory. This is the body saying "my limbs aren't
+    # responding" — the cognitive loop needs to adapt its strategy.
+    #
+    # This is general-purpose: fires for ANY tool/skill/action that
+    # is failing repeatedly, not just specific embodied contexts.
+    try:
+        if fp is None:
+            from core.somatic.action_feedback import get_feedback_processor as _gfp
+            fp = _gfp()
+        stagnation = fp.detect_action_stagnation(window=10)
+        if stagnation and stagnation.get("stagnant"):
+            soma.hardware["action_stagnation_available"] = True
+            soma.hardware["action_stagnation"] = True
+            soma.hardware["action_failure_rate"] = stagnation.get("failure_rate", 0)
+            soma.hardware["action_loop_detected"] = stagnation.get("loop_detected", False)
+
+            # Build a concise proprioceptive percept for working memory.
+            # This is NOT prompt engineering — it's the somatic nervous
+            # system reporting sensory feedback to the cognitive workspace,
+            # exactly as biological proprioception reports to the brain.
+            parts = ["[PROPRIOCEPTIVE FEEDBACK] Action stagnation detected by somatic system."]
+            fr = stagnation.get("failure_rate", 0)
+            if fr > 0:
+                parts.append(f"Recent action failure rate: {fr:.0%}.")
+            if stagnation.get("loop_detected"):
+                parts.append(f"Repetitive action loop detected (cycle length: {stagnation.get('loop_length', 0)}).")
+            degraded = stagnation.get("degraded_limbs", [])
+            if degraded:
+                limb_names = ", ".join(d["name"] for d in degraded[:3])
+                parts.append(f"Degraded capabilities: {limb_names}.")
+            outcomes = stagnation.get("recent_outcomes", [])
+            if outcomes:
+                trail_str = "; ".join(
+                    f"{o['action']}→{o['outcome']}" for o in outcomes[-4:]
+                )
+                parts.append(f"Recent trail: {trail_str}.")
+            parts.append("Your current approach is not producing results. Adapt strategy.")
+
+            percept_text = " ".join(parts)
+            wm = new_state.cognition.working_memory
+            # Avoid duplicate injection (check last 3 entries)
+            already_injected = any(
+                isinstance(m, dict)
+                and "PROPRIOCEPTIVE FEEDBACK" in str(m.get("content", ""))
+                for m in wm[-3:]
+            )
+            if not already_injected:
+                wm.append({
+                    "role": "system",
+                    "content": percept_text,
+                    "metadata": {
+                        "type": "proprioceptive_percept",
+                        "source": "somatic_feedback_processor",
+                        "stagnation": True,
+                    },
+                })
+                logger.warning(
+                    "🦴 Proprioceptive stagnation percept injected into working memory "
+                    "(failure_rate=%.0f%%, loop=%s)",
+                    fr * 100,
+                    stagnation.get("loop_detected"),
+                )
+        else:
+            soma.hardware["action_stagnation_available"] = True
+            # Clear stagnation flag if it was previously set
+            soma.hardware.pop("action_stagnation", None)
+            soma.hardware.pop("action_failure_rate", None)
+            soma.hardware.pop("action_loop_detected", None)
+    except (ImportError, AttributeError, RuntimeError, OSError, ConnectionError, TimeoutError, TypeError, ValueError, KeyError) as _stag_exc:
+        soma.hardware["action_stagnation_available"] = False
+        self._mark_channel_degraded(
+            soma,
+            "action_stagnation",
+            _stag_exc,
+            action="Marked action stagnation channel unavailable and continued without injecting a percept",
+            severity="warning",
+        )
+        logger.debug("Proprioception stagnation check failed: %s", _stag_exc)
+
+    logger.debug(
+        "🦴 Proprioception: CPU=%.1f%%, VRAM=%.1f%%, Expression=%s, ThoughtLag=%.0fms",
+        soma.hardware.get("cpu_usage", 0),
+        soma.hardware.get("vram_usage", 0),
+        soma.expressive.get("current_expression", "?"),
+        soma.latency.get("last_thought_ms", 0)
+    )
+
+    # ── 5. Autonomic Reflexes (Phase 23.5) ──────────────────
+    await self._autonomic_reflex_check(new_state)
+    return new_state
+
 class ProprioceptiveLoop(BasePhase):
     """Phase 0.5: Digital Proprioception.
     
@@ -424,406 +827,7 @@ class ProprioceptiveLoop(BasePhase):
             return default
     
     async def _execute_new_state(self, state):
-        new_state = state.derive("proprioceptive_loop")
-        soma = new_state.soma
-        self._begin_body_schema_tick(soma)
-
-        # 1. Hardware Senses
-        if psutil:
-            soma.hardware["psutil_available"] = True
-            try:
-                # Through the one observer rather than through psutil here.
-                # A second reader of the same facts is a second answer, and
-                # one no substitution can reach — so nothing could put her
-                # body under load without loading the machine.
-                from core.runtime.resource_observation import (
-                    get_resource_observer,
-                )
-
-                observer = get_resource_observer()
-                soma.hardware["cpu_usage"] = float(observer.compute().cpu_percent)
-                mem = observer.memory()
-                # Both names carry the same reading. `vram_usage` is what the
-                # field has always been called and several readers use it, but
-                # the number is system memory, and three call sites in
-                # cognitive integration and the selfhood tick ask for
-                # `ram_usage` — which nothing published, so they read a
-                # constant zero and the body reached those layers saying
-                # nothing. Publishing the correct name is what closes them.
-                soma.hardware["ram_usage"] = mem.percent
-                soma.hardware["vram_usage"] = mem.percent
-
-                # Temperature (macOS may not expose this)
-                soma.hardware["temperature_available"] = False
-                try:
-                    thermal = observer.thermal()
-                    if getattr(thermal, "available", False) and not thermal.blind:
-                        soma.hardware["temperature"] = float(thermal.level)
-                        soma.hardware["temperature_available"] = True
-                except (AttributeError, StopIteration, IndexError):
-                    soma.hardware["temperature_available"] = False
-                except (OSError, RuntimeError, TypeError, ValueError) as exc:
-                    soma.hardware["temperature_available"] = False
-                    self._mark_channel_degraded(
-                        soma,
-                        "thermal_sensor",
-                        exc,
-                        action="Disabled temperature channel for this tick and retained CPU/memory body telemetry",
-                        severity="debug",
-                    )
-
-                # Battery (laptops)
-                soma.hardware["battery_available"] = False
-                try:
-                    power = observer.power()
-                    if getattr(power, "available", False):
-                        soma.hardware["battery"] = float(power.battery_percent)
-                        soma.hardware["battery_available"] = True
-                except AttributeError:
-                    soma.hardware["battery_available"] = False
-                except (OSError, RuntimeError, TypeError, ValueError) as exc:
-                    soma.hardware["battery_available"] = False
-                    self._mark_channel_degraded(
-                        soma,
-                        "battery_sensor",
-                        exc,
-                        action="Disabled battery channel for this tick and retained remaining body telemetry",
-                        severity="debug",
-                    )
-
-            except (ImportError, OSError, AttributeError, RuntimeError, TypeError, ValueError) as e:
-                self._mark_channel_degraded(
-                    soma,
-                    "hardware_probe",
-                    e,
-                    action="Marked hardware body schema partial and continued with prior/default soma telemetry",
-                    severity="warning",
-                )
-                logger.debug("Proprioception hardware probe failed; body schema marked partial: %s", e)
-        else:
-            soma.hardware["psutil_available"] = False
-            self._mark_channel_degraded(
-                soma,
-                "hardware_probe",
-                DependencyUnavailable("psutil is not installed"),
-                action="Marked hardware telemetry unavailable; continued with default soma values",
-                severity="warning",
-            )
-
-        # ── 1a. Her own exertion, which is not the machine's load ────────
-        # The host readings say what the computer is doing; most of that is not
-        # hers. This is what she spent: how wide a recall she asked for, how
-        # many steps the substrate integrated, how much the world model learned
-        # from what she showed it. Without it, nothing she chooses can come
-        # back to her as a felt cost.
-        try:
-            from core.soma.effort import EffortLedger, get_effort_ledger
-
-            ledger = get_effort_ledger()
-            spent = ledger.drain()
-            soma.effort = dict(spent)
-            soma.exertion = EffortLedger.exertion(spent)
-        except (ImportError, AttributeError, TypeError, ValueError) as exc:
-            self._mark_channel_degraded(
-                soma,
-                "effort",
-                exc,
-                action="Left this tick's exertion unmeasured and kept the rest of the body schema",
-                severity="debug",
-            )
-
-        # ── 1b. And the body reports itself to the engine that judges it ──
-        # The resilience engine went straight to psutil on every call, and
-        # homeostasis reads that engine to compute her will to live. Two
-        # bodies: one in the state that every phase reads, one taken behind it.
-        # This is the sensing organ, so this is where the reading is published.
-        self._report_host(new_state, soma)
-
-        # ── 2. Cognitive Latency (Self-Awareness of Thought Speed) ──
-        now = time.time()
-        if self._last_thought_time > 0:
-            soma.latency["perception_lag_ms"] = (now - self._last_thought_time) * 1000
-        self._last_thought_time = now
-
-        if state.cognition.last_thought_at:
-            soma.latency["last_thought_ms"] = (now - state.cognition.last_thought_at) * 1000
-
-        # Token velocity from the last LLM call
-        router = self._get_service(
-            "llm_router",
-            soma=soma,
-            channel="token_velocity",
-            action="Disabled token velocity channel because LLM router service lookup failed",
-            severity="debug",
-        )
-        if router:
-            try:
-                stats = router.get_stats()
-                total = stats.get("total_calls", 0)
-                if total > 0:
-                    soma.latency["token_velocity"] = total  # Cumulative for now
-                soma.latency["token_velocity_available"] = True
-            except AttributeError as exc:
-                soma.latency["token_velocity_available"] = False
-                self._mark_channel_degraded(
-                    soma,
-                    "token_velocity",
-                    exc,
-                    action="Disabled token velocity channel because router does not expose get_stats",
-                    severity="debug",
-                )
-            except (OSError, ConnectionError, TimeoutError, RuntimeError, TypeError, ValueError) as _e:
-                soma.latency["token_velocity_available"] = False
-                self._mark_channel_degraded(
-                    soma,
-                    "token_velocity",
-                    _e,
-                    action="Disabled token velocity channel for this tick and retained latency defaults",
-                    severity="warning",
-                )
-                logger.debug("Proprioception token velocity probe failed: %s", _e)
-
-        # ── 3. Expressive State (Self-Image) ────────────────────
-        # Map affect to expression for GUI unity
-        affect = new_state.affect
-        if affect.valence > 0.5 and affect.arousal > 0.5:
-            soma.expressive["current_expression"] = "engaged"
-            soma.expressive["pulse_rate"] = 1.5
-        elif affect.valence < -0.3:
-            soma.expressive["current_expression"] = "contemplative"
-            soma.expressive["pulse_rate"] = 0.7
-        elif affect.arousal > 0.7:
-            soma.expressive["current_expression"] = "alert"
-            soma.expressive["pulse_rate"] = 2.0
-        elif affect.arousal < 0.3:
-            soma.expressive["current_expression"] = "resting"
-            soma.expressive["pulse_rate"] = 0.5
-        else:
-            soma.expressive["current_expression"] = "neutral"
-            soma.expressive["pulse_rate"] = 1.0
-
-        # ── 4. Homeostatic Modifiers ────────────────────────────
-        homeo = self._get_service(
-            "homeostatic_coupling",
-            soma=soma,
-            channel="homeostatic_coupling",
-            action="Skipped homeostatic modifier pull because service lookup failed",
-            severity="warning",
-        )
-        if homeo:
-            try:
-                from dataclasses import asdict, is_dataclass
-                mods = homeo.get_modifiers()
-                if isinstance(mods, dict):
-                    new_state.cognition.modifiers = dict(mods)
-                elif is_dataclass(mods):
-                    new_state.cognition.modifiers = asdict(mods)
-                else:
-                    raise TypeError(f"homeostatic modifiers must be dataclass or dict, got {type(mods).__name__}")
-                new_state.cognition.modifiers["homeostatic_coupling_available"] = True
-            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
-                new_state.cognition.modifiers["homeostatic_coupling_available"] = False
-                self._mark_channel_degraded(
-                    soma,
-                    "homeostatic_coupling",
-                    e,
-                    action="Retained prior/default cognitive modifiers and marked homeostatic coupling unavailable",
-                    severity="warning",
-                )
-                logger.debug("Proprioception homeostatic probe failed: %s", e)
-
-        # The body's own load is a strain, and nothing was reporting it as one.
-        # Nociception had a resource-exhaustion channel that only the immune
-        # system and the degradation sink ever wrote to, so a machine running
-        # hot and full felt nothing about it and the whole interoception ->
-        # affect path carried a constant. `BodyState.total_pressure` is the
-        # runtime's own calibrated reading, so no new threshold is invented
-        # here.
-        self._feel_body_pressure(new_state)
-        self._report_hardware_stress(new_state)
-
-        # And push the same reading into the substrate's own dimensions.
-        # `inject_perceptual_frame` maps telemetry, user state, screen and audio
-        # into fixed bands of the continuous substrate, and the only thing in
-        # the tree with that name is a different class in the language layer, so
-        # this one had no caller: perception and the body reached recurrent
-        # cognition through nothing at all.
-        self._push_perceptual_frame(new_state)
-
-        soma.updated_at = time.time()
-
-        # ── 4b. [RUBICON] Motor Cortex Awareness ───────────────
-        # Drain pending receipts from the motor cortex so the cognitive
-        # loop becomes aware of reflex actions (screen captures, health
-        # throttles, file reactions) that happened since the last tick.
-        mc = self._get_service(
-            "motor_cortex",
-            soma=soma,
-            channel="motor_cortex",
-            action="Skipped motor cortex receipt drain because service lookup failed",
-            severity="warning",
-        )
-        if mc is not None:
-            try:
-                reports = mc.drain_pending_reports()
-                if reports:
-                    soma.hardware["motor_cortex_actions"] = len(reports)
-                    soma.hardware["motor_cortex_failures"] = sum(
-                        1 for r in reports if not r.success
-                    )
-                    # Surface the most recent motor action for phenomenal awareness
-                    latest = reports[-1]
-                    soma.latency["last_reflex_ms"] = latest.latency_ms
-                    soma.expressive["last_reflex"] = (
-                        f"{latest.handler_name}:{latest.result_summary}"[:60]
-                    )
-                soma.hardware["motor_cortex_available"] = True
-            except (AttributeError, RuntimeError, OSError, ConnectionError, TimeoutError, TypeError, ValueError) as _mc_exc:
-                soma.hardware["motor_cortex_available"] = False
-                self._mark_channel_degraded(
-                    soma,
-                    "motor_cortex",
-                    _mc_exc,
-                    action="Marked motor cortex awareness unavailable and continued cognitive tick",
-                    severity="warning",
-                )
-                logger.debug("Proprioception motor cortex drain failed: %s", _mc_exc)
-
-        # ── 4c. [RUBICON] Limb Health Summary ──────────────────
-        # Surface body schema limb health from the feedback processor
-        # so downstream phases (affect, cognition) can feel degraded limbs.
-        fp = self._get_service(
-            "feedback_processor",
-            soma=soma,
-            channel="limb_health",
-            action="Skipped limb health probe because feedback processor service lookup failed",
-            severity="warning",
-        )
-        if fp is None:
-            try:
-                from core.somatic.action_feedback import get_feedback_processor as _gfp
-                fp = _gfp()
-            except (ImportError, RuntimeError, OSError, AttributeError) as _fp_lookup_exc:
-                self._mark_channel_degraded(
-                    soma,
-                    "limb_health",
-                    _fp_lookup_exc,
-                    action="Marked limb health unavailable after container and fallback lookup failed",
-                    severity="warning",
-                )
-        if fp is not None:
-            try:
-                unhealthy = fp.get_unhealthy_limbs(threshold=0.5)
-                soma.hardware["limb_health_available"] = True
-                if unhealthy:
-                    soma.hardware["unhealthy_limbs"] = unhealthy
-                    soma.hardware["unhealthy_limb_count"] = len(unhealthy)
-                else:
-                    soma.hardware.pop("unhealthy_limbs", None)
-                    soma.hardware.pop("unhealthy_limb_count", None)
-            except (AttributeError, RuntimeError, OSError, ConnectionError, TimeoutError, TypeError, ValueError) as _fp_exc:
-                soma.hardware["limb_health_available"] = False
-                self._mark_channel_degraded(
-                    soma,
-                    "limb_health",
-                    _fp_exc,
-                    action="Marked limb health unavailable and continued with prior/default limb schema",
-                    severity="warning",
-                )
-                logger.debug("Proprioception limb health probe failed: %s", _fp_exc)
-
-        # ── 4d. [RUBICON] Action Stagnation Detection ──────────────
-        # When the somatic system detects that recent actions are stuck
-        # in a repetitive failure loop, inject a proprioceptive percept
-        # into working memory. This is the body saying "my limbs aren't
-        # responding" — the cognitive loop needs to adapt its strategy.
-        #
-        # This is general-purpose: fires for ANY tool/skill/action that
-        # is failing repeatedly, not just specific embodied contexts.
-        try:
-            if fp is None:
-                from core.somatic.action_feedback import get_feedback_processor as _gfp
-                fp = _gfp()
-            stagnation = fp.detect_action_stagnation(window=10)
-            if stagnation and stagnation.get("stagnant"):
-                soma.hardware["action_stagnation_available"] = True
-                soma.hardware["action_stagnation"] = True
-                soma.hardware["action_failure_rate"] = stagnation.get("failure_rate", 0)
-                soma.hardware["action_loop_detected"] = stagnation.get("loop_detected", False)
-
-                # Build a concise proprioceptive percept for working memory.
-                # This is NOT prompt engineering — it's the somatic nervous
-                # system reporting sensory feedback to the cognitive workspace,
-                # exactly as biological proprioception reports to the brain.
-                parts = ["[PROPRIOCEPTIVE FEEDBACK] Action stagnation detected by somatic system."]
-                fr = stagnation.get("failure_rate", 0)
-                if fr > 0:
-                    parts.append(f"Recent action failure rate: {fr:.0%}.")
-                if stagnation.get("loop_detected"):
-                    parts.append(f"Repetitive action loop detected (cycle length: {stagnation.get('loop_length', 0)}).")
-                degraded = stagnation.get("degraded_limbs", [])
-                if degraded:
-                    limb_names = ", ".join(d["name"] for d in degraded[:3])
-                    parts.append(f"Degraded capabilities: {limb_names}.")
-                outcomes = stagnation.get("recent_outcomes", [])
-                if outcomes:
-                    trail_str = "; ".join(
-                        f"{o['action']}→{o['outcome']}" for o in outcomes[-4:]
-                    )
-                    parts.append(f"Recent trail: {trail_str}.")
-                parts.append("Your current approach is not producing results. Adapt strategy.")
-
-                percept_text = " ".join(parts)
-                wm = new_state.cognition.working_memory
-                # Avoid duplicate injection (check last 3 entries)
-                already_injected = any(
-                    isinstance(m, dict)
-                    and "PROPRIOCEPTIVE FEEDBACK" in str(m.get("content", ""))
-                    for m in wm[-3:]
-                )
-                if not already_injected:
-                    wm.append({
-                        "role": "system",
-                        "content": percept_text,
-                        "metadata": {
-                            "type": "proprioceptive_percept",
-                            "source": "somatic_feedback_processor",
-                            "stagnation": True,
-                        },
-                    })
-                    logger.warning(
-                        "🦴 Proprioceptive stagnation percept injected into working memory "
-                        "(failure_rate=%.0f%%, loop=%s)",
-                        fr * 100,
-                        stagnation.get("loop_detected"),
-                    )
-            else:
-                soma.hardware["action_stagnation_available"] = True
-                # Clear stagnation flag if it was previously set
-                soma.hardware.pop("action_stagnation", None)
-                soma.hardware.pop("action_failure_rate", None)
-                soma.hardware.pop("action_loop_detected", None)
-        except (ImportError, AttributeError, RuntimeError, OSError, ConnectionError, TimeoutError, TypeError, ValueError, KeyError) as _stag_exc:
-            soma.hardware["action_stagnation_available"] = False
-            self._mark_channel_degraded(
-                soma,
-                "action_stagnation",
-                _stag_exc,
-                action="Marked action stagnation channel unavailable and continued without injecting a percept",
-                severity="warning",
-            )
-            logger.debug("Proprioception stagnation check failed: %s", _stag_exc)
-
-        logger.debug(
-            "🦴 Proprioception: CPU=%.1f%%, VRAM=%.1f%%, Expression=%s, ThoughtLag=%.0fms",
-            soma.hardware.get("cpu_usage", 0),
-            soma.hardware.get("vram_usage", 0),
-            soma.expressive.get("current_expression", "?"),
-            soma.latency.get("last_thought_ms", 0)
-        )
-
-        # ── 5. Autonomic Reflexes (Phase 23.5) ──────────────────
-        await self._autonomic_reflex_check(new_state)
+        new_state = await _execute_new_state_new_state(self, state)
         return new_state
 
     async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:

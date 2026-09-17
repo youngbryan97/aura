@@ -1,5 +1,4 @@
 from __future__ import annotations
-from core.runtime.numeric_safety import is_usable
 
 import asyncio
 import enum
@@ -12,6 +11,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.runtime.errors import describe_error, record_degradation
+from core.runtime.numeric_safety import is_usable
+from core.runtime.progress_bound import await_while_the_task_moves
 from core.runtime.service_registry import get_runtime_service, register_runtime_service
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.utils.task_tracker import get_task_tracker, mark_task_protected
@@ -192,7 +193,12 @@ class Scheduler:
                 if spec.timeout_s is None:
                     await res
                 else:
-                    await asyncio.wait_for(res, timeout=float(spec.timeout_s))
+                    # a budget on how long the task may sit on one await, not
+                    # on the whole run: a reconcile that is still probing its
+                    # bindings on a loaded host is working
+                    await await_while_the_task_moves(
+                        res, stall_s=float(spec.timeout_s), name=f"scheduler.{spec.name}"
+                    )
 
             self._health[spec.name] = "ok"
             spec.last_error = ""

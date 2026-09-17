@@ -6,8 +6,8 @@ poll, each one bounded and offloaded where the work is synchronous.
 
 from __future__ import annotations
 
-import logging
 import asyncio
+import logging
 import time
 from typing import Any
 
@@ -15,6 +15,7 @@ from core.fictional.common import (
     coerce_insight_text,
     record_fictional_degradation,
 )
+from core.runtime.progress_bound import run_on_a_thread_while_it_works
 
 logger = logging.getLogger("Aura.FictionalSynthesis")
 
@@ -168,8 +169,8 @@ class TemporalDilationScheduler:
                 # Off the loop and bounded. `snapshot` walks live runtime
                 # state and is arbitrary work called from a coroutine
                 # (CP126 ``a793b8cc``).
-                snapshot = await asyncio.wait_for(
-                    asyncio.to_thread(flow_controller.snapshot, orch), timeout=5.0
+                snapshot = await run_on_a_thread_while_it_works(
+                    flow_controller.snapshot, orch, stall_s=5.0, name="mist.flow_snapshot"
                 )
                 if snapshot.overloaded:
                     logger.debug("MIST: Skipping synthesis while cognition is overloaded.")

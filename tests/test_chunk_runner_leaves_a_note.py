@@ -141,3 +141,34 @@ class TestTheProgressNote:
         """Scratch, not evidence: it must not land in the working tree."""
         repo = Path(__file__).resolve().parent.parent
         assert repo not in DEFAULT_PROGRESS_FILE.parents
+
+
+class TestATimedOutChunkNamesWhatHung:
+    """2026-09-16: chunk 2 of 40 timed out at forty minutes and the runner
+    threw its output away, so nothing said which of the 99 files had hung."""
+
+    def test_the_file_in_flight_is_named(self, tmp_path, capsys):
+        progress = tmp_path / "progress.log"
+        quick = tmp_path / "test_a_quick.py"
+        quick.write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+        slow = tmp_path / "test_b_hangs.py"
+        slow.write_text(
+            "import time\n\ndef test_hangs():\n    time.sleep(30)\n", encoding="utf-8"
+        )
+
+        ok, message, failed = run_chunk(
+            1,
+            1,
+            [quick, slow],
+            marker="",
+            timeout_s=6.0,
+            python=sys.executable,
+            extra_args=["-p", "no:randomly"],
+            progress_file=progress,
+        )
+
+        assert not ok and not failed
+        assert "test_b_hangs.py" in message, message
+        note = progress.read_text(encoding="utf-8")
+        assert "TIMEOUT chunk 1/1 in_flight=" in note and "test_b_hangs.py" in note
+        assert "in flight when killed:" in capsys.readouterr().out

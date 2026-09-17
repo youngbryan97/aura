@@ -143,6 +143,10 @@ from .chat_reply_assessment import (
 
 
 
+#: What an extracted block returns when it fell through to the code after it.
+_FALL_THROUGH = object()
+
+
 def _repair_missing_followup_delta(user_message: str, reply_text: str) -> str:
     """Add a requested follow-up delta when the draft mostly repeated context.
 
@@ -1064,72 +1068,8 @@ async def _stabilize_user_facing_reply(
     return reflex
 
 
-async def _repair_final_degraded_reply(
-    user_message: str,
-    reply_text: str,
-    *,
-    stale: bool,
-    same_diff: bool,
-    off_topic: bool,
-    off_topic_reason: str = "",
-    desktop_cognitive_engine_required: bool = False,
-    protected_foreground_lane: bool = False,
-    session_id: str = "",
-) -> tuple[str, bool, bool, bool, str, bool]:
-    """Final user-facing gate: degraded text must be repaired or replaced."""
-    from .chat import (
-        _build_grounded_self_process_repair_reply,
-        _repair_owner_name_drift_reply,
-        _reply_has_owner_name_drift,
-    )
-
-    try:
-        from core.conversation.response_reliability import (
-            assess_user_facing_reply,
-            reliability_floor_for_user,
-            repair_instruction_shape,
-        )
-    except _CHAT_RECOVERABLE_ERRORS:
-        assess_user_facing_reply = None
-        reliability_floor_for_user = None
-        repair_instruction_shape = None
-
-    recent_user_messages = await _gather_recent_user_messages_for_relevance(user_message)
-    assessment = (
-        assess_user_facing_reply(
-            user_message,
-            reply_text,
-            recent_user_messages=recent_user_messages,
-        )
-        if assess_user_facing_reply
-        else None
-    )
-    needs_repair = bool(
-        stale or same_diff or off_topic or _reply_assessment_requires_repair(assessment)
-    )
-    if _reply_has_owner_name_drift(user_message, reply_text):
-        return (
-            _repair_owner_name_drift_reply(reply_text),
-            False,
-            False,
-            False,
-            "",
-            True,
-        )
-    owner_name_reply = _chat_memory_state._build_owner_name_recall_reply(user_message)
-    if owner_name_reply and not desktop_cognitive_engine_required:
-        normalized_reply = _chat_memory_state._normalize_user_message(reply_text)
-        owner_name = _chat_memory_state._resolve_primary_operator_name()
-        if (
-            len(normalized_reply.split()) <= 4
-            or owner_name.lower() not in normalized_reply
-            or "verified" not in normalized_reply
-        ):
-            return owner_name_reply, False, False, False, "", True
-
-    if not needs_repair:
-        return reply_text, stale, same_diff, off_topic, off_topic_reason, False
-
+async def _repair_final_degraded_reply_assessment_reasons(assess_user_facing_reply, assessment, desktop_cognitive_engine_required, recent_user_messages, reply_text, session_id, user_message):
+    from .chat import _build_grounded_self_process_repair_reply
     assessment_reasons = set(getattr(assessment, "reasons", ()) or ())
     if _is_simple_affect_check_request(user_message):
         self_condition_repair = _build_grounded_self_condition_reply(user_message)
@@ -1233,7 +1173,9 @@ async def _repair_final_degraded_reply(
     ):
         social_repair = _chat_desktop_repair._build_social_continuity_repair_reply(user_message)
         return social_repair, False, False, False, "", True
+    return _FALL_THROUGH
 
+def _repair_final_degraded_reply_part_2(assess_user_facing_reply, assessment, off_topic, recent_user_messages, repair_instruction_shape, reply_text, same_diff, stale, user_message):
     logger.warning(
         "🛡️ Final reply quality gate repairing degraded output "
         "(stale=%s same_diff=%s off_topic=%s assessment=%s).",
@@ -1353,16 +1295,9 @@ async def _repair_final_degraded_reply(
                     delta_off_topic_reason,
                     True,
                 )
+    return _FALL_THROUGH
 
-    if desktop_cognitive_engine_required or protected_foreground_lane:
-        repaired = await _stabilize_user_facing_reply(
-            user_message,
-            reply_text,
-            desktop_cognitive_engine_required=desktop_cognitive_engine_required,
-            protected_foreground_lane=protected_foreground_lane,
-        )
-    else:
-        repaired = await _stabilize_user_facing_reply(user_message, reply_text)
+def _repair_final_degraded_reply_repaired_stale(assess_user_facing_reply, desktop_cognitive_engine_required, recent_user_messages, reliability_floor_for_user, repaired, reply_text, user_message):
     repaired_stale = _is_actionably_stale_response(user_message, repaired)
     repaired_same_diff = _is_same_answer_different_prompt(user_message, repaired)
     repaired_off_topic, repaired_off_topic_reason = _evaluate_reply_topicality(
@@ -1508,6 +1443,90 @@ async def _repair_final_degraded_reply(
         reflex_off_topic_reason or reflex_semantic_reason or "unrepaired_degraded_turn",
         True,
     )
+    return _FALL_THROUGH
+
+async def _repair_final_degraded_reply(
+    user_message: str,
+    reply_text: str,
+    *,
+    stale: bool,
+    same_diff: bool,
+    off_topic: bool,
+    off_topic_reason: str = "",
+    desktop_cognitive_engine_required: bool = False,
+    protected_foreground_lane: bool = False,
+    session_id: str = "",
+) -> tuple[str, bool, bool, bool, str, bool]:
+    """Final user-facing gate: degraded text must be repaired or replaced."""
+    from .chat import _repair_owner_name_drift_reply, _reply_has_owner_name_drift
+
+    try:
+        from core.conversation.response_reliability import (
+            assess_user_facing_reply,
+            reliability_floor_for_user,
+            repair_instruction_shape,
+        )
+    except _CHAT_RECOVERABLE_ERRORS:
+        assess_user_facing_reply = None
+        reliability_floor_for_user = None
+        repair_instruction_shape = None
+
+    recent_user_messages = await _gather_recent_user_messages_for_relevance(user_message)
+    assessment = (
+        assess_user_facing_reply(
+            user_message,
+            reply_text,
+            recent_user_messages=recent_user_messages,
+        )
+        if assess_user_facing_reply
+        else None
+    )
+    needs_repair = bool(
+        stale or same_diff or off_topic or _reply_assessment_requires_repair(assessment)
+    )
+    if _reply_has_owner_name_drift(user_message, reply_text):
+        return (
+            _repair_owner_name_drift_reply(reply_text),
+            False,
+            False,
+            False,
+            "",
+            True,
+        )
+    owner_name_reply = _chat_memory_state._build_owner_name_recall_reply(user_message)
+    if owner_name_reply and not desktop_cognitive_engine_required:
+        normalized_reply = _chat_memory_state._normalize_user_message(reply_text)
+        owner_name = _chat_memory_state._resolve_primary_operator_name()
+        if (
+            len(normalized_reply.split()) <= 4
+            or owner_name.lower() not in normalized_reply
+            or "verified" not in normalized_reply
+        ):
+            return owner_name_reply, False, False, False, "", True
+
+    if not needs_repair:
+        return reply_text, stale, same_diff, off_topic, off_topic_reason, False
+
+    _left = await _repair_final_degraded_reply_assessment_reasons(assess_user_facing_reply, assessment, desktop_cognitive_engine_required, recent_user_messages, reply_text, session_id, user_message)
+    if _left is not _FALL_THROUGH:
+        return _left
+
+    _left = _repair_final_degraded_reply_part_2(assess_user_facing_reply, assessment, off_topic, recent_user_messages, repair_instruction_shape, reply_text, same_diff, stale, user_message)
+    if _left is not _FALL_THROUGH:
+        return _left
+
+    if desktop_cognitive_engine_required or protected_foreground_lane:
+        repaired = await _stabilize_user_facing_reply(
+            user_message,
+            reply_text,
+            desktop_cognitive_engine_required=desktop_cognitive_engine_required,
+            protected_foreground_lane=protected_foreground_lane,
+        )
+    else:
+        repaired = await _stabilize_user_facing_reply(user_message, reply_text)
+    _left = _repair_final_degraded_reply_repaired_stale(assess_user_facing_reply, desktop_cognitive_engine_required, recent_user_messages, reliability_floor_for_user, repaired, reply_text, user_message)
+    if _left is not _FALL_THROUGH:
+        return _left
 
 
 async def _repair_final_degraded_reply_with_provenance(

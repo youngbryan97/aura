@@ -120,10 +120,17 @@ def test_she_clears_it_before_reading_or_acting():
 
 
 def test_one_that_will_not_close_is_not_pressed_at_once_a_cycle():
+    """What is in front is acted on when it CHANGES, not every cycle it is there.
+
+    Asserted across the pursuit rather than within 300 characters of the
+    reading: the reading and the guard are in different functions now, and a
+    count of characters between them reported the guard missing from code
+    that has it.
+    """
     source = pursuit_source()
-    where = source.index("in_front = await _whats_on_top(")
-    window = source[where : where + 300]
-    assert 'in_front != in_the_way["last"]' in window
+    assert "in_front = await _whats_on_top(" in source
+    assert 'if in_front and in_front != in_the_way["last"]:' in source
+    assert 'in_the_way["last"] = in_front' in source
 
 
 @pytest.mark.asyncio

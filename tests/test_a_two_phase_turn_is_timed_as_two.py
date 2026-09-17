@@ -30,7 +30,11 @@ def _the_clock_gate() -> ast.If:
     third entitlement was added in front of it — a change that widened the gate,
     which is the direction this file exists to protect.
     """
-    tree = ast.parse(_GATE.read_text())
+    from source_support import inlined_module_source
+
+    # the gate as it runs: a block the size gate moved into a helper is read
+    # back at its call site, so the gate's body holds what it executes
+    tree = ast.parse(inlined_module_source(_GATE))
     for node in ast.walk(tree):
         if not isinstance(node, ast.If):
             continue

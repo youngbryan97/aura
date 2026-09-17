@@ -71,19 +71,20 @@ def pursuit_loop_source() -> str:
     the size gate's ceiling, and reading only what is left reports their call
     sites as missing.
     """
-    import importlib
-    import inspect
+    from source_support import inlined_function_source
 
+    # Each function as it runs: the blocks the size gate moved into
+    # `_<function>_<slug>` helpers are read back at their call sites.
+    here = pathlib.Path(__file__).resolve().parent.parent / "core" / "skills"
     parts = []
     for module_name, function_name in (
-        ("core.skills.screen_pursuit", "pursue_on_screen"),
-        ("core.skills.screen_pursuit_observing", "observe_the_screen"),
-        ("core.skills.screen_pursuit_blockers", "clear_what_blocks_the_run"),
-        ("core.skills.screen_pursuit_decision", "decide_the_next_move"),
-        ("core.skills.screen_pursuit_acting", "carry_out_the_move"),
+        ("screen_pursuit", "pursue_on_screen"),
+        ("screen_pursuit_observing", "observe_the_screen"),
+        ("screen_pursuit_blockers", "clear_what_blocks_the_run"),
+        ("screen_pursuit_decision", "decide_the_next_move"),
+        ("screen_pursuit_acting", "carry_out_the_move"),
     ):
-        module = importlib.import_module(module_name)
-        parts.append(inspect.getsource(getattr(module, function_name)))
+        parts.append(inlined_function_source(here / f"{module_name}.py", function_name))
     return "\n".join(parts)
 
 

@@ -50,7 +50,15 @@ def screen(monkeypatch):
     state = {"pressed": [], "text": "board 2", "works": {"up"}, "spoken": []}
 
     async def read(app_name="", over=None):
-        return {"ok": True, "text": state["text"], "layout": [], "bounds": []}
+        return {
+            "ok": True,
+            "text": state["text"],
+            "layout": [],
+            "bounds": [],
+            "scoped_to": app_name or "TheBoard",
+            "in_front_then": "TheBoard",
+            "her_window_showing": True,
+        }
 
     async def press(key, *, expect_app=""):
         state["pressed"].append(key)
@@ -72,7 +80,38 @@ def screen(monkeypatch):
     patch_pursuit(monkeypatch, "_ensure_frontmost", frontmost)
     patch_pursuit(monkeypatch, "current_page_identity", identity)
     patch_pursuit(monkeypatch, "_narrate", narrate)
+
+    # Nothing on the real desktop is asked or moved. Left real, the run takes
+    # whatever application is in front of the machine running the tests as
+    # the one it belongs to, and brings that application forward every cycle.
+    async def in_front(*_a, **_k):
+        return "TheBoard"
+
+    async def brought(*_a, **_k):
+        return True
+
+    # Nor is the real machine's screen asked whether it may be read. Left
+    # real, every test in this file fails while the host's screen is locked,
+    # which is a fact about the host and about nothing this file is for.
+    from core.security import screen_capture_policy as policy
+
+    async def may_look(*_a, **_k):
+        return policy.ScreenCaptureAdmission(allowed=True)
+
+    monkeypatch.setattr(policy, "evaluate_screen_capture_admission_async", may_look)
+    monkeypatch.setattr(policy, "evaluate_window_capture_admission_async", may_look)
+
+    patch_pursuit(monkeypatch, "_frontmost", in_front)
+    patch_pursuit(monkeypatch, "_bring_the_thing_back_to_the_front", brought, raising=False)
+    patch_pursuit(monkeypatch, "_whats_on_top", lambda *_a, **_k: _nothing(), raising=False)
+    # This world answers at once, so a move that changed nothing is known to
+    # have changed nothing without waiting out the default for a slow page.
+    patch_pursuit(monkeypatch, "_how_long_to_wait", lambda: 0.2, raising=False)
     return state
+
+
+async def _nothing():
+    return ""
 
 
 def _thinks(*replies):
@@ -96,9 +135,9 @@ async def test_with_nothing_injected_the_loop_reasons_for_itself(screen):
     think = _thinks("up")
     result = await sp.pursue_on_screen(
         goal="raise the number",
-        success_when="board 4",
+        success_when="board 9",
         think=think,
-        max_cycles=6,
+        max_cycles=8,
         max_seconds=10.0,
         narrate=False,
         lived=False,
@@ -167,7 +206,7 @@ async def test_what_broke_is_carried_into_the_next_decision(screen):
         spine=_Store(),
         graph=_Store(),
     )
-    assert len(think.asked) >= 2
+    assert think.asked, "stuck and unable to see ahead, she never thought"
     later = think.asked[-1]
     assert any("nothing changed" in line for line in later), later
 
@@ -227,22 +266,41 @@ async def test_an_injected_policy_still_wins(screen):
 
 @pytest.mark.asyncio
 async def test_the_moves_offered_are_the_ones_the_caller_named(screen):
-    think = _thinks("tab")
+    think = _thinks("tab", "tab", "tab", "tab", "tab", "tab")
+    # Nothing she presses moves this screen, so she is lost and asks — which
+    # is when what she offers a mind is a fact worth asserting. With a screen
+    # that answers she plays the routine moves without words, and in two
+    # cycles she never asked anything at all.
+    screen["works"] = set()
     await sp.pursue_on_screen(
         goal="move through the fields",
         success_when="never happens",
         think=think,
         move_keys=("tab", "return"),
-        max_cycles=2,
+        max_cycles=6,
         max_seconds=10.0,
         narrate=False,
         lived=False,
         spine=_Store(),
         graph=_Store(),
     )
-    offered = [line for call in think.asked for line in call if line.startswith("Available move")]
-    assert any("tab" in line for line in offered)
-    assert not any("up" in line for line in offered)
+    asks = [
+        [line for line in call if line.startswith("Available move")]
+        for call in think.asked
+    ]
+    asks = [lines for lines in asks if lines]
+    assert asks, "she never asked anything"
+    # What the caller named, and nothing else, for as long as any of it works.
+    first = asks[0]
+    assert any("tab" in line for line in first)
+    assert any("return" in line for line in first)
+    assert not any("up" in line or "left" in line or "right" in line for line in first)
+    # She widens only after the named keys have proved inert here, which is a
+    # different capability and has its own tests.
+    from core.agency.what_i_can_do_here import WhatWorksHere
+
+    knows_them = WhatWorksHere(told=("tab", "return"))
+    assert knows_them.available() == ("tab", "return")
 
 
 @pytest.mark.asyncio
@@ -256,11 +314,12 @@ async def test_a_mind_that_comes_back_is_used_again(screen):
             raise RuntimeError("worker_not_alive")
         return "up"
 
+    screen["works"] = set()
     result = await sp.pursue_on_screen(
         goal="raise the number",
         success_when="never happens",
         think=slow_to_wake,
-        max_cycles=6,
+        max_cycles=10,
         max_seconds=10.0,
         narrate=False,
         lived=False,
@@ -312,12 +371,16 @@ async def test_the_pursuit_finds_out_how_the_task_is_done(screen, monkeypatch):
         )
 
     monkeypatch.setattr(tk, "learn_about", learn)
+    # Asked when acting stops teaching her anything: here nothing she does
+    # changes the screen, so once every act has been tried she has no model
+    # and nothing left to find out by pressing.
+    screen["works"] = set()
     think = _thinks("up")
     await sp.pursue_on_screen(
         goal="raise the number",
         success_when="never happens",
         think=think,
-        max_cycles=2,
+        max_cycles=8,
         max_seconds=10.0,
         narrate=False,
         lived=False,
@@ -325,8 +388,10 @@ async def test_the_pursuit_finds_out_how_the_task_is_done(screen, monkeypatch):
         graph=_Store(),
     )
     assert asked, "she never asked how the task is done"
-    evidence = think.asked[0]
-    assert any("largest tile in a corner" in line for line in evidence)
+    assert think.asked, "she never thought once she was lost"
+    assert any(
+        any("largest tile in a corner" in line for line in evidence) for evidence in think.asked
+    )
 
 
 @pytest.mark.asyncio
@@ -361,6 +426,7 @@ async def test_research_can_be_switched_off_for_a_run(screen, monkeypatch):
     from core.agency import task_knowledge as tk
 
     tk.forget_everything()
+    screen["works"] = set()
     seen = {}
 
     async def learn(goal, **kw):
@@ -373,7 +439,7 @@ async def test_research_can_be_switched_off_for_a_run(screen, monkeypatch):
         success_when="never happens",
         think=_thinks("up"),
         research=False,
-        max_cycles=2,
+        max_cycles=8,
         max_seconds=10.0,
         narrate=False,
         lived=False,

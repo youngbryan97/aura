@@ -25,7 +25,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.perception.what_is_there import Arrangement, arranged
+from core.perception.what_is_there import Arrangement, Cell, arranged
 
 logger = logging.getLogger("Aura.Responds")
 
@@ -291,6 +291,12 @@ def noticed(
     from a run of ONE THING doing nothing. A caller that does not say leaves
     the verdict on the count alone, which is what it always was.
     """
+    # Which act she took is a fact about her, and it is recorded whatever the
+    # reading could show. Kept only when there were places to compare, a screen
+    # that reads as a line of words never had any act counted as tried, so the
+    # first untried act was offered again after every press of it.
+    if acting:
+        state.tried.add(acting)
     was, now = places_and_text(before), places_and_text(after)
     if not was and not now:
         return state
@@ -477,7 +483,14 @@ def what_is_there(
 
     Before she has settled which places answer, everything inside the band is
     used, which is what she has.
+
+    A reading that found a grid in the pixels already has the places, empty
+    ones included, and that is used before any of the above: the lattice is
+    seen rather than inferred, from the first glance.
     """
+    from_pixels = _the_grid_in_the_pixels(observation, band, lattice, like)
+    if from_pixels is not None:
+        return from_pixels
     inside: list[tuple[float, float, str]] = []
     positioned = observation.get("layout") or []
     if not positioned:
@@ -539,6 +552,101 @@ def what_is_there(
         if len(only) >= 4:
             return arranged(only, like=like)
     return arranged(inside, like=like)
+
+
+def _the_grid_in_the_pixels(
+    observation: dict[str, Any],
+    band: tuple[float, float, float, float] | None,
+    lattice: Any = None,
+    like: Any = None,
+) -> Arrangement | None:
+    """The grid a reading found in the pixels, as an arrangement. None if none.
+
+    Where the band is known, the grid that lies most inside it: a window can
+    hold more than one set of places and the one that answers to her is the
+    one she is acting in. Where it is not, the grid with the most places,
+    which is what anyone looking at a window for the first time would take to
+    be the thing in it.
+
+    A lattice she is holding is brought into line with the grid, because what
+    the pixels show about where the places are outranks what was inferred from
+    where things had been seen.
+    """
+    grids = [one for one in (observation.get("grids") or []) if isinstance(one, dict)]
+    if not grids:
+        return None
+
+    def inside_band(one: dict[str, Any]) -> float:
+        if band is None:
+            return float(int(one.get("rows", 0)) * int(one.get("columns", 0)))
+        left, top, right, bottom = band
+        across, down = one.get("across_at") or [], one.get("down_at") or []
+        placed = [
+            (x, y) for x in across for y in down if left <= x <= right and top <= y <= bottom
+        ]
+        return float(len(placed))
+
+    best = max(grids, key=inside_band)
+    if inside_band(best) <= 0.0:
+        return None
+    try:
+        rows, columns = int(best["rows"]), int(best["columns"])
+        down_at = tuple(float(v) for v in best["down_at"])
+        across_at = tuple(float(v) for v in best["across_at"])
+        says = list(best.get("says") or [])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if rows < 2 or columns < 2 or len(down_at) != rows or len(across_at) != columns:
+        return None
+    # The frame she already holds, when this glance is the same frame.
+    #
+    # Two pictures of one still grid do not put its lines at exactly the same
+    # fractions: an edge found at a slightly different pixel moves a middle by
+    # a thousandth. Everything that compares two readings asks whether they
+    # were in the same frame, and a thousandth made every pair a different
+    # frame. Lines that sit within a quarter of a place of the held ones are
+    # the held ones.
+    try:
+        cell_w, cell_h = float(best["cell_width"]), float(best["cell_height"])
+    except (KeyError, TypeError, ValueError):
+        cell_w = cell_h = 0.0
+    for held in (lattice, like):
+        if held is None:
+            continue
+        held_down = tuple(getattr(held, "down_at", ()) or ())
+        held_across = tuple(getattr(held, "across_at", ()) or ())
+        if (
+            len(held_down) == rows
+            and len(held_across) == columns
+            and all(abs(a - b) <= 0.25 * cell_h for a, b in zip(held_down, down_at, strict=False))
+            and all(abs(a - b) <= 0.25 * cell_w for a, b in zip(held_across, across_at, strict=False))
+        ):
+            down_at, across_at = held_down, held_across
+            break
+    if lattice is not None and hasattr(lattice, "down_at"):
+        if tuple(getattr(lattice, "down_at", ())) != down_at or tuple(
+            getattr(lattice, "across_at", ())
+        ) != across_at:
+            try:
+                lattice.down_at = down_at
+                lattice.across_at = across_at
+                lattice.would_not_fit = 0
+            except (AttributeError, TypeError):
+                pass
+    cells = tuple(
+        Cell(
+            row=row,
+            column=column,
+            says=str(says[row * columns + column]).strip(),
+            at=(across_at[column], down_at[row]),
+        )
+        for row in range(rows)
+        for column in range(columns)
+        if row * columns + column < len(says) and str(says[row * columns + column]).strip()
+    )
+    return Arrangement(
+        rows=rows, columns=columns, cells=cells, down_at=down_at, across_at=across_at, places_seen=True
+    )
 
 
 def what_the_page_is_showing(

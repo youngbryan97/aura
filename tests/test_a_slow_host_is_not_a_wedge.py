@@ -143,6 +143,7 @@ def test_the_gateway_runner_stops_a_wedged_child_and_a_busy_one():
         cwd=os.getcwd(),
         read_only=True,
         source="test.progress_bound.wedged",
+        accelerator_capability="none",
         watch_period_s=0.2,
     )
     assert wedged.returncode == 124 and wedged.stderr.startswith("wedged:")
@@ -154,6 +155,85 @@ def test_the_gateway_runner_stops_a_wedged_child_and_a_busy_one():
         cwd=os.getcwd(),
         read_only=True,
         source="test.progress_bound.done",
+        accelerator_capability="none",
         watch_period_s=0.2,
     )
     assert done.returncode == 0 and done.stdout.strip() == "ok"
+
+
+# ── a probe on a thread is bounded by the thread's own work ─────────────────
+
+
+def _burn_cpu(seconds: float) -> str:
+    import threading
+    import time
+
+    from core.runtime.thread_cpu import thread_cpu_seconds
+
+    ident = threading.get_ident()
+    start = thread_cpu_seconds(ident)
+    if start is None:  # a platform with no per-thread clock: burn wall instead
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            sum(range(1000))
+        return "done"
+    while thread_cpu_seconds(ident) - start < seconds:
+        sum(range(1000))
+    return "done"
+
+
+@pytest.mark.asyncio
+async def test_a_probe_still_using_the_cpu_outlives_its_stall_budget():
+    """2026-09-16: control-plane probes and Skynet health probes failed by the
+    dozen on a host loaded past 30, while still running their lines."""
+    from core.runtime.progress_bound import run_on_a_thread_while_it_works
+
+    assert await run_on_a_thread_while_it_works(_burn_cpu, 0.5, stall_s=0.2, name="busy") == "done"
+
+
+@pytest.mark.asyncio
+async def test_a_probe_that_stopped_working_is_a_stall():
+    import time
+
+    from core.runtime.progress_bound import run_on_a_thread_while_it_works
+
+    with pytest.raises(TimeoutError, match="idle made no progress"):
+        await run_on_a_thread_while_it_works(time.sleep, 1.0, stall_s=0.2, name="idle")
+
+
+@pytest.mark.asyncio
+async def test_a_scheduled_task_that_keeps_moving_outlives_its_budget():
+    from core.scheduler import Lifecycle, Scheduler, TaskSpec
+
+    async def _reconcile_many_bindings() -> None:
+        for _ in range(8):
+            await asyncio.sleep(0.05)
+
+    scheduler = Scheduler()
+    spec = TaskSpec(name="reconcile", coro=_reconcile_many_bindings, tick_interval=5.0, timeout_s=0.2, critical=True)
+    await scheduler.register(spec)
+    await scheduler._run_task(spec)
+
+    assert scheduler.get_health()["task_details"][spec.name]["status"] == "ok"
+    assert scheduler.state is not Lifecycle.RECOVERING
+
+
+def test_every_probe_on_a_thread_is_bounded_by_its_work():
+    """The whole class, not one site: each of these read a status or a
+    snapshot on a worker thread under a fixed wall budget."""
+    bounded = {
+        "core/scheduler.py": "await_while_the_task_moves(",
+        "core/runtime/control_plane.py": "run_on_a_thread_while_it_works(callback",
+        "core/fictional/skynet.py": "run_on_a_thread_while_it_works(",
+        "core/fictional/mist.py": "run_on_a_thread_while_it_works(",
+        "core/autonomic/allostasis.py": "run_on_a_thread_while_it_works(",
+        "core/mind_tick.py": "run_on_a_thread_while_it_works(",
+        "core/brain/llm_health_router.py": "run_on_a_thread_while_it_works(",
+        "core/kernel/organs.py": "run_on_a_thread_while_it_works(",
+    }
+    for rel, call in bounded.items():
+        source = (ROOT / rel).read_text(encoding="utf-8")
+        assert call in source, rel
+    for rel in ("core/fictional/skynet.py", "core/runtime/control_plane.py", "core/kernel/organs.py"):
+        source = (ROOT / rel).read_text(encoding="utf-8")
+        assert not re.search(r"wait_for\(\s*asyncio\.to_thread", source), rel

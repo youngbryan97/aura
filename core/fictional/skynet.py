@@ -6,14 +6,18 @@ recover itself, on a cooldown, through a method it publishes.
 
 from __future__ import annotations
 
-import logging
 import asyncio
+import logging
 import os
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
 from core.fictional.common import record_fictional_degradation
+from core.runtime.progress_bound import (
+    await_while_the_task_moves,
+    run_on_a_thread_while_it_works,
+)
 
 logger = logging.getLogger("Aura.FictionalSynthesis")
 
@@ -354,14 +358,18 @@ class DistributedResilienceCore:
 
         try:
             if asyncio.iscoroutinefunction(probe):
-                stats = await asyncio.wait_for(probe(), timeout=self.HEALTH_PROBE_TIMEOUT_S)
+                stats = await await_while_the_task_moves(
+                    probe(), stall_s=self.HEALTH_PROBE_TIMEOUT_S, name=f"skynet.probe.{name}"
+                )
             else:
                 # Off-loop: a synchronous probe may block on IO or a lock.
-                stats = await asyncio.wait_for(
-                    asyncio.to_thread(probe), timeout=self.HEALTH_PROBE_TIMEOUT_S
+                # Bounded by the thread's own work, not by the wall: a probe
+                # that is still running its lines on a loaded host is alive.
+                stats = await run_on_a_thread_while_it_works(
+                    probe, stall_s=self.HEALTH_PROBE_TIMEOUT_S, name=f"skynet.probe.{name}"
                 )
-        except (TimeoutError, asyncio.TimeoutError):
-            return False, f"health probe exceeded {self.HEALTH_PROBE_TIMEOUT_S:.0f}s"
+        except (TimeoutError, asyncio.TimeoutError) as exc:
+            return False, f"health probe stalled for {self.HEALTH_PROBE_TIMEOUT_S:.0f}s ({exc})"
         except (OSError, ConnectionError, RuntimeError, TypeError, ValueError, AttributeError) as e:
             record_fictional_degradation(
                 e,

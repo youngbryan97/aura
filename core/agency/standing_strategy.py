@@ -135,12 +135,12 @@ class Strategy:
         a narration that appends all three unconditionally reads it back to
         the listener three times over.
         """
-        said = f"Plan: {self.approach}"
+        said = f"Plan: {self.approach.rstrip(' .')}"
         if self.because and not _already_said(self.because, said):
-            said = f"{said} — {self.because}"
+            said = f"{said} — {self.because.rstrip(' .')}"
         watching = self.holds_while.describes
         if watching and not _already_said(watching, said):
-            said = f"{said}. Watching for: {watching}"
+            said = f"{said}. Watching for: {watching.rstrip(' .')}"
         return said
 
 
