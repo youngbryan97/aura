@@ -433,7 +433,7 @@ class BootResilienceMixin:
     async def _start_state_vault_actor(self):
         """Initializes and starts the StateVaultActor via the Supervision Tree (Phase 3)."""
         try:
-            from core.state.vault import vault_process_entry
+            from core.state.vault import state_vault_actor_spec
             from core.supervisor.tree import ActorSpec
 
             # Check if already started (e.g. by ResilientBoot)
@@ -497,15 +497,9 @@ class BootResilienceMixin:
                 logger.info("🛡️  StateVaultActor already active. Skipping redundant start.")
                 return
 
-            # 1. Register with Supervisor
-            spec = ActorSpec(
-                name="state_vault",
-                target=vault_process_entry,
-                args=(
-                    str(config.paths.data_dir / "aura_state.db"),
-                ),  # Pipe is added by supervisor.start_actor
-                restart_policy="permanent",  # State Vault must always be up
-            )
+            # 1. Register with Supervisor, on the contract the resilient stage
+            # used, so the supervisor sees the actor it already holds.
+            spec = state_vault_actor_spec(ActorSpec, str(self.state_repo.db_path))
 
             if not sup:
                 logger.error("❌ Cannot start StateVaultActor: Supervisor Tree not available.")

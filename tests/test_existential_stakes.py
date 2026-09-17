@@ -481,3 +481,75 @@ def test_a_mixed_window_counts_only_the_substrate_half():
         assert status["substrate_degradation_threat"] > 0.0
     finally:
         tracker.reset()
+
+
+def test_a_lag_monitor_reporting_load_cannot_trigger_the_survival_veto():
+    """LIVE DEFECT 2026-09-16 09:28 PDT: a local file count refused for lag.
+
+    "How many Python files are under core/consciousness" was answered
+    "Executive veto: survival_inhibition: existential threat level critical
+    (0.76)" at mem_threat=0.03. The host was oversubscribed by other processes
+    and the loop lagged 5-35s. ``_lag_threat`` is capped below the veto for
+    exactly this case, but the two lag monitors record the same lag as a
+    CRITICAL degradation every ten seconds, and those records reached the
+    uncapped substrate side. Two critical signatures at weight 2.0 are 3.3 of
+    the 5.0 denominator before anything else has failed.
+
+    A lag monitor's record is the lag reading arriving by a second path. It
+    is felt and reported; it is not evidence the substrate is dying.
+    """
+    from core.runtime.errors import DegradationRecord, get_degradation_tracker
+
+    tracker = get_degradation_tracker()
+    tracker.reset()
+    try:
+        now = time.time()
+        for subsystem, message in (
+            ("hypervisor", "severe event-loop lag 13.676s"),
+            ("event_loop_monitor", "hard event-loop lag 9.7164s exceeded 5.00s"),
+            ("hypervisor", "severe event-loop lag 5.227s"),
+            ("event_loop_monitor", "hard event-loop lag 5.2272s exceeded 5.00s"),
+        ):
+            tracker.record(
+                DegradationRecord(
+                    subsystem=subsystem,
+                    severity="critical",
+                    error_type="RuntimeError",
+                    error_message=message,
+                    action="marked unhealthy until healthy lag samples confirm recovery",
+                    timestamp=now,
+                )
+            )
+
+        stakes = ExistentialStakes(memory_limit_bytes=10**12)
+        threat = stakes.update()
+        status = stakes.get_status()
+
+        # Felt: the pressure is in the stream and in the felt threat.
+        assert status["degradation_threat"] > 0.5
+        # Not survival evidence: nothing reaches the uncapped side.
+        assert status["substrate_degradation_threat"] == pytest.approx(0.0)
+        assert threat <= 0.75, "load reported by a lag monitor must never inhibit her actions"
+
+        # The same records from a subsystem that is not a lag monitor are a
+        # substrate failure and still count.
+        tracker.reset()
+        for message in (
+            "severe event-loop lag 13.676s",
+            "hard event-loop lag 9.7164s exceeded 5.00s",
+        ):
+            tracker.record(
+                DegradationRecord(
+                    subsystem="memory_facade",
+                    severity="critical",
+                    error_type="RuntimeError",
+                    error_message=message,
+                    action="repair",
+                    timestamp=now,
+                )
+            )
+        stakes = ExistentialStakes(memory_limit_bytes=10**12)
+        stakes.update()
+        assert stakes.get_status()["substrate_degradation_threat"] > 0.0
+    finally:
+        tracker.reset()

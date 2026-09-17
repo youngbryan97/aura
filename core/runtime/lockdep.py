@@ -105,6 +105,12 @@ LOOP_BLOCKING_HOLD_S = 0.05
 # A hold whose thread CPU time is under this fraction of its wall time was
 # spent waiting, not working. It is reported, at warning rather than error.
 LOOP_HOLD_STARVED_FRACTION = 0.1
+#: Below this share of a core a thread accrued nothing but the cost of the
+#: call it is blocked in. A runnable thread the kernel is not scheduling
+#: still gets its slice, a few percent at the least; a thread waiting on a
+#: lock or a syscall gets microseconds. Between the two fractions a thread
+#: is starved; under this one it is blocked.
+LOOP_BLOCKED_CEILING_FRACTION = 0.01
 
 #: Max distinct splats retained. Deadlock reports are deduplicated by
 #: signature, so this bounds pathological churn, not real findings.

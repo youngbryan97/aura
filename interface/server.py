@@ -174,7 +174,14 @@ async def _prewarm_chat_dependencies_after_cortex_ready(
 
     set_ready = None
 
+    # The budget is how long to wait quietly. Past it the wait is said, and
+    # goes on: a warmup that gives up leaves the encoding of every anchor
+    # sentence on the first turn's request path, synchronous, on the API
+    # server's loop. LIVE 2026-09-16: the cortex took thirty minutes to load
+    # on a loaded host, this returned at 180s, and the first turn held the
+    # server silent for fifty minutes.
     deadline = asyncio.get_running_loop().time() + max(1.0, readiness_timeout_s)
+    said_waiting = False
     while not is_shutdown_requested():
         gate = ServiceContainer.get("inference_gate", default=None)
         candidate_set_ready = getattr(gate, "set_chat_dependencies_ready", None)
@@ -192,13 +199,14 @@ async def _prewarm_chat_dependencies_after_cortex_ready(
             else:
                 if isinstance(lane, dict) and lane.get("conversation_ready") is True:
                     break
-        if asyncio.get_running_loop().time() >= deadline:
+        if not said_waiting and asyncio.get_running_loop().time() >= deadline:
+            said_waiting = True
             logger.warning(
-                "Chat dependency warmup skipped because Cortex did not become "
-                "conversation-ready within %.1fs.",
+                "Chat dependency warmup still waiting: Cortex not conversation-ready "
+                "after %.1fs. The warmup keeps waiting so the first turn does not pay "
+                "for it.",
                 readiness_timeout_s,
             )
-            return
         await asyncio.sleep(max(0.05, poll_interval_s))
     if is_shutdown_requested():
         return

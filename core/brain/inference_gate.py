@@ -4760,6 +4760,24 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             if first_seen <= 0.0:
                 first_seen = now
                 self._cortex_not_alive_first_seen_at = now
+            # The clock restarts on PROGRESS. LIVE 2026-09-16, load 34 on 18
+            # cores: the 27B worker was loading its checkpoint at 9GB of RSS,
+            # 305s after the lane first read not-alive (76s of that was the
+            # runtime probe, before the worker even existed), and the watchdog
+            # declared it dead and started a replacement warmup. A worker
+            # whose memory or CPU time advanced since the last pulse is
+            # loading; the 300s is for one that has stopped.
+            progress = None
+            read_progress = getattr(self._mlx_client, "worker_load_progress", None)
+            if callable(read_progress):
+                progress = read_progress()
+            if progress is not None:
+                seen = getattr(self, "_cortex_load_progress_seen", None)
+                if seen is None or progress[0] > seen[0] or progress[1] > seen[1]:
+                    if seen is not None:
+                        first_seen = now
+                        self._cortex_not_alive_first_seen_at = now
+                    self._cortex_load_progress_seen = progress
             not_alive_age_s = now - first_seen
             warmup_underway = (
                 lane_state in ("warming", "spawning", "handshaking", "recovering")
@@ -4796,6 +4814,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             # Lane is alive — clear the dead-man clock.
             if getattr(self, "_cortex_not_alive_first_seen_at", 0.0):
                 self._cortex_not_alive_first_seen_at = 0.0
+            self._cortex_load_progress_seen = None
 
         # 2. Detect stuck warmup flag on MLX client
         if hasattr(self._mlx_client, "_warmup_in_flight") and self._mlx_client._warmup_in_flight:

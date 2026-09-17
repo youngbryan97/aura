@@ -150,17 +150,54 @@ def _register_all_services_body(container, is_proxy: bool):
     """Register the modular service providers (idempotence handled by caller)."""
 
     # 0. Infrastructure (Remain in main entry for now)
+    _register_foundation_services(container)
+    _register_critique_closure_and_runtime_organs(container)
+    _register_retrieval_and_organism_services(container)
+    _register_workspaces_routing_and_state(container, is_proxy)
+
+    # 1. Modular Provider Execution
+    register_cognitive_services(container, is_proxy=is_proxy)
+    if not is_proxy:
+        register_memory_services(container)
+        register_sensory_services(container)
+        register_consciousness_services(container)
+    else:
+        logger.info("📡 Proxy Mode: Skipping Memory, Sensory, and Consciousness providers.")
+    register_ops_services(container, is_proxy=is_proxy)
+    # 1.5 Platform Root (Hardware Binding)
+    if not container.has('platform_root'):
+        def create_platform_root():
+            from core.sovereign.platform_root import get_platform_root
+            return get_platform_root()
+        container.register('platform_root', create_platform_root, lifetime=ServiceLifetime.SINGLETON, required=True)
+    # 2. Final Wiring (Inter-provider dependencies)
+    _finalize_wiring(container)
+    # 3. Boot Validation Gate (Patch 11/27)
+    from core.startup.boot_validator import BootValidator
+    v_result = BootValidator.validate_boot(container)
+    if not v_result.passed:
+        logger.error("🛡️ Boot Validation FAILED: %s", v_result.failures)
+        # Defer lock to aura_main.py
+        return container
+
+    _register_self_and_goal_services(container)
+
+    # Patch 27: Container lock deferred to aura_main.py after all top-level components register
+    logger.debug("Modular service providers registered (container lock deferred).")
+    return container
+
+
+def _register_foundation_services(container) -> None:
+    # 0. Infrastructure (Remain in main entry for now)
     def create_event_bus():
         from .event_bus import get_event_bus
         return get_event_bus()
     container.register('event_bus', create_event_bus, lifetime=ServiceLifetime.SINGLETON, required=True)
-
     def create_mycelial():
         from .mycelium import MycelialNetwork
         return MycelialNetwork()
     container.register('mycelial_network', create_mycelial, lifetime=ServiceLifetime.SINGLETON, required=True)
     container.register('mycelium', lambda: container.get("mycelial_network"), lifetime=ServiceLifetime.SINGLETON, required=False)
-
     # AtomSpace: PLN metagraph + ECAN attention economy (Hyperon fusion).
     # The belief engine mirrors claims here; the revision loop ticks the
     # economy and runs attention-guided forward chaining.
@@ -168,7 +205,6 @@ def _register_all_services_body(container, is_proxy: bool):
         from core.knowledge.atomspace import get_atomspace
         return get_atomspace()
     container.register('atomspace', create_atomspace, lifetime=ServiceLifetime.SINGLETON, required=False)
-
     # 0.5 Metabolism / resource stakes.  The ledger is separate from the older
     # consciousness.resource_stakes engine so it can persist hard action
     # envelopes and degradation events for audit.
@@ -176,7 +212,6 @@ def _register_all_services_body(container, is_proxy: bool):
         from core.autonomic.resource_stakes import ResourceStakesLedger
         path = config.paths.data_dir / "resource_stakes" / "stakes.sqlite3"
         return ResourceStakesLedger(path)
-
     container.register('resource_stakes', create_resource_stakes, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register(
         'metabolism',
@@ -184,39 +219,32 @@ def _register_all_services_body(container, is_proxy: bool):
         lifetime=ServiceLifetime.SINGLETON,
     )
     container.register('metabolic_monitor', lambda: container.get("metabolism"), lifetime=ServiceLifetime.SINGLETON)
-
     # Canonical desired-state and resource-admission spine. Domain-specific
     # samplers and the legacy arbitrator are adapters behind this owner.
     def create_runtime_control_plane():
         from core.runtime.control_plane import get_runtime_control_plane
 
         return get_runtime_control_plane()
-
     def create_resource_governor():
         from core.resource.resource_governor import get_resource_governor
 
         return get_resource_governor()
-
     def create_resource_arbitrator():
         from core.resilience.resource_arbitrator import get_resource_arbitrator
 
         return get_resource_arbitrator()
-
     def create_lane_admission():
         from core.brain.lane_admission import get_lane_admission_controller
 
         return get_lane_admission_controller()
-
     def create_lane_reconciler():
         from core.runtime.lane_reconciler import get_lane_reconciler
 
         return get_lane_reconciler()
-
     def create_actor_supervision():
         from core.supervisor.tree import get_tree
 
         return get_tree()
-
     container.register(
         'runtime_control_plane',
         create_runtime_control_plane,
@@ -294,86 +322,17 @@ def _register_all_services_body(container, is_proxy: bool):
         failure_policy='fail-closed',
     )
 
+
+def _register_critique_closure_and_runtime_organs(container) -> None:
     # Critique-closure services: adaptive mood, mesh cognition, emergent goals,
     # structural mutator, lineage, self-awareness suite, identity chronicle.
     # Every one of these must be container-registered or it is dead code.
     def create_adaptive_mood():
         from core.consciousness.adaptive_mood import get_adaptive_mood
         return get_adaptive_mood()
-
     def create_mesh_cognition():
         from core.consciousness.mesh_cognition import get_mesh_cognition
         return get_mesh_cognition()
-
-    def create_what_she_worked_out():
-        """One handle on everything she worked out for herself.
-
-        The conductor runs on the ordinary autonomy loop and lives in
-        core/runtime, which may not reach agency or cognition — deliberately,
-        and the rule is worth keeping. So the two keepers are joined here,
-        where reaching both is allowed, and the conductor asks the container
-        for the join rather than importing across a boundary.
-        """
-        from core.agency import what_she_invented as properties
-        from core.cognition import what_she_gave_meaning as meanings
-
-        class WhatSheWorkedOut:
-            @staticmethod
-            def keep() -> dict[str, bool]:
-                return {
-                    "properties": bool(properties.keep()),
-                    "meanings": bool(meanings.keep()),
-                }
-
-            @staticmethod
-            def recall() -> dict[str, int]:
-                back = dict(properties.recall())
-                back["meanings"] = int(meanings.recall())
-                return back
-
-        return WhatSheWorkedOut()
-
-    def create_emergent_goal_engine():
-        from core.goals.emergent_goals import get_emergent_goal_engine
-        return get_emergent_goal_engine()
-
-    def create_structural_mutator():
-        from core.self_modification.structural_mutator import get_structural_mutator
-        return get_structural_mutator()
-
-    def create_self_awareness_suite():
-        from core.consciousness.self_awareness_suite import get_self_awareness_suite
-        return get_self_awareness_suite()
-
-    def create_identity_chronicle():
-        from core.identity.id_rag import get_identity_chronicle
-        return get_identity_chronicle()
-
-    def create_reimplementation_lab():
-        from core.config import config
-        from core.llm.code_generator import LLMCodeGenerator
-        from core.self_improvement.reimplementation_lab import ReimplementationLab
-        # Use LLM generator configured for local primary tier
-        generator = LLMCodeGenerator(prefer_tier="primary")
-        return ReimplementationLab(
-            project_root=str(config.paths.base_dir),
-            generator=generator
-        )
-
-    def create_program_dna_reconstruction():
-        import importlib
-
-        program_dna = importlib.import_module("core.self_improvement.program_dna")
-        return program_dna.ProgramDNAReconstructionEngine(
-            project_root=str(config.paths.base_dir),
-            internal_lab=container.get("reimplementation_lab", default=None),
-        )
-
-    def create_being_runtime():
-        from core.being.runtime import get_being_runtime
-
-        return get_being_runtime()
-
     container.register('adaptive_mood', create_adaptive_mood, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('mesh_cognition', create_mesh_cognition, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register(
@@ -382,12 +341,10 @@ def _register_all_services_body(container, is_proxy: bool):
         lifetime=ServiceLifetime.SINGLETON,
         required=False,
     )
-
     def _create_defensive_runtime():
         from core.security.defensive_runtime import ensure_defensive_runtime_active
 
         return ensure_defensive_runtime_active()
-
     container.register(
         'defensive_runtime',
         _create_defensive_runtime,
@@ -413,13 +370,10 @@ def _register_all_services_body(container, is_proxy: bool):
         ContainerError,
     ) as exc:
         record_degradation("service_registration.defensive_runtime", exc)
-
     def _create_immune_system():
         from core.security.immune_system import get_immune_system
 
         return install_immune_enforcement(get_immune_system())
-
-
     try:
         from core.resilience.fault_taxonomy import get_fault_registry
         from core.resilience.recovery_bridge import get_recovery_bridge
@@ -431,7 +385,6 @@ def _register_all_services_body(container, is_proxy: bool):
         record_degradation("service_registration.recovery_bridge", exc,
                            severity="debug",
                            action="recovery bridge not started")
-
     container.register(
         'immune_system', _create_immune_system,
         lifetime=ServiceLifetime.SINGLETON, required=False,
@@ -495,6 +448,70 @@ def _register_all_services_body(container, is_proxy: bool):
         lifetime=ServiceLifetime.SINGLETON,
         required=False,
     )
+
+
+def _register_retrieval_and_organism_services(container) -> None:
+    def create_what_she_worked_out():
+        """One handle on everything she worked out for herself.
+
+        The conductor runs on the ordinary autonomy loop and lives in
+        core/runtime, which may not reach agency or cognition — deliberately,
+        and the rule is worth keeping. So the two keepers are joined here,
+        where reaching both is allowed, and the conductor asks the container
+        for the join rather than importing across a boundary.
+        """
+        from core.agency import what_she_invented as properties
+        from core.cognition import what_she_gave_meaning as meanings
+
+        class WhatSheWorkedOut:
+            @staticmethod
+            def keep() -> dict[str, bool]:
+                return {
+                    "properties": bool(properties.keep()),
+                    "meanings": bool(meanings.keep()),
+                }
+
+            @staticmethod
+            def recall() -> dict[str, int]:
+                back = dict(properties.recall())
+                back["meanings"] = int(meanings.recall())
+                return back
+
+        return WhatSheWorkedOut()
+    def create_emergent_goal_engine():
+        from core.goals.emergent_goals import get_emergent_goal_engine
+        return get_emergent_goal_engine()
+    def create_structural_mutator():
+        from core.self_modification.structural_mutator import get_structural_mutator
+        return get_structural_mutator()
+    def create_self_awareness_suite():
+        from core.consciousness.self_awareness_suite import get_self_awareness_suite
+        return get_self_awareness_suite()
+    def create_identity_chronicle():
+        from core.identity.id_rag import get_identity_chronicle
+        return get_identity_chronicle()
+    def create_reimplementation_lab():
+        from core.config import config
+        from core.llm.code_generator import LLMCodeGenerator
+        from core.self_improvement.reimplementation_lab import ReimplementationLab
+        # Use LLM generator configured for local primary tier
+        generator = LLMCodeGenerator(prefer_tier="primary")
+        return ReimplementationLab(
+            project_root=str(config.paths.base_dir),
+            generator=generator
+        )
+    def create_program_dna_reconstruction():
+        import importlib
+
+        program_dna = importlib.import_module("core.self_improvement.program_dna")
+        return program_dna.ProgramDNAReconstructionEngine(
+            project_root=str(config.paths.base_dir),
+            internal_lab=container.get("reimplementation_lab", default=None),
+        )
+    def create_being_runtime():
+        from core.being.runtime import get_being_runtime
+
+        return get_being_runtime()
     # Task-driven retrieval router over the typed memory taxonomy (intentional, not blind
     # similarity). Stores plug in as adapters; default sync stores wired best-effort.
     def _create_intentional_retriever():
@@ -678,39 +695,33 @@ def _register_all_services_body(container, is_proxy: bool):
         record_degradation('service_registration', exc)
         logger.warning("ReimplementationLab boot singleton unavailable: %s", exc)
 
+
+def _register_workspaces_routing_and_state(container, is_proxy: bool) -> None:
     def create_life_trace():
         from core.runtime.life_trace import get_life_trace
         return get_life_trace()
-
     def create_evidence_mode():
         from core.evaluation.evidence_mode import get_evidence_mode
         return get_evidence_mode()
-
     def create_markdown_workspace():
         from core.workspace.markdown_workspace import MarkdownWorkspace
         return MarkdownWorkspace()
-
     def create_aura_workspace():
         from core.workspace.aura_workspace import AuraWorkspace
         return AuraWorkspace(store=container.get("markdown_workspace"))
-
     def create_simulation_well():
         from core.data.simulation_well import default_simulation_well
         return default_simulation_well()
-
     def create_temporal_atlas_factory():
         from core.media.temporal_atlas import TemporalAtlas
         return lambda duration_s, **kwargs: TemporalAtlas(duration_s, **kwargs)
-
     def create_architecture_governor():
         from core.architect.config import ASAConfig
         from core.architect.governor import AutonomousArchitectureGovernor
         return AutonomousArchitectureGovernor(ASAConfig.from_env(config.paths.base_dir))
-
     def create_source_body():
         from core.soma.source_body import get_source_body
         return get_source_body()
-
     container.register('source_body', create_source_body, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('life_trace', create_life_trace, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('evidence_mode', create_evidence_mode, lifetime=ServiceLifetime.SINGLETON, required=False)
@@ -721,21 +732,17 @@ def _register_all_services_body(container, is_proxy: bool):
     container.register('temporal_atlas_factory', create_temporal_atlas_factory, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('architecture_governor', create_architecture_governor, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('autonomous_architecture_governor', lambda: container.get("architecture_governor"), lifetime=ServiceLifetime.SINGLETON, required=False)
-
     def create_neural_intent_router():
         from core.agency.neural_intent_router import get_neural_intent_router
         return get_neural_intent_router()
-
     def create_permission_setup():
         # Permission setup has no singleton state; expose the module itself
         # so callers can invoke check_all_permissions()/open_settings_pane()
         # through the container.
         import core.security.permission_setup as ps
         return ps
-
     container.register('neural_intent_router', create_neural_intent_router, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('permission_setup', create_permission_setup, lifetime=ServiceLifetime.SINGLETON, required=False)
-
     # Patch 28: Dynamic Router & Loop Monitor. Register under the CANONICAL
     # name the health contract + runtime_pressure look up (event_loop_monitor),
     # keeping loop_monitor as an alias — otherwise a live monitor was reported
@@ -743,7 +750,6 @@ def _register_all_services_body(container, is_proxy: bool):
     container.register("event_loop_monitor", lambda: LoopLagMonitor(), lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register("loop_monitor", lambda: container.get("event_loop_monitor"), lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register("dynamic_router", lambda: DynamicRouter(), lifetime=ServiceLifetime.SINGLETON)
-
     # Patch 49: Core state binding
     def create_state_repo():
         from .config import config
@@ -754,70 +760,35 @@ def _register_all_services_body(container, is_proxy: bool):
     container.register('state_repo', create_state_repo, lifetime=ServiceLifetime.SINGLETON, required=True)
     container.register('state_repository', lambda: container.get("state_repo"), lifetime=ServiceLifetime.SINGLETON, required=False)
 
-    # 1. Modular Provider Execution
-    register_cognitive_services(container, is_proxy=is_proxy)
-    
-    if not is_proxy:
-        register_memory_services(container)
-        register_sensory_services(container)
-        register_consciousness_services(container)
-    else:
-        logger.info("📡 Proxy Mode: Skipping Memory, Sensory, and Consciousness providers.")
 
-    register_ops_services(container, is_proxy=is_proxy)
-
-    # 1.5 Platform Root (Hardware Binding)
-    if not container.has('platform_root'):
-        def create_platform_root():
-            from core.sovereign.platform_root import get_platform_root
-            return get_platform_root()
-        container.register('platform_root', create_platform_root, lifetime=ServiceLifetime.SINGLETON, required=True)
-
-    # 2. Final Wiring (Inter-provider dependencies)
-    _finalize_wiring(container)
-
-    # 3. Boot Validation Gate (Patch 11/27)
-    from core.startup.boot_validator import BootValidator
-    v_result = BootValidator.validate_boot(container)
-    if not v_result.passed:
-        logger.error("🛡️ Boot Validation FAILED: %s", v_result.failures)
-        # Defer lock to aura_main.py
-        return container
-
+def _register_self_and_goal_services(container) -> None:
     # 2.2 Digital Organism Extensions (2026 Phase)
     def _create_self_model():
         from uuid import uuid4
 
         from core.self_model import SelfModel
         return SelfModel(id=str(uuid4()))
-
     def _create_canonical_self_engine():
         from core.self.canonical_self import get_canonical_self_engine
 
         return get_canonical_self_engine()
-
     def _create_identity_anchor():
         from core.identity.identity_anchor import IdentityAnchor
         return IdentityAnchor()
-
     def _create_goal_engine():
         from core.goals.goal_engine import GoalEngine
         return GoalEngine()
-
     def _create_goal_hierarchy():
         from core.motivation.goal_hierarchy import GoalHierarchy
 
         cognitive_engine = container.get("cognitive_engine", default=None)
         return GoalHierarchy(cognitive_engine)
-
     def _create_internal_simulator():
         from core.simulation.internal_simulator import InternalSimulator
         return InternalSimulator()
-
     def _create_meta_cognition_loop():
         from core.meta.meta_cognition import MetaCognition
         return MetaCognition()
-
     container.register('self_model', _create_self_model, lifetime=ServiceLifetime.SINGLETON)
     container.register('canonical_self_engine', _create_canonical_self_engine, lifetime=ServiceLifetime.SINGLETON)
     container.register(
@@ -833,27 +804,19 @@ def _register_all_services_body(container, is_proxy: bool):
     container.register('goal_memory', lambda: container.get("goal_engine"), lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('internal_simulator', _create_internal_simulator, lifetime=ServiceLifetime.SINGLETON)
     container.register('meta_cognition_loop', _create_meta_cognition_loop, lifetime=ServiceLifetime.SINGLETON)
-
     # Agency convergence (2026 Phase)
     def _create_tension_engine():
         from core.agency.tension_engine import TensionEngine
         return TensionEngine()
-
     def _create_initiative_arbiter():
         from core.agency.initiative_arbiter import InitiativeArbiter
         return InitiativeArbiter()
-
     def _create_tool_orchestrator():
         from core.agency.tool_orchestrator import get_tool_orchestrator
         return get_tool_orchestrator()
-
     container.register('tension_engine', _create_tension_engine, lifetime=ServiceLifetime.SINGLETON)
     container.register('initiative_arbiter', _create_initiative_arbiter, lifetime=ServiceLifetime.SINGLETON)
     container.register('tool_orchestrator', _create_tool_orchestrator, lifetime=ServiceLifetime.SINGLETON, required=False)
-
-    # Patch 27: Container lock deferred to aura_main.py after all top-level components register
-    logger.debug("Modular service providers registered (container lock deferred).")
-    return container
 
 def _finalize_wiring(container):
     """Handles cross-component linking (e.g. Mycelium roots)."""

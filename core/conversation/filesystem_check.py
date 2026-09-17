@@ -152,6 +152,11 @@ class FilesystemCount:
     count: int
     exists: bool
     names: tuple[str, ...] = ()
+    #: The same files with their sizes in bytes, largest first. A listing of
+    #: names answers "how many"; "which is the largest" was answered by a
+    #: guess (2026-09-16: conscious_core.py, against phi_core.py at 125,814
+    #: bytes) because nothing in the reading carried a size.
+    sizes: tuple[tuple[str, int], ...] = ()
     #: What was counted: files, or the lines or characters inside them.
     measure: str = "files"
     #: Whether the whole tree was walked. "How many files are in your source
@@ -542,9 +547,27 @@ def _count_in(
         count=_measured(files, measure),
         exists=True,
         names=tuple(item.name for item in files[:200]),
+        sizes=_sizes_largest_first(target, files),
         measure=measure,
         recursive=recursive,
     )
+
+
+def _sizes_largest_first(target: Path, files: list[Path]) -> tuple[tuple[str, int], ...]:
+    """Every file's path under ``target`` with its size in bytes, largest first."""
+    sized: list[tuple[str, int]] = []
+    for path in files:
+        try:
+            size = path.stat().st_size
+        except OSError:
+            continue
+        try:
+            shown = str(path.relative_to(target))
+        except ValueError:
+            shown = path.name
+        sized.append((shown, int(size)))
+    sized.sort(key=lambda item: (-item[1], item[0]))
+    return tuple(sized)
 
 
 #: "read CONTRIBUTING.md and tell me...", "open core/config.py", "what does

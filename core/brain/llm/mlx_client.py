@@ -4501,6 +4501,55 @@ _LKG_PROBE_WINDOW_S = _env_duration_s("AURA_MLX_LKG_PROBE_WINDOW_S", 300.0)
 _MLX_RUNTIME_PROBE_TIMEOUT_S = _finite_env_float(
     "AURA_MLX_RUNTIME_PROBE_TIMEOUT_S", 25.0, minimum=5.0
 )
+
+
+def _run_probe_until_its_work_is_done(
+    command: list[str], *, cwd: str, env: dict[str, str]
+) -> subprocess.CompletedProcess[str]:
+    """Run the probe until the probe's work is done, not until a clock says so.
+
+    The probe's cost is fixed: an interpreter start and an MLX import, about
+    17 CPU-seconds on this machine. Its WALL time is whatever share of a core
+    the host gives it, so a wall budget measures the host. LIVE 2026-09-16 at
+    load 34 on 18 cores: the probe ran to success in 56.6s of wall on 16.6s
+    of CPU (a 29% share), and a budget scaled by load over cores (1.9x, 47s)
+    still killed it. Seven spawns aborted with exit_124 while MLX was
+    healthy, and the lane sat in 'spawning' for an hour.
+
+    The gateway owns the mechanism (``run_until_its_work_is_done``); this
+    names the probe's budget and reports its share once it is done.
+    """
+    started = time.monotonic()
+    completed = get_subprocess_gateway().run_until_its_work_is_done(
+        command,
+        cpu_budget_s=float(_MLX_RUNTIME_PROBE_TIMEOUT_S),
+        cwd=cwd,
+        env=env,
+        read_only=True,
+        source="runtime_probe:mlx_runtime_probe",
+        accelerator_capability="auto",
+        watch_period_s=_PROBE_WATCH_PERIOD_S,
+    )
+    if completed.returncode == 0:
+        wall = time.monotonic() - started
+        cpu = getattr(completed, "cpu_seconds", None)
+        if cpu is not None:
+            logger.info(
+                "🔬 [MLX] Runtime probe finished in %.1fs of wall on %.1fs of CPU (a %.0f%% share).",
+                wall,
+                cpu,
+                100.0 * cpu / max(1e-6, wall),
+            )
+        else:
+            logger.info("🔬 [MLX] Runtime probe finished in %.1fs of wall.", wall)
+    return completed
+
+
+#: The resolution at which the running probe's CPU progress is read. It
+#: bounds how far past either limit the probe can run before it is stopped.
+_PROBE_WATCH_PERIOD_S = 1.0
+
+
 _LKG_PROBE_MAX_CONSECUTIVE = 2
 
 
@@ -4541,21 +4590,17 @@ def _probe_mlx_runtime(force: bool = False) -> tuple[bool, str]:
         ok = False
         detail = "probe_not_run"
         try:
-            completed = get_subprocess_gateway().run(
+            # The probe spawns a fresh interpreter and imports MLX. On a
+            # host whose page cache is thrashing, that import alone can
+            # exceed a fixed budget — and the timeout was hardcoded with no
+            # way for an operator to raise it. Live 2026-07-26, repeatedly:
+            # `mlx_runtime_unavailable:exit_124`, on a machine where MLX was
+            # perfectly healthy and merely slow to load. The bound is now on
+            # the probe's own work; see the runner.
+            completed = _run_probe_until_its_work_is_done(
                 _mlx_runtime_probe_command(),
                 cwd=project_root,
                 env=env,
-                capture_output=True,
-                # The probe spawns a fresh interpreter and imports MLX. On a
-                # host whose page cache is thrashing, that import alone can
-                # exceed a fixed budget — and the timeout was hardcoded with no
-                # way for an operator to raise it. Live 2026-07-26, repeatedly:
-                # `mlx_runtime_unavailable:exit_124`, on a machine where MLX was
-                # perfectly healthy and merely slow to load.
-                timeout=_MLX_RUNTIME_PROBE_TIMEOUT_S,
-                read_only=True,
-                source="runtime_probe:mlx_runtime_probe",
-                accelerator_capability="auto",
             )
             ok = completed.returncode == 0 and "mlx_runtime_ok" in (completed.stdout or "")
             detail = _normalize_probe_detail(
@@ -10941,7 +10986,14 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             # transient JIT/Metal compilation or memory alignment glitches.
             for handshake_attempt in range(2):
                 try:
-                    res = await _await_shared_future(fut, timeout_s=handshake_timeout)
+                    if soft_timeout:
+                        # The caller's own budget: a wall clock by nature,
+                        # and it keeps the worker alive when it runs out.
+                        res = await _await_shared_future(fut, timeout_s=handshake_timeout)
+                    else:
+                        res = await self._await_init_while_the_worker_loads(
+                            fut, stall_s=handshake_timeout
+                        )
                     if res.get("status") == "ok":
                         # READINESS IS EARNED, NOT ANNOUNCED. CP126 34c42774:
                         # any dict with status=ok used to set init_done,
@@ -11224,6 +11276,66 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                 self._req_q.get_nowait()
             except (_queue_mod.Empty, OSError, ValueError):
                 break
+
+    async def _await_init_while_the_worker_loads(
+        self, fut: SharedFuture, *, stall_s: float
+    ) -> Any:
+        """Wait for the init handshake while the worker is still loading.
+
+        The handshake bound was an absolute wall clock: 300s, then the
+        worker is wedged and respawned. LIVE 2026-09-16, load 34 on 18
+        cores: the 27B worker was at 9GB of RSS and loading when the clock
+        ran out, and the respawn started the load again from nothing. The
+        bound is now on the worker's progress. Its RSS and CPU advance while
+        it loads; ``stall_s`` of neither is the wedge the clock was for.
+        """
+        stall_s = max(0.0, float(stall_s))
+        period = max(0.05, min(15.0, stall_s / 20.0)) if stall_s else 15.0
+        seen = self.worker_load_progress()
+        still_for = 0.0
+        while True:
+            try:
+                return await _await_shared_future(fut, timeout_s=period)
+            except TimeoutError:
+                pass
+            progress = self.worker_load_progress()
+            if progress is None:
+                # No process to read: nothing can advance, so the wait is
+                # bounded by the clock alone, as it was.
+                still_for += period
+            elif seen is None or progress[0] > seen[0] or progress[1] > seen[1]:
+                seen, still_for = progress, 0.0
+            else:
+                still_for += period
+            if still_for >= stall_s:
+                raise TimeoutError(
+                    f"worker init made no progress for {still_for:.0f}s "
+                    f"(rss={0 if seen is None else seen[0] / 1e9:.1f}GB, "
+                    f"cpu={0 if seen is None else seen[1]:.0f}s)"
+                )
+
+    def worker_load_progress(self) -> tuple[float, float] | None:
+        """What the worker has done so far: its (rss_bytes, cpu_seconds).
+
+        A worker that is loading a 20GB checkpoint on a starved host fails
+        ``is_alive`` for as long as the load takes, and a watchdog with a wall
+        clock cannot tell that from a worker that is stuck. This reading can:
+        a loading worker's memory and CPU advance between looks; a wedged one's
+        do not. None when there is no worker process to read.
+        """
+        process = self._process
+        pid = getattr(process, "pid", None)
+        if process is None or not pid:
+            return None
+        try:
+            handle = psutil.Process(int(pid))
+            rss = float(handle.memory_info().rss)
+            times = handle.cpu_times()
+            return rss, float(times.user) + float(times.system)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, OSError):
+            return None
+        except (AttributeError, TypeError, ValueError):
+            return None
 
     def is_alive(self) -> bool:
         """Returns True if the worker process is running and initialized."""

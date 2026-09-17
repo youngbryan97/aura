@@ -708,6 +708,35 @@ class TestProactiveWatchdogWarmupRace:
             "the recovery warmup gets a fresh 300s window"
         )
 
+    def test_a_loading_worker_restarts_the_dead_man_clock(self):
+        """LIVE 2026-09-16, load 34: the 27B worker was at 9GB of RSS and
+        loading when the clock, started before the worker existed, reached
+        305s and recovery replaced the warmup. Progress restarts the clock;
+        a worker whose memory and CPU have stopped advancing does not."""
+
+        class _LoadingClient(self._WarmingClient):
+            def __init__(self):
+                super().__init__(warmup_in_flight=True)
+                self.readings = [(4.0e9, 40.0), (9.0e9, 90.0), (9.0e9, 90.0)]
+
+            def worker_load_progress(self):
+                return self.readings.pop(0) if self.readings else (9.0e9, 90.0)
+
+        client = _LoadingClient()
+        gate = self._make_gate(client, first_seen_age_s=400.0)
+        # First look records the reading; the clock is 400s old.
+        # Second look sees RSS and CPU advance: the clock restarts.
+        gate._cortex_load_progress_seen = (4.0e9, 40.0)
+        client.readings = [(9.0e9, 90.0), (9.0e9, 90.0)]
+        asyncio.run(gate._proactive_cortex_watchdog())
+        assert gate._recovery_calls == [], "a worker still loading must not be replaced"
+        assert time.time() - gate._cortex_not_alive_first_seen_at < 5.0
+
+        # No progress since, and the clock is past 300s again: recovery.
+        gate._cortex_not_alive_first_seen_at = time.time() - 400.0
+        asyncio.run(gate._proactive_cortex_watchdog())
+        assert len(gate._recovery_calls) == 1, "a worker that stopped advancing is dead"
+
     def test_alive_lane_clears_the_dead_man_clock(self):
         class _AliveClient:
             def is_alive(self):

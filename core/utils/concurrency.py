@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import LOOP_BLOCKED_CEILING_FRACTION, LOOP_HOLD_STARVED_FRACTION
 from core.utils.task_tracker import get_task_tracker, mark_task_protected
 
 # Use the centralized enhanced logger
@@ -416,6 +417,9 @@ class EventLoopMonitor:
         self._last_breach_lag: float = 0.0
         self._last_breach_at: float = 0.0
         self._consecutive_breaches: int = 0
+        #: Lag samples the host caused, and when that was last said.
+        self._starved_samples: int = 0
+        self._last_starvation_log_at: float = 0.0
         self._started_at: float = 0.0
         self._last_failure_at: float = 0.0
         self._last_failure_reason: str = ""
@@ -680,6 +684,7 @@ class EventLoopMonitor:
             "last_breach_lag_s": self._last_breach_lag,
             "last_breach_at_unix": self._last_breach_at,
             "consecutive_breaches": self._consecutive_breaches,
+            "starved_samples": self._starved_samples,
             "last_failure_at": self._last_failure_at,
             "last_failure_reason": self._last_failure_reason,
             "incident_active": bool(self._last_failure_at),
@@ -692,9 +697,24 @@ class EventLoopMonitor:
             "recovery_window_s": self.failure_recovery_window_s,
         }
 
+    def _note_starvation(self, lag: float, loop_share: float) -> None:
+        """Lag the host caused: counted, said once a minute, not a breach."""
+        self._starved_samples += 1
+        now = time.monotonic()
+        if now - self._last_starvation_log_at >= 60.0:
+            self._last_starvation_log_at = now
+            logger.warning(
+                "Event loop starved, not blocked: %.2fs of lag on %.0f%% of a core "
+                "(%d such samples this run). The host is not scheduling it.",
+                lag,
+                100.0 * loop_share,
+                self._starved_samples,
+            )
+
     async def _run(self):
         while not self._stop_event.is_set():
             start_time = time.perf_counter()
+            cpu_start = time.thread_time()
             try:
                 await asyncio.sleep(self.interval)
             except asyncio.CancelledError:
@@ -704,6 +724,14 @@ class EventLoopMonitor:
             actual_elapsed = end_time - start_time
             lag = actual_elapsed - self.interval
             sampled_at = time.time()
+            # This runs on the loop thread, so its own CPU clock over the
+            # sample says what the lag was: a loop thread that got a few
+            # percent of a core was runnable and not scheduled, which is the
+            # host's doing and nothing in this process can repair. LIVE
+            # 2026-09-16, load 34 on 18 cores: 52 CRITICAL degradations in
+            # 22 minutes for lag the loop was not causing.
+            loop_share = (time.thread_time() - cpu_start) / max(actual_elapsed, 1e-9)
+            starved = LOOP_BLOCKED_CEILING_FRACTION <= loop_share < LOOP_HOLD_STARVED_FRACTION
             self._capture_lag_sample(
                 lag,
                 sampled_at=sampled_at,
@@ -716,7 +744,9 @@ class EventLoopMonitor:
                 and (end_time - self._started_at) < self.startup_grace
             )
 
-            if lag > threshold and not in_startup_grace:
+            if lag > threshold and not in_startup_grace and starved:
+                self._note_starvation(lag, loop_share)
+            elif lag > threshold and not in_startup_grace:
                 self._last_breach_lag = max(0.0, lag)
                 self._last_breach_at = sampled_at
                 self._consecutive_breaches += 1

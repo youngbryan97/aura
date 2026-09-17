@@ -1076,11 +1076,22 @@ async def _boot_runtime_orchestrator(
     # non-instantiating registry bridge. Materialize and behaviorally probe its
     # required organs here, under the root lifecycle owner, before background
     # work and registry lock can race the first user turn.
-    from core.runtime.live_mind_runtime import activate_live_mind_runtime
+    from core.runtime.live_mind_runtime import (
+        activate_live_mind_runtime,
+        get_live_mind_runtime,
+    )
+    from core.runtime.progress_bound import await_while_it_progresses
 
-    live_mind_report = await asyncio.wait_for(
+    # Bounded by its progress, not by the wall clock: on a host three times
+    # oversubscribed the eight organs took 17s against a 15s wall budget and
+    # the boot died with the last organ materialized (2026-09-16). An organ
+    # that takes 15s of wall to materialize with nothing completing is the
+    # wedge the old budget was written for; eight that each take two is not.
+    live_mind_report = await await_while_it_progresses(
         asyncio.to_thread(activate_live_mind_runtime),
-        timeout=15.0,
+        progress=get_live_mind_runtime().materialized,
+        stall_s=15.0,
+        name="live-mind activation",
     )
     if not bool(live_mind_report.get("ready")):
         raise RuntimeError(
@@ -4490,6 +4501,7 @@ def main():
             logger.error("⚠️ Reaper initialization skipped or failed: %s", e)
 
     # Perplexity Audit Fix: Use asyncio.run for cleaner entry points
+    exit_code = 0
     try:
         if args.philosophy:
             asyncio.run(run_philosophy_stream(args.port))
@@ -4583,10 +4595,13 @@ def main():
                         signal_owner.finish_async_ownership()
             asyncio.run(_run_server_with_bootstrap())
         elif args.desktop:
-            # For desktop, we'll need a way to bootstrap the loop if uvicorn starts it
-            # But Desktop mode in aura_main runs uvicorn in a thread.
-            # We should probably bootstrap the main thread for the GUI if it needs it.
-            asyncio.run(
+            # Not asyncio.run: its close waits forever for a task that does
+            # not end on cancellation, and one did (2026-09-16, fifteen
+            # minutes with the port closed). This close is bounded by the
+            # shutdown budget and names what outlived it.
+            from core.runtime.bounded_run import run as _bounded_run
+
+            _bounded_run(
                 run_desktop(
                     args.port,
                     launch_gui=None,
@@ -4627,12 +4642,21 @@ def main():
     except _AURA_MAIN_BOUNDARY_ERRORS as e:
         record_degradation('aura_main', e)
         logger.critical("FATAL BOOT ERROR: %s", e, exc_info=True)
-        sys.exit(1)
+        # The root exits through its finalizer on this path too. A bare
+        # sys.exit(1) here let the interpreter's own shutdown join every
+        # executor thread, and one was three hours into an embedding forward
+        # pass on a loaded host: the process sat in threading._shutdown for
+        # forty minutes after "Finished server process" (2026-09-16, pid
+        # 29434). The finalizer ends in os._exit, which does not wait for
+        # anyone.
+        exit_code = 1
     _finalize_root_runtime_process_exit(
         args,
-        exit_code=0,
+        exit_code=exit_code,
         signal_owner=root_signal_owner,
     )
+    if exit_code:
+        sys.exit(exit_code)
 
 if __name__ == "__main__":
     import multiprocessing

@@ -28,8 +28,10 @@ from core.governance_context import local_internal_governed_scope
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
-from core.runtime.task_ownership import create_tracked_task
 from core.runtime.flags import FlagKind as _FlagKind, declare as _declare_flag
+from core.runtime.lockdep import LOOP_BLOCKED_CEILING_FRACTION, LOOP_HOLD_STARVED_FRACTION
+from core.runtime.task_ownership import create_tracked_task
+from core.runtime.thread_cpu import thread_cpu_seconds, thread_cpu_share
 
 # Declared flags (migrated from raw os.environ reads so the knobs are
 # inventoried and reportable). STRING kind with the original literal
@@ -219,6 +221,13 @@ class StallWatchdog(threading.Thread):
         # instead of guessing — a guess once blamed a sleeping daemon thread
         # for 19 stalls whose real culprit was on-loop SQLite.
         self._loop_thread_id: int | None = None
+        #: The loop thread's own CPU clock at its last heartbeat, and how many
+        #: stalls were the host not scheduling it rather than the loop being
+        #: stuck. Read with the loop thread's clock from this thread; see
+        #: core/runtime/thread_cpu.py.
+        self._loop_cpu_at_heartbeat: float | None = None
+        self._starved_stalls: int = 0
+        self._last_starvation_log_at: float = 0.0
 
         # Dump-rate state: composing a dump is GIL-expensive, so during a
         # sustained wedge we keep the first and suppress its near-duplicates.
@@ -364,7 +373,16 @@ class StallWatchdog(threading.Thread):
                     self._last_heartbeat = time.time()
                     self._consecutive_long_stalls = 0
                     continue
-                self._report_stall(elapsed)
+                share = self._loop_cpu_share_since_heartbeat(elapsed)
+                if (
+                    share is not None
+                    and LOOP_BLOCKED_CEILING_FRACTION <= share < LOOP_HOLD_STARVED_FRACTION
+                ):
+                    self._report_starvation(elapsed, share)
+                    self._last_heartbeat = time.time()
+                    self._consecutive_long_stalls = 0
+                    continue
+                self._report_stall(elapsed, share)
                 if elapsed >= _ACTIVE_RECOVERY_THRESHOLD:
                     self._consecutive_long_stalls += 1
                     self._attempt_active_recovery(elapsed)
@@ -385,6 +403,7 @@ class StallWatchdog(threading.Thread):
         # when the loop is genuinely alive, and nothing else writes it.
         self._last_loop_run = now
         self._loop_thread_id = threading.get_ident()
+        self._loop_cpu_at_heartbeat = time.thread_time()
         # Track task ages so a future stall can pick out which ones look hung.
         # This runs on the loop thread — cheap and safe.
         try:
@@ -762,8 +781,57 @@ class StallWatchdog(threading.Thread):
         finally:
             buffer.close()
 
-    def _report_stall(self, elapsed: float):
-        logger.error("🚨 [WATCHDOG] EVENT LOOP STALL DETECTED! (Elapsed: %.1fs)", elapsed)
+    def _loop_cpu_share_since_heartbeat(self, elapsed: float) -> float | None:
+        """The share of a core the loop thread has had since its last heartbeat.
+
+        None when the reading is unavailable. Zero means the thread accrued
+        nothing: it is blocked, on a lock or a syscall, and the dump will say
+        which. A small share means the host is not scheduling it: the loop
+        is running, slowly, and there is nothing in the process to rescue.
+        A large share means the loop is doing work it should have yielded.
+        """
+        thread_id = self._loop_thread_id
+        before = self._loop_cpu_at_heartbeat
+        if thread_id is None or before is None:
+            return None
+        return thread_cpu_share(before, thread_cpu_seconds(thread_id), elapsed)
+
+    def _report_starvation(self, elapsed: float, share: float) -> None:
+        """A stall that is the host's, said once a minute rather than dumped.
+
+        LIVE 2026-09-16, load 34 on 18 cores: 33 dumps an hour of eighty
+        stacks each, for a loop thread that was getting a fifth of a core
+        and never stuck. The dump cost GIL time the loop did not have.
+        """
+        self._starved_stalls += 1
+        now = time.monotonic()
+        if now - self._last_starvation_log_at >= self._STALL_DUMP_MIN_INTERVAL_S:
+            self._last_starvation_log_at = now
+            logger.warning(
+                "[WATCHDOG] Event loop starved, not stuck: %.1fs since its heartbeat on "
+                "%.0f%% of a core (%d such stalls this run). The host is not scheduling "
+                "it; no dump, no recovery.",
+                elapsed,
+                100.0 * share,
+                self._starved_stalls,
+            )
+
+    def _report_stall(self, elapsed: float, share: float | None = None):
+        if share is None:
+            logger.error("🚨 [WATCHDOG] EVENT LOOP STALL DETECTED! (Elapsed: %.1fs)", elapsed)
+        elif share < LOOP_BLOCKED_CEILING_FRACTION:
+            logger.error(
+                "🚨 [WATCHDOG] EVENT LOOP STALL DETECTED! (Elapsed: %.1fs; the loop thread "
+                "accrued no CPU: blocked)",
+                elapsed,
+            )
+        else:
+            logger.error(
+                "🚨 [WATCHDOG] EVENT LOOP STALL DETECTED! (Elapsed: %.1fs on %.0f%% of a "
+                "core: on-loop work)",
+                elapsed,
+                100.0 * share,
+            )
 
         # A dump costs real GIL time; during an ongoing stall that is time
         # taken from the loop we are trying to rescue. Keep the first dump of

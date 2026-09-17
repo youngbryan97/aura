@@ -37,7 +37,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from core.runtime.subprocess_gateway import get_subprocess_gateway
 
 logger = logging.getLogger("Aura.Self.SourceExcerpt")
 
@@ -689,6 +688,29 @@ def _distinctive_lines(code: str, limit: int = 4) -> list[str]:
     return [line for _weight, line in scored[:limit]]
 
 
+def _files_containing_any(lines: list[str], roots: list[str]) -> list[str]:
+    """Every Python file under ``roots`` holding any of ``lines`` as text."""
+    needles = [line.encode("utf-8", errors="ignore") for line in lines if line]
+    if not needles:
+        return []
+    found: list[str] = []
+    for root in roots:
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = sorted(d for d in dirnames if d not in _SKIP_DIRS)
+            for filename in sorted(filenames):
+                if not filename.endswith(".py"):
+                    continue
+                path = os.path.join(dirpath, filename)
+                try:
+                    with open(path, "rb") as handle:
+                        data = handle.read()
+                except OSError:
+                    continue
+                if any(needle in data for needle in needles):
+                    found.append(path)
+    return found
+
+
 def snippet_verdict(code: str) -> tuple[str, str]:
     """Whether this code is really in her tree.
 
@@ -705,41 +727,28 @@ def snippet_verdict(code: str) -> tuple[str, str]:
     # took over 30 seconds, which on the foreground lane is not a check, it
     # is a hang. The skip list is the same one that decides what counts as
     # her source anywhere else in this module.
-    excludes = [f"--exclude-dir={name}" for name in sorted(_SKIP_DIRS)]
     roots = [
         str(_SOURCE_ROOT / name)
         for name in ("core", "interface", "tools", "training")
         if (_SOURCE_ROOT / name).is_dir()
     ] or [str(_SOURCE_ROOT)]
 
-    # One pass, every candidate line as its own pattern. Running a grep per
-    # line meant the ABSENT verdict — the one that matters — cost a full
-    # walk for each, ~6s on the foreground lane. `-l` with several `-e`
-    # patterns lists files matching any of them, which is the same question
-    # asked once.
-    # Anchored to the start of a line, so PROSE QUOTING code does not count
-    # as the code existing. This module's own comments quote the fabricated
-    # `def self_organize_modules(...)` from the live defect; a fixed-string
-    # search found it here and pronounced the invention genuine. A snippet
-    # is in the tree when a line of it IS a line of a file, not when some
-    # file mentions it.
-    patterns: list[str] = []
-    for line in lines:
-        escaped = re.sub(r"([.^$*+?()\[\]{}|\\])", r"\\\1", line)
-        patterns.extend(("-e", rf"^[[:space:]]*{escaped}"))
+    # One pass over her source, every candidate line as a needle, in this
+    # process. This was a `grep -rlsE` with each line anchored at the start
+    # of a line: BSD grep spends 6-9 CPU-seconds on seven such patterns over
+    # 4,500 files (measured 2026-09-16; the fixed-string form is no better),
+    # which put the ABSENT verdict past its 10s wall budget on any host that
+    # was not idle, raised TimeoutExpired past the handler, and turned the
+    # check into an exception. Reading the files here costs under a second
+    # of CPU. Anchoring is done where the candidates are read, below: a
+    # snippet is in the tree when a line of it IS a line of a file, not when
+    # some file mentions it in prose, and that is what the prefix check
+    # against stripped lines decides.
     try:
-        found = get_subprocess_gateway().run(
-            ["grep", "-rlsE", "--include=*.py", *excludes, *patterns, *roots],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            read_only=True,
-            source="self.source_excerpt.snippet_verdict",
-            accelerator_capability="none",
-        )
-    except (OSError, RuntimeError, TypeError, ValueError):
+        candidates = _files_containing_any(lines, roots)
+    except OSError:
         return ("unchecked", "")
-    if found.returncode == 0 and found.stdout.strip():
+    if candidates:
         # ANY line matching ANY file used to certify the whole snippet. The
         # commonest lines in Python are the ones a fabrication is built from:
         # `def __init__(self, name):` occurs all over this tree, so a made-up
@@ -750,7 +759,6 @@ def snippet_verdict(code: str) -> tuple[str, str]:
         # are what invention looks like. Erring this way is also the safe
         # direction: a wrong "absent" swaps one real excerpt for another,
         # while a wrong "found" is how an invention reaches the person.
-        candidates = [line for line in found.stdout.strip().splitlines() if line.strip()]
         needed = (len(lines) + 1) // 2
         best_path = ""
         best_hits = 0
@@ -785,10 +793,6 @@ def snippet_verdict(code: str) -> tuple[str, str]:
             except (OSError, ValueError):
                 return ("found", best_path)
         return ("absent", "")
-    if found.returncode != 1:
-        # grep distinguishes "no match" (1) from "something went wrong" (2+),
-        # and only the first is evidence.
-        return ("unchecked", "")
     return ("absent", "")
 
 

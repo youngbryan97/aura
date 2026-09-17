@@ -11,6 +11,7 @@ import time
 
 from core.observability.metrics import get_metrics
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import LOOP_BLOCKED_CEILING_FRACTION, LOOP_HOLD_STARVED_FRACTION
 from core.runtime.resource_observation import get_resource_observer
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.utils.task_tracker import get_task_tracker, mark_task_protected
@@ -42,6 +43,8 @@ class Hypervisor:
         self._last_severe_lag_at = 0.0
         self._last_failure_reason = ""
         self._severe_lag_streak = 0
+        self._starved_samples = 0
+        self._last_starvation_log_at = 0.0
         self._healthy_lag_samples_after_failure = 0
         self._required_recovery_samples = 3
         try:
@@ -158,6 +161,20 @@ class Hypervisor:
             "recovery_window_s": self._failure_recovery_window_s,
         }
 
+    def _note_starvation(self, lag: float, loop_share: float) -> None:
+        """Lag the host caused: counted, said once a minute, never a freeze."""
+        self._starved_samples += 1
+        now = time.monotonic()
+        if now - self._last_starvation_log_at >= 60.0:
+            self._last_starvation_log_at = now
+            logger.warning(
+                "Event loop starved, not frozen: %.2fs of lag on %.0f%% of a core "
+                "(%d such samples this run). The host is not scheduling it.",
+                lag,
+                100.0 * loop_share,
+                self._starved_samples,
+            )
+
     def _confirm_severe_lag_failure(self, lag: float, uptime: float) -> bool:
         """Return True only after sustained severe lag outside boot warmup."""
         if lag <= self._severe_lag_threshold_s:
@@ -245,9 +262,17 @@ class Hypervisor:
             # Wall time jumps across macOS sleep/wake and previously turned a
             # normal resume into a false multi-minute event-loop stall.
             start = _monotonic_now()
+            cpu_start = time.thread_time()
             # Simple async sleep to measure lag
             await asyncio.sleep(1.0)
             actual_sleep = _monotonic_now() - start
+            # This runs on the loop thread: its own CPU clock over the sleep
+            # says whether the lag was the loop working, the loop blocked, or
+            # the host not scheduling a runnable loop. Only the last is not a
+            # freeze. LIVE 2026-09-16, load 34 on 18 cores: 38 SEVERE FREEZE
+            # criticals in 22 minutes on a loop getting a fifth of a core.
+            loop_share = (time.thread_time() - cpu_start) / max(actual_sleep, 1e-9)
+            starved = LOOP_BLOCKED_CEILING_FRACTION <= loop_share < LOOP_HOLD_STARVED_FRACTION
             lag, announced_by_monitor = self._lag_reading(actual_sleep - 1.0)
             self._last_lag = lag
 
@@ -255,7 +280,10 @@ class Hypervisor:
             metrics.gauge("hypervisor.loop_lag_s", lag)
 
             lag_threshold, lag_context = self._lag_threshold_for_context()
-            if lag > lag_threshold:
+            if lag > lag_threshold and starved:
+                self._severe_lag_streak = 0
+                self._note_starvation(lag, loop_share)
+            elif lag > lag_threshold:
                 uptime = time.time() - getattr(self, "_start_time", time.time())
                 if announced_by_monitor:
                     # The EventLoopMonitor measured this lag and said so, with

@@ -2426,6 +2426,13 @@ def is_cognitive_engine_failure_envelope(reply_text: Any) -> bool:
     return bool(_COGNITIVE_ENGINE_FAILURE_ENVELOPE_RE.search(str(reply_text or "")))
 
 
+#: A path (two or more segments joined by slashes), a dotted module, a Python
+#: file name, or anything in backticks: names, never prose.
+_NAMED_CODE_TOKEN_RE = re.compile(
+    r"`[^`]*`|(?<!\S)(?:[\w.~-]*/[\w./~-]+|[\w.~-]+/)|\b\w+\.py\b|\b\w+(?:\.\w+){2,}\b"
+)
+
+
 def _requires_self_claim_evidence_boundary(prompt: Any) -> bool:
     """Return true only for actual consciousness/personhood/selfhood claims.
 
@@ -2435,7 +2442,12 @@ def _requires_self_claim_evidence_boundary(prompt: Any) -> bool:
     still must stay evidence-bounded.
     """
 
-    text = _normalize(prompt)
+    # A word inside a path, a module name or a code span names a thing on
+    # disk, not a claim about her. LIVE 2026-09-16: "How many Python files
+    # are under core/consciousness in your source tree" made the count a
+    # consciousness claim, and a correct answer from the cortex was rejected
+    # for missing_self_claim_evidence_boundary and replaced by a fallback.
+    text = _normalize(_NAMED_CODE_TOKEN_RE.sub(" ", str(prompt or "")))
     if not text:
         return False
     if re.search(
@@ -8965,6 +8977,154 @@ def _record_on_turn_ledger(
         )
 
 
+# The reasons that stop a reply from being presented, and the ones a retry
+# may answer. Read by ``_assess_user_facing_reply``; each entry carries the
+# incident that put it there.
+_HARD_USER_FACING_REASONS = frozenset(
+    {
+        "empty_reply",
+        "escaped_control_artifact",
+        "prompt_artifact",
+        "runtime_boilerplate",
+        "raw_tool_result_fragment",
+        "raw_lane_telemetry",
+        "internal_live_gate_leak",
+        "cognitive_engine_failure_envelope",
+        "raw_model_identity_leak",
+        "unsupported_external_provider_path_claim",
+        "unsupported_embodiment_claim",
+        "sensory_evidence_contradiction",
+        "unsupported_sensor_scope_claim",
+        "backend_symbolic_surface_leak",
+        "persona_card_deflection",
+        "detail_request_deflection",
+        "stale_diagnostic_floor_leak",
+        "pseudo_commitment_status_leak",
+        "friendly_failure_floor",
+        "corrupted_language",
+        "corrupted_social_fragment",
+        "foreign_name_intrusion",
+        "generic_assistant_language",
+        "dialogue_derailment",
+        "exposed_competing_draft",
+        "unprovoked_rebuke",
+        "low_information_loop",
+        "repeated_get_it_loop",
+        "self_contradictory_loop",
+        "repetitive_phrase_loop",
+        "low_lexical_diversity_loop",
+        "truncated_tail",
+        "vague_status_derailment",
+        "pseudo_internal_jargon",
+        "reliability_diagnostic_deflection",
+        "status_page_self_reflection",
+        "stale_context_topic_bleed",
+        "social_presence_instead_of_self_reflection",
+        "template_telemetry_greeting",
+        "host_telemetry_substituted_for_self_condition",
+        "unsupported_self_condition_operational_claim",
+        "unfounded_alarm_derailment",
+        "unfounded_voice_intrusion",
+        "unsupported_context_continuation_claim",
+        "ungrounded_person_narrative",
+        "fabricated_shared_history",
+        # NOT ungrounded_person_address. A vocative is one word. Even when the
+        # name is genuinely wrong the honest remedy is to drop the vocative and
+        # deliver the answer — destroying the whole reply over how it addressed
+        # someone throws away the human part to protect a detail.
+        #
+        # Measured live: the owner introduced himself in turn 1, and turn 2 came
+        # back "Bryan, let's reset. You asked about the prompt cache... And yeah,
+        # drop the 'great question' bit. Talk like we're peers figuring something
+        # out together" — natural, correctly addressed, exactly the register he
+        # had just asked for. The entire draft was destroyed as a HARD failure
+        # because the name was not in any grounding source the check consulted.
+        # (The owner's own name is a grounding source now; this keeps the class
+        # of failure from recurring with any other name.)
+        "unrequested_pop_culture_intrusion",
+        "unexpected_cjk_intrusion",
+        "surface_nonsense_drift",
+        "function_word_starvation",
+        "unsupported_affection_claim",
+        "unsupported_self_telemetry_claim",
+        "format_meta_artifact",
+        "output_contract_meta_reply",
+        "punctuation_join_artifact",
+        "search_meta_artifact",
+        "low_signal_acknowledgement_placeholder",
+        "question_back_non_answer",
+        "missing_current_request_recap",
+        "missing_runtime_path_answer",
+        "direct_answer_deflection",
+        "unsupported_operational_status_overclaim",
+        "unsupported_runtime_telemetry_inference",
+        "unsupported_tool_readiness_claim",
+        "unsupported_deployment_routing_claim",
+        "unsupported_runtime_limits_claim",
+        "missing_self_claim_evidence_boundary",
+        "missing_requested_exact_reply",
+        "missing_requested_objective_facets",
+        "prompt_echo_contamination",
+        "protocol_artifact_leakage",
+        "generic_memory_pin_acknowledgement",
+        # A wrong or absent number served as an arithmetic answer is not a
+        # style nit — it is a false statement with a checkable truth value.
+        "arithmetic_answer_missing",
+        "false_checkable_arithmetic_claim",
+        "unanswered_question_part",
+    }
+)
+
+_RETRYABLE_USER_FACING_REASONS = _HARD_USER_FACING_REASONS | frozenset(
+    {
+        # A derivation that never states the answer it was asked for is real
+        # work left one step short. Retry it; do not throw it away.
+        "final_answer_missing",
+        "low_signal_reliability_reply",
+        "reliability_diagnostic_too_thin",
+        "too_thin_for_reliability_turn",
+        "too_thin_for_confusion_repair",
+        "too_thin_for_expansion_request",
+        "too_thin_for_operational_status_turn",
+        "too_short_for_user_turn",
+        "no_content_in_user_turn",
+        # Retryable, not hard: a circular reply means this generation added
+        # nothing, and the next one usually does. Throwing the turn away would
+        # be answering "you said nothing" with nothing.
+        "adds_nothing_beyond_the_question",
+        "too_thin_for_user_turn",
+        "too_thin_for_open_ended_turn",
+        "off_topic_self_reflection_reply",
+        "low_signal_status_reply",
+        "too_thin_for_status_turn",
+        "low_signal_self_condition_reply",
+        "missing_self_condition_answer",
+        "empty_requested_list_item",
+        "missing_requested_paragraph_count",
+        "missing_requested_list_count",
+        "missing_requested_choice_clarification",
+        "missing_requested_word_count",
+        "missing_requested_sentence_count",
+        "missing_current_topic_anchor",
+        "missing_requested_exact_reply",
+        "missing_requested_reference_value",
+        "missing_requested_followup_question",
+        "missing_requested_phrase",
+        "missing_requested_memory_limit_coverage",
+        "missing_future_memory_answer",
+        "missing_identity_answer",
+        "missing_requested_self_process_coverage",
+        "unsupported_memory_guarantee",
+        "missing_requested_objective_facets",
+        "prompt_echo_contamination",
+        "protocol_artifact_leakage",
+        "arithmetic_answer_missing",
+        "false_checkable_arithmetic_claim",
+        "unanswered_question_part",
+    }
+)
+
+
 def _assess_user_facing_reply(
     user_message: Any,
     reply_text: Any,
@@ -9259,144 +9419,6 @@ def _assess_user_facing_reply(
     if _has_direct_answer_deflection(user_message, raw):
         reasons.append("direct_answer_deflection")
 
-    hard_reasons = {
-        "empty_reply",
-        "escaped_control_artifact",
-        "prompt_artifact",
-        "runtime_boilerplate",
-        "raw_tool_result_fragment",
-        "raw_lane_telemetry",
-        "internal_live_gate_leak",
-        "cognitive_engine_failure_envelope",
-        "raw_model_identity_leak",
-        "unsupported_external_provider_path_claim",
-        "unsupported_embodiment_claim",
-        "sensory_evidence_contradiction",
-        "unsupported_sensor_scope_claim",
-        "backend_symbolic_surface_leak",
-        "persona_card_deflection",
-        "detail_request_deflection",
-        "stale_diagnostic_floor_leak",
-        "pseudo_commitment_status_leak",
-        "friendly_failure_floor",
-        "corrupted_language",
-        "corrupted_social_fragment",
-        "foreign_name_intrusion",
-        "generic_assistant_language",
-        "dialogue_derailment",
-        "exposed_competing_draft",
-        "unprovoked_rebuke",
-        "low_information_loop",
-        "repeated_get_it_loop",
-        "self_contradictory_loop",
-        "repetitive_phrase_loop",
-        "low_lexical_diversity_loop",
-        "truncated_tail",
-        "vague_status_derailment",
-        "pseudo_internal_jargon",
-        "reliability_diagnostic_deflection",
-        "status_page_self_reflection",
-        "stale_context_topic_bleed",
-        "social_presence_instead_of_self_reflection",
-        "template_telemetry_greeting",
-        "host_telemetry_substituted_for_self_condition",
-        "unsupported_self_condition_operational_claim",
-        "unfounded_alarm_derailment",
-        "unfounded_voice_intrusion",
-        "unsupported_context_continuation_claim",
-        "ungrounded_person_narrative",
-        "fabricated_shared_history",
-        # NOT ungrounded_person_address. A vocative is one word. Even when the
-        # name is genuinely wrong the honest remedy is to drop the vocative and
-        # deliver the answer — destroying the whole reply over how it addressed
-        # someone throws away the human part to protect a detail.
-        #
-        # Measured live: the owner introduced himself in turn 1, and turn 2 came
-        # back "Bryan, let's reset. You asked about the prompt cache... And yeah,
-        # drop the 'great question' bit. Talk like we're peers figuring something
-        # out together" — natural, correctly addressed, exactly the register he
-        # had just asked for. The entire draft was destroyed as a HARD failure
-        # because the name was not in any grounding source the check consulted.
-        # (The owner's own name is a grounding source now; this keeps the class
-        # of failure from recurring with any other name.)
-        "unrequested_pop_culture_intrusion",
-        "unexpected_cjk_intrusion",
-        "surface_nonsense_drift",
-        "function_word_starvation",
-        "unsupported_affection_claim",
-        "unsupported_self_telemetry_claim",
-        "format_meta_artifact",
-        "output_contract_meta_reply",
-        "punctuation_join_artifact",
-        "search_meta_artifact",
-        "low_signal_acknowledgement_placeholder",
-        "question_back_non_answer",
-        "missing_current_request_recap",
-        "missing_runtime_path_answer",
-        "direct_answer_deflection",
-        "unsupported_operational_status_overclaim",
-        "unsupported_runtime_telemetry_inference",
-        "unsupported_tool_readiness_claim",
-        "unsupported_deployment_routing_claim",
-        "unsupported_runtime_limits_claim",
-        "missing_self_claim_evidence_boundary",
-        "missing_requested_exact_reply",
-        "missing_requested_objective_facets",
-        "prompt_echo_contamination",
-        "protocol_artifact_leakage",
-        "generic_memory_pin_acknowledgement",
-        # A wrong or absent number served as an arithmetic answer is not a
-        # style nit — it is a false statement with a checkable truth value.
-        "arithmetic_answer_missing",
-        "false_checkable_arithmetic_claim",
-        "unanswered_question_part",
-    }
-    retryable_reasons = hard_reasons | {
-        # A derivation that never states the answer it was asked for is real
-        # work left one step short. Retry it; do not throw it away.
-        "final_answer_missing",
-        "low_signal_reliability_reply",
-        "reliability_diagnostic_too_thin",
-        "too_thin_for_reliability_turn",
-        "too_thin_for_confusion_repair",
-        "too_thin_for_expansion_request",
-        "too_thin_for_operational_status_turn",
-        "too_short_for_user_turn",
-        "no_content_in_user_turn",
-        # Retryable, not hard: a circular reply means this generation added
-        # nothing, and the next one usually does. Throwing the turn away would
-        # be answering "you said nothing" with nothing.
-        "adds_nothing_beyond_the_question",
-        "too_thin_for_user_turn",
-        "too_thin_for_open_ended_turn",
-        "off_topic_self_reflection_reply",
-        "low_signal_status_reply",
-        "too_thin_for_status_turn",
-        "low_signal_self_condition_reply",
-        "missing_self_condition_answer",
-        "empty_requested_list_item",
-        "missing_requested_paragraph_count",
-        "missing_requested_list_count",
-        "missing_requested_choice_clarification",
-        "missing_requested_word_count",
-        "missing_requested_sentence_count",
-        "missing_current_topic_anchor",
-        "missing_requested_exact_reply",
-        "missing_requested_reference_value",
-        "missing_requested_followup_question",
-        "missing_requested_phrase",
-        "missing_requested_memory_limit_coverage",
-        "missing_future_memory_answer",
-        "missing_identity_answer",
-        "missing_requested_self_process_coverage",
-        "unsupported_memory_guarantee",
-        "missing_requested_objective_facets",
-        "prompt_echo_contamination",
-        "protocol_artifact_leakage",
-        "arithmetic_answer_missing",
-        "false_checkable_arithmetic_claim",
-        "unanswered_question_part",
-    }
     if not request_is_knowable:
         # The person's turn could not be isolated from the assembled prompt, so
         # nothing here knows what was asked. Integrity findings (leaks,
@@ -9412,8 +9434,8 @@ def _assess_user_facing_reply(
     return ConversationReplyAssessment(
         ok=not blocking,
         reasons=unique,
-        hard_failure=bool(set(blocking) & hard_reasons),
-        retryable=bool(set(blocking) & retryable_reasons),
+        hard_failure=bool(set(blocking) & _HARD_USER_FACING_REASONS),
+        retryable=bool(set(blocking) & _RETRYABLE_USER_FACING_REASONS),
     )
 
 def _assess_operational_status_reply(exact_reply, memory_pin_confirmation, operational_status_turn, raw, reasons, reliability_diagnostic_turn, reliability_turn, strict_answer_tag_reply, user_message):

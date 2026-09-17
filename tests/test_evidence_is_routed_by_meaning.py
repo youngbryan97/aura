@@ -32,6 +32,17 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+@pytest.fixture(autouse=True)
+def _routing_is_warm():
+    """A turn never encodes anchors; the warm does, before any turn. The
+    tests here ask what a warm runtime routes, so they warm first, as the
+    boot does."""
+    from core.cognition.evidence_relevance import warm_semantic_routing
+
+    assert warm_semantic_routing() is True
+    yield
+
+
 @pytest.mark.parametrize(
     "question",
     [

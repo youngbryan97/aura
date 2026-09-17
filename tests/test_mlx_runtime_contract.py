@@ -874,18 +874,27 @@ def test_mlx_runtime_probe_subprocess_is_bounded_and_reviewed():
 
     source = inspect.getsource(mlx_client._probe_mlx_runtime)
     assert subprocess_must_use_gateway("core/brain/llm/mlx_client.py") is True
-    assert "get_subprocess_gateway().run(" in source
+    assert "_run_probe_until_its_work_is_done(" in source
+    runner = inspect.getsource(mlx_client._run_probe_until_its_work_is_done)
+    assert "get_subprocess_gateway().run_until_its_work_is_done(" in runner
     # The probe timeout became an operator-configurable bound rather than a
     # hardcoded 25.0: on a host whose page cache is thrashing, importing MLX
     # alone can exceed a fixed budget and the probe reported
     # "mlx_runtime_unavailable:exit_124" on a perfectly healthy machine. What
     # this contract requires is that the call stays BOUNDED, and that the
     # bound has a floor so it cannot be configured away.
-    assert "timeout=_MLX_RUNTIME_PROBE_TIMEOUT_S" in source
+    # The bound is on the probe's own work (CPU spent, and CPU progress), not
+    # on the wall clock: at load 34 the probe took 100s of wall on 17s of CPU
+    # and every wall budget killed a healthy MLX (2026-09-16).
     probe_timeout = float(mlx_client._MLX_RUNTIME_PROBE_TIMEOUT_S)
     assert 5.0 <= probe_timeout <= 600.0
-    assert "source=\"runtime_probe:mlx_runtime_probe\"" in source
-    assert "read_only=True" in source
+    assert "cpu_budget_s=float(_MLX_RUNTIME_PROBE_TIMEOUT_S)" in runner
+    from core.runtime.subprocess_gateway import SubprocessGateway
+
+    bound = inspect.getsource(SubprocessGateway.run_until_its_work_is_done)
+    assert "cpu_seen >= budget" in bound and "now - advanced_at >= budget" in bound
+    assert "source=\"runtime_probe:mlx_runtime_probe\"" in runner
+    assert "read_only=True" in runner
     assert "AURA_TEST_MODE" not in source
     assert "shell=True" not in source
 
@@ -1557,3 +1566,120 @@ async def test_model_load_admission_denial_backoff_suppresses_background_retry_s
 
     assert foreground is False
     assert attempts == [False, True]
+
+
+@pytest.mark.host_observation
+def test_the_probe_is_bounded_by_its_own_work_not_the_wall_clock(monkeypatch):
+    """LIVE 2026-09-16, load 34 on 18 cores: the probe ran to success in 56.6s
+    of wall on 16.6s of CPU. Every wall budget, scaled or not, killed it, and
+    the lane sat in 'spawning' for an hour. The bound is the probe's own work:
+    CPU spent past the idle-host budget is not a probe; CPU that stops
+    advancing for that long is a wedge. A starved process advances slowly and
+    is neither."""
+    import os
+    import sys
+    import time
+
+    from core.brain.llm import mlx_client
+
+    monkeypatch.setattr(mlx_client, "_MLX_RUNTIME_PROBE_TIMEOUT_S", 2.0)
+    monkeypatch.setattr(mlx_client, "_PROBE_WATCH_PERIOD_S", 0.2)
+    env = dict(os.environ)
+
+    done = mlx_client._run_probe_until_its_work_is_done(
+        [sys.executable, "-c", "print('mlx_runtime_ok')"], cwd=os.getcwd(), env=env
+    )
+    assert done.returncode == 0 and "mlx_runtime_ok" in done.stdout
+
+    started = time.monotonic()
+    wedged = mlx_client._run_probe_until_its_work_is_done(
+        [sys.executable, "-c", "import time; time.sleep(60)"], cwd=os.getcwd(), env=env
+    )
+    assert wedged.returncode == 124
+    assert wedged.stderr.startswith("wedged:")
+    assert time.monotonic() - started < 30.0
+
+    started = time.monotonic()
+    busy = mlx_client._run_probe_until_its_work_is_done(
+        [sys.executable, "-c", "while True: pass"], cwd=os.getcwd(), env=env
+    )
+    assert busy.returncode == 124
+    assert busy.stderr.startswith("cpu_budget_exhausted:")
+    assert time.monotonic() - started < 60.0
+
+    # Neither stop reason reads as the old wall-clock timeout.
+    assert mlx_client._normalize_probe_detail("", wedged.stderr, 124).startswith("wedged")
+    assert mlx_client._normalize_probe_detail("", busy.stderr, 124).startswith(
+        "cpu_budget_exhausted"
+    )
+
+
+def test_a_child_the_host_cannot_observe_is_still_bounded(monkeypatch):
+    """A child whose CPU cannot be read is bounded by the wall clock, as it
+    was before; the bound is never none."""
+    import os
+    import sys
+    import time
+
+    from core.brain.llm import mlx_client
+    from core.runtime import subprocess_gateway
+
+    monkeypatch.setattr(mlx_client, "_MLX_RUNTIME_PROBE_TIMEOUT_S", 2.0)
+    monkeypatch.setattr(mlx_client, "_PROBE_WATCH_PERIOD_S", 0.2)
+    monkeypatch.setattr(subprocess_gateway, "_child_cpu_seconds", lambda pid: None)
+    started = time.monotonic()
+    out = mlx_client._run_probe_until_its_work_is_done(
+        [sys.executable, "-c", "import time; time.sleep(60)"],
+        cwd=os.getcwd(),
+        env=dict(os.environ),
+    )
+    assert out.returncode == 124
+    assert out.stderr.startswith("unobservable:")
+    assert time.monotonic() - started < 30.0
+
+
+@pytest.mark.asyncio
+async def test_the_init_handshake_waits_while_the_worker_loads():
+    """LIVE 2026-09-16, load 34: the 27B worker was at 9GB of RSS and loading
+    when the 300s handshake clock ran out and the respawn started the load
+    again from nothing. The bound is the worker's progress: RSS and CPU that
+    advance are a load; ``stall_s`` of neither is the wedge."""
+    import asyncio
+
+    from core.brain.llm import mlx_client
+
+    client = mlx_client.MLXLocalClient.__new__(mlx_client.MLXLocalClient)
+    import itertools
+
+    steps = itertools.count(1)
+
+    def progress():
+        n = next(steps)  # every look sees more memory and more CPU
+        return (1e9 * n, 10.0 * n)
+
+    client.worker_load_progress = progress
+    loop = asyncio.get_running_loop()
+    fut: asyncio.Future = loop.create_future()
+    # Resolve after 0.35s: three periods of a 0.1s stall budget, each with
+    # progress, so the wall clock alone would have cut it at 0.1s.
+    loop.call_later(0.35, fut.set_result, {"status": "ok"})
+    res = await client._await_init_while_the_worker_loads(fut, stall_s=0.1)
+    assert res == {"status": "ok"}
+
+    # The same wait on a worker whose readings stop advancing is a wedge.
+    client.worker_load_progress = lambda: (5e9, 50.0)
+    stuck: asyncio.Future = loop.create_future()
+    with pytest.raises(TimeoutError, match="worker init made no progress"):
+        await client._await_init_while_the_worker_loads(stuck, stall_s=0.1)
+
+
+def test_the_probe_command_is_a_recognised_import_only_probe():
+    """LIVE 2026-09-16, 45 minutes of spawns aborted with
+    model_process_claim_missing_model_path: the probe had grown a line that
+    printed its own CPU clock, and the gateway's probe grammar no longer
+    recognised it, so the gateway asked it for a model path. The probe's
+    shape is a contract with the lane control; this pins it."""
+    from core.brain.llm.mlx_client import _mlx_runtime_probe_command
+    from core.runtime.model_lane_control import is_registered_non_model_process_command
+
+    assert is_registered_non_model_process_command(_mlx_runtime_probe_command())

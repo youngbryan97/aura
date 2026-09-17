@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.progress_bound import await_while_the_task_moves
 
 logger = logging.getLogger("Aura.Boot")
 
@@ -146,7 +147,16 @@ class ResilientBoot:
                 try:
                     logger.info("⏳ [BOOT] Starting stage: %s", name)
                     timeout = self.stage_timeouts.get(name, self.timeout_per_stage)
-                    await asyncio.wait_for(stage_fn(), timeout=timeout)
+                    # The budget is the longest a stage may sit on one await,
+                    # not the longest it may take. LIVE 2026-09-16, load 34
+                    # on 18 cores: the kernel stage was working through its
+                    # organs at 106s when a 15s wall budget cancelled it
+                    # mid-load, and the runtime came up around a half-built
+                    # kernel with no fallback for it. A slow host is not a
+                    # wedge; an await that never returns is.
+                    await await_while_the_task_moves(
+                        stage_fn(), stall_s=timeout, name=f"boot stage {name}"
+                    )
                     self.results[name] = BootStageResult(name, True)
                     logger.info("✅ [BOOT] Stage '%s' completed successfully.", name)
                 except TimeoutError:
@@ -247,7 +257,7 @@ class ResilientBoot:
     async def _stage_state(self):
         """Initialize State Repository (Aura's heart) via Supervision Tree."""
         from core.container import ServiceContainer
-        from core.state.vault import vault_process_entry
+        from core.state.vault import state_vault_actor_spec
         from core.supervisor.tree import ActorSpec
         
         supervisor = ServiceContainer.get("supervisor")
@@ -260,12 +270,7 @@ class ResilientBoot:
         
         # 1. Register and Start State Vault Actor
         db_path = str(self.orchestrator.state_repo.db_path)
-        spec = ActorSpec(
-            name="state_vault",
-            entry_point=vault_process_entry,
-            args=(db_path,),
-            restart_policy="always"
-        )
+        spec = state_vault_actor_spec(ActorSpec, db_path)
         
         supervisor.add_actor(spec)
         if (
@@ -310,11 +315,23 @@ class ResilientBoot:
                     logger.info("📡 StateVaultActor responded to handshake (Attempt %d)", attempt + 1)
                     break
             except (OSError, ConnectionError, TimeoutError) as e:
-                _record_boot_degradation(e, action=f"state vault actor handshake attempt {attempt + 1} failed")
-                logger.debug("Handshake attempt %d failed: %s", attempt + 1, e)
+                # A fresh child answering late on a loaded host is the wait
+                # this loop exists for, not a degradation: three of these per
+                # boot were being filed as faults while the vault came up on
+                # attempt four (2026-09-16, load 34).
+                logger.info(
+                    "StateVaultActor handshake attempt %d of 20 not answered yet: %s",
+                    attempt + 1,
+                    type(e).__name__,
+                )
             await asyncio.sleep(0.5)
         
         if not ready:
+            _record_boot_degradation(
+                RuntimeError("state vault actor answered none of 20 handshakes"),
+                action="aborted boot; the state vault never answered",
+                severity="critical",
+            )
             logger.critical("🛑 StateVaultActor failed to initialize or respond. Aborting boot.")
             raise RuntimeError("StateVaultActor is fundamentally broken or unresponsive.")
 

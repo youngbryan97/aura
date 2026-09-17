@@ -4480,6 +4480,46 @@ async def user_engagement_status(request: Request):
         return JSONResponse({"error": str(e)}, status_code=200)
 
 
+def _collect_morphogenesis_status() -> dict[str, Any]:
+    """The morphogenesis runtime's shape for the health payload: cells, organs, topology, governor."""
+    morphogenesis_data: dict[str, Any] = {"online": False, "cells": 0, "organs": 0, "_stale": True}
+    try:
+        morpho_rt = ServiceContainer.peek("morphogenetic_runtime", default=None)
+        if morpho_rt is not None and hasattr(morpho_rt, "status"):
+            ms = morpho_rt.status()
+            topology = ms.get("topology", {}) or {}
+            governor = ms.get("governor", {}) or {}
+            morphogenesis_data = {
+                "online": ms.get("running", False),
+                "enabled": ms.get("enabled", False),
+                "tick": ms.get("tick", 0),
+                "cells": ms.get("registry", {}).get("cells", 0),
+                "organs": ms.get("registry", {}).get("organs", 0),
+                "queued_signals": ms.get("queued_signals", 0),
+                "last_tick_error": ms.get("last_tick_error", ""),
+                # The shape, not only the headcount. A population reported as
+                # twelve healthy cells says nothing about whether any of them
+                # can reach each other, which is the thing this layer is for.
+                "topology_version": topology.get("version", 0),
+                "bindings": topology.get("edges", 0),
+                "components": topology.get("components", 1),
+                "partitioned": int(topology.get("components", 1) or 1) > 1,
+                "transitions_applied": governor.get("applied", 0),
+                "transitions_refused": (
+                    int(governor.get("rejected", 0) or 0)
+                    + int(governor.get("deferred", 0) or 0)
+                ),
+                "rolled_back": governor.get("rolled_back", 0),
+                "max_generation": (ms.get("lineage", {}) or {}).get("max_generation", 0),
+                "motifs_credited": (ms.get("motifs", {}) or {}).get("credited", 0),
+                "_stale": False,
+            }
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
+        record_degradation('system', e)
+        logger.debug("Morphogenesis status collection failed: %s", e)
+    return morphogenesis_data
+
+
 async def _collect_api_health_payload(
     *,
     allow_owner_loop_reads: bool = True,
@@ -4999,41 +5039,7 @@ async def _collect_api_health_payload(
         logger.debug("Consolidator status failed: %s", e)
 
     # ── Morphogenesis Status ──
-    morphogenesis_data: dict[str, Any] = {"online": False, "cells": 0, "organs": 0, "_stale": True}
-    try:
-        morpho_rt = ServiceContainer.peek("morphogenetic_runtime", default=None)
-        if morpho_rt is not None and hasattr(morpho_rt, "status"):
-            ms = morpho_rt.status()
-            topology = ms.get("topology", {}) or {}
-            governor = ms.get("governor", {}) or {}
-            morphogenesis_data = {
-                "online": ms.get("running", False),
-                "enabled": ms.get("enabled", False),
-                "tick": ms.get("tick", 0),
-                "cells": ms.get("registry", {}).get("cells", 0),
-                "organs": ms.get("registry", {}).get("organs", 0),
-                "queued_signals": ms.get("queued_signals", 0),
-                "last_tick_error": ms.get("last_tick_error", ""),
-                # The shape, not only the headcount. A population reported as
-                # twelve healthy cells says nothing about whether any of them
-                # can reach each other, which is the thing this layer is for.
-                "topology_version": topology.get("version", 0),
-                "bindings": topology.get("edges", 0),
-                "components": topology.get("components", 1),
-                "partitioned": int(topology.get("components", 1) or 1) > 1,
-                "transitions_applied": governor.get("applied", 0),
-                "transitions_refused": (
-                    int(governor.get("rejected", 0) or 0)
-                    + int(governor.get("deferred", 0) or 0)
-                ),
-                "rolled_back": governor.get("rolled_back", 0),
-                "max_generation": (ms.get("lineage", {}) or {}).get("max_generation", 0),
-                "motifs_credited": (ms.get("motifs", {}) or {}).get("credited", 0),
-                "_stale": False,
-            }
-    except _SYSTEM_RECOVERABLE_ERRORS as e:
-        record_degradation('system', e)
-        logger.debug("Morphogenesis status collection failed: %s", e)
+    morphogenesis_data = _collect_morphogenesis_status()
 
     # ── Terminal Fallback Status ──
     terminal_data: dict[str, Any] = {"active": False, "pending": 0, "watchdog": False}

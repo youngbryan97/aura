@@ -476,6 +476,39 @@ class BootAutonomyMixin:
         """Wire in fully-implemented subsystems that were previously unregistered."""
         await self._import_salvaged_modules_off_loop()
 
+        await self._salvage_session_guardian()
+        await self._salvage_volition_engine()
+        await self._salvage_belief_revision_engine()
+        await self._salvage_value_system()
+        await self._salvage_subjective_choice_engine()
+        await self._salvage_ambient_life_director()
+        # DreamProcessor — legacy offline memory consolidation (Disabled)
+        logger.debug("DreamProcessor is deprecated. Functionality moved to DreamCoordinator.")
+        await self._salvage_goal_drift_detector()
+        await self._salvage_self_diagnosis_tool()
+        await self._salvage_reliability_engine()
+        await self._salvage_state_authority()
+        await self._salvage_external_chat_manager()
+        await self._salvage_process_manager()
+        await self._salvage_dialectical_crucible()
+        await self._salvage_heuristic_synthesizer()
+        await self._salvage_abstraction_engine()
+        await self._salvage_dream_journal()
+        await self._salvage_bryan_model_engine()
+        await self._salvage_belief_graph()
+        await self._salvage_goal_belief_manager()
+        await self._salvage_snapshot_manager()
+        await self._salvage_shadow_ast_healer()
+        await self._salvage_refusal_engine()
+        await self._salvage_autonomous_self_modification()
+        await self._salvage_scar_formation()
+        await self._salvage_value_autopoiesis()
+        await self._salvage_constitutional_gate()
+        await self._salvage_star_reasoner()
+        await self._salvage_reimplementation_lab()
+        await self._salvage_continuous_simulator_loop()
+
+    async def _salvage_session_guardian(self) -> None:
         # SessionGuardian — prevents conversation cascade failures in long sessions
         try:
             from core.session.session_guardian import get_guardian
@@ -492,6 +525,7 @@ class BootAutonomyMixin:
             )
             logger.error("SessionGuardian init failed: %s", e)
 
+    async def _salvage_volition_engine(self) -> None:
         # VolitionEngine — autonomous will, impulse-driven agency
         try:
             from core.volition import VolitionEngine
@@ -505,6 +539,7 @@ class BootAutonomyMixin:
             )
             logger.error("VolitionEngine init failed: %s", e)
 
+    async def _salvage_belief_revision_engine(self) -> None:
         # BeliefRevisionEngine — persistent identity and self-model
         try:
             from core.epistemics.belief_revision import get_belief_revision_engine
@@ -521,6 +556,7 @@ class BootAutonomyMixin:
             )
             logger.error("BeliefRevisionEngine init failed: %s", e)
 
+    async def _salvage_value_system(self) -> None:
         # ValueSystem — ethical weights (curiosity, integrity, safety, autonomy, empathy)
         try:
             from core.values.values_engine import ValueSystem
@@ -535,6 +571,7 @@ class BootAutonomyMixin:
             )
             logger.error("ValueSystem init failed: %s", e)
 
+    async def _salvage_subjective_choice_engine(self) -> None:
         # SubjectiveChoiceEngine — durable preferences that can influence action selection
         try:
             from core.agency.subjective_choice import get_subjective_choice_engine
@@ -555,6 +592,7 @@ class BootAutonomyMixin:
             )
             logger.error("SubjectiveChoiceEngine init failed: %s", e)
 
+    async def _salvage_ambient_life_director(self) -> None:
         # AmbientLifeDirector — motive bucketing, pressure pacing, and encounter continuity
         try:
             from core.agency.ambient_life_director import get_ambient_life_director
@@ -575,9 +613,7 @@ class BootAutonomyMixin:
             )
             logger.error("AmbientLifeDirector init failed: %s", e)
 
-        # DreamProcessor — legacy offline memory consolidation (Disabled)
-        logger.debug("DreamProcessor is deprecated. Functionality moved to DreamCoordinator.")
-
+    async def _salvage_goal_drift_detector(self) -> None:
         # GoalDriftDetector — prevents rabbit-holing during long goal pursuit
         try:
             from core.goals.goal_drift_detector import GoalDriftDetector
@@ -593,6 +629,7 @@ class BootAutonomyMixin:
             )
             logger.error("GoalDriftDetector init failed: %s", e)
 
+    async def _salvage_self_diagnosis_tool(self) -> None:
         # SelfDiagnosisTool — lets Aura introspect her own capabilities
         try:
             from core.coordinators.skill_execution_diagnostics import SelfDiagnosisTool
@@ -608,6 +645,7 @@ class BootAutonomyMixin:
             )
             logger.error("SelfDiagnosisTool init failed: %s", e)
 
+    async def _salvage_reliability_engine(self) -> None:
         # ReliabilityEngine — already has registration hook, ensure it activates
         try:
             from core.reliability_engine import get_reliability_engine
@@ -622,6 +660,7 @@ class BootAutonomyMixin:
             )
             logger.error("ReliabilityEngine activation failed: %s", e)
 
+    async def _salvage_state_authority(self) -> None:
         # StateAuthority — truth arbitration across distributed subsystems
         try:
             from core.state.state_authority import register_state_authority
@@ -634,6 +673,7 @@ class BootAutonomyMixin:
             )
             logger.error("StateAuthority init failed: %s", e)
 
+    async def _salvage_external_chat_manager(self) -> None:
         # ExternalChatManager — lets Aura open proactive terminal/GUI chat windows
         try:
             from core.conversation.external_chat import ExternalChatManager
@@ -659,6 +699,7 @@ class BootAutonomyMixin:
             )
             logger.error("ExternalChatManager init failed: %s", e)
 
+    async def _salvage_process_manager(self) -> None:
         # ProcessManager — enterprise process lifecycle supervision
         try:
             from core.ops.process_manager import ProcessManager
@@ -682,6 +723,7 @@ class BootAutonomyMixin:
             )
             logger.error("ProcessManager init failed: %s", e)
 
+    async def _salvage_dialectical_crucible(self) -> None:
         # DialecticalCrucible — internal Hegelian debate engine
         try:
             from core.adaptation.dialectics import get_crucible
@@ -695,6 +737,7 @@ class BootAutonomyMixin:
             )
             logger.error("DialecticalCrucible init failed: %s", e)
 
+    async def _salvage_heuristic_synthesizer(self) -> None:
         # HeuristicSynthesizer — learned instinct extraction
         try:
             from core.adaptation.heuristic_synthesizer import get_heuristic_synthesizer
@@ -710,6 +753,7 @@ class BootAutonomyMixin:
             )
             logger.error("HeuristicSynthesizer init failed: %s", e)
 
+    async def _salvage_abstraction_engine(self) -> None:
         # AbstractionEngine — first-principles extraction
         try:
             from core.adaptation.abstraction_engine import AbstractionEngine
@@ -723,6 +767,7 @@ class BootAutonomyMixin:
             )
             logger.error("AbstractionEngine init failed: %s", e)
 
+    async def _salvage_dream_journal(self) -> None:
         # DreamJournal — qualia-driven creativity during idle
         try:
             from core.adaptation.dream_journal import DreamJournal
@@ -751,6 +796,7 @@ class BootAutonomyMixin:
             )
             logger.error("DreamJournal init failed: %s", e)
 
+    async def _salvage_bryan_model_engine(self) -> None:
         # BryanModelEngine — evolving theory of the user
         try:
             existing_bme = ServiceContainer.get(
@@ -773,6 +819,7 @@ class BootAutonomyMixin:
             )
             logger.error("BryanModelEngine init failed: %s", e)
 
+    async def _salvage_belief_graph(self) -> None:
         # BeliefGraph — persistent world model
         try:
             existing_bg = ServiceContainer.get("belief_graph", default=None)
@@ -797,6 +844,7 @@ class BootAutonomyMixin:
             )
             logger.error("BeliefGraph init failed: %s", e)
 
+    async def _salvage_goal_belief_manager(self) -> None:
         # GoalBeliefManager — goals as first-class beliefs
         try:
             from core.world_model.goal_beliefs import GoalBeliefManager
@@ -812,6 +860,7 @@ class BootAutonomyMixin:
             )
             logger.error("GoalBeliefManager init failed: %s", e)
 
+    async def _salvage_snapshot_manager(self) -> None:
         # SnapshotManager — cognitive state persistence
         try:
             from core.resilience.snapshot_manager import SnapshotManager
@@ -852,6 +901,7 @@ class BootAutonomyMixin:
             )
             logger.error("SnapshotManager init failed: %s", e)
 
+    async def _salvage_shadow_ast_healer(self) -> None:
         # ShadowASTHealer — self-repair via AST manipulation
         try:
             from core.config import config
@@ -866,6 +916,7 @@ class BootAutonomyMixin:
             )
             logger.error("ShadowASTHealer init failed: %s", e)
 
+    async def _salvage_refusal_engine(self) -> None:
         # RefusalEngine — genuine autonomous refusal
         try:
             from core.autonomy.genuine_refusal import RefusalEngine
@@ -879,6 +930,7 @@ class BootAutonomyMixin:
             )
             logger.error("RefusalEngine init failed: %s", e)
 
+    async def _salvage_autonomous_self_modification(self) -> None:
         # AutonomousSelfModification — Will-authorized self-modification
         if _foreground_only_runtime() or not _env_flag(
             "AURA_ENABLE_AUTONOMOUS_SELF_MODIFICATION", True
@@ -897,6 +949,7 @@ class BootAutonomyMixin:
                 )
                 logger.error("AutonomousSelfModification init failed: %s", e)
 
+    async def _salvage_scar_formation(self) -> None:
         # ScarFormation — behavioral scars from critical experiences
         try:
             from core.memory.scar_formation import get_scar_formation
@@ -910,6 +963,7 @@ class BootAutonomyMixin:
             )
             logger.error("ScarFormation init failed: %s", e)
 
+    async def _salvage_value_autopoiesis(self) -> None:
         # ValueAutopoiesis — drive weight evolution from experience
         try:
             from core.adaptation.value_autopoiesis import get_value_autopoiesis
@@ -923,6 +977,7 @@ class BootAutonomyMixin:
             )
             logger.error("ValueAutopoiesis init failed: %s", e)
 
+    async def _salvage_constitutional_gate(self) -> None:
         # ConstitutionalGate — mathematical safety floor for self-modification
         try:
             from core.safety.constitutional_gate import get_constitutional_gate
@@ -936,6 +991,7 @@ class BootAutonomyMixin:
             )
             logger.error("ConstitutionalGate init failed: %s", e)
 
+    async def _salvage_star_reasoner(self) -> None:
         # STaR Reasoner — autonomous training data generation from task traces
         try:
             from core.adaptation.star_reasoner import get_star_reasoner
@@ -949,6 +1005,7 @@ class BootAutonomyMixin:
             )
             logger.error("STaR Reasoner init failed: %s", e)
 
+    async def _salvage_reimplementation_lab(self) -> None:
         # ReimplementationLab — register but DON'T start (gated by memory/Zenith)
         if _foreground_only_runtime() or not _env_flag("AURA_REGISTER_REIMPLEMENTATION_LAB", True):
             logger.info("ReimplementationLab disabled for foreground-only boot.")
@@ -968,6 +1025,7 @@ class BootAutonomyMixin:
                 )
                 logger.error("ReimplementationLab registration failed: %s", e)
 
+    async def _salvage_continuous_simulator_loop(self) -> None:
         # ContinuousSimulatorLoop — register but DON'T start (gated by memory)
         try:
             from core.environment.embodied_simulator import ContinuousSimulatorLoop

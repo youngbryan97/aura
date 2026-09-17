@@ -462,6 +462,34 @@ class ComputeBudget:
         }
 
 
+def _learned_head_problems(name: str, head: Any, off_mode: str) -> list[str]:
+    """What is wrong with one learned-head declaration, by its name."""
+    if head is None:
+        return []
+    if not isinstance(head, dict):
+        return [f"{name} must be a mapping or null"]
+    problems: list[str] = []
+    mode = head.get("mode", off_mode)
+    if mode not in {off_mode, "learned"}:
+        problems.append(f"{name}.mode must be {off_mode} or learned")
+    head_path = head.get("head_path")
+    head_sha256 = head.get("head_sha256")
+    if mode == "learned" and (not isinstance(head_path, str) or not head_path.strip()):
+        problems.append(f"{name}.learned requires head_path")
+    if mode == "learned" and (
+        not isinstance(head_sha256, str)
+        or len(head_sha256) != 64
+        or any(character not in "0123456789abcdef" for character in head_sha256)
+    ):
+        problems.append(f"{name}.learned requires head_sha256")
+    if mode == off_mode and (head_path is not None or head_sha256 is not None):
+        problems.append(f"{name}.{off_mode} cannot carry a head")
+    unknown = set(head) - {"mode", "head_path", "head_sha256"}
+    if unknown:
+        problems.append(f"{name} has unknown keys: {sorted(unknown)}")
+    return problems
+
+
 @dataclass
 class CortexConfig:
     """The integrated machine's full configuration."""
@@ -998,136 +1026,16 @@ class CortexConfig:
             problems.append("telemetry_enabled must be boolean")
         if type(self.probe_cache_enabled) is not bool:
             problems.append("probe_cache_enabled must be boolean")
-        if self.halting is not None:
-            if not isinstance(self.halting, dict):
-                problems.append("halting must be a mapping or null")
-            else:
-                mode = self.halting.get("mode", "residual")
-                if mode not in {"residual", "learned"}:
-                    problems.append("halting.mode must be residual or learned")
-                head_path = self.halting.get("head_path")
-                head_sha256 = self.halting.get("head_sha256")
-                if mode == "learned" and (not isinstance(head_path, str) or not head_path.strip()):
-                    problems.append("halting.learned requires head_path")
-                if mode == "learned" and (
-                    not isinstance(head_sha256, str)
-                    or len(head_sha256) != 64
-                    or any(character not in "0123456789abcdef" for character in head_sha256)
-                ):
-                    problems.append("halting.learned requires head_sha256")
-                if mode == "residual" and (head_path is not None or head_sha256 is not None):
-                    problems.append("halting.residual cannot carry a head")
-                unknown = set(self.halting) - {
-                    "mode",
-                    "head_path",
-                    "head_sha256",
-                }
-                if unknown:
-                    problems.append(f"halting has unknown keys: {sorted(unknown)}")
-        if self.update_gate is not None:
-            if not isinstance(self.update_gate, dict):
-                problems.append("update_gate must be a mapping or null")
-            else:
-                mode = self.update_gate.get("mode", "passthrough")
-                if mode not in {"passthrough", "learned"}:
-                    problems.append("update_gate.mode must be passthrough or learned")
-                head_path = self.update_gate.get("head_path")
-                head_sha256 = self.update_gate.get("head_sha256")
-                if mode == "learned" and (not isinstance(head_path, str) or not head_path.strip()):
-                    problems.append("update_gate.learned requires head_path")
-                if mode == "learned" and (
-                    not isinstance(head_sha256, str)
-                    or len(head_sha256) != 64
-                    or any(character not in "0123456789abcdef" for character in head_sha256)
-                ):
-                    problems.append("update_gate.learned requires head_sha256")
-                if mode == "passthrough" and (head_path is not None or head_sha256 is not None):
-                    problems.append("update_gate.passthrough cannot carry a head")
-                unknown = set(self.update_gate) - {
-                    "mode",
-                    "head_path",
-                    "head_sha256",
-                }
-                if unknown:
-                    problems.append(f"update_gate has unknown keys: {sorted(unknown)}")
-        if self.uncertainty_head is not None:
-            if not isinstance(self.uncertainty_head, dict):
-                problems.append("uncertainty_head must be a mapping or null")
-            else:
-                mode = self.uncertainty_head.get("mode", "unavailable")
-                if mode not in {"unavailable", "learned"}:
-                    problems.append("uncertainty_head.mode must be unavailable or learned")
-                head_path = self.uncertainty_head.get("head_path")
-                head_sha256 = self.uncertainty_head.get("head_sha256")
-                if mode == "learned" and (not isinstance(head_path, str) or not head_path.strip()):
-                    problems.append("uncertainty_head.learned requires head_path")
-                if mode == "learned" and (
-                    not isinstance(head_sha256, str)
-                    or len(head_sha256) != 64
-                    or any(character not in "0123456789abcdef" for character in head_sha256)
-                ):
-                    problems.append("uncertainty_head.learned requires head_sha256")
-                if mode == "unavailable" and (head_path is not None or head_sha256 is not None):
-                    problems.append("uncertainty_head.unavailable cannot carry a head")
-                unknown = set(self.uncertainty_head) - {
-                    "mode",
-                    "head_path",
-                    "head_sha256",
-                }
-                if unknown:
-                    problems.append(f"uncertainty_head has unknown keys: {sorted(unknown)}")
-        if self.mistake_locator is not None:
-            if not isinstance(self.mistake_locator, dict):
-                problems.append("mistake_locator must be a mapping or null")
-            else:
-                mode = self.mistake_locator.get("mode", "unavailable")
-                if mode not in {"unavailable", "learned"}:
-                    problems.append("mistake_locator.mode must be unavailable or learned")
-                head_path = self.mistake_locator.get("head_path")
-                head_sha256 = self.mistake_locator.get("head_sha256")
-                if mode == "learned" and (not isinstance(head_path, str) or not head_path.strip()):
-                    problems.append("mistake_locator.learned requires head_path")
-                if mode == "learned" and (
-                    not isinstance(head_sha256, str)
-                    or len(head_sha256) != 64
-                    or any(character not in "0123456789abcdef" for character in head_sha256)
-                ):
-                    problems.append("mistake_locator.learned requires head_sha256")
-                if mode == "unavailable" and (head_path is not None or head_sha256 is not None):
-                    problems.append("mistake_locator.unavailable cannot carry a head")
-                unknown = set(self.mistake_locator) - {
-                    "mode",
-                    "head_path",
-                    "head_sha256",
-                }
-                if unknown:
-                    problems.append(f"mistake_locator has unknown keys: {sorted(unknown)}")
-        if self.contradiction_head is not None:
-            if not isinstance(self.contradiction_head, dict):
-                problems.append("contradiction_head must be a mapping or null")
-            else:
-                mode = self.contradiction_head.get("mode", "unavailable")
-                if mode not in {"unavailable", "learned"}:
-                    problems.append("contradiction_head.mode must be unavailable or learned")
-                head_path = self.contradiction_head.get("head_path")
-                head_sha256 = self.contradiction_head.get("head_sha256")
-                if mode == "learned" and (not isinstance(head_path, str) or not head_path.strip()):
-                    problems.append("contradiction_head.learned requires head_path")
-                if mode == "learned" and (
-                    not isinstance(head_sha256, str)
-                    or len(head_sha256) != 64
-                    or any(character not in "0123456789abcdef" for character in head_sha256)
-                ):
-                    problems.append("contradiction_head.learned requires head_sha256")
-                if mode == "unavailable" and (head_path is not None or head_sha256 is not None):
-                    problems.append("contradiction_head.unavailable cannot carry a head")
-                unknown = set(self.contradiction_head) - {
-                    "mode",
-                    "head_path",
-                    "head_sha256",
-                }
-                if unknown:
-                    problems.append(f"contradiction_head has unknown keys: {sorted(unknown)}")
+        # Five learned heads share one contract: off by default, and learned
+        # only with a head file and its digest. One check, five names.
+        for head_name, off_mode in (
+            ("halting", "residual"),
+            ("update_gate", "passthrough"),
+            ("uncertainty_head", "unavailable"),
+            ("mistake_locator", "unavailable"),
+            ("contradiction_head", "unavailable"),
+        ):
+            problems.extend(_learned_head_problems(head_name, getattr(self, head_name), off_mode))
         if self.contradiction_perturber is not None:
             if not isinstance(self.contradiction_perturber, dict):
                 problems.append("contradiction_perturber must be a mapping or null")
