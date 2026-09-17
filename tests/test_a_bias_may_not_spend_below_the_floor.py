@@ -44,10 +44,12 @@ def _code_after(anchor: str, *, lines: int) -> str:
 
 
 def _line_of(needle: str) -> int:
-    for number, line in enumerate(_GATE.read_text().splitlines(), start=1):
-        if needle in line:
-            return number
-    raise AssertionError(f"not found: {needle}")
+    """A line number in the gate AS IT RUNS: blocks the size gate moved into
+    helpers are read back at their call sites, so order here is execution
+    order (see tests/source_support.py)."""
+    from source_support import inlined_module_source, line_of
+
+    return line_of(inlined_module_source(_GATE), needle)
 
 
 def test_the_floor_is_restored_after_the_bias_runs() -> None:
@@ -131,7 +133,6 @@ def test_the_answer_floor_gets_the_last_word_at_dispatch() -> None:
     128, so the generation ended still inside that channel with no answer.
     """
 
-    body = _GATE.read_text()
     answer = _line_of("[ANSWER BUDGET] Answer turn:")
     lane = _line_of("serving_lane = self._cortex_serving_lane(")
     bias = _line_of("somatic_temperature, max_tokens, applied_bias = self._apply_runtime_sampling_biases(")

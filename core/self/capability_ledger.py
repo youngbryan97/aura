@@ -58,6 +58,8 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.self.denial_scope import complement_names_something_else, denied_bounds
+
 logger = logging.getLogger("Aura.Self.CapabilityLedger")
 
 _PROBE_ERRORS = (
@@ -133,6 +135,10 @@ class LiveCapability:
     # Domain-specific loss predicates are not universal denials. Each owner
     # declares the failure language that its own measurement can contradict.
     failure_frame: re.Pattern[str] | None = None
+    # What the instrument reads, for a capability that reads a fixed set of
+    # things. "I have no sensor for daylight" is not a denial of
+    # interoception; "I have no sensors" is.
+    reads: tuple[str, ...] | None = None
 
     def measure(self) -> Availability:
         try:
@@ -229,6 +235,18 @@ def _without_quoted_speech(sentence: str) -> str:
     return _QUOTED_SPEECH.sub(lambda m: " " * len(m.group(0)), sentence)
 
 
+def _points_elsewhere(scope: str, capability: LiveCapability) -> bool:
+    """True when the denied instrument is pointed at something it does not read."""
+    terms = tuple(capability.subjects) + tuple(capability.denial_subjects or ())
+    for term in terms:
+        match = re.search(rf"\b{re.escape(term)}\b", scope, re.IGNORECASE)
+        if match:
+            return complement_names_something_else(
+                scope[match.end():], tuple(capability.reads or ()) + terms
+            )
+    return False
+
+
 def _negates_directly(sentence: str, subjects: tuple[str, ...]) -> bool:
     """True when the sentence negates one of ``subjects`` as a bare noun phrase.
 
@@ -320,24 +338,40 @@ class CapabilityLedger:
             # keyed on the sentence as written so the reply is edited exactly.
             sentence = _without_quoted_speech(spoken)
             denial = _DENIAL_FRAME.search(sentence)
+            # A denial is about the clause it sits in. LIVE 2026-09-16: "I
+            # can't measure the sun from here, so I'll work it out from the
+            # geometry of the world" denied nothing about reaching the world.
+            start, end = denied_bounds(sentence, denial) if denial else (0, len(sentence))
+            scope = sentence[start:end]
             self_denial = bool(
                 denial and denial.start() == 0
                 and denial.group().lower().startswith("i ")
             )
+            named = list(self.capabilities_named_in(scope))
             for capability in self.capabilities_named_in(sentence):
+                # a loss predicate ("would not persist") is its own frame and
+                # may sit in a later clause
+                if capability not in named and bool(
+                    capability.failure_frame and capability.failure_frame.search(sentence)
+                ):
+                    named.append(capability)
+            predicate = sentence[denial.end():end] if denial else ""
+            for capability in named:
                 framed = denial is not None or bool(
                     capability.failure_frame
                     and capability.failure_frame.search(sentence)
                 )
                 referents = capability.denial_subjects
                 direct_self_predicate = self_denial and any(
-                    re.match(rf"\s*{re.escape(term)}\b", sentence[denial.end():], re.IGNORECASE)
+                    re.match(rf"\s*{re.escape(term)}\b", predicate, re.IGNORECASE)
                     for term in capability.subjects
                 )
                 if referents is not None and not direct_self_predicate and not any(
-                    _names_as_the_subject(sentence.lower(), term)
+                    _names_as_the_subject(scope.lower(), term)
                     for term in referents
                 ):
+                    continue
+                if capability.reads is not None and _points_elsewhere(scope, capability):
                     continue
                 # Bare noun-phrase negation, with no pronoun and no verb.
                 # Asked "do you have a camera? and can you run code?" the whole
@@ -353,7 +387,7 @@ class CapabilityLedger:
                 )
                 if not framed and not bare:
                     continue
-                denies_possession = bare or bool(_POSSESSION_FRAME.search(sentence))
+                denies_possession = bare or bool(_POSSESSION_FRAME.search(scope))
                 availability = capability.measure()
                 if not availability.known:
                     # Not measured is not measured. Saying nothing here is the
@@ -1189,6 +1223,7 @@ def _default_ledger() -> CapabilityLedger:
             "interoception",
             ("vitals", "energy", "focus", "body", "sensor", "sensors", "telemetry"),
             _probe_interoception,
+            reads=("energy", "focus", "vitals", "telemetry", "body", "state", "internal", "mood", "load"),
         )
     )
     return ledger

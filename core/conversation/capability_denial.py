@@ -25,6 +25,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from core.self.denial_scope import denied_span
+
 __all__ = [
     "CapabilityDenial",
     "denied_registered_capabilities",
@@ -62,22 +64,31 @@ _EPISTEMIC_SCOPE_RE = re.compile(
 )
 
 
-def _contains_operational_denial(sentence: str) -> bool:
-    """Distinguish inability from uncertainty about an outcome.
+def _denied_clauses(sentence: str) -> list[str]:
+    """The clauses of ``sentence`` that deny an ability, each from its denial to its end.
 
     ``I cannot guarantee perfect recall`` limits fidelity; it does not deny the
     memory capability. The prior detector matched only ``I cannot`` and then
     used ``recall`` elsewhere in the sentence as the subject, causing a truthful
     caveat to be replaced with a claim that the capability never fails. A later
     explicit denial in the same sentence still counts.
+
+    Only the denied clause is read for its subject. LIVE 2026-09-16: "I'd
+    rather flag that than repeat a number I can't verify", in a sentence that
+    also said "largest file", became a status line about the filesystem.
     """
 
+    clauses: list[str] = []
     for match in _DENIAL_RE.finditer(sentence):
         suffix = sentence[match.end() :].lstrip()
         if _EPISTEMIC_SCOPE_RE.match(suffix):
             continue
-        return True
-    return False
+        clauses.append(denied_span(sentence, match))
+    return clauses
+
+
+def _contains_operational_denial(sentence: str) -> bool:
+    return bool(_denied_clauses(sentence))
 
 #: Subject → the concrete thing being denied. Each maps to whichever registered
 #: skills could actually do it; the mapping is by capability, not by name, so a
@@ -163,6 +174,9 @@ class CapabilityDenial:
     subject: str
     sentence: str
     skills: tuple[str, ...]
+    #: The subject is a skill's own name, not a verb phrase. "I can web
+    #: interlocutor" was served live (2026-09-16); a name is not a predicate.
+    named_skill: bool = False
 
 
 def _enabled_skill_names(engine: Any) -> set[str]:
@@ -200,11 +214,12 @@ def denied_registered_capabilities(
 
     found: list[CapabilityDenial] = []
     for sentence in re.split(r"(?<=[.!?])\s+|\n+", text):
-        if not _contains_operational_denial(sentence):
+        denied = " ".join(_denied_clauses(sentence))
+        if not denied:
             continue
         claimed = False
         for pattern, subject, skills in _DENIAL_SUBJECTS:
-            if not pattern.search(sentence):
+            if not pattern.search(denied):
                 continue
             present = tuple(sorted(s for s in skills if s in available))
             if present:
@@ -223,7 +238,7 @@ def denied_registered_capabilities(
         # itself; a denial that names one of them is a denial of a real
         # capability, and a skill added tomorrow is covered by the same
         # mechanism with nothing to re-wire here.
-        for mention in _registry_mentions(sentence, engine):
+        for mention in _registry_mentions(denied, engine):
             if mention.skill not in available:
                 continue
             found.append(
@@ -231,6 +246,7 @@ def denied_registered_capabilities(
                     subject=mention.skill.replace("_", " "),
                     sentence=sentence.strip(),
                     skills=(mention.skill,),
+                    named_skill=True,
                 )
             )
             break

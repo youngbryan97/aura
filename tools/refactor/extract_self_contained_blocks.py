@@ -174,7 +174,7 @@ class _Events:
                 for d in node.args.defaults + node.args.kw_defaults:
                     if d is not None: self.visit(d)
                 inner = _Events(); inner.visit(node.body)
-                own = {a.arg for a in node.args.args + node.args.kwonlyargs + node.args.posonlyargs}
+                own = _own_parameters(node.args)
                 for kind, name in inner.events:
                     if kind == "load" and name not in own: self.load(name)
                 return
@@ -186,7 +186,7 @@ class _Events:
             for st in node.body: inner.visit(st)
             own = set()
             if hasattr(node, "args"):
-                own = {a.arg for a in node.args.args + node.args.kwonlyargs + node.args.posonlyargs}
+                own = _own_parameters(node.args)
             bound = set(own)
             for kind, name in inner.events:
                 if kind == "load" and name not in bound: self.load(name)
@@ -224,6 +224,14 @@ def stores(st):
     return out
 
 
+def _own_parameters(args):
+    out = {a.arg for a in args.args + args.kwonlyargs + args.posonlyargs}
+    for extra in (args.vararg, args.kwarg):
+        if extra is not None:
+            out.add(extra.arg)
+    return out
+
+
 def free_reads(st):
     """Names read in ``st`` that no binding on the same path in ``st`` precedes.
 
@@ -250,11 +258,30 @@ def direct_stores(st):
     return set()
 
 
+ALLOW_RETURNS = False  # second mode: a block may leave through `return`, never yield/break/continue
+
+
+def returns_inside(st):
+    """Whether ``st`` holds a return (outside nested defs)."""
+    def walk(node):
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+                continue
+            if isinstance(child, ast.Return):
+                return True
+            if walk(child):
+                return True
+        return False
+    return isinstance(st, ast.Return) or walk(st)
+
+
 def escapes(st):
     if isinstance(st, (ast.Break, ast.Continue)):
         return True
     for n in ast.walk(st):
-        if isinstance(n, ESCAPES):
+        if isinstance(n, (ast.Yield, ast.YieldFrom)):
+            return True
+        if isinstance(n, ast.Return) and not ALLOW_RETURNS:
             return True
     def walk(node, depth):
         for child in ast.iter_child_nodes(node):
@@ -286,15 +313,23 @@ def defines_nested(st):
 def statement_lists(fn):
     """Every statement list inside fn, with the statements' nesting parents."""
     out = []
-    def visit(stmts):
-        out.append(stmts)
+    def visit(stmts, extractable=True):
+        if extractable:
+            out.append(stmts)
         for st in stmts:
             for field in ("body", "orelse", "finalbody"):
                 sub = getattr(st, field, None)
                 if isinstance(sub, list) and sub and isinstance(sub[0], ast.stmt):
                     if isinstance(st, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                         continue
-                    visit(sub)
+                    # an `elif` chain: the orelse holds one If whose source
+                    # text begins with `elif`, which cannot stand alone
+                    chained = (
+                        field == "orelse" and isinstance(st, ast.If)
+                        and len(sub) == 1 and isinstance(sub[0], ast.If)
+                        and sub[0].col_offset == st.col_offset
+                    )
+                    visit(sub, extractable=not chained)
             for h in getattr(st, "handlers", []) or []:
                 visit(h.body)
             for case in getattr(st, "cases", []) or []:
@@ -339,7 +374,7 @@ def analyse(src, target):
     captured = set()
     for n in ast.walk(fn):
         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)) and n is not fn:
-            captured |= names(n, ast.Load)
+            captured |= free_reads(n)  # its own parameters and locals are not ours
     # loops: a name stored anywhere in a loop body is bound for a block inside it
     loop_bodies = []
     for n in ast.walk(fn):
@@ -442,6 +477,9 @@ def analyse(src, target):
                     continue  # the original may raise there; do not move it
                 params = {v for v in params if v in before_stores or v in loop_bound}
                 returns = {v for v in bstores if v in after_loads or v in captured or v in loop_carried}
+                block_returns = any(returns_inside(st) for st in block)
+                if block_returns and returns:
+                    continue
                 # a block followed by a return leaves nothing for the code
                 # after it but what the return reads and what a closure holds
                 # (a raise may be caught in this function; a break continues
@@ -480,7 +518,7 @@ def analyse(src, target):
                     continue
                 candidates.append(dict(lines=lines, start=start_line, end=end_line, params=sorted(params),
                                        returns=sorted(returns), awaits=any(fact(st)[3] for st in block),
-                                       first=block[0]))
+                                       first=block[0], leaves=block_returns))
     # a name bound by a function-local import (and by nothing else) is
     # re-imported in the helper rather than passed: the same lookup at the
     # same time, and no class or constant travels as an argument
@@ -582,10 +620,11 @@ def apply(path: Path, target: str, dry=False):
     is_method = bool(fn.args.args) and fn.args.args[0].arg in ("self", "cls")
     self_name = fn.args.args[0].arg if is_method else None
     fn_indent = " " * fn.col_offset
-    body_indent = fn_indent + "    "
+    body_indent = "    "  # helpers live at module level
     helpers = []
     edits = []  # (start_idx, end_idx, replacement_lines)
     used = set()
+    needs_sentinel = False
     for k, c in enumerate(chosen, start=1):
         name = slug_for(lines, c, fn.name, k)
         while name in used or name in src:
@@ -606,46 +645,60 @@ def apply(path: Path, target: str, dry=False):
                 return l[shift:] if l.startswith(" " * shift) else l
             return " " * (-shift) + l
         body = [f"{body_indent}{line}\n" for line in c.get("reimport", [])] + [reindent(l) for l in lead + block_lines]
+        # Helpers are module-level functions, never methods: a class that
+        # gains a method per extraction trips the module-size ratchet's
+        # per-class method ceiling, and the helper needs nothing from the
+        # class but the instance it is handed.
         uses_self = self_name in c["params"]
         params = [p for p in c["params"] if p != self_name]
-        in_class = cls is not None
         sig_parts = ([self_name] if (is_method and uses_self) else []) + params
         sig = ", ".join(sig_parts)
         ret = c["returns"]
-        ret_line = f"{body_indent}return {', '.join(ret)}\n" if ret else ""
+        leaves = c.get("leaves", False)
+        if leaves:
+            ret_line = f"{body_indent}return _FALL_THROUGH\n"
+        else:
+            ret_line = f"{body_indent}return {', '.join(ret)}\n" if ret else ""
         kw = "async def" if c["awaits"] else "def"
-        is_classmethod = self_name == "cls" or any(
-            getattr(d, "id", getattr(d, "attr", "")) == "classmethod" for d in fn.decorator_list
-        )
-        if in_class and not uses_self:
-            decorator = f"{fn_indent}@staticmethod\n"
-        elif in_class and is_classmethod:
-            decorator = f"{fn_indent}@classmethod\n"
-        else:
-            decorator = ""
-        helper = decorator + f"{fn_indent}{kw} {name}({sig}):\n" + "".join(body) + ret_line + "\n"
+        helper = f"{kw} {name}({sig}):\n" + "".join(body) + ret_line + "\n"
         helpers.append(helper)
-        if in_class:
-            owner = self_name if is_method else cls.name
-            call_target = f"{owner}.{name}"
-        else:
-            call_target = name
-        call = f"{call_target}({', '.join(params)})"
+        call_args = ([self_name] if (is_method and uses_self) else []) + params
+        call = f"{name}({', '.join(call_args)})"
         if c["awaits"]:
             call = f"await {call}"
-        lhs = (", ".join(ret) + " = ") if ret else ""
-        call_line = " " * block_indent + lhs + call + "\n"
-        edits.append((j + 1, c["end"], [call_line]))
+        pad = " " * block_indent
+        if leaves:
+            needs_sentinel = True
+            left = "_left"
+            while left in src:
+                left += "_"
+            call_lines = [
+                f"{pad}{left} = {call}\n",
+                f"{pad}if {left} is not _FALL_THROUGH:\n",
+                f"{pad}    return {left}\n",
+            ]
+        else:
+            lhs = (", ".join(ret) + " = ") if ret else ""
+            call_lines = [pad + lhs + call + "\n"]
+        edits.append((j + 1, c["end"], call_lines))
     # apply edits bottom-up
     for start_idx, end_idx, repl in sorted(edits, key=lambda e: -e[0]):
         lines[start_idx:end_idx] = repl
-    # insert helpers before the function (same indentation level)
-    fn_start = fn.lineno - 1
-    # decorators
-    if fn.decorator_list:
-        fn_start = fn.decorator_list[0].lineno - 1
+    # insert helpers at module level, before the enclosing class or function
+    owner = cls if cls is not None else fn
+    fn_start = owner.lineno - 1
+    if owner.decorator_list:
+        fn_start = owner.decorator_list[0].lineno - 1
     lines[fn_start:fn_start] = ["".join(helpers)]
     out = "".join(lines)
+    if needs_sentinel and "_FALL_THROUGH = object()" not in out:
+        # after the module's imports: before the first top-level def/class
+        tree2 = ast.parse(out)
+        first = next((n for n in tree2.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))), None)
+        at = (first.decorator_list[0].lineno if first is not None and first.decorator_list else (first.lineno if first is not None else len(lines) + 1)) - 1
+        lines2 = out.splitlines(keepends=True)
+        lines2[at:at] = ["#: What an extracted block returns when it fell through to the code after it.\n_FALL_THROUGH = object()\n\n\n"]
+        out = "".join(lines2)
     ast.parse(out)  # must parse
     reimported = set()
     for c in chosen:
@@ -700,7 +753,9 @@ def _prune_unused_local_imports(src: str, target: str, candidates: set[str]) -> 
 
 if __name__ == "__main__":
     dry = "--dry" in sys.argv
-    specs = [a for a in sys.argv[1:] if a != "--dry"]
+    if "--returns" in sys.argv:
+        ALLOW_RETURNS = True
+    specs = [a for a in sys.argv[1:] if a not in ("--dry", "--returns")]
     for spec in specs:
         path, target = spec.split("::")
         src = Path(path).read_text()

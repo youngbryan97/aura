@@ -8,6 +8,7 @@ from collections import deque
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.progress_bound import await_while_the_task_moves
 
 try:
     from core.morality.master_moral_integration import integrate_complete_moral_and_sensory_systems
@@ -615,10 +616,7 @@ class OrchestratorBootMixin(
                         get_standing_authority_manager,
                     )
 
-                    await asyncio.wait_for(
-                        get_standing_authority_manager().initialize(),
-                        timeout=10.0,
-                    )
+                    await await_while_the_task_moves(get_standing_authority_manager().initialize(), stall_s=10.0, name='_async_init_subsystems:get_standing_authority_manager().initialize()')
                     logger.info("✓ [BOOT] Standing authority loaded with durable budgets and revocations.")
                 except (OSError, RuntimeError, TimeoutError, TypeError, ValueError) as authority_exc:
                     _record_boot_degradation(
@@ -1004,7 +1002,7 @@ class OrchestratorBootMixin(
 
                     self.cognitive_loop = CognitiveLoop(self)
                     try:
-                        await asyncio.wait_for(self.cognitive_loop.start(), timeout=10.0)
+                        await await_while_the_task_moves(self.cognitive_loop.start(), stall_s=10.0, name='_async_init_subsystems:self.cognitive_loop.start()')
                         logger.info("🧠 Cognitive Loop started.")
                     except TimeoutError:
                         logger.error("🛑 Cognitive Loop boot TIMEOUT.")
@@ -1029,7 +1027,7 @@ class OrchestratorBootMixin(
                     tick = getattr(self, "mind_tick", None)
                     if tick and hasattr(tick, "start"):
                         try:
-                            await asyncio.wait_for(tick.start(), timeout=10.0)
+                            await await_while_the_task_moves(tick.start(), stall_s=10.0, name='_async_init_subsystems:tick.start()')
                             logger.info("💓 MindTick: Unified cognitive rhythm online.")
                         except TimeoutError:
                             logger.error("🛑 MindTick boot TIMEOUT.")
@@ -1055,7 +1053,7 @@ class OrchestratorBootMixin(
                 gov = self.memory_governor
                 if gov:
                     try:
-                        await asyncio.wait_for(gov.start(), timeout=10.0)
+                        await await_while_the_task_moves(gov.start(), stall_s=10.0, name='_async_init_subsystems:gov.start()')
                         logger.info("🛡️ Memory Governor started.")
                     except TimeoutError:
                         logger.error("🛑 Memory Governor TIMEOUT.")
@@ -1255,7 +1253,7 @@ class OrchestratorBootMixin(
                     if delegator and hasattr(delegator, "start"):
                         start_result = delegator.start()
                         if asyncio.iscoroutine(start_result):
-                            await asyncio.wait_for(start_result, timeout=15.0)
+                            await await_while_the_task_moves(start_result, stall_s=15.0, name='_async_init_subsystems:start_result')
                         self.agent_delegator = delegator
                 except asyncio.CancelledError:
                     raise
@@ -1281,7 +1279,7 @@ class OrchestratorBootMixin(
                     from core.scheduler import scheduler
 
                     ServiceContainer.register_instance("scheduler", scheduler, required=False)
-                    await asyncio.wait_for(scheduler.start(), timeout=5.0)
+                    await await_while_the_task_moves(scheduler.start(), stall_s=5.0, name='_async_init_subsystems:scheduler.start()')
                     if not scheduler.is_alive():
                         raise RuntimeError("scheduler start returned without live main loop")
                     logger.info("✓ Scheduler heartbeat active before health contract.")

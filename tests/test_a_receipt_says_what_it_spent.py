@@ -26,7 +26,11 @@ def _executor():
     runner = FluidExecutor()
 
     async def always(predicate, args):
-        return True, "verified"
+        # `_verify` answers with a VerificationResult; the loop reads
+        # `.infrastructure_failed` off it before it reads `.success`.
+        from core.skills.fluid_executor import VerificationResult
+
+        return VerificationResult(predicate, args, True, evidence="verified")
 
     async def approved(step):
         return True, ""

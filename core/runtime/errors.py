@@ -45,6 +45,10 @@ logger = logging.getLogger("Aura.Errors")
 Severity = Literal["debug", "warning", "degraded", "critical"]
 
 
+#: What an extracted block returns when it fell through to the code after it.
+_FALL_THROUGH = object()
+
+
 class FallbackClassification(StrEnum):
     SAFE_FALLBACK = "SAFE_FALLBACK"
     SILENT_LOSS_OF_CAPABILITY = "SILENT_LOSS_OF_CAPABILITY"
@@ -485,7 +489,7 @@ def get_escalation_governor() -> _EscalationGovernor:
 _ESCALATION_MARKER = "CRITICAL SERVICE FAILURE:"
 
 
-def _record_degradation_admission_backpressure_decision(_is_timeout, _shutting_down, action, enforce_failure_policy, error, extra, receipt_required, severity, subsystem):
+def _record_degradation_admission_backpressure_decision_admission_backpressure_decision(_is_timeout, _shutting_down, action, enforce_failure_policy, error, extra, receipt_required, severity, subsystem):
     # ── Admission backpressure is a DECISION, not a fault ─────────────
     # Warmup backoff, model-load admission refusal, spawn-gate contention and
     # crash-loop backoff are the runtime deliberately declining to start a
@@ -886,6 +890,12 @@ def _record_degradation_admission_backpressure_decision(_is_timeout, _shutting_d
     if failure_policy_violation and enforce_failure_policy:
         raise RuntimeError(failure_policy_error)
     return record
+    return _FALL_THROUGH
+
+def _record_degradation_admission_backpressure_decision(_is_timeout, _shutting_down, action, enforce_failure_policy, error, extra, receipt_required, severity, subsystem):
+    _left = _record_degradation_admission_backpressure_decision_admission_backpressure_decision(_is_timeout, _shutting_down, action, enforce_failure_policy, error, extra, receipt_required, severity, subsystem)
+    if _left is not _FALL_THROUGH:
+        return _left
 
 def _record_degradation_skip_during_shutdown(action, classification, enforce_failure_policy, error, extra, receipt_required, severity, subsystem):
     import asyncio as _asyncio

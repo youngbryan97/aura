@@ -54,6 +54,10 @@ from core.phases.response_contract import ResponseContract
 from core.runtime.desktop_boot_safety import desktop_resource_guard_enabled
 from core.runtime.errors import record_degradation
 from core.runtime.network_gateway import get_network_gateway
+from core.runtime.progress_bound import (
+    await_while_the_task_moves,
+    run_on_a_thread_while_it_works,
+)
 from core.runtime.proof_policy import (
     is_proof_evaluation_purpose,
     is_strict_proof_answer_prompt,
@@ -77,6 +81,7 @@ logger = logging.getLogger("Brain.HealthRouter")
 # a truthful saturation failure — stacking is the one outcome that can
 # never happen again.
 import threading as _threading  # noqa: E402 - gate lives with its rationale block
+
 from core.runtime.task_ownership import create_owned_asyncio_task
 
 
@@ -4116,11 +4121,13 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
         if not callable(checker):
             return None
         try:
-            availability = await asyncio.wait_for(
-                asyncio.to_thread(checker), timeout=5.0
+            availability = await run_on_a_thread_while_it_works(
+                checker, stall_s=5.0, name="llm_health.is_available"
             )
             if inspect.isawaitable(availability):
-                availability = await asyncio.wait_for(availability, timeout=5.0)
+                availability = await await_while_the_task_moves(
+                    availability, stall_s=5.0, name="llm_health.is_available"
+                )
             return bool(availability)
         except TimeoutError:
             # Not a failure: an availability probe that does not answer inside its bound is unavailable, which is what the bound is for.

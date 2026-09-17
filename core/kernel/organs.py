@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
 import os
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.progress_bound import (
+    await_while_the_task_moves,
+    run_on_a_thread_while_it_works,
+)
 
 if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
@@ -219,8 +224,12 @@ class OrganStub:
                 from core.senses.neural_bridge import NeuralBridge
                 return NeuralBridge(lightweight_mode=safe_boot)
 
-            instance = await asyncio.wait_for(asyncio.to_thread(_build), timeout=1.5)
-            await asyncio.wait_for(instance.load(), timeout=2.5 if safe_boot else 4.0)
+            instance = await run_on_a_thread_while_it_works(
+                _build, stall_s=1.5, name="organs.neural_bridge.build"
+            )
+            await await_while_the_task_moves(
+                instance.load(), stall_s=2.5 if safe_boot else 4.0, name="organs.neural_bridge.load"
+            )
             return instance
         except _ORGAN_RECOVERABLE_ERRORS as e:
             _record_organ_degradation(
@@ -234,9 +243,10 @@ class OrganStub:
     async def _resolve_voice(self) -> Any:
         if ServiceContainer:
             try:
-                instance = await asyncio.wait_for(
-                    asyncio.to_thread(ServiceContainer.get, "voice_engine", default=None),
-                    timeout=2.0,
+                instance = await run_on_a_thread_while_it_works(
+                    functools.partial(ServiceContainer.get, "voice_engine", default=None),
+                    stall_s=2.0,
+                    name="organs.voice_engine",
                 )
                 if instance:
                     return instance

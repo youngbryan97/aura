@@ -43,6 +43,117 @@ from .mlx_worker import (
 )
 
 
+#: What an extracted block returns when it fell through to the code after it.
+_FALL_THROUGH = object()
+
+
+def _latent_reason_async_part_1(base, budget, config, foreground_request, messages, prompt, response_contract, runtime_controls):
+    from .mlx_client import _latent_request_schema_error
+    if not (isinstance(prompt, str) and prompt.strip()) and not (
+        isinstance(messages, list) and messages
+    ):
+        return {**base, "reason": "empty_prompt"}
+    # CP126 a09d6218. Everything below this point copies, serialises and
+    # HASHES these structures — before worker readiness and before memory
+    # admission. So an oversized or malformed payload spent real parent
+    # CPU and memory on an episode that could never run, and "messages is
+    # a non-empty list" was the only thing ever checked about a list whose
+    # items reach the worker.
+    schema_error = _latent_request_schema_error(prompt=prompt, messages=messages)
+    if schema_error:
+        return {**base, "reason": schema_error}
+    if type(foreground_request) is not bool:
+        return {**base, "reason": "invalid_foreground_request"}
+    if config is not None and not isinstance(config, dict):
+        return {**base, "reason": "invalid_config"}
+    if budget is not None and not isinstance(budget, dict):
+        return {**base, "reason": "invalid_budget"}
+    if runtime_controls is not None and not isinstance(runtime_controls, dict):
+        return {**base, "reason": "invalid_runtime_controls"}
+    if response_contract is not None:
+        if not isinstance(response_contract, str) or not response_contract.strip():
+            return {**base, "reason": "invalid_response_contract"}
+        try:
+            from core.brain.llm.latent_cortex.response_contracts import (
+                parse_response_contract,
+            )
+
+            parse_response_contract(response_contract)
+        except ValueError:
+            return {**base, "reason": "invalid_response_contract"}
+    return _FALL_THROUGH
+
+def _latent_reason_async_cp126_d78cbfa4_status(self, action_capture_receipt, action_restore_receipt, base, expected_request_sha256, receipt, req_id, res):
+    from .mlx_client import _record_mlx_degradation
+    # CP126 d78cbfa4: a status=ok response used to be coerced with
+    # str(value or "") — a missing, empty, list, or mapping answer
+    # became ok=true with empty or stringified-container text and
+    # bypassed fallback entirely. An episode is successful only
+    # when it produced an actual nonempty STRING answer.
+    answer = res.get("text")
+    if not isinstance(answer, str) or not answer.strip():
+        _record_mlx_degradation(
+            TypeError(
+                "latent_answer_invalid:"
+                f"{type(answer).__name__}:{len(answer) if isinstance(answer, str) else 'n/a'}"
+            ),
+            action="refused latent success for a missing, empty, or non-string answer",
+            severity="degraded",
+        )
+        return {
+            **base,
+            "receipt": receipt,
+            "progress": dict(self._latent_progress_by_request.get(req_id) or {}),
+            "reason": "latent_answer_invalid",
+        }
+    # LIVE DEFECT, 2026-08-03. The worker returns the decoded
+    # answer token ids alongside the text (LatentReasonResult.
+    # to_dict -> "tokens"), and this payload dropped them. The
+    # facade then called _receipt_contract_errors with
+    # result.get("tokens") == None, and ALL THREE proofs that bind
+    # a receipt to the answer require a token list:
+    # terminal_disposition, answer_replacement, and
+    # fast_weight_learning each raise without it. So every
+    # foreground turn failed with
+    #   receipt_contract_failed:terminal_disposition_unproven,
+    #   answer_replacement_unproven,fast_weight_learning_receipt_unproven
+    # and fell back to an ordinary generation. The recurrent lane
+    # was inert on the live path — not declining for a reason, but
+    # unable to prove anything about an answer whose tokens it was
+    # never handed.
+    answer_tokens = res.get("tokens")
+    self._mark_progress()
+    return {
+        "ok": True,
+        "text": answer,
+        "tokens": (
+            list(answer_tokens)
+            if isinstance(answer_tokens, list)
+            else None
+        ),
+        "receipt": receipt,
+        # CP126 f22c4ed8: the facade cannot recompute this digest
+        # — it would have to duplicate the wire normalization
+        # above and would drift. Publishing the digest THIS client
+        # bound the request to lets the facade confirm the binding
+        # happened instead of shape-checking the receipt's own
+        # claim about itself.
+        "request_payload_sha256_bound": expected_request_sha256,
+        # The service consumes this evidence before publishing its result.
+        "answer_replacement_private": res.get("answer_replacement_private"),
+        **(
+            {
+                "action_state_capture_receipt": action_capture_receipt,
+                "action_state_restore_receipt": action_restore_receipt,
+            }
+            if action_capture_receipt is not None
+            else {}
+        ),
+        "progress": dict(self._latent_progress_by_request.get(req_id) or {}),
+        "reason": str(res.get("reason") or ""),
+    }
+    return _FALL_THROUGH
+
 class _ReasonsInLatentSpace:
     """Lifted whole from MLXLocalClient; see mlx_client.py."""
 
@@ -610,43 +721,14 @@ class _ReasonsInLatentSpace:
         never spawns a worker just to think — no resident model, no episode.
         Returns ``{"ok": bool, "text": str, "receipt": {...}, "reason": str}``.
         """
-        from .mlx_client import _AURA_SOURCE_ROOT, _SEAM_FELL_THROUGH, _apply_the_wire_action_intervention, _await_shared_future, _foreground_owner_context, _is_internal_inference, _latent_request_schema_error, _record_mlx_degradation, _remaining_budget
+        from .mlx_client import _AURA_SOURCE_ROOT, _SEAM_FELL_THROUGH, _apply_the_wire_action_intervention, _await_shared_future, _foreground_owner_context, _is_internal_inference, _record_mlx_degradation, _remaining_budget
 
         base = {"ok": False, "text": "", "receipt": {}}
         if self._closed:
             return {**base, "reason": "client_closed"}
-        if not (isinstance(prompt, str) and prompt.strip()) and not (
-            isinstance(messages, list) and messages
-        ):
-            return {**base, "reason": "empty_prompt"}
-        # CP126 a09d6218. Everything below this point copies, serialises and
-        # HASHES these structures — before worker readiness and before memory
-        # admission. So an oversized or malformed payload spent real parent
-        # CPU and memory on an episode that could never run, and "messages is
-        # a non-empty list" was the only thing ever checked about a list whose
-        # items reach the worker.
-        schema_error = _latent_request_schema_error(prompt=prompt, messages=messages)
-        if schema_error:
-            return {**base, "reason": schema_error}
-        if type(foreground_request) is not bool:
-            return {**base, "reason": "invalid_foreground_request"}
-        if config is not None and not isinstance(config, dict):
-            return {**base, "reason": "invalid_config"}
-        if budget is not None and not isinstance(budget, dict):
-            return {**base, "reason": "invalid_budget"}
-        if runtime_controls is not None and not isinstance(runtime_controls, dict):
-            return {**base, "reason": "invalid_runtime_controls"}
-        if response_contract is not None:
-            if not isinstance(response_contract, str) or not response_contract.strip():
-                return {**base, "reason": "invalid_response_contract"}
-            try:
-                from core.brain.llm.latent_cortex.response_contracts import (
-                    parse_response_contract,
-                )
-
-                parse_response_contract(response_contract)
-            except ValueError:
-                return {**base, "reason": "invalid_response_contract"}
+        _left = _latent_reason_async_part_1(base, budget, config, foreground_request, messages, prompt, response_contract, runtime_controls)
+        if _left is not _FALL_THROUGH:
+            return _left
         wire_cognitive_context: list[dict[str, Any]] | None = None
         try:
             from core.brain.llm.latent_cortex.cognitive_context import (
@@ -1214,73 +1296,9 @@ class _ReasonsInLatentSpace:
                             ),
                             "reason": "action_state_captured",
                         }
-                # CP126 d78cbfa4: a status=ok response used to be coerced with
-                # str(value or "") — a missing, empty, list, or mapping answer
-                # became ok=true with empty or stringified-container text and
-                # bypassed fallback entirely. An episode is successful only
-                # when it produced an actual nonempty STRING answer.
-                answer = res.get("text")
-                if not isinstance(answer, str) or not answer.strip():
-                    _record_mlx_degradation(
-                        TypeError(
-                            "latent_answer_invalid:"
-                            f"{type(answer).__name__}:{len(answer) if isinstance(answer, str) else 'n/a'}"
-                        ),
-                        action="refused latent success for a missing, empty, or non-string answer",
-                        severity="degraded",
-                    )
-                    return {
-                        **base,
-                        "receipt": receipt,
-                        "progress": dict(self._latent_progress_by_request.get(req_id) or {}),
-                        "reason": "latent_answer_invalid",
-                    }
-                # LIVE DEFECT, 2026-08-03. The worker returns the decoded
-                # answer token ids alongside the text (LatentReasonResult.
-                # to_dict -> "tokens"), and this payload dropped them. The
-                # facade then called _receipt_contract_errors with
-                # result.get("tokens") == None, and ALL THREE proofs that bind
-                # a receipt to the answer require a token list:
-                # terminal_disposition, answer_replacement, and
-                # fast_weight_learning each raise without it. So every
-                # foreground turn failed with
-                #   receipt_contract_failed:terminal_disposition_unproven,
-                #   answer_replacement_unproven,fast_weight_learning_receipt_unproven
-                # and fell back to an ordinary generation. The recurrent lane
-                # was inert on the live path — not declining for a reason, but
-                # unable to prove anything about an answer whose tokens it was
-                # never handed.
-                answer_tokens = res.get("tokens")
-                self._mark_progress()
-                return {
-                    "ok": True,
-                    "text": answer,
-                    "tokens": (
-                        list(answer_tokens)
-                        if isinstance(answer_tokens, list)
-                        else None
-                    ),
-                    "receipt": receipt,
-                    # CP126 f22c4ed8: the facade cannot recompute this digest
-                    # — it would have to duplicate the wire normalization
-                    # above and would drift. Publishing the digest THIS client
-                    # bound the request to lets the facade confirm the binding
-                    # happened instead of shape-checking the receipt's own
-                    # claim about itself.
-                    "request_payload_sha256_bound": expected_request_sha256,
-                    # The service consumes this evidence before publishing its result.
-                    "answer_replacement_private": res.get("answer_replacement_private"),
-                    **(
-                        {
-                            "action_state_capture_receipt": action_capture_receipt,
-                            "action_state_restore_receipt": action_restore_receipt,
-                        }
-                        if action_capture_receipt is not None
-                        else {}
-                    ),
-                    "progress": dict(self._latent_progress_by_request.get(req_id) or {}),
-                    "reason": str(res.get("reason") or ""),
-                }
+                _left = _latent_reason_async_cp126_d78cbfa4_status(self, action_capture_receipt, action_restore_receipt, base, expected_request_sha256, receipt, req_id, res)
+                if _left is not _FALL_THROUGH:
+                    return _left
             return {
                 **base,
                 "receipt": receipt,

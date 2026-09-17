@@ -165,6 +165,10 @@ _FW_ERASE_PROBE_TOKENS = 8
 _SENTENCE_TERMINALS = (".", "!", "?", ".\n", "!\n", "?\n")
 
 
+#: What an extracted block returns when it fell through to the code after it.
+_FALL_THROUGH = object()
+
+
 def _normalize_decoded_text(value: Any) -> tuple[str, bool]:
     """Render unsafe decoder controls visibly before text leaves the model boundary."""
 
@@ -1051,6 +1055,62 @@ def _admit_the_transition_candidate(
     )
     return admitted_candidate, transition
 
+
+def _reason_episode_part_1_1(self, answer_replacement_private, continuation_captured_only, decode_token_logprobs, failure_reason, out_tokens, receipt):
+    if continuation_captured_only:
+        receipt.last_stage = "action_state_captured"
+        receipt.halting_reason = "action_state_captured_before_first_action"
+        return LatentReasoningResult(
+            ok=True,
+            text="",
+            receipt=receipt,
+            reason="action_state_captured",
+            decode_token_logprobs=decode_token_logprobs,
+            answer_replacement_private=answer_replacement_private,
+        )
+    failure_reason = self._reason_episode_part_6(failure_reason, out_tokens, receipt)
+    if failure_reason:
+        # A bounded decode can be an invalid product answer while still
+        # being valid raw-policy evidence. Preserve only that explicitly
+        # classified neural trace so research callers can grade it and
+        # learn from its token log-probabilities. Integrity, cancellation,
+        # latent-phase, and cleanup failures remain empty and unusable.
+        retain_policy_trace = failure_reason.startswith("decode_incomplete:")
+        failure_tokens = out_tokens if retain_policy_trace else []
+        failure_text, _converted = self._public_text_or_receipt(
+            failure_tokens, receipt
+        )
+        return LatentReasoningResult(
+            ok=False,
+            text=failure_text,
+            receipt=receipt,
+            tokens=failure_tokens,
+            reason=failure_reason,
+            decode_token_logprobs=decode_token_logprobs,
+            answer_replacement_private=answer_replacement_private,
+        )
+
+    text, converted = self._public_text_or_receipt(out_tokens, receipt)
+    if not converted:
+        receipt.last_stage = "public_text_conversion_failed"
+        return LatentReasoningResult(
+            ok=False,
+            text="",
+            receipt=receipt,
+            tokens=out_tokens,
+            reason="public_text_conversion_failed",
+            decode_token_logprobs=decode_token_logprobs,
+            answer_replacement_private=answer_replacement_private,
+        )
+    return LatentReasoningResult(
+        ok=True,
+        text=text,
+        receipt=receipt,
+        tokens=out_tokens,
+        decode_token_logprobs=decode_token_logprobs,
+        answer_replacement_private=answer_replacement_private,
+    )
+    return _FALL_THROUGH
 
 class LatentCortexEngine:
     """Runs complete latent-reasoning episodes on one frozen model."""
@@ -4187,59 +4247,9 @@ class LatentCortexEngine:
                     severity="critical",
                 )
         self._reason_episode_ok_says_machinery(budget, episode_started, failure_reason, progress, receipt, verifier)
-        if continuation_captured_only:
-            receipt.last_stage = "action_state_captured"
-            receipt.halting_reason = "action_state_captured_before_first_action"
-            return LatentReasoningResult(
-                ok=True,
-                text="",
-                receipt=receipt,
-                reason="action_state_captured",
-                decode_token_logprobs=decode_token_logprobs,
-                answer_replacement_private=answer_replacement_private,
-            )
-        failure_reason = self._reason_episode_part_6(failure_reason, out_tokens, receipt)
-        if failure_reason:
-            # A bounded decode can be an invalid product answer while still
-            # being valid raw-policy evidence. Preserve only that explicitly
-            # classified neural trace so research callers can grade it and
-            # learn from its token log-probabilities. Integrity, cancellation,
-            # latent-phase, and cleanup failures remain empty and unusable.
-            retain_policy_trace = failure_reason.startswith("decode_incomplete:")
-            failure_tokens = out_tokens if retain_policy_trace else []
-            failure_text, _converted = self._public_text_or_receipt(
-                failure_tokens, receipt
-            )
-            return LatentReasoningResult(
-                ok=False,
-                text=failure_text,
-                receipt=receipt,
-                tokens=failure_tokens,
-                reason=failure_reason,
-                decode_token_logprobs=decode_token_logprobs,
-                answer_replacement_private=answer_replacement_private,
-            )
-
-        text, converted = self._public_text_or_receipt(out_tokens, receipt)
-        if not converted:
-            receipt.last_stage = "public_text_conversion_failed"
-            return LatentReasoningResult(
-                ok=False,
-                text="",
-                receipt=receipt,
-                tokens=out_tokens,
-                reason="public_text_conversion_failed",
-                decode_token_logprobs=decode_token_logprobs,
-                answer_replacement_private=answer_replacement_private,
-            )
-        return LatentReasoningResult(
-            ok=True,
-            text=text,
-            receipt=receipt,
-            tokens=out_tokens,
-            decode_token_logprobs=decode_token_logprobs,
-            answer_replacement_private=answer_replacement_private,
-        )
+        _left = _reason_episode_part_1_1(self, answer_replacement_private, continuation_captured_only, decode_token_logprobs, failure_reason, out_tokens, receipt)
+        if _left is not _FALL_THROUGH:
+            return _left
 
     @contextmanager
     def _single_flight_episode(self):

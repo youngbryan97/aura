@@ -28,6 +28,10 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind, declare
+from core.runtime.progress_bound import (
+    await_while_the_task_moves,
+    run_on_a_thread_while_it_works,
+)
 
 logger = logging.getLogger("Aura.RuntimeControlPlane")
 
@@ -1309,13 +1313,14 @@ class RuntimeControlPlane:
 
     @staticmethod
     async def _call(callback: Callable[[], Any], timeout_s: float) -> Any:
-        started = time.monotonic()
+        # ``timeout_s`` bounds a stall, not the whole call: a callback that
+        # is still working on a loaded host is not a wedged one
+        name = getattr(callback, "__qualname__", None) or type(callback).__name__
         if inspect.iscoroutinefunction(callback):
-            return await asyncio.wait_for(callback(), timeout=timeout_s)
-        result = await asyncio.wait_for(asyncio.to_thread(callback), timeout=timeout_s)
+            return await await_while_the_task_moves(callback(), stall_s=timeout_s, name=name)
+        result = await run_on_a_thread_while_it_works(callback, stall_s=timeout_s, name=name)
         if inspect.isawaitable(result):
-            remaining = max(0.01, timeout_s - (time.monotonic() - started))
-            return await asyncio.wait_for(result, timeout=remaining)
+            return await await_while_the_task_moves(result, stall_s=timeout_s, name=name)
         return result
 
     def register_service(

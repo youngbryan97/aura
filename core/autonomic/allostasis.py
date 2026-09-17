@@ -52,12 +52,6 @@ into her control state, not a phenomenal one. The report boundary of
 """
 from __future__ import annotations
 
-from core.runtime.disk_budget import (
-    DISK_AMBER_PERCENT,
-    DISK_RED_PERCENT,
-    DISK_SETPOINT_PERCENT,
-)
-
 import asyncio
 import enum
 import json
@@ -72,7 +66,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from core.runtime.disk_budget import (
+    DISK_AMBER_PERCENT,
+    DISK_RED_PERCENT,
+    DISK_SETPOINT_PERCENT,
+)
 from core.runtime.errors import record_degradation
+from core.runtime.progress_bound import run_on_a_thread_while_it_works
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Allostasis")
@@ -703,7 +703,7 @@ class _VitalCalibration:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "_VitalCalibration":
+    def from_dict(cls, data: dict[str, Any]) -> _VitalCalibration:
         out = cls()
         for key in ("hits", "miss_early", "miss_late", "false_alarms", "intervened", "superseded"):
             try:
@@ -1844,16 +1844,15 @@ class AllostasisEngine:
             # counters — real blocking work. On the loop it stalls every other
             # task precisely when the host is loaded, which is when this pulse
             # matters most. Bounded so a wedged provider cannot wedge the loop.
-            snapshot = await asyncio.wait_for(
-                asyncio.to_thread(
-                    get_unified_runtime_pressure().runtime_pressure_snapshot
-                ),
-                timeout=_SNAPSHOT_TIMEOUT_S,
+            snapshot = await run_on_a_thread_while_it_works(
+                get_unified_runtime_pressure().runtime_pressure_snapshot,
+                stall_s=_SNAPSHOT_TIMEOUT_S,
+                name="allostasis.vitals_snapshot",
             )
-        except asyncio.TimeoutError as exc:
+        except (TimeoutError, asyncio.TimeoutError) as exc:
             record_degradation(
                 _SUBSYSTEM, exc,
-                action=f"vitals snapshot exceeded {_SNAPSHOT_TIMEOUT_S:.0f}s; pulse skipped",
+                action=f"vitals snapshot stalled for {_SNAPSHOT_TIMEOUT_S:.0f}s; pulse skipped",
             )
             return None
         except _BOUNDARY_ERRORS as exc:

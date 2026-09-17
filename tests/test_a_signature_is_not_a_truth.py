@@ -37,7 +37,6 @@ from core.brain.frontier_gap import (
     sha256_json,
 )
 
-
 # ─────────────────────────── the grader runs again
 
 
@@ -477,7 +476,11 @@ def test_the_validator_can_require_a_measured_count():
 
 
 def test_freshness_reaches_both_the_challenge_and_the_reference():
-    source = inspect.getsource(frontier_gap.validate_capability_report)
+    from source_support import inlined_function_source
+
+    # the validator as it runs: blocks the size gate moved into helpers are
+    # read back at their call sites
+    source = inlined_function_source(frontier_gap.__file__, "validate_capability_report")
 
     assert source.count("require_fresh_challenge=require_fresh_challenge") == 1
     assert source.count("require_fresh=require_fresh_challenge") == 1

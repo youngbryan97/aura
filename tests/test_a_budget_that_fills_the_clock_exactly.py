@@ -135,7 +135,10 @@ def test_a_generation_that_ran_out_outranks_what_was_seen() -> None:
 
 
 def test_the_raise_is_bounded_by_what_was_needed() -> None:
-    source = Path("core/brain/inference_gate.py").read_text()
+    from source_support import inlined_module_source
+
+    # the gate as it runs: a block moved into a helper reads at its call site
+    source = inlined_module_source("core/brain/inference_gate.py")
     start = source.index("_affordable = max(")
     end = source.index("serving_lane = self._cortex_serving_lane", start)
     body = source[start:end]

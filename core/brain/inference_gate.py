@@ -228,6 +228,10 @@ from core.brain.llm.context_budget import (
 logger = logging.getLogger("Aura.InferenceGate")
 
 
+#: What an extracted block returns when it fell through to the code after it.
+_FALL_THROUGH = object()
+
+
 def _primary_lane_label() -> str:
     """The resident cortex's signed label, for operator-facing log lines.
 
@@ -2568,6 +2572,145 @@ _GENERATE_ENTERED_AT: contextvars.ContextVar[float | None] = contextvars.Context
     "aura_generate_entered_at", default=None
 )
 
+
+def _generate_with_metadata_sink_part_1_1(self, context, desktop_cognitive_engine_contract, fallback_label, origin, proof_evaluation_contract, strict_primary_proof_lane):
+    if (
+        proof_evaluation_contract
+        or strict_primary_proof_lane
+        or desktop_cognitive_engine_contract
+    ):
+        logger.warning(
+            "🧠 Proof/evaluation request requires Cortex; refusing Brainstem fallback after primary warmup deferral."
+        )
+        return self._refuse_generation(
+            self.REFUSAL_PROOF_LANE,
+            "primary_warmup_deferred_by_ram_admission",
+            context=context,
+            origin=origin,
+            detail={
+                "lane": "primary",
+                "proof_evaluation_contract": bool(proof_evaluation_contract),
+                "strict_primary_proof_lane": bool(strict_primary_proof_lane),
+                "desktop_cognitive_engine_contract": bool(
+                    desktop_cognitive_engine_contract
+                ),
+            },
+        )
+    logger.warning(
+        "🧠 Cortex cold-load deferred by RAM admission; routing this foreground turn to %s.",
+        fallback_label,
+    )
+    return _FALL_THROUGH
+
+def _generate_with_metadata_sink_part_2_2(self, _is_user_facing, repairable_draft, text, visible_user_prompt):
+    if repairable_draft is not None:
+        logger.warning(
+            "🛡️ Preserving repairable Cortex draft for downstream response repair (len=%d).",
+            len(repairable_draft),
+        )
+        stabilized = self._stabilize_user_facing_text(
+            repairable_draft,
+            visible_user_prompt,
+            is_user_facing=True,
+        )
+        # Reachable from the place that decides whether to
+        # refuse, which is not on this call path.
+        try:
+            from core.conversation.surface_disposition import (
+                preserve_draft,
+            )
+
+            preserve_draft(stabilized)
+        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("Draft not preserved to surface disposition: %s", exc)
+        return stabilized
+    return self._stabilize_user_facing_text(
+        text,
+        visible_user_prompt,
+        is_user_facing=_is_user_facing,
+    )
+    return _FALL_THROUGH
+
+def _generate_with_metadata_sink_primary_failure_metadata(self, context, desktop_cognitive_engine_contract, health_probe, local_label, origin, proof_evaluation_contract, strict_primary_proof_lane):
+    primary_failure_metadata = self.get_last_generation_metadata()
+    primary_surface_receipt = self.get_last_surface_control_receipt()
+    primary_surface_quality_rejected = (
+        str(primary_failure_metadata.get("error") or "").strip()
+        == "surface_quality_rejected"
+        or bool(
+            primary_surface_receipt.get("surface_quality_gate_enabled")
+            and not primary_surface_receipt.get("surface_quality_gate_passed")
+            and primary_surface_receipt.get("surface_quality_gate_reasons")
+        )
+    )
+    if primary_surface_quality_rejected and desktop_cognitive_engine_contract:
+        _quality_reasons = self._generate_with_metadata_sink_say_quality_check(local_label, primary_surface_receipt)
+        return self._refuse_generation(
+            self.REFUSAL_EXHAUSTED,
+            "worker_semantic_quality_retries_exhausted",
+            context=context,
+            origin=origin,
+            detail={
+                "lane": local_label,
+                "surface_quality_gate_reasons": list(_quality_reasons),
+            },
+        )
+    if health_probe:
+        logger.warning(
+            "🧠 %s proof health probe returned no text; refusing local fallback for lane certification.",
+            local_label,
+        )
+        return self._refuse_generation(
+            self.REFUSAL_PROOF_LANE,
+            "health_probe_returned_no_text",
+            context=context,
+            origin=origin,
+            detail={"lane": local_label},
+        )
+    if (
+        proof_evaluation_contract
+        or strict_primary_proof_lane
+    ):
+        logger.warning(
+            "🧠 Proof/evaluation request requires a valid Cortex response; refusing retry/fallback cascade after no text."
+        )
+        return self._refuse_generation(
+            self.REFUSAL_PROOF_LANE,
+            "cortex_returned_no_text",
+            context=context,
+            origin=origin,
+            detail={"lane": local_label},
+        )
+    return _FALL_THROUGH
+
+def _generate_with_metadata_sink_part_4_4(self, _is_user_facing, local_label, retry_attempt, text, visible_user_prompt):
+    if text:
+        logger.info(
+            "✅ %s retry %d succeeded (len=%d)",
+            local_label,
+            retry_attempt,
+            len(text),
+        )
+        repairable_draft = self._repairable_user_facing_draft_for_downstream(
+            text,
+            visible_user_prompt,
+        ) if _is_user_facing else None
+        if repairable_draft is not None:
+            logger.warning(
+                "🛡️ Preserving repairable Cortex retry draft for downstream response repair (len=%d).",
+                len(repairable_draft),
+            )
+            return self._stabilize_user_facing_text(
+                repairable_draft,
+                visible_user_prompt,
+                is_user_facing=True,
+            )
+        return self._stabilize_user_facing_text(
+            text,
+            visible_user_prompt,
+            is_user_facing=_is_user_facing,
+        )
+    return _FALL_THROUGH
 
 class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
     """Isolated inference gateway for Aura's managed local runtime."""
@@ -12943,32 +13086,9 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                                     lane_status.get("state", "unknown"),
                                 )
                     if primary_warmup_memory_deferred:
-                        if (
-                            proof_evaluation_contract
-                            or strict_primary_proof_lane
-                            or desktop_cognitive_engine_contract
-                        ):
-                            logger.warning(
-                                "🧠 Proof/evaluation request requires Cortex; refusing Brainstem fallback after primary warmup deferral."
-                            )
-                            return self._refuse_generation(
-                                self.REFUSAL_PROOF_LANE,
-                                "primary_warmup_deferred_by_ram_admission",
-                                context=context,
-                                origin=origin,
-                                detail={
-                                    "lane": "primary",
-                                    "proof_evaluation_contract": bool(proof_evaluation_contract),
-                                    "strict_primary_proof_lane": bool(strict_primary_proof_lane),
-                                    "desktop_cognitive_engine_contract": bool(
-                                        desktop_cognitive_engine_contract
-                                    ),
-                                },
-                            )
-                        logger.warning(
-                            "🧠 Cortex cold-load deferred by RAM admission; routing this foreground turn to %s.",
-                            fallback_label,
-                        )
+                        _left_ = _generate_with_metadata_sink_part_1_1(self, context, desktop_cognitive_engine_contract, fallback_label, origin, proof_evaluation_contract, strict_primary_proof_lane)
+                        if _left_ is not _FALL_THROUGH:
+                            return _left_
                         fallback_client = _ensure_fallback_client()
                         local_client = fallback_client
                         local_label = fallback_label
@@ -13049,81 +13169,12 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                             text,
                             visible_user_prompt,
                         ) if _is_user_facing else None
-                        if repairable_draft is not None:
-                            logger.warning(
-                                "🛡️ Preserving repairable Cortex draft for downstream response repair (len=%d).",
-                                len(repairable_draft),
-                            )
-                            stabilized = self._stabilize_user_facing_text(
-                                repairable_draft,
-                                visible_user_prompt,
-                                is_user_facing=True,
-                            )
-                            # Reachable from the place that decides whether to
-                            # refuse, which is not on this call path.
-                            try:
-                                from core.conversation.surface_disposition import (
-                                    preserve_draft,
-                                )
-
-                                preserve_draft(stabilized)
-                            except (ImportError, RuntimeError, TypeError, ValueError) as exc:
-                                logger.debug("Draft not preserved to surface disposition: %s", exc)
-                            return stabilized
-                        return self._stabilize_user_facing_text(
-                            text,
-                            visible_user_prompt,
-                            is_user_facing=_is_user_facing,
-                        )
-                    primary_failure_metadata = self.get_last_generation_metadata()
-                    primary_surface_receipt = self.get_last_surface_control_receipt()
-                    primary_surface_quality_rejected = (
-                        str(primary_failure_metadata.get("error") or "").strip()
-                        == "surface_quality_rejected"
-                        or bool(
-                            primary_surface_receipt.get("surface_quality_gate_enabled")
-                            and not primary_surface_receipt.get("surface_quality_gate_passed")
-                            and primary_surface_receipt.get("surface_quality_gate_reasons")
-                        )
-                    )
-                    if primary_surface_quality_rejected and desktop_cognitive_engine_contract:
-                        _quality_reasons = self._generate_with_metadata_sink_say_quality_check(local_label, primary_surface_receipt)
-                        return self._refuse_generation(
-                            self.REFUSAL_EXHAUSTED,
-                            "worker_semantic_quality_retries_exhausted",
-                            context=context,
-                            origin=origin,
-                            detail={
-                                "lane": local_label,
-                                "surface_quality_gate_reasons": list(_quality_reasons),
-                            },
-                        )
-                    if health_probe:
-                        logger.warning(
-                            "🧠 %s proof health probe returned no text; refusing local fallback for lane certification.",
-                            local_label,
-                        )
-                        return self._refuse_generation(
-                            self.REFUSAL_PROOF_LANE,
-                            "health_probe_returned_no_text",
-                            context=context,
-                            origin=origin,
-                            detail={"lane": local_label},
-                        )
-                    if (
-                        proof_evaluation_contract
-                        or strict_primary_proof_lane
-                    ):
-                        logger.warning(
-                            "🧠 Proof/evaluation request requires a valid Cortex response; refusing retry/fallback cascade after no text."
-                        )
-                        return self._refuse_generation(
-                            self.REFUSAL_PROOF_LANE,
-                            "cortex_returned_no_text",
-                            context=context,
-                            origin=origin,
-                            detail={"lane": local_label},
-                        )
+                        _left_ = _generate_with_metadata_sink_part_2_2(self, _is_user_facing, repairable_draft, text, visible_user_prompt)
+                        if _left_ is not _FALL_THROUGH:
+                            return _left_
+                    _left_ = _generate_with_metadata_sink_primary_failure_metadata(self, context, desktop_cognitive_engine_contract, health_probe, local_label, origin, proof_evaluation_contract, strict_primary_proof_lane)
+                    if _left_ is not _FALL_THROUGH:
+                        return _left_
                     # NOTE: desktop_cognitive_engine_contract is intentionally NOT
                     # refused here. A thin/empty first draft on a live desktop turn
                     # (e.g. the 32B emits a short reply that trips too_thin) must
@@ -13237,32 +13288,9 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                                     foreground_request=True,
                                     **retry_morpho_kwargs,
                                 )
-                            if text:
-                                logger.info(
-                                    "✅ %s retry %d succeeded (len=%d)",
-                                    local_label,
-                                    retry_attempt,
-                                    len(text),
-                                )
-                                repairable_draft = self._repairable_user_facing_draft_for_downstream(
-                                    text,
-                                    visible_user_prompt,
-                                ) if _is_user_facing else None
-                                if repairable_draft is not None:
-                                    logger.warning(
-                                        "🛡️ Preserving repairable Cortex retry draft for downstream response repair (len=%d).",
-                                        len(repairable_draft),
-                                    )
-                                    return self._stabilize_user_facing_text(
-                                        repairable_draft,
-                                        visible_user_prompt,
-                                        is_user_facing=True,
-                                    )
-                                return self._stabilize_user_facing_text(
-                                    text,
-                                    visible_user_prompt,
-                                    is_user_facing=_is_user_facing,
-                                )
+                            _left_ = _generate_with_metadata_sink_part_4_4(self, _is_user_facing, local_label, retry_attempt, text, visible_user_prompt)
+                            if _left_ is not _FALL_THROUGH:
+                                return _left_
 
                         if retry_schedule:
                             self._publish_exhausted_primary_owner(

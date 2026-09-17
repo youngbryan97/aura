@@ -29,6 +29,10 @@ _LOCAL_AGENT_RECOVERABLE_ERRORS = (
 )
 
 
+#: What an extracted block returns when it fell through to the code after it.
+_FALL_THROUGH = object()
+
+
 def _record_agent_degradation(
     error: BaseException,
     *,
@@ -345,6 +349,75 @@ def _observation_block(tool_name: Any, result: Any, *, nonce: str) -> str:
         f"TOOL_RESULT {label} END-{nonce}\n"
     )
 
+
+def _think_and_act_final_answer_tool(contract, response_text, tool_ledger, turn):
+    # 3. Final Answer (No tool called)
+    #
+    # The <thought> block is scratch work the contract above tells
+    # her never to reveal, and it was being lifted straight into
+    # the returned `reasoning` array — and, when the visible answer
+    # came out empty, substituted into `content` and shown to the
+    # person. The instruction not to reveal it was contradicted by
+    # the code that read it.
+    reasoning = [f"ReAct Loop finished in {turn + 1} turns"]
+    content = response_text
+    had_private_thought = False
+
+    if "<thought>" in response_text and "</thought>" in response_text:
+        had_private_thought = True
+        content = re.sub(
+            r"\s*<thought>.*?</thought>\s*",
+            "",
+            response_text,
+            flags=re.DOTALL,
+        ).strip()
+        reasoning.insert(0, "private reasoning was produced and withheld")
+
+    # An empty answer is not an answer. This returned a synthesized
+    # "I have finished my analysis" sentence at confidence 0.9 —
+    # the same 0.9 every ordinary answer got — so a model that
+    # produced nothing and a model that answered well were
+    # indistinguishable to every caller downstream.
+    if not content.strip():
+        _record_agent_degradation(
+            RuntimeError("local agent produced no visible answer"),
+            stage="final_answer",
+            action="returned an explicit empty-output failure instead of a synthesized summary",
+            severity="degraded",
+            extra={"had_private_thought": had_private_thought},
+        )
+        return {
+            "ok": False,
+            "content": (
+                "I worked through that but did not produce an answer I can show you."
+            ),
+            "reasoning": reasoning,
+            "confidence": 0.0,
+            "error": "empty_output",
+            "tool_calls": tool_ledger,
+        }
+
+    contract_failure = _unmet_evidence_contract(contract, tool_ledger)
+    if contract_failure:
+        _record_agent_degradation(
+            RuntimeError(contract_failure),
+            stage="response_contract",
+            action="returned the answer marked unverified because required evidence was never gathered",
+            severity="degraded",
+        )
+
+    return {
+        "ok": not contract_failure,
+        "content": content,
+        "reasoning": reasoning,
+        # Confidence was a constant 0.9 on every path. It is now
+        # bounded by what the turn can actually support: grounded
+        # execution raises it, an unmet evidence contract sinks it.
+        "confidence": _answer_confidence(tool_ledger, contract_failure),
+        "tool_calls": tool_ledger,
+        **({"error": "unmet_evidence_contract"} if contract_failure else {}),
+    }
+    return _FALL_THROUGH
 
 class LocalAgentClient(LocalBrain):
     """ReAct-style tool loop on top of Aura's internal model lane."""
@@ -927,72 +1000,9 @@ class LocalAgentClient(LocalBrain):
                     continue  # Loop again with new info
 
             else:
-                # 3. Final Answer (No tool called)
-                #
-                # The <thought> block is scratch work the contract above tells
-                # her never to reveal, and it was being lifted straight into
-                # the returned `reasoning` array — and, when the visible answer
-                # came out empty, substituted into `content` and shown to the
-                # person. The instruction not to reveal it was contradicted by
-                # the code that read it.
-                reasoning = [f"ReAct Loop finished in {turn + 1} turns"]
-                content = response_text
-                had_private_thought = False
-
-                if "<thought>" in response_text and "</thought>" in response_text:
-                    had_private_thought = True
-                    content = re.sub(
-                        r"\s*<thought>.*?</thought>\s*",
-                        "",
-                        response_text,
-                        flags=re.DOTALL,
-                    ).strip()
-                    reasoning.insert(0, "private reasoning was produced and withheld")
-
-                # An empty answer is not an answer. This returned a synthesized
-                # "I have finished my analysis" sentence at confidence 0.9 —
-                # the same 0.9 every ordinary answer got — so a model that
-                # produced nothing and a model that answered well were
-                # indistinguishable to every caller downstream.
-                if not content.strip():
-                    _record_agent_degradation(
-                        RuntimeError("local agent produced no visible answer"),
-                        stage="final_answer",
-                        action="returned an explicit empty-output failure instead of a synthesized summary",
-                        severity="degraded",
-                        extra={"had_private_thought": had_private_thought},
-                    )
-                    return {
-                        "ok": False,
-                        "content": (
-                            "I worked through that but did not produce an answer I can show you."
-                        ),
-                        "reasoning": reasoning,
-                        "confidence": 0.0,
-                        "error": "empty_output",
-                        "tool_calls": tool_ledger,
-                    }
-
-                contract_failure = _unmet_evidence_contract(contract, tool_ledger)
-                if contract_failure:
-                    _record_agent_degradation(
-                        RuntimeError(contract_failure),
-                        stage="response_contract",
-                        action="returned the answer marked unverified because required evidence was never gathered",
-                        severity="degraded",
-                    )
-
-                return {
-                    "ok": not contract_failure,
-                    "content": content,
-                    "reasoning": reasoning,
-                    # Confidence was a constant 0.9 on every path. It is now
-                    # bounded by what the turn can actually support: grounded
-                    # execution raises it, an unmet evidence contract sinks it.
-                    "confidence": _answer_confidence(tool_ledger, contract_failure),
-                    "tool_calls": tool_ledger,
-                    **({"error": "unmet_evidence_contract"} if contract_failure else {}),
-                }
+                _left = _think_and_act_final_answer_tool(contract, response_text, tool_ledger, turn)
+                if _left is not _FALL_THROUGH:
+                    return _left
 
         return {
             "ok": False,

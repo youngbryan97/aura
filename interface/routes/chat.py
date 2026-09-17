@@ -756,6 +756,10 @@ router = APIRouter()
 # ── Request Models ────────────────────────────────────────────
 
 
+#: What an extracted block returns when it fell through to the code after it.
+_FALL_THROUGH = object()
+
+
 class ChatRequest(BaseModel):
     message: str
     session_id: str | None = None
@@ -2764,6 +2768,50 @@ def _run_cognitive_engine_chat_turn_part_14(assessment_reasons, assessment_text,
                 preserve_draft(assessment_text)
         except _CHAT_RECOVERABLE_ERRORS as _preserve_exc:
             record_degradation("chat.preserve_draft", _preserve_exc)
+
+async def _run_cognitive_engine_chat_turn_my_code_claim(lane, memory_state_contract, runtime_fact_status_contract, text, turn_trace, visible):
+    # "Here is my code" is a claim that can be SETTLED, so it gets settled.
+    #
+    # Carrying real excerpts into the turn was necessary and not sufficient:
+    # live 2026-08-04 the evidence reached the prompt and she still produced
+    # `retrieve_contextual_memory()`, a function in no file here, introduced
+    # as "a snippet from my cognitive architecture". Notes can be overridden.
+    # Either those lines are in the tree or they are not.
+    #
+    # Only a PROVEN absence acts. A search that could not run proves nothing,
+    # and treating that as fabrication would destroy real excerpts whenever
+    # the search itself broke.
+    text = await _check_a_reply_against_her_own_source(
+        text=text,
+        turn_trace=turn_trace,
+        visible=visible,
+    )
+
+    if turn_trace is not None:
+        accepted_response_path = str(turn_trace.get("response_path") or "").strip()
+        if not accepted_response_path:
+            accepted_response_path = (
+                "cognitive_engine_runtime_fact_grounding"
+                if runtime_fact_status_contract and not memory_state_contract
+                else "cognitive_engine"
+            )
+        turn_trace.update(
+            {
+                "cognitive_engine_reply_accepted": True,
+                "response_path": accepted_response_path,
+            }
+        )
+    return (
+        text
+        if memory_state_contract
+        else _ground_runtime_fact_status_reply(
+            visible,
+            text,
+            lane,
+            cognitive_engine_handled=True,
+        )
+    )
+    return _FALL_THROUGH
 
 async def _run_cognitive_engine_chat_turn(
     effective_user_message: str,
@@ -5564,47 +5612,9 @@ async def _run_cognitive_engine_chat_turn(
             )
             _mark_turn_trace(response_path="cognitive_engine_context_contract_failed")
             return None
-    # "Here is my code" is a claim that can be SETTLED, so it gets settled.
-    #
-    # Carrying real excerpts into the turn was necessary and not sufficient:
-    # live 2026-08-04 the evidence reached the prompt and she still produced
-    # `retrieve_contextual_memory()`, a function in no file here, introduced
-    # as "a snippet from my cognitive architecture". Notes can be overridden.
-    # Either those lines are in the tree or they are not.
-    #
-    # Only a PROVEN absence acts. A search that could not run proves nothing,
-    # and treating that as fabrication would destroy real excerpts whenever
-    # the search itself broke.
-    text = await _check_a_reply_against_her_own_source(
-        text=text,
-        turn_trace=turn_trace,
-        visible=visible,
-    )
-
-    if turn_trace is not None:
-        accepted_response_path = str(turn_trace.get("response_path") or "").strip()
-        if not accepted_response_path:
-            accepted_response_path = (
-                "cognitive_engine_runtime_fact_grounding"
-                if runtime_fact_status_contract and not memory_state_contract
-                else "cognitive_engine"
-            )
-        turn_trace.update(
-            {
-                "cognitive_engine_reply_accepted": True,
-                "response_path": accepted_response_path,
-            }
-        )
-    return (
-        text
-        if memory_state_contract
-        else _ground_runtime_fact_status_reply(
-            visible,
-            text,
-            lane,
-            cognitive_engine_handled=True,
-        )
-    )
+    _left = await _run_cognitive_engine_chat_turn_my_code_claim(lane, memory_state_contract, runtime_fact_status_contract, text, turn_trace, visible)
+    if _left is not _FALL_THROUGH:
+        return _left
 
 
 def _looks_like_unrequested_content_review(user_message: str, reply_text: str) -> tuple[bool, str]:

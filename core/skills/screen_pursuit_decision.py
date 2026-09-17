@@ -113,6 +113,10 @@ from .screen_pursuit_surface import (
     )
 
 
+#: What an extracted block returns when it fell through to the code after it.
+_FALL_THROUGH = object()
+
+
 async def _decide_the_next_move_how_long_whole(anchor, costs, responds, target_app):
     from .screen_pursuit import _whats_on_top
     # How long a whole move takes when she does not stop to put it into
@@ -893,6 +897,102 @@ def _decide_the_next_move_where_move_she(ahead, aiming_at, available, goal, laid
         marks.she_marked(kind, saying=aiming_at or goal)
     return kind
 
+async def _decide_the_next_move_blocker(blocker_attempts, clear_blocker, needs_person, no_move, observation):
+    from .screen_pursuit import MAX_BLOCKER_ATTEMPTS, logger
+    blocker = await clear_blocker(observation)
+    if blocker is not None:
+        # Verified, not assumed. A blocker still present after the previous
+        # attempt means that attempt did not work, whatever its receipt
+        # said.
+        if blocker_attempts["count"] >= MAX_BLOCKER_ATTEMPTS:
+            blocker_attempts["last"] = blocker.name
+            no_move["because"] = "something is in front of it that will not move"
+            return None
+        blocker_attempts["count"] += 1
+        blocker_attempts["dismissed"] += 1
+        blocker_attempts["last"] = blocker.name
+        return blocker
+    if needs_person["reason"]:
+        no_move["because"] = "declining what is in front of it"
+        return None
+    blocker_attempts["count"] = 0
+    if not observation.get("ok"):
+        # What the reading actually said went wrong.
+        #
+        # Every failed read was reported as something being in front of
+        # the thing and waited out. A read that timed out on a busy
+        # machine, a capture that errored, a window that had gone — all
+        # of them came back as an occlusion, which is a diagnosis of a
+        # cause nobody had established, and the answer to it is to wait,
+        # so she waited. Live 2026-09-07: three of those in a row ended
+        # the run as "no move available" after seventeen moves, with
+        # nothing on screen in front of anything.
+        went_wrong = str(observation.get("error") or "").strip()
+        no_move["because"] = (
+            f"the last reading did not come back: {went_wrong}"
+            if went_wrong
+            else "the last reading did not come back, and did not say why"
+        )
+        logger.info("no move this cycle: %s", no_move["because"])
+        return None
+    return _FALL_THROUGH
+
+def _decide_the_next_move_while_there_something(available, chosen, laid_out, no_move, responds, she_keeps):
+    from .screen_pursuit import logger
+    from core.cognition.what_she_cannot_afford_to_lose import what_she_cannot_afford_to_lose
+    from core.cognition.when_to_say_it_outright import whether_to_say_it
+    # Not while there is something here she cannot get back.
+    #
+    # Starting over is the one act of hers that destroys what she
+    # has made. Everywhere else a bad move costs a move; here it
+    # costs the whole thing, and she reaches for it exactly when
+    # she is stuck — which is also when a position is at its most
+    # developed and worth the most.
+    #
+    # What is precious is not declared. Take a part of the thing
+    # away and ask whether what she is holding survives without
+    # it: a board's largest tile is what "the largest thing is at
+    # the far end" rests on, so losing it is losing the plan, and
+    # a board of small ones costs nothing to leave.
+    keeping = she_keeps.get("it")
+    if keeping is not None and laid_out is not None and available:
+        precious = what_she_cannot_afford_to_lose(
+            laid_out,
+            holding=keeping.holds,
+            parts_of=lambda one: list(getattr(one, "cells", ())),
+            without=_the_same_thing_without,
+        )
+        others = [
+            one.name for one in available if one.name != START_OVER
+        ]
+        if precious and others:
+            # And how sure she would have to be, given what it
+            # costs to be wrong. Starting over destroys what is
+            # here; another move costs a move. Those are different
+            # sizes, so the certainty needed is not a level — it
+            # is the comparison.
+            say_it = whether_to_say_it(
+                how_sure=float(chosen.confidence),
+                being_wrong_costs=float(len(precious)),
+                another_look_costs=1.0,
+                waiting_might_lose_it=(
+                    1.0 if responds["state"].nothing_answers() else 0.0
+                ),
+                what_it_is_worth=float(len(precious)),
+            )
+            if not say_it.now:
+                logger.info(
+                    "not starting over: %d thing(s) she cannot get back "
+                    "(%s)",
+                    len(precious),
+                    say_it.describe(),
+                )
+                no_move["because"] = (
+                    "there is something here worth keeping"
+                )
+                return None
+    return _FALL_THROUGH
+
 async def decide_the_next_move(
     observation: dict[str, Any],
     run: SimpleNamespace,
@@ -921,8 +1021,6 @@ async def decide_the_next_move(
     from core.cognition.a_shape_that_makes_it_safe import what_makes_it_safe
     from core.cognition.a_window_not_a_maximum import AWindow, which_act_lands_in_it
     from core.cognition.enough_rather_than_most import the_one_most_likely_to_do
-    from core.cognition.what_she_cannot_afford_to_lose import what_she_cannot_afford_to_lose
-    from core.cognition.when_to_say_it_outright import whether_to_say_it
     from core.perception.how_it_moves import HowItMoves
     from core.perception.what_the_world_does import WhatTheWorldDoes
     from core.perception.where_it_responds import noticed, places_and_text, within
@@ -1029,42 +1127,9 @@ async def decide_the_next_move(
             no_move["because"] = "a blocker was cleared, so this cycle is spent"
             return None
 
-    blocker = await clear_blocker(observation)
-    if blocker is not None:
-        # Verified, not assumed. A blocker still present after the previous
-        # attempt means that attempt did not work, whatever its receipt
-        # said.
-        if blocker_attempts["count"] >= MAX_BLOCKER_ATTEMPTS:
-            blocker_attempts["last"] = blocker.name
-            no_move["because"] = "something is in front of it that will not move"
-            return None
-        blocker_attempts["count"] += 1
-        blocker_attempts["dismissed"] += 1
-        blocker_attempts["last"] = blocker.name
-        return blocker
-    if needs_person["reason"]:
-        no_move["because"] = "declining what is in front of it"
-        return None
-    blocker_attempts["count"] = 0
-    if not observation.get("ok"):
-        # What the reading actually said went wrong.
-        #
-        # Every failed read was reported as something being in front of
-        # the thing and waited out. A read that timed out on a busy
-        # machine, a capture that errored, a window that had gone — all
-        # of them came back as an occlusion, which is a diagnosis of a
-        # cause nobody had established, and the answer to it is to wait,
-        # so she waited. Live 2026-09-07: three of those in a row ended
-        # the run as "no move available" after seventeen moves, with
-        # nothing on screen in front of anything.
-        went_wrong = str(observation.get("error") or "").strip()
-        no_move["because"] = (
-            f"the last reading did not come back: {went_wrong}"
-            if went_wrong
-            else "the last reading did not come back, and did not say why"
-        )
-        logger.info("no move this cycle: %s", no_move["because"])
-        return None
+    _left__ = await _decide_the_next_move_blocker(blocker_attempts, clear_blocker, needs_person, no_move, observation)
+    if _left__ is not _FALL_THROUGH:
+        return _left__
 
     band, looking_at_the_thing = await _decide_the_next_move_what_she_looking(anchor, drawn, narrate, observation, responds, target_app)
     lattice, seen = await _decide_the_next_move_seen(band, coming, in_the_way, observation, responds, target_app)
@@ -1776,56 +1841,9 @@ async def decide_the_next_move(
             return None
 
         if key == START_OVER:
-            # Not while there is something here she cannot get back.
-            #
-            # Starting over is the one act of hers that destroys what she
-            # has made. Everywhere else a bad move costs a move; here it
-            # costs the whole thing, and she reaches for it exactly when
-            # she is stuck — which is also when a position is at its most
-            # developed and worth the most.
-            #
-            # What is precious is not declared. Take a part of the thing
-            # away and ask whether what she is holding survives without
-            # it: a board's largest tile is what "the largest thing is at
-            # the far end" rests on, so losing it is losing the plan, and
-            # a board of small ones costs nothing to leave.
-            keeping = she_keeps.get("it")
-            if keeping is not None and laid_out is not None and available:
-                precious = what_she_cannot_afford_to_lose(
-                    laid_out,
-                    holding=keeping.holds,
-                    parts_of=lambda one: list(getattr(one, "cells", ())),
-                    without=_the_same_thing_without,
-                )
-                others = [
-                    one.name for one in available if one.name != START_OVER
-                ]
-                if precious and others:
-                    # And how sure she would have to be, given what it
-                    # costs to be wrong. Starting over destroys what is
-                    # here; another move costs a move. Those are different
-                    # sizes, so the certainty needed is not a level — it
-                    # is the comparison.
-                    say_it = whether_to_say_it(
-                        how_sure=float(chosen.confidence),
-                        being_wrong_costs=float(len(precious)),
-                        another_look_costs=1.0,
-                        waiting_might_lose_it=(
-                            1.0 if responds["state"].nothing_answers() else 0.0
-                        ),
-                        what_it_is_worth=float(len(precious)),
-                    )
-                    if not say_it.now:
-                        logger.info(
-                            "not starting over: %d thing(s) she cannot get back "
-                            "(%s)",
-                            len(precious),
-                            say_it.describe(),
-                        )
-                        no_move["because"] = (
-                            "there is something here worth keeping"
-                        )
-                        return None
+            _left__ = _decide_the_next_move_while_there_something(available, chosen, laid_out, no_move, responds, she_keeps)
+            if _left__ is not _FALL_THROUGH:
+                return _left__
             params = dict(chosen.chosen.params)
             label = str(params.get("label") or "")
             rx, ry = float(params.get("x", 0.0)), float(params.get("y", 0.0))
