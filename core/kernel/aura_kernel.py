@@ -1146,6 +1146,68 @@ class AuraKernel:
 
         return await self._tick_body(objective, priority, turn_origin, state)
 
+    async def _trace_the_tick(self, objective: str, response: Any) -> None:
+        """Issue #42: the structured thought trace for one tick, graded by what happened."""
+        try:
+            trace_response = response
+            trace_outcome = "SUCCESS" if self.state else "FAILURE"
+            trace_meta: dict[str, Any] = {}
+            modifiers = (
+                dict(getattr(self.state, "response_modifiers", {}) or {}) if self.state else {}
+            )
+            task_outcome = str(modifiers.get("last_task_outcome", "") or "").strip().lower()
+            if task_outcome == "started":
+                trace_outcome = "IN_PROGRESS"
+            elif task_outcome in {"failed", "capability_gap", "denied"}:
+                trace_outcome = "FAILURE"
+            elif task_outcome == "completed":
+                trace_outcome = "SUCCESS"
+            elif "last_skill_run" in modifiers:
+                trace_outcome = "SUCCESS" if modifiers.get("last_skill_ok") else "FAILURE"
+
+            has_action_marker = bool(
+                re.search(
+                    r"\[(?:SKILL_RESULT|SKILL|ACTION|TOOL|SKILL_INVOCATION)\s*:",
+                    str(response or ""),
+                    re.IGNORECASE,
+                )
+            )
+            if (
+                has_action_marker
+                and not modifiers.get("last_skill_ok")
+                and task_outcome != "completed"
+            ):
+                trace_outcome = "UNGROUNDED_ACTION"
+                trace_meta["grounding_warning"] = ["marker_without_verified_execution"]
+
+            try:
+                from core.phases.action_grounding import check_unverified_action_claims
+
+                receipts = []
+                if modifiers.get("last_skill_ok") and modifiers.get("last_skill_run"):
+                    receipts.append({"skill": str(modifiers.get("last_skill_run"))})
+                unverified_claims = check_unverified_action_claims(
+                    str(response or ""), skill_receipts=receipts
+                )
+                if unverified_claims:
+                    trace_outcome = "UNGROUNDED_ACTION"
+                    trace_meta["grounding_warning"] = unverified_claims[:4]
+            except (ImportError, AttributeError, RuntimeError):
+                pass  # no-op: intentional
+
+            await tracer.log_cycle_async(
+                objective=objective,
+                context=getattr(self.state, "cognition", {}).__dict__ if self.state else {},
+                thought={"last_response": trace_response, **trace_meta},
+                outcome=trace_outcome,
+            )
+        except (ImportError, AttributeError, RuntimeError) as e:
+            _record_kernel_degradation(
+                e,
+                action="completed tick without structured thought trace entry",
+            )
+            logger.debug("Tracer failed: %s", e)
+
     async def _tick_body(self, objective, priority, turn_origin, state):
         """Body lifted verbatim out of ``AuraKernel.tick``.
 
@@ -1590,66 +1652,7 @@ class AuraKernel:
             # Log the loop summary
             logger.info("LOOP| %s", entry.summary())
 
-            # Issue #42: Structured Thought Trace
-            try:
-                trace_response = response
-                trace_outcome = "SUCCESS" if self.state else "FAILURE"
-                trace_meta: dict[str, Any] = {}
-                modifiers = (
-                    dict(getattr(self.state, "response_modifiers", {}) or {}) if self.state else {}
-                )
-                task_outcome = str(modifiers.get("last_task_outcome", "") or "").strip().lower()
-                if task_outcome == "started":
-                    trace_outcome = "IN_PROGRESS"
-                elif task_outcome in {"failed", "capability_gap", "denied"}:
-                    trace_outcome = "FAILURE"
-                elif task_outcome == "completed":
-                    trace_outcome = "SUCCESS"
-                elif "last_skill_run" in modifiers:
-                    trace_outcome = "SUCCESS" if modifiers.get("last_skill_ok") else "FAILURE"
-
-                has_action_marker = bool(
-                    re.search(
-                        r"\[(?:SKILL_RESULT|SKILL|ACTION|TOOL|SKILL_INVOCATION)\s*:",
-                        str(response or ""),
-                        re.IGNORECASE,
-                    )
-                )
-                if (
-                    has_action_marker
-                    and not modifiers.get("last_skill_ok")
-                    and task_outcome != "completed"
-                ):
-                    trace_outcome = "UNGROUNDED_ACTION"
-                    trace_meta["grounding_warning"] = ["marker_without_verified_execution"]
-
-                try:
-                    from core.phases.action_grounding import check_unverified_action_claims
-
-                    receipts = []
-                    if modifiers.get("last_skill_ok") and modifiers.get("last_skill_run"):
-                        receipts.append({"skill": str(modifiers.get("last_skill_run"))})
-                    unverified_claims = check_unverified_action_claims(
-                        str(response or ""), skill_receipts=receipts
-                    )
-                    if unverified_claims:
-                        trace_outcome = "UNGROUNDED_ACTION"
-                        trace_meta["grounding_warning"] = unverified_claims[:4]
-                except (ImportError, AttributeError, RuntimeError):
-                    pass  # no-op: intentional
-
-                await tracer.log_cycle_async(
-                    objective=objective,
-                    context=getattr(self.state, "cognition", {}).__dict__ if self.state else {},
-                    thought={"last_response": trace_response, **trace_meta},
-                    outcome=trace_outcome,
-                )
-            except (ImportError, AttributeError, RuntimeError) as e:
-                _record_kernel_degradation(
-                    e,
-                    action="completed tick without structured thought trace entry",
-                )
-                logger.debug("Tracer failed: %s", e)
+            await self._trace_the_tick(objective, response)
 
             # Record completion timestamp for telemetry staleness detection
             self._last_tick_completed_at = time.time()
