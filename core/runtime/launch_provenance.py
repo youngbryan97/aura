@@ -147,7 +147,13 @@ def _run_git(root: Path, arguments: Sequence[str], *, timeout: float = 3.0) -> s
     and a boot died in its provenance snapshot.
     """
     completed = get_subprocess_gateway().run_until_its_work_is_done(
-        ["git", "-C", str(root), *arguments],
+        # Read from the files, not from the file-watching daemon. Provenance
+        # is a claim about what is on disk, and a cache of it can be stale or
+        # stop answering. LIVE 2026-09-17: dozens of fsmonitor daemons, one
+        # per worktree, and `git status` through them waited forever at no
+        # CPU while the same query without them took 0.06s — every boot died
+        # in its provenance snapshot.
+        ["git", "-C", str(root), "-c", "core.fsmonitor=false", *arguments],
         cpu_budget_s=timeout,
         read_only=True,
         source="runtime_launch_provenance.git",
@@ -166,7 +172,7 @@ def _git_identity(root: Path) -> dict[str, str]:
     )
     commit = _run_git(canonical_root, ("rev-parse", "HEAD")).strip()
     branch_result = get_subprocess_gateway().run_until_its_work_is_done(
-        ["git", "-C", str(canonical_root), "symbolic-ref", "--quiet", "--short", "HEAD"],
+        ["git", "-C", str(canonical_root), "-c", "core.fsmonitor=false", "symbolic-ref", "--quiet", "--short", "HEAD"],
         cpu_budget_s=3.0,
         read_only=True,
         source="runtime_launch_provenance.git_branch",
