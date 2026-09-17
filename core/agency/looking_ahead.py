@@ -640,6 +640,12 @@ def _through_a_compiled_world(
         if known is not None:
             return known
         said = made.terms(board, toward=toward, actions=actions)
+        # How many ways are left to move is what the search itself works out,
+        # level by level, and a situation with none is scored as closed. As a
+        # term it is one move's look at the same question, and at full weight
+        # it outweighed everything else: measured 2026-09-17 on four games, a
+        # 512 in every one with it, and 1024, 1024, 2048, 2048 without.
+        said.pop("freedom", None)
         for name, measure in invented.items():
             try:
                 said[name] = float(measure.read(as_arrangement(board)))

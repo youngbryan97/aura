@@ -93,6 +93,9 @@ def screen(monkeypatch):
     patch_pursuit(monkeypatch, "_frontmost", in_front)
     patch_pursuit(monkeypatch, "_bring_the_thing_back_to_the_front", brought, raising=False)
     patch_pursuit(monkeypatch, "_whats_on_top", lambda *_a, **_k: _nothing(), raising=False)
+    # This world answers at once, so a move that changed nothing is known to
+    # have changed nothing without waiting out the default for a slow page.
+    patch_pursuit(monkeypatch, "_how_long_to_wait", lambda: 0.2, raising=False)
     return state
 
 

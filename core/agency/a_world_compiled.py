@@ -354,6 +354,7 @@ def search(
 
     scored: dict[str, tuple[float, tuple[int, ...]]] = {}
     finished = 0
+    last_took = 0.0
     depth = max(1, int(fixed_depth)) if fixed_depth else 1
     while depth <= (max(1, int(fixed_depth)) if fixed_depth else _DEEPEST):
         pass_began = time.monotonic()
@@ -374,9 +375,18 @@ def search(
         if fixed_depth:
             break
         took = time.monotonic() - pass_began
-        # A level costs its breadth times the last; start one only if it can finish.
-        breadth = max(2, len(pushes)) * max(1, len(world.replies(here)))
-        if time.monotonic() + took * breadth > ends_at:
+        # What the next level will cost, from what the last two cost. Assumed
+        # to be the whole breadth of acts and replies, it was projected many
+        # times over: most of a level is already worked out or too unlikely
+        # to follow, and the search stopped a level short of the depth that
+        # wins. Before there are two passes to compare, the breadth is all
+        # there is to go on.
+        if last_took > 0.0:
+            growth = max(2.0, took / last_took)
+        else:
+            growth = float(max(2, len(pushes)) * max(1, len(world.replies(here))))
+        last_took = took
+        if time.monotonic() + took * growth > ends_at:
             break
         depth += 1
     return scored, finished

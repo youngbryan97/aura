@@ -291,6 +291,12 @@ def noticed(
     from a run of ONE THING doing nothing. A caller that does not say leaves
     the verdict on the count alone, which is what it always was.
     """
+    # Which act she took is a fact about her, and it is recorded whatever the
+    # reading could show. Kept only when there were places to compare, a screen
+    # that reads as a line of words never had any act counted as tried, so the
+    # first untried act was offered again after every press of it.
+    if acting:
+        state.tried.add(acting)
     was, now = places_and_text(before), places_and_text(after)
     if not was and not now:
         return state
