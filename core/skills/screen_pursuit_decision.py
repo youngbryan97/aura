@@ -2153,7 +2153,7 @@ async def decide_the_next_move(
         ahead_now = look_ahead(
             knows.rules, board, list(names),
             toward=aiming_at, approach=held_line,
-            budget_s=0.05, world=world, weights=matters.weights(),
+            budget_s=0.05, world=world, weights=matters.weights(), settles_how_far=False,
         )
         return max(ahead_now, key=lambda one: ahead_now[one][0]) if ahead_now else ""
 

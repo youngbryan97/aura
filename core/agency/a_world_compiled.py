@@ -64,6 +64,8 @@ class CompiledWorld:
     per_line: dict[tuple[int, ...], tuple[float, int, float, int]] = field(default_factory=dict)
     arrivals: tuple[tuple[int, float], ...] = ()
     how_often: float = 0.0
+    line_places: dict[str, list[list[int]]] = field(default_factory=dict)
+    targets: dict[str, float] = field(default_factory=dict)
 
     # ── symbols ──────────────────────────────────────────────────────────
 
@@ -101,10 +103,16 @@ class CompiledWorld:
     # ── acting ───────────────────────────────────────────────────────────
 
     def _lines(self, action: str) -> list[list[int]]:
+        known = self.line_places.get(action)
+        if known is not None:
+            return known
         down, _across = _PUSHES[action]
         if down == 0:
-            return [[row * self.columns + column for column in range(self.columns)] for row in range(self.rows)]
-        return [[row * self.columns + column for row in range(self.rows)] for column in range(self.columns)]
+            made = [[row * self.columns + column for column in range(self.columns)] for row in range(self.rows)]
+        else:
+            made = [[row * self.columns + column for row in range(self.rows)] for column in range(self.columns)]
+        self.line_places[action] = made
+        return made
 
     def _line_after(self, action: str, line: tuple[int, ...]) -> tuple[int, ...]:
         table = self.moves.setdefault(action, {})
@@ -180,10 +188,19 @@ class CompiledWorld:
         *,
         toward: str,
         actions: Sequence[str],
+        freedom: bool = True,
     ) -> dict[str, float]:
-        """Her authored terms for a compiled situation. See how_good_is_this."""
-        from core.agency.how_good_is_this import _target  # noqa: PLC0415
+        """Her authored terms for a compiled situation. See how_good_is_this.
 
+        ``freedom`` is left out when the caller is a search that works out
+        where every act leads for itself.
+        """
+        target = self.targets.get(toward)
+        if target is None:
+            from core.agency.how_good_is_this import _target  # noqa: PLC0415
+
+            target = _target(toward)
+            self.targets[toward] = target
         order_sum = 0.0
         ordered = 0
         apart = 0.0
@@ -198,11 +215,18 @@ class CompiledWorld:
         free = sum(1 for symbol in board if not symbol)
         numbers = [self.values[s] for s in board if s and self.values[s] is not None]
         biggest = max(numbers) if numbers else 0.0
-        target = _target(toward)
         if target and biggest > 0:
             nearness = 1.0 if biggest >= target else max(0.0, min(1.0, math.log2(biggest) / math.log2(target)))
         else:
             nearness = 0.0
+        said = {
+            "nearness": nearness,
+            "room": (free / places) if places else 0.0,
+            "order": (order_sum / ordered) if ordered else 0.0,
+            "smoothness": (1.0 / (1.0 + apart / pairs)) if pairs else 0.0,
+        }
+        if not freedom:
+            return said
         reached: set[tuple[int, ...]] = set()
         stayed = False
         for action in actions:
@@ -215,13 +239,8 @@ class CompiledWorld:
             else:
                 reached.add(after)
         options = len(reached) + (1 if stayed else 0)
-        return {
-            "nearness": nearness,
-            "room": (free / places) if places else 0.0,
-            "order": (order_sum / ordered) if ordered else 0.0,
-            "smoothness": (1.0 / (1.0 + apart / pairs)) if pairs else 0.0,
-            "freedom": (len(reached) / options) if options else 0.0,
-        }
+        said["freedom"] = (len(reached) / options) if options else 0.0
+        return said
 
     # ── the world's turn ─────────────────────────────────────────────────
 
@@ -355,6 +374,7 @@ def search(
     scored: dict[str, tuple[float, tuple[int, ...]]] = {}
     finished = 0
     last_took = 0.0
+    best_before = best_before_that = ""
     depth = max(1, int(fixed_depth)) if fixed_depth else 1
     while depth <= (max(1, int(fixed_depth)) if fixed_depth else _DEEPEST):
         pass_began = time.monotonic()
@@ -370,9 +390,18 @@ def search(
             this_pass = {}
         if not this_pass:
             break
+        # Enough, once the answer has stopped changing. The best move the
+        # same at two depths running, from three on, is what a further level
+        # would most likely say again; in real time the world is waiting on
+        # it. Measured 2026-09-17: more time per move turned six wins in
+        # eight into seven, and most of that time bought the move already
+        # chosen.
+        best_now = max(this_pass, key=lambda action: this_pass[action][0])
+        settled = depth >= 3 and best_now == best_before == best_before_that
+        best_before_that, best_before = best_before, best_now
         scored = this_pass
         finished = depth
-        if fixed_depth:
+        if fixed_depth or settled:
             break
         took = time.monotonic() - pass_began
         # What the next level will cost, from what the last two cost. Assumed

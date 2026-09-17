@@ -301,8 +301,12 @@ def look_ahead(
     world: Any = None,
     weights: Any = None,
     depth: int = 0,
+    settles_how_far: bool = True,
 ) -> dict[str, tuple[float, str]]:
     """Every move available, scored by where it leads and how sure that is.
+
+    ``settles_how_far`` is False for a quick look taken inside another
+    decision, whose shallow depth says nothing about how far she can see.
 
     ``knows`` is anything that can say what a state would become — the rules
     she worked out by watching. When it cannot, this returns nothing, which is
@@ -327,7 +331,7 @@ def look_ahead(
     fast = _through_a_compiled_world(
         knows, state, actions,
         toward=toward, approach=approach, budget_s=budget_s,
-        world=world, weights=weights, depth=depth,
+        world=world, weights=weights, depth=depth, settles_how_far=settles_how_far,
     )
     if fast is not None:
         return fast
@@ -415,7 +419,8 @@ def look_ahead(
             a_pass = time.monotonic() - deeper_at
 
     spent = time.monotonic() - started
-    _SAW["acts"] = int(depth) if scored else 0
+    if settles_how_far:
+        _SAW["acts"] = int(depth) if scored else 0
     if scored and depth and not fixed_depth:
         _a_level_took(spent / float(depth))
     logger.debug(
@@ -599,6 +604,7 @@ def _through_a_compiled_world(
     world: Any,
     weights: Any,
     depth: int,
+    settles_how_far: bool = True,
 ) -> dict[str, tuple[float, str]] | None:
     """The same search on a compiled world, or None when the world cannot be one.
 
@@ -639,13 +645,12 @@ def _through_a_compiled_world(
         known = values.get(board)
         if known is not None:
             return known
-        said = made.terms(board, toward=toward, actions=actions)
         # How many ways are left to move is what the search itself works out,
         # level by level, and a situation with none is scored as closed. As a
         # term it is one move's look at the same question, and at full weight
         # it outweighed everything else: measured 2026-09-17 on four games, a
         # 512 in every one with it, and 1024, 1024, 2048, 2048 without.
-        said.pop("freedom", None)
+        said = made.terms(board, toward=toward, actions=actions, freedom=False)
         for name, measure in invented.items():
             try:
                 said[name] = float(measure.read(as_arrangement(board)))
@@ -660,7 +665,8 @@ def _through_a_compiled_world(
     scored, reached = search(
         made, state, actions, budget_s=budget_s, worth=worth, dead=dead, fixed_depth=depth
     )
-    _SAW["acts"] = int(reached) if scored else 0
+    if settles_how_far:
+        _SAW["acts"] = int(reached) if scored else 0
     logger.debug(
         "looked %d ahead on a compiled world over %d move(s) in %.3fs",
         reached, len(actions), time.monotonic() - started,
