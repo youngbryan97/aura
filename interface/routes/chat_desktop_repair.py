@@ -92,6 +92,31 @@ def _has_local_choice_antecedent(user_message: str) -> bool:
     )
 
 
+#: Words that can stand before a bare "which one?" without giving it a set
+#: to pick from: an interjection is not an antecedent.
+_LEADING_INTERJECTIONS = frozenset(
+    {"wait", "sorry", "um", "uh", "hmm", "hm", "so", "ok", "okay", "hey", "oh", "and", "but", "no", "yes"}
+)
+
+
+def _pronoun_has_a_set_in_this_message(text: str, marker: str) -> bool:
+    """Whether "which one" / "what one" picks from something this message names.
+
+    "Which one?" needs the thread. "How many Python files are under
+    core/consciousness, and which one is the largest by bytes?" names the set
+    it picks from in its own first clause, and treating it as a challenge to
+    the thread served "I may have drifted from the thread" over a correct
+    count (LIVE 2026-09-16). A clause of the message's own before the pronoun
+    is the antecedent; an interjection or two is not.
+    """
+    index = text.find(marker)
+    if index <= 0:
+        return False
+    before = [word for word in text[:index].replace(",", " ").split() if word]
+    substantive = [word for word in before if word not in _LEADING_INTERJECTIONS]
+    return len(substantive) >= 3
+
+
 def _is_contextual_relevance_challenge(user_message: str) -> bool:
     text = _chat_memory_state._normalize_user_message(user_message)
     if not text:
@@ -102,7 +127,13 @@ def _is_contextual_relevance_challenge(user_message: str) -> bool:
     markers = _CONTEXTUAL_RELEVANCE_CHALLENGE_MARKERS
     if _has_local_choice_antecedent(text):
         markers = tuple(marker for marker in markers if marker not in {"what one", "which one"})
-    return any(marker in text for marker in markers)
+    for marker in markers:
+        if marker not in text:
+            continue
+        if marker in {"what one", "which one"} and _pronoun_has_a_set_in_this_message(text, marker):
+            continue
+        return True
+    return False
 
 
 _BOUNDED_PLANNING_REQUEST_RE = re.compile(
