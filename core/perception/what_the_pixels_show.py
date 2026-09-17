@@ -148,48 +148,113 @@ class Grid:
         }
 
 
-def _cv() -> Any:
-    try:
-        import cv2  # noqa: PLC0415
+def _smaller(image: Any, wide: int, tall: int) -> Any:
+    """``image`` averaged down to ``wide`` by ``tall``, each pixel the mean of what it covers.
 
-        return cv2
-    except ImportError:
-        return None
+    The sum along a row between two fractional positions is read off the
+    running total, which is linear between whole pixels, so it is exact. Rows
+    are done first and columns after, which is the same as doing both at once.
+    """
+    import numpy as np  # noqa: PLC0415
+
+    def along(values: Any, axis: int, count: int) -> Any:
+        length = values.shape[axis]
+        shape = list(values.shape)
+        shape[axis] = 1
+        total = np.concatenate([np.zeros(shape, np.float32), values.cumsum(axis=axis, dtype=np.float32)], axis=axis)
+        positions = np.linspace(0.0, length, count + 1, dtype=np.float32)
+        low = np.minimum(positions.astype(np.int64), length - 1)
+        part = positions - low
+        reshape = [1] * values.ndim
+        reshape[axis] = count + 1
+        part = part.reshape(reshape)
+        at = np.take(total, low, axis=axis) * (1.0 - part) + np.take(total, low + 1, axis=axis) * part
+        return np.diff(at, axis=axis) / np.diff(positions).reshape([count if i == axis else 1 for i in range(values.ndim)])
+
+    averaged = along(along(image.astype(np.float32), 1, wide), 0, tall)
+    if image.dtype == np.uint8:
+        averaged = np.clip(np.rint(averaged), 0, 255).astype(np.uint8)
+    return averaged
+
+
+_TO_LINEAR: Any = None
+
+
+def _lab_of(image: Any) -> Any:
+    """CIE L*a*b* of an 8-bit blue-green-red picture, each channel on a 0-255 scale.
+
+    Differences in this space track differences a person sees, which is what
+    an edge between two surfaces is.
+    """
+    import numpy as np  # noqa: PLC0415
+
+    global _TO_LINEAR
+    if _TO_LINEAR is None:
+        level = np.arange(256, dtype=np.float64) / 255.0
+        _TO_LINEAR = np.where(level <= 0.04045, level / 12.92, ((level + 0.055) / 1.055) ** 2.4).astype(
+            np.float32
+        )
+    blue, green, red = (_TO_LINEAR[image[:, :, channel]] for channel in range(3))
+    x = (0.412453 * red + 0.357580 * green + 0.180423 * blue) / 0.950456
+    y = 0.212671 * red + 0.715160 * green + 0.072169 * blue
+    z = (0.019334 * red + 0.119193 * green + 0.950227 * blue) / 1.088754
+
+    def bend(t: Any) -> Any:
+        return np.where(t > 0.008856, np.cbrt(t), 7.787 * t + 16.0 / 116.0)
+
+    fx, fy, fz = bend(x), bend(y), bend(z)
+    lab = np.empty(image.shape[:2] + (3,), np.float32)
+    lab[:, :, 0] = np.where(y > 0.008856, 116.0 * fy - 16.0, 903.3 * y) * 2.55
+    lab[:, :, 1] = 500.0 * (fx - fy) + 128.0
+    lab[:, :, 2] = 200.0 * (fy - fz) + 128.0
+    return np.clip(np.rint(lab, out=lab), 0, 255, out=lab)
 
 
 def panels_in(image: Any) -> list[Panel]:
     """Every region of even colour with a clear edge around it."""
-    cv2 = _cv()
-    if cv2 is None or image is None:
+    if image is None:
         return []
     import numpy as np  # noqa: PLC0415
 
+    try:
+        from scipy import ndimage  # noqa: PLC0415
+    except ImportError as why:
+        _say_once(f"no panels can be found without scipy: {why}")
+        return []
+
     tall, wide = image.shape[:2]
     shrink = min(1.0, _WORKING_SIDE / float(max(tall, wide)))
-    small = (
-        cv2.resize(image, (int(wide * shrink), int(tall * shrink)), interpolation=cv2.INTER_AREA)
-        if shrink < 1.0
-        else image
-    )
-    lab = cv2.cvtColor(small, cv2.COLOR_BGR2LAB).astype(np.float32)
-    across = cv2.Sobel(lab, cv2.CV_32F, 1, 0, ksize=1)
-    down = cv2.Sobel(lab, cv2.CV_32F, 0, 1, ksize=1)
+    small = _smaller(image, int(wide * shrink), int(tall * shrink)) if shrink < 1.0 else image
+    lab = _lab_of(small)
+    across = np.zeros_like(lab)
+    down = np.zeros_like(lab)
+    across[:, 1:-1] = lab[:, 2:] - lab[:, :-2]
+    down[1:-1, :] = lab[2:, :] - lab[:-2, :]
     strength = np.sqrt((across * across + down * down).sum(axis=2))
-    edges = (strength > _EDGE).astype(np.uint8) * 255
-    edges = cv2.dilate(edges, np.ones((2, 2), np.uint8))
-    contours, _ = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    edges = strength > _EDGE
+    # Thicken each edge by a pixel so a surface is closed off from its neighbour.
+    wider = edges.copy()
+    wider[:, 1:] |= edges[:, :-1]
+    thick = wider.copy()
+    thick[1:, :] |= wider[:-1, :]
+    # A surface is a connected stretch with no edge in it, and its outline is
+    # what encloses it: a tile with a number drawn on it is one surface with
+    # holes, and the holes are part of what it covers.
+    surfaces, _count = ndimage.label(~thick)
     s_tall, s_wide = small.shape[:2]
     least = max(8, int(0.02 * min(s_tall, s_wide)))
     found: list[tuple[int, int, int, int]] = []
-    for contour in contours:
-        x, y, w, h = cv2.boundingRect(contour)
+    for label, where in enumerate(ndimage.find_objects(surfaces), start=1):
+        if where is None:
+            continue
+        y, x = where[0].start, where[1].start
+        h, w = where[0].stop - y, where[1].stop - x
         if w < least or h < least or (w > 0.97 * s_wide and h > 0.97 * s_tall):
             continue
-        if cv2.contourArea(contour) < _FILLS * w * h:
+        covers = ndimage.binary_fill_holes(surfaces[where] == label)
+        if int(covers.sum()) < _FILLS * w * h:
             continue
         found.append((x, y, w, h))
-    # A panel's edge is found on both sides of the line, so most panels come
-    # back twice, one just inside the other. The inner one is the surface.
     found.sort(key=lambda box: box[2] * box[3])
     kept: list[tuple[int, int, int, int]] = []
     for box in found:
@@ -308,8 +373,8 @@ def recognize_text(image: Any) -> list[dict[str, Any]]:
     if image is None:
         return []
     try:
-        import Quartz  # noqa: PLC0415
         import numpy as np  # noqa: PLC0415
+        import Quartz  # noqa: PLC0415
         from Vision import (  # noqa: PLC0415
             VNImageRequestHandler,
             VNRecognizeTextRequest,
@@ -384,9 +449,6 @@ class Looker:
     blank: dict[tuple[int, int], Any] = field(default_factory=dict)
 
     def _look_of(self, image: Any, panel: Panel) -> Any:
-        cv2 = _cv()
-        import numpy as np  # noqa: PLC0415
-
         tall, wide = image.shape[:2]
         x0 = int(max(0, panel.left) * wide)
         y0 = int(max(0, panel.top) * tall)
@@ -395,8 +457,7 @@ class Looker:
         crop = image[y0:y1, x0:x1]
         if crop.size == 0:
             return None
-        small = cv2.resize(crop, (_LOOK_SIDE, _LOOK_SIDE), interpolation=cv2.INTER_AREA)
-        return cv2.cvtColor(small, cv2.COLOR_BGR2LAB).astype(np.float32)
+        return _lab_of(_smaller(crop, _LOOK_SIDE, _LOOK_SIDE))
 
     @staticmethod
     def _apart(a: Any, b: Any) -> float:
@@ -666,11 +727,14 @@ async def _the_pixels_of(window: Any) -> Any:
 def _a_frame_from_the_bridge(window: Any) -> Any:
     try:
         import base64  # noqa: PLC0415
+        import io  # noqa: PLC0415
 
-        import cv2  # noqa: PLC0415
         import numpy as np  # noqa: PLC0415
+        from PIL import Image  # noqa: PLC0415
 
-        from core.security.native_desktop_bridge import invoke_native_desktop_bridge  # noqa: PLC0415
+        from core.security.native_desktop_bridge import (
+            invoke_native_desktop_bridge,  # noqa: PLC0415
+        )
 
         answer = invoke_native_desktop_bridge(
             "observe_foreground_frame", read_only=True, timeout=3.0, allow_one_shot=False
@@ -686,8 +750,9 @@ def _a_frame_from_the_bridge(window: Any) -> Any:
         return None
     try:
         png = base64.b64decode(str(answer.get("frame_base64") or ""))
-        image = cv2.imdecode(np.frombuffer(png, dtype=np.uint8), cv2.IMREAD_COLOR)
-    except (ValueError, TypeError) as why:
+        with Image.open(io.BytesIO(png)) as picture:
+            image = np.ascontiguousarray(np.asarray(picture.convert("RGB"))[:, :, ::-1])
+    except (ValueError, TypeError, OSError) as why:
         _say_once(f"the desktop bridge's frame would not decode: {why}")
         return None
     return image

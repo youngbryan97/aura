@@ -12,30 +12,60 @@ of structure: panels of one size at one pitch are a grid, a place with nothing
 in it is still a place, text lying across the places belongs to none of them,
 and a frame held between glances survives the jitter of finding an edge a
 pixel over.
+
+Aura's own process refuses OpenCV on macOS (its media stack collides with the
+one speech recognition loads), and the first live look found 0 panels because
+the reader had quietly needed it. The pictures here are read with OpenCV
+refused the same way.
 """
 from __future__ import annotations
+
+import builtins
 
 import numpy as np
 import pytest
 
-cv2 = pytest.importorskip("cv2")
+from core.perception.what_the_pixels_show import Looker, grids_in, panels_in
+from core.perception.where_it_responds import what_is_there
 
-from core.perception.what_the_pixels_show import Looker, grids_in, panels_in  # noqa: E402
-from core.perception.where_it_responds import what_is_there  # noqa: E402
+
+@pytest.fixture(autouse=True)
+def _no_opencv(monkeypatch):
+    real = builtins.__import__
+
+    def refusing(name, *args, **kwargs):
+        if name.split(".", 1)[0] == "cv2":
+            raise ImportError("OpenCV is refused in this process")
+        return real(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", refusing)
+
+
+def _fill(picture: np.ndarray, corner: tuple[int, int], far: tuple[int, int], colour) -> None:
+    (x0, y0), (x1, y1) = corner, far
+    picture[y0 : y1 + 1, x0 : x1 + 1] = colour
 
 
 def _a_board(filled: dict[tuple[int, int], tuple[int, int, int]], side: int = 4) -> np.ndarray:
     """A window with a title bar of text, a button, and a grid of squares."""
     picture = np.full((620, 520, 3), (238, 244, 249), np.uint8)
-    cv2.rectangle(picture, (330, 30), (480, 70), (100, 120, 140), -1)
-    cv2.rectangle(picture, (40, 110), (480, 550), (160, 173, 187), -1)
+    _fill(picture, (330, 30), (480, 70), (100, 120, 140))
+    _fill(picture, (40, 110), (480, 550), (160, 173, 187))
     pitch, size, left, top = 110, 96, 47, 117
     for row in range(side):
         for column in range(side):
             colour = filled.get((row, column), (180, 193, 205))
             x, y = left + column * pitch, top + row * pitch
-            cv2.rectangle(picture, (x, y), (x + size, y + size), colour, -1)
+            _fill(picture, (x, y), (x + size, y + size), colour)
     return picture
+
+
+def test_a_picture_larger_than_the_working_size_is_read_the_same():
+    small = _a_board({(0, 0): (218, 228, 238), (3, 2): (121, 177, 242)})
+    large = np.repeat(np.repeat(small, 2, axis=0), 2, axis=1)
+    first, second = grids_in(panels_in(small))[0], grids_in(panels_in(large))[0]
+    assert (second.rows, second.columns) == (4, 4)
+    assert max(abs(a - b) for a, b in zip(first.down_at, second.down_at, strict=True)) < 0.01
 
 
 def test_a_grid_is_found_with_its_empty_places():
@@ -50,7 +80,7 @@ def test_a_grid_is_found_with_its_empty_places():
 
 def test_one_button_is_not_a_grid():
     picture = np.full((300, 300, 3), 240, np.uint8)
-    cv2.rectangle(picture, (40, 40), (140, 90), (90, 90, 90), -1)
+    _fill(picture, (40, 40), (140, 90), (90, 90, 90))
     assert grids_in(panels_in(picture)) == []
 
 
