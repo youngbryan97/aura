@@ -26,6 +26,16 @@ from typing import Any, TextIO
 if sys.version_info < (3, 12):  # noqa: UP036 - boot contract asserts a clear runtime guard.
     raise SystemExit("Aura requires Python 3.12+")
 
+# Every git this runtime starts reads the working tree from disk, not through
+# a file-watching daemon. LIVE 2026-09-17: dozens of fsmonitor daemons, and git
+# status through them waited at no CPU until each caller's timeout — boots died
+# in their provenance snapshot and the model client's own status check timed
+# out. Git reads these as configuration for every child process.
+if not os.environ.get("GIT_CONFIG_COUNT"):
+    os.environ["GIT_CONFIG_COUNT"] = "1"
+    os.environ["GIT_CONFIG_KEY_0"] = "core.fsmonitor"
+    os.environ["GIT_CONFIG_VALUE_0"] = "false"
+
 import httpx
 
 from core.governance_context import local_internal_governed_scope

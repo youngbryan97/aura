@@ -1045,13 +1045,13 @@ async def pursue_on_screen(
     # 2026-08-26: sixty-five narrated moves, nine approaches held, cancelled
     # from outside and reported as "Completed 0/0 steps".
     began = time.monotonic()
+    ends_at = began + float(max_seconds)
+    if deadline_at > 0.0:
+        ends_at = min(ends_at, float(deadline_at))
     # How far she could see is a fact about this run, not the last one.
     from core.agency.looking_ahead import forget_how_far_she_saw
 
     forget_how_far_she_saw()
-    ends_at = began + float(max_seconds)
-    if deadline_at > 0.0:
-        ends_at = min(ends_at, float(deadline_at))
     if not await wait_for_a_screen_to_look_at(ends_at):
         why = _WHY_SHE_CANNOT_LOOK["value"]
         return {
@@ -1635,6 +1635,23 @@ async def pursue_on_screen(
 
     if not moves:
         first = await observe()
+        # What the place says it is for, when she was not told what finishing
+        # is. "Play until you win" names no thing to wait for; the place
+        # usually does — a board saying to get to a tile, a wizard saying what
+        # done looks like — and it is the thing that would know. Where the
+        # person named a finish, theirs stands.
+        if first.get("ok") and not success_when:
+            from core.cognition.what_the_place_says import what_this_place_tells_her
+
+            lines = "\n".join(
+                str(region.get("text") or "") for region in first.get("layout") or []
+            ) or str(first.get("text") or "")
+            told = what_this_place_tells_her(lines, asked=goal, success_when=success_when)
+            if told.states:
+                success_when = told.aim or told.states
+                logger.info("finishing here is %r, as the place says", success_when)
+                if narrate and told.worth_saying:
+                    _tell(told.said_out_loud())
         if first.get("ok") and satisfied(first):
             already["value"] = False
             fresh = restart_control(first)

@@ -611,6 +611,88 @@ _STILL_WITHIN_S = 1.5
 _STILL = 0.05
 
 
+_SAID: set[str] = set()
+
+
+def _say_once(why: str) -> None:
+    """Why this way of looking stood aside, said once per reason."""
+    if why not in _SAID:
+        _SAID.add(why)
+        logger.info("%s", why)
+
+
+def _nothing_drawn(image: Any) -> bool:
+    """Whether a picture has nothing in it: one colour from edge to edge.
+
+    What a capture gives back when the process asking may not see other
+    applications' pixels. It is a refusal wearing the shape of a picture, and
+    read as one it is a window that has emptied.
+    """
+    try:
+        return float(image[::8, ::8].std()) < 1.0
+    except (AttributeError, TypeError, ValueError):
+        return True
+
+
+#: Which way of taking a window's pixels has worked, so a way that is refused
+#: is not asked again on every look.
+_HOW_PIXELS_COME: dict[str, str] = {"way": ""}
+
+
+async def _the_pixels_of(window: Any) -> Any:
+    """A window's pixels, by whichever authority this process has.
+
+    In this process first, which is fastest. Where this process is not allowed
+    to see other applications, the resident desktop bridge — the signed
+    application that holds that permission — takes the frame instead, which it
+    can do for the window in front.
+    """
+    import asyncio  # noqa: PLC0415
+
+    from core.capabilities import window_server  # noqa: PLC0415
+
+    if _HOW_PIXELS_COME["way"] != "bridge":
+        image = await asyncio.to_thread(window_server.capture, window)
+        if image is not None and not _nothing_drawn(image):
+            _HOW_PIXELS_COME["way"] = "here"
+            return image
+        _say_once("this process cannot see other windows' pixels; asking the desktop bridge")
+    image = await asyncio.to_thread(_a_frame_from_the_bridge, window)
+    if image is not None:
+        _HOW_PIXELS_COME["way"] = "bridge"
+    return image
+
+
+def _a_frame_from_the_bridge(window: Any) -> Any:
+    try:
+        import base64  # noqa: PLC0415
+
+        import cv2  # noqa: PLC0415
+        import numpy as np  # noqa: PLC0415
+
+        from core.security.native_desktop_bridge import invoke_native_desktop_bridge  # noqa: PLC0415
+
+        answer = invoke_native_desktop_bridge(
+            "observe_foreground_frame", read_only=True, timeout=3.0, allow_one_shot=False
+        )
+    except (ImportError, OSError, RuntimeError, TimeoutError, TypeError, ValueError) as why:
+        _say_once(f"the desktop bridge could not be asked for a frame: {type(why).__name__}")
+        return None
+    if not answer.get("ok"):
+        _say_once(f"the desktop bridge gave no frame: {answer.get('error')}")
+        return None
+    if int(answer.get("window_id") or 0) != int(getattr(window, "number", -1)):
+        # The frame is of whatever is in front, and that is not her window.
+        return None
+    try:
+        png = base64.b64decode(str(answer.get("frame_base64") or ""))
+        image = cv2.imdecode(np.frombuffer(png, dtype=np.uint8), cv2.IMREAD_COLOR)
+    except (ValueError, TypeError) as why:
+        _say_once(f"the desktop bridge's frame would not decode: {why}")
+        return None
+    return image
+
+
 def looker_for(app: str) -> Looker:
     key = " ".join(str(app or "").split()).casefold()
     if key not in _LOOKERS:
@@ -664,9 +746,11 @@ async def look_at_window(
         return None
     window = await asyncio.to_thread(window_server.window_of, app)
     if window is None:
+        _say_once(f"no window for {app!r} in the window list, so reading it the old way")
         return None
     admission = await evaluate_window_capture_admission_async(window.owner, window.title)
     if not admission.allowed:
+        _say_once(f"reading {window.owner!r} was refused: {admission.reason}")
         return {
             "ok": False,
             "text": "",
@@ -676,12 +760,16 @@ async def look_at_window(
             "refused_because": str(admission.reason),
         }
     began = time.monotonic()
-    picture = _crop(await asyncio.to_thread(window_server.capture, window), over)
+
+    async def take() -> Any:
+        return _crop(await _the_pixels_of(window), over)
+
+    picture = await take()
     if picture is None:
         return None
     still = not wait_for_stillness
     while not still and time.monotonic() - began < still_within_s:
-        again = _crop(await asyncio.to_thread(window_server.capture, window), over)
+        again = await take()
         if again is None:
             break
         still = _how_different(picture, again) < _STILL

@@ -235,6 +235,21 @@ def _continuation(text: str) -> str:
     return ""
 
 
+#: Where one clause of a request ends and the next begins: the end of a
+#: sentence, or a comma or semicolon before the next thing being asked.
+_CLAUSE_ENDS = re.compile(r"[.?!;]\s|[.?!;]$|,\s*(?:and|then|but|so|while)\b", re.IGNORECASE)
+
+#: Words for the task's own end, which name no thing on screen to wait for.
+#: "Until you win" and "beat it" ask for whatever finishing is in the place
+#: being worked in, and the place usually says what that is.
+ITS_OWN_END = ("win", "wins", "won", "beat", "beats", "finish", "finishes", "complete", "completes", "clear", "clears", "solve", "solves")
+
+
+def asks_for_its_own_end(text: str) -> bool:
+    """Whether the request asks for the task to be won, beaten or finished."""
+    return bool(re.search(rf"\b(?:{'|'.join(ITS_OWN_END)})\b", str(text or ""), re.IGNORECASE))
+
+
 def _condition_clauses(text: str) -> list[str]:
     """Every part of the request that could be saying when to stop, in order.
 
@@ -256,7 +271,10 @@ def _condition_clauses(text: str) -> list[str]:
         # classic one with numbered tiles" cut at "numbered ti|les", and what
         # she was left waiting for was the word "are".
         for at in re.finditer(rf"\b{re.escape(word)}\b", text, flags=re.IGNORECASE):
-            clause = text[at.end() :].strip(" ,.—-")
+            # A condition ends where its own clause does. Run on to the end of
+            # the request, "play until you win, and narrate each move" waited
+            # for the word "move" — the rider's last word, not the finish.
+            clause = _CLAUSE_ENDS.split(text[at.end() :], maxsplit=1)[0].strip(" ,.—-")
             if clause:
                 found.append((at.start(), clause))
     found.sort(key=lambda pair: pair[0])
@@ -951,7 +969,11 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
     # way there. With an end named, she keeps at it until it is met, until she
     # stops getting anywhere, or until the most anyone is asked to wait. With
     # none, the sized budget stands, because then the budget is the end.
-    open_ended = not condition
+    open_ended = not condition and not asks_for_its_own_end(text)
+    if condition and condition.lower() in ITS_OWN_END:
+        # "Until you win" names the end by its name and not by what shows it.
+        # What shows it is read off the place when she gets there.
+        condition = ""
     return WatchedGoal(
         where=where,
         goal=text[:400],
