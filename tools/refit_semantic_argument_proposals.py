@@ -61,6 +61,13 @@ def load_source_examples(model, report, bundles):
     return bound
 
 
+def verify_fit_start(candidate, starting):
+    """Recover a comparison arm only when the saved fit binds that exact parent."""
+    receipt = candidate.training_receipt.get("joint_graph_refit", {})
+    if receipt.get("parent_transducer_receipt_sha256") != starting.receipt_sha256:
+        raise ValueError("comparison starting candidate differs from saved fit parent")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--transducer", type=Path, required=True)
@@ -109,10 +116,10 @@ def main() -> int:
         parser.error("semantic constraints require a fresh joint_graphs fit")
     if args.learn_argument_heads and not args.retain_semantic_constraints:
         parser.error("argument-head learning requires retained semantic constraints")
-    if args.evaluate_existing and (args.starting_candidate or args.joint_operation_argument_scores):
-        parser.error("evaluate-existing cannot change the fit starting candidate or decoder")
-    if args.compare_fit_start and args.evaluate_existing:
-        parser.error("compare-fit-start requires a fresh fit with its recorded starting candidate")
+    if args.evaluate_existing and not args.compare_fit_start and (
+        args.starting_candidate or args.joint_operation_argument_scores
+    ):
+        parser.error("evaluate-existing starting options require compare-fit-start")
     from core.learning.semantic_operation_view_refit import refit_compositional_operation_views
     from core.learning.semantic_graph_margin import refit_compositional_graph_scales
     from core.learning.semantic_relation_graph_learning import refit_compositional_graph_relations
@@ -192,6 +199,8 @@ def main() -> int:
         verify_source_splits(bound, candidate.training_receipt)
         if candidate.model_basis_sha256 != model.model_basis_sha256:
             raise ValueError("saved candidate representation differs from incumbent")
+        if args.compare_fit_start:
+            verify_fit_start(candidate, starting)
     else:
         candidate = refit(starting, bound, **options)
         payload = (json.dumps(candidate.to_dict(), sort_keys=True, separators=(",", ":")) + "\n")

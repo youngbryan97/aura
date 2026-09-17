@@ -839,6 +839,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   removes contradictory training labels caused by exchanged equal-valued input
   anchors. The real source replay and 47 focused tests pass; fresh fitting and
   paired development measurement remain required.
+  [Aligned fit recovery](evidence/G03_ALIGNED_FIT_RECOVERY_2026-09-16.md)
+  preserves the saved three-round candidate after the supervisor timeout;
+  validation continues without retraining. No accuracy or promotion claim.
   [Fresh constrained result](evidence/G03_CONSTRAINED_FRESH_RESULT_2026-09-15.md):
   458/500 versus 472/500, seven gains and 21 regressions; incumbent retained.
   [Graph relation learning](evidence/G03_GRAPH_RELATION_RESULT_2026-09-15.md)
@@ -1002,6 +1005,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [Evidence identity](evidence/G09_EVIDENCE_IDENTITY_2026-09-16.md) binds training,
+  calibration, observation windows, and restart recovery to the current schema;
+  distinct decisions remain distinct across replay and corpus compaction.
+  172 focused tests pass. Broad gain and live deployment are not established.
   [Outcome contract repair](evidence/G09_OUTCOME_CONTRACT_2026-09-16.md) prevents
   corrected graders from retraining and reauthorizing policies on their old
   labels. Historical observations remain intact; 189 focused tests passed.

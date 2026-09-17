@@ -11,7 +11,7 @@ from core.ontogeny.calibration import (
     CalibrationObservation,
 )
 from core.ontogeny.experience import Episode, ExperienceSpine, Outcome, OutcomeKind, Provenance
-from core.ontogeny.features import FeatureSchema
+from core.ontogeny.features import EXECUTIVE_ADMISSION, FeatureSchema
 from core.ontogeny.heads import PredictionHead
 from core.ontogeny.service import OntogenyCore
 from core.ontogeny.trainer import Trainer, design_width
@@ -111,6 +111,7 @@ def test_restart_rehydrates_source_and_head_cohort_without_duplication(
         episode = Episode(
             episode_id=f"persisted-{index}",
             control_point="executive.admission",
+            feature_schema=EXECUTIVE_ADMISSION.schema_id,
             features={"priority": 0.5},
             decision="approved",
             options=("approved", "deferred"),

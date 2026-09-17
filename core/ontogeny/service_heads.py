@@ -39,10 +39,11 @@ class _KeepsItsHeadsOnDisk:
         """Rebuild the tallies from the corpus. Slow, so it runs on maintenance."""
         rebuilt: dict[str, int] = {}
         with self._lock:
-            names = list(self._control_points)
-        for name in names:
+            control_points = list(self._control_points.values())
+        for cp in control_points:
+            name = cp.name
             try:
-                episodes = self._spine.episodes(name, limit=limit)
+                episodes = self._spine.episodes(name, limit=limit, feature_schema=cp.schema.schema_id)
             except (RuntimeError, OSError, ValueError) as exc:
                 record_degradation("ontogeny", exc, severity="debug",
                                    action=f"track-record rehydration skipped for {name}")
@@ -67,7 +68,8 @@ class _KeepsItsHeadsOnDisk:
             control_points = list(self._control_points.values())
         for cp in control_points:
             try:
-                episodes = self._spine.episodes(cp.name, evidence_only=True, limit=limit)
+                episodes = self._spine.episodes(cp.name, evidence_only=True, limit=limit,
+                                               feature_schema=cp.schema.schema_id)
                 contexts = self._episode_contexts([episode.episode_id for episode in episodes])
             except (RuntimeError, OSError, ValueError, sqlite3.Error) as exc:
                 record_degradation(
@@ -135,6 +137,7 @@ class _KeepsItsHeadsOnDisk:
 
             payload: dict[str, Any] = {
                 "schema_id": cp.schema.schema_id,
+                "evidence_at_last_fit": cp.evidence_at_last_fit,
                 "actions": list(cp.actions),
                 "moments": cp.moments.state_dict() if cp.moments else {},
                 "heads": {action: head.state_dict() for action, head in cp.heads.items()},
@@ -188,6 +191,7 @@ class _KeepsItsHeadsOnDisk:
                     restored += 1
             if restored and cp.moments is not None:
                 cp.moments.load_state(payload.get("moments", {}))
+                cp.evidence_at_last_fit = max(0, int(payload.get("evidence_at_last_fit", 0)))
             logger.info("ontogeny: restored %d/%d heads for %s", restored, len(heads), cp.name)
 
     def _activate_operational_cohorts(self) -> None:

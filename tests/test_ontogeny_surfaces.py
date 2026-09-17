@@ -576,7 +576,7 @@ class TestEffortGradingPathIsWired:
                 for n in ast.walk(node)
             )
 
-        def _find(node, guarded: bool) -> list[bool]:
+        def _find(node, guarded: bool, path: frozenset[str] = frozenset()) -> list[bool]:
             found = []
             for child in ast.iter_child_nodes(node):
                 if (
@@ -584,16 +584,29 @@ class TestEffortGradingPathIsWired:
                     and child.attr == "note_grade"
                 ):
                     found.append(guarded)
+                if (
+                    isinstance(child, ast.Call)
+                    and isinstance(child.func, ast.Attribute)
+                    and isinstance(child.func.value, ast.Name)
+                    and child.func.value.id == "self"
+                    and child.func.attr.startswith("_deep_reason_part_")
+                    and child.func.attr not in path
+                ):
+                    method = getattr(
+                        latent_cortex_service.LatentCortexService, child.func.attr
+                    )
+                    helper = ast.parse(textwrap.dedent(inspect.getsource(method)))
+                    found.extend(_find(helper, guarded, path | {child.func.attr}))
                 child_guarded = guarded or (
                     isinstance(child, ast.If) and _mentions_controller_decision(child.test)
                 )
                 # An If's own test is not inside the branch body.
                 if isinstance(child, ast.If):
                     for stmt in [*child.body, *child.orelse]:
-                        found.extend(_find(stmt, child_guarded))
-                    found.extend(_find(child.test, guarded))
+                        found.extend(_find(stmt, child_guarded, path))
+                    found.extend(_find(child.test, guarded, path))
                 else:
-                    found.extend(_find(child, child_guarded))
+                    found.extend(_find(child, child_guarded, path))
             return found
 
         guards = _find(tree, False)

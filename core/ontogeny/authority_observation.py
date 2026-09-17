@@ -30,9 +30,12 @@ class AuthorityObservationMixin:
         for control_point in self.control_points():
             if not self._authority.has_authority(control_point):
                 continue
+            with self._lock:
+                schema_id = self._control_points[control_point].schema.schema_id
             stats = self._spine.observation_stats(
                 control_point,
                 recent_limit=recent_limit,
+                feature_schema=schema_id,
             )
             eligible = bool(
                 stats.get("available")

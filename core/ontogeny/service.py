@@ -113,6 +113,7 @@ class _PendingEpisode:
     decided_at: float
     runtime_revision: str
     head_version: int
+    feature_schema: str
 
 
 @dataclass
@@ -147,12 +148,20 @@ class ControlPoint:
     horizon_s: float = 900.0
     heads: dict[str, PredictionHead] = field(default_factory=dict)
     moments: RunningMoments | None = None
-    #: Graded episodes at the last fit, so a refit only runs on new evidence.
+    #: Durable graded-decision revision consumed by the last fit.
     evidence_at_last_fit: int = 0
+    heads_schema_id: str = ""
 
     def ensure_heads(self, units: int) -> dict[str, PredictionHead]:
         width = design_width(self.schema, units)
         names = design_names(self.schema, units)
+        if self.heads_schema_id != self.schema.schema_id:
+            self.heads = {}
+            self.moments = None
+            self.evidence_at_last_fit = 0
+            self.heads_schema_id = self.schema.schema_id
+        self.heads = {action: head for action, head in self.heads.items()
+                      if action in self.actions and head.input_width == width}
         for action in self.actions:
             if action not in self.heads:
                 self.heads[action] = PredictionHead(
@@ -303,11 +312,24 @@ class OntogenyCore(_KeepsItsHeadsOnDisk, AuthorityObservationMixin):
     # ── registration ─────────────────────────────────────────────────────
 
     def register(self, control_point: ControlPoint) -> ControlPoint:
-        if control_point.schema.outcome_contract:
+        with self._lock:
+            previous = self._control_points.get(control_point.name)
+            previous_schema = (previous.heads_schema_id if previous is not None
+                               else control_point.heads_schema_id)
+        changed = bool(previous_schema and previous_schema != control_point.schema.schema_id)
+        if control_point.schema.outcome_contract or changed:
             self._authority.bind_evidence_contract(control_point.name, control_point.schema.schema_id)
         with self._lock:
             control_point.ensure_heads(self._units)
             self._control_points[control_point.name] = control_point
+            if changed:
+                self._track.hydrate(control_point.name, ())
+                self._calibration.replace_observations(control_point.name, (), provenance=CANDIDATE_VALIDATION)
+                self._operational_calibration.replace_observations(
+                    control_point.name, (), provenance=OPERATIONAL_SHADOW)
+                for episode_id, pending in tuple(self._episode_buckets.items()):
+                    if pending.control_point == control_point.name:
+                        self._episode_buckets.pop(episode_id)
         return control_point
 
     def _revision_for(self, control_point: str) -> str:
@@ -618,8 +640,9 @@ class OntogenyCore(_KeepsItsHeadsOnDisk, AuthorityObservationMixin):
         """Fold a landed outcome into tallies and decision-time calibration."""
         with self._lock:
             located = self._episode_buckets.pop(episode_id, None)
-        if located is None:
-            return
+            cp = self._control_points.get(located.control_point) if located else None
+            if located is None or cp is None or located.feature_schema != cp.schema.schema_id:
+                return
         self._track.observe(located.control_point, located.bucket, outcome.kind)
         if (
             outcome.kind.is_evidence
@@ -658,6 +681,7 @@ class OntogenyCore(_KeepsItsHeadsOnDisk, AuthorityObservationMixin):
                 or self._revision_for(episode.control_point)
             ),
             head_version=int(episode.shadow_version or 0),
+            feature_schema=episode.feature_schema,
         )
         with self._lock:
             self._episode_buckets[episode.episode_id] = pending
@@ -735,6 +759,9 @@ class OntogenyCore(_KeepsItsHeadsOnDisk, AuthorityObservationMixin):
             if yield_to_foreground and foreground_activity_reason():
                 break
             heads = cp.ensure_heads(self._units)
+            source_stats = self._spine.stats(cp.name, feature_schema=cp.schema.schema_id)
+            if not source_stats.get("available"):
+                continue
             try:
                 result = self._trainer.train(
                     cp.name,
@@ -756,10 +783,10 @@ class OntogenyCore(_KeepsItsHeadsOnDisk, AuthorityObservationMixin):
                     "ontogeny: training yielded to an active foreground chat turn"
                 )
                 break
+            # Count the whole observed corpus, including washout and actions
+            # without enough samples. Re-reading those rows is not new evidence.
+            cp.evidence_at_last_fit = int(source_stats.get("evidence_revision", source_stats.get("evidence_rows", 0)))
             if result.fitted:
-                cp.evidence_at_last_fit = (
-                    result.samples + result.temperature_samples + result.holdout_samples
-                )
                 self._save_head(cp)
                 self._operational_calibration.activate(
                     cp.name,
@@ -776,9 +803,9 @@ class OntogenyCore(_KeepsItsHeadsOnDisk, AuthorityObservationMixin):
         with self._lock:
             control_points = list(self._control_points.values())
         for cp in control_points:
-            stats = self._spine.stats(cp.name)
+            stats = self._spine.stats(cp.name, feature_schema=cp.schema.schema_id)
             if stats.get("available"):
-                total += max(0, int(stats.get("evidence_rows", 0)) - cp.evidence_at_last_fit)
+                total += max(0, int(stats.get("evidence_revision", stats.get("evidence_rows", 0))) - cp.evidence_at_last_fit)
         return total
 
     # ── lifecycle ────────────────────────────────────────────────────────

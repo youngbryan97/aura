@@ -56,3 +56,15 @@ def test_standalone_refit_isolates_state_before_loading_core(tmp_path, monkeypat
     assert os.environ['AURA_STATE_ROOT'] == str(tmp_path / 'state')
     configure_refit_environment(tmp_path / 'another' / 'candidate.json')
     assert os.environ['AURA_STATE_ROOT'] == str(tmp_path / 'state')
+
+
+def test_recovered_comparison_requires_exact_saved_fit_parent():
+    from tools.refit_semantic_argument_proposals import verify_fit_start
+
+    candidate = SimpleNamespace(training_receipt={
+        "joint_graph_refit": {"parent_transducer_receipt_sha256": "parent"}})
+    verify_fit_start(candidate, SimpleNamespace(receipt_sha256="parent"))
+    with pytest.raises(ValueError, match="saved fit parent"):
+        verify_fit_start(candidate, SimpleNamespace(receipt_sha256="different"))
+    with pytest.raises(ValueError, match="saved fit parent"):
+        verify_fit_start(SimpleNamespace(training_receipt={}), SimpleNamespace(receipt_sha256="parent"))

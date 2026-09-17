@@ -279,7 +279,6 @@ class Trainer:
             train_labels = [labels[i] for i in train_idx]
             weights = [
                 math.pow(0.5, (now - kept[i].decided_at) / RECENCY_HALF_LIFE_S)
-                * max(1, kept[i].repeat_count)
                 for i in train_idx
             ]
             candidate = PredictionHead(
