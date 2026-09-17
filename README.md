@@ -158,7 +158,7 @@ from how confident the prose sounds.
 - `core/brain/llm/sensorimotor_grounding.py` maps camera/screen/audio
   observations into the substrate input vector, so live sensor events perturb
   the ODE directly instead of arriving only as text/tool summaries.
-- `core/consciousness/phi_core.py` (2,939 lines) implements real IIT-style
+- `core/consciousness/phi_core.py` (2,940 lines) implements real IIT-style
   integration math: binarization, empirical TPM, KL-divergence φ, exclusion
   postulate, polynomial-time spectral partitioning, with an exhaustive
   8-bipartition validation baseline.
