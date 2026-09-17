@@ -268,3 +268,29 @@ def test_one_place_left_to_read_is_read_beside_the_ones_she_knows(monkeypatch):
     assert asked, "nothing was read as a strip"
     # The one place she has not read went in with the places she knows.
     assert len(asked[0]) >= 3
+
+
+def test_two_things_that_look_alike_are_read_rather_than_guessed(monkeypatch):
+    """A 256 was read as a 128 in half the glances of a game.
+
+    Their surrounds are a few units apart and the digits are a tenth of the
+    square, so nearest-look alone answers with whichever she happened to read
+    first. When two things she has read are both this close, she cannot tell
+    them apart and the place is read again.
+    """
+    from core.perception import what_the_pixels_show as pixels
+
+    looker = Looker()
+    one = _a_board({(0, 0): (114, 207, 237)})
+    other = _a_board({(0, 0): (97, 204, 237)})
+    grid = grids_in(panels_in(one))[0]
+    looker.read(one, words=_words_at(grid, {(0, 0): "128"}))
+    looker.read(other, words=_words_at(grid, {(0, 0): "256"}))
+    # Both remembered, and both within the distance of this look.
+    look = looker._look_of(other, grid.place(0, 0))
+    assert looker.recognised(look) is None
+
+    # And the reading of that board does not claim the wrong one.
+    monkeypatch.setattr(pixels, "recognize_text", lambda image: [])
+    says = looker.read(other)["grids"][0]["says"]
+    assert says[0] in ("", "256")

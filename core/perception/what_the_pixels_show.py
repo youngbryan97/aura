@@ -71,7 +71,7 @@ _SAME_SIZE = 0.14
 _SAME_LOOK = 9.0
 
 #: The side of the small picture an appearance is kept as.
-_LOOK_SIDE = 12
+_LOOK_SIDE = 24
 
 #: How wide the picture is made when asking whether the part of a window
 #: around its grids has changed. Small enough to compare in a millisecond,
@@ -513,12 +513,27 @@ class Looker:
         return float(np.sqrt(((a - b) ** 2).sum(axis=2)).mean())
 
     def recognised(self, look: Any) -> str | None:
+        """What this place says, when its look says one thing and not two.
+
+        Two things whose surrounds differ by a few units are the same look at
+        this size, and answering with the nearer of them is a guess: a 256
+        was read as a 128 in half the glances of a game, because their
+        backgrounds are four units apart and the digits are a tenth of the
+        square. When more than one thing she has read is this close, the
+        honest answer is that she cannot tell, and it is read again.
+        """
         best: tuple[float, _Seen] | None = None
+        others: set[str] = set()
         for one in self.seen:
             apart = self._apart(look, one.look)
-            if apart < _SAME_LOOK and (best is None or apart < best[0]):
+            if apart >= _SAME_LOOK:
+                continue
+            others.add(one.says)
+            if best is None or apart < best[0]:
                 best = (apart, one)
-        return best[1].says if best else None
+        if best is None or len(others) > 1:
+            return None
+        return best[1].says
 
     def learned(self, look: Any, says: str) -> None:
         if look is None or not says:
