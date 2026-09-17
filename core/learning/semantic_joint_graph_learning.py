@@ -74,6 +74,30 @@ def joint_graph_contrast(model, positive, negative, *, weight=1.):
         positive["operations"], negative["operations"], terms)
 
 
+def align_source_input_registers(item, input_spans):
+    """Express source labels in the decoder's source-anchored input coordinates.
+
+    Equal-valued literals can exchange register indices during grounding.
+    Their source positions still distinguish them when counterfactual probes
+    assign different values. A position change must not invert supervision.
+    """
+    source = tuple(item.ir.input_spans)
+    destination = tuple(input_spans)
+    if (len(source) != len(destination) or len(set(destination)) != len(destination)
+            or set(source) != set(destination)):
+        raise ValueError("source and runtime input anchors differ")
+    positions = {span: index for index, span in enumerate(destination)}
+    mapping = tuple(positions[span] for span in source)
+    if any(item.public_inputs[index] != item.public_inputs[target]
+           for index, target in enumerate(mapping)):
+        raise ValueError("input anchor permutation changes public values")
+    count = len(source)
+    instructions = tuple(replace(instruction, args=tuple(
+        mapping[argument] if argument < count else argument
+        for argument in instruction.args)) for instruction in item.ir.instructions)
+    return instructions, mapping
+
+
 def mine_runtime_graph_contrast(model, item, *, weight=1., solve_time_limit_s=20., learn_arguments=False):
     """Interpret without annotations, then independently compare to the source target."""
     from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
@@ -85,13 +109,18 @@ def mine_runtime_graph_contrast(model, item, *, weight=1., solve_time_limit_s=20
               "serving_authority": False, "negative_origin": "runtime_decode"}
     if outcome.ir is None:
         return None, {**record, "status": "runtime_decode_unavailable", "reason": outcome.refusal}
+    try:
+        target_instructions, input_mapping = align_source_input_registers(item, outcome.ir.input_spans)
+    except ValueError as exc:
+        return None, {**record, "status": "input_grounding_unaligned", "reason": str(exc)}
+    record["source_to_runtime_input_registers"] = list(input_mapping)
     from types import SimpleNamespace
 
     def program(instructions):
         return argument_graph_program(tuple(SimpleNamespace(operation=ins.op, span=ins.operation_span)
             for ins in instructions), tuple(ins.args for ins in instructions), n_inputs=len(item.public_inputs))
 
-    comparison = compare_program_meanings(program(item.ir.instructions), program(outcome.ir.instructions),
+    comparison = compare_program_meanings(program(target_instructions), program(outcome.ir.instructions),
                                          counterfactual_inputs(item.public_inputs))
     record["comparison"] = comparison
     if comparison["status"] != "different":
@@ -99,7 +128,7 @@ def mine_runtime_graph_contrast(model, item, *, weight=1., solve_time_limit_s=20
     try:
         negative = score_annotated_graph(model, item, outcome.ir.instructions, outcome.ir.input_spans,
                                         solve_time_limit_s=solve_time_limit_s, learn_arguments=learn_arguments)
-        positive = score_annotated_graph(model, item, item.ir.instructions, outcome.ir.input_spans,
+        positive = score_annotated_graph(model, item, target_instructions, outcome.ir.input_spans,
                                         solve_time_limit_s=solve_time_limit_s, learn_arguments=learn_arguments)
     except ArgumentOptimizationIncompleteError as exc:
         return None, {**record, "status": "graph_score_incomplete", "reason": str(exc)}
@@ -266,5 +295,6 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         "constraint_learning": constraint_learning,
         "argument_heads_trainable": learn_arguments,
         "already_correct_binding_competitors_retained": constraint_learning,
+        "input_coordinate_policy": "source_anchor_value_preserving_permutation_v1",
     }
     return replace(candidate, training_receipt={**body, "receipt_sha256": _sha(body)})
