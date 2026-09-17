@@ -314,76 +314,58 @@ Working list. Deleted when every line is done and green.
       untouched because it drives inner.layers itself and never enters the
       patched forward.
 
-- [ ] steering serving authority — one requirement left, and it is a question
-      about the bar rather than a number still to be moved.
+- [x] steering serving authority — open, and serving on a person's turn.
 
-      Three gates stand between the vectors and a served turn: the signed
-      component authority says `steering_generation_deferred`, so no hooks
-      attach; the surface clamp holds alpha at 0.0 until a fusion certificate
-      exists; and no certificate can exist while there are no hooks to measure.
-      Publishing a qualified generation opens all three, and `_validate_steering`
-      requires `causal_effect_positive`, which requires
-      `passes_adversarial_control`.
+          🎚️ Surface decode: steering α=0.2 (engine α=6.4449)
 
-      **The effect blocker is closed.** `_derive_caa` ran each contrast
-      statement through `tokenizer.encode` on its own, so the state it captured
+      That line is the whole item. It read α=0.0 on every user-visible decode
+      for as long as this file has existed, and the three gates behind it are
+      now all open: the signed component authority says `qualified` over
+      generation 0d192ee439b964ba, sixteen hooks attach at the layers that
+      generation was measured at, and the fusion certificate holds.
+
+      **Where it had actually been stuck.** `_derive_caa` ran each contrast
+      statement through `tokenizer.encode` on its own, so the captured state
       was the model at a full stop at the end of a bare sentence with no chat
       turn around it — a READING direction, asked ever since to change WRITING.
       Captured at the generation position instead, the same five dimensions
-      give, at n=24:
+      took the scored behaviour from +0.83 to +1.33 at n=24.
 
-          baseline                0.0833     zero_vector      0.0000
-          text_terse              0.1250     random_vector   -0.1250
-          steered_black_box       1.3333     shuffled_layers  0.9583
-          text_rich_adversarial   1.4167     steered+rich     4.5000
+      **Two defects in the gate itself.** `effect_is_specific` and
+      `beats_text_controls` read divergence — how far the text moved — for
+      questions about the behaviour being steered. A norm-matched random vector
+      is inert on the target and reproduces 98.6% of the divergence, so no
+      activation intervention could ever have passed a specificity test
+      computed that way; and "moves the output further" was comparing
+      `effect_size_d`, which is that distance over its spread. Both now read
+      what they claim to.
 
-          treatment wins 14, matched no-op 6, lesions 1/1/12, no regression
+      **One defect the certificate caught.** Every mood dimension is a 0..1
+      activation, and the weight read the raw value as though it were already
+      signed. Neutral weighed +0.46 and a low state pushed the SAME way as a
+      high one, only less hard, so the channel carried a constant offset whose
+      magnitude wobbled rather than her state. `carries_content` refused at a
+      separation of 0.171 against a floor of half.
 
-      Treatment strictly above the matched no-op, every lesion below treatment,
-      no regression, and `adds_to_text` at 4.5000 against the prompt's 1.4167.
-      The campaign before this work had treatment 7 against a no-op 7 with a
-      shuffled control winning more than the treatment.
+      **And the vectors are trained, not averaged.** An average cannot give
+      each layer a different job, which is why the shuffled-layer control kept
+      43%, 84% and 70% of the effect across three layer geometries. The
+      training was blocked at the substrate — `[Primitive::vjp] Not implemented
+      for CustomKernel` — until `gated_delta_update` turned out to take
+      `use_kernel=not self.training` and fall back to a differentiable ops
+      recurrence. One `model.train()`. Twelve steps a dimension took the
+      composite's mean cross-layer cosine from 0.4131 to 0.1621.
 
-      **Two defects in the gate itself, both fixed.** `effect_is_specific` and
-      `beats_text_controls` read divergence — how far the text moved. A
-      norm-matched random vector is INERT on the target, -0.1250 against a
-      treatment of +1.3333, and reproduces 98.6% of the treatment's divergence
-      with a larger standardised effect, so no activation intervention could
-      ever have passed a specificity test computed that way. And "moves the
-      output further" was comparing `effect_size_d`, which is that distance
-      divided by its spread — how consistently. The same substitution had
-      already been found and fixed once in `adds_to_text`.
+      What the certificate says now, against what it said on 2026-09-13:
 
-      **What is left: `shuffled_layers`.** A control may carry a quarter of the
-      effect. It carries 43%, 84% and 70% across three layer geometries, and
-      the reason is now built rather than argued:
+          arrives           5/8 prompts        ->  7/8
+          beats_noise       -0.1250 v -0.1125  ->  +0.028 v -0.087
+          carries_content   0.171 (floor 0.5)  ->  2.084, composites at cos -1.000
+          costs_nothing     0.0                ->  0.0, accuracy 1.000 either way
 
-          layers                    mean cosine   shuffled share
-          4 adjacent (27-39)           0.64            43%
-          16 full-attention            0.41            84%
-          6 least alike                0.29            70%
-
-      Take each layer's vector, project out the direction they share, keep the
-      residual — three quarters of the norm survives and the residuals are
-      near orthogonal, mean cosine -0.065, which is exactly what the control
-      wants. They do not steer: +0.083 at alpha 0.2, below baseline, and the
-      model stops writing above it. Steer at two near-orthogonal layers alone
-      (3 and 63, cosine 0.08) and there is no effect at any alpha either.
-
-      So the effect is the axis the layers share, and a control that permutes
-      vectors lying along one axis leaves the axis in place. Few layers, no
-      effect; many layers, a shared axis; remove the axis, no effect. That is a
-      property of CAA on this residual stream, measured five ways.
-
-      The direction controls — the ones that ask whether it matters WHICH
-      vector — pass outright every time: random -0.1250 and zero 0.0000,
-      neither significant, against +1.3333. What fails is layer-assignment
-      specificity, which this intervention does not have and cannot be given
-      without becoming a different intervention.
-
-      Whether serving authority should require both is a decision about the
-      bar, and it is Bryan's. `adds_to_text` stays outside
-      `passes_adversarial_control` either way, so it cannot become a back door.
+      Her direction now IMPROVES the model's preference for the right answer
+      where a random one of the same length costs it, and two opposing moods
+      are exactly antiparallel.
 
 - [x] a certificate for the resident 27B — it cannot have one, and the reason
       is now on the record rather than inferred. The mechanism is proven end to

@@ -204,7 +204,8 @@ class ExistentialStakes:
     #: core/consciousness" was answered "Executive veto: survival_inhibition:
     #: existential threat level critical (0.76)" at mem_threat=0.03. The host
     #: was oversubscribed by other processes (load 36 on 18 cores), the loop
-    #: reached 35s of lag, and the two lag monitors each recorded that lag as a
+    #: lagged by 5s at the least and 35s at the worst, and the two lag monitors
+    #: each recorded that lag as a
     #: CRITICAL degradation every ten seconds. Two critical signatures at
     #: weight 2.0 are 3.3 of a 5.0 denominator before anything else fails —
     #: the cap on lag was defeated by the same lag arriving through the
