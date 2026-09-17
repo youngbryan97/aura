@@ -1053,7 +1053,7 @@ async def pursue_on_screen(
     from core.agency.looking_ahead import forget_how_far_she_saw
 
     forget_how_far_she_saw()
-    if not await wait_for_a_screen_to_look_at(ends_at):
+    if not await wait_for_a_screen_to_look_at(ends_at, app=target_app):
         why = _WHY_SHE_CANNOT_LOOK["value"]
         return {
             "ok": False,

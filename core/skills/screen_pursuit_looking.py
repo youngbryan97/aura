@@ -412,7 +412,7 @@ def _what_being_refused_a_look_means(why: str) -> str:
     }.get(str(why or ""), f"I am not able to read the screen ({why or 'no reason given'})")
 
 
-async def wait_for_a_screen_to_look_at(ends_at: float) -> bool:
+async def wait_for_a_screen_to_look_at(ends_at: float, *, app: str = "") -> bool:
     """Wait for a locked screen, rather than failing at one.
 
     A locked screen is a condition that passes, like a model still warming.
@@ -424,10 +424,33 @@ async def wait_for_a_screen_to_look_at(ends_at: float) -> bool:
     the work was given. Checked about once a second because that is the
     granularity of the thing being waited for: a person reaching over and
     unlocking. Checking faster cannot see it sooner.
+
+    With ``app`` named and one of its windows on the desktop, the question is
+    about that window, because that window is all she will read. LIVE
+    2026-09-17: asked from a browser to play a desktop game, she waited on
+    "I cannot tell which page is in front" — the browser's page, which no
+    picture of the game's window could have held.
     """
     from core.security.screen_capture_policy import (
         evaluate_screen_capture_admission_async,
+        evaluate_window_capture_admission_async,
     )
+
+    async def may_she_look() -> Any:
+        window = None
+        if app:
+            try:
+                from core.capabilities import window_server  # noqa: PLC0415
+
+                window = await asyncio.to_thread(window_server.window_of, app)
+            except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+                record_degradation(
+                    "screen_pursuit", exc, severity="info",
+                    action="asked about the whole screen, having no window to ask about",
+                )
+        if window is None:
+            return await evaluate_screen_capture_admission_async()
+        return await evaluate_window_capture_admission_async(window.owner, window.title)
 
     # Let the settings land before believing a refusal.
     #
@@ -449,7 +472,7 @@ async def wait_for_a_screen_to_look_at(ends_at: float) -> bool:
     told = ""
     while True:
         try:
-            admission = await evaluate_screen_capture_admission_async()
+            admission = await may_she_look()
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             _WHY_SHE_CANNOT_LOOK["value"] = ""
             return True

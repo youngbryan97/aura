@@ -208,3 +208,36 @@ def test_her_own_model_saying_no_act_changes_anything_is_an_ending():
         knows=SimpleNamespace(rules=rules), laid_out=state,
     )
     assert still_going is False
+
+
+@pytest.mark.asyncio
+async def test_whether_she_may_look_is_asked_of_the_window_she_will_read(monkeypatch):
+    """A browser in front with a page she cannot name does not stop a look at a game's window."""
+    import time
+
+    from core.security import screen_capture_policy as policy
+    from core.skills.screen_pursuit_looking import wait_for_a_screen_to_look_at
+
+    a_window = window_server.Window(
+        number=7, owner="Some Game", pid=4321, title="Some Game", left=0, top=0,
+        width=400, height=400, layer=0, on_screen=True,
+    )
+    asked: list[tuple[str, str]] = []
+
+    async def the_screen():
+        return policy.ScreenCaptureAdmission(
+            allowed=False, reason=policy.ScreenCaptureDenial.BROWSER_TITLE_UNKNOWN
+        )
+
+    async def one_window(owner, title):
+        asked.append((owner, title))
+        return policy.ScreenCaptureAdmission(allowed=True)
+
+    monkeypatch.setattr(policy, "evaluate_screen_capture_admission_async", the_screen)
+    monkeypatch.setattr(policy, "evaluate_window_capture_admission_async", one_window)
+    monkeypatch.setattr(window_server, "window_of", lambda app, **_: a_window if app == "Some Game" else None)
+
+    assert await wait_for_a_screen_to_look_at(time.monotonic() + 5.0, app="Some Game") is True
+    assert asked == [("Some Game", "Some Game")]
+    # With no window of that name, the whole screen is what she would read.
+    assert await wait_for_a_screen_to_look_at(time.monotonic() + 0.5, app="Nothing Open") is False
