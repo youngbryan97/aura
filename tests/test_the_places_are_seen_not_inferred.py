@@ -226,3 +226,45 @@ def test_words_outside_the_grid_are_read_again_only_when_that_part_changes(monke
     changed[70:100, 340:470] = (60, 70, 80)
     looker.read(changed)
     assert len(times) == 2
+
+
+def test_a_place_she_has_read_something_from_is_not_what_empty_looks_like(monkeypatch):
+    """On a board of mostly one value, the commonest unread look IS that value."""
+    from core.perception import what_the_pixels_show as pixels
+
+    pale = (232, 240, 246)
+    mostly = {(row, column): pale for row in range(4) for column in range(4)} 
+    del mostly[(0, 0)]
+    del mostly[(3, 3)]
+    picture = _a_board(mostly)
+    grid = grids_in(panels_in(picture))[0]
+    looker = Looker()
+    # She reads one of them, so that look is known to carry something.
+    looker.read(picture, words=_words_at(grid, {(1, 1): "2"}))
+    monkeypatch.setattr(pixels, "recognize_text", lambda image: [])
+    says = looker.read(picture)["grids"][0]["says"]
+    # Fourteen places hold the same pale thing; two are empty.
+    assert says.count("") == 2
+
+
+def test_one_place_left_to_read_is_read_beside_the_ones_she_knows(monkeypatch):
+    """Recognition reads a line, not a square: one digit alone comes back empty."""
+    from core.perception import what_the_pixels_show as pixels
+
+    picture = _a_board({(0, 0): (218, 228, 238), (1, 1): (242, 177, 121), (2, 2): (99, 177, 242)})
+    grid = grids_in(panels_in(picture))[0]
+    looker = Looker()
+    looker.read(picture, words=_words_at(grid, {(0, 0): "2", (1, 1): "8"}))
+    asked: list[list[tuple[int, int]]] = []
+    real = Looker._read_as_a_strip
+
+    def watched(self, image, grid_, spots):
+        asked.append(list(spots))
+        return real(self, image, grid_, spots)
+
+    monkeypatch.setattr(Looker, "_read_as_a_strip", watched)
+    monkeypatch.setattr(pixels, "recognize_text", lambda image: [])
+    looker.read(picture)
+    assert asked, "nothing was read as a strip"
+    # The one place she has not read went in with the places she knows.
+    assert len(asked[0]) >= 3

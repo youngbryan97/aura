@@ -582,20 +582,36 @@ class Looker:
                 self.learned(looks.get(spot), text)
             blank = self._blank_look(grid, looks, says)
             unread: list[tuple[int, int]] = []
+            remembered: dict[tuple[int, int], str] = {}
             for spot, look in looks.items():
                 if spot in says or look is None:
                     continue
-                if blank is not None and self._apart(look, blank) < _SAME_LOOK:
+                if self._looks_empty(look, blank):
                     continue
                 known = self.recognised(look)
                 if known:
-                    says[spot] = known
+                    remembered[spot] = known
                 else:
                     unread.append(spot)
             if unread:
-                for spot, text in self._read_as_a_strip(image, grid, unread).items():
-                    says[spot] = text
-                    self.learned(looks.get(spot), text)
+                # Every place she has something for goes into the strip beside
+                # the ones she has not read. Recognition reads a line and not
+                # a square: one digit alone came back empty from the same
+                # picture whose four digits, laid side by side, all read. So a
+                # place is never read alone, and the places she thinks she
+                # knows are read again for nothing — which is how a look
+                # learned as the wrong thing stops being believed for ever.
+                company = sorted(set(unread) | set(remembered))
+                fresh = self._read_as_a_strip(image, grid, company)
+                for spot in company:
+                    text = fresh.get(spot, "")
+                    if not text:
+                        text = remembered.get(spot, "")
+                    if text:
+                        says[spot] = text
+                        self.learned(looks.get(spot), text)
+            else:
+                says.update(remembered)
             unsure = [spot for spot in unread if spot not in says]
             places = []
             for row in range(grid.rows):
@@ -652,7 +668,15 @@ class Looker:
         tell from and the ones it had earlier were the same colour.
         """
         shape = (grid.rows, grid.columns)
-        silent = [look for spot, look in looks.items() if spot not in says and look is not None]
+        silent = [
+            look
+            for spot, look in looks.items()
+            # A place she has read something from is not a candidate for what
+            # nothing looks like, however many of them there are. On a board
+            # of mostly twos the commonest unread look IS a two, and taking it
+            # for the empty look makes every two on the board disappear.
+            if spot not in says and look is not None and self.recognised(look) is None
+        ]
         best: tuple[int, Any] | None = None
         for look in silent:
             alike = sum(1 for other in silent if self._apart(look, other) < _SAME_LOOK)
@@ -663,6 +687,23 @@ class Looker:
             if known is None or self._apart(known, best[1]) < _SAME_LOOK or best[0] >= 3:
                 self.blank[shape] = best[1]
         return self.blank.get(shape)
+
+    def _looks_empty(self, look: Any, blank: Any) -> bool:
+        """Whether a place holds nothing: it looks more like an empty one than like anything written.
+
+        Nearness to the empty look alone is not enough. The palest thing a
+        place can hold sits a few units from an empty place and well inside
+        any fixed distance, so every one of them was skipped as empty — six
+        at a time, whole rows of a board (offline, drawn as pixels,
+        2026-09-17). What settles it is which it is nearer to.
+        """
+        if look is None or blank is None:
+            return False
+        to_blank = self._apart(look, blank)
+        if to_blank >= _SAME_LOOK:
+            return False
+        to_written = min((self._apart(look, one.look) for one in self.seen), default=math.inf)
+        return to_blank <= to_written
 
     def _read_as_a_strip(
         self, image: Any, grid: Grid, spots: Sequence[tuple[int, int]]
@@ -686,15 +727,20 @@ class Looker:
             crops.append(image[y0:y1, x0:x1])
         if not crops:
             return {}
-        height = max(crop.shape[0] for crop in crops)
-        gap = max(8, height // 2)
+        gap = max(8, max(crop.shape[0] for crop in crops) // 2)
+        height = max(crop.shape[0] for crop in crops) + 2 * gap
         pieces: list[Any] = []
         starts: list[tuple[int, int]] = []
         at = gap
         pieces.append(np.full((height, gap, 3), 255, np.uint8))
         for crop in crops:
+            # Each place sits in its own white surround. Laid edge to edge,
+            # the coloured squares of two places run together and come back
+            # as one run of text across both — "1( 6" for a 16 beside a 2 —
+            # which is worse than not reading them, because it is read into
+            # one of the places as its contents.
             padded = np.full((height, crop.shape[1], 3), 255, np.uint8)
-            padded[: crop.shape[0], : crop.shape[1]] = crop
+            padded[gap : gap + crop.shape[0], : crop.shape[1]] = crop
             pieces.append(padded)
             starts.append((at, at + crop.shape[1]))
             at += crop.shape[1]
@@ -704,9 +750,14 @@ class Looker:
         found: dict[tuple[int, int], str] = {}
         strip_wide = strip.shape[1]
         for region in recognize_text(strip):
+            left = float(region.get("x", region["center_x"])) * strip_wide
+            right = left + float(region.get("width", 0.0)) * strip_wide
             middle = float(region["center_x"]) * strip_wide
             for spot, (start, end) in zip(spots, starts, strict=False):
                 if start <= middle <= end:
+                    if left < start - gap / 2.0 or right > end + gap / 2.0:
+                        # A run across two places belongs to neither.
+                        break
                     found[spot] = (found.get(spot, "") + " " + str(region["text"])).strip()
                     break
         return found
