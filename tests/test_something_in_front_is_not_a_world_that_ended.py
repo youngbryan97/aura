@@ -39,8 +39,27 @@ def seeing(monkeypatch):
     return use
 
 
+@pytest.fixture
+def nothing_she_can_do(monkeypatch):
+    """Every way of clearing it fails, which is the case this file is about.
+
+    Left real, the attempt to bring her window back activates whatever
+    application is named on the machine running the tests, and succeeds — so
+    what she says is "carrying on", which is a different sentence about a
+    different situation.
+    """
+    from screen_pursuit_support import patch_pursuit
+
+    async def no(*_a, **_k):
+        return False
+
+    patch_pursuit(monkeypatch, "_bring_the_thing_back_to_the_front", no, raising=False)
+    patch_pursuit(monkeypatch, "clear_what_is_in_front", no, raising=False)
+    patch_pursuit(monkeypatch, "_move_her_own_surface_aside", no, raising=False)
+
+
 @pytest.mark.asyncio
-async def test_a_dialog_over_her_window_is_named(seeing):
+async def test_a_dialog_over_her_window_is_named(seeing, nothing_she_can_do):
     seeing((0, "Google Chrome"), (8, "UserNotificationCenter"))
     said = await _why_nothing_answers("Google Chrome")
     assert "UserNotificationCenter" in said
@@ -76,8 +95,26 @@ async def test_not_being_able_to_look_is_not_a_finding(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_what_it_says_is_something_a_person_can_act_on(seeing):
+async def test_what_it_says_is_something_a_person_can_act_on(seeing, nothing_she_can_do):
     seeing((0, "Google Chrome"), (8, "SecurityAgent"))
     said = await _why_nothing_answers("Google Chrome")
     assert "in front of it" in said
     assert "getting through" in said
+
+
+@pytest.mark.asyncio
+async def test_a_thing_she_can_bring_back_is_brought_back_rather_than_reported(seeing, monkeypatch):
+    """Naming a blocker she can do something about, and not doing it, is a report."""
+    from screen_pursuit_support import patch_pursuit
+
+    async def yes(*_a, **_k):
+        return True
+
+    async def no(*_a, **_k):
+        return False
+
+    patch_pursuit(monkeypatch, "_bring_the_thing_back_to_the_front", yes, raising=False)
+    patch_pursuit(monkeypatch, "_move_her_own_surface_aside", no, raising=False)
+    seeing((0, "Google Chrome"), (8, "UserNotificationCenter"))
+    said = await _why_nothing_answers("Google Chrome")
+    assert "UserNotificationCenter" in said and "carrying on" in said
