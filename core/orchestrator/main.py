@@ -1765,7 +1765,7 @@ class RobustOrchestrator(
                 severity="error",
             )
 
-            logger.error("Failed to start orchestrator: %s", e)
+            logger.error("Failed to start orchestrator: %s", e, exc_info=True)
             self.status.running = False
             return False
 

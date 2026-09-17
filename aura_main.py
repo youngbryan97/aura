@@ -1208,12 +1208,15 @@ async def _boot_runtime_orchestrator(
         try:
             from core.runtime.self_healing import get_healer
             healer = get_healer()
-            # Watch the orchestrator main loop; the orchestrator is expected
-            # to call `healer.heartbeat("orchestrator")` on every tick. If
-            # the heartbeat goes stale by 2.5x its expected interval, the
-            # healer asks the orchestrator to restart_async() (no-op if
-            # the method isn't defined — falls back to ServiceContainer).
-            healer.watch("orchestrator", expected_interval_s=5.0, container_key="orchestrator")
+            # run() starts after boot returns. Its first heartbeat arms the
+            # watch; process replacement belongs to the external supervisor.
+            healer.watch(
+                "orchestrator",
+                expected_interval_s=5.0,
+                container_key="orchestrator",
+                recovery_scope="process_root",
+                wait_for_heartbeat=True,
+            )
             healer.watch("pneuma", expected_interval_s=15.0, container_key="pneuma")
             healer.watch("mhaf", expected_interval_s=20.0, container_key="mhaf")
             healer.watch("curiosity", expected_interval_s=90.0, container_key="curiosity_engine")

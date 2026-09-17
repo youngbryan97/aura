@@ -42,6 +42,21 @@ PHI_SAMPLE_EVERY = 8
 FaultReport = Callable[..., None]
 
 
+def _materialize_float32_vector(sample: Any) -> Any:
+    """Materialize sampled residuals whose dtype lacks a NumPy buffer format."""
+    import numpy as np
+
+    try:
+        return np.asarray(sample, dtype=np.float32).reshape(-1)
+    except (RuntimeError, TypeError, ValueError):
+        # MLX bfloat16 exposes an incompatible PEP 3118 buffer. Its public
+        # conversion preserves values in this already-sliced residual vector.
+        tolist = getattr(sample, "tolist", None)
+        if not callable(tolist):
+            raise
+        return np.asarray(tolist(), dtype=np.float32).reshape(-1)
+
+
 def sample_every_from_environment(default: int = PHI_SAMPLE_EVERY) -> int:
     try:
         return max(1, int(os.getenv("AURA_PHI_RESIDUAL_SAMPLE_EVERY", str(default))))
@@ -163,9 +178,7 @@ class PhiResidualSampler:
                 from core.consciousness.phi_core import _grassmann_anchor_count
 
                 self.encoder = GrassmannResidualComplex(n_anchors=_grassmann_anchor_count())
-            import numpy as _np
-
-            vector = _np.asarray(sample, dtype=_np.float32).reshape(-1)
+            vector = _materialize_float32_vector(sample)
             state = self.encoder.observe(vector)
             if state is None:
                 return None

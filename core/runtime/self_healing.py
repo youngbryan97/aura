@@ -58,6 +58,8 @@ _DIR = state_root() / "data" / "self_healing"
 _DIR.mkdir(parents=True, exist_ok=True)
 _LEDGER = _DIR / "events.jsonl"
 
+_RECOVERY_SCOPES = frozenset({"component", "process_root"})
+
 
 def _env_flag(name: str, default: bool = False) -> bool:
     raw = os.environ.get(name)
@@ -169,6 +171,9 @@ class WatchEntry:
     expected_interval_s: float = 30.0
     restart_async: Callable[[], Awaitable[None]] | None = None
     container_key: str | None = None
+    recovery_scope: str = "component"
+    armed: bool = True
+    last_observation_at: float = 0.0
     restarts: int = 0
     restart_failures: int = 0
     last_restart_at: float = 0.0
@@ -205,12 +210,18 @@ class SelfHealing:
         expected_interval_s: float = 30.0,
         restart_async: Callable[[], Awaitable[None]] | None = None,
         container_key: str | None = None,
+        recovery_scope: str = "component",
+        wait_for_heartbeat: bool = False,
     ) -> None:
+        if recovery_scope not in _RECOVERY_SCOPES:
+            raise ValueError(f"Unknown recovery scope: {recovery_scope}")
         self._watches[name] = WatchEntry(
             name=name,
             expected_interval_s=expected_interval_s,
             restart_async=restart_async,
             container_key=container_key,
+            recovery_scope=recovery_scope,
+            armed=not wait_for_heartbeat,
         )
 
     def heartbeat(self, name: str) -> None:
@@ -218,6 +229,7 @@ class SelfHealing:
         if w is None:
             return
         w.last_heartbeat_at = time.time()
+        w.armed = True
         if w.restart_failures:
             w.restart_failures = 0
             w.last_restart_error = ""
@@ -280,6 +292,8 @@ class SelfHealing:
                     "last_restart_at": watch.last_restart_at,
                     "last_restart_error": watch.last_restart_error,
                     "container_key": watch.container_key,
+                    "recovery_scope": watch.recovery_scope,
+                    "armed": watch.armed,
                 }
                 for name, watch in sorted(self._watches.items())
             },
@@ -306,8 +320,14 @@ class SelfHealing:
     async def _tick(self) -> None:
         now = time.time()
         for w in list(self._watches.values()):
+            if not w.armed:
+                continue
             age = now - w.last_heartbeat_at
             if age <= w.expected_interval_s * 2.5:
+                continue
+            if w.recovery_scope == "process_root":
+                if now - w.last_observation_at > w.expected_interval_s * 2.5:
+                    await self._heal(w, age)
                 continue
             defer_reason = self._healing_defer_reason()
             if defer_reason:
@@ -406,6 +426,14 @@ class SelfHealing:
             "restart_failure_count": w.restart_failures,
         }
         try:
+            if w.recovery_scope == "process_root":
+                # stop() latches process shutdown. Only the external lifecycle
+                # owner can replace this process; keep the stale age visible.
+                record["result"] = "process_root_requires_external_recovery"
+                record["recovery_scope"] = w.recovery_scope
+                w.last_observation_at = time.time()
+                await self._append_record_async(record)
+                return
             defer_reason = self._healing_defer_reason()
             if defer_reason:
                 record["result"] = self._deferred_result(defer_reason)
@@ -526,6 +554,8 @@ class SelfHealing:
         await self._append_record_async(record)
 
     async def _restart_watch(self, w: WatchEntry) -> bool:
+        if w.recovery_scope == "process_root":
+            return False
         if w.restart_async is not None:
             restarted = w.restart_async()
             if inspect.isawaitable(restarted):
