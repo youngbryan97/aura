@@ -428,7 +428,11 @@ def anchors_warm() -> bool:
 #: One anchor warm at a time. A turn's warm request and the boot warmup ran
 #: side by side on 2026-09-16 and encoded every anchor twice; the second
 #: caller now waits and finds them warm.
-_WARM_LOCK = checked_lock("evidence_relevance.warm", rank=LockRank.LEAF)
+#:
+#: It is held across the whole encode, and the encoder takes its own leaf
+#: lock inside, so this one coordinates work and is ranked as a lane. Ranked
+#: as a leaf, every warm was a rank inversion (live, 2026-09-17).
+_WARM_LOCK = checked_lock("evidence_relevance.warm", rank=LockRank.LANE)
 
 
 def warm_semantic_routing() -> bool:

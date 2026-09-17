@@ -675,6 +675,10 @@ _STILL = 0.05
 _SAID: set[str] = set()
 
 
+#: The windows she has already said how she first saw.
+_LOOKED_AT: set[str] = set()
+
+
 def _say_once(why: str) -> None:
     """Why this way of looking stood aside, said once per reason."""
     if why not in _SAID:
@@ -847,12 +851,14 @@ async def look_at_window(
     if over is not None:
         l, t, r, b = over
         bounds = [left + int(l * wide), top + int(t * tall), max(1, int((r - l) * wide)), max(1, int((b - t) * tall))]
-    grids_seen = [(g["rows"], g["columns"]) for g in reading.get("grids") or []]
-    _say_once(
-        f"first look at {window.owner!r} by {_HOW_PIXELS_COME['way'] or 'nothing'}: "
-        f"{picture.shape[1]}x{picture.shape[0]}, {reading.get('panels', 0)} panel(s), "
-        f"grids {grids_seen}, {len(reading.get('layout') or [])} run(s) of text"
-    )
+    if window.owner not in _LOOKED_AT:
+        _LOOKED_AT.add(window.owner)
+        grids_seen = [(g["rows"], g["columns"]) for g in reading.get("grids") or []]
+        logger.info(
+            "first look at %r by %s: %dx%d, %s panel(s), grids %s, %d run(s) of text",
+            window.owner, _HOW_PIXELS_COME["way"] or "nothing", picture.shape[1], picture.shape[0],
+            reading.get("panels", 0), grids_seen, len(reading.get("layout") or []),
+        )
     reading.update(
         {
             "scoped_to": app,
