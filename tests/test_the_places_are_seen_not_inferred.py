@@ -192,3 +192,37 @@ def test_places_seen_in_the_picture_are_a_thing_laid_out_however_few_are_filled(
 
     assert replace(seen, places_seen=False) == seen
     assert not _is_a_thing_laid_out(replace(seen, places_seen=False))
+
+
+def test_words_outside_the_grid_are_read_again_only_when_that_part_changes(monkeypatch):
+    """Reading every word of a window again each glance is most of what a look costs."""
+    from core.perception import what_the_pixels_show as pixels
+
+    picture = _a_board({(0, 0): (218, 228, 238)})
+    grid = grids_in(panels_in(picture))[0]
+    times: list[int] = []
+
+    def counted(image):
+        times.append(1)
+        return [
+            {"text": "Score 12", "center_x": 0.78, "center_y": 0.08, "width": 0.2, "height": 0.04},
+            {"text": "2", "center_x": grid.across_at[0], "center_y": grid.down_at[0],
+             "width": grid.cell_width * 0.3, "height": grid.cell_height * 0.3},
+        ]
+
+    monkeypatch.setattr(pixels, "recognize_text", counted)
+    looker = Looker()
+    first = looker.read(picture)
+    assert [run["text"] for run in first["layout"]].count("Score 12") == 1
+
+    # A tile moves: inside the grid, so the words around it are the same words.
+    moved = _a_board({(1, 1): (218, 228, 238)})
+    again = looker.read(moved)
+    assert len(times) == 1
+    assert [run["text"] for run in again["layout"]].count("Score 12") == 1
+
+    # The score changes: that is outside the grid, and it is read again.
+    changed = _a_board({(1, 1): (218, 228, 238)})
+    changed[70:100, 340:470] = (60, 70, 80)
+    looker.read(changed)
+    assert len(times) == 2

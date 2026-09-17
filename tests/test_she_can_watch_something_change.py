@@ -522,7 +522,7 @@ def _nothing_above_her_work(monkeypatch):
     # running a suite it never passes. So the run spent its entire ten-minute
     # budget before reading anything at all, and the assertion about what it
     # does with an unbeatable dialog was never reached.
-    async def a_screen_is_there(_ends_at):
+    async def a_screen_is_there(_ends_at, **_of_what):
         return True
 
     patch_pursuit(monkeypatch, "wait_for_a_screen_to_look_at", a_screen_is_there, raising=False

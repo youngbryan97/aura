@@ -73,6 +73,12 @@ _SAME_LOOK = 9.0
 #: The side of the small picture an appearance is kept as.
 _LOOK_SIDE = 12
 
+#: How wide the picture is made when asking whether the part of a window
+#: around its grids has changed. Small enough to compare in a millisecond,
+#: large enough that one digit of a score moves it further than the noise of
+#: capturing the same screen twice.
+_AROUND_SIDE = 160
+
 
 @dataclass(frozen=True)
 class Panel:
@@ -432,6 +438,10 @@ class Looker:
     seen: list[_Seen] = field(default_factory=list)
     #: How the empty places of each grid look, by the grid's shape.
     blank: dict[tuple[int, int], Any] = field(default_factory=dict)
+    #: How the window looked around its grids when its words were last read,
+    #: and the words that were outside them.
+    around: Any = None
+    around_says: tuple[dict[str, Any], ...] = ()
 
     def _look_of(self, image: Any, panel: Panel) -> Any:
         tall, wide = image.shape[:2]
@@ -443,6 +453,56 @@ class Looker:
         if crop.size == 0:
             return None
         return _lab_of(_smaller(crop, _LOOK_SIDE, _LOOK_SIDE))
+
+    def _around(self, image: Any, grids: Sequence[Grid]) -> Any:
+        """The picture with the grids taken out of it, small enough to compare."""
+        import numpy as np  # noqa: PLC0415
+
+        tall, wide = image.shape[:2]
+        shrink = _AROUND_SIDE / float(max(1, max(tall, wide)))
+        blanked = _smaller(
+            image, max(1, int(wide * shrink)), max(1, int(tall * shrink))
+        ).astype(np.int16)
+        s_tall, s_wide = blanked.shape[:2]
+        for grid in grids:
+            left, top, right, bottom = grid.outline
+            blanked[
+                max(0, int(top * s_tall)) : max(0, int(math.ceil(bottom * s_tall))),
+                max(0, int(left * s_wide)) : max(0, int(math.ceil(right * s_wide))),
+            ] = 0
+        return blanked
+
+    def _same_around(self, image: Any, grids: Sequence[Grid]) -> bool:
+        import numpy as np  # noqa: PLC0415
+
+        now = self._around(image, grids)
+        before = self.around
+        if before is None or getattr(before, "shape", None) != now.shape:
+            self.around = now
+            return False
+        same = float(np.abs(now - before).mean()) < _STILL
+        self.around = now
+        return same
+
+    def _remember_around(
+        self, image: Any, grids: Sequence[Grid], layout: Sequence[dict[str, Any]]
+    ) -> None:
+        """Keep the words that were outside the grids, and how that part looked."""
+        if not grids:
+            self.around, self.around_says = None, ()
+            return
+        outside = []
+        for one in layout:
+            x = float(one.get("center_x", -1.0) or -1.0)
+            y = float(one.get("center_y", -1.0) or -1.0)
+            within = False
+            for grid in grids:
+                left, top, right, bottom = grid.outline
+                within = within or (left <= x <= right and top <= y <= bottom)
+            if not within:
+                outside.append(dict(one))
+        self.around = self._around(image, grids)
+        self.around_says = tuple(outside)
 
     @staticmethod
     def _apart(a: Any, b: Any) -> float:
@@ -482,9 +542,18 @@ class Looker:
         """
         if image is None:
             return {"ok": False, "text": "", "layout": [], "grids": [], "error": "no picture"}
-        layout = list(words) if words is not None else recognize_text(image)
         panels = panels_in(image)
         grids = grids_in(panels)
+        if words is not None:
+            layout = list(words)
+        elif grids and self._same_around(image, grids):
+            # Words she has already read, in a part of the picture that has
+            # not changed, are the same words. What is inside the grids is
+            # read from the places themselves, so nothing here is kept stale.
+            layout = [dict(one) for one in self.around_says]
+        else:
+            layout = recognize_text(image)
+            self._remember_around(image, grids, layout)
         read_grids: list[dict[str, Any]] = []
         extra: list[dict[str, Any]] = []
         for grid in grids:

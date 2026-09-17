@@ -90,6 +90,17 @@ def screen(monkeypatch):
     async def brought(*_a, **_k):
         return True
 
+    # Nor is the real machine's screen asked whether it may be read. Left
+    # real, every test in this file fails while the host's screen is locked,
+    # which is a fact about the host and about nothing this file is for.
+    from core.security import screen_capture_policy as policy
+
+    async def may_look(*_a, **_k):
+        return policy.ScreenCaptureAdmission(allowed=True)
+
+    monkeypatch.setattr(policy, "evaluate_screen_capture_admission_async", may_look)
+    monkeypatch.setattr(policy, "evaluate_window_capture_admission_async", may_look)
+
     patch_pursuit(monkeypatch, "_frontmost", in_front)
     patch_pursuit(monkeypatch, "_bring_the_thing_back_to_the_front", brought, raising=False)
     patch_pursuit(monkeypatch, "_whats_on_top", lambda *_a, **_k: _nothing(), raising=False)

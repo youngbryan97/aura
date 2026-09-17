@@ -105,7 +105,7 @@ def screen(monkeypatch):
     async def identity():
         return {"url": "https://play2048.co/", "title": "2048", "error": ""}
 
-    async def there_is_a_screen(_ends_at):
+    async def there_is_a_screen(_ends_at, **_of_what):
         return True
 
     # The fixture IS the screen, so the gate that asks whether there is one has

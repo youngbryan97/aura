@@ -381,6 +381,17 @@ PASSES_ON_ITS_OWN = frozenset({
 })
 
 
+#: Refusals that are about whatever happens to be in front of the display,
+#: rather than about reading at all. A picture of one window by its number
+#: holds that window and nothing else, so these are asked again of it.
+ABOUT_WHAT_IS_IN_FRONT = frozenset({
+    "private_foreground",
+    "private_visible",
+    "foreground_unknown",
+    "browser_title_unknown",
+})
+
+
 def _what_being_refused_a_look_means(why: str) -> str:
     """The refusal in her own words, and what would change it."""
     return {
@@ -425,11 +436,11 @@ async def wait_for_a_screen_to_look_at(ends_at: float, *, app: str = "") -> bool
     granularity of the thing being waited for: a person reaching over and
     unlocking. Checking faster cannot see it sooner.
 
-    With ``app`` named and one of its windows on the desktop, the question is
-    about that window, because that window is all she will read. LIVE
-    2026-09-17: asked from a browser to play a desktop game, she waited on
-    "I cannot tell which page is in front" — the browser's page, which no
-    picture of the game's window could have held.
+    A refusal about what is in front is not a refusal about her own window.
+    LIVE 2026-09-17: asked from a browser to play a desktop game, she waited
+    on "I cannot tell which page is in front" — the browser's page, which no
+    picture of the game's window could have held. With ``app`` named, those
+    refusals are put again to the window she will actually read.
     """
     from core.security.screen_capture_policy import (
         evaluate_screen_capture_admission_async,
@@ -437,19 +448,24 @@ async def wait_for_a_screen_to_look_at(ends_at: float, *, app: str = "") -> bool
     )
 
     async def may_she_look() -> Any:
-        window = None
-        if app:
-            try:
-                from core.capabilities import window_server  # noqa: PLC0415
+        # The whole screen first: when all of it may be read, so may any one
+        # window in it, and the answer costs nothing.
+        admission = await evaluate_screen_capture_admission_async()
+        why = str(getattr(admission.reason, "value", admission.reason) or "")
+        if admission.allowed or not app or why not in ABOUT_WHAT_IS_IN_FRONT:
+            return admission
+        try:
+            from core.capabilities import window_server  # noqa: PLC0415
 
-                window = await asyncio.to_thread(window_server.window_of, app)
-            except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
-                record_degradation(
-                    "screen_pursuit", exc, severity="info",
-                    action="asked about the whole screen, having no window to ask about",
-                )
+            window = await asyncio.to_thread(window_server.window_of, app)
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "screen_pursuit", exc, severity="info",
+                action="kept the whole screen's answer, having no window to ask about",
+            )
+            return admission
         if window is None:
-            return await evaluate_screen_capture_admission_async()
+            return admission
         return await evaluate_window_capture_admission_async(window.owner, window.title)
 
     # Let the settings land before believing a refusal.
