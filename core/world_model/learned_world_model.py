@@ -108,9 +108,13 @@ class WorldModelPrediction:
     latent_logvar: np.ndarray       # Posterior log-variance
     confidence: float               # 1.0 - surprise (how confident the prediction is)
     timestamp: float = field(default_factory=lambda: time.time())
+    prediction_kind: str = "reconstruction"
 
     def to_dict(self) -> Dict[str, Any]:
         return {
+            "predicted_state": self.predicted_state.tolist(),
+            "prediction_kind": self.prediction_kind,
+            "confidence_calibrated": False,
             "surprise": round(self.surprise, 6),
             "kl_divergence": round(self.kl_divergence, 6),
             "reconstruction_error": round(self.reconstruction_error, 6),
@@ -290,6 +294,48 @@ class LearnedWorldModel:
 
         return prediction
 
+    def rollout_start(self, observation: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Condition a planning branch on an observation without taking an action.
+
+        The returned hidden state precedes the supplied observation, as it
+        does in ``observe``. The posterior mean represents that observation.
+        Planning uses means and leaves the learner's random stream untouched.
+        """
+        obs = self._pad_or_truncate(observation, self.config.observation_dim)
+        hidden = self.h.copy()
+        posterior = self.W_enc @ np.concatenate([obs, hidden]) + self.b_enc
+        latent, _ = np.split(posterior, 2)
+        return latent, hidden
+
+    def rollout_step(
+        self, latent: np.ndarray, hidden: np.ndarray, action: np.ndarray,
+    ) -> Tuple[WorldModelPrediction, np.ndarray]:
+        """Apply the action before predicting the following observation.
+
+        Training reconstructs x_t from (z_t, h_previous), then applies a_t
+        to advance h. Its next prior and decoder therefore condition on that
+        advanced state. Search and trajectory imagination use this same order.
+        """
+        act = self._pad_or_truncate(action, self.config.action_dim)
+        next_hidden = self._gru_step(np.concatenate([latent, act]), hidden)
+        prior = self.W_prior @ next_hidden + self.b_prior
+        mean, logvar = np.split(prior, 2)
+        logvar = np.clip(logvar, -5.0, 2.0)
+        predicted = np.tanh(
+            self.W_dec @ np.concatenate([mean, next_hidden]) + self.b_dec
+        )
+        prediction = WorldModelPrediction(
+            predicted_state=predicted,
+            surprise=0.0,
+            kl_divergence=0.0,
+            reconstruction_error=0.0,
+            latent_mean=mean,
+            latent_logvar=logvar,
+            confidence=0.5,  # Compatibility score, not measured forecast accuracy.
+            prediction_kind="action_rollout",
+        )
+        return prediction, next_hidden
+
     def imagine(
         self,
         current_observation: np.ndarray,
@@ -297,40 +343,16 @@ class LearnedWorldModel:
     ) -> List[WorldModelPrediction]:
         """Imagine a future trajectory given a sequence of actions.
 
-        Uses the prior (not posterior) since future observations
-        aren't available. This is the planning pathway.
+        Condition on the current observation, then use prior means for future
+        observations. This has the same transition semantics as tree search.
         """
         trajectory: List[WorldModelPrediction] = []
-        h = self.h.copy()  # Don't modify actual hidden state
+        latent, hidden = self.rollout_start(current_observation)
 
         for action in action_sequence[:self.config.max_trajectory_len]:
-            act = self._pad_or_truncate(action, self.config.action_dim)
-
-            # Prior prediction
-            prior_params = self.W_prior @ h + self.b_prior
-            prior_mean, prior_logvar = np.split(prior_params, 2)
-            prior_logvar = np.clip(prior_logvar, -5.0, 2.0)
-
-            # Sample from prior
-            z = self._reparameterize(prior_mean, prior_logvar)
-
-            # Decode
-            dec_input = np.concatenate([z, h])
-            predicted = np.tanh(self.W_dec @ dec_input + self.b_dec)
-
-            # Transition
-            gru_input = np.concatenate([z, act])
-            h = self._gru_step(gru_input, h)
-
-            trajectory.append(WorldModelPrediction(
-                predicted_state=predicted,
-                surprise=0.0,  # Unknown for imagined states
-                kl_divergence=0.0,
-                reconstruction_error=0.0,
-                latent_mean=prior_mean,
-                latent_logvar=prior_logvar,
-                confidence=0.5,  # Moderate confidence for predictions
-            ))
+            prediction, hidden = self.rollout_step(latent, hidden, action)
+            latent = prediction.latent_mean
+            trajectory.append(prediction)
 
         return trajectory
 

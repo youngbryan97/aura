@@ -82,6 +82,11 @@ claim that every connection is serving or qualified.
 
 ### Mathematical obligations
 
+The [shared world-rollout repair](evidence/G09_ACTION_CONDITIONED_WORLD_2026-09-17.md)
+connects imagination and tree search to the same action-conditioned VRNN
+transition. It fixes observation and action timing; forecast accuracy across
+domains remains a separate measurement obligation.
+
 For a declared task population, let the failure events be missing required
 information, an incorrect interpretation, unsuccessful search, incorrect
 execution, and incorrect public emission. If these cover the ways the pipeline
