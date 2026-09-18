@@ -810,6 +810,14 @@ async def decide_the_next_move(
             # A key that never changes anything is not one of her actions
             # in this world, whoever wrote it down.
             can_do.tried(previous.chosen.name, attempt.verdict.observed_change)
+            # And whether the way it was sent reaches the thing at all.
+            from .screen_pursuit_surface import it_answered
+
+            it_answered(
+                target_app or anchor["app"],
+                previous.chosen.name,
+                attempt.verdict.observed_change,
+            )
             # And what stood around it when it did no harm — the two
             # pieces either side of a gap, found by taking things away
             # rather than by being described.

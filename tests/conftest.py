@@ -829,6 +829,8 @@ def _reset_process_wide_state():
         ("core.cognition.value_of_computation", lambda m: m.reset_swings()),
         ("core.verify.epistemic_independence", lambda m: m.registry().clear()),
         ("core.governance.value_levels", lambda m: m.registry().clear()),
+        # Which way keys reach each application, found out by playing.
+        ("core.skills.screen_pursuit_surface", lambda m: (m._HOW_KEYS_LAND.clear(), m._UNANSWERED.clear())),
     ):
         try:
             import importlib

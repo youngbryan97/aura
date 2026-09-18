@@ -232,6 +232,55 @@ def capture(window: Window) -> Any:
         return None
 
 
+#: What a keyboard's arrow keys carry and a key made from its code alone does
+#: not: they sit on the numeric pad and the function layer. Some applications
+#: read an arrow by those, and a synthetic one without them is a key they do
+#: not recognise as an arrow.
+_ARROW_FLAGS = 0x00200000 | 0x00800000
+_ARROWS = frozenset({"up", "down", "left", "right"})
+
+
+def _key_event(quartz: Any, name: str, code: int, down: bool) -> Any:
+    event = quartz.CGEventCreateKeyboardEvent(None, code, down)
+    if str(name or "").strip().lower() in _ARROWS:
+        quartz.CGEventSetFlags(event, _ARROW_FLAGS)
+    return event
+
+
+def type_keys(keys: Sequence[str], *, between_s: float = 0.0) -> int:
+    """Send named keys the way a keyboard does. Returns how many were sent.
+
+    Into the stream typing goes into, so they reach whatever is in front and
+    nothing else. The caller makes sure what is in front is what it means to
+    type into; an application that ignores keys addressed to it still takes
+    these, as it takes a person's.
+    """
+    quartz = _quartz()
+    if quartz is None:
+        return 0
+    sent = 0
+    for name in keys:
+        code = key_code(name)
+        if code is None:
+            break
+        try:
+            quartz.CGEventPost(quartz.kCGHIDEventTap, _key_event(quartz, name, code, True))
+            quartz.CGEventPost(quartz.kCGHIDEventTap, _key_event(quartz, name, code, False))
+        except (AttributeError, RuntimeError, TypeError, ValueError) as why:
+            logger.debug("a key did not go: %s", why)
+            break
+        sent += 1
+        if between_s > 0.0 and sent < len(keys):
+            time.sleep(between_s)
+    return sent
+
+
+def owns_the_front(app: str) -> bool:
+    """Whether the ordinary window in front belongs to the application someone named."""
+    front = front_owner()
+    return bool(front) and _names_the_owner(app, front) > 0
+
+
 def post_keys(pid: int, keys: Sequence[str], *, between_s: float = 0.0) -> int:
     """Send named keys to one process. Returns how many were sent.
 
@@ -249,10 +298,8 @@ def post_keys(pid: int, keys: Sequence[str], *, between_s: float = 0.0) -> int:
         if code is None:
             break
         try:
-            down = quartz.CGEventCreateKeyboardEvent(None, code, True)
-            up = quartz.CGEventCreateKeyboardEvent(None, code, False)
-            quartz.CGEventPostToPid(int(pid), down)
-            quartz.CGEventPostToPid(int(pid), up)
+            quartz.CGEventPostToPid(int(pid), _key_event(quartz, name, code, True))
+            quartz.CGEventPostToPid(int(pid), _key_event(quartz, name, code, False))
         except (AttributeError, RuntimeError, TypeError, ValueError) as why:
             logger.debug("a key to %s did not go: %s", pid, why)
             break
