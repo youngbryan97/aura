@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import logging
 import math
+from collections import deque
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -140,8 +141,15 @@ class EarnedAxis:
         self._capacity = capacity
         self._rng = np.random.default_rng(seed)
 
-        self._states: list[np.ndarray] = []
-        self._targets: list[float] = []
+        # Bounded at construction rather than trimmed after the fact. The
+        # trim was del self._states[:n] on a list of capacity
+        # elements, inside the lock, on every observation once full — an
+        # O(n) shift in a critical section every hot path waits on.
+        # Lockdep measured 87ms on earned_metric.axis.valence. A deque
+        # bounded at the same capacity evicts in constant time.
+        self._observations: deque[tuple[np.ndarray, float]] = deque(
+            maxlen=max(1, int(capacity))
+        )
         self._coefficients: np.ndarray | None = None
         self._fit: AxisFit = AxisFit(
             name=name,
@@ -175,18 +183,12 @@ class EarnedAxis:
             return
 
         with self._lock:
-            if self._states and self._states[-1].size != vector.size:
+            if self._observations and self._observations[-1][0].size != vector.size:
                 # The substrate was resized under us. Old observations describe
                 # a different space and averaging across the change would fit a
                 # direction that never existed.
-                self._states.clear()
-                self._targets.clear()
-            self._states.append(vector)
-            self._targets.append(value)
-            if len(self._states) > self._capacity:
-                trim = len(self._states) - self._capacity
-                del self._states[:trim]
-                del self._targets[:trim]
+                self._observations.clear()
+            self._observations.append((vector, value))
 
     # -- fitting -----------------------------------------------------------
 
@@ -194,8 +196,9 @@ class EarnedAxis:
         """Refit and revalidate. Returns the evidence, and stores it."""
 
         with self._lock:
-            states = list(self._states)
-            targets = list(self._targets)
+            observed = list(self._observations)
+        states = [vector for vector, _target in observed]
+        targets = [target for _vector, target in observed]
 
         if len(states) < self._min_samples:
             result = AxisFit(
@@ -303,7 +306,7 @@ class EarnedAxis:
 
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
-            observations = len(self._states)
+            observations = len(self._observations)
             fit = self._fit
         return {**fit.as_dict(), "observations": observations}
 

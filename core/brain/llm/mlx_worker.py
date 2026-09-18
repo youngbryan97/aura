@@ -295,10 +295,6 @@ def _state_application_quarantine_response(
 
 
 
-_CORRUPT_LANGUAGE_MARKERS = re.compile(
-    r"\b(?:xublcate|ingediate|evocer)\b",
-    re.IGNORECASE,
-)
 _OPERATOR_EVIDENCE_DRIFT_MARKERS = re.compile(
     r"(?:\bSarah Connor\b|\bMother'?s Day\b|\bhuman error rate\b|"
     r"\bdeath by overthinking\b|\b100 rounds\b|\b100%\s+pass rate\b|"
@@ -4029,10 +4025,10 @@ from core.brain.llm.prompt_cache import (  # noqa: E402
     capture_prompt_cache_one_token_rollback as _capture_prompt_cache_one_token_rollback,
 )
 
-# Here rather than at the top because the surface modules read this module's
-# own names while they load — moving either import up raises
-# "cannot import name '_CORRUPT_LANGUAGE_MARKERS' from partially initialized
-# module". The names above them are what they need to already exist.
+# Here rather than at the top because the surface modules read names this
+# module defines above them while they load. The marker patterns that used
+# to make this a true cycle — where neither half could be imported first —
+# now live in mlx_worker_surface_markers, which imports neither.
 from .mlx_worker_surface_quality import (  # noqa: E402
     _BACKEND_SYMBOLIC_SURFACE_MARKERS,
     _apply_surface_generation_controls,
@@ -6088,17 +6084,14 @@ def _mlx_worker_loop_why_ended_beside(_budget_applied, _spent_the_whole_budget, 
     # arrived here looking identical — and the first was
     # being read as the second, which is a budget problem
     # that widening the budget cannot fix.
+    from core.brain.llm.mlx_worker_surface_quality import (
+        semantic_completion_blockers,
+    )
+
     logger.warning(
         "User-surface generation ended before semantic completion: "
-        "missing_parts=%s quality=%s epistemic_covered=%s "
-        "terminal_boundary=%s tokens=%d stop=%s spent_budget=%s "
-        "thinking=%s deadline=%s",
-        semantic_completion_state["semantic_completion_missing_part_indexes"],
-        semantic_completion_state["semantic_completion_quality_reasons"],
-        semantic_completion_state[
-            "semantic_completion_epistemic_partition_covered"
-        ],
-        semantic_completion_state["semantic_completion_terminal_boundary"],
+        "because=%s | tokens=%d stop=%s spent_budget=%s thinking=%s deadline=%s",
+        ", ".join(semantic_completion_blockers(semantic_completion_state)) or "-",
         total_generated_tokens,
         repr(configured_stop_sequence) if configured_stop_sequence else "none",
         bool(_spent_the_whole_budget),
@@ -6719,7 +6712,33 @@ def _mlx_worker_loop(
         # Import the model stack only after the process-local device contract
         # is established. Import-time tensors must never inherit the desktop
         # parent's CPU ownership.
-        from mlx_lm import load
+        from mlx_lm import load as _mlx_lm_load
+
+        def load(model_path, adapter_path=None):
+            """Load a checkpoint, including packs mlx_lm cannot read itself.
+
+            A Prism Hadamard pack is Qwen3.5 at two bits with the outlier
+            rotation folded into the weights. Everything after loading is
+            the ordinary decode path — the model it produces answers the
+            same calls — so this is the only place that has to know.
+            """
+
+            from core.brain.llm.prism_hadamard import (
+                is_prism_hadamard_pack,
+                load_prism_hadamard_pack,
+            )
+
+            if is_prism_hadamard_pack(model_path):
+                if adapter_path:
+                    raise ValueError(
+                        "A Prism Hadamard pack has its weights folded through a "
+                        "Hadamard rotation; a LoRA trained on the unrotated base "
+                        "cannot be fused onto it"
+                    )
+                return load_prism_hadamard_pack(model_path)
+            if adapter_path:
+                return _mlx_lm_load(model_path, adapter_path=adapter_path)
+            return _mlx_lm_load(model_path)
 
         try:
             from mlx_lm.sample_utils import make_sampler

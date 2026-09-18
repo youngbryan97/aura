@@ -257,17 +257,28 @@ def test_a_silent_timeout_is_classified_by_its_action():
     became a degraded record and an incident. A caller that names its own
     backpressure in the action should not also have to encode it in an
     exception message it does not control.
+
+    Asserted through BEHAVIOUR, like the test below it and for the reason
+    that test gives. This read ``inspect.getsource(record_degradation)``
+    for the identifiers ``_action_text`` and the marker-scan expression,
+    and went red when the method-size sweep moved the decision into an
+    extracted helper — the rule it protects untouched, the words no longer
+    in the function it looked at.
     """
-    import inspect
 
     from core.runtime.errors import record_degradation
 
     assert str(TimeoutError()) == "", "the premise: the exception is silent"
 
-    src = inspect.getsource(record_degradation)
-    assert "_action_text" in src, "the action line must be readable by the scan"
-    assert "marker in _error_text or marker in _action_text" in src, (
-        "an empty exception message must not hide backpressure the caller named"
+    handled = record_degradation(
+        "inference_gate",
+        TimeoutError(),
+        severity="degraded",
+        action="skipped cold primary attempt or fell back after foreground warmup",
+    )
+    assert handled.severity == "warning", (
+        "an empty exception message must not hide backpressure the caller "
+        "named in its own action line"
     )
 
 

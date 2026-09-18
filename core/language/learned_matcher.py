@@ -109,20 +109,28 @@ def embed_sentences(sentences: Iterable[str]) -> list[list[float]]:
 
 #: Every surface a live turn has asked. Warming reads this, so a surface
 #: cannot be consulted without also being maintained.
-_SURFACES: list[LearnedMatcher] = []
+_SURFACES: tuple[LearnedMatcher, ...] = ()
 _SURFACES_LOCK = checked_lock("core.language.learned_matcher")
 
 
 def _register(surface: LearnedMatcher) -> None:
+    global _SURFACES
     with _SURFACES_LOCK:
         if not any(existing is surface for existing in _SURFACES):
-            _SURFACES.append(surface)
+            # Rebound rather than appended, so a reader needs no lock and
+            # cannot see the list mid-append.
+            _SURFACES = (*_SURFACES, surface)
 
 
 def registered_surfaces() -> tuple[LearnedMatcher, ...]:
-    """The surfaces live turns have consulted."""
-    with _SURFACES_LOCK:
-        return tuple(_SURFACES)
+    """The surfaces live turns have consulted.
+
+    No lock: registration rebinds the name, so reading it is atomic and
+    returns one whole version. Lockdep measured 148ms of contention on a
+    section that appends one element — every turn that consults a surface
+    queueing behind every other one.
+    """
+    return _SURFACES
 
 
 def warm_all(limit: int = 8) -> int:

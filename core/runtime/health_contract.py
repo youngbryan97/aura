@@ -2137,6 +2137,14 @@ def _integrity_of_orchestration_verifier_and_learning(block: dict[str, Any]) -> 
     except Exception as exc:  # noqa: BLE001 — each health add-on is isolated
         block["passes_error"] = repr(exc)
     try:
+        from core.runtime.host_sleep import host_sleep_report
+
+        # A gap in a timeline is not evidence of a stall when the host was
+        # shut. Reported so a reader of this surface can tell the two apart.
+        block["host_sleep"] = host_sleep_report()
+    except Exception as exc:  # noqa: BLE001 — each health add-on is isolated
+        block["host_sleep_error"] = repr(exc)
+    try:
         from core.runtime.oom_policy import oom_report
 
         oom = oom_report()
@@ -2163,6 +2171,12 @@ def _integrity_of_orchestration_verifier_and_learning(block: dict[str, Any]) -> 
             "work_ledger": work_ledger_status(),
             "injection_canaries": {
                 "evaluated": canaries["evaluated"],
+                # A count says the detector ran, not that it ran on
+                # anything real. Until a lane plants a canary in a prompt
+                # carrying somebody's untrusted content, every number
+                # beside this came from a validator's synthetic material.
+                "live_evaluated": canaries["live_evaluated"],
+                "watching_live_traffic": canaries["watching_live_traffic"],
                 "incidents": canaries["hijacked"] + canaries["leaked"],
                 "incident_rate": canaries["incident_rate"],
                 # A probe lane that keeps failing has silently stopped

@@ -294,6 +294,17 @@ from core.runtime.state_ownership import state_root
 logger = logging.getLogger("Aura.FlagshipDoctor")
 
 
+def _sleep_anchor() -> tuple[float | None, float]:
+    """Both clocks at one moment, kept beside the heartbeat."""
+
+    try:
+        from core.runtime.host_sleep import sleep_anchor
+
+        return sleep_anchor()
+    except (ImportError, AttributeError, OSError):
+        return (None, time.monotonic())
+
+
 class FlagshipDoctorDaemon:
     """Active background doctor daemon for event-loop latency tracking and database/memory self-healing."""
 
@@ -309,6 +320,7 @@ class FlagshipDoctorDaemon:
         self.lag_threshold = lag_threshold
         self.ram_threshold = ram_threshold
         self._last_heartbeat = time.time()
+        self._heartbeat_anchor = _sleep_anchor()
         try:
             self.active_lag_threshold = max(
                 self.lag_threshold,
@@ -464,6 +476,7 @@ class FlagshipDoctorDaemon:
         
         self._running = True
         self._last_heartbeat = time.time()
+        self._heartbeat_anchor = _sleep_anchor()
         
         # Schedule the heartbeat task on the event loop
         if self._loop and self._loop.is_running():
@@ -498,6 +511,7 @@ class FlagshipDoctorDaemon:
         import asyncio
         while self._running and not is_shutdown_requested():
             self._last_heartbeat = time.time()
+            self._heartbeat_anchor = _sleep_anchor()
             try:
                 await asyncio.sleep(0.5)
             except asyncio.CancelledError:
@@ -689,6 +703,20 @@ class FlagshipDoctorDaemon:
 
         return True, lag_context, ram_pressure
 
+    def _slept_since_heartbeat(self) -> float:
+        """Seconds the host was suspended since the last heartbeat."""
+
+        anchor = getattr(self, "_heartbeat_anchor", None)
+        if not anchor:
+            return 0.0
+        try:
+            from core.runtime.host_sleep import seconds_asleep_since
+
+            return seconds_asleep_since(anchor[0], anchor[1])
+        except (ImportError, AttributeError, TypeError, ValueError, OSError):
+            # Unmeasurable is 0.0, which leaves this no worse than before.
+            return 0.0
+
     def _monitor_loop(self) -> None:
         """Standard thread loop running in the background to detect event-loop stalls or high memory."""
         logger.info("FlagshipDoctorDaemon background thread started.")
@@ -699,7 +727,15 @@ class FlagshipDoctorDaemon:
                 break
                 
             # 1. Event Loop Lag check
-            lag = time.time() - self._last_heartbeat
+            #
+            # Wall time counts the hours a closed laptop spent suspended and
+            # the event loop did not stall for any of them. Unsubtracted,
+            # a lid shut overnight comes back as 28,800 seconds of lag and
+            # this daemon SELF-HEALS a machine that was merely off. The
+            # suspension is measured against a clock that counts through
+            # it, so a genuine stall during a waking hour still reads as
+            # one.
+            lag = max(0.0, (time.time() - self._last_heartbeat) - self._slept_since_heartbeat())
             
             # 2. RAM Pressure check
             ram_percent = 0.0

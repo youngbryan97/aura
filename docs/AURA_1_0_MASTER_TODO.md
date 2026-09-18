@@ -292,6 +292,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   which is contention and not the section itself; `core.language.learned_matcher`
   148ms; `earned_metric.axis.valence` 87ms; `core.canonical.state.singleton`
   53ms.
+  CLOSED 2026-09-18, and the four were the other half of the pattern. Three
+  were contention on the read path of something written once: the canonical
+  state took its lock on every call including the overwhelming majority that
+  find the singleton already built, and the two registers took theirs to
+  append one element and to copy the map. Published by rebinding now, so a
+  reader takes nothing and still sees one whole version — including the test
+  reset helpers, because clearing in place under a lockless reader is how it
+  would see half a register. The fourth really was work: `earned_metric`
+  trimmed with `del self._states[:n]` on a list of `capacity`, inside the
+  lock, on every observation once full; a deque bounded at the same capacity
+  evicts in constant time. 7d4f5caca.
   PARTIAL 2026-09-07. The wedge itself is fixed: an ABBA deadlock between two
   logging handlers, eleven threads blocked in `logging.Handler.acquire`, the
   process alive and the port listening for thirty-three minutes. Guarded at the
@@ -404,6 +415,27 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   wait budget" recurs.
 - [ ] R08 Resolve neural-feed warnings individually by cause; distinguish
   unrun evidence, missing telemetry, real failure, and historical observations.
+  UPDATE 2026-09-18. Two more taken by cause from one evening's live feed,
+  and both were the gate rather than the model.
+  - `surface_controls_unavailable:steering_unavailable`, classified
+    foreground_blocking: the person got "Generation failed". The clean
+    user-surface alpha is a **ceiling** — applied through
+    `set_surface_alpha_override`, whose docstring is "Clamp hook alpha" and
+    whose body is `min(hook_alpha, override)` — so an absent steering engine
+    produces zero steering, which is under every ceiling there is. The
+    branch beside it already said a missing engine equals a zero request,
+    and stopped at the one case where it did not matter. The turn failed for
+    being cleaner than its contract asked. The guard stays for the case it
+    was built for, a present engine whose clamp raised. FIXED, beb7e7c33.
+  - `ended before semantic completion: missing_parts=[] quality=[]
+    epistemic_covered=True terminal_boundary=False`, four times in one
+    evening. Every reported reason says the answer was fine, because the
+    line printed four of the five conditions the decision reads: unfulfilled
+    discourse commitments and the model's own end-of-utterance boundary were
+    the two it left out, and therefore the only two that could have fired.
+    The reasons are derived from the receipt now, so a condition added to
+    the contract cannot be added without appearing in the log, and a refusal
+    with no named condition says so. FIXED, beb7e7c33.
   UPDATE 2026-09-09. Episodic retry re-deferral duplicated the pending write,
   overflowing the queue without new experience. Stable identity custody now
   spans pending and in-flight writes; 25 focused tests pass. Admission and
@@ -648,6 +680,46 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Evidence: [R10 semantic executable examples](evidence/R10_SEMANTIC_EXECUTABLE_EXAMPLES_2026-09-08.md).
 - [ ] R11 Measure prefill, decode, tool, retrieval, and queue latency separately;
   remove waste without degrading reasoning or arbitrarily cancelling work.
+  UPDATE 2026-09-18. Two defects in the rate every budget stands on, both
+  measured on the live reserve's 512 readings, and one input to the prompt
+  that had no budget at all.
+
+  **The estimate did not rise with the budget.** "Comparable length" is a
+  *set* that shrinks as the budget grows, so its slow percentile moves as
+  readings drop out of it: 101 tokens came back at 218.4 seconds and 102
+  tokens at 35.2, with 26 such steps below 2,048. Any deadline or budget
+  sized on it could be told a longer answer was cheaper than a shorter one.
+  A budget's estimate is now the slowest estimate for any budget it
+  contains. Zero still means unmeasured rather than instant, so a budget
+  with no comparable evidence gets none lifted to it.
+
+  **The reading budget divided that estimate the wrong way round.** The slow
+  tail exists so a deadline does not cancel the long generations it protects;
+  used to buy reading, the same pessimism afforded 126,798 characters of
+  prompt for a 457-token answer. Reading is budgeted on the median rate now,
+  and a 64-token reflex answer affords 7,477 characters where it afforded
+  81,399.
+
+  **History was the one input with no budget.** LIVE 2026-09-17, "Aura, what
+  is it like to be you": 83 messages, 10,414 tokens, prefill 83.44s in front
+  of decode 71.27s, for a thirty-one character question. Forty exchanges were
+  admitted because forty existed. The system prompt got a budget on
+  2026-08-28 for the same defect measured the same way and history was left
+  out of it, counted as `room_taken` and treated as fixed. Same rule now:
+  the system prompt is what she cannot answer without and is served first,
+  the conversation takes the remainder, oldest first, a user message leaving
+  with the reply to it so what remains is a contiguous suffix. 5cf3b62e8.
+
+  Recorded so it is not rebuilt: the obvious mechanism is to keep the topic
+  the turn belongs to and drop the rest. Built and measured on the live
+  33-exchange conversation, it found **nothing** — scoring every junction
+  against a null that places each term across the conversation in proportion
+  to how many exchanges carry it, z sat between -2.2 and +2.6 with no
+  structure (0.02, -0.09, 0.12, 0.13, 0.30 through the middle). Shared
+  vocabulary between real exchanges is what chance predicts, because almost
+  all of it is function words. Three nulls failed differently before the
+  honest one said there was nothing there. A budget does not need to know
+  what the turn is about.
   PARTIAL 2026-09-07. Prefill, decode, first-token, delivery and per-stage
   foreground timings are measured and reported separately; the prompt cache now
   says how far a prompt matched, what diverged, and why a turn retained
@@ -835,6 +907,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Background competition](evidence/G03_OPERATION_BACKGROUND_2026-09-18.md)
+  tests a learned non-operation class on source spans. The small replay
+  regresses from 48/60 to 45/60; no candidate promotion or full-run claim.
+  [Source-anchored scoring](evidence/G03_SOURCE_ANCHORED_SCORING_2026-09-17.md)
+  measures 488/500 for the unchanged incumbent and typed candidate. Sixteen
+  historical failures were register-coordinate mismatches; twelve remain
+  semantic failures. This is an evaluator correction, not a learning gain.
+  [Typed operation search](evidence/G03_TYPED_SEARCH_2026-09-17.md) preserves
+  feasible type states before beam pruning. The small replay repairs a joint
+  decoder regression but does not beat the stronger incumbent. No promotion.
   [Durable batched fit](evidence/G03_DURABLE_BATCHED_FIT_2026-09-17.md) saves
   accepted optimizer steps and resumes only identical evidence. Shared-bank
   derivatives pass 70 focused checks; full campaign speed and accuracy remain
@@ -1012,6 +1094,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [Forecast attribution](evidence/G09_FORECAST_ATTRIBUTION_2026-09-18.md) repairs
+  calibration cancellation and binds planning outcomes to pre-action forecasts
+  and delivered action counts. 121 focused tests pass, including partial
+  delivery through the action helper. Live and broad-gain evidence remain open.
   [Evidence identity](evidence/G09_EVIDENCE_IDENTITY_2026-09-16.md) binds training,
   calibration, observation windows, and restart recovery to the current schema;
   distinct decisions remain distinct across replay and corpus compaction.
@@ -1336,8 +1422,87 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   ages for the owner, not removed.
 - [ ] Q03 Memory/process lifetime, cache ownership, leaks, pressure recovery,
   shutdown/restart, sleep/wake, and single-resident ownership.
+  PARTIAL 2026-09-18, pressure recovery. The OOM ladder had one rung in the
+  whole tree, and not because nothing holds memory: discovery was a single
+  sweep of the container's already-instantiated services run in boot wave
+  one, when the container is nearly empty by design, so every organ built
+  afterwards — which is every organ — was never offered. `register_evictable`
+  had **zero callers** outside its own module and `shed_memory` had exactly
+  one implementor. The MLX client had already found this and worked around
+  it for itself by registering from its own `__init__`, with the diagnosis in
+  a comment; nothing else could. The offer happens where a singleton becomes
+  real now, so the shed order fills as the runtime does, and `CacheHolder`
+  writes the rung once instead of per organ — measuring what is held and
+  reporting what a clear actually freed, so a second shed says zero rather
+  than spinning the loop.
+  The survey is the part worth keeping: **most of what looks sheddable is
+  evidence, not cache.** `PhiCore` keeps five 2,000-entry state histories and
+  the transition matrix Φ is measured from is built out of them, so shedding
+  one destroys a measurement in progress; the body's spend receipts and the
+  perception daemon's day are records. A rung must be something the organ
+  recomputes on the next request and nobody reads as a record, which is
+  rarer than the ring count suggests and is why a real ladder is short.
+  Two adopted on that test (cached deliberations, cached pass analyses),
+  511fb9115.
+  PARTIAL 2026-09-18, single-resident ownership — observed and not enforced.
+  `core/runtime/lease.py` elects a leader across processes, file-backed, with
+  a liveness check on the holder's pid and boot id, and the docstring of its
+  fail-closed gate names "launching a model" as the canonical thing to gate.
+  **`is_leader` had no caller anywhere in the tree but the invariant that
+  checks it.** What does gate model loads is the in-process admission control
+  plane, which weighs priority, fairness and declared footprint and cannot
+  see another Aura at all — so nothing stopped a second process loading a
+  second cortex beside the first. That is the incident `oom_policy.py` opens
+  with, "a duplicate 32B load that doubled memory and took the wedged runtime
+  with it"; the lease was built after it and then not consulted.
+  Gated on the provable condition rather than on leadership: refusing
+  whenever no election is running would block every tool and test, while
+  refusing when another process is provably alive holding an unexpired lease
+  has no false positive. Heavy lanes only; fails open on an unreadable lease,
+  where the memory probe beside it fails closed, because a bookkeeping fault
+  is not evidence of a second runtime. 572129cbf.
+  PARTIAL 2026-09-18, sleep/wake. macOS stops `time.monotonic()` while the
+  machine is suspended and lets `time.time()` run, so every subsystem holding
+  a WALL-clock "when did I last see this" wakes to an anchor hours old.
+  `mlx_client` worked the measurement out — a clock that counts THROUGH
+  suspend paired with one that does not, so an NTP step or a VM migration
+  cannot be mistaken for a resume — and kept it private, so the inference
+  lane rebased and nothing else did. It is `core/runtime/host_sleep.py` now
+  and mlx_client reads it.
+  The consequence: **FlagshipDoctorDaemon measures event-loop lag against the
+  wall clock and triggers self-healing past a threshold of seconds**, so a lid
+  closed overnight came back as 28,800 seconds of lag and the daemon healed a
+  machine that was merely off. Subtracted now, against the clock that counts
+  through the suspension, with a test holding both directions — a genuine
+  stall during a waking hour still reads as one. Three states and they are
+  not interchangeable: asleep, clock-moved, and cannot-tell. 41f26c8ea.
+  Checked and found already sound: leak detection runs (the resilience mesh's
+  `tick` audits tasks, threads, child processes and allocation growth once
+  per cognitive integration phase), and monotonic-anchored liveness checks are
+  sleep-safe by construction because that clock pauses with the host.
+  Still open: lifetime and shutdown/restart.
 - [ ] Q04 Scoped tool authority, privacy, prompt-injection boundaries, sandbox,
   secret handling, and fail-safe behavior without suppressing correct work.
+  PARTIAL 2026-09-18, prompt-injection boundaries. `prompt_fencing` is the
+  preventive control and is careful to say what it does not claim: that the
+  content inside the fence is safe. `injection_canary` is the detective
+  control beside it, its docstring names INLINE as "the one to reach for",
+  and **nothing reached for it** — outside the claim validator that tests the
+  module, no call site in the tree planted a canary. Every verdict the
+  integrity surface read came from synthetic material while reading as
+  evidence that the boundary was watched.
+  A verdict now records whether it rode a prompt carrying somebody's real
+  untrusted content, and the surface carries `live_evaluated` beside
+  `evaluated` and says outright whether it is watching live traffic: a count
+  that says the detector RAN is not a count that says it ran on anything
+  real. The canary rides the fence rather than the call site, because asking
+  every fence site to remember is how it stayed at zero and the fence is the
+  one place untrusted text is wrapped. Two lanes opted in —
+  `deep_research.reflection` and `research_pipeline.synthesis`, which read
+  fetched pages and have nobody waiting on the reply — and deliberately not
+  the conversational surface, where a decoy that works costs the person
+  their answer. 8004d0637.
+  Still open: scoped tool authority, privacy, sandbox, secret handling.
 - [x] Q05 Persistence, migration, corruption recovery, backups, and rollback.
   CLOSED 2026-09-13. Three ways there was no backup while a green target
   said otherwise: `make backup` had raised ModuleNotFoundError since
@@ -1414,6 +1579,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,
   governance, production, enterprise, documentation, and release gates.
+  IN FLIGHT 2026-09-18, 00:10. The chunked full suite is running at 40 chunks
+  of 100 files, `--continue-on-failure --min-free-gb 6`, on an idle host with
+  the live instance down. Green as it goes: compile, lint, layering (37
+  grandfathered), security (4,646 files, 0 findings), smoke (164 passed),
+  writing at baseline.
+  `make deps-check` was red and the cause was not an import. `core/organism`
+  names a MODULE — `core.knowledge.revision_validation`, for the one thing it
+  takes from that package — and the generator emits package-level rules only,
+  so regenerating widens it to the whole of core.knowledge with the gate back
+  green and the narrowing silently gone. `generate_deps.py` already carries
+  eight entries in HANDWRITTEN for exactly this and says in its own comment
+  how core/learning sat here failing, one regeneration from being deleted.
+  organism is the ninth (9c20b5e1b).
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
   FOUND 2026-09-07, second session, and it was not order dependence.
   `test_runtime_invariants_are_registered_and_run_clean` passed alone and
@@ -1462,6 +1640,35 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   cost on the live instance every time it promotes a fix. The walk prunes
   those directories before entering them and skips any directory with its own
   .git (dfdb6505d).
+  2026-09-18. The register is being produced. Four chunks in, four reds, and
+  **not one of them is order dependence** — each fails in isolation too, so
+  the isolated run confirms the batch rather than erasing it. Three are the
+  same defect, which is the finding: **a test that reads source for a call
+  site**. It fails on every refactor that does not change behaviour, and
+  passes on every change that keeps the words and breaks the meaning.
+  - `test_the_exemption_is_read_from_the_shared_marker_list` read
+    `inspect.getsource(record_degradation)` for the text
+    `not _is_admission_backpressure`, and went red when the method-size sweep
+    moved the decision into an extracted helper. The marker list was a LOCAL
+    inside that helper, so nothing could check that the demotion and the
+    escalation agree — which is the exact bug the file exists for. Promoted
+    to `BACKPRESSURE_MARKERS` at module scope and asserted over the list.
+  - `test_the_recorded_answer_is_applied_after_every_repair` named
+    `_api_chat_turn`; the sweep moved the call into `_api_chat_turn_part_10`.
+    It now finds whichever function applies the record and checks the
+    ordering inside that one.
+  - `test_thinking_follows_the_reading_not_the_waiting` read the 700
+    characters after the reading time was taken. The derivation is untouched
+    — nineteen lines apart instead of seven, because comments were written
+    between. A proximity window is a measurement of formatting; asked as an
+    ordering now.
+  The fourth was not a refactor artifact and not a regression:
+  `test_the_representation_bound_tissue_is_quarantined` expected `steering`
+  to be quarantined, and the live manifest now signs it `caa_model_bound` —
+  bound to this checkpoint, rebindable. That is the migration progressing,
+  and the test read the queue's current occupants as permanent truths. Split,
+  with a new assertion that survives the migration finishing: a disposition
+  is never invented beside its authority. 7d4f5caca, 9c20b5e1b.
 - [ ] Q10 Run source-matched multi-hour soak only after short gates pass;
   inspect latency, growth, errors, capability retention, and recovery.
 - [ ] Q11 Validate installation/update/uninstall and ordinary desktop launch.

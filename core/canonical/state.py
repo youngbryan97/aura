@@ -28,15 +28,14 @@ keeps it from growing opinions of its own.
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
 import math
-import threading
 import time
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
 from core.canonical.channels import CHANNELS, Domain, channel
+from core.runtime.lockdep import checked_lock
 
 #: How long an estimate keeps full weight, and how long until it has none. An
 #: estimator that has gone quiet should stop steering the answer, but a
@@ -404,7 +403,23 @@ _STATE_LOCK = checked_lock("core.canonical.state.singleton")
 
 
 def get_canonical_state() -> CanonicalState:
+    """The one canonical state, built once.
+
+    The lock used to be taken on every call, including the overwhelming
+    majority that find the singleton already built — so every
+    estimate, read and estimate_many in the process serialised
+    on a lock protecting a construction that had already happened.
+    Lockdep measured 53ms of it, and the hold itself is a few
+    instructions: that is contention, not work.
+
+    Reading the module global is atomic, so the common path takes no lock
+    at all and the lock covers only the construction it was written for.
+    """
+
     global _STATE
+    built = _STATE
+    if built is not None:
+        return built
     with _STATE_LOCK:
         if _STATE is None:
             _STATE = CanonicalState()

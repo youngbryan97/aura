@@ -525,7 +525,7 @@ class CompositionalSemanticProgramTransducer:
             or receipt.get("argument_literal_boundaries", "unrestricted_v1")
             not in {"unrestricted_v1", "atomic_v1"}
             or receipt.get("operation_chart_feasibility", "unfiltered_v1")
-            not in {"unfiltered_v1", "register_edge_bounds_v2", "arity_state_bounds_v3"}
+            not in {"unfiltered_v1", "register_edge_bounds_v2", "arity_state_bounds_v3", "typed_state_bounds_v4"}
             or receipt.get("operation_assignment_policy", "first_feasible_v1")
             not in {"first_feasible_v1", "joint_factor_score_v2"}
             or receipt.get("operation_search_policy", "ranked_beam_v1")
@@ -936,6 +936,12 @@ class CompositionalSemanticProgramTransducer:
         body["operation_assignment_policy"] = "joint_factor_score_v2"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
+    def with_typed_operation_charts(self) -> CompositionalSemanticProgramTransducer:
+        """Preserve type-demand states before pruning the operation chart beam."""
+        body = {key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"}
+        body["operation_chart_feasibility"] = "typed_state_bounds_v4"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
     def with_operation_label_alternatives(self, limit: int) -> CompositionalSemanticProgramTransducer:
         """Make ambiguity retention explicit in the candidate identity."""
         body = {key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"}
@@ -1033,26 +1039,30 @@ class CompositionalSemanticProgramTransducer:
             hidden_channel_widths=self.hidden_channel_widths,
             label_limit=self.training_receipt.get("operation_label_limit", 1),
             complete_inventory=self.training_receipt.get("operation_search_policy") == "complete_bounded_v1",
+            background_log_odds=self.training_receipt.get("operation_background_fit", {}).get("score")
+            == "joint_operation_background_log_odds_v2",
         )
         from core.learning.semantic_operation_search import OperationChartSearch
 
         complete_search = self.training_receipt.get("operation_search_policy") == "complete_bounded_v1"
+        typed_search = self.training_receipt.get("operation_chart_feasibility") == "typed_state_bounds_v4"
+        def feasible(selected):
+            return _operation_chart_use_feasible(selected, n_inputs=len(inputs), contract=self.register_use_contract,
+                input_types=tuple("integer" if type(value) is int else "integer_sequence" for value in inputs)
+                if typed_search else None)
         charts = (OperationChartSearch(
             nodes, max_steps=inference_max_steps, length_penalty=self.operation_length_penalty,
-            feasible=lambda selected: _operation_chart_use_feasible(
-                selected, n_inputs=len(inputs), contract=self.register_use_contract),
+            feasible=feasible,
             max_expansions=self.training_receipt.get("operation_search_max_expansions"),
         ) if complete_search else _operation_chart_candidates(
             nodes,
             max_steps=inference_max_steps,
             length_penalty=self.operation_length_penalty,
             limit=self.operation_chart_beam,
-            feasible=(
-                lambda selected: _operation_chart_use_feasible(
-                    selected, n_inputs=len(inputs), contract=self.register_use_contract,
-                )
-            ) if self.training_receipt.get("operation_chart_feasibility") in {"register_edge_bounds_v2", "arity_state_bounds_v3"} else None,
+            feasible=feasible if self.training_receipt.get("operation_chart_feasibility") in
+                {"register_edge_bounds_v2", "arity_state_bounds_v3", "typed_state_bounds_v4"} else None,
             preserve_arity_states=self.training_receipt.get("operation_chart_feasibility") == "arity_state_bounds_v3",
+            preserve_type_states=typed_search,
         ))
         if not charts:
             raise ValueError("operation_chart_empty")

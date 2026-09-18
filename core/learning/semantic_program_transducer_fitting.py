@@ -43,6 +43,7 @@ from core.learning.semantic_program_shared_transducer import (
     _relation_span_vector,
 )
 from core.learning.semantic_program_transducer import (
+    OPERATION_BACKGROUND_LABEL,
     LinearPointerHead,
     LinearPointerSequenceScores,
     MultiViewClassifierHead,
@@ -493,9 +494,12 @@ def _operation_nodes(
     hidden_channel_widths: Sequence[int],
     label_limit: int = 1,
     complete_inventory: bool = False,
+    background_log_odds: bool = False,
 ) -> tuple[_OperationNode, ...]:
     if type(label_limit) is not int or not 1 <= label_limit <= len(classifier.labels):
         raise ValueError("operation label limit is outside the learned vocabulary")
+    if type(background_log_odds) is not bool or (background_log_odds and OPERATION_BACKGROUND_LABEL not in classifier.labels):
+        raise ValueError("operation odds need a learned background class")
     nodes: list[_OperationNode] = []
     for span, pointer_score in pointer.decode_candidates(
         hidden,
@@ -514,14 +518,20 @@ def _operation_nodes(
                 )
                 for mode in classifier.modes
             )
-        if label_limit == 1:
+        if label_limit == 1 and OPERATION_BACKGROUND_LABEL not in classifier.labels:
             alternatives = (classifier.predict(features),)
         else:
             probabilities = classifier.predict_probabilities(features)
-            order = np.argsort(-probabilities, kind="stable")[:label_limit]
+            # Background competes in the probability denominator, never as an opcode.
+            order = [index for index in np.argsort(-probabilities, kind="stable")
+                     if classifier.labels[index] != OPERATION_BACKGROUND_LABEL][:label_limit]
             alternatives = tuple((classifier.labels[index], float(probabilities[index])) for index in order)
         for operation, confidence in alternatives:
-            score = float(pointer_score + math.log(max(confidence, 1e-12)))
+            if background_log_odds:
+                background = float(probabilities[classifier.labels.index(OPERATION_BACKGROUND_LABEL)])
+                score = math.log(max(confidence, 1e-12)) - math.log(max(background, 1e-12))
+            else:
+                score = float(pointer_score + math.log(max(confidence, 1e-12)))
             nodes.append(
                 _OperationNode(
                     span=span,
@@ -581,18 +591,20 @@ def _best_nonoverlapping_node_charts(
     *,
     limit: int,
     preserve_arity_states: bool = False,
+    preserve_type_states: bool = False,
 ) -> tuple[tuple[float, tuple[_OperationNode, ...]], ...]:
-    """Top-k interval charts, optionally per sufficient arity state.
+    """Top-k interval charts, optionally per sufficient feasibility state.
 
-The feasibility bounds depend only on cardinality, total edges and maximum
-arity. Keeping k prefixes per such state preserves the feasible top-k;
-discarding them across states before testing feasibility does not.
+The bounds use cardinality, total edges and maximum arity; typed bounds also
+use argument demand and result supply by type. Keeping k prefixes per state
+preserves the feasible top-k. Pruning across states before checking does not.
 """
 
     if limit < 1:
         raise ValueError("compositional operation-chart limit must be positive")
     ordered = tuple(sorted(
-        (node for node in nodes if not preserve_arity_states or semantic_primitive_type_signature(node.operation) is not None),
+        (node for node in nodes if not (preserve_arity_states or preserve_type_states)
+         or semantic_primitive_type_signature(node.operation) is not None),
         key=lambda item: (item.span.end, item.span.start, -item.score),
     ))
     previous: list[int] = []
@@ -630,12 +642,16 @@ discarding them across states before testing feasibility does not.
                         tuple((node.span.start, node.span.end) for node in item[1]),
                     ),
                 )
-            if preserve_arity_states:
+            if preserve_arity_states or preserve_type_states:
                 buckets = Counter()
                 retained = []
                 for candidate in ranked:
                     arities = [len(semantic_primitive_type_signature(n.operation)[0]) for n in candidate[1]]
                     state = (sum(arities), max(arities, default=0))
+                    if preserve_type_states:
+                        signatures = [semantic_primitive_type_signature(n.operation) for n in candidate[1]]
+                        state += (tuple(sorted(Counter(t for args, _ in signatures for t in args).items())),
+                                  tuple(sorted(Counter(result for _, result in signatures).items())))
                     if buckets[state] < limit:
                         retained.append(candidate)
                         buckets[state] += 1
@@ -653,6 +669,7 @@ def _operation_chart_candidates(
     limit: int = _OPERATION_CHART_BEAM,
     feasible: Callable[[Sequence[_OperationNode]], bool] | None = None,
     preserve_arity_states: bool = False,
+    preserve_type_states: bool = False,
 ) -> tuple[tuple[_OperationNode, ...], ...]:
     candidates = [
         (score - length_penalty * count, selected)
@@ -662,6 +679,7 @@ def _operation_chart_candidates(
             count,
             limit=limit,
             preserve_arity_states=preserve_arity_states,
+            preserve_type_states=preserve_type_states,
         )
         if feasible is None or feasible(selected)
     ]
@@ -678,7 +696,7 @@ def _operation_chart_candidates(
     )
 
 
-def _operation_chart_use_feasible(nodes, *, n_inputs, contract):
+def _operation_chart_use_feasible(nodes, *, n_inputs, contract, input_types=None):
     """Necessary edge-count bounds for a connected single-result graph."""
     count = len(nodes)
     if count < 1:
@@ -689,9 +707,24 @@ def _operation_chart_use_feasible(nodes, *, n_inputs, contract):
     arities = [len(signature[0]) for signature in signatures]
     minimum = n_inputs * contract.input_min_uses + (count - 1) * max(1, contract.intermediate_min_uses)
     maximum = n_inputs * contract.input_max_uses + (count - 1) * contract.intermediate_max_uses
-    return minimum <= sum(arities) <= maximum and (
+    edges_feasible = minimum <= sum(arities) <= maximum and (
         not contract.distinct_arguments or max(arities) <= n_inputs + count - 1
     )
+    if not edges_feasible or input_types is None:
+        return edges_feasible
+    if len(input_types) != n_inputs:
+        raise ValueError("operation feasibility input types differ")
+    demand = Counter(kind for args, _ in signatures for kind in args)
+    inputs = Counter(input_types)
+    outputs = Counter(result for _, result in signatures)
+    kinds = set(demand) | set(inputs) | set(outputs)
+    # Exactly one result is the sink. Every other result must be consumed;
+    # type-specific demand must fit the permitted uses of available registers.
+    return any(all(
+        inputs[kind] * contract.input_min_uses + (outputs[kind] - (kind == sink)) *
+        max(1, contract.intermediate_min_uses) <= demand[kind] <=
+        inputs[kind] * contract.input_max_uses + (outputs[kind] - (kind == sink)) *
+        contract.intermediate_max_uses for kind in kinds) for sink in outputs)
 
 
 def _fit_argument_role_heads(

@@ -450,6 +450,21 @@ class _AgentModel:
         return model
 
 
+def _frustration(model: _AgentModel | None, now: float) -> float | None:
+    """How frustrated this model reads right now, decayed to the moment.
+
+    A staticmethod taking nothing from the estimator was never a method,
+    and being one cost OtherAgentStateEstimator a place under the
+    thirty-method ceiling that tests/test_a_god_object_only_shrinks.py
+    says a NEW class never gets grandfathered past.
+    """
+
+    signal = (getattr(model, "affect", None) or {}).get("frustration")
+    if signal is None:
+        return None
+    return float(signal.decayed(now)[0])
+
+
 class OtherAgentStateEstimator:
     """Authority-backed live filter for one or more exact authenticated agents."""
 
@@ -865,13 +880,6 @@ class OtherAgentStateEstimator:
             self._pending_responses.pop(exact_id, None)
         return self._estimate_from_model(exact_id, model, observed_at)
 
-    @staticmethod
-    def _frustration(model: _AgentModel | None, now: float) -> float | None:
-        signal = (getattr(model, "affect", None) or {}).get("frustration")
-        if signal is None:
-            return None
-        return float(signal.decayed(now)[0])
-
     def _note_delivered(self, agent_id: str, observed_at: float) -> None:
         """Tell the owning-it-first ledger a reply went out, and whether it came from what she owed.
 
@@ -888,7 +896,7 @@ class OtherAgentStateEstimator:
                 for item in (getattr(unity, "contents", None) or ())
             )
             model = self._models.get(agent_id) or self._load_agent(agent_id, purpose="recall")
-            frustration = self._frustration(model, observed_at)
+            frustration = _frustration(model, observed_at)
             if frustration is not None:
                 get_owning_ledger().delivered(agent_id, owed_in_mind=owed, frustration=frustration)
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
@@ -902,7 +910,7 @@ class OtherAgentStateEstimator:
     def _note_heard(self, agent_id: str, model: _AgentModel, observed_at: float, *, complaint: bool) -> None:
         """Close whatever lapse event was open for them, and open one if they raised a failure."""
         try:
-            frustration = self._frustration(model, observed_at)
+            frustration = _frustration(model, observed_at)
             if frustration is not None:
                 get_owning_ledger().heard(agent_id, frustration=frustration, complaint=complaint)
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:

@@ -697,22 +697,22 @@ def test_the_recorded_answer_is_applied_after_every_repair() -> None:
     A correction a later stage can overwrite is not a correction, so it is
     applied to the final reply, after every repair and shaping pass.
     """
-    import inspect
-
     from interface.routes import chat
+    from source_contract import function_containing, in_order
 
-    source = inspect.getsource(chat._api_chat_turn)
-
-    # The property, not one spelling of it: the record is applied to the final
-    # reply, and after it exists. Asserting the exact assignment expression
-    # broke the moment it became a conditional across several lines, while the
-    # ordering it protects was untouched.
-    assigned = source.find("_final_reply = ")
-    assert assigned != -1, "the final reply is not assembled here any more"
-
-    applied = source.find("_append_past_action_record(_semantic_user_message, _final_reply)")
-    assert applied != -1, "the recorded answer is not applied to the final reply"
-    assert applied > assigned, "the record is applied before the final reply exists"
+    # The property, not one spelling of it, and not one function's name
+    # either. Asserting the exact assignment expression broke when it became
+    # a conditional across several lines; naming ``_api_chat_turn`` broke
+    # when the method-size sweep moved the call into an extracted helper —
+    # both times with the ordering it protects untouched.
+    _name, body = function_containing(
+        chat, "_append_past_action_record(_semantic_user_message, _final_reply)"
+    )
+    in_order(
+        body,
+        "_final_reply = ",
+        "_append_past_action_record(_semantic_user_message, _final_reply)",
+    )
 
 
 def test_the_recorded_answer_is_applied_around_the_whole_turn() -> None:

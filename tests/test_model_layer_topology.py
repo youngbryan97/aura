@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from core.runtime.model_layers import require_model_layers, resolve_model_layers
 
 
@@ -269,18 +271,72 @@ def test_zero_surface_control_needs_no_steering_engine():
     )
 
 
-def test_positive_surface_control_requires_real_steering_engine():
-    from core.brain.llm.mlx_worker import _apply_surface_generation_controls
+def test_a_missing_steering_engine_satisfies_the_ceiling_it_cannot_exceed():
+    """An absent engine is less steering than any clamp asks for, not more.
 
+    ``clean_user_surface_steering_alpha`` is a ceiling: it is applied as
+    ``set_surface_alpha_override``, whose docstring is "Clamp hook alpha"
+    and whose body is ``min(hook_alpha, override)``. A missing engine
+    therefore produces zero steering, which is under every ceiling.
+
+    This used to fail the turn closed. LIVE 2026-09-17 20:49:21:
+    ``surface_controls_unavailable:steering_unavailable``, classified
+    foreground_blocking, and the person got "Generation failed" for an
+    answer that would have been cleaner than the contract asked for.
+    """
+
+    from core.brain.llm.mlx_worker import (
+        _apply_surface_generation_controls,
+        _enforce_surface_controls_or_fail,
+    )
+
+    job = {
+        "clean_user_surface_contract": True,
+        "clean_user_surface_steering_alpha": 0.2,
+    }
     state = _apply_surface_generation_controls(
         None,
         SimpleNamespace(layers=_layers()),
-        {
-            "clean_user_surface_contract": True,
-            "clean_user_surface_steering_alpha": 0.2,
-        },
+        job,
     )
 
     assert state["surface_alpha_requested"] == 0.2
-    assert "surface_alpha_applied" not in state
-    assert state["apply_errors"] == ["steering_unavailable"]
+    assert state["surface_alpha_applied"] == 0.0
+    assert state["surface_steering_engine_absent"] is True
+    assert state["apply_errors"] == []
+    # And the turn is served rather than failed.
+    _enforce_surface_controls_or_fail(job, state)
+
+
+def test_a_clamp_that_could_not_be_applied_still_fails_closed():
+    """The guard stays for its real case: an engine that refused the clamp.
+
+    A present engine whose clamp raised is steering at an unknown alpha,
+    which is the case the fail-closed path exists for.
+    """
+
+    from core.brain.llm.mlx_worker import (
+        _apply_surface_generation_controls,
+        _enforce_surface_controls_or_fail,
+    )
+
+    class _Refuses:
+        _hooks: list[object] = []
+        _alpha = 0.9
+
+        def set_surface_alpha_override(self, alpha):
+            raise RuntimeError("clamp refused")
+
+    job = {
+        "clean_user_surface_contract": True,
+        "clean_user_surface_steering_alpha": 0.2,
+    }
+    state = _apply_surface_generation_controls(
+        _Refuses(),
+        SimpleNamespace(layers=_layers()),
+        job,
+    )
+
+    assert state["apply_errors"], "a refused clamp must still be an error"
+    with pytest.raises(RuntimeError, match="surface_controls_unavailable"):
+        _enforce_surface_controls_or_fail(job, state)

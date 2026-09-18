@@ -489,7 +489,35 @@ def get_escalation_governor() -> _EscalationGovernor:
 _ESCALATION_MARKER = "CRITICAL SERVICE FAILURE:"
 
 
-def _record_degradation_admission_backpressure_decision_admission_backpressure_decision(_is_timeout, _shutting_down, action, enforce_failure_policy, error, extra, receipt_required, severity, subsystem):
+#: What counts as backpressure: the system saying "not now", which is it
+#: working rather than failing. ONE list, at module scope, because two
+#: lists is how the original bug existed — the demotion knew
+#: "warmup_deferred" and the fail-closed escalation did not, so a lane
+#: saying "not warm yet, try later" was demoted to warning and then raised
+#: straight back to critical. It lived as a local inside the decision, so
+#: nothing outside could check that both readers agree; a test that wanted
+#: to had to read the function's source, and went red the moment the
+#: method-size sweep moved it into a helper.
+BACKPRESSURE_MARKERS: tuple[str, ...] = (
+    "warmup_deferred",
+    "warmup_backoff",
+    "model_load_admission_denied",
+    "admission_deferred",
+    "resource_busy",
+    "resource_timeout",
+    "spawn_gate_timeout",
+    "crash_loop_backoff",
+    "chat_dependencies_warming",
+)
+
+
+def backpressure_markers() -> tuple[str, ...]:
+    """The shared list, for anything that needs to agree with it."""
+
+    return BACKPRESSURE_MARKERS
+
+
+def _record_degradation_backpressure_decision(_is_timeout, _shutting_down, action, enforce_failure_policy, error, extra, receipt_required, severity, subsystem):
     # ── Admission backpressure is a DECISION, not a fault ─────────────
     # Warmup backoff, model-load admission refusal, spawn-gate contention and
     # crash-loop backoff are the runtime deliberately declining to start a
@@ -503,17 +531,6 @@ def _record_degradation_admission_backpressure_decision_admission_backpressure_d
     # threatened by her own correct backpressure. These stay VISIBLE
     # (recorded, counted, narratable) but are demoted out of the
     # fault/escalation path, exactly like the bare-timeout demotion above.
-    backpressure_markers = (
-        "warmup_deferred",
-        "warmup_backoff",
-        "model_load_admission_denied",
-        "admission_deferred",
-        "resource_busy",
-        "resource_timeout",
-        "spawn_gate_timeout",
-        "crash_loop_backoff",
-        "chat_dependencies_warming",
-    )
     # Actions that record the system SUCCESSFULLY CONTINUING. The action line
     # is the caller's own account of what it did about the error, and "I fell
     # back and served the turn" is the resilience ladder working, not damage.
@@ -554,7 +571,7 @@ def _record_degradation_admission_backpressure_decision_admission_backpressure_d
     # also encode it in an exception message it does not control.
     _is_admission_backpressure = any(
         marker in _error_text or marker in _action_text
-        for marker in backpressure_markers
+        for marker in BACKPRESSURE_MARKERS
     )
     if _is_admission_backpressure and severity in ("degraded", "critical"):
         severity = "warning"
@@ -588,7 +605,7 @@ def _record_degradation_admission_backpressure_decision_admission_backpressure_d
             #   with failure policy 'fail-closed'
             #   🚨 Background task 'InferenceGate.deferred_cortex_prewarm' crashed
             #
-            # warmup_deferred is already in backpressure_markers above, and
+            # warmup_deferred is already in BACKPRESSURE_MARKERS, and
             # that demotes it from degraded to WARNING — then this branch
             # accepts warning and escalates it to critical anyway, so the
             # demotion bought nothing. A lane saying "not warm yet, try later"
@@ -893,7 +910,7 @@ def _record_degradation_admission_backpressure_decision_admission_backpressure_d
     return _FALL_THROUGH
 
 def _record_degradation_admission_backpressure_decision(_is_timeout, _shutting_down, action, enforce_failure_policy, error, extra, receipt_required, severity, subsystem):
-    _left = _record_degradation_admission_backpressure_decision_admission_backpressure_decision(_is_timeout, _shutting_down, action, enforce_failure_policy, error, extra, receipt_required, severity, subsystem)
+    _left = _record_degradation_backpressure_decision(_is_timeout, _shutting_down, action, enforce_failure_policy, error, extra, receipt_required, severity, subsystem)
     if _left is not _FALL_THROUGH:
         return _left
 

@@ -83,6 +83,27 @@ def _receipt(
     }
 
 
+def _mode_forbids_self_modification() -> str:
+    """The reason this mode refuses source changes, or "" when it allows them.
+
+    Fails OPEN on an unreadable mode: refusing every mutation because the
+    mode module could not be imported would turn a bookkeeping fault into a
+    frozen self-repair lane, and the tier gates below are still in force.
+    """
+
+    try:
+        from core.runtime.mode import allows_self_modification, get_mode
+
+        if allows_self_modification():
+            return ""
+        return (
+            f"runtime mode {get_mode()} does not permit self-modification; "
+            "the mode's capability manifest is the authority here, above the tier"
+        )
+    except (ImportError, AttributeError, KeyError, TypeError, ValueError):
+        return ""
+
+
 def admit_mutation(
     target_path: str | Path,
     *,
@@ -98,6 +119,31 @@ def admit_mutation(
     """
     decision = classify_mutation_path(target_path)
     gates = tuple(decision.required_gates)
+
+    # The runtime mode outranks the tier, because a mode that forbids
+    # self-modification forbids all of it — safe mode is an emergency
+    # lockdown and says so, and the two sandboxes must not touch source at
+    # all. This gate consulted no mode until 2026-09-18: core/runtime/mode.py
+    # declares a capability manifest per mode, its docstring says every
+    # module needing to ask "am I in production?" must use its helpers, and
+    # allows_self_modification() had ZERO callers in the tree. Safe mode
+    # disabled autonomous behaviour in forty-one places and not in this one,
+    # so an emergency lockdown still admitted a Tier 1 source rewrite.
+    mode_refusal = _mode_forbids_self_modification()
+    if mode_refusal:
+        return MutationAdmission(
+            disposition=REFUSE,
+            tier=decision.tier,
+            reason=mode_refusal,
+            required_gates=gates,
+            normalized_path=decision.path,
+            receipt=_receipt(
+                decision,
+                disposition=REFUSE,
+                owner_approved=owner_approved,
+                turn_trust=turn_trust,
+            ),
+        )
 
     if decision.tier is MutationTier.SEALED:
         # Sealed outranks everything, including owner approval through this

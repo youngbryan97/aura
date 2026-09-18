@@ -14,10 +14,11 @@ class InterruptedFit(RuntimeError):
     pass
 
 
-def test_interrupted_fit_resumes_bit_identically_without_repeating_updates(tmp_path):
+@pytest.mark.parametrize("objective", ["squared_deficit", "pairwise_logistic"])
+def test_interrupted_fit_resumes_bit_identically_without_repeating_updates(tmp_path, objective):
     head, operation = simple_model()
     rows = (operation_constraint([1., 0.]), operation_constraint([0., 1.]))
-    options = dict(steps=30, learning_rate=.01, required_margin=.5)
+    options = dict(steps=30, learning_rate=.01, required_margin=.5, objective=objective)
     expected = fit_graph_constraints(head, operation, rows, **options)
     path = tmp_path / "fit.npz"
     seen = []

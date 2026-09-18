@@ -154,6 +154,10 @@ CANONICAL_PRIMITIVE_OWNERS: dict[str, frozenset[str]] = {
     ),
     "subprocess_gateway": frozenset(
         {
+            # Fixed local maintenance helpers; neither accepts caller-supplied
+            # commands. Both delegate process identity and shutdown ownership.
+            "core/capabilities/keeping_the_screen_awake.py",
+            "core/perception/eyes_of_their_own.py",
             "core/runtime/action_executor.py",
             "core/runtime/desktop_action_gateway.py",
             "core/runtime/skill_catalog_probe.py",

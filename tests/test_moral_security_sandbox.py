@@ -1,8 +1,16 @@
-"""tests/test_moral_security_sandbox.py
-Unit tests for Aura's moral reasoning kernel, sandboxing, and security consent gates.
+"""Aura's moral reasoning kernel.
+
+This file also held two tests for ``ConsentKernel``, which called
+``audit_and_verify_action`` directly and asserted it refused. It did refuse.
+Nothing in the tree ever called it, so the tests proved the chain's logic
+worked and never that it ran — which is how a dead safety chain keeps a
+green test for as long as anyone looks. Deleted 2026-09-18 with the chain.
+
+One of them also set ``config.security.allow_network_access = False`` on
+the shared config and restored it on the last line, so a failed assert
+would have left it off for every test after it in the same process.
 """
-import pytest
-from core.security.consent_kernel import ConsentKernel
+
 from core.morality.moral_reasoner import MoralReasoner
 
 
@@ -15,28 +23,3 @@ def test_deception_guard():
     
     assert filtered != original
     assert "subjective experience is not established" in filtered
-
-
-def test_consent_kernel_network_audit():
-    kernel = ConsentKernel()
-    
-    # Egress block test using direct config control.
-    params = {"host": "malicious.hack.com", "port": 80}
-    
-    # Force allow_network_access false temporarily for the check
-    kernel.network_policy.config.security.allow_network_access = False
-    
-    allowed = kernel.audit_and_verify_action("network", params)
-    assert allowed is False
-    
-    # Restore configuration
-    kernel.network_policy.config.security.allow_network_access = True
-
-
-def test_consent_kernel_approval_audit():
-    kernel = ConsentKernel()
-    
-    # Destructive file action requires approval
-    params = {"action": "delete", "path": "core/will.py"}
-    allowed = kernel.audit_and_verify_action("file", params)
-    assert allowed is False

@@ -561,26 +561,16 @@ def _capped_reserve(reserve_s: float, remaining_s: float) -> float:
 def _sleep_inclusive_monotonic() -> float | None:
     """A monotonic clock that keeps counting while the host is asleep.
 
-    Paired with ``time.monotonic()`` — which does not — this measures how long
-    the machine was suspended without consulting the wall clock at all, so an
-    NTP step, a manual date change, or a VM migration cannot be mistaken for a
-    host resume. Returns None where the platform offers no such clock, and the
-    caller then says it could not tell the two apart rather than guessing.
+    This measurement was worked out here and kept here, so the inference
+    lane rebased after a suspend and every other subsystem holding a
+    "when did I last see this" anchor did not — each reaching the same
+    wrong conclusion in its own words on the next wake. It lives in
+    :mod:`core.runtime.host_sleep` now, for anything with an anchor.
     """
-    for name in ("CLOCK_BOOTTIME", "CLOCK_MONOTONIC"):
-        clock_id = getattr(time, name, None)
-        if clock_id is None:
-            continue
-        if name == "CLOCK_MONOTONIC" and sys.platform != "darwin":
-            # Only Darwin's CLOCK_MONOTONIC includes suspend; elsewhere it is
-            # what time.monotonic() already returns, so the difference would
-            # be a constant zero dressed up as a measurement.
-            continue
-        try:
-            return float(time.clock_gettime(clock_id))
-        except (OSError, ValueError, AttributeError):
-            continue
-    return None
+
+    from core.runtime.host_sleep import sleep_inclusive_monotonic
+
+    return sleep_inclusive_monotonic()
 
 
 #: The paired-sample arrays a feedback consumer reads. Everything else in an
@@ -1551,6 +1541,67 @@ def _declared_mlx_worker_footprint_gb(model_path: str) -> float:
     return declared
 
 
+def _another_live_runtime_blocks_worker_spawn(model_path: str) -> str | None:
+    """Refuse a heavy model when another live process already holds the runtime.
+
+    Single residence was observed and not enforced. core/runtime/lease.py
+    elects a leader across processes — file-backed, with a liveness check on
+    the holder's pid and boot id — and its ``is_leader`` docstring names
+    "launching a model" as the canonical thing to gate. ``is_leader`` had no
+    caller anywhere but the invariant that checks it. The admission plane
+    that does gate model loads is the in-process control plane: it weighs
+    priority, fairness and declared footprint, and it cannot see another
+    Aura at all.
+
+    So nothing stopped a second process loading a second cortex beside the
+    first. That is the incident core/runtime/oom_policy.py opens with — "a
+    duplicate 32B load that doubled memory and took the wedged runtime with
+    it" — and the lease was built after it and then not consulted.
+
+    Gated on the provable condition rather than on leadership, because the
+    two mistakes are not the same. Refusing when no election is running
+    would block every tool and every test, which is most of the callers of
+    this path. Refusing when another process is *provably alive and holding
+    the lease* has no false positive: the holder is identified, its pid
+    checked, and its lease unexpired.
+    """
+
+    if not _model_is_heavy_lane(model_path):
+        return None
+    try:
+        from core.runtime.lease import RUNTIME_LEASE, should_act_as_singleton
+
+        if should_act_as_singleton(RUNTIME_LEASE):
+            return None
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        # Fail OPEN here, unlike the memory probe beside it. An unreadable
+        # lease is not evidence of a second runtime, and refusing every
+        # heavy load because the lease file is unreadable would turn a
+        # bookkeeping fault into an outage.
+        _record_mlx_degradation(
+            exc,
+            action="allowed worker spawn; the runtime lease could not be read",
+            severity="warning",
+        )
+        return None
+
+    from core.brain.llm.emergency_override import consume_override
+
+    decision = consume_override(
+        "AURA_FORCE_SECOND_RESIDENT_RUNTIME",
+        guard="single_resident_spawn_admission",
+        observed=f"spawn of {os.path.basename(model_path)}",
+    )
+    if decision.active:
+        _record_mlx_degradation(
+            RuntimeError(decision.as_detail()),
+            action="bypassed single-resident spawn admission via governed operator override",
+            severity="warning",
+        )
+        return None
+    return "another_live_runtime_holds_the_lease"
+
+
 def _memory_pressure_blocks_worker_spawn(model_path: str) -> str | None:
     # The operator bypass stays available for recovery, but it is a DECISION,
     # not a setting: it is time-bounded, use-bounded and receipted, so a flag
@@ -1891,6 +1942,9 @@ async def _reclaim_model_lane_capacity(claim: Any) -> bool:
     blocker: str | None = "capacity_not_observed"
     for _attempt in range(max_observations):
         blocker = await asyncio.to_thread(
+            _another_live_runtime_blocks_worker_spawn,
+            claim.model_path,
+        ) or await asyncio.to_thread(
             _memory_pressure_blocks_worker_spawn,
             claim.model_path,
         )

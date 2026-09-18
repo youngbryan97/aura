@@ -121,8 +121,25 @@ def test_the_child_is_its_own_module_not_the_one_aura_boots():
 
     source = inspect.getsource(eyes)
     assert "core.perception.eyes_of_their_own" in source
-    assert "subprocess.Popen" in source
+    assert "get_subprocess_gateway().spawn" in source
     # Nothing here starts a child the way multiprocessing does, which would
     # re-import the module Aura is started from.
     assert "import multiprocessing" not in source
     assert "mp.get_context" not in source
+
+
+def test_reader_uses_registered_non_model_process_owner(monkeypatch):
+    from types import SimpleNamespace
+    calls = []
+
+    def spawn(argv, **options):
+        calls.append((argv, options))
+        return _Child([])
+
+    monkeypatch.setattr(eyes, "get_subprocess_gateway", lambda: SimpleNamespace(spawn=spawn))
+    assert eyes._start_them()
+    argv, options = calls[0]
+    assert argv == [eyes.sys.executable, "-m", "core.perception.eyes_of_their_own"]
+    assert options["read_only"] and options["accelerator_capability"] == "none"
+    assert options["source"] == "perception.window_reader"
+    assert options["env"]["AURA_EYES_IN_THIS_PROCESS"] == "1"

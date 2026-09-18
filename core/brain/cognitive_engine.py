@@ -244,6 +244,81 @@ async def _keep_the_cycle_open_while_it_is_working(
     except asyncio.CancelledError:
         return
 
+def _history_budget_for(system_prompt: str, max_tokens: int) -> int:
+    """What is left of the turn's reading budget once the prompt is served.
+
+    Zero when nothing has been timed, which means the conversation goes
+    through whole rather than cut by a guess — the same answer
+    ``budget_for_answer`` gives for the system prompt.
+    """
+
+    try:
+        from core.brain.llm.context_budget import budget_for_answer
+
+        afford = budget_for_answer(max_tokens)
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "cognitive_engine",
+            exc,
+            action="left the delivered conversation whole, with no reading budget",
+        )
+        return 0
+    if afford <= 0:
+        return 0
+    return max(0, afford - len(str(system_prompt or "")))
+
+
+def _fit_history_to_what_is_left(
+    history_messages: list[dict[str, str]],
+    *,
+    system_prompt: str,
+    max_tokens: int,
+) -> tuple[list[dict[str, str]], str]:
+    """Hold the delivered conversation to the same budget as the prompt.
+
+    History was the one input with no budget. LIVE 2026-09-17, "Aura, what
+    is it like to be you": 83 messages, 10,414 tokens, 83.44s of prefill
+    in front of 71.27s of decode, for a thirty-one character question.
+    Forty exchanges were admitted because forty existed.
+
+    The oldest are dropped first, so what remains is a contiguous suffix
+    and no reference resolves across a hole. A pair is a user message and
+    the reply to it and is kept or dropped together.
+    """
+
+    from core.conversation.history_reach import measure_reach
+
+    budget = _history_budget_for(system_prompt, max_tokens)
+    if budget <= 0 or not history_messages:
+        return history_messages, ""
+    pairs: list[list[dict[str, str]]] = []
+    for message in history_messages:
+        if str(message.get("role") or "") == "user" or not pairs:
+            pairs.append([])
+        pairs[-1].append(message)
+    sized = [
+        {"user": "", "aura": "".join(str(m.get("content") or "") for m in pair)}
+        for pair in pairs
+    ]
+    reach = measure_reach(sized, budget_chars=budget)
+    if not reach.cuts_anything:
+        return history_messages, ""
+    kept = [message for pair in pairs[reach.boundary :] for message in pair]
+    logger.info(
+        "📐 [CONTEXT] conversation %d → %d message(s): %s",
+        len(history_messages),
+        len(kept),
+        reach.reason,
+    )
+    note = (
+        f"[SYSTEM: this conversation has {len(pairs)} completed exchanges and "
+        f"the {reach.retained} most recent are below. The other {reach.dropped} "
+        "are not in front of you. If the person refers to something older, say "
+        "you would need to look it up rather than reconstructing it.]"
+    )
+    return kept, note
+
+
 def _fit_prompt_to_what_the_turn_can_read(
     system_prompt: str, *, request: str, max_tokens: int, room_taken: int = 0
 ) -> str:
@@ -1252,15 +1327,33 @@ def _note_unattested_exchange(entry: Any) -> None:
 def _desktop_history_messages_from_context(
     context: dict[str, Any],
     *,
+    budget_chars: int = 0,
     max_pairs: int | None = None,
-) -> list[dict[str, str]]:
-    from core.conversation.delivered_history import delivered_exchange_messages
+) -> tuple[list[dict[str, str]], str]:
+    """The exchanges this turn can afford, and a note about the rest.
 
-    return delivered_exchange_messages(
+    Every exchange was admitted because it existed. LIVE 2026-09-17,
+    "Aura, what is it like to be you": 83 messages, 10,414 tokens, 83.44s
+    of prefill in front of 71.27s of decode, for a thirty-one character
+    question. History was the one input to the prompt with no budget; the
+    system prompt got one on 2026-08-28 and this is the same rule.
+    """
+
+    from core.conversation.delivered_history import reached_exchange_messages
+
+    reached = reached_exchange_messages(
         context.get("recent_completed_exchanges"),
+        budget_chars=budget_chars,
         max_pairs=max_pairs,
         on_unattested=_note_unattested_exchange,
     )
+    if reached.reach is not None and reached.reach.cuts_anything:
+        logger.info(
+            "📐 History reach: %s (%d message(s) admitted)",
+            reached.reach.reason,
+            len(reached.messages),
+        )
+    return reached.messages, reached.note
 
 
 def _record_objective_binding(
@@ -4952,7 +5045,9 @@ class CognitiveEngine(_RunsItsAugmentors):
         )
         visible_user_message = str(context.get("visible_user_message") or objective or "").strip()
         recent_conversation_context = str(context.get("recent_conversation_context") or "").strip()
-        history_messages = _desktop_history_messages_from_context(context)
+        history_messages, history_reach_note = _desktop_history_messages_from_context(
+            context,
+        )
         discourse_repair_contract = context.get("discourse_repair_contract")
         if isinstance(discourse_repair_contract, dict):
             from core.utils.injected_blocks import is_stamped_runtime_payload
@@ -5157,6 +5252,18 @@ class CognitiveEngine(_RunsItsAugmentors):
         if turn_sensory_evidence:
             task_grounding_blocks.append(turn_sensory_evidence)
         action_episode_evidence = self._direct_desktop_quick_reply_context_challenge_evidence(canonical_memory_state_evidence, canonical_self_condition_context, context, contract_grounding_blocks, discourse_repair_contract, runtime_fact_status_contract, self_condition_contract, task_grounding_blocks, user_prompt)
+
+        # What the turn can afford to read, now that both claimants exist.
+        # The system prompt is what she cannot answer without, so it is
+        # served first and the conversation takes the remainder; both are
+        # held to the same measured rate.
+        history_messages, history_reach_note = _fit_history_to_what_is_left(
+            history_messages,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens,
+        )
+        if history_reach_note:
+            ambient_grounding_blocks.append(history_reach_note)
 
         if recent_conversation_context and not history_messages:
             ambient_grounding_blocks.append(

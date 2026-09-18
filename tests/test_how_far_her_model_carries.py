@@ -135,6 +135,8 @@ def test_the_run_measures_it_and_the_search_is_given_it():
     assert '"carries": carries.as_memory()' in source
     at = source.index("carries.it_predicted(")
     graded = source[at : at + 500]
-    assert "was_right=bool(attempt.verdict.held)" in graded
+    assert 'distance=expected["took"]' in graded
+    assert 'confidence=expected["confidence"]' in graded
+    assert "was_right=same" in graded
     assert "would_no_change_have_been_right" in graded
     assert "no_deeper_than=as_far_as_it_carries" in source

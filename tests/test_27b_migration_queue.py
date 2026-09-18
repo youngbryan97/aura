@@ -41,11 +41,52 @@ def test_the_persona_is_already_in_this_checkpoint(queue):
     assert "recovery run" in queue["persona_finding"]
 
 
-def test_the_representation_bound_tissue_is_quarantined(queue):
-    for name in ("steering", "recurrence_native"):
-        row = _row(queue, name)
-        assert row["authority_kind"] == "model_basis_quarantine"
-        assert row["disposition"] == "retrain_required"
+def test_evidence_measured_on_another_checkpoint_is_quarantined(queue):
+    """Recurrence is still carrying evidence from a checkpoint it is not on.
+
+    This asserted the same of ``steering`` until 2026-09-18, when the live
+    manifest began signing it ``caa_model_bound`` — bound to this
+    checkpoint, disposition ``rebindable``. That is the migration making
+    progress, not a regression, and a test that reads the queue's current
+    occupants as permanent truths goes red every time the thing it watches
+    improves. The invariant that cannot go stale is below.
+    """
+
+    row = _row(queue, "recurrence_native")
+    assert row["authority_kind"] == "model_basis_quarantine"
+    assert row["disposition"] == "retrain_required"
+
+
+def test_steering_is_bound_to_this_checkpoint_rather_than_unsigned(queue):
+    """Re-bound, and still decided about — which is the whole point.
+
+    The file's subject is that an absent component and a deferred one look
+    identical from a health check. Steering moving out of quarantine is
+    only good news if something still signs it.
+    """
+
+    row = _row(queue, "steering")
+    assert row["signed_authority"] is True
+    assert row["authority_kind"] == "caa_model_bound"
+    assert row["disposition"] == "rebindable"
+
+
+def test_a_disposition_is_never_invented_beside_its_authority(queue):
+    """Every signed row's disposition is the one its kind maps to.
+
+    This holds whatever state the migration is in, so it is the assertion
+    that survives the migration finishing.
+    """
+
+    from tools.report_27b_migration_queue import DISPOSITION_BY_KIND
+
+    for row in queue["rows"]:
+        kind = row.get("authority_kind")
+        if kind is None:
+            assert row["signed_authority"] is False
+            continue
+        assert kind in DISPOSITION_BY_KIND, f"{kind!r} maps to no disposition"
+        assert row["disposition"] == DISPOSITION_BY_KIND[kind][0]
 
 
 def test_expert_adapters_are_retired_not_deferred(queue):

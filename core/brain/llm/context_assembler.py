@@ -2782,6 +2782,7 @@ class ContextAssembler:
         *,
         record_attention: bool = False,
         conversation_history: list[dict[str, Any]] | None = None,
+        history_note: str | None = None,
     ) -> list[dict[str, str]]:
         char_limit, messages = cls._build_messages_part_1(max_tokens, objective, record_attention, state)
         current_chars = 0
@@ -2973,11 +2974,24 @@ class ContextAssembler:
             dropped_messages_count = len(working_memory) - num_recent
 
         if conversation_history is not None:
-            # The authenticated delivered transcript is allocated once by the
-            # inference owner, where the actual output reserve is known.
-            retained_history = list(conversation_history)
+            # The authenticated delivered transcript, held to what is left of
+            # the turn's budget once the mandatory blocks are reserved.
+            #
+            # It used to be taken whole, which made it the one input with no
+            # budget at all. LIVE 2026-09-17, "Aura, what is it like to be
+            # you": 83 messages, 10,414 tokens, 83.44s of prefill in front of
+            # 71.27s of decode, for a thirty-one character question. Forty
+            # exchanges were admitted because forty existed.
+            #
+            # Oldest first, and a user message leaves with the reply to it,
+            # so what remains is a contiguous suffix and no reference
+            # resolves across a hole.
+            retained_history, dropped_messages_count = cls._fit_delivered_history(
+                list(conversation_history),
+                budget=char_limit - (current_chars + input_chars),
+                estimate=_estimate_chars,
+            )
             history_chars = sum(_estimate_chars(msg.get("content", "")) for msg in retained_history)
-            dropped_messages_count = 0
 
         # 6. Memory Summarization Hook
         if dropped_messages_count > 0:
@@ -2994,6 +3008,13 @@ class ContextAssembler:
             # drop messages, killed the worker in the middle of a game she was
             # playing, and answered the person with a refusal.
             _place_system_note(messages, summary_notice)
+
+        # The inference owner allocates the delivered transcript by what the
+        # turn reaches, so it — not this budget pass — knows what was left
+        # out and what of it the turn named. Its note goes where the
+        # assembler's own system content goes, for the same reason.
+        if history_note:
+            _place_system_note(messages, history_note)
 
         # Assemble final array.
         #
@@ -3026,6 +3047,41 @@ class ContextAssembler:
         messages = cls._build_messages_part_4(conversation_history, current_chars, history_chars, input_chars, messages, objective, safe_input, state)
 
         return messages
+    @staticmethod
+    def _fit_delivered_history(
+        history: list[dict[str, Any]],
+        *,
+        budget: int,
+        estimate: Any,
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Drop the oldest exchanges until the transcript fits the budget."""
+
+        from core.conversation.history_reach import measure_reach
+
+        if budget <= 0 or not history:
+            return history, 0
+        pairs: list[list[dict[str, Any]]] = []
+        for message in history:
+            role = str(message.get("role", "") or "").strip().lower()
+            if role == "user" or not pairs:
+                pairs.append([])
+            pairs[-1].append(message)
+        sized = [
+            {"aura": "".join(str(m.get("content") or "") for m in pair)}
+            for pair in pairs
+        ]
+        reach = measure_reach(sized, budget_chars=budget)
+        if not reach.cuts_anything:
+            return history, 0
+        kept = [message for pair in pairs[reach.boundary :] for message in pair]
+        logger.info(
+            "📐 ContextAssembler: delivered conversation %d → %d message(s): %s",
+            len(history),
+            len(kept),
+            reach.reason,
+        )
+        return kept, len(history) - len(kept)
+
     @staticmethod
     def _sanitize_assistant_prefill(opening: Any) -> str:
         """Validate a Stream-of-Being assistant prefill before it seeds a turn.

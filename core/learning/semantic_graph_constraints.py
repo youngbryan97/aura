@@ -38,9 +38,10 @@ def _project_direction(direction, normals):
 def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                           required_margin=.1, learning_rate=.001, max_active=32,
                           adaptive_step=False, checkpoint_path=None, progress=None,
-                          checkpoint_identity=None, batched=True):
+                          checkpoint_identity=None, batched=True, objective="squared_deficit"):
     """Search for all retained inequalities; retain every already-positive margin."""
-    if (type(batched) is not bool or type(adaptive_step) is not bool or not contrasts or type(steps) is not int or steps < 1 or type(max_active) is not int
+    if (objective not in {"squared_deficit", "pairwise_logistic"}
+            or type(batched) is not bool or type(adaptive_step) is not bool or not contrasts or type(steps) is not int or steps < 1 or type(max_active) is not int
             or max_active < 1 or not np.isfinite(required_margin) or required_margin <= 0
             or not np.isfinite(learning_rate) or learning_rate <= 0
             or not np.isfinite(scale) or scale <= 0
@@ -72,6 +73,12 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
     floors = np.where(margins > 0., np.minimum(margins, required_margin), -np.inf)
     weights = np.array([row.weight for row in contrasts])
     weights /= weights.sum()
+
+    def loss_at(values):
+        terms = (np.logaddexp(0., -values) if objective == "pairwise_logistic"
+                 else np.maximum(required_margin - values, 0.) ** 2)
+        return float(weights @ terms)
+
     trace, status = [], "search_budget_exhausted"
     checkpoint, start_step = None, 0
     if checkpoint_path is not None:
@@ -82,7 +89,7 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         identity = fit_identity({
             "algorithm": [Path(__file__).with_name(name).read_text() for name in source_files],
             "owner": checkpoint_identity, "initial": initial, "contrasts": tuple(contrasts),
-            "options": (scale, steps, required_margin, learning_rate, max_active, adaptive_step, batched),
+            "options": (scale, steps, required_margin, learning_rate, max_active, adaptive_step, batched, objective),
         })
         checkpoint = SemanticFitCheckpoint(checkpoint_path, identity)
         saved = checkpoint.load()
@@ -114,7 +121,8 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                             next_step=len(trace), status=state)
 
     for step in range(start_step, steps):
-        deficits = np.maximum(required_margin - margins, 0.)
+        deficits = (np.exp(-np.logaddexp(0., margins)) if objective == "pairwise_logistic"
+                    else np.maximum(required_margin - margins, 0.))
         if not np.any(deficits):
             status = "retained_constraints_satisfied"
             break
@@ -142,7 +150,7 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         direction /= largest
         step_size = learning_rate
         if adaptive_step:
-            # Minimize the linearized squared deficit along the feasible direction.
+            # Use the local loss curvature along the protected direction.
             slopes = (batch.directional_derivative(parameters, unpack(direction))
                       if batch is not None else np.zeros_like(margins))
             if batch is None:
@@ -151,19 +159,20 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                     slopes[index] = sum(float(np.sum(value * part)) for value, part in
                                         zip(gradient, unpack(direction), strict=True))
             slopes[deficits == 0] = 0.
-            denominator = float(weights @ (slopes ** 2))
+            curvature = deficits * (1. - deficits) if objective == "pairwise_logistic" else 1.
+            denominator = float(weights @ (curvature * slopes ** 2))
             numerator = float(weights @ (deficits * slopes))
             if denominator > 0 and numerator > 0:
                 step_size = numerator / denominator
         direction *= step_size
-        loss = float(weights @ (deficits ** 2))
+        loss = loss_at(margins)
         accepted = False
         for backtrack in range(24):
             # The exported dtype participates in acceptance, not just a later
             # loss check that could silently erase a small positive margin.
             trial = (flat + direction * 2. ** -backtrack).astype(np.float32).astype(np.float64)
             trial_margins = evaluate(trial)
-            trial_loss = float(weights @ np.maximum(required_margin - trial_margins, 0.) ** 2)
+            trial_loss = loss_at(trial_margins)
             if np.all(trial_margins >= floors) and trial_loss < loss:
                 flat, margins = trial, trial_margins
                 floors = np.maximum(floors, np.where(margins > 0.,
@@ -181,21 +190,25 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         if not accepted:
             status = "no_retention_preserving_step_found"
             break
-    if np.all(margins >= required_margin):
+    if objective == "squared_deficit" and np.all(margins >= required_margin):
         status = "retained_constraints_satisfied"
     elif status == "running":
         status = "search_budget_exhausted"
     persist(status)
     values = unpack(flat)
     return values, {
-        "objective": "retained_semantic_inequalities_v1", "status": status,
+        "objective": ("retained_pairwise_likelihood_v1" if objective == "pairwise_logistic"
+                      else "retained_semantic_inequalities_v1"), "status": status,
+        "initial_loss": loss_at(before), "stored_loss": loss_at(margins),
         "pairs": len(contrasts), "required_margin": required_margin,
         "initial_margins": before.tolist(), "stored_margins": margins.tolist(),
         "initial_wrong_or_tied": int(np.count_nonzero(before <= 0)),
         "stored_wrong_or_tied": int(np.count_nonzero(margins <= 0)),
         "retained_positive_regressions": int(np.count_nonzero((before > 0) & (margins <= 0))),
         "accepted_steps": trace, "max_projected_constraints": max_active,
-        "step_policy": "linearized_deficit_backtracking_v1" if adaptive_step else "fixed_max_parameter_step_v1",
+        "step_policy": (("linearized_logistic_backtracking_v1" if objective == "pairwise_logistic"
+                         else "linearized_deficit_backtracking_v1")
+                        if adaptive_step else "fixed_max_parameter_step_v1"),
         "all_constraints_checked_at_acceptance": True,
         "infeasibility_proven": False, "latent_choices_frozen_for_update": True,
         "serving_authority": False,

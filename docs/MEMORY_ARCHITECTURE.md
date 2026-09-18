@@ -30,7 +30,7 @@ High-arousal or traumatic conversation moments result in **Scar Formation** (`sc
 ## Memory Write Gateway & Retention Policies
 
 All memory writes pass through a single unified authority: the **Memory Write Gateway** (`memory_write_gateway.py`).
-- Requires a `WillReceipt` (governance approval).
+- Records governance authorization in a `MemoryWriteReceipt`.
 - Uses atomic schema-versioned writes.
 - Manages quarantine.
 Retention policies dictate what is kept, compacted, or discarded over time to manage context limits.
