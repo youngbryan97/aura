@@ -58,6 +58,19 @@ from .screen_pursuit_surface import (
 )
 
 
+def _bind_delivered_forecast(expected: dict, arrived: int) -> None:
+    """Grade only the prefix the body delivered, using pre-action predictions."""
+    planned = expected["took"]
+    if type(arrived) is not int or not 0 <= arrived <= planned:
+        raise ValueError("delivered action count is outside the planned sequence")
+    prefixes = expected.get("prefixes", ())
+    if 0 < arrived <= len(prefixes):
+        expected["after"] = prefixes[arrived - 1]
+    elif arrived == 0 or arrived != planned:
+        expected["after"] = None
+    expected["took"] = arrived
+
+
 async def carry_out_the_move(
 
     run: SimpleNamespace,
@@ -157,6 +170,8 @@ async def carry_out_the_move(
             await _bring_the_thing_back_to_the_front(target_app)
         pending["arranged"] = None
         pending["whole"] = None
+        pending["deliberation"] = None
+        _bind_delivered_forecast(expected, 0)
         return None
     # Intent, then action. Said before the body moves, because that is
     # the order a person doing something narrates it in.
@@ -186,6 +201,9 @@ async def carry_out_the_move(
         arrived = await press_many(sequence, expect_app=target_app or anchor["app"])
     else:
         arrived = 1 if await press(key, expect_app=target_app or anchor["app"]) else 0
+    _bind_delivered_forecast(expected, arrived)
+    if not arrived:
+        pending["deliberation"] = None
     for position, step in enumerate(sequence[:arrived]):
         if position == 0:
             about_to["at"] = time.time()

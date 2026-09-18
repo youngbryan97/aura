@@ -45,6 +45,8 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.verify import invariant
+
 __all__ = [
     "PredictionOutcome",
     "CalibrationCurve",
@@ -67,6 +69,14 @@ class PredictionOutcome:
     #: Error below which the prediction counts as correct, in the caller's unit.
     tolerance: float = 0.1
 
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.confidence) or not 0.0 <= self.confidence <= 1.0:
+            raise ValueError("confidence must be a finite probability")
+        if not math.isfinite(self.error) or self.error < 0.0:
+            raise ValueError("error must be finite and nonnegative")
+        if not math.isfinite(self.tolerance) or self.tolerance < 0.0:
+            raise ValueError("tolerance must be finite and nonnegative")
+
     @property
     def correct(self) -> bool:
         return self.error <= self.tolerance
@@ -82,11 +92,14 @@ class CalibrationCurve:
     n: int = 0
     confidence_sum: float = 0.0
     correct_sum: float = 0.0
+    confidence_sums: list[float | None] = field(default_factory=lambda: [0.0] * BINS)
 
     def observe(self, outcome: PredictionOutcome) -> None:
         index = min(BINS - 1, max(0, int(outcome.confidence * BINS)))
         self.counts[index] += 1
         self.hits[index] += 1 if outcome.correct else 0
+        if self.confidence_sums[index] is not None:
+            self.confidence_sums[index] += outcome.confidence
         self.squared += (outcome.confidence - (1.0 if outcome.correct else 0.0)) ** 2
         self.confidence_sum += outcome.confidence
         self.correct_sum += 1.0 if outcome.correct else 0.0
@@ -103,22 +116,100 @@ class CalibrationCurve:
             return None
         return (self.confidence_sum - self.correct_sum) / self.n
 
+    @property
+    def expected_calibration_error(self) -> float | None:
+        """Weighted bin error; opposing errors cannot cancel each other."""
+        if not self.n or any(
+            count and total is None
+            for count, total in zip(self.counts, self.confidence_sums, strict=True)
+        ):
+            return None
+        return sum(
+            abs(total - hits)
+            for total, hits in zip(self.confidence_sums, self.hits, strict=True)
+            if total is not None
+        ) / self.n
+
+    def calibrated_probability(self, claimed: float, *, minimum_count: int) -> float:
+        """Use observed accuracy in this bin once it has enough observations."""
+        PredictionOutcome(claimed, 0.0)
+        if isinstance(minimum_count, bool) or not isinstance(minimum_count, int) or minimum_count < 1:
+            raise ValueError("minimum_count must be a positive integer")
+        index = min(BINS - 1, int(claimed * BINS))
+        return self.hits[index] / self.counts[index] if self.counts[index] >= minimum_count else claimed
+
+    def as_memory(self) -> dict[str, Any]:
+        return {
+            "n": self.n, "squared": self.squared,
+            "confidence_sum": self.confidence_sum, "correct_sum": self.correct_sum,
+            "counts": list(self.counts), "hits": list(self.hits),
+            "confidence_sums": list(self.confidence_sums),
+        }
+
+    @classmethod
+    def from_memory(cls, held: Mapping[str, Any]) -> CalibrationCurve:
+        """Restore measured statistics without inventing legacy bin means."""
+        if not isinstance(held, Mapping):
+            raise ValueError("calibration memory must be a mapping")
+        counts = list(held.get("counts", [0] * BINS))
+        hits = list(held.get("hits", [0] * BINS))
+        n = held.get("n", 0)
+        if any(type(value) is not int or value < 0 for value in [n, *counts, *hits]):
+            raise ValueError("calibration counts must be nonnegative integers")
+        if len(counts) != BINS or len(hits) != BINS or sum(counts) != n:
+            raise ValueError("calibration counts disagree")
+        if any(hit > count for hit, count in zip(hits, counts, strict=True)):
+            raise ValueError("calibration hits exceed counts")
+        squared = float(held.get("squared", 0.0))
+        confidence = float(held.get("confidence_sum", 0.0))
+        correct = float(held.get("correct_sum", 0.0))
+        if any(not math.isfinite(value) or not 0 <= value <= n for value in (squared, confidence, correct)):
+            raise ValueError("invalid calibration aggregates")
+        if correct != sum(hits):
+            raise ValueError("calibration accuracy disagrees with bins")
+        totals = list(held.get("confidence_sums", [None if count else 0.0 for count in counts]))
+        if len(totals) != BINS:
+            raise ValueError("invalid confidence bin count")
+        for i, (total, count) in enumerate(zip(totals, counts, strict=True)):
+            if total is None and count:
+                continue
+            if total is None or not math.isfinite(total) or not i * count / BINS - 1e-9 <= total <= (i + 1) * count / BINS + 1e-9:
+                raise ValueError("confidence total outside its bin")
+        if all(total is not None for total in totals) and not math.isclose(sum(totals), confidence, abs_tol=1e-8):
+            raise ValueError("confidence aggregate disagrees with bins")
+        return cls(counts, hits, squared, n, confidence, correct, totals)
+
     def to_dict(self) -> dict[str, Any]:
+        ece = self.expected_calibration_error
         return {
             "n": self.n,
             "brier": self.brier,
             "overconfidence": self.overconfidence,
-            "calibrated": self.n >= 30 and abs(self.overconfidence or 1.0) < 0.1,
+            "expected_calibration_error": ece,
+            "calibrated": self.n >= 30 and ece is not None and ece < 0.1,
             "diagram": [
                 {
                     "bin": i,
-                    "stated": (i + 0.5) / BINS,
+                    "stated": self.confidence_sums[i] / self.counts[i]
+                    if self.counts[i] and self.confidence_sums[i] is not None else None,
                     "measured": (self.hits[i] / self.counts[i]) if self.counts[i] else None,
                     "n": self.counts[i],
                 }
                 for i in range(BINS)
             ],
         }
+
+
+@invariant("world_model.calibration_errors_do_not_cancel", scope="world_model",
+           owner="core/world_model/prediction_quality.py", observational=False)
+def _calibration_errors_do_not_cancel() -> tuple:
+    curve = CalibrationCurve()
+    for _ in range(20):
+        curve.observe(PredictionOutcome(0.1, 0.0))
+        curve.observe(PredictionOutcome(0.9, 1.0))
+    assert math.isclose(curve.expected_calibration_error, 0.9)
+    assert not curve.to_dict()["calibrated"]
+    return ()
 
 
 @dataclass(frozen=True, slots=True)

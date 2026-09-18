@@ -28,6 +28,7 @@ include_rules = [
     "+core.state.percepts",
     "+core.thought_stream",
     "+core.values",
+    "+core.verify",
 
     # Everything else.
     "-core",

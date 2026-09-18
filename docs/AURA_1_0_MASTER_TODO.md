@@ -1083,6 +1083,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [Forecast attribution](evidence/G09_FORECAST_ATTRIBUTION_2026-09-18.md) repairs
+  calibration cancellation and binds planning outcomes to pre-action forecasts
+  and delivered action counts. 121 focused tests pass, including partial
+  delivery through the action helper. Live and broad-gain evidence remain open.
   [Evidence identity](evidence/G09_EVIDENCE_IDENTITY_2026-09-16.md) binds training,
   calibration, observation windows, and restart recovery to the current schema;
   distinct decisions remain distinct across replay and corpus compaction.
