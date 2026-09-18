@@ -31,7 +31,6 @@ from core.language.terminal_boundary import has_terminal_sentence_boundary
 from core.runtime.errors import record_degradation
 from core.runtime.model_layers import resolve_model_layers
 
-from .mlx_worker import _CORRUPT_LANGUAGE_MARKERS
 
 logger = logging.getLogger("MLXWorker")
 
@@ -68,12 +67,9 @@ def _surface_validation_prompt(job: dict[str, Any]) -> str:
 # they occur legitimately in English, and the reliability gate already handles
 # them as `pseudo_internal_jargon` — a reason that can be retried and repaired
 # rather than one that throws the answer away.
-_BACKEND_SYMBOLIC_SURFACE_MARKERS = re.compile(
-    r"\b(?:PROCEEDING|TOOL_ACTION|CONVERGE_UNION|CONFORMED_METHODS|"
-    r"TACTICAL_ORGANIZE|UI_SHUTDOWN_OR_DURATIVE_TIMEOUT|"
-    r"MySelfEpsilon|CanonicalStabilityAnchor|currentInferenceProblem|"
-    r"fieldOfPlay|INTRUSTION_DETECTED|INTRUSION_DETECTED|"
-    r"ExistenceHash)\b"
+from core.brain.llm.mlx_worker_surface_markers import (  # noqa: E402
+    _BACKEND_SYMBOLIC_SURFACE_MARKERS,
+    _CORRUPT_LANGUAGE_MARKERS,
 )
 
 

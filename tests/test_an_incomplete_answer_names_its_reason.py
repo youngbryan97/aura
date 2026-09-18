@@ -18,12 +18,7 @@ from __future__ import annotations
 
 import inspect
 
-# mlx_worker_surface_quality imports names from mlx_worker at module
-# scope and mlx_worker imports back, so the pair only resolves when the
-# worker is imported first. Pre-existing; noted here so the ordering is
-# not mistaken for style.
-import core.brain.llm.mlx_worker  # noqa: F401  isort:skip
-from core.brain.llm.mlx_worker_surface_quality import (  # noqa: E402
+from core.brain.llm.mlx_worker_surface_quality import (
     _semantic_completion_receipt_state,
     semantic_completion_blockers,
 )
