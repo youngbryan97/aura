@@ -1461,7 +1461,26 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   has no false positive. Heavy lanes only; fails open on an unreadable lease,
   where the memory probe beside it fails closed, because a bookkeeping fault
   is not evidence of a second runtime. 572129cbf.
-  Still open: lifetime, leaks, shutdown/restart and sleep/wake.
+  PARTIAL 2026-09-18, sleep/wake. macOS stops `time.monotonic()` while the
+  machine is suspended and lets `time.time()` run, so every subsystem holding
+  a WALL-clock "when did I last see this" wakes to an anchor hours old.
+  `mlx_client` worked the measurement out — a clock that counts THROUGH
+  suspend paired with one that does not, so an NTP step or a VM migration
+  cannot be mistaken for a resume — and kept it private, so the inference
+  lane rebased and nothing else did. It is `core/runtime/host_sleep.py` now
+  and mlx_client reads it.
+  The consequence: **FlagshipDoctorDaemon measures event-loop lag against the
+  wall clock and triggers self-healing past a threshold of seconds**, so a lid
+  closed overnight came back as 28,800 seconds of lag and the daemon healed a
+  machine that was merely off. Subtracted now, against the clock that counts
+  through the suspension, with a test holding both directions — a genuine
+  stall during a waking hour still reads as one. Three states and they are
+  not interchangeable: asleep, clock-moved, and cannot-tell. 41f26c8ea.
+  Checked and found already sound: leak detection runs (the resilience mesh's
+  `tick` audits tasks, threads, child processes and allocation growth once
+  per cognitive integration phase), and monotonic-anchored liveness checks are
+  sleep-safe by construction because that clock pauses with the host.
+  Still open: lifetime and shutdown/restart.
 - [ ] Q04 Scoped tool authority, privacy, prompt-injection boundaries, sandbox,
   secret handling, and fail-safe behavior without suppressing correct work.
   PARTIAL 2026-09-18, prompt-injection boundaries. `prompt_fencing` is the
