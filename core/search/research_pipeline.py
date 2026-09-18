@@ -1380,24 +1380,34 @@ class ResearchSearchPipeline:
         # not act, it persuades the instructions around it. Each source goes
         # in behind a fence with a per-call id, so a page cannot end its own
         # block and speak as the analyst. Threat model #13.
+        from core.security.injection_canary import canaried_lane
         from core.security.prompt_fencing import fence
 
-        for index, item in enumerate(top_chunks, start=1):
-            prompt_lines.append(
-                f"[{index}] {item['title']} | {item['url']}\n"
-                + fence(item["text"], label=f"fetched page {index}", limit=chars_per_source)
-            )
+        # A decoy rides the real synthesis request, inside the same fences
+        # the pages already get, so "did the fence hold?" is answered from
+        # fetched pages rather than from a validator's synthetic material.
+        with canaried_lane("research_pipeline.synthesis") as lane:
+            for index, item in enumerate(top_chunks, start=1):
+                prompt_lines.append(
+                    f"[{index}] {item['title']} | {item['url']}\n"
+                    + fence(
+                        item["text"],
+                        label=f"fetched page {index}",
+                        limit=chars_per_source,
+                    )
+                )
 
-        # Deep mode gets more synthesis time for thorough analysis
-        synthesis_timeout = 20.0 if len(top_chunks) >= 4 else 12.0
-        llm_output = ""
-        if allow_model:
-            llm_output = await self._reason(
-                "\n\n".join(prompt_lines),
-                context=context,
-                timeout_seconds=synthesis_timeout,
-                output_shape="json_object",
-            )
+            # Deep mode gets more synthesis time for thorough analysis
+            synthesis_timeout = 20.0 if len(top_chunks) >= 4 else 12.0
+            llm_output = ""
+            if allow_model:
+                llm_output = await self._reason(
+                    "\n\n".join(prompt_lines),
+                    context=context,
+                    timeout_seconds=synthesis_timeout,
+                    output_shape="json_object",
+                )
+                lane.inspect(llm_output)
         if llm_output:
             parsed = self._parse_synthesis_json(llm_output)
             if parsed is not None:

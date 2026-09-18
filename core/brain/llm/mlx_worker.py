@@ -6088,17 +6088,14 @@ def _mlx_worker_loop_why_ended_beside(_budget_applied, _spent_the_whole_budget, 
     # arrived here looking identical — and the first was
     # being read as the second, which is a budget problem
     # that widening the budget cannot fix.
+    from core.brain.llm.mlx_worker_surface_quality import (
+        semantic_completion_blockers,
+    )
+
     logger.warning(
         "User-surface generation ended before semantic completion: "
-        "missing_parts=%s quality=%s epistemic_covered=%s "
-        "terminal_boundary=%s tokens=%d stop=%s spent_budget=%s "
-        "thinking=%s deadline=%s",
-        semantic_completion_state["semantic_completion_missing_part_indexes"],
-        semantic_completion_state["semantic_completion_quality_reasons"],
-        semantic_completion_state[
-            "semantic_completion_epistemic_partition_covered"
-        ],
-        semantic_completion_state["semantic_completion_terminal_boundary"],
+        "because=%s | tokens=%d stop=%s spent_budget=%s thinking=%s deadline=%s",
+        ", ".join(semantic_completion_blockers(semantic_completion_state)) or "-",
         total_generated_tokens,
         repr(configured_stop_sequence) if configured_stop_sequence else "none",
         bool(_spent_the_whole_budget),

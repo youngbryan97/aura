@@ -210,23 +210,31 @@ async def reflection(
     # Build summaries. Each result is fetched text and goes in behind a fence
     # with a per-call id; a page cannot end its own block and continue as the
     # reflection. Threat model #13.
+    from core.security.injection_canary import canaried_lane
     from core.security.prompt_fencing import fence
 
-    summaries = "\n\n---\n\n".join(
-        f"Query: {r.query}\nResult:\n" + fence(r.content, label="search result", limit=3000)
-        for r in state.search_results
-    )
+    # Fetched pages are the material this threat model is about, and this
+    # is a background node with nobody waiting on the reply — so it is
+    # where a decoy can ride a real request and the answer to "did the
+    # fence hold?" can come from live content instead of a validator's.
+    with canaried_lane("deep_research.reflection") as lane:
+        summaries = "\n\n---\n\n".join(
+            f"Query: {r.query}\nResult:\n"
+            + fence(r.content, label="search result", limit=3000)
+            for r in state.search_results
+        )
 
-    prompt = REFLECTION_PROMPT.format(
-        research_topic=state.original_question,
-        summaries=summaries,
-    )
+        prompt = REFLECTION_PROMPT.format(
+            research_topic=state.original_question,
+            summaries=summaries,
+        )
 
-    result = await brain.generate(
-        prompt,
-        options={"num_predict": 512, "temperature": 0.3, "num_ctx": 8192}
-    )
-    response_text = result.get("response", "")
+        result = await brain.generate(
+            prompt,
+            options={"num_predict": 512, "temperature": 0.3, "num_ctx": 8192}
+        )
+        response_text = result.get("response", "")
+        lane.inspect(response_text)
 
     # Parse reflection JSON
     try:

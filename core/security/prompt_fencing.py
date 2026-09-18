@@ -54,6 +54,16 @@ def fence(text: object, *, label: str, limit: int | None = None) -> str:
     is reasoning about something the person did not send.
     """
     body = "" if text is None else str(text)
+    # A lane that asked to be watched gets a decoy instruction inside this
+    # fence, so the question "did the model follow what was in the block?"
+    # has an answer for real content and not only for a validator's.
+    # Costs nothing on every other call, which is almost all of them.
+    try:
+        from core.security.injection_canary import plant_if_lane_is_canaried
+
+        body = plant_if_lane_is_canaried(body)
+    except Exception:  # noqa: BLE001 — a fence never fails over its canary
+        pass
     truncated = False
     if limit is not None and limit >= 0 and len(body) > limit:
         body = body[:limit]

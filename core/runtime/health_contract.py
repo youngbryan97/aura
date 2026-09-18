@@ -2163,6 +2163,12 @@ def _integrity_of_orchestration_verifier_and_learning(block: dict[str, Any]) -> 
             "work_ledger": work_ledger_status(),
             "injection_canaries": {
                 "evaluated": canaries["evaluated"],
+                # A count says the detector ran, not that it ran on
+                # anything real. Until a lane plants a canary in a prompt
+                # carrying somebody's untrusted content, every number
+                # beside this came from a validator's synthetic material.
+                "live_evaluated": canaries["live_evaluated"],
+                "watching_live_traffic": canaries["watching_live_traffic"],
                 "incidents": canaries["hijacked"] + canaries["leaked"],
                 "incident_rate": canaries["incident_rate"],
                 # A probe lane that keeps failing has silently stopped
