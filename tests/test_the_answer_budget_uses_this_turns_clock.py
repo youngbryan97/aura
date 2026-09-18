@@ -142,15 +142,27 @@ def test_a_prompt_that_eats_the_whole_clock_buys_no_answer():
 
 
 def test_foreground_answer_budget_is_not_reduced_to_fit_a_duration_estimate():
-    """Completion owns progress; a forecast may not shorten the answer."""
+    """Completion owns progress; a forecast may not shorten the answer.
+
+    Asked of the whole module rather than of the text between two markers.
+    This read from the ANSWER BUDGET log forward to
+    ``serving_lane = self._cortex_serving_lane`` and went red — with a
+    ValueError, not an assertion — when the serving lane moved ahead of the
+    log and there was nothing after it to find. The region was an
+    approximation of "where the budget is decided"; the property is simply
+    that nothing in this gate ever lowers the ceiling, which is stronger
+    and cannot be relocated out from under the test.
+    """
     import inspect
     from pathlib import Path
 
     from core.brain import inference_gate
 
     source = Path(inspect.getfile(inference_gate)).read_text(encoding="utf-8")
-    at = source.index("[ANSWER BUDGET] %d tokens fit this turn's clock")
-    end = source.index("serving_lane = self._cortex_serving_lane", at)
-    nearby = source[at:end]
-    assert "lowering the ceiling" not in nearby
-    assert "0 < _affordable < max_tokens" not in nearby
+
+    assert "lowering the ceiling" not in source
+    assert "0 < _affordable < max_tokens" not in source
+    # And the budget is still consulted at all, so the two absences above
+    # cannot be satisfied by the whole mechanism having been deleted.
+    assert "[ANSWER BUDGET] %d tokens fit this turn's clock" in source
+    assert "raising the ceiling from" in source

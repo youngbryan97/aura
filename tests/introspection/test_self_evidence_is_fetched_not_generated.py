@@ -697,37 +697,22 @@ def test_the_recorded_answer_is_applied_after_every_repair() -> None:
     A correction a later stage can overwrite is not a correction, so it is
     applied to the final reply, after every repair and shaping pass.
     """
-    import ast
-    import inspect
-
     from interface.routes import chat
+    from source_contract import function_containing, in_order
 
     # The property, not one spelling of it, and not one function's name
     # either. Asserting the exact assignment expression broke when it became
     # a conditional across several lines; naming ``_api_chat_turn`` broke
     # when the method-size sweep moved the call into an extracted helper —
-    # both times with the ordering it protects untouched. So: find whichever
-    # function applies the record, and check the ordering inside THAT one.
-    module_source = inspect.getsource(chat)
-    tree = ast.parse(module_source)
-    lines = module_source.splitlines()
-
-    applier = None
-    for node in ast.walk(tree):
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            continue
-        body = "\n".join(lines[node.lineno - 1 : (node.end_lineno or node.lineno)])
-        if "_append_past_action_record(_semantic_user_message, _final_reply)" in body:
-            applier = (node.name, body)
-            break
-
-    assert applier is not None, "the recorded answer is not applied to the final reply"
-    name, body = applier
-
-    assigned = body.find("_final_reply = ")
-    applied = body.find("_append_past_action_record(_semantic_user_message, _final_reply)")
-    assert assigned != -1, f"{name} applies the record without assembling the final reply"
-    assert applied > assigned, f"{name} applies the record before the final reply exists"
+    # both times with the ordering it protects untouched.
+    _name, body = function_containing(
+        chat, "_append_past_action_record(_semantic_user_message, _final_reply)"
+    )
+    in_order(
+        body,
+        "_final_reply = ",
+        "_append_past_action_record(_semantic_user_message, _final_reply)",
+    )
 
 
 def test_the_recorded_answer_is_applied_around_the_whole_turn() -> None:
