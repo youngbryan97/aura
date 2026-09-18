@@ -1592,6 +1592,24 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   eight entries in HANDWRITTEN for exactly this and says in its own comment
   how core/learning sat here failing, one regeneration from being deleted.
   organism is the ninth (9c20b5e1b).
+  RUN 2026-09-18, 00:10 to 06:45, and the result is a finding about the
+  measurement rather than about the tree. 30 chunks finished, 314 minutes,
+  10.5 minutes each; 2 timed out (`test_doc_drift_gate`,
+  `test_shutdown_lifecycle_hardening`) and produced no verdict for their
+  files. 169 failures across 97 files.
+  **Twenty-six commits landed in the checkout between the first chunk and
+  the thirty-third.** Several agents commit here and a full run takes about
+  eight hours, so chunks either side of a commit tested different code: the
+  169 are a mixture across 26 trees, not a register of one. A green chunk
+  said nothing about the tree the red chunk found, and a failure could have
+  been fixed hours before the summary was read. Nothing in the runner said
+  so — it printed a clean-looking list. It records the revision before each
+  chunk now, announces a move when it happens and again in the summary, and
+  says plainly when a run did hold still (d28398d13). CLAUDE.md already
+  forbids launching chunks while editing Python files; this is that rule at
+  the scale of a whole run.
+  The register itself is being produced the only way it can be: the 97
+  files re-run against one pinned revision in a worktree.
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
   FOUND 2026-09-07, second session, and it was not order dependence.
   `test_runtime_invariants_are_registered_and_run_clean` passed alone and
