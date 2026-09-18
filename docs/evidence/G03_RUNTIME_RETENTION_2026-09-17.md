@@ -66,3 +66,48 @@ Verification: 133 focused tests passed across graph retention, small-trial
 acquisition, world-model rollout and existing world-model/planner suites.
 Smoke passed 164 tests with one skip. Lint, compile, governance and layering
 passed. These are component gates and do not close the G ledger.
+
+## Pairwise likelihood development trial
+
+An opt-in likelihood objective continues learning from correct but uncertain
+training comparisons. Every proposed update still checks all retained
+inequalities at the stored float32 precision. The original squared-deficit
+objective remains the default.
+
+Eight training rows remained equivalent. The same eight exposed validation
+rows improved from six equivalent programs to seven, with no loss among
+previously correct cases. The remaining row refused decoding with
+`typed_argument_chart_empty`. This is a measured completion failure, not an
+unknown diagnostic. The v1 trial reporter classified it as `unmeasured`;
+v2 separates decoder refusals from unknown semantic verification and no
+longer calls annotated-graph feasibility runtime target reachability.
+
+The run accepted ten steps over 223 constraints. Pairwise loss decreased from
+0.0005533504109949285 to 0.00005139420917746016. No retained positive inequality
+regressed. These training inequalities do not guarantee held-out chart
+coverage or correctness.
+
+Original immutable receipt:
+`~/.aura/rlc-evidence/semantic-runtime-retention-likelihood-20260917/trial.json`,
+content receipt
+`8eb6c6d96ef229fd8106205258db98e0f7d68ae714b27cea3741d8f8c3a5b9d9`.
+
+Focused verification: 39 objective, checkpoint and trial tests passed. A
+separate 53-test run covered floor observation reuse, counterexamples,
+runtime retention and the small-trial reporter. No serving activation,
+fresh transfer or G03 closure follows from this trial.
+
+## Reusing floor computations during search
+
+Counterexample search now shares bounded, invocation-local observations
+across competing operation charts. Keys include the exact program, typed
+inputs and fuel allowance. Only reference-checked values and undefined-domain
+observations are retained. Execution errors are retried. Returned evidence
+cannot mutate cached receipts. Finite agreement still does not establish
+equivalence.
+
+The focused tests compare cached and uncached witness receipts, different
+input and fuel identities, bounded eviction, domain failures and mutation
+isolation. The diagnostic replay's first training example reused 65
+observations and performed seven fresh executions. That is avoided duplicate
+work, not a measured end-to-end speedup or a general search-completeness claim.

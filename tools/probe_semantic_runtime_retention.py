@@ -33,6 +33,7 @@ def main():
     parser.add_argument("--validation-count", type=int, default=8)
     parser.add_argument("--steps", type=int, default=20)
     parser.add_argument("--max-charts", type=int, default=32)
+    parser.add_argument("--objective", choices=("squared_deficit", "pairwise_logistic"), default="squared_deficit")
     args = parser.parse_args()
     if args.output.exists():
         raise FileExistsError(args.output)
@@ -48,6 +49,7 @@ def main():
         training_count=args.training_count, validation_count=args.validation_count,
         training_pool_count=args.training_pool_count,
         steps=args.steps, max_charts=args.max_charts,
+        objective=args.objective,
         progress=report_progress)
     if not atomic_write_bytes_if_absent(args.output,
             (json.dumps(result, sort_keys=True, separators=(",", ":")) + "\n").encode("ascii"), mode=0o400):

@@ -1,7 +1,9 @@
 """Retain witnessed competitors from the decoder's operation and argument search."""
 
 from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
-from core.learning.semantic_graph_counterexamples import counterfactual_inputs, find_program_counterexample
+from core.learning.semantic_graph_counterexamples import (
+    ProgramObservationCache, counterfactual_inputs, find_program_counterexample,
+)
 from core.learning.semantic_joint_graph_learning import (
     align_source_input_registers, joint_graph_contrast, score_annotated_graph, scored_graph_evidence,
 )
@@ -41,6 +43,7 @@ def mine_runtime_graph_constraints(model, item, *, weight=1., max_charts=32, max
     record["source_to_runtime_input_registers"] = list(mapping)
     target = positive["program"]
     probes = counterfactual_inputs(item.public_inputs)
+    observation_cache = ProgramObservationCache()
     candidates = iter(candidates)
     relation_scores, relation_vectors = {}, {}
     definition_scores = model.definition_pointer.score_sequence(item.hidden_states)
@@ -66,7 +69,8 @@ def mine_runtime_graph_constraints(model, item, *, weight=1., max_charts=32, max
                 row.update(status="typed_chart_empty", search_complete=True)
                 continue
             result = find_program_counterexample(charts[0], nodes, target, probes=probes,
-                max_graphs=max_graphs, solve_time_limit_s=solve_time_limit_s)
+                max_graphs=max_graphs, solve_time_limit_s=solve_time_limit_s,
+                observation_cache=observation_cache)
             row.update(result.receipt)
             if result.positive is not None:
                 alternative = scored_graph_evidence(model, item, nodes, result.positive,
@@ -84,6 +88,7 @@ def mine_runtime_graph_constraints(model, item, *, weight=1., max_charts=32, max
         row.get("highest_incorrect_proven") or row["status"] in {"no_incorrect_graph", "typed_chart_empty"}
         for row in record["charts"])
     record.update(status="counterexamples" if negatives else "no_witnessed_competitor",
+                  floor_observation_reuse=observation_cache.statistics(),
                   positive_program_sha256=positive["program"].sha(),
                   negative_program_sha256s=[row["program"].sha() for row in negatives],
                   initial_margins=[positive["score"] - row["score"] for row in negatives])

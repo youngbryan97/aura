@@ -1,10 +1,11 @@
 """Small trials keep source fitting, validation and release authority separate."""
 
 from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
 
-from core.learning.semantic_graph_trial import run_semantic_graph_trial, select_trial_examples
+from core.learning.semantic_graph_trial import _observe, run_semantic_graph_trial, select_trial_examples
 from tests.test_semantic_relation_graph_learning import model_examples
 
 
@@ -52,7 +53,7 @@ def test_small_trial_executes_training_and_independent_replay_without_promotion(
     assert not result["larger_development_run_ready"]
     pool = result["training_pool_observations"]
     assert len(pool) == 4 and all(row["split"] == "train" for row in pool)
-    expected = sorted(pool, key=lambda row: row["semantic_status"] != "different")[:2]
+    expected = sorted(pool, key=lambda row: row["semantic_status"] not in {"different", "decode_refused"})[:2]
     assert result["training_sources"] == [row["source_text_sha256"] for row in expected]
 
 
@@ -60,3 +61,17 @@ def test_small_trial_executes_training_and_independent_replay_without_promotion(
 def test_training_acquisition_requires_a_sufficient_pool(source, pool):
     with pytest.raises(ValueError, match="training pool"):
         run_semantic_graph_trial(*source, training_count=2, training_pool_count=pool)
+
+
+def test_decode_refusal_is_a_measured_completion_failure_not_unknown_semantics(source):
+    class RefusingDecoder:
+        def decode(self, **kwargs):
+            return SimpleNamespace(ir=None, refusal="typed_argument_chart_empty")
+
+    row = _observe(RefusingDecoder(), source[1][0])
+    assert row["semantic_status"] == "decode_refused"
+    assert not row["accepted"]
+    assert row["refusal"] == "typed_argument_chart_empty"
+    assert row["source_grounding_aligned"] is None
+    assert row["annotated_graph_feasible"] is None
+    assert "target_reachable" not in row
