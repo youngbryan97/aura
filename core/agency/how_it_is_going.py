@@ -224,7 +224,7 @@ class HowItIsGoing:
         }
 
     @classmethod
-    def from_memory(cls, held: Any, *, toward: float = 0.0) -> "HowItIsGoing":
+    def from_memory(cls, held: Any, *, toward: float = 0.0) -> HowItIsGoing:
         """What she knew about this before, with the finish she was given now."""
         if not isinstance(held, dict):
             return cls(toward=float(toward or 0.0))

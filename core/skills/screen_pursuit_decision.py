@@ -111,8 +111,7 @@ from .screen_pursuit_surface import (
     click_normalized,
     content_text,
     labelled_by,  # noqa: F401
-    )
-
+)
 
 #: What an extracted block returns when it fell through to the code after it.
 _FALL_THROUGH = object()
@@ -214,9 +213,10 @@ async def _decide_the_next_move_what_she_looking(anchor, drawn, narrate, observa
     return band, looking_at_the_thing
 
 async def _decide_the_next_move_seen(band, coming, in_the_way, observation, responds, target_app):
-    from .screen_pursuit import logger
     from core.cognition.what_nobody_could_show import WhatIsHidden
     from core.perception.where_it_responds import within
+
+    from .screen_pursuit import logger
     seen = within(observation, band, responds["state"])
     # Which places answer to her, not merely their outline. See
     # what_is_there: furniture inside the outline defines columns the
@@ -256,10 +256,11 @@ async def _decide_the_next_move_seen(band, coming, in_the_way, observation, resp
     return lattice, seen
 
 def _decide_the_next_move_part_4(knows, lattice, move_keys, responds):
-    from .screen_pursuit import logger
     from core.perception.the_lattice_she_holds import TheLatticeSheHolds
     from core.perception.what_moves_within_itself import MovesWithinItself
     from core.perception.where_it_responds import the_places_that_answer
+
+    from .screen_pursuit import logger
     if lattice.has_changed():
         # Several readings in a row that will not go into it is the thing
         # having been replaced — a new game, a resized window — rather than
@@ -447,8 +448,9 @@ def _decide_the_next_move_world_where_she(expected, far, in_flight, laid_out, ob
     return rose
 
 def _decide_the_next_move_what_true_time(attempt, can_do, confirmed_here, in_the_way, opens, previous, responds):
-    from .screen_pursuit import logger
     from core.cognition.two_ways_out import how_long_it_holds
+
+    from .screen_pursuit import logger
     # And what was true at the time, so an act that does nothing
     # can become an act that needs something.
     opens.she_tried(
@@ -568,7 +570,6 @@ def _decide_the_next_move_part_10(dropped, expected, knows, laid_out, pending, p
     return went_well
 
 def _decide_the_next_move_what_she_what(began_at, cannot_explain, laid_out, narrate, pending, plan, success_when, trying):
-    from .screen_pursuit import _tell
     # What she was in, what she made of it, and what it came to.
     #
     # Two situations she scores alike, one of which went on to do
@@ -581,6 +582,8 @@ def _decide_the_next_move_what_she_what(began_at, cannot_explain, laid_out, narr
     from core.agency.how_good_is_this import (
         how_the_trial_is_going as _how_the_trial_is_going,
     )
+
+    from .screen_pursuit import _tell
 
     _worth_here = sum(laid_out.numbers() or (0.0,))
     if began_at["worth"] is None:
@@ -957,8 +960,9 @@ def _decide_the_next_move_act_has_done(available, knows, laid_out, reaches, resp
     return available
 
 def _decide_the_next_move_where_move_she(ahead, aiming_at, available, goal, laid_out, marks, wont):
-    from .screen_pursuit import logger
     from core.cognition.when_the_move_is_forbidden import a_way_round
+
+    from .screen_pursuit import logger
     # And where the move she wants is not one she may make, something
     # elsewhere that obliges the world to let her.
     if wont and ahead:
@@ -1035,9 +1039,10 @@ async def _decide_the_next_move_blocker(blocker_attempts, clear_blocker, needs_p
     return _FALL_THROUGH
 
 def _decide_the_next_move_while_there_something(available, chosen, laid_out, no_move, responds, she_keeps):
-    from .screen_pursuit import logger
     from core.cognition.what_she_cannot_afford_to_lose import what_she_cannot_afford_to_lose
     from core.cognition.when_to_say_it_outright import whether_to_say_it
+
+    from .screen_pursuit import logger
     # Not while there is something here she cannot get back.
     #
     # Starting over is the one act of hers that destroys what she
@@ -1529,7 +1534,7 @@ async def decide_the_next_move(
                     ),
                     timeout=may_take,
                 )
-            except (TimeoutError, asyncio.TimeoutError):
+            except TimeoutError:
                 logger.info(
                     "reading up took longer than %.1fs, which is longer than this "
                     "world waits; carrying on with what she knows",
