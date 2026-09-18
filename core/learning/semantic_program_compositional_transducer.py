@@ -1039,6 +1039,8 @@ class CompositionalSemanticProgramTransducer:
             hidden_channel_widths=self.hidden_channel_widths,
             label_limit=self.training_receipt.get("operation_label_limit", 1),
             complete_inventory=self.training_receipt.get("operation_search_policy") == "complete_bounded_v1",
+            background_log_odds=self.training_receipt.get("operation_background_fit", {}).get("score")
+            == "joint_operation_background_log_odds_v2",
         )
         from core.learning.semantic_operation_search import OperationChartSearch
 
