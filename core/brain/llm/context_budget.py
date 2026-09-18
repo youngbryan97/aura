@@ -341,7 +341,13 @@ def budget_for_answer(max_tokens: int) -> int:
         return 0
     from core.brain.llm.thinking_reserve import chars_readable_in, seconds_to_decode
 
-    writing = seconds_to_decode(wanted)
+    # The median rate, not the slow tail. A deadline must assume writing
+    # will be slow; a reading budget divides the same estimate the other
+    # way, so the same pessimism that protects a deadline inflates this.
+    # Measured 2026-09-17: the slow tail afforded 126,798 characters for a
+    # 457-token answer, against a turn that read 44,192 — the budget could
+    # not fire on the very turn that showed the defect.
+    writing = seconds_to_decode(wanted, typical=True)
     if writing <= 0:
         # Nothing timed, so nothing to be proportionate to. A budget invented
         # here would be the authored number this exists to avoid.

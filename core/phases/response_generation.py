@@ -2087,11 +2087,25 @@ class ResponseGenerationPhase(_RunsTheRequiredSearch, BasePhase):
                     bind_unified_context_to_state,
                 )
 
+                def _assemble(
+                    history: list[dict[str, Any]] | None,
+                    note: str | None,
+                ) -> list[dict[str, str]]:
+                    if history is None:
+                        return ContextAssembler.build_messages(state, objective)
+                    return ContextAssembler.build_messages(
+                        state,
+                        objective,
+                        conversation_history=history,
+                        history_note=note,
+                    )
+
                 await bind_unified_context_to_state(state, objective)
                 runtime_context = kwargs.get("context")
                 if not isinstance(runtime_context, dict):
                     runtime_context = {}
                 delivered_history = None
+                delivered_note = None
                 if (
                     not is_background
                     and not is_test_run
@@ -2104,14 +2118,7 @@ class ResponseGenerationPhase(_RunsTheRequiredSearch, BasePhase):
                     delivered_history = delivered_exchange_messages(
                         runtime_context.get("recent_completed_exchanges"),
                     )
-                if delivered_history is None:
-                    messages = ContextAssembler.build_messages(state, objective)
-                else:
-                    messages = ContextAssembler.build_messages(
-                        state,
-                        objective,
-                        conversation_history=delivered_history,
-                    )
+                messages = _assemble(delivered_history, delivered_note)
             contract = build_response_contract(
                 state,
                 objective,
@@ -2127,14 +2134,7 @@ class ResponseGenerationPhase(_RunsTheRequiredSearch, BasePhase):
                     runtime_context=kwargs.get("context") if isinstance(kwargs.get("context"), dict) else {},
                 )
                 if search_executed:
-                    if delivered_history is None:
-                        messages = ContextAssembler.build_messages(state, objective)
-                    else:
-                        messages = ContextAssembler.build_messages(
-                            state,
-                            objective,
-                            conversation_history=delivered_history,
-                        )
+                    messages = _assemble(delivered_history, delivered_note)
                     contract = build_response_contract(
                         state,
                         objective,
