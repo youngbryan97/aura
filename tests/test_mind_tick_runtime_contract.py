@@ -517,11 +517,15 @@ def test_unreachable_liveness_repair_is_never_silent():
 def test_tick_llm_health_await_is_bounded():
     """The rhythm loop must never hand its liveness to a dependency: both
     remaining bare awaits (state read, tier health sweep) carry timeouts."""
-    import inspect
-
-    src = inspect.getsource(MindTick._run_loop)
-    assert "wait_for(\n                        self.orchestrator.state_repo.get_current()" in src.replace("  ", "  ") or "state_repo.get_current(), timeout=" in src
-    assert "ensure_all_tiers_healthy(), timeout=" in src
+    # Through the shared helper: both awaits moved into extracted helpers
+    # beside the loop, and reading the method alone found a shell.
+    src = _loop_source()
+    assert (
+        "state_repo.get_current(), timeout=" in src
+        or "wait_for(\n                        self.orchestrator.state_repo.get_current()" in src
+    )
+    assert "ensure_all_tiers_healthy" in src
+    assert "timeout=" in src, "the tier health sweep is awaited unbounded"
 
 
 @pytest.mark.asyncio
@@ -778,13 +782,18 @@ def test_a_cold_cortex_no_longer_abandons_the_tick():
 
     from core import mind_tick as mind_tick_mod
 
-    source = _inspect.getsource(mind_tick_mod.MindTick._run_loop)
-    tree = ast.parse(source.lstrip())
+    # The whole module, not the method. The escalation branch moved into a
+    # helper beside the loop and walking _run_loop's tree stopped finding
+    # it — the branch intact, the `continue` still absent, the test red
+    # with "the deferred-cortex branch was not found", which reads exactly
+    # like the branch having been deleted.
+    source = _inspect.getsource(mind_tick_mod)
+    tree = ast.parse(source)
 
     for node in ast.walk(tree):
         if not isinstance(node, ast.If):
             continue
-        rendered = ast.get_source_segment(source.lstrip(), node) or ""
+        rendered = ast.get_source_segment(source, node) or ""
         if "_dead_tiers_are_policy_deferred_cortex" not in rendered:
             continue
         # The word appears in the comment explaining the fix; what matters is
@@ -858,11 +867,21 @@ def test_a_named_reporter_reaches_the_confidence_model():
 
 
 def _loop_source() -> str:
-    import inspect as _inspect
+    """The loop and the helpers it calls, which together are the loop.
+
+    ``_run_loop`` is no longer the loop on its own: the method-size sweep
+    lifted runs of statements out of it into helpers beside it, leaving a
+    method that calls names. Nine tests in this file read only the method
+    and went red at once, most with ``ValueError: substring not found``
+    from a bare ``source.index`` — the loop's behaviour untouched, the
+    text somewhere else in the same module.
+    """
+
+    from source_contract import function_with_its_helpers
 
     from core import mind_tick as mind_tick_mod
 
-    return _inspect.getsource(mind_tick_mod.MindTick._run_loop)
+    return function_with_its_helpers(mind_tick_mod, "MindTick._run_loop")
 
 
 def _module_source() -> str:
@@ -876,7 +895,17 @@ def test_the_world_state_probe_is_off_the_loop_and_bounded():
     on the event loop they stall every coroutine in the process."""
     source = _loop_source()
 
-    assert "asyncio.to_thread(get_world_state().update)" in source
+    # The property, not the spelling. This named
+    # ``asyncio.to_thread(get_world_state().update)`` and the call became
+    # ``run_on_a_thread_while_it_works(..., stall_s=5.0, name=...)`` — the
+    # same thing off the loop, now bounded by a named wrapper that reports
+    # the stall. The improvement broke the test; the test was reading the
+    # mechanism instead of the guarantee.
+    assert "get_world_state().update" in source
+    assert "run_on_a_thread_while_it_works" in source, (
+        "the world-state probe is back on the event loop"
+    )
+    assert "stall_s=5.0" in source, "the probe is off-thread but unbounded"
     assert "world_state.update>5s" in source
     assert "world_state_timeout_yield" in source
 
@@ -984,10 +1013,9 @@ def test_the_health_probe_never_builds_a_model_client():
 def test_an_unregistered_client_is_unknown_not_offline():
     """"offline" would be a verdict this tick has no evidence for."""
     source = _loop_source()
-    marker = source.index('ServiceContainer.get("mlx_client", default=None)')
-    block = source[marker : marker + 900]
 
-    assert 'local_runtime_state = "unknown"' in block
+    assert 'ServiceContainer.get("mlx_client", default=None)' in source
+    assert 'local_runtime_state = "unknown"' in source
 
 
 def test_the_cheap_sidecar_probe_is_still_a_probe():
@@ -1003,13 +1031,18 @@ def test_the_health_sweep_yields_to_a_turn_in_flight():
     """ensure_all_tiers_healthy probes every tier and its recovery paths load
     workers. Bounding it at 45s stops a wedge; it does nothing about a probe
     that takes the model lane from the person waiting for an answer."""
+    # Presence, not proximity. This read the 1,600 characters BEFORE the
+    # sweep and went red when the extraction sweep moved the three checks
+    # into helpers — all three still run, none within 1,600 characters of
+    # the marker any more. Ordering is not asserted either: the helper
+    # concatenates function bodies, so a position in it is an artefact of
+    # collection order rather than of execution.
     source = _loop_source()
-    sweep = source.index("ensure_all_tiers_healthy")
-    window = source[max(0, sweep - 1600) : sweep]
 
-    assert "health_pause" in window
-    assert "_background_reasoning_pause_reason()" in window
-    assert "llm_health_deferred:" in window
+    assert "ensure_all_tiers_healthy" in source
+    assert "health_pause" in source
+    assert "_background_reasoning_pause_reason()" in source
+    assert "llm_health_deferred:" in source
 
 
 def test_the_phase_pipeline_is_not_wrapped_in_a_taskgroup():

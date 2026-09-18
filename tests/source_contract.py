@@ -143,3 +143,70 @@ def reached_from_a_finally(module: ModuleType, needle: str) -> bool:
         if name in holders and _in_a_finally(node.lineno):
             return True
     return False
+
+
+def function_with_its_helpers(
+    module: ModuleType, qualified_name: str, *, depth: int = 2
+) -> str:
+    """One function's source plus the source of what it calls in its module.
+
+    The unit a source-reading test actually means. ``_run_loop`` is not
+    the loop any more — the method-size sweep lifted runs of statements
+    out of it into helpers beside it, and a test reading only the method
+    sees a shell that calls names. Nine tests in
+    ``test_mind_tick_runtime_contract`` went red that way at once, most
+    with ``ValueError: substring not found`` from a bare ``source.index``.
+
+    ``qualified_name`` is "Class.method" or "function". Depth 2 follows a
+    helper's own helpers, which is where a second sweep pass puts things.
+    """
+
+    whole = inspect.getsource(module)
+    tree = ast.parse(whole)
+    lines = whole.splitlines()
+
+    bodies: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            bodies.setdefault(
+                node.name,
+                "\n".join(lines[node.lineno - 1 : (node.end_lineno or node.lineno)]),
+            )
+
+    wanted = qualified_name.rsplit(".", 1)[-1]
+    if wanted not in bodies:
+        raise AssertionError(
+            f"{module.__name__} has no function named {wanted!r}; "
+            "it was renamed or removed, not merely moved"
+        )
+
+    collected: list[str] = []
+    seen: set[str] = set()
+
+    def _pull(name: str, remaining: int) -> None:
+        if name in seen or name not in bodies:
+            return
+        seen.add(name)
+        body = bodies[name]
+        collected.append(body)
+        if remaining <= 0:
+            return
+        for called in ast.walk(ast.parse(_dedent(body))):
+            if isinstance(called, ast.Call):
+                target = called.func
+                called_name = getattr(target, "attr", None) or getattr(
+                    target, "id", None
+                )
+                if called_name:
+                    _pull(called_name, remaining - 1)
+
+    _pull(wanted, depth)
+    return "\n".join(collected)
+
+
+def _dedent(body: str) -> str:
+    """A method's body parses on its own once its indent is removed."""
+
+    import textwrap
+
+    return textwrap.dedent(body)
