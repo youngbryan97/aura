@@ -815,6 +815,25 @@ def _pursue_on_screen_she_has_taken(goal, target_app):
     # inference lanes were exhausted — by her own reimplementation lab and
     # curriculum loop, running against the model she needed to choose a move.
     holding_the_foreground = None
+    # And the display stays awake while she works on it.
+    #
+    # She types with keys addressed to a process and looks with a picture of
+    # a window, so from the outside the machine looks untouched and locks
+    # itself. LIVE 2026-09-17: the screen locked on move 226 of a game she
+    # had been asked to play and was winning.
+    try:
+        from core.capabilities.keeping_the_screen_awake import (  # noqa: PLC0415
+            keeping_it_awake,
+        )
+
+        awake = keeping_it_awake(f"she is working on {target_app or 'the screen'}")
+        awake.__enter__()
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        awake = None
+        record_degradation(
+            "screen_pursuit", exc, severity="info",
+            action="worked on a screen that may sleep under her",
+        )
     try:
         from core.runtime.foreground_guard import begin_foreground_turn  # noqa: PLC0415
 
@@ -826,7 +845,7 @@ def _pursue_on_screen_she_has_taken(goal, target_app):
             "screen_pursuit", exc, severity="info",
             action="pursued a task without holding the foreground",
         )
-    return executor, holding_the_foreground
+    return executor, holding_the_foreground, awake
 
 def _pursue_on_screen_result(already, blocker_attempts, history, moves, pacing, receipt, restarts, seen_through, success_when):
     result = receipt.to_dict()
@@ -1704,7 +1723,7 @@ async def pursue_on_screen(
             )
             speaker = None
 
-    executor, holding_the_foreground = _pursue_on_screen_she_has_taken(goal, target_app)
+    executor, holding_the_foreground, awake = _pursue_on_screen_she_has_taken(goal, target_app)
     try:
         receipt = await executor.pursue(
             goal,
@@ -1718,6 +1737,14 @@ async def pursue_on_screen(
     finally:
         if speaker is not None:
             await speaker.stop()
+        if awake is not None:
+            try:
+                awake.__exit__(None, None, None)
+            except (OSError, RuntimeError, TypeError, ValueError) as exc:
+                record_degradation(
+                    "screen_pursuit", exc, severity="info",
+                    action="left the display held awake",
+                )
         if holding_the_foreground is not None:
             holding_the_foreground.close()
     result = _pursue_on_screen_result(already, blocker_attempts, history, moves, pacing, receipt, restarts, seen_through, success_when)
