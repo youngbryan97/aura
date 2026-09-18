@@ -553,6 +553,45 @@ def _count_in(
     )
 
 
+#: A superlative asked about the files a count measured. These are the
+#: question words themselves, not a vocabulary of phrasings: "which is the
+#: largest" and "which one is biggest" differ in the comparative, and the
+#: comparative is the whole question.
+_ASKS_BIGGEST = re.compile(
+    r"\b(?:largest|biggest|longest|heaviest|most\s+bytes)\b", re.IGNORECASE
+)
+_ASKS_SMALLEST = re.compile(
+    r"\b(?:smallest|tiniest|shortest|least\s+bytes)\b", re.IGNORECASE
+)
+
+
+def superlative_asked(text: Any) -> str:
+    """"largest", "smallest" or "" — which extreme the question wants.
+
+    The sizes have been collected since 2026-09-16 and nothing read them,
+    so "which one is the largest by bytes?" kept being answered by a guess
+    beside a count that was measured from disk. A reading that carries the
+    answer and a sentence that does not use it is the same defect as not
+    having taken the reading.
+    """
+
+    body = str(text or "")
+    if _ASKS_SMALLEST.search(body):
+        return "smallest"
+    if _ASKS_BIGGEST.search(body):
+        return "largest"
+    return ""
+
+
+def the_extreme_file(counted: "FilesystemCount", which: str) -> tuple[str, int] | None:
+    """The largest or smallest file this count measured, with its size."""
+
+    if not counted.sizes or which not in ("largest", "smallest"):
+        return None
+    # `sizes` is largest first, by construction.
+    return counted.sizes[0] if which == "largest" else counted.sizes[-1]
+
+
 def _sizes_largest_first(target: Path, files: list[Path]) -> tuple[tuple[str, int], ...]:
     """Every file's path under ``target`` with its size in bytes, largest first."""
     sized: list[tuple[str, int]] = []
