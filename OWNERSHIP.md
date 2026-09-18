@@ -8,7 +8,7 @@ advisor or sensor.
 
 | Concern | Owner | Role | File |
 |---------|-------|------|------|
-| All consequential decisions | `UnifiedWill` | sole authority | `core/will.py` |
+| All consequential decisions | `UnifiedWill` | sole authority | `core/governance/will.py` (`core/will.py` facade) |
 | Tool execution gating | `AuthorityGateway` | delegates to Will first | `core/executive/authority_gateway.py` |
 | Intent formation and coherence | `ExecutiveCore` | internal tracker | `core/executive/executive_core.py` |
 | Constitutional proposals | `ConstitutionalCore` | policy advisor | `core/constitution.py` |
@@ -23,7 +23,7 @@ Hierarchy: UnifiedWill > AuthorityGateway > ExecutiveCore > SubstrateAuthority (
 |---------|-------|------|
 | Canonical identity | `CanonicalSelf` | `core/self/canonical_self.py` |
 | Affect / emotion | `AffectFacade` | `core/affect/affect_facade.py` |
-| Conversation history | `Orchestrator` | `core/orchestrator/main.py` |
+| Conversation history | `RobustOrchestrator` | `core/orchestrator/main.py` |
 | Episodic memory | `EpisodicMemory` | `core/memory/episodic_memory.py` |
 | Beliefs | `BeliefGraph` | `core/world_model/belief_graph.py` |
 | Working memory | `AuraState.cognition` | `core/state/aura_state.py` |

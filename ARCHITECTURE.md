@@ -901,7 +901,7 @@ useful learning. We make no claim of the latter without that comparison.
 
 ---
 
-## 8. Memory architecture
+## 8. Memory architecture (116 modules)
 
 ### Working memory
 
@@ -951,7 +951,7 @@ memory clusters that weren't in the original encoding.
 
 ## 9. The consciousness stack
 
-90+ modules organized into a layered architecture. This section covers the
+171 modules organized into a layered architecture. This section covers the
 subsystems that sit below the LLM integration and are easy to miss.
 
 ### 9.1 Global Workspace Theory (Baars)
@@ -1524,7 +1524,7 @@ new subsystems together plus a combined-latency budget test
 
 ### 9.21-legacy Additional consciousness modules
 
-The consciousness stack has grown to 90+ modules. Beyond the 20 documented
+The consciousness stack has grown to 171 modules. Beyond the 20 documented
 above, notable additions include:
 
 - **Phenomenal Now** (`phenomenal_now.py`, 842 lines): real-time phenomenal state integration maintaining the subjective temporal present
@@ -1544,7 +1544,7 @@ above, notable additions include:
 
 ## 9.22 Resilience architecture
 
-**Directory**: `core/resilience/` (30+ modules)
+**Directory**: `core/resilience/` (63 modules)
 
 The resilience layer keeps the system running across failure modes. It
 sits below the consciousness stack and above the raw infrastructure.
@@ -1590,7 +1590,7 @@ partially applied.
 
 ## 9.23 Self-modification engine
 
-**Directory**: `core/self_modification/` (36 modules)
+**Directory**: `core/self_modification/` (40 modules)
 
 The autonomous self-improvement pipeline, gated by the Unified Will.
 

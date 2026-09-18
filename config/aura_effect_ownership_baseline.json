@@ -4873,6 +4873,14 @@
       "scope": "<module>.RecursiveSelfImprovementLoop._append_ledger"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_bytes",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/learning/semantic_fit_checkpoint.py",
+      "scope": "<module>.SemanticFitCheckpoint.save"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -7206,7 +7214,7 @@
       "category": "network_gateway",
       "count": 1,
       "path": "core/brain/llm_health_router.py",
-      "scope": "<module>.HealthAwareLLMRouter._call_endpoint"
+      "scope": "<module>.HealthAwareLLMRouter._call_endpoint_fallback_http_api"
     },
     {
       "callee": "core.runtime.network_gateway.get_network_gateway().request",
@@ -14542,14 +14550,6 @@
       "category": "raw_subprocess",
       "count": 1,
       "path": "core/runtime/subprocess_gateway.py",
-      "scope": "<module>.SubprocessGateway.run"
-    },
-    {
-      "callee": "subprocess.run",
-      "canonical_owner": true,
-      "category": "raw_subprocess",
-      "count": 1,
-      "path": "core/runtime/subprocess_gateway.py",
       "scope": "<module>.SubprocessGateway.run_model_blocking"
     },
     {
@@ -14575,6 +14575,14 @@
       "count": 1,
       "path": "core/runtime/subprocess_gateway.py",
       "scope": "<module>.SubprocessGateway.spawn_python_process"
+    },
+    {
+      "callee": "subprocess.Popen",
+      "canonical_owner": true,
+      "category": "raw_subprocess",
+      "count": 1,
+      "path": "core/runtime/subprocess_gateway.py",
+      "scope": "<module>._run_bounded_by_its_work"
     },
     {
       "callee": "subprocess.run",
@@ -16514,6 +16522,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "fdc7bfaa67d2647556fc5705bff1afd4e2910103a824da3dd2d9fbe36b115d45",
+  "inventory_sha256": "fdca56bbd26690c545ecdc1768d6ed25d678d69013c9dcd5ffae64e384ea1602",
   "schema_version": 1
 }

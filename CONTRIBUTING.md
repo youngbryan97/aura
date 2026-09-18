@@ -23,7 +23,7 @@ make lint
 ## Architecture rules
 
 1. **One authority.** Every consequential action goes through
-   `UnifiedWill.decide()` in `core/will.py`. Don't add a parallel gate.
+   `UnifiedWill.decide()` in `core/governance/will.py` (`core/will.py` facade). Don't add a parallel gate.
    Add an advisor to the Will. This repo already lived through six gates
    that each thought they were in charge, and the cost of that was not
    being able to prove anything had been gated at all.

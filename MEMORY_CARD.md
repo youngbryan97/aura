@@ -158,7 +158,7 @@ revised, not just flagged. The prover is also exposed through
 It also runs on **active reasoning**: `core/reasoning/inference_audit.py` extracts
 deductive structure from text ("X, therefore Y"), formalizes it (with light
 stemming so morphological variants unify), and checks it with the prover. Every
-final reply passes through a non-blocking `audit_self_reasoning()` in
+final reply passes through a non-blocking `_audit_recent_response_reasoning_sync()` in
 `_record_recent_response`, so a confident, formalizable non-sequitur in Aura's own
 words (e.g. affirming the consequent) is surfaced to governance
 (`reasoning_non_sequitur_total`). It is conservative — silent on anything it cannot

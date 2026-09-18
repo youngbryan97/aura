@@ -317,9 +317,9 @@ class ExperienceSpine:
         # was the leaf of a 103.8s event-loop stall (2026-07-29). Counts move
         # slowly and nothing reads them for control, so serve them from a
         # short TTL and let a write invalidate.
-        self._stats_cache: dict[str | None, tuple[float, dict[str, Any]]] = {}
+        self._stats_cache: dict[tuple[str | None, str | None], tuple[float, dict[str, Any]]] = {}
         self._observation_stats_cache: dict[
-            tuple[str, int], tuple[float, dict[str, Any]]
+            tuple[str, int, str | None], tuple[float, dict[str, Any]]
         ] = {}
         self._init_schema()
         if autoflush:
@@ -395,6 +395,29 @@ class ExperienceSpine:
                     "CREATE INDEX IF NOT EXISTS idx_ep_dedup ON episodes(dedup_key, decided_at)",
                 ):
                     conn.execute(stmt)
+                conn.execute("""CREATE TABLE IF NOT EXISTS evidence_revisions (
+                    control_point TEXT NOT NULL, feature_schema TEXT NOT NULL,
+                    revision INTEGER NOT NULL,
+                    PRIMARY KEY(control_point, feature_schema))""")
+                conn.execute("""INSERT OR IGNORE INTO evidence_revisions
+                    SELECT control_point, feature_schema, COUNT(*) FROM episodes
+                    WHERE outcome_kind IN ('success', 'failure')
+                    GROUP BY control_point, feature_schema""")
+                # A retained-row count stops advancing after corpus compaction.
+                # Increment only when a distinct decision gains a graded outcome.
+                for event, condition in (
+                    ("INSERT", "NEW.outcome_kind IN ('success', 'failure')"),
+                    ("UPDATE", "NEW.outcome_kind IN ('success', 'failure') AND "
+                     "(OLD.outcome_kind IS NULL OR OLD.outcome_kind NOT IN ('success', 'failure'))"),
+                ):
+                    conn.execute(f"""CREATE TRIGGER IF NOT EXISTS evidence_revision_{event.lower()}
+                        AFTER {event} ON episodes WHEN {condition}
+                        BEGIN
+                            INSERT INTO evidence_revisions VALUES
+                                (NEW.control_point, NEW.feature_schema, 1)
+                            ON CONFLICT(control_point, feature_schema)
+                            DO UPDATE SET revision = revision + 1;
+                        END""")
         except sqlite3.Error as exc:
             record_degradation(
                 "ontogeny_experience", exc,
@@ -557,13 +580,14 @@ class ExperienceSpine:
                 if batch:
                     conn.executemany(
                         """
-                        INSERT OR REPLACE INTO episodes (
+                        INSERT INTO episodes (
                             episode_id, control_point, decided_at, features_json,
                             feature_schema, decision, options_json, decider, exploration,
                             shadow_json, shadow_version, stakes, horizon_s, provenance,
                             dedup_key, repeat_count, context_json,
                             outcome_kind, outcome_utility, resolved_at, resolver, outcome_detail
                         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                        ON CONFLICT(episode_id) DO NOTHING
                         """,
                         [self._row(ep) for ep in batch],
                     )
@@ -680,8 +704,8 @@ class ExperienceSpine:
                 ).fetchall()
         except sqlite3.Error as exc:
             record_degradation("ontogeny_experience", exc, severity="warning",
-                               action="episode read failed; returning empty")
-            return []
+                               action="episode evidence unavailable; preserving learned state")
+            raise RuntimeError("episode evidence unavailable") from exc
         return [_episode_from_row(r) for r in rows]
 
     def open_episodes(self, *, older_than_horizon: bool = True, limit: int = 2000) -> list[Episode]:
@@ -713,7 +737,7 @@ class ExperienceSpine:
             return []
         return [_episode_from_row(r) for r in rows]
 
-    def stats(self, control_point: str | None = None) -> dict[str, Any]:
+    def stats(self, control_point: str | None = None, *, feature_schema: str | None = None) -> dict[str, Any]:
         """Counts by outcome kind — the honest denominator for every claim above.
 
         Served from a short TTL cache: the aggregates are full-table scans and
@@ -721,10 +745,14 @@ class ExperienceSpine:
         counters (queued/dropped/written) are always read fresh, so the
         cache never makes the queue look emptier than it is.
         """
-        cached = self._stats_cache.get(control_point)
+        cache_key = (control_point, feature_schema)
+        cached = self._stats_cache.get(cache_key)
         if cached is not None and (time.time() - cached[0]) < _STATS_TTL_S:
             return self._stats_with_live_counters(cached[1])
         clause, params = ("WHERE control_point = ?", [control_point]) if control_point else ("", [])
+        if feature_schema is not None:
+            clause += (" AND" if clause else "WHERE") + " feature_schema = ?"
+            params.append(feature_schema)
         try:
             with self._using_the_store() as conn:
                 total, repeats = conn.execute(
@@ -740,6 +768,9 @@ class ExperienceSpine:
                     f"SELECT COUNT(*) FROM episodes {clause}{' AND' if clause else 'WHERE'} exploration = 1",
                     params,
                 ).fetchone()[0]
+                revision = conn.execute(
+                    f"SELECT COALESCE(SUM(revision), 0) FROM evidence_revisions {clause}", params
+                ).fetchone()[0]
         except sqlite3.Error as exc:
             record_degradation("ontogeny_experience", exc, severity="warning",
                                action="experience stats unavailable")
@@ -752,9 +783,10 @@ class ExperienceSpine:
             "observations": int(repeats or 0),
             "by_outcome": {k: int(v) for k, v in by_kind.items()},
             "evidence_rows": evidence,
+            "evidence_revision": int(revision),
             "exploration_rows": int(explored or 0),
         }
-        self._stats_cache[control_point] = (time.time(), scanned)
+        self._stats_cache[cache_key] = (time.time(), scanned)
         return self._stats_with_live_counters(scanned)
 
     def observation_stats(
@@ -762,6 +794,7 @@ class ExperienceSpine:
         control_point: str,
         *,
         recent_limit: int = 500,
+        feature_schema: str | None = None,
     ) -> dict[str, Any]:
         """Observed share in a bounded, durable window for one control point.
 
@@ -776,18 +809,21 @@ class ExperienceSpine:
         if not name:
             raise ValueError("control_point is required")
         limit = max(1, min(5_000, int(recent_limit)))
-        cache_key = (name, limit)
+        cache_key = (name, limit, feature_schema)
         cached = self._observation_stats_cache.get(cache_key)
         if cached is not None and (time.time() - cached[0]) < _STATS_TTL_S:
             return dict(cached[1])
         try:
             with self._using_the_store() as conn:
+                schema_clause = " AND feature_schema = ?" if feature_schema is not None else ""
+                params = (name, feature_schema, limit) if feature_schema is not None else (name, limit)
                 rows = conn.execute(
                     "SELECT outcome_kind, decided_at, resolved_at "
                     "FROM episodes "
                     "WHERE control_point = ? AND outcome_kind IS NOT NULL "
+                    + schema_clause + " " +
                     "ORDER BY resolved_at DESC, decided_at DESC LIMIT ?",
-                    (name, limit),
+                    params,
                 ).fetchall()
         except sqlite3.Error as exc:
             record_degradation(

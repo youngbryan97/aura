@@ -837,6 +837,7 @@ class TestOrganEndToEnd:
             _episode(
                 control_point="executive.admission",
                 features={"a": float(index), "b": 3.0},
+                feature_schema=EXECUTIVE_ADMISSION.schema_id,
                 decided_at=float(index + 1),
             )
             for index in range(60)
@@ -876,6 +877,7 @@ class TestOrganEndToEnd:
             _episode(
                 control_point="executive.admission",
                 features={"a": float(index), "b": 4.0},
+                feature_schema=EXECUTIVE_ADMISSION.schema_id,
                 decided_at=float(index + 1),
             )
             for index in range(60)

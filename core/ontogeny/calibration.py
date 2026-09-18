@@ -645,13 +645,17 @@ def track_records(
     """Aggregate lived episodes into per-bucket records."""
     tally: dict[str, dict[str, int]] = {}
     control_point = ""
+    seen: set[str] = set()
     for episode in episodes:
+        if episode.episode_id in seen:
+            continue
+        seen.add(episode.episode_id)
         control_point = control_point or episode.control_point
         bucket = bucket_of(episode, keys=keys)
         cell = tally.setdefault(bucket, {"s": 0, "f": 0, "u": 0})
         if episode.outcome is None:
             continue
-        weight = max(1, int(episode.repeat_count))
+        weight = 1
         if episode.outcome.kind is OutcomeKind.SUCCESS:
             cell["s"] += weight
         elif episode.outcome.kind is OutcomeKind.FAILURE:
