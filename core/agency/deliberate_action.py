@@ -1006,18 +1006,34 @@ async def deliberate(
         wanted=f"{goal}. {approach}".strip(". "),
         ranked=ranking,
     )
+    # Her own looking ahead decides; what the voice said is direction.
+    #
+    # A move her language names was the move she made, and everything she had
+    # worked out about the position — the rule she learned by watching it, the
+    # search through it, the measure she built for it — was consulted only
+    # when the words named nothing. That is the model deciding and the rest of
+    # her commenting. It is the wrong way round: the model is an inner voice
+    # worth consulting, and the reasoning is hers.
+    #
+    # So where she can see where the moves lead, that settles it, and a voice
+    # that said otherwise is noted rather than followed. Where she cannot see
+    # anything — no rule yet, nothing ranked — the suggestion is the only
+    # direction there is, and she takes it and grades it like any other.
+    advised = chosen
+    ahead = _best_ahead(foresight, options)
+    if ahead is not None:
+        if advised is not None and advised.name != ahead.name:
+            logger.info(
+                "her own looking ahead says %r, the voice said %r; hers",
+                ahead.name,
+                advised.name,
+            )
+        chosen = ahead
+        structural = ahead
+        why = str((foresight or {}).get(ahead.name, (0.0, ""))[1] or "").strip()
+        why = why or "it is the best of the ways this could go"
+        reply = why if not spoke else f"{(reply or '').strip()}\n{why}".strip()
     if chosen is None:
-        # The line she is taking counts here too.
-        #
-        # A standing approach that only reaches the decisions she puts into
-        # words is not an approach, it is a remark. Most moves in a fast loop
-        # are decided from evidence, and if her plan cannot reach those, her
-        # plan cannot reach most of what she does.
-        ahead = _best_ahead(foresight, options)
-        if ahead is not None:
-            structural = ahead
-            why = str((foresight or {}).get(ahead.name, (0.0, ""))[1] or "").strip()
-            why = why or "it is the best of the ways this could go"
         if structural is None:
             return Deliberation(
                 goal=goal,

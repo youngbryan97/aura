@@ -1072,7 +1072,28 @@ async def pursue_on_screen(
     from core.agency.looking_ahead import forget_how_far_she_saw
 
     forget_how_far_she_saw()
+    # The display stays awake from here, not from the first keystroke.
+    #
+    # Between being asked and getting to the thing there is finding it,
+    # bringing it forward and waiting for whatever is in the way — minutes,
+    # in which nobody has touched the machine and its idle timer runs out
+    # under her (live, 2026-09-18, twice).
+    awake_from_here = None
+    try:
+        from core.capabilities.keeping_the_screen_awake import (  # noqa: PLC0415
+            keeping_it_awake,
+        )
+
+        awake_from_here = keeping_it_awake(f"she is getting to {target_app or 'the screen'}")
+        awake_from_here.__enter__()
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "screen_pursuit", exc, severity="info",
+            action="waited for a screen that may sleep under her",
+        )
     if not await wait_for_a_screen_to_look_at(ends_at, app=target_app):
+        if awake_from_here is not None:
+            awake_from_here.__exit__(None, None, None)
         why = _WHY_SHE_CANNOT_LOOK["value"]
         return {
             "ok": False,
@@ -1395,6 +1416,22 @@ async def pursue_on_screen(
     #: their sixth go at Ninja Gaiden is not reacting — they are replaying
     #: what they know and thinking only where they died last time.
     got_to = TheFurthestSheHasGot.from_memory(knew.get("got_to") or {})
+    #: What she is working toward, the rungs she has passed on the way, and
+    #: whether this one is taking longer than her own record says it should.
+    #: A goal that exists only as a finishing condition can be passed or
+    #: failed and says nothing in between, which is where all the deciding is.
+    from core.agency.how_it_is_going import HowItIsGoing
+
+    #: How far ahead her model of this world has been worth using, measured
+    #: while she uses it. What bounds a search is not the clock: a level
+    #: deeper than her model is right is a level of fiction.
+    from core.agency.how_far_her_model_carries import HowFarHerModelCarries
+
+    carries = HowFarHerModelCarries.from_memory(knew.get("carries") or {})
+    going = HowItIsGoing.from_memory(
+        knew.get("how_it_is_going") or {},
+        toward=_a_number_in(success_when),
+    )
     # What each thing about a situation is worth HERE, rather than the
     # standing guess. The organ was written, tested and never called by
     # anything: she judged every world by the same five numbers somebody
@@ -1508,6 +1545,8 @@ async def pursue_on_screen(
                 furthest=furthest,
                 goal=goal,
                 got_to=got_to,
+                going=going,
+                carries=carries,
                 graph=graph,
                 history=history,
                 in_flight=in_flight,
@@ -1737,9 +1776,11 @@ async def pursue_on_screen(
     finally:
         if speaker is not None:
             await speaker.stop()
-        if awake is not None:
+        for holding_it_open in (awake, awake_from_here):
+            if holding_it_open is None:
+                continue
             try:
-                awake.__exit__(None, None, None)
+                holding_it_open.__exit__(None, None, None)
             except (OSError, RuntimeError, TypeError, ValueError) as exc:
                 record_degradation(
                     "screen_pursuit", exc, severity="info",
@@ -1783,6 +1824,11 @@ async def pursue_on_screen(
             "lattice": responds["lattice"].as_memory(),
             "reaches": reaches.as_memory(),
             "got_to": got_to.as_memory(),
+            # The ladder: what she reached here, what each rung cost, and
+            # what she was holding when she reached it.
+            "how_it_is_going": going.as_memory(),
+            # And how far her model of it carried, by distance.
+            "carries": carries.as_memory(),
             "opens": opens.as_memory(),
             "supply": supply.as_memory() if hasattr(supply, "as_memory") else {},
             "coming": coming.as_memory(),
@@ -1857,6 +1903,19 @@ async def pursue_on_screen(
     _pursue_on_screen_part_7(anchor, expect_page, lost_page, moves, needs_person, receipt, result, target_app)
     return result
 
+
+
+def _a_number_in(said: str) -> float:
+    """The number a finishing condition names, or nothing when it names none."""
+    import re as _re
+
+    found = _re.search(r"\d[\d,]*(?:\.\d+)?", str(said or ""))
+    if not found:
+        return 0.0
+    try:
+        return float(found.group(0).replace(",", ""))
+    except ValueError:
+        return 0.0
 
 
 def _tell(line: str) -> None:

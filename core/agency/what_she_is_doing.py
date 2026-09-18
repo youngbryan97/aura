@@ -56,6 +56,13 @@ class Undertaking:
     steps: int = 0
     #: Approaches she has already tried and left behind, in order.
     left_behind: tuple[str, ...] = ()
+    #: How far along it is, in her own words, and what she has reached.
+    #: Without this, everything that asks what she is doing is told what she
+    #: set out to do and how she is going about it, and nothing about whether
+    #: any of it is working — so a run of five hundred moves and a run of five
+    #: read the same from outside.
+    how_far: str = ""
+    reached: float = 0.0
 
     def fresh(self) -> bool:
         return (time.time() - self.changed_at) < STALE_AFTER_S
@@ -76,6 +83,8 @@ class Undertaking:
             lines.append(f"What I would do instead: {', '.join(self.alternatives)}")
         if self.left_behind:
             lines.append(f"Approaches I have already left behind: {'; '.join(self.left_behind)}")
+        if self.how_far:
+            lines.append(f"How far along: {self.how_far}")
         if self.steps:
             lines.append(f"Steps taken so far: {self.steps}")
         return lines
@@ -137,6 +146,25 @@ def going_about_it(
         priority=0.85 if changing else 0.7,
     )
     _remember(changing=changing, spine=spine, lived=lived)
+
+
+def getting_somewhere(how_far: str, *, reached: float = 0.0) -> None:
+    """She has got further, and this is how far along that leaves her.
+
+    Said once per thing reached rather than per move, because it is the shape
+    of the work rather than the work: what she has got to, what she is working
+    on now, and whether that is taking longer than it usually does here.
+    """
+    global _current
+    if _current is None:
+        return
+    said = " ".join(str(how_far or "").split())
+    if not said or said == _current.how_far:
+        return
+    _current.how_far = said
+    _current.reached = float(reached or _current.reached)
+    _current.changed_at = time.time()
+    _publish(f"How far along: {said}", priority=0.8)
 
 
 def a_step_taken() -> None:

@@ -111,8 +111,7 @@ from .screen_pursuit_surface import (
     click_normalized,
     content_text,
     labelled_by,  # noqa: F401
-    )
-
+)
 
 #: What an extracted block returns when it fell through to the code after it.
 _FALL_THROUGH = object()
@@ -214,9 +213,10 @@ async def _decide_the_next_move_what_she_looking(anchor, drawn, narrate, observa
     return band, looking_at_the_thing
 
 async def _decide_the_next_move_seen(band, coming, in_the_way, observation, responds, target_app):
-    from .screen_pursuit import logger
     from core.cognition.what_nobody_could_show import WhatIsHidden
     from core.perception.where_it_responds import within
+
+    from .screen_pursuit import logger
     seen = within(observation, band, responds["state"])
     # Which places answer to her, not merely their outline. See
     # what_is_there: furniture inside the outline defines columns the
@@ -256,10 +256,11 @@ async def _decide_the_next_move_seen(band, coming, in_the_way, observation, resp
     return lattice, seen
 
 def _decide_the_next_move_part_4(knows, lattice, move_keys, responds):
-    from .screen_pursuit import logger
     from core.perception.the_lattice_she_holds import TheLatticeSheHolds
     from core.perception.what_moves_within_itself import MovesWithinItself
     from core.perception.where_it_responds import the_places_that_answer
+
+    from .screen_pursuit import logger
     if lattice.has_changed():
         # Several readings in a row that will not go into it is the thing
         # having been replaced — a new game, a resized window — rather than
@@ -447,8 +448,9 @@ def _decide_the_next_move_world_where_she(expected, far, in_flight, laid_out, ob
     return rose
 
 def _decide_the_next_move_what_true_time(attempt, can_do, confirmed_here, in_the_way, opens, previous, responds):
-    from .screen_pursuit import logger
     from core.cognition.two_ways_out import how_long_it_holds
+
+    from .screen_pursuit import logger
     # And what was true at the time, so an act that does nothing
     # can become an act that needs something.
     opens.she_tried(
@@ -568,7 +570,6 @@ def _decide_the_next_move_part_10(dropped, expected, knows, laid_out, pending, p
     return went_well
 
 def _decide_the_next_move_what_she_what(began_at, cannot_explain, laid_out, narrate, pending, plan, success_when, trying):
-    from .screen_pursuit import _tell
     # What she was in, what she made of it, and what it came to.
     #
     # Two situations she scores alike, one of which went on to do
@@ -581,6 +582,8 @@ def _decide_the_next_move_what_she_what(began_at, cannot_explain, laid_out, narr
     from core.agency.how_good_is_this import (
         how_the_trial_is_going as _how_the_trial_is_going,
     )
+
+    from .screen_pursuit import _tell
 
     _worth_here = sum(laid_out.numbers() or (0.0,))
     if began_at["worth"] is None:
@@ -747,6 +750,17 @@ def _decide_the_next_move_part_14(ended, holding, looking_at_the_thing, moves, p
         or (plan["asked_at"] < 0 and looking_at_the_thing)
     )
     return time_to_ask
+
+def _a_move_here(run: Any) -> float:
+    """How long a move in this world has been taking, from her own looks.
+
+    What a thought may cost is a fact about the world she is thinking in: a
+    board that answers in a fifth of a second does not wait half a minute for
+    words about it.
+    """
+    looks = list(getattr(run, "reading_took", None) or [])
+    return (sum(looks) / len(looks)) if looks else 0.0
+
 
 def _decide_the_next_move_nothing_task_working(can_do, move_keys, observation, offered_a_restart, responds, knows=None, laid_out=None):
     from .screen_pursuit import logger
@@ -957,8 +971,9 @@ def _decide_the_next_move_act_has_done(available, knows, laid_out, reaches, resp
     return available
 
 def _decide_the_next_move_where_move_she(ahead, aiming_at, available, goal, laid_out, marks, wont):
-    from .screen_pursuit import logger
     from core.cognition.when_the_move_is_forbidden import a_way_round
+
+    from .screen_pursuit import logger
     # And where the move she wants is not one she may make, something
     # elsewhere that obliges the world to let her.
     if wont and ahead:
@@ -1035,9 +1050,10 @@ async def _decide_the_next_move_blocker(blocker_attempts, clear_blocker, needs_p
     return _FALL_THROUGH
 
 def _decide_the_next_move_while_there_something(available, chosen, laid_out, no_move, responds, she_keeps):
-    from .screen_pursuit import logger
     from core.cognition.what_she_cannot_afford_to_lose import what_she_cannot_afford_to_lose
     from core.cognition.when_to_say_it_outright import whether_to_say_it
+
+    from .screen_pursuit import logger
     # Not while there is something here she cannot get back.
     #
     # Starting over is the one act of hers that destroys what she
@@ -1165,6 +1181,8 @@ async def decide_the_next_move(
     marks = run.marks
     matters = run.matters
     move_keys = run.move_keys
+    going = getattr(run, "going", None)
+    carries = getattr(run, "carries", None)
     moves = run.moves
     narrate = run.narrate
     needs_person = run.needs_person
@@ -1325,6 +1343,21 @@ async def decide_the_next_move(
                     if narrate:
                         _tell(f"I know what matters here now — {matters.says()}.")
         if previous.chosen is not None:
+            # What that prediction was worth, at the distance it was made
+            # from. Every move carries one, and a plan she committed to
+            # carries one per step; graded here, they say how far her model
+            # of this world is worth searching.
+            if carries is not None and pending["arranged"] is not None:
+                nothing_changed = (
+                    laid_out is not None
+                    and pending["arranged"].as_text() == laid_out.as_text()
+                )
+                carries.it_predicted(
+                    distance=max(1, int(len(pending.get("ahead") or ()) or 1)),
+                    confidence=float(knows.rules.confidence() if knows.rules is not None else 0.0),
+                    was_right=bool(attempt.verdict.held),
+                    would_no_change_have_been_right=bool(nothing_changed),
+                )
             # A key that never changes anything is not one of her actions
             # in this world, whoever wrote it down.
             can_do.tried(previous.chosen.name, attempt.verdict.observed_change)
@@ -1377,6 +1410,41 @@ async def decide_the_next_move(
                 furthest["here"] = max(furthest["here"], made)
                 if narrate:
                     _tell(further)
+            if going is not None and made and not moves:
+                # What was on the board when she arrived is where she starts,
+                # not something she climbed to.
+                going.starting_from(made)
+            elif going is not None and made:
+                # A rung, and what it cost, and what she was holding while she
+                # worked on it. Said with the reaching, because "the biggest
+                # so far" on its own tells nobody whether it is going well.
+                reached = going.noticed(
+                    made,
+                    len(moves),
+                    holding=plan["held"].approach if plan["held"] is not None else "",
+                )
+                if reached:
+                    # And the rest of her hears about it: what she is doing
+                    # is not only what she set out to do and how she is going
+                    # about it, but whether any of it is working.
+                    doing.getting_somewhere(
+                        going.where_it_stands(len(moves)), reached=made
+                    )
+                    # How the line she was holding did against what she said
+                    # it would do. A prediction nobody reports on is a wish.
+                    if narrate:
+                        against = going.how_it_turned_out(len(moves))
+                        if against:
+                            _tell(against.capitalize() + ".")
+                    # The line that was being held when she got up a rung is
+                    # a line that worked, and that is what a line is for.
+                    # Graded per move, an approach is judged on whether the
+                    # last keystroke came out — which is the move's business,
+                    # not the approach's.
+                    if plan["held"] is not None:
+                        lines.learned(A_LINE_HERE, plan["held"].approach, True)
+                    if narrate:
+                        _tell(f"Where this stands: {going.where_it_stands(len(moves))}.")
             _say_what_she_worked_out(knows, foreseen)
             _say_what_kind_of_problem(
                 knows, screen_options(move_keys), laid_out, success_when, foreseen
@@ -1517,7 +1585,7 @@ async def decide_the_next_move(
                     ),
                     timeout=may_take,
                 )
-            except (TimeoutError, asyncio.TimeoutError):
+            except TimeoutError:
                 logger.info(
                     "reading up took longer than %.1fs, which is longer than this "
                     "world waits; carrying on with what she knows",
@@ -1536,7 +1604,9 @@ async def decide_the_next_move(
                 knowledge["held"],
                 seen,
                 screen_options(move_keys),
-                think=_within_the_run(think or _her_reasoning(stakes), ends_at),
+                think=_within_the_run(
+                    think or _her_reasoning(stakes), ends_at, _a_move_here(run)
+                ),
                 history=history[-RECENT_ATTEMPTS:],
             )
         learned = learned + [meaning.as_evidence() for meaning in knowledge["meant"]]
@@ -1552,6 +1622,20 @@ async def decide_the_next_move(
         # here, before she acts, so a pivot is something she was watching
         # for and not something that happened to her.
         holding, ended = still_holds(plan["held"], seen, len(moves))
+        # An approach is reconsidered because it has stopped working, not
+        # because a number of moves has gone by. Her own record of what a
+        # rung costs here is what says so.
+        if holding and going is not None:
+            stalled = going.why_reassess(len(moves))
+            if stalled:
+                holding = False
+                ended = f"it has not moved me on: {stalled}"
+                # And a line dropped for not moving her is a line that did
+                # not work here, which is the other half of learning one.
+                if plan["held"] is not None:
+                    lines.learned(A_LINE_HERE, plan["held"].approach, False)
+                going.it_was_reassessed()
+                logger.info("the approach is being looked at again: %s", stalled)
         time_to_ask = lost and _decide_the_next_move_part_14(ended, holding, looking_at_the_thing, moves, plan, costs)
         if not holding and time_to_ask:
             plan["asked_at"] = len(moves)
@@ -1563,7 +1647,9 @@ async def decide_the_next_move(
                 # is not the same question as deciding one of them, and
                 # asking it with the thinking that suits a move got the
                 # model's own warm-up handed back as a plan.
-                think=_within_the_run(think or _reasoning_for_a_plan(), ends_at),
+                think=_within_the_run(
+                    think or _reasoning_for_a_plan(), ends_at, _a_move_here(run)
+                ),
                 knowledge=learned,
                 history=history[-RECENT_ATTEMPTS:],
                 previous=plan["held"],
@@ -1594,7 +1680,16 @@ async def decide_the_next_move(
                 )
                 if narrate and not same:
                     said = fresh.narrate()
+                    # And what she expects it to do, which is what makes it a
+                    # line rather than a remark: the rung it is for, and what
+                    # a rung has cost here.
+                    if going is not None:
+                        wants = going.expecting(fresh.approach, len(moves))
+                        if wants:
+                            said = f"{said} — {wants}"
                     _tell(f"{said} ({ended})" if changing and ended else said)
+                elif going is not None:
+                    going.expecting(fresh.approach, len(moves))
         if plan["held"] is not None:
             learned = learned + plan["held"].as_evidence()
 
@@ -1812,6 +1907,13 @@ async def decide_the_next_move(
                 a_read = (sum(looks) / len(looks)) if looks else 0.3
             thinking_for = max(0.05, min(2.0, (ends_at - time.monotonic()) * 0.02, max(0.3, a_read)))
             thought_from = time.monotonic()
+            # No deeper than her model has been worth here.
+            #
+            # A level past where her predictions stop beating "nothing
+            # changed" is a level of fiction, and it looks surer the further
+            # it goes. Measured per world from her own graded predictions;
+            # nothing until enough of them are graded, and then a real bound.
+            as_far_as_it_carries = carries.carries_to() if carries is not None else 0
             ahead = look_ahead(
                 knows.rules,
                 laid_out,
@@ -1822,6 +1924,7 @@ async def decide_the_next_move(
                 world=world,
                 # What matters HERE, once she has watched enough to say.
                 weights=matters.weights(),
+                no_deeper_than=as_far_as_it_carries,
             )
             pending["thought_for"] = time.monotonic() - thought_from
         # And what a move would TELL her, which is a different question
@@ -2013,7 +2116,11 @@ async def decide_the_next_move(
             available,
             foresight=ahead or None,
             seeing=laid_out,
-            think=_within_the_run(think or _her_reasoning(weight), ends_at) if asking else None,
+            think=(
+                _within_the_run(think or _her_reasoning(weight), ends_at, _a_move_here(run))
+                if asking
+                else None
+            ),
             knowledge=learned,
             history=history[-RECENT_ATTEMPTS:],
             stakes=stakes,

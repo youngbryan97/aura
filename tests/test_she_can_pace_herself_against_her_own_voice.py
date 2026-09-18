@@ -537,3 +537,40 @@ def test_the_stand_in_reader_still_matches_the_real_one():
         return {}
 
     assert set(inspect.signature(stand_in).parameters) == real
+
+
+@pytest.mark.asyncio
+async def test_words_take_no_longer_than_the_world_she_is_thinking_in_waits():
+    """A move that asked for words cost twenty-six seconds on a board answering in a fifth of one."""
+    import asyncio
+    import time
+
+    from core.skills.screen_pursuit_bearings import _within_the_run
+
+    async def never_answers(_objective, _evidence):
+        await asyncio.sleep(30)
+        return "too late"
+
+    bounded = _within_the_run(never_answers, time.monotonic() + 600.0, a_move_takes=0.2)
+    began = time.monotonic()
+    try:
+        await bounded("what now", [])
+    except (TimeoutError, asyncio.TimeoutError):
+        pass
+    else:  # pragma: no cover - the point of the test
+        raise AssertionError("the world waited for words")
+    assert time.monotonic() - began < 6.0
+
+
+@pytest.mark.asyncio
+async def test_with_no_measurement_of_the_world_the_run_is_the_only_bound():
+    import asyncio
+    import time
+
+    from core.skills.screen_pursuit_bearings import _within_the_run
+
+    async def quick(_objective, _evidence):
+        return "here"
+
+    bounded = _within_the_run(quick, time.monotonic() + 600.0)
+    assert await bounded("what now", []) == "here"
