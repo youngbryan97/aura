@@ -6,6 +6,7 @@ from collections import Counter
 import pytest
 
 from core.learning.semantic_program_ir import TokenSpan
+from core.learning.semantic_program_floor import semantic_primitive_type_signature
 from core.learning.semantic_program_transducer_fitting import (
     RegisterUseContract, _OperationNode, _operation_chart_candidates,
     _operation_chart_use_feasible,
@@ -85,3 +86,57 @@ def test_arity_state_search_matches_overlapping_exhaustive_charts(seed):
                                       tuple((n.span.start, n.span.end) for n in chart)))
     assert _operation_chart_candidates(nodes, max_steps=3, length_penalty=.2, limit=3,
                                        feasible=feasible, preserve_arity_states=True) == tuple(exhaustive[:3])
+
+
+def test_typed_states_keep_sequence_consumers_out_of_integer_only_beam():
+    nodes = (node(0, "mul", 20.), node(1, "add", 19.), node(2, "count_of", 2.))
+    contract = RegisterUseContract(1, 1, 1, 1, True)
+    feasible = lambda chart: _operation_chart_use_feasible(chart, n_inputs=3, contract=contract,
+        input_types=("integer_sequence", "integer", "integer"))
+    assert not _operation_chart_candidates(nodes, max_steps=2, length_penalty=0., limit=1,
+        feasible=feasible, preserve_arity_states=True)
+    actual = _operation_chart_candidates(nodes, max_steps=2, length_penalty=0., limit=1,
+        feasible=feasible, preserve_type_states=True)
+    assert len(actual) == 1 and any(n.operation == "count_of" for n in actual[0])
+
+
+@pytest.mark.parametrize("kinds", [("integer_sequence", "integer", "integer"),
+                                   ("integer_sequence",), ("integer", "integer")])
+@pytest.mark.parametrize("operations", [("count_of", "add"), ("reversed_", "length"),
+                                        ("mul", "add"), ("at", "neg"), ("sorted_up",)])
+@pytest.mark.parametrize("contract", [RegisterUseContract(1, 1, 1, 1, True),
+                                      RegisterUseContract(0, 3, 0, 3, False)])
+def test_type_bound_preserves_every_exhaustive_well_typed_connected_graph(kinds, operations, contract):
+    signatures = [semantic_primitive_type_signature(op) for op in operations]
+    types = (*kinds, *(result for _, result in signatures))
+    choices = [tuple(itertools.product(*(tuple(r for r in range(len(kinds) + i) if types[r] == kind)
+                                         for kind in signature[0]))) for i, signature in enumerate(signatures)]
+    for arguments in itertools.product(*choices):
+        if contract.distinct_arguments and any(len(set(row)) != len(row) for row in arguments):
+            continue
+        counts = Counter(r for row in arguments for r in row)
+        if not contract.accepts_complete(counts, n_inputs=len(kinds), operation_count=len(operations),
+                                         sink=len(operations) - 1):
+            continue
+        if any(counts[len(kinds) + i] < 1 for i in range(len(operations) - 1)):
+            continue
+        assert _operation_chart_use_feasible(tuple(node(i, op) for i, op in enumerate(operations)),
+            n_inputs=len(kinds), contract=contract, input_types=kinds)
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_typed_state_top_k_matches_exhaustive_overlapping_inventory(seed):
+    import random
+    rng = random.Random(seed)
+    operations = ("mul", "count_of", "length", "add", "sorted_up", "at", "neg", "reversed_")
+    nodes = tuple(_OperationNode(TokenSpan(i, i+2), op, rng.random(), 0., 1.)
+                  for i, op in enumerate(operations))
+    feasible = lambda chart: _operation_chart_use_feasible(chart, n_inputs=3,
+        contract=RegisterUseContract(1, 1, 1, 1, True),
+        input_types=("integer_sequence", "integer", "integer"))
+    expected = [chart for size in range(1, 4) for chart in itertools.combinations(nodes, size)
+                if all(a.span.end <= b.span.start for a, b in zip(chart, chart[1:])) and feasible(chart)]
+    expected.sort(key=lambda chart: (-sum(n.score for n in chart)+.2*len(chart), len(chart),
+                                     tuple((n.span.start, n.span.end) for n in chart)))
+    assert _operation_chart_candidates(nodes, max_steps=3, length_penalty=.2, limit=3,
+        feasible=feasible, preserve_type_states=True) == tuple(expected[:3])
