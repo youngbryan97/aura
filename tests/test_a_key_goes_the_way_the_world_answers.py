@@ -26,9 +26,11 @@ from core.skills import screen_pursuit_surface as surface
 def _nothing_found_out_yet():
     surface._HOW_KEYS_LAND.clear()
     surface._UNANSWERED.clear()
+    surface._EVER_ANSWERED.clear()
     yield
     surface._HOW_KEYS_LAND.clear()
     surface._UNANSWERED.clear()
+    surface._EVER_ANSWERED.clear()
 
 
 def test_keys_go_to_the_window_until_they_are_shown_not_to_land():
@@ -64,6 +66,14 @@ def test_the_way_that_answers_is_the_way_that_stays():
     for key in ("up", "left", "right"):
         surface.it_answered("2048 Game", key, changed=False)
     assert surface.how_keys_land("2048 Game") == surface.AS_TYPED
+
+
+def test_a_way_that_has_worked_here_is_kept_when_the_world_stops_answering():
+    """Live, the switch fired at a Game Over: nothing answers a finished game."""
+    surface.it_answered("2048 Game", "up", changed=True)
+    for key in ("up", "left", "right", "down", "up", "left"):
+        surface.it_answered("2048 Game", key, changed=False)
+    assert surface.how_keys_land("2048 Game") == surface.TO_THE_WINDOW
 
 
 def test_typed_keys_go_only_when_the_application_is_in_front(monkeypatch):

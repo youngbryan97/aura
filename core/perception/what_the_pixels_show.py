@@ -623,7 +623,15 @@ class Looker:
                     float(region.get("width", 0.0) or 0.0) > grid.cell_width * 1.05
                     or float(region.get("height", 0.0) or 0.0) > grid.cell_height * 1.05
                 ):
-                    covered = True
+                    # Covering is lying over the grid. A line of words beside
+                    # it — a heading, a score, an instruction under the title
+                    # — covers nothing, and counted as covering it said every
+                    # reading of a board with a sentence above it was covered.
+                    left, top, right, bottom = grid.outline
+                    middle_x = float(region.get("center_x", -1.0) or -1.0)
+                    middle_y = float(region.get("center_y", -1.0) or -1.0)
+                    if left <= middle_x <= right and top <= middle_y <= bottom:
+                        covered = True
                     continue
                 spot = grid.where(float(region["center_x"]), float(region["center_y"]))
                 if spot is not None:
@@ -631,9 +639,16 @@ class Looker:
             for row in range(grid.rows):
                 for column in range(grid.columns):
                     looks[(row, column)] = self._look_of(image, grid.place(row, column))
-            for spot, text in says.items():
-                self.learned(looks.get(spot), text)
-            blank = self._blank_look(grid, looks, says)
+            # A place seen through something lying over it does not look like
+            # itself. Live, 2026-09-18: a finished game dims every place under
+            # its message, and what she learned there — a dimmed 4 that looks
+            # like a plain 2, "Tr." from "Try again" as the look of a place —
+            # misread the next game until her rule no longer held.
+            learning = not covered
+            if learning:
+                for spot, text in says.items():
+                    self.learned(looks.get(spot), text)
+            blank = self._blank_look(grid, looks, says, keep=learning)
             unread: list[tuple[int, int]] = []
             remembered: dict[tuple[int, int], str] = {}
             for spot, look in looks.items():
@@ -662,7 +677,8 @@ class Looker:
                         text = remembered.get(spot, "")
                     if text:
                         says[spot] = text
-                        self.learned(looks.get(spot), text)
+                        if learning:
+                            self.learned(looks.get(spot), text)
             else:
                 says.update(remembered)
             unsure = [spot for spot in unread if spot not in says]
@@ -712,8 +728,17 @@ class Looker:
             "panels": len(panels),
         }
 
+    def _resembles_something_read(self, look: Any) -> bool:
+        """Whether this look is near one she has read text from."""
+        return any(self._apart(look, one.look) < _SAME_LOOK for one in self.seen)
+
     def _blank_look(
-        self, grid: Grid, looks: dict[tuple[int, int], Any], says: dict[tuple[int, int], str]
+        self,
+        grid: Grid,
+        looks: dict[tuple[int, int], Any],
+        says: dict[tuple[int, int], str],
+        *,
+        keep: bool = True,
     ) -> Any:
         """How an empty place of this grid looks.
 
@@ -730,13 +755,19 @@ class Looker:
             # of mostly twos the commonest unread look IS a two, and taking it
             # for the empty look makes every two on the board disappear.
             if spot not in says and look is not None and self.recognised(look) is None
+            # Nor is one that resembles something she has read, even where it
+            # resembles two things and so cannot be told which. That is what
+            # an ambiguous look is, and early in a game the commonest silent
+            # look was a 2 made ambiguous by a dimmed 4 — so the empty look
+            # became a 2, and every 2 after it was read as nothing.
+            and not self._resembles_something_read(look)
         ]
         best: tuple[int, Any] | None = None
         for look in silent:
             alike = sum(1 for other in silent if self._apart(look, other) < _SAME_LOOK)
             if best is None or alike > best[0]:
                 best = (alike, look)
-        if best is not None and best[0] >= 2:
+        if keep and best is not None and best[0] >= 2:
             known = self.blank.get(shape)
             if known is None or self._apart(known, best[1]) < _SAME_LOOK or best[0] >= 3:
                 self.blank[shape] = best[1]

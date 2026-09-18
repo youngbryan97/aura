@@ -577,6 +577,8 @@ AS_TYPED = "as typed"
 _HOW_KEYS_LAND: dict[str, str] = {}
 #: The keys sent the current way that changed nothing, in a row, per application.
 _UNANSWERED: dict[str, list[str]] = {}
+#: The ways that have ever been answered, per application.
+_EVER_ANSWERED: dict[str, set[str]] = {}
 
 
 def how_keys_land(app: str) -> str:
@@ -604,12 +606,20 @@ def it_answered(app: str, key: str, changed: bool) -> None:
         return
     if changed:
         _UNANSWERED.pop(name, None)
+        _EVER_ANSWERED.setdefault(name, set()).add(how_keys_land(name))
         return
     missed = _UNANSWERED.setdefault(name, [])
     missed.append(str(key or "").strip().lower())
     if len(missed) < ENOUGH_TO_JUDGE or len(set(missed)) < 2:
         return
     was = how_keys_land(name)
+    if was in _EVER_ANSWERED.get(name, set()):
+        # A way that has been answered here is not what stopped working.
+        # Nothing answering it now is the world: a game that has ended, a
+        # dialog over it. Live, the switch fired at a Game Over, and every
+        # key after the next game began went the slower way.
+        _UNANSWERED.pop(name, None)
+        return
     now = AS_TYPED if was == TO_THE_WINDOW else TO_THE_WINDOW
     _HOW_KEYS_LAND[name] = now
     _UNANSWERED.pop(name, None)
