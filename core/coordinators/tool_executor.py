@@ -91,6 +91,24 @@ def _compact_error(error: BaseException) -> str:
     return f"{type(error).__name__}: {str(error)[:500]}"
 
 
+def _mode_denies_tools() -> str:
+    """Why this runtime mode refuses tools, or "" when it allows them.
+
+    Fails OPEN on an unreadable mode. Refusing every tool because the mode
+    module would not import turns a bookkeeping fault into a mute runtime,
+    and every other gate around execution is still in force.
+    """
+
+    try:
+        from core.runtime.mode import allows_tool_execution, get_mode
+
+        if allows_tool_execution():
+            return ""
+        return f"runtime mode {get_mode()} does not permit tool execution"
+    except (ImportError, AttributeError, KeyError, TypeError, ValueError):
+        return ""
+
+
 class ToolExecutor:
     """Focused tool execution with learning and world model integration."""
 
@@ -138,6 +156,31 @@ class ToolExecutor:
         _start = time.time()
         tool_name = _safe_tool_name(tool_name)
         args = _safe_args(args)
+
+        # Safe mode is documented as "Emergency lockdown. All autonomous
+        # behavior disabled. No tools." — and until 2026-09-18 it disabled
+        # nothing at all. core/runtime/mode.py declares a capability
+        # manifest per mode and says every module needing to ask must use
+        # its helpers; allows_tool_execution() had ZERO callers anywhere in
+        # the tree, and so did is_safe(). A lockdown that locks nothing is
+        # the absence of a control reported as a control.
+        #
+        # Only safe mode denies tools — every other mode's manifest allows
+        # them — so this refuses exactly where the lockdown was meant to
+        # bite and nowhere else.
+        denial = _mode_denies_tools()
+        if denial:
+            result = {"ok": False, "error": "tools_disabled_by_runtime_mode", "message": denial}
+            self._record_coding_tool_event(
+                orch,
+                tool_name=tool_name,
+                args=args,
+                result=result,
+                success=False,
+                error=result["error"],
+            )
+            return result
+
         if not tool_name:
             result = {"ok": False, "error": "invalid_tool_name"}
             self._record_coding_tool_event(
