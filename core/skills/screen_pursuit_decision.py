@@ -11,6 +11,7 @@ after the point where the closure used to be defined.
 """
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # the return annotation only; the runtime import
@@ -1480,16 +1481,39 @@ async def decide_the_next_move(
                 knowledge["relearned"] += 1
             relearning = knowledge["held"] is not None
             knowledge["meant"] = []
-            knowledge["held"] = await learn_about(
-                goal,
-                search=research,
-                remember=not relearning,
-                because_stuck=relearning,
-                situation=content_text(
-                    observation, region_top=region_top, region_bottom=region_bottom
-                ),
-                history=history[-RECENT_ATTEMPTS:],
-            )
+            # For as long as the world she is in will wait, and no longer.
+            #
+            # Reading up is worth a pause in a world that stands still and is
+            # abandoning the game in one that does not. LIVE 2026-09-17,
+            # playing a board that answered in a fifth of a second: one lookup
+            # went to the web and took three minutes and fifty-two seconds,
+            # another forty-three, while a person watched a board that did not
+            # move. The time a lookup may take is the time her own moves take
+            # — ten of them, so it is a pause and not a stop.
+            looks = list(getattr(run, "reading_took", None) or [])
+            a_look = (sum(looks) / len(looks)) if looks else 0.3
+            may_take = min(max(2.0, 10.0 * a_look), max(0.0, ends_at - time.monotonic()))
+            try:
+                knowledge["held"] = await asyncio.wait_for(
+                    learn_about(
+                        goal,
+                        search=research,
+                        remember=not relearning,
+                        because_stuck=relearning,
+                        situation=content_text(
+                            observation, region_top=region_top, region_bottom=region_bottom
+                        ),
+                        history=history[-RECENT_ATTEMPTS:],
+                    ),
+                    timeout=may_take,
+                )
+            except (TimeoutError, asyncio.TimeoutError):
+                logger.info(
+                    "reading up took longer than %.1fs, which is longer than this "
+                    "world waits; carrying on with what she knows",
+                    may_take,
+                )
+                knowledge["held"] = None
         learned = knowledge["held"].as_evidence() if knowledge["held"] is not None else []
         # Work out what it means HERE before deciding with it.
         #
