@@ -170,3 +170,57 @@ def test_the_hold_is_said_once_not_every_sweep(in_mode, tmp_path):
 
     source = inspect.getsource(autonomy_conductor.AutonomyConductor.run_due_once)
     assert "_autonomy_denied_logged" in source
+
+
+# ─────────────────────────────── and the default is full Aura
+
+
+def test_the_default_mode_is_production_not_safe():
+    """Nothing may ship a lockdown as the resting state.
+
+    The three gates above refuse work, so the mode they read has to be the
+    permissive one unless somebody deliberately asks otherwise. An
+    AURA_MODE that drifted to safe — in .env, a launch profile, a stray
+    export — would silently produce an Aura with no tools, no autonomous
+    work and no self-repair, and every one of those refusals would look
+    like a considered decision.
+    """
+
+    import os
+
+    import core.runtime.mode as mode_module
+
+    assert "AURA_MODE" not in os.environ or os.environ["AURA_MODE"] != "safe"
+    importlib.reload(mode_module)
+    assert mode_module.get_mode() is mode_module.AuraMode.PRODUCTION
+
+    manifest = mode_module.get_active_manifest()
+    assert manifest["allows_tools"] is True
+    assert manifest["allows_autonomous"] is True
+    assert manifest["allows_self_modification"] is True
+
+
+def test_nothing_in_the_repository_sets_safe_mode():
+    """A launch file or env file that pinned safe would be invisible."""
+
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parents[1]
+    for name in (".env", "launch_aura.sh", "Makefile", "aura_main.py"):
+        candidate = root / name
+        if not candidate.is_file():
+            continue
+        text = candidate.read_text(encoding="utf-8", errors="replace")
+        assert "AURA_MODE=safe" not in text, f"{name} pins safe mode"
+        assert 'AURA_MODE", "safe"' not in text, f"{name} defaults to safe mode"
+
+
+def test_safe_is_never_the_fallback_when_the_variable_is_absent():
+    import inspect
+
+    import core.runtime.mode as mode_module
+
+    source = inspect.getsource(mode_module.get_mode)
+    assert "safe" not in source.lower() or "production" in source.lower()
+    # The documented invariant: unset means production.
+    assert '"production"' in inspect.getsource(mode_module)
