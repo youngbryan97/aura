@@ -2137,6 +2137,15 @@ def _integrity_of_orchestration_verifier_and_learning(block: dict[str, Any]) -> 
     except Exception as exc:  # noqa: BLE001 — each health add-on is isolated
         block["passes_error"] = repr(exc)
     try:
+        from core.runtime.memory_consent import memory_consent_report
+
+        # A person asking to be forgotten and not being answered is a
+        # privacy control quietly doing nothing. Counted here so it is
+        # visible without anyone having to read a log for it.
+        block["memory_consent"] = memory_consent_report()
+    except Exception as exc:  # noqa: BLE001 — each health add-on is isolated
+        block["memory_consent_error"] = repr(exc)
+    try:
         from core.runtime.host_sleep import host_sleep_report
 
         # A gap in a timeline is not evidence of a stall when the host was

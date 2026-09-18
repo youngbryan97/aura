@@ -8634,7 +8634,7 @@ def test_memory_consent_session_only_records_tracked():
 def test_memory_consent_command_parser():
     from core.runtime.memory_consent import (
         MemoryConsentMode,
-        is_forget_command,
+        looks_like_a_deletion_request,
         parse_consent_command,
     )
 
@@ -8643,8 +8643,13 @@ def test_memory_consent_command_parser():
     )
     assert parse_consent_command("session only please") == MemoryConsentMode.SESSION_ONLY
     assert parse_consent_command("normal text") is None
-    assert is_forget_command("forget this") is True
-    assert is_forget_command("hello") is False
+
+    # This asserted is_forget_command("forget this"), a predicate of five
+    # literal sentences — one of them "delete the movie session", a past
+    # test case left in a production check — that nothing in the tree
+    # called. Tested and never run, which is how it survived.
+    assert looks_like_a_deletion_request("forget everything you know about me")
+    assert not looks_like_a_deletion_request("hello")
 
 
 def test_capability_tokens_consume_once():
