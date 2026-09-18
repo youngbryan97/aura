@@ -404,6 +404,27 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   wait budget" recurs.
 - [ ] R08 Resolve neural-feed warnings individually by cause; distinguish
   unrun evidence, missing telemetry, real failure, and historical observations.
+  UPDATE 2026-09-18. Two more taken by cause from one evening's live feed,
+  and both were the gate rather than the model.
+  - `surface_controls_unavailable:steering_unavailable`, classified
+    foreground_blocking: the person got "Generation failed". The clean
+    user-surface alpha is a **ceiling** — applied through
+    `set_surface_alpha_override`, whose docstring is "Clamp hook alpha" and
+    whose body is `min(hook_alpha, override)` — so an absent steering engine
+    produces zero steering, which is under every ceiling there is. The
+    branch beside it already said a missing engine equals a zero request,
+    and stopped at the one case where it did not matter. The turn failed for
+    being cleaner than its contract asked. The guard stays for the case it
+    was built for, a present engine whose clamp raised. FIXED, beb7e7c33.
+  - `ended before semantic completion: missing_parts=[] quality=[]
+    epistemic_covered=True terminal_boundary=False`, four times in one
+    evening. Every reported reason says the answer was fine, because the
+    line printed four of the five conditions the decision reads: unfulfilled
+    discourse commitments and the model's own end-of-utterance boundary were
+    the two it left out, and therefore the only two that could have fired.
+    The reasons are derived from the receipt now, so a condition added to
+    the contract cannot be added without appearing in the log, and a refusal
+    with no named condition says so. FIXED, beb7e7c33.
   UPDATE 2026-09-09. Episodic retry re-deferral duplicated the pending write,
   overflowing the queue without new experience. Stable identity custody now
   spans pending and in-flight writes; 25 focused tests pass. Admission and
@@ -648,6 +669,46 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Evidence: [R10 semantic executable examples](evidence/R10_SEMANTIC_EXECUTABLE_EXAMPLES_2026-09-08.md).
 - [ ] R11 Measure prefill, decode, tool, retrieval, and queue latency separately;
   remove waste without degrading reasoning or arbitrarily cancelling work.
+  UPDATE 2026-09-18. Two defects in the rate every budget stands on, both
+  measured on the live reserve's 512 readings, and one input to the prompt
+  that had no budget at all.
+
+  **The estimate did not rise with the budget.** "Comparable length" is a
+  *set* that shrinks as the budget grows, so its slow percentile moves as
+  readings drop out of it: 101 tokens came back at 218.4 seconds and 102
+  tokens at 35.2, with 26 such steps below 2,048. Any deadline or budget
+  sized on it could be told a longer answer was cheaper than a shorter one.
+  A budget's estimate is now the slowest estimate for any budget it
+  contains. Zero still means unmeasured rather than instant, so a budget
+  with no comparable evidence gets none lifted to it.
+
+  **The reading budget divided that estimate the wrong way round.** The slow
+  tail exists so a deadline does not cancel the long generations it protects;
+  used to buy reading, the same pessimism afforded 126,798 characters of
+  prompt for a 457-token answer. Reading is budgeted on the median rate now,
+  and a 64-token reflex answer affords 7,477 characters where it afforded
+  81,399.
+
+  **History was the one input with no budget.** LIVE 2026-09-17, "Aura, what
+  is it like to be you": 83 messages, 10,414 tokens, prefill 83.44s in front
+  of decode 71.27s, for a thirty-one character question. Forty exchanges were
+  admitted because forty existed. The system prompt got a budget on
+  2026-08-28 for the same defect measured the same way and history was left
+  out of it, counted as `room_taken` and treated as fixed. Same rule now:
+  the system prompt is what she cannot answer without and is served first,
+  the conversation takes the remainder, oldest first, a user message leaving
+  with the reply to it so what remains is a contiguous suffix. 5cf3b62e8.
+
+  Recorded so it is not rebuilt: the obvious mechanism is to keep the topic
+  the turn belongs to and drop the rest. Built and measured on the live
+  33-exchange conversation, it found **nothing** — scoring every junction
+  against a null that places each term across the conversation in proportion
+  to how many exchanges carry it, z sat between -2.2 and +2.6 with no
+  structure (0.02, -0.09, 0.12, 0.13, 0.30 through the middle). Shared
+  vocabulary between real exchanges is what chance predicts, because almost
+  all of it is function words. Three nulls failed differently before the
+  honest one said there was nothing there. A budget does not need to know
+  what the turn is about.
   PARTIAL 2026-09-07. Prefill, decode, first-token, delivery and per-stage
   foreground timings are measured and reported separately; the prompt cache now
   says how far a prompt matched, what diverged, and why a turn retained
@@ -1346,8 +1407,51 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   ages for the owner, not removed.
 - [ ] Q03 Memory/process lifetime, cache ownership, leaks, pressure recovery,
   shutdown/restart, sleep/wake, and single-resident ownership.
+  PARTIAL 2026-09-18, pressure recovery. The OOM ladder had one rung in the
+  whole tree, and not because nothing holds memory: discovery was a single
+  sweep of the container's already-instantiated services run in boot wave
+  one, when the container is nearly empty by design, so every organ built
+  afterwards — which is every organ — was never offered. `register_evictable`
+  had **zero callers** outside its own module and `shed_memory` had exactly
+  one implementor. The MLX client had already found this and worked around
+  it for itself by registering from its own `__init__`, with the diagnosis in
+  a comment; nothing else could. The offer happens where a singleton becomes
+  real now, so the shed order fills as the runtime does, and `CacheHolder`
+  writes the rung once instead of per organ — measuring what is held and
+  reporting what a clear actually freed, so a second shed says zero rather
+  than spinning the loop.
+  The survey is the part worth keeping: **most of what looks sheddable is
+  evidence, not cache.** `PhiCore` keeps five 2,000-entry state histories and
+  the transition matrix Φ is measured from is built out of them, so shedding
+  one destroys a measurement in progress; the body's spend receipts and the
+  perception daemon's day are records. A rung must be something the organ
+  recomputes on the next request and nobody reads as a record, which is
+  rarer than the ring count suggests and is why a real ladder is short.
+  Two adopted on that test (cached deliberations, cached pass analyses),
+  511fb9115. Still open: lifetime, leaks, shutdown/restart, sleep/wake and
+  single-resident ownership.
 - [ ] Q04 Scoped tool authority, privacy, prompt-injection boundaries, sandbox,
   secret handling, and fail-safe behavior without suppressing correct work.
+  PARTIAL 2026-09-18, prompt-injection boundaries. `prompt_fencing` is the
+  preventive control and is careful to say what it does not claim: that the
+  content inside the fence is safe. `injection_canary` is the detective
+  control beside it, its docstring names INLINE as "the one to reach for",
+  and **nothing reached for it** — outside the claim validator that tests the
+  module, no call site in the tree planted a canary. Every verdict the
+  integrity surface read came from synthetic material while reading as
+  evidence that the boundary was watched.
+  A verdict now records whether it rode a prompt carrying somebody's real
+  untrusted content, and the surface carries `live_evaluated` beside
+  `evaluated` and says outright whether it is watching live traffic: a count
+  that says the detector RAN is not a count that says it ran on anything
+  real. The canary rides the fence rather than the call site, because asking
+  every fence site to remember is how it stayed at zero and the fence is the
+  one place untrusted text is wrapped. Two lanes opted in —
+  `deep_research.reflection` and `research_pipeline.synthesis`, which read
+  fetched pages and have nobody waiting on the reply — and deliberately not
+  the conversational surface, where a decoy that works costs the person
+  their answer. 8004d0637.
+  Still open: scoped tool authority, privacy, sandbox, secret handling.
 - [x] Q05 Persistence, migration, corruption recovery, backups, and rollback.
   CLOSED 2026-09-13. Three ways there was no backup while a green target
   said otherwise: `make backup` had raised ModuleNotFoundError since
