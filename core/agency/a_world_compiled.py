@@ -338,7 +338,7 @@ def search(
 
     def best_from(board: tuple[int, ...], depth: int, likely: float, memo: dict) -> float:
         ticks[0] += 1
-        if depth > 1 and not ticks[0] % 64 and time.monotonic() > give_up_at:
+        if not ticks[0] % 16 and time.monotonic() > give_up_at:
             raise _OutOfTime
         key = (board, depth)
         known = memo.get(key)
@@ -381,6 +381,12 @@ def search(
         this_pass: dict[str, tuple[float, tuple[int, ...]]] = {}
         try:
             for action in pushes:
+                # Between one act and the next, whatever happened inside the
+                # last one. A pass that prunes hard reaches the count-based
+                # check rarely, and a level meant to take three tenths of a
+                # second ran for one and a quarter (live, 2026-09-17).
+                if time.monotonic() > give_up_at:
+                    raise _OutOfTime
                 after = world.act(here, action)
                 if after == here:
                     continue
