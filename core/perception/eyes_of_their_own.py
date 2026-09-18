@@ -26,6 +26,9 @@ import sys
 import threading
 from typing import Any
 
+from core.governance_context import GovernanceViolation
+from core.runtime.subprocess_gateway import get_subprocess_gateway
+
 logger = logging.getLogger("Aura.EyesOfTheirOwn")
 
 __all__ = ["look_through_them", "stop_them", "they_are_running"]
@@ -67,7 +70,7 @@ def _start_them() -> bool:
         environment = dict(os.environ)
         environment["PYTHONPATH"] = root + os.pathsep + environment.get("PYTHONPATH", "")
         environment["AURA_EYES_IN_THIS_PROCESS"] = "1"
-        _CHILD = subprocess.Popen(  # noqa: S603 - her own module, her own interpreter
+        _CHILD = get_subprocess_gateway().spawn(
             [sys.executable, "-m", "core.perception.eyes_of_their_own"],
             cwd=root,
             env=environment,
@@ -75,9 +78,12 @@ def _start_them() -> bool:
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             text=True,
-            bufsize=1,
+            start_new_session=False,
+            read_only=True,
+            source="perception.window_reader",
+            accelerator_capability="none",
         )
-    except (OSError, ValueError) as why:
+    except (OSError, ValueError, GovernanceViolation) as why:
         _GAVE_UP = True
         logger.info("looking stays in this process: %s", why)
         return False

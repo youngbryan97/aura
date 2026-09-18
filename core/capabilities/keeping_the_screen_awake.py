@@ -21,6 +21,9 @@ import threading
 from contextlib import contextmanager
 from typing import Any, Iterator
 
+from core.governance_context import GovernanceViolation, local_internal_governed_scope
+from core.runtime.subprocess_gateway import get_subprocess_gateway
+
 logger = logging.getLogger("Aura.KeepingTheScreenAwake")
 
 __all__ = ["keeping_it_awake", "it_is_being_kept_awake"]
@@ -48,8 +51,7 @@ def _take_hold(why: str) -> Any:
     try:
         # Tied to this process: if Aura goes, the hold goes with it rather
         # than leaving a machine that never sleeps again.
-        return subprocess.Popen(  # noqa: S603 - a system tool, fixed arguments
-            [
+        command = [
                 "/usr/bin/caffeinate",
                 # The display, the system, and the idle timer that starts the
                 # screen saver. Keeping the display awake is not enough on its
@@ -62,12 +64,14 @@ def _take_hold(why: str) -> Any:
                 str(_A_DAY_S),
                 "-w",
                 str(os.getpid()),
-            ],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    except (OSError, ValueError) as exc:
+            ]
+        with local_internal_governed_scope("screen_awake.hold", constraints={"argv": command}):
+            return get_subprocess_gateway().spawn(
+                command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL, start_new_session=False,
+                source="screen_awake.hold", accelerator_capability="none",
+            )
+    except (OSError, ValueError, GovernanceViolation) as exc:
         logger.info("the display will sleep as usual while %s: %s", why, exc)
         return None
 
