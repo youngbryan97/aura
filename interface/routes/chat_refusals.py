@@ -239,6 +239,45 @@ async def _anything_better_than_giving_up(
     return said
 
 
+def refusal_receipt(
+    *,
+    status: str,
+    reason: str,
+    lane: Any,
+    question: Any = "",
+    served_by_ladder: bool = False,
+) -> dict[str, Any]:
+    """What a refused turn knows about its own refusal.
+
+    A turn that answers carries 131 contract keys. A turn that refuses
+    carried none: measured live 2026-09-18, asking for the largest file in
+    a directory produced three drafts of 62, 83 and 77 tokens, all
+    discarded, then the canned line — and the response came back with
+    ``live_turn_contract`` empty, nothing in either log sink naming why any
+    draft went, and ``reason`` sitting in a receipt the caller never sees.
+
+    The receipt exists for the case that does not need it and vanishes for
+    the case that does. This does not reconstruct the 131 — it records what
+    the refusal itself knows, which is more than nothing and is the part
+    that says why.
+    """
+
+    lane_state = ""
+    lane_failure = ""
+    if isinstance(lane, dict):
+        lane_state = str(lane.get("state") or "")
+        lane_failure = str(lane.get("last_failure_reason") or "")
+    return {
+        "refused": True,
+        "status": status,
+        "refusal_reason": reason,
+        "lane_state": lane_state,
+        "lane_last_failure_reason": lane_failure,
+        "fallback_ladder_answered": bool(served_by_ladder),
+        "question_chars": len(str(question or "")),
+    }
+
+
 async def _refuse_an_empty_canonical_reply(
     *,
     _chat_session_id: Any,
@@ -314,6 +353,16 @@ async def _refuse_an_empty_canonical_reply(
                     "status": "canonical_chat_no_reply",
                     "conversation_lane": lane,
                     "response_confidence": "failed",
+                    # A refused turn is receipted too. Without this the
+                    # caller got four keys and no way to tell a discarded
+                    # draft from a lane that never ran.
+                    "live_turn_contract": refusal_receipt(
+                        status="canonical_chat_no_reply",
+                        reason="implicit_legacy_orchestrator_fallback_refused",
+                        lane=lane,
+                        question=_semantic_user_message,
+                        served_by_ladder=bool(evidenced_reply),
+                    ),
                 },
                 # In-band fail-closed delivery for real users.
                 status_code=503 if is_benchmark else 200,
@@ -695,6 +744,12 @@ async def _refuse_an_unmet_benchmark_contract(
                     "reason": contract_reason,
                     "conversation_lane": _chat_preflight._collect_conversation_lane_status(),
                     "response_confidence": "failed",
+                    "live_turn_contract": refusal_receipt(
+                        status="benchmark_artifact_contract_unmet",
+                        reason=contract_reason,
+                        lane=_chat_preflight._collect_conversation_lane_status(),
+                        question=_semantic_user_message,
+                    ),
                 },
                 status_code=502,
             )
