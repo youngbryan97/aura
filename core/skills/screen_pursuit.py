@@ -1072,7 +1072,28 @@ async def pursue_on_screen(
     from core.agency.looking_ahead import forget_how_far_she_saw
 
     forget_how_far_she_saw()
+    # The display stays awake from here, not from the first keystroke.
+    #
+    # Between being asked and getting to the thing there is finding it,
+    # bringing it forward and waiting for whatever is in the way — minutes,
+    # in which nobody has touched the machine and its idle timer runs out
+    # under her (live, 2026-09-18, twice).
+    awake_from_here = None
+    try:
+        from core.capabilities.keeping_the_screen_awake import (  # noqa: PLC0415
+            keeping_it_awake,
+        )
+
+        awake_from_here = keeping_it_awake(f"she is getting to {target_app or 'the screen'}")
+        awake_from_here.__enter__()
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "screen_pursuit", exc, severity="info",
+            action="waited for a screen that may sleep under her",
+        )
     if not await wait_for_a_screen_to_look_at(ends_at, app=target_app):
+        if awake_from_here is not None:
+            awake_from_here.__exit__(None, None, None)
         why = _WHY_SHE_CANNOT_LOOK["value"]
         return {
             "ok": False,
@@ -1755,9 +1776,11 @@ async def pursue_on_screen(
     finally:
         if speaker is not None:
             await speaker.stop()
-        if awake is not None:
+        for holding_it_open in (awake, awake_from_here):
+            if holding_it_open is None:
+                continue
             try:
-                awake.__exit__(None, None, None)
+                holding_it_open.__exit__(None, None, None)
             except (OSError, RuntimeError, TypeError, ValueError) as exc:
                 record_degradation(
                     "screen_pursuit", exc, severity="info",
