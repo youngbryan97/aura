@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from collections.abc import Callable, Sequence
 from typing import Any
@@ -821,23 +822,43 @@ _ANSWERS: list[float] = []
 _A_FEW_ANSWERS = 8
 
 
+#: How long to leave the world alone after acting, found by probing it.
+_WAIT: dict[str, float] = {"seconds": 0.0}
+
+#: The least a still reading has cost the eyes: two pictures that agree. What
+#: a reading took beyond this was the world still moving when she looked.
+_STILL_FLOOR: dict[str, float] = {"seconds": math.inf}
+
+
 def _before_looking_again() -> float:
     """How long to leave the world alone between looks.
 
-    As long as this world usually takes to answer. Looking sooner reads a
-    thing in the middle of moving: a tile between two places belongs to
-    neither, so two readings taken while it travels agree with each other and
-    disagree with everything her rule says — 19 pairs of 34, live, on a board
-    she was playing correctly.
+    Looking before the world has answered costs a look; looking long after
+    costs the wait. Neither is measured by timing an answer from before the
+    wait: that counted her own pause as the world's, the next pause was the
+    middle of those, and each move waited longer than the one before — two
+    seconds a move on a board that answers in a third of one (live,
+    2026-09-18).
 
-    The usual answer is the middle of the last few, so one slow reply does not
-    slow every move after it. Before she has seen one there is no measurement
-    and she looks at once, because the look is the measurement.
+    So it is probed. A look that found the world already still says the wait
+    was long enough and it is halved; a look that found it still moving says
+    by how much it was short. Before anything is measured she looks at once,
+    because the look is the measurement.
     """
-    if not _ANSWERS:
-        return 0.0
-    ordered = sorted(_ANSWERS)
-    return max(0.0, ordered[len(ordered) // 2])
+    return max(0.0, _WAIT["seconds"])
+
+
+def _it_was_ready(waited: float, first_look: bool, reading: dict[str, Any]) -> None:
+    """What one answer says about the wait: halve it, or add what it was short by."""
+    took = float(reading.get("seconds_to_still") or 0.0)
+    if took > 0.0:
+        _STILL_FLOOR["seconds"] = min(_STILL_FLOOR["seconds"], took)
+    floor = _STILL_FLOOR["seconds"] if math.isfinite(_STILL_FLOOR["seconds"]) else took
+    short_by = max(0.0, took - floor)
+    if first_look and short_by <= 0.0:
+        _WAIT["seconds"] = waited / 2.0
+    else:
+        _WAIT["seconds"] = waited + short_by
 
 
 def _how_long_to_wait() -> float:
@@ -920,11 +941,15 @@ async def _settled_after(
     started = time.monotonic()
     seen = before
     moved = False
+    first_look = True
     while time.monotonic() - started < (patience or _how_long_to_wait()):
-        await asyncio.sleep(0.3 if before.get("settled") is None else _before_looking_again())
+        pause = 0.3 if before.get("settled") is None else _before_looking_again()
+        await asyncio.sleep(pause)
+        looked_after = time.monotonic() - started
         try:
             now = await asyncio.wait_for(read_screen(app), timeout=OBSERVE_TIMEOUT_S)
         except TimeoutError:
+            first_look = False
             continue
         said = _reading(now)
         # A reading that was only taken once its pixels had stopped changing
@@ -932,7 +957,9 @@ async def _settled_after(
         # extra reading used to confirm it cost most of a move.
         if said != was and now.get("settled") is True:
             _answering_took(time.monotonic() - started)
+            _it_was_ready(looked_after, first_look, now)
             return now, True
+        first_look = False
         if not moved and said != was:
             moved = True
             _answering_took(time.monotonic() - started)

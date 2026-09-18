@@ -82,33 +82,35 @@ def test_the_move_path_waits_at_all() -> None:
     assert "_settled_after(" in act, "a keystroke must be given time to land"
 
 
-def test_the_pause_between_looks_is_what_this_world_usually_takes():
-    """Looking sooner reads a thing in the middle of moving.
+def test_the_pause_between_looks_is_probed_not_timed_from_before_it():
+    """Timing an answer from before her own pause counted the pause as the world's.
 
-    A tile between two places belongs to neither, so two readings taken while
-    it travels agree with each other and disagree with everything her rule
-    says: 19 pairs of 34, live, on a board she was playing correctly.
+    The next pause was the middle of those, so each move waited longer than
+    the one before: two seconds a move on a board that answers in a third of
+    one (live, 2026-09-18). A look that finds the world already still halves
+    the pause; one that finds it still moving adds what it was short by.
     """
-    from core.skills.screen_pursuit_looking import (
-        _ANSWERING_TOOK,
-        _ANSWERS,
-        _answering_took,
-        _before_looking_again,
-    )
+    from core.skills import screen_pursuit_looking as looking
 
-    was, answers = dict(_ANSWERING_TOOK), list(_ANSWERS)
+    was, floor = dict(looking._WAIT), dict(looking._STILL_FLOOR)
     try:
-        _ANSWERING_TOOK["longest"] = _ANSWERING_TOOK["quickest"] = 0.0
-        _ANSWERS.clear()
+        looking._WAIT["seconds"] = 0.0
+        looking._STILL_FLOOR["seconds"] = float("inf")
         # Nothing measured yet: she looks at once, because the look measures it.
-        assert _before_looking_again() == 0.0
-        _answering_took(0.5)
-        _answering_took(0.2)
-        _answering_took(0.9)
-        assert _ANSWERING_TOOK["longest"] == 0.9
-        # The middle of them, so one slow reply does not slow every move after.
-        assert _before_looking_again() == 0.5
+        assert looking._before_looking_again() == 0.0
+        # She looked at once and the world was still moving for 0.3s more
+        # than a still picture costs.
+        looking._it_was_ready(0.0, True, {"seconds_to_still": 0.2})
+        looking._it_was_ready(0.0, True, {"seconds_to_still": 0.5})
+        assert looking._before_looking_again() == 0.3
+        # Waiting that long found it already still: the wait was enough, so
+        # less is tried.
+        looking._it_was_ready(0.3, True, {"seconds_to_still": 0.2})
+        assert looking._before_looking_again() == 0.15
+        # And her own waiting is never counted as the world's.
+        for _ in range(10):
+            looking._it_was_ready(looking._before_looking_again(), True, {"seconds_to_still": 0.2})
+        assert looking._before_looking_again() < 0.01
     finally:
-        _ANSWERING_TOOK.update(was)
-        _ANSWERS.clear()
-        _ANSWERS.extend(answers)
+        looking._WAIT.update(was)
+        looking._STILL_FLOOR.update(floor)

@@ -831,6 +831,8 @@ def _reset_process_wide_state():
         ("core.governance.value_levels", lambda m: m.registry().clear()),
         # Which way keys reach each application, found out by playing.
         ("core.skills.screen_pursuit_surface", lambda m: (m._HOW_KEYS_LAND.clear(), m._UNANSWERED.clear())),
+        # How long this world takes to answer, found by probing it.
+        ("core.skills.screen_pursuit_looking", lambda m: (m._WAIT.update(seconds=0.0), m._STILL_FLOOR.update(seconds=float("inf")))),
     ):
         try:
             import importlib
