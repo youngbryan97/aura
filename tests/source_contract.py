@@ -34,6 +34,7 @@ __all__ = [
     "function_containing",
     "in_order",
     "module_source",
+    "reached_from_a_finally",
 ]
 
 
@@ -84,3 +85,61 @@ def in_order(source: str, *needles: str) -> None:
             raise AssertionError(f"{needle!r} does not appear{after}")
         seen.append((needle, found))
         cursor = found + len(needle)
+
+
+def reached_from_a_finally(module: ModuleType, needle: str) -> bool:
+    """Whether ``needle`` runs on every exit, directly or one call away.
+
+    "Closed in a finally" is a property of the exit path, not of where the
+    line sits. The method-size sweep lifts a whole finally-body into a
+    helper and leaves the CALL in the finally, so a test that walks for
+    the statement inside a ``finalbody`` stops finding it while the
+    guarantee is untouched — measured on ``_close_provenance_tick``, which
+    moved into ``_run_thinking_loop_closed_rather_after`` and is still
+    invoked from the finally at the end of the thinking loop.
+
+    So: true when the needle is in a finally body, or when it sits in a
+    function that a finally body calls. One level, because one level is
+    what an extraction produces; a deeper chain should be asserted on
+    purpose rather than discovered here.
+    """
+
+    source = inspect.getsource(module)
+    tree = ast.parse(source)
+    lines = source.splitlines()
+
+    def _spans(node: ast.AST) -> tuple[int, int]:
+        return node.lineno, getattr(node, "end_lineno", node.lineno) or node.lineno
+
+    finallys: list[tuple[int, int]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Try) and node.finalbody:
+            low = node.finalbody[0].lineno
+            high = max(_spans(s)[1] for s in node.finalbody)
+            finallys.append((low, high))
+
+    def _in_a_finally(line: int) -> bool:
+        return any(low <= line <= high for low, high in finallys)
+
+    # Directly.
+    for index, text in enumerate(lines, start=1):
+        if needle in text and _in_a_finally(index):
+            return True
+
+    # Or inside a function a finally calls.
+    holders = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        low, high = _spans(node)
+        if any(needle in line for line in lines[low - 1 : high]):
+            holders.add(node.name)
+    if not holders:
+        return False
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+        if name in holders and _in_a_finally(node.lineno):
+            return True
+    return False
