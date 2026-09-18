@@ -1399,7 +1399,11 @@ async def decide_the_next_move(
                 furthest["here"] = max(furthest["here"], made)
                 if narrate:
                     _tell(further)
-            if going is not None and made:
+            if going is not None and made and not moves:
+                # What was on the board when she arrived is where she starts,
+                # not something she climbed to.
+                going.starting_from(made)
+            elif going is not None and made:
                 # A rung, and what it cost, and what she was holding while she
                 # worked on it. Said with the reaching, because "the biggest
                 # so far" on its own tells nobody whether it is going well.
@@ -1415,6 +1419,12 @@ async def decide_the_next_move(
                     doing.getting_somewhere(
                         going.where_it_stands(len(moves)), reached=made
                     )
+                    # How the line she was holding did against what she said
+                    # it would do. A prediction nobody reports on is a wish.
+                    if narrate:
+                        against = going.how_it_turned_out(len(moves))
+                        if against:
+                            _tell(against.capitalize() + ".")
                     # The line that was being held when she got up a rung is
                     # a line that worked, and that is what a line is for.
                     # Graded per move, an approach is judged on whether the
@@ -1655,7 +1665,16 @@ async def decide_the_next_move(
                 )
                 if narrate and not same:
                     said = fresh.narrate()
+                    # And what she expects it to do, which is what makes it a
+                    # line rather than a remark: the rung it is for, and what
+                    # a rung has cost here.
+                    if going is not None:
+                        wants = going.expecting(fresh.approach, len(moves))
+                        if wants:
+                            said = f"{said} — {wants}"
                     _tell(f"{said} ({ended})" if changing and ended else said)
+                elif going is not None:
+                    going.expecting(fresh.approach, len(moves))
         if plan["held"] is not None:
             learned = learned + plan["held"].as_evidence()
 

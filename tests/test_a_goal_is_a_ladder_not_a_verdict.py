@@ -176,3 +176,50 @@ def test_a_rung_is_told_to_the_rest_of_her():
     source = pursuit_source()
     at = source.index("doing.getting_somewhere(")
     assert "going.where_it_stands(len(moves))" in source[at : at + 200]
+
+
+def test_what_was_already_there_is_where_she_starts_not_a_rung_she_climbed():
+    """A board inherited with a 256 on it made "256 in three moves" her idea of usual."""
+    going = HowItIsGoing(toward=2048.0)
+    going.starting_from(256)
+    assert going.best == 256.0
+    assert going.rungs == []
+    assert going.usually_takes() == 0.0
+    assert going.behind(at_move=400) is False
+    # And what she climbs from there is a rung, costing what it cost.
+    going.noticed(512, at_move=120)
+    assert [rung.took for rung in going.rungs] == [120]
+
+
+def test_the_first_reading_of_a_run_is_where_she_starts():
+    from screen_pursuit_support import pursuit_source
+
+    source = pursuit_source()
+    at = source.index("going.starting_from(made)")
+    assert "not moves" in source[at - 300 : at]
+
+
+def test_a_line_says_what_it_is_for_and_is_reported_against_it():
+    """An approach adopted without saying what it is for cannot be wrong about anything."""
+    going = _passing((8, 10), (16, 20), (32, 30))
+    said = going.expecting("keep the largest in a corner", at_move=30)
+    assert "should get me to 64" in said
+    assert "about 10 move(s)" in said
+    assert going.holding == "keep the largest in a corner"
+    going.noticed(64, at_move=44)
+    assert "took 14" in going.how_it_turned_out(at_move=44)
+    # With no rung behind her she names what it is for and claims no cost.
+    fresh = HowItIsGoing(toward=100.0)
+    first = fresh.expecting("try the edges", at_move=0)
+    assert first == "this should get me to 100"
+    # And with nothing to aim at at all, nothing is claimed.
+    assert HowItIsGoing().expecting("try the edges", at_move=0) == ""
+
+
+def test_the_loop_says_what_it_expects_and_reports_back():
+    from screen_pursuit_support import pursuit_source
+
+    source = pursuit_source()
+    at = source.index("going.expecting(fresh.approach, len(moves))")
+    assert "said = f\"{said} — {wants}\"" in source[at - 400 : at + 200]
+    assert "going.how_it_turned_out(len(moves))" in source

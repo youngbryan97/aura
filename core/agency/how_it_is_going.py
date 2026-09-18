@@ -91,8 +91,23 @@ class HowItIsGoing:
     holding: str = ""
     #: How many times an approach was changed because this said so.
     reassessed: int = 0
+    #: The move she adopted what she is holding on, so a line can be asked
+    #: how it did against what was expected of it.
+    holding_since: int = 0
 
     # ── watching it happen ───────────────────────────────────────────────
+
+    def starting_from(self, reached: float) -> None:
+        """What was already there when she arrived.
+
+        Not a rung: a rung is something she climbed, and what a rung costs is
+        how long the climbing took. A board she inherits with a 256 on it made
+        "256 in three moves" her idea of usual, and everything after that was
+        judged behind (live, 2026-09-18).
+        """
+        value = float(reached or 0.0)
+        if value > self.best:
+            self.best = value
 
     def noticed(self, reached: float, at_move: int, *, holding: str = "") -> bool:
         """Take in what she has reached. True when that is a new rung."""
@@ -172,6 +187,36 @@ class HowItIsGoing:
         spread = (max(costs) / max(1.0, median(costs)) - 1.0) if len(costs) > 1 else HALF_AS_LONG_AGAIN
         allowed = usual * (1.0 + max(HALF_AS_LONG_AGAIN, min(2.0, spread)))
         return self.how_long_this_one_has_taken(at_move) > allowed
+
+    def expecting(self, approach: str, at_move: int) -> str:
+        """What she expects this line to do, said when she adopts it.
+
+        An approach adopted without saying what it is for cannot be wrong
+        about anything, and cannot be told from the one before it. What it is
+        for here is the next rung, and what it should cost is what a rung has
+        cost. Empty where she has no rung to aim at or no cost to expect.
+        """
+        self.holding = " ".join(str(approach or "").split())
+        self.holding_since = int(at_move)
+        ahead, usual = self.next_rung(), self.usually_takes()
+        if not ahead:
+            return ""
+        if usual <= 0.0:
+            return f"this should get me to {ahead:g}"
+        return f"this should get me to {ahead:g}, in about {usual:.0f} move(s)"
+
+    def how_it_turned_out(self, at_move: int) -> str:
+        """How the line she was holding did against what she expected of it."""
+        if not self.rungs:
+            return ""
+        last = self.rungs[-1]
+        earlier = [rung.took for rung in self.rungs[:-1] if rung.took > 0]
+        if not earlier:
+            return ""
+        expected = median([float(one) for one in earlier])
+        if last.took <= expected:
+            return f"that took {last.took}, where {expected:.0f} is usual"
+        return f"that took {last.took}, against about {expected:.0f} usual"
 
     # ── saying so ────────────────────────────────────────────────────────
 
