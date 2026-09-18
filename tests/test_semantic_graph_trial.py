@@ -44,6 +44,7 @@ def test_small_trial_executes_training_and_independent_replay_without_promotion(
     assert result["parent"] == model.receipt_sha256
     assert not set(result["training_sources"]) & set(result["validation_sources"])
     assert {row["source_text_sha256"] for row in result["mining"]} == set(result["training_sources"])
+    assert all(row["selected_decode"]["negative_origin"] == "runtime_decode" for row in result["mining"])
     assert not result["validation_used_for_fit"] and result["test_examples_used"] == 0
     assert len(result["operation_retention_sources"]) == 4
     assert set(result["training_sources"]) <= set(result["operation_retention_sources"])
@@ -79,3 +80,41 @@ def test_decode_refusal_is_a_measured_completion_failure_not_unknown_semantics(s
     assert row["source_grounding_aligned"] is None
     assert row["annotated_graph_feasible"] is None
     assert "target_reachable" not in row
+
+
+def test_selected_error_is_retained_even_outside_the_chart_probe(source, monkeypatch):
+    import core.learning.semantic_graph_trial as trial
+    from core.learning.semantic_relation_graph_learning import RelationGraphContrast
+
+    selected_error = RelationGraphContrast((), (), -1.)
+    seen = []
+    def selected(model, item, **kwargs):
+        seen.append((item.split, kwargs))
+        return selected_error, {"status": "counterexample", "negative_origin": "runtime_decode"}
+
+    def limited_search(*args, **kwargs):
+        return (), {"status": "no_witnessed_competitor", "operation_search_complete": False, "charts": []}
+
+    def fit(model, constraints, **kwargs):
+        assert any(row is selected_error for row in constraints)
+        return model, {"stored_wrong_or_tied": 1}
+
+    monkeypatch.setattr(trial, "mine_runtime_graph_contrast", selected)
+    monkeypatch.setattr(trial, "mine_runtime_graph_constraints", limited_search)
+    monkeypatch.setattr(trial, "fit_complete_graph_constraints", fit)
+    result = trial.run_semantic_graph_trial(*source, training_count=1, validation_count=1,
+                                            max_charts=1, learn_operation_pointer=True)
+    assert seen == [("train", {"learn_arguments": True, "learn_operation_pointer": True})]
+    assert result["schema"] == "aura.semantic_graph_trial.v3"
+    assert "retained_constraints_unsatisfied" in result["blockers"]
+
+
+def test_unreplayed_selected_error_prevents_readiness(source, monkeypatch):
+    import core.learning.semantic_graph_trial as trial
+
+    monkeypatch.setattr(trial, "mine_runtime_graph_contrast", lambda *args, **kwargs:
+                        (None, {"status": "runtime_score_replay_differs"}))
+    result = trial.run_semantic_graph_trial(*source, training_count=1, validation_count=1,
+                                            steps=1, max_charts=1)
+    assert "selected_decode_constraint_unavailable" in result["blockers"]
+    assert not result["larger_development_run_ready"]

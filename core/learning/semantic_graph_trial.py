@@ -5,7 +5,9 @@ from collections import defaultdict, deque
 from core.learning.semantic_graph_counterexamples import compare_program_meanings, counterfactual_inputs
 from core.learning.semantic_graph_constraints import fit_complete_graph_constraints
 from core.learning.semantic_joint_graph_learning import (
-    align_source_input_registers, score_annotated_graph, source_operation_constraints, source_operation_supervision,
+    align_source_input_registers, mine_runtime_graph_contrast, score_annotated_graph,
+    mine_source_binding_constraint, source_operation_constraints,
+    source_operation_pointer_constraints, source_operation_supervision,
 )
 from core.learning.semantic_program_campaign import _sha
 from core.learning.semantic_program_shared_transducer import _geometry
@@ -67,7 +69,8 @@ def _observe(model, item):
 
 def run_semantic_graph_trial(model, examples, *, training_count=8, validation_count=8,
                              training_pool_count=None, steps=20, max_charts=32, progress=None,
-                             objective="squared_deficit", operation_retention_count=None):
+                             objective="squared_deficit", operation_retention_count=None,
+                             learn_operation_pointer=False):
     """Fit only selected source rows and independently replay both small cohorts.
 
     This returns no deployable candidate. Validation rows never enter mining
@@ -106,17 +109,36 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
     if not {item.ir.source_text_sha256 for item in training}.issubset(
             {item.ir.source_text_sha256 for item in operation_training}):
         raise ValueError("operation retention must include the graph training cohort")
-    constraints = source_operation_constraints(model, source_operation_supervision(model, operation_training))
+    operation_supervision = source_operation_supervision(model, operation_training)
+    constraints = list(source_operation_constraints(model, operation_supervision))
+    if learn_operation_pointer:
+        # Pointer retention follows the full source-retention cohort, just as
+        # operation-label retention does. The fitted candidate must not learn
+        # boundaries from only the small witnessed-error cohort.
+        constraints.extend(source_operation_pointer_constraints(model, operation_training))
     records = []
     for item in training:
-        rows, record = mine_runtime_graph_constraints(model, item, max_charts=max_charts, learn_arguments=True)
+        # The winning joint graph need not occur in the first operation charts.
+        selected_contrast, selected_record = mine_runtime_graph_contrast(
+            model, item, learn_arguments=True, learn_operation_pointer=learn_operation_pointer)
+        if selected_contrast is not None:
+            constraints.append(selected_contrast)
+        rows, record = mine_runtime_graph_constraints(model, item, max_charts=max_charts, learn_arguments=True,
+                                                      learn_operation_pointer=learn_operation_pointer)
+        record["selected_decode"] = selected_record
         records.append(record)
         constraints.extend(rows)
+        binding, binding_record = mine_source_binding_constraint(
+            model, item, learn_arguments=True,
+        )
+        record["binding_constraint"] = binding_record
+        if binding is not None:
+            constraints.append(binding)
         if progress:
             progress({"stage": "trial_mining", "completed": len(records), "pairs": len(constraints), "row": record})
     candidate, fit = fit_complete_graph_constraints(model, tuple(constraints),
         scale=model.definition_relation_scale, steps=steps, adaptive_step=True, progress=progress,
-        objective=objective)
+        objective=objective, learn_operation_pointer=learn_operation_pointer)
     after = []
     for item in (*training, *validation):
         after.append(_observe(candidate, item))
@@ -143,6 +165,8 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
         blockers.append("semantic_verification_unmeasured")
     if any(row.get("status") not in {"counterexamples", "no_witnessed_competitor"} for row in records):
         blockers.append("runtime_constraint_mining_unavailable")
+    if any(row["selected_decode"]["status"] not in {"equivalent", "counterexample"} for row in records):
+        blockers.append("selected_decode_constraint_unavailable")
     if any(not row["operation_search_complete"] for row in records):
         blockers.append("operation_retention_search_incomplete")
     if any(row.get("status") in {"search_incomplete", "alternative_search_incomplete", "equivalence_unresolved"}
@@ -154,7 +178,7 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
         blockers.append("autonomous_decode_regression")
     if not any(row["gains"] for row in summaries.values()):
         blockers.append("no_measured_semantic_improvement")
-    body = {"schema": "aura.semantic_graph_trial.v2", "parent": model.receipt_sha256,
+    body = {"schema": "aura.semantic_graph_trial.v3", "parent": model.receipt_sha256,
             "serving_authority": False, "promotion_allowed": False, "fresh_transfer_claim": False,
             "selection_policy": "source_hash_geometry_round_robin_v1",
             "training_acquisition_policy": "witnessed_training_failures_then_retention_v1",

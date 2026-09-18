@@ -100,6 +100,8 @@ def main() -> int:
                         help="runtime operation charts searched per source-training example for retention")
     parser.add_argument("--learn-argument-heads", action="store_true",
                         help="retained joint_graphs only: differentiate runtime argument-mention heads too")
+    parser.add_argument("--learn-operation-pointer", action="store_true",
+                        help="retained joint_graphs only: differentiate runtime operation boundary scores")
     parser.add_argument("--compare-fit-start", action="store_true",
                         help="also evaluate the pre-fit candidate to separate decoder changes from learning")
     args = parser.parse_args()
@@ -125,6 +127,8 @@ def main() -> int:
         parser.error("semantic constraints require a fresh joint_graphs fit")
     if args.learn_argument_heads and not args.retain_semantic_constraints:
         parser.error("argument-head learning requires retained semantic constraints")
+    if args.learn_operation_pointer and not args.retain_semantic_constraints:
+        parser.error("operation pointer learning requires retained semantic constraints")
     if args.fit_checkpoint_dir is not None and not args.retain_semantic_constraints:
         parser.error("fit checkpoints require a retained-constraint training run")
     if args.evaluate_existing and not args.compare_fit_start and (
@@ -198,6 +202,7 @@ def main() -> int:
         options["source_weight"] = args.source_operation_weight
         options["constraint_learning"] = args.retain_semantic_constraints
         options["learn_arguments"] = args.learn_argument_heads
+        options["learn_operation_pointer"] = args.learn_operation_pointer
         if args.retain_semantic_constraints:
             options["checkpoint_dir"] = args.fit_checkpoint_dir or args.output.with_suffix(".fit-checkpoints")
             options["retention_operation_charts"] = args.retention_operation_charts

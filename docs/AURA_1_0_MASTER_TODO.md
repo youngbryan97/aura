@@ -896,6 +896,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Operation boundary learning](evidence/G03_OPERATION_BOUNDARY_LEARNING_2026-09-18.md)
+  connects the runtime pointer to the retained graph objective. The latest
+  boundary/binding subset passes 56 focused tests. A targeted development trial
+  gains one of eight validation cases without regression, but retains an
+  incorrect training failure and leaves search/constraint blockers; no
+  promotion or full-run claim.
   [Background competition](evidence/G03_OPERATION_BACKGROUND_2026-09-18.md)
   tests a learned non-operation class on source spans. The small replay
   regresses from 48/60 to 45/60; no candidate promotion or full-run claim.
