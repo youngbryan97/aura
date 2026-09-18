@@ -57,8 +57,11 @@ def register_health_fragment(name: str, provider: Callable[[], dict[str, Any]]) 
     key = str(name or "").strip()
     if not key or not callable(provider):
         return
+    global _PROVIDERS
     with _LOCK:
-        _PROVIDERS[key] = provider
+        # Published by rebinding rather than by mutating in place, so a
+        # reader never needs the lock and never sees a half-written map.
+        _PROVIDERS = {**_PROVIDERS, key: provider}
 
 
 def collect_health_fragments() -> dict[str, dict[str, Any]]:
@@ -68,8 +71,12 @@ def collect_health_fragments() -> dict[str, dict[str, Any]]:
     the health surface down with it: the surface exists to describe failures,
     so it must survive them.
     """
-    with _LOCK:
-        providers = dict(_PROVIDERS)
+    # No lock. The register is written by rebinding, so reading the name
+    # is atomic and what comes back is one whole version of it. Lockdep
+    # measured 273ms here at a line that assigns one dict entry, which is
+    # every health probe in the process queueing behind every other one —
+    # contention, not the section.
+    providers = _PROVIDERS
 
     fragments: dict[str, dict[str, Any]] = {}
     for name in sorted(set(EXPECTED_FRAGMENTS) | set(providers)):
@@ -116,19 +123,22 @@ def reset_health_fragments_for_test() -> dict[str, Callable[[], dict[str, Any]]]
     the result to :func:`restore_health_fragments_for_test`, or use
     :func:`health_fragments_reset` which does both.
     """
+    global _PROVIDERS
     with _LOCK:
-        previous = dict(_PROVIDERS)
-        _PROVIDERS.clear()
-        return previous
+        previous = _PROVIDERS
+        # Rebound, not cleared in place: a reader holds no lock, so
+        # emptying the map it is walking is how it sees half a register.
+        _PROVIDERS = {}
+        return dict(previous)
 
 
 def restore_health_fragments_for_test(
     providers: dict[str, Callable[[], dict[str, Any]]],
 ) -> None:
     """Put back what a reset took out."""
+    global _PROVIDERS
     with _LOCK:
-        _PROVIDERS.clear()
-        _PROVIDERS.update(providers)
+        _PROVIDERS = dict(providers)
 
 
 @contextlib.contextmanager

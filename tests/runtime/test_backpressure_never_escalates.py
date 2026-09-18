@@ -77,12 +77,34 @@ def test_a_real_fault_on_the_same_subsystem_still_escalates() -> None:
 
 def test_the_exemption_is_read_from_the_shared_marker_list() -> None:
     """One definition. Two lists of what counts as backpressure is how this
-    bug existed at all — the demotion knew and the escalation did not."""
-    import inspect
+    bug existed at all — the demotion knew and the escalation did not.
 
-    from core.runtime import errors
+    Asked of the behaviour rather than of the source. This read
+    ``inspect.getsource(record_degradation)`` for the text
+    ``not _is_admission_backpressure``, and went red when the method-size
+    sweep moved the decision into an extracted helper — the invariant
+    intact, the grep target gone. A test that reads source for a call site
+    fails on every refactor that does not change behaviour, and passes on
+    every change that keeps the words and breaks the meaning.
 
-    source = inspect.getsource(errors.record_degradation)
+    What it has to hold is that ONE list decides both: every marker the
+    demotion honours is a marker the escalation also exempts.
+    """
 
-    assert "not _is_admission_backpressure" in source
-    assert "backpressure_markers" in source
+    from core.runtime.errors import backpressure_markers
+
+    markers = list(backpressure_markers())
+    assert markers, "the shared marker list is empty; nothing is being demoted"
+
+    for marker in markers:
+        record_degradation(
+            "inference_gate", RuntimeError(marker), action="deferred"
+        )
+        record = _last_record("inference_gate")
+        assert record.get("severity") == "warning", (
+            f"{marker!r} is in the shared list but was not demoted"
+        )
+        assert _ESCALATION not in str(record), (
+            f"{marker!r} was demoted and then escalated anyway, which is the "
+            "bug this file exists for"
+        )
