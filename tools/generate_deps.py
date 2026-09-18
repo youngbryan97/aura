@@ -87,6 +87,15 @@ HANDWRITTEN = {
     # the whole of core.evaluation — the scorers of the cognition this package
     # is — with the gate still green.
     "brain",
+    # And one more of the module-level kind. The registered
+    # knowledge-revision canary exercises the canonical store and takes
+    # nothing else from core.knowledge, so core/organism names
+    # core.knowledge.revision_validation. Regenerating widens that to the
+    # whole of core.knowledge with the gate still green — and until this
+    # entry, `make deps-check` was red for exactly the reason the comment
+    # at the top of this block describes: a real rule written into a
+    # generated file, one regeneration from being deleted.
+    "organism",
     # The judge must not be able to reach the defendant. core/phenomenology
     # decides whether evidence supports a claim about this system, so its rule
     # is "imports nothing from core" rather than "what it imports today" — a
