@@ -82,13 +82,18 @@ async def test_a_refusal_that_is_not_a_lock_is_not_waited_out(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_the_person_is_told_while_she_waits(monkeypatch):
-    """They are the one who can unlock it, and cannot if nothing says so."""
+    """They are the one who can unlock it, and cannot if nothing says so.
+
+    In the conversation, where they asked. Said to the bubble alone it never
+    reached them: LIVE 2026-09-17, two requests waited out a locked screen
+    and the conversation showed nothing until the run had ended.
+    """
     said: list[str] = []
 
-    async def narrate(line, because=""):
+    async def say(line, because=""):
         said.append(line)
 
-    patch_pursuit(monkeypatch, "_narrate", narrate)
+    patch_pursuit(monkeypatch, "_say_line", say)
     monkeypatch.setattr(
         "core.security.screen_capture_policy.evaluate_screen_capture_admission_async",
         _answers(LOCKED, LOCKED, OPEN),

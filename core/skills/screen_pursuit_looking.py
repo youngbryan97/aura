@@ -510,11 +510,15 @@ async def wait_for_a_screen_to_look_at(ends_at: float, *, app: str = "") -> bool
             return False
         if told != why:
             logger.info("she cannot look yet (%s); waiting rather than failing", why)
-            # Say it. Waiting in silence for the whole deadline and then
-            # explaining is the same information delivered too late to act
-            # on — the person is the one who can change it, and they cannot
-            # do that if nothing tells them.
-            await _narrate(
+            # Say it where the person asked, which is the conversation.
+            #
+            # Waiting in silence for the whole deadline and then explaining is
+            # the same information delivered too late to act on — the person
+            # is the one who can change it. Said to the bubble alone it never
+            # arrived at all: LIVE 2026-09-17, two requests to play a game
+            # waited out an hour of locked screen and the conversation showed
+            # nothing until the run ended, "no_screen_to_look_at".
+            await _say_line(
                 f"{_what_being_refused_a_look_means(why).capitalize()}. "
                 "I will start the moment that changes."
             )
