@@ -1401,6 +1401,12 @@ async def pursue_on_screen(
     #: failed and says nothing in between, which is where all the deciding is.
     from core.agency.how_it_is_going import HowItIsGoing
 
+    #: How far ahead her model of this world has been worth using, measured
+    #: while she uses it. What bounds a search is not the clock: a level
+    #: deeper than her model is right is a level of fiction.
+    from core.agency.how_far_her_model_carries import HowFarHerModelCarries
+
+    carries = HowFarHerModelCarries.from_memory(knew.get("carries") or {})
     going = HowItIsGoing.from_memory(
         knew.get("how_it_is_going") or {},
         toward=_a_number_in(success_when),
@@ -1519,6 +1525,7 @@ async def pursue_on_screen(
                 goal=goal,
                 got_to=got_to,
                 going=going,
+                carries=carries,
                 graph=graph,
                 history=history,
                 in_flight=in_flight,
@@ -1797,6 +1804,8 @@ async def pursue_on_screen(
             # The ladder: what she reached here, what each rung cost, and
             # what she was holding when she reached it.
             "how_it_is_going": going.as_memory(),
+            # And how far her model of it carried, by distance.
+            "carries": carries.as_memory(),
             "opens": opens.as_memory(),
             "supply": supply.as_memory() if hasattr(supply, "as_memory") else {},
             "coming": coming.as_memory(),

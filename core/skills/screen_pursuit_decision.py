@@ -1171,6 +1171,7 @@ async def decide_the_next_move(
     matters = run.matters
     move_keys = run.move_keys
     going = getattr(run, "going", None)
+    carries = getattr(run, "carries", None)
     moves = run.moves
     narrate = run.narrate
     needs_person = run.needs_person
@@ -1331,6 +1332,21 @@ async def decide_the_next_move(
                     if narrate:
                         _tell(f"I know what matters here now — {matters.says()}.")
         if previous.chosen is not None:
+            # What that prediction was worth, at the distance it was made
+            # from. Every move carries one, and a plan she committed to
+            # carries one per step; graded here, they say how far her model
+            # of this world is worth searching.
+            if carries is not None and pending["arranged"] is not None:
+                nothing_changed = (
+                    laid_out is not None
+                    and pending["arranged"].as_text() == laid_out.as_text()
+                )
+                carries.it_predicted(
+                    distance=max(1, int(len(pending.get("ahead") or ()) or 1)),
+                    confidence=float(knows.rules.confidence() if knows.rules is not None else 0.0),
+                    was_right=bool(attempt.verdict.held),
+                    would_no_change_have_been_right=bool(nothing_changed),
+                )
             # A key that never changes anything is not one of her actions
             # in this world, whoever wrote it down.
             can_do.tried(previous.chosen.name, attempt.verdict.observed_change)
@@ -1851,6 +1867,13 @@ async def decide_the_next_move(
                 a_read = (sum(looks) / len(looks)) if looks else 0.3
             thinking_for = max(0.05, min(2.0, (ends_at - time.monotonic()) * 0.02, max(0.3, a_read)))
             thought_from = time.monotonic()
+            # No deeper than her model has been worth here.
+            #
+            # A level past where her predictions stop beating "nothing
+            # changed" is a level of fiction, and it looks surer the further
+            # it goes. Measured per world from her own graded predictions;
+            # nothing until enough of them are graded, and then a real bound.
+            as_far_as_it_carries = carries.carries_to() if carries is not None else 0
             ahead = look_ahead(
                 knows.rules,
                 laid_out,
@@ -1861,6 +1884,7 @@ async def decide_the_next_move(
                 world=world,
                 # What matters HERE, once she has watched enough to say.
                 weights=matters.weights(),
+                no_deeper_than=as_far_as_it_carries,
             )
             pending["thought_for"] = time.monotonic() - thought_from
         # And what a move would TELL her, which is a different question

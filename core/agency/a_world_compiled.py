@@ -311,6 +311,7 @@ def search(
     worth: Callable[[tuple[int, ...]], float],
     dead: float,
     fixed_depth: int = 0,
+    no_deeper_than: int = 0,
 ) -> tuple[dict[str, tuple[float, tuple[int, ...]]], int]:
     """Every push available, scored by what it leads to, as deep as the clock allows.
 
@@ -374,8 +375,14 @@ def search(
     scored: dict[str, tuple[float, tuple[int, ...]]] = {}
     finished = 0
     best_before = best_before_that = ""
+    # As deep as the clock allows, and never deeper than her model of this
+    # world has been measured to carry: past that, a level is fiction that
+    # costs a level's time and looks surer for being deeper.
+    deepest = max(1, int(fixed_depth)) if fixed_depth else _DEEPEST
+    if no_deeper_than and not fixed_depth:
+        deepest = min(deepest, max(1, int(no_deeper_than)))
     depth = max(1, int(fixed_depth)) if fixed_depth else 1
-    while depth <= (max(1, int(fixed_depth)) if fixed_depth else _DEEPEST):
+    while depth <= deepest:
         pass_began = time.monotonic()
         memo: dict = {}
         this_pass: dict[str, tuple[float, tuple[int, ...]]] = {}

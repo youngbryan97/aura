@@ -302,6 +302,7 @@ def look_ahead(
     weights: Any = None,
     depth: int = 0,
     settles_how_far: bool = True,
+    no_deeper_than: int = 0,
 ) -> dict[str, tuple[float, str]]:
     """Every move available, scored by where it leads and how sure that is.
 
@@ -311,6 +312,11 @@ def look_ahead(
     ``knows`` is anything that can say what a state would become — the rules
     she worked out by watching. When it cannot, this returns nothing, which is
     the honest answer and not a failure.
+
+    ``no_deeper_than`` is how far her model of this world has been measured to
+    carry. Zero means nothing has been measured and the clock is the only
+    bound; anything else stops the search where her predictions stop beating
+    "nothing changed", because past that a level is fiction.
 
     ``world`` is what the world does on its own between her acts, if she has
     worked that out. Without it, the search takes the best continuation at
@@ -332,6 +338,7 @@ def look_ahead(
         knows, state, actions,
         toward=toward, approach=approach, budget_s=budget_s,
         world=world, weights=weights, depth=depth, settles_how_far=settles_how_far,
+        no_deeper_than=no_deeper_than,
     )
     if fast is not None:
         return fast
@@ -605,6 +612,7 @@ def _through_a_compiled_world(
     weights: Any,
     depth: int,
     settles_how_far: bool = True,
+    no_deeper_than: int = 0,
 ) -> dict[str, tuple[float, str]] | None:
     """The same search on a compiled world, or None when the world cannot be one.
 
@@ -663,7 +671,8 @@ def _through_a_compiled_world(
     dead = -(1.0 + sum(abs(float(value)) for value in weighed.values()))
     started = time.monotonic()
     scored, reached = search(
-        made, state, actions, budget_s=budget_s, worth=worth, dead=dead, fixed_depth=depth
+        made, state, actions, budget_s=budget_s, worth=worth, dead=dead, fixed_depth=depth,
+        no_deeper_than=no_deeper_than,
     )
     if settles_how_far:
         _SAW["acts"] = int(reached) if scored else 0
