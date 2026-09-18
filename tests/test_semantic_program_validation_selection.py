@@ -165,3 +165,77 @@ def test_checkpoint_corruption_is_not_a_score(tmp_path):
     with pytest.raises(ValueError, match="checksum"):
         select_compositional_program_candidate({"parent": Candidate({"a"})}, [item("a")],
                                                incumbent="parent", checkpoint_path=path)
+
+
+def anchored_fixture():
+    from core.learning.procedure_induction import Instruction, Program
+    from core.learning.semantic_program_ir import TokenSpan
+    example = item("anchored")
+    example.public_inputs = (3, 3)
+    example.ir.input_spans = (TokenSpan(0, 1), TokenSpan(2, 3))
+    example.ir.instructions = (Instruction("sub", (0, 1)),)
+    example.ir.to_program = lambda: Program(2, example.ir.instructions)
+    def candidate(args=(1, 0), spans=None):
+        ir = SimpleNamespace(input_spans=spans or tuple(reversed(example.ir.input_spans)),
+                             to_program=lambda: Program(2, (Instruction("sub", args),)))
+        return SimpleNamespace(receipt_sha256="candidate", decode=lambda **_: SimpleNamespace(ir=ir))
+    return example, candidate
+
+
+def test_source_anchored_evaluation_preserves_register_alpha_renaming():
+    example, candidate = anchored_fixture()
+    legacy = select_compositional_program_candidate({"parent":candidate()}, [example], incumbent="parent")
+    aligned = select_compositional_program_candidate({"parent":candidate()}, [example], incumbent="parent",
+                                                    scoring="source_anchors_v2")
+    assert legacy["candidates"]["parent"]["program_exact"] == 0
+    assert aligned["candidates"]["parent"]["program_exact"] == 1
+    assert aligned["schema"].endswith(".v2")
+    assert legacy["schema"].endswith(".v1")
+    assert aligned["serving_authority"] is False
+
+
+def test_equal_observed_answers_do_not_excuse_wrong_source_binding():
+    example, candidate = anchored_fixture()
+    report = select_compositional_program_candidate({"parent":candidate(args=(0, 1))}, [example],
+        incumbent="parent", scoring="source_anchors_v2")
+    assert report["candidates"]["parent"]["program_exact"] == 0
+    assert report["candidates"]["parent"]["program_equivalent"] == 0
+
+
+@pytest.mark.parametrize("defect", ["different_values", "wrong_anchors"])
+def test_source_alignment_rejects_grounding_errors(defect):
+    from core.learning.semantic_program_ir import TokenSpan
+    example, candidate = anchored_fixture()
+    spans = None
+    if defect == "different_values":
+        example.public_inputs = (3, 4)
+    else:
+        spans = (TokenSpan(1, 2), TokenSpan(2, 3))
+    report = select_compositional_program_candidate({"parent":candidate(spans=spans)}, [example],
+        incumbent="parent", scoring="source_anchors_v2")
+    assert report["candidates"]["parent"]["program_exact"] == 0
+    assert report["candidates"]["parent"]["program_equivalent"] == 0
+
+
+@pytest.mark.parametrize("change", ["scoring", "anchors"])
+def test_source_scoring_checkpoint_binds_anchors_and_rules(tmp_path, change):
+    from core.learning.semantic_program_ir import TokenSpan
+    example, candidate = anchored_fixture()
+    model = candidate()
+    path = tmp_path / "checkpoint.json"
+    select_compositional_program_candidate({"parent":model}, [example], incumbent="parent",
+        checkpoint_path=path, scoring="source_anchors_v2")
+    scoring = "source_anchors_v2"
+    if change == "scoring":
+        scoring = "register_indices_v1"
+    else:
+        example.ir.input_spans = (TokenSpan(0, 1), TokenSpan(3, 4))
+    with pytest.raises(ValueError, match="identity"):
+        select_compositional_program_candidate({"parent":model}, [example], incumbent="parent",
+            checkpoint_path=path, scoring=scoring)
+
+
+def test_unknown_scoring_cannot_silently_reuse_legacy_rules():
+    with pytest.raises(ValueError, match="scoring"):
+        select_compositional_program_candidate({"parent":Candidate({"a"})}, [item("a")],
+            incumbent="parent", scoring="unknown")

@@ -848,10 +848,9 @@ Each is independently publishable. Together they're a research program.
   suites — null hypothesis defeat, causal exclusion, grounding, functional
   phenomenology, embodied dynamics, phenomenal convergence — plus the
   consciousness-conditions, technological-autonomy and stability suites.
-  Those sit inside a tree that collects **~45,600 tests across 4,097 files**
-  as of 2026-09-15, covering kernel lifecycle, infrastructure, resilience,
-  cognitive routing, and memory. Counts move; re-collect rather than
-  trusting this sentence.
+  The broader suite covers kernel lifecycle, infrastructure, resilience,
+  cognitive routing, and memory. `config/test_inventory.json` records a
+  dated collection; run `make test-inventory` to measure the current tree.
 - **Lock contention.** The affect system wraps `RobustLock`. Tick intervals
   are mode-keyed — 2.0s in conversation, 4.0s reflecting, 10.0s asleep,
   0.5s under a critical event — with adaptive backoff to ease contention.

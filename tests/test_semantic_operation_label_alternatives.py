@@ -79,3 +79,25 @@ def test_invalid_policy_is_rejected_even_with_recomputed_receipt(parent, value):
     receipt["receipt_sha256"] = _sha({key: val for key, val in receipt.items() if key != "receipt_sha256"})
     with pytest.raises(ValueError):
         compositional_semantic_program_transducer_from_dict(payload)
+
+
+def test_typed_policy_roundtrip_reaches_runtime_feasibility(parent, monkeypatch):
+    model = parent.with_typed_operation_charts()
+    assert model.receipt_sha256 != parent.receipt_sha256
+    assert parent.training_receipt.get("operation_chart_feasibility") != "typed_state_bounds_v4"
+    restored = compositional_semantic_program_transducer_from_dict(model.to_dict())
+    assert restored.receipt_sha256 == model.receipt_sha256
+    import core.learning.semantic_program_compositional_transducer as runtime
+    original = runtime._operation_chart_use_feasible
+    observed = []
+
+    def capture(*args, **kwargs):
+        observed.append(kwargs["input_types"])
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(runtime, "_operation_chart_use_feasible", capture)
+    item = _examples()[0]
+    restored.decode(source_token_ids=item.ir.source_token_ids, hidden_states=item.hidden_states,
+                    public_inputs=item.public_inputs, source_text_sha256=item.ir.source_text_sha256,
+                    model_basis_sha256=item.ir.model_basis_receipt_sha256)
+    assert observed and all(types == ("integer",) * len(item.public_inputs) for types in observed)

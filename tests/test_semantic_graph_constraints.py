@@ -64,6 +64,30 @@ def test_projection_handles_multiple_binding_constraints():
     np.testing.assert_allclose(result, [0., 0., 5.], atol=1e-10)
 
 
+@pytest.mark.parametrize("batched", [False, True])
+def test_likelihood_learns_after_all_training_decisions_are_already_correct(batched):
+    head, operation = simple_model()
+    constraints = (operation_constraint([1., 0.]),)
+    _, _, receipt = fit_graph_constraints(head, operation, constraints,
+        steps=3, adaptive_step=True, batched=batched, objective="pairwise_logistic")
+    assert receipt["initial_wrong_or_tied"] == 0
+    assert receipt["accepted_steps"]
+    assert receipt["stored_loss"] < receipt["initial_loss"]
+    assert receipt["stored_wrong_or_tied"] == 0
+    assert receipt["objective"] == "retained_pairwise_likelihood_v1"
+
+
+def test_likelihood_cannot_sacrifice_a_correct_witness_to_a_heavier_conflict():
+    head, operation = simple_model()
+    constraints = (operation_constraint([1., 0.], weight=.001),
+                   operation_constraint([1., 0.], positive=1, weight=1000.))
+    _, _, receipt = fit_graph_constraints(head, operation, constraints,
+        steps=5, adaptive_step=True, objective="pairwise_logistic")
+    assert receipt["stored_margins"][0] > 0.
+    assert receipt["retained_positive_regressions"] == 0
+    assert not receipt["infeasibility_proven"]
+
+
 def test_value_only_replay_agrees_with_gradient_path():
     from tests.test_semantic_joint_graph_learning import operation_fixture
     from tests.test_semantic_relation_graph_learning import fixture

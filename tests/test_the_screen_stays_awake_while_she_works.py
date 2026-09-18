@@ -87,6 +87,27 @@ def test_the_hold_is_tied_to_this_process():
     assert "-w" in source and "os.getpid()" in source
 
 
+def test_hold_uses_registered_process_owner_with_fixed_command(monkeypatch):
+    from types import SimpleNamespace
+    from core.governance_context import get_active_governance
+
+    calls = []
+
+    def spawn(argv, **options):
+        assert get_active_governance() is not None
+        calls.append((argv, options))
+        return _Holder()
+
+    monkeypatch.setattr(awake.os, "uname", lambda: SimpleNamespace(sysname="Darwin"))
+    monkeypatch.setattr(awake, "get_subprocess_gateway", lambda: SimpleNamespace(spawn=spawn))
+    assert awake._take_hold("arbitrary text; never a command") is not None
+    argv, options = calls[0]
+    assert argv[0] == "/usr/bin/caffeinate" and "-w" in argv
+    assert not any("arbitrary text" in arg for arg in argv)
+    assert options["source"] == "screen_awake.hold"
+    assert options["accelerator_capability"] == "none"
+
+
 @pytest.mark.asyncio
 async def test_a_run_on_screen_holds_it(monkeypatch):
     from screen_pursuit_support import patch_pursuit

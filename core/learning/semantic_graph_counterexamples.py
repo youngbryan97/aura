@@ -8,6 +8,8 @@ targets and counterfactual probes are never runtime answer inputs.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from collections import OrderedDict
+from copy import deepcopy
 from dataclasses import dataclass
 import random
 
@@ -86,7 +88,49 @@ def _observe_program_domain(program, values, *, fuel):
     return observation
 
 
-def compare_program_meanings(target: Program, alternative: Program, probes: Sequence[tuple], *, fuel=100_000) -> dict:
+class ProgramObservationCache:
+    """Reuse checked floor observations within one fixed-code search invocation.
+
+    Exact program, typed input and fuel identities are required. Failed
+    executions are retried, and returned receipts cannot mutate stored evidence.
+    """
+
+    def __init__(self, *, capacity=256):
+        if type(capacity) is not int or capacity < 1:
+            raise ValueError("observation cache capacity must be positive")
+        self.capacity = capacity
+        self._observations = OrderedDict()
+        self.hits = 0
+        self.executions = 0
+
+    def observe(self, program, values, *, fuel):
+        if type(fuel) is not int or fuel < 1:
+            raise ValueError("observation fuel must be a positive integer")
+        values = tuple(values)
+        # Match the public semantic domain; bool must not alias integer one.
+        if any(type(value) is not int and not (type(value) is tuple and
+               all(type(element) is int for element in value)) for value in values):
+            raise ValueError("observation inputs require integers or integer tuples")
+        key = (program, values, fuel)
+        if key in self._observations:
+            self.hits += 1
+            self._observations.move_to_end(key)
+            return deepcopy(self._observations[key])
+        self.executions += 1
+        result = _observe_program_domain(program, values, fuel=fuel)
+        if result["status"] in {"value", "undefined"}:
+            self._observations[key] = deepcopy(result)
+            if len(self._observations) > self.capacity:
+                self._observations.popitem(last=False)
+        return result
+
+    def statistics(self):
+        return {"hits": self.hits, "executions": self.executions,
+                "retained": len(self._observations), "capacity": self.capacity}
+
+
+def compare_program_meanings(target: Program, alternative: Program, probes: Sequence[tuple], *, fuel=100_000,
+                             observation_cache=None) -> dict:
     """Prove a supported symmetry or witness different values or defined domains."""
     if target.n_inputs != alternative.n_inputs:
         raise ValueError("semantic contrast public input geometry differs")
@@ -98,7 +142,8 @@ def compare_program_meanings(target: Program, alternative: Program, probes: Sequ
                 "normal_form_sha256": _sha(key)}
     observations = []
     for values in probes:
-        outcomes = [_observe_program_domain(program, values, fuel=fuel) for program in (target, alternative)]
+        observe = observation_cache.observe if observation_cache is not None else _observe_program_domain
+        outcomes = [observe(program, values, fuel=fuel) for program in (target, alternative)]
         statuses = [row["status"] for row in outcomes]
         outputs = [row["result"] for row in outcomes]
         observation = {"inputs": list(values), "outputs": outputs,
@@ -182,7 +227,7 @@ def find_graph_counterexample(chart: ScoredArgumentChart, nodes, target_argument
 
 def find_program_counterexample(chart: ScoredArgumentChart, nodes, target: Program, *, probes=(), max_graphs=128,
                                 progress=None, solve_time_limit_s=None, positive=None,
-                                positive_evidence=(), excluded_graphs=()):
+                                positive_evidence=(), excluded_graphs=(), observation_cache=None):
     """Search a runtime chart even when its operations differ from the source target."""
     if type(max_graphs) is not int or max_graphs < 1:
         raise ValueError("counterexample graph allowance must be positive")
@@ -193,6 +238,8 @@ def find_program_counterexample(chart: ScoredArgumentChart, nodes, target: Progr
                "solve_time_limit_s": solve_time_limit_s,
                "search_complete": False, "highest_incorrect_proven": False}
     excluded = list(excluded_graphs)
+    if observation_cache is None:
+        observation_cache = ProgramObservationCache()
     unresolved = False
     best_evidence = positive_evidence
     for _ in range(max_graphs):
@@ -210,7 +257,8 @@ def find_program_counterexample(chart: ScoredArgumentChart, nodes, target: Progr
             return GraphCounterexampleSearch(positive, None, receipt, best_evidence)
         arguments = candidate[0][1]
         program = argument_graph_program(nodes, arguments, n_inputs=chart.n_inputs)
-        comparison = compare_program_meanings(target, program, probes)
+        comparison = compare_program_meanings(target, program, probes, observation_cache=observation_cache)
+        receipt["floor_observation_reuse"] = observation_cache.statistics()
         receipt["examined"].append({"arguments": arguments, "score": candidate[0][0],
                                      "comparison": comparison})
         if comparison["status"] == "different":

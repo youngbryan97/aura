@@ -39,13 +39,14 @@ def _observe(model, item):
         model_basis_sha256=item.ir.model_basis_receipt_sha256)
     row = {"source_text_sha256": item.ir.source_text_sha256, "split": item.split,
            "geometry": _geometry(item), "accepted": outcome.ir is not None, "refusal": outcome.refusal,
-           "source_grounding_aligned": False, "target_reachable": False, "semantic_status": "unmeasured"}
+           "source_grounding_aligned": None, "annotated_graph_feasible": None,
+           "semantic_status": "unmeasured"}
     if outcome.ir is None:
-        return row
+        return {**row, "semantic_status": "decode_refused"}
     try:
         instructions, _ = align_source_input_registers(item, outcome.ir.input_spans)
     except ValueError as exc:
-        return {**row, "failure": str(exc)}
+        return {**row, "source_grounding_aligned": False, "failure": str(exc)}
     row["source_grounding_aligned"] = True
     from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
     try:
@@ -53,7 +54,8 @@ def _observe(model, item):
         selected = score_annotated_graph(model, item, outcome.ir.instructions, outcome.ir.input_spans)
     except ArgumentOptimizationIncompleteError as exc:
         return {**row, "failure": str(exc)}
-    row["target_reachable"] = target is not None
+    # Scoring with annotated operations does not establish runtime search coverage.
+    row["annotated_graph_feasible"] = target is not None
     if target is None or selected is None:
         return row
     comparison = compare_program_meanings(target["program"], selected["program"],
@@ -64,7 +66,8 @@ def _observe(model, item):
 
 
 def run_semantic_graph_trial(model, examples, *, training_count=8, validation_count=8,
-                             training_pool_count=None, steps=20, max_charts=32, progress=None):
+                             training_pool_count=None, steps=20, max_charts=32, progress=None,
+                             objective="squared_deficit", operation_retention_count=None):
     """Fit only selected source rows and independently replay both small cohorts.
 
     This returns no deployable candidate. Validation rows never enter mining
@@ -90,14 +93,20 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
     # Select witnessed training failures before retention controls. No
     # validation outcome participates in this acquisition decision.
     selected = sorted(range(len(training_pool)),
-                      key=lambda i: pool_observations[i]["semantic_status"] != "different")[:training_count]
+                      key=lambda i: pool_observations[i]["semantic_status"] not in
+                      {"different", "decode_refused"})[:training_count]
     training = tuple(training_pool[i] for i in selected)
     before = [pool_observations[i] for i in selected]
     for item in validation:
         before.append(_observe(model, item))
         if progress:
             progress({"stage": "trial_before", "completed": len(before), "row": before[-1]})
-    constraints = source_operation_constraints(model, source_operation_supervision(model, training))
+    operation_training = (training if operation_retention_count is None else
+                          select_trial_examples(examples, split="train", count=operation_retention_count))
+    if not {item.ir.source_text_sha256 for item in training}.issubset(
+            {item.ir.source_text_sha256 for item in operation_training}):
+        raise ValueError("operation retention must include the graph training cohort")
+    constraints = source_operation_constraints(model, source_operation_supervision(model, operation_training))
     records = []
     for item in training:
         rows, record = mine_runtime_graph_constraints(model, item, max_charts=max_charts, learn_arguments=True)
@@ -106,7 +115,8 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
         if progress:
             progress({"stage": "trial_mining", "completed": len(records), "pairs": len(constraints), "row": record})
     candidate, fit = fit_complete_graph_constraints(model, tuple(constraints),
-        scale=model.definition_relation_scale, steps=steps, adaptive_step=True, progress=progress)
+        scale=model.definition_relation_scale, steps=steps, adaptive_step=True, progress=progress,
+        objective=objective)
     after = []
     for item in (*training, *validation):
         after.append(_observe(candidate, item))
@@ -120,10 +130,17 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
             "after_equivalent": sum(b["semantic_status"] == "equivalent" for _, b in pairs),
             "gains": sum(a["semantic_status"] != "equivalent" and b["semantic_status"] == "equivalent" for a, b in pairs),
             "regressions": sum(a["semantic_status"] == "equivalent" and b["semantic_status"] != "equivalent" for a, b in pairs),
-            "unmeasured_after": sum(b["semantic_status"] == "unmeasured" for _, b in pairs)}
+            "unmeasured_after": sum(b["semantic_status"] == "unmeasured" for _, b in pairs),
+            "decode_refusals_before": sum(a["semantic_status"] == "decode_refused" for a, _ in pairs),
+            "decode_refusals_after": sum(b["semantic_status"] == "decode_refused" for _, b in pairs)}
     blockers = []
-    if any(not row["source_grounding_aligned"] or not row["target_reachable"] for row in (*before, *after)):
-        blockers.append("grounding_or_target_reachability")
+    if any(row["semantic_status"] == "decode_refused" for row in after):
+        blockers.append("autonomous_decode_refused")
+    if any(row["accepted"] and (not row["source_grounding_aligned"] or
+                               not row["annotated_graph_feasible"]) for row in (*before, *after)):
+        blockers.append("grounding_or_annotated_graph_feasibility")
+    if any(row["semantic_status"] == "unmeasured" for row in (*before, *after)):
+        blockers.append("semantic_verification_unmeasured")
     if any(row.get("status") not in {"counterexamples", "no_witnessed_competitor"} for row in records):
         blockers.append("runtime_constraint_mining_unavailable")
     if any(not row["operation_search_complete"] for row in records):
@@ -137,12 +154,13 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
         blockers.append("autonomous_decode_regression")
     if not any(row["gains"] for row in summaries.values()):
         blockers.append("no_measured_semantic_improvement")
-    body = {"schema": "aura.semantic_graph_trial.v1", "parent": model.receipt_sha256,
+    body = {"schema": "aura.semantic_graph_trial.v2", "parent": model.receipt_sha256,
             "serving_authority": False, "promotion_allowed": False, "fresh_transfer_claim": False,
             "selection_policy": "source_hash_geometry_round_robin_v1",
             "training_acquisition_policy": "witnessed_training_failures_then_retention_v1",
             "training_pool_observations": pool_observations,
             "training_sources": [item.ir.source_text_sha256 for item in training],
+            "operation_retention_sources": [item.ir.source_text_sha256 for item in operation_training],
             "validation_sources": [item.ir.source_text_sha256 for item in validation],
             "validation_used_for_fit": False, "test_examples_used": 0,
             "before": before, "after": after, "mining": records, "fit": fit,

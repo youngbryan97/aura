@@ -54,8 +54,8 @@ make chaos       # optional, single random fault
    note that ``run_one`` requires a `Registration` produced by
    ``test.declare()`` *before* it accepts a verdict.
 
-8. **Full test surface** — `pytest tests/ --collect-only -q`. As of
-   2026-09-15 this collects **~45,600 tests across 4,097 files**. Run them
+8. **Full test surface** — `pytest tests/ --collect-only -q`. Check the
+   collection date and revision in `config/test_inventory.json`. Run them
    with `make test` (6 bounded chunks); a single pytest process over the
    whole suite gets OOM-killed around 83%.
 
