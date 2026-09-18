@@ -561,26 +561,16 @@ def _capped_reserve(reserve_s: float, remaining_s: float) -> float:
 def _sleep_inclusive_monotonic() -> float | None:
     """A monotonic clock that keeps counting while the host is asleep.
 
-    Paired with ``time.monotonic()`` — which does not — this measures how long
-    the machine was suspended without consulting the wall clock at all, so an
-    NTP step, a manual date change, or a VM migration cannot be mistaken for a
-    host resume. Returns None where the platform offers no such clock, and the
-    caller then says it could not tell the two apart rather than guessing.
+    This measurement was worked out here and kept here, so the inference
+    lane rebased after a suspend and every other subsystem holding a
+    "when did I last see this" anchor did not — each reaching the same
+    wrong conclusion in its own words on the next wake. It lives in
+    :mod:`core.runtime.host_sleep` now, for anything with an anchor.
     """
-    for name in ("CLOCK_BOOTTIME", "CLOCK_MONOTONIC"):
-        clock_id = getattr(time, name, None)
-        if clock_id is None:
-            continue
-        if name == "CLOCK_MONOTONIC" and sys.platform != "darwin":
-            # Only Darwin's CLOCK_MONOTONIC includes suspend; elsewhere it is
-            # what time.monotonic() already returns, so the difference would
-            # be a constant zero dressed up as a measurement.
-            continue
-        try:
-            return float(time.clock_gettime(clock_id))
-        except (OSError, ValueError, AttributeError):
-            continue
-    return None
+
+    from core.runtime.host_sleep import sleep_inclusive_monotonic
+
+    return sleep_inclusive_monotonic()
 
 
 #: The paired-sample arrays a feedback consumer reads. Everything else in an
