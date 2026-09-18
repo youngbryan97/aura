@@ -1502,7 +1502,40 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   fetched pages and have nobody waiting on the reply — and deliberately not
   the conversational surface, where a decoy that works costs the person
   their answer. 8004d0637.
-  Still open: scoped tool authority, privacy, sandbox, secret handling.
+  PARTIAL 2026-09-18, scoped authority — **an emergency lockdown that
+  locked nothing down.** `core/runtime/mode.py` declares a capability
+  manifest per mode, its docstring says every module needing to ask "am I
+  in production?" must use its helpers, and safe mode is documented as
+  "Emergency lockdown. All autonomous behavior disabled. No tools." The
+  production importers of that module were five — `validate_mode_at_startup`,
+  `strict_will_active`, `governance_production_active`, `contracts_enforced`,
+  `get_mode` — and **`is_safe()` had none**. Nor did
+  `allows_tool_execution`, `allows_autonomous_behavior`,
+  `allows_unsigned_skills`, `max_autonomy_level`, `enforce_production_gate`
+  or `get_active_manifest`. The manifest was a table nothing read.
+  (An earlier note in this file said safe mode was enforced in forty-one
+  places through `is_safe()`. That was wrong: those were coincidental
+  matches on a common local variable name — `ScriptASTGuard` returning
+  `(is_safe, reason)`, an unrelated `IdentityGuard.is_safe`, a
+  risk-evaluation local. Corrected here.)
+  Three gates wired, each at the single place every path through it passes,
+  and each checked against all seven manifests first so it cannot fire on an
+  ordinary run: self-modification at `admit_mutation` (572129cbf), tools at
+  `ToolExecutor.execute_tool` (547ffecf6), autonomous work at
+  `AutonomyConductor.run_due_once` (e0580a40e). All three fail OPEN on an
+  unreadable mode, because muting a runtime over a bookkeeping fault is
+  worse than the other gates carrying on alone.
+  Checked and deliberately not wired: `allows_unsigned_skills`. There is no
+  signing infrastructure in this tree, so production declaring False
+  describes a mechanism that was never built and enforcing it would refuse
+  every skill. The declaration is wrong there, not the code.
+  The dead safety chain is gone: `consent_kernel` advertised itself as "the
+  complete safety verification chain" and nothing called it; its six
+  dependencies had no consumer outside `core/security` either, and every
+  guarantee it claimed has a stricter live owner (ffa3cf56a). The guard is
+  general — every module in `core/security` must have a consumer outside
+  the package.
+  Still open: privacy and sandbox.
 - [x] Q05 Persistence, migration, corruption recovery, backups, and rollback.
   CLOSED 2026-09-13. Three ways there was no backup while a green target
   said otherwise: `make backup` had raised ModuleNotFoundError since
