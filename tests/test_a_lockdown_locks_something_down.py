@@ -104,3 +104,69 @@ def test_the_gate_has_a_caller_now():
     source = inspect.getsource(tool_executor)
     assert "allows_tool_execution" in source
     assert "_mode_denies_tools()" in source
+
+
+# ─────────────────────────────── and autonomous work
+
+
+def test_only_safe_and_test_deny_autonomy(in_mode):
+    from core.runtime.autonomy_conductor import _mode_denies_autonomy
+    from core.runtime.mode import AuraMode
+
+    denying = {AuraMode.SAFE, AuraMode.TEST}
+    for mode in AuraMode:
+        in_mode(mode.value)
+        denial = _mode_denies_autonomy()
+        if mode in denying:
+            assert denial, f"{mode.value} must hold autonomous work"
+        else:
+            assert denial == "", f"{mode.value} must still run autonomous work"
+
+
+def test_the_default_mode_runs_autonomous_work():
+    from core.runtime.autonomy_conductor import _mode_denies_autonomy
+
+    assert _mode_denies_autonomy() == ""
+
+
+@pytest.mark.asyncio
+async def test_a_locked_down_runtime_runs_no_due_job(in_mode, tmp_path):
+    in_mode("safe")
+
+    from core.runtime.autonomy_conductor import AutonomyConductor
+
+    conductor = AutonomyConductor(ledger_path=tmp_path / "ledger.jsonl")
+    ran: list[str] = []
+    conductor.jobs = {}
+
+    async def _never():
+        ran.append("job")
+        return {}
+
+    # Every autonomous job in this runtime becomes due through this method.
+    result = await conductor.run_due_once()
+
+    assert "held" in result
+    assert "does not permit autonomous behaviour" in result["held"]
+    assert ran == []
+
+
+@pytest.mark.asyncio
+async def test_an_ordinary_runtime_still_sweeps(tmp_path):
+    from core.runtime.autonomy_conductor import AutonomyConductor
+
+    conductor = AutonomyConductor(ledger_path=tmp_path / "ledger.jsonl")
+    result = await conductor.run_due_once()
+
+    assert "held" not in result
+
+
+def test_the_hold_is_said_once_not_every_sweep(in_mode, tmp_path):
+    """A held runtime should be legible, not a log flood every 30s."""
+
+    import inspect
+
+    from core.runtime import autonomy_conductor
+
+    source = inspect.getsource(autonomy_conductor.AutonomyConductor.run_due_once)
+    assert "_autonomy_denied_logged" in source

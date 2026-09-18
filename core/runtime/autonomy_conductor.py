@@ -134,6 +134,24 @@ class ConductedJob:
         }
 
 
+def _mode_denies_autonomy() -> str:
+    """Why this runtime mode holds autonomous work, or "" when it allows it.
+
+    Fails OPEN on an unreadable mode: a bookkeeping fault must not silently
+    stop every background job this runtime has, and each job carries its
+    own gates besides.
+    """
+
+    try:
+        from core.runtime.mode import allows_autonomous_behavior, get_mode
+
+        if allows_autonomous_behavior():
+            return ""
+        return f"runtime mode {get_mode()} does not permit autonomous behaviour"
+    except (ImportError, AttributeError, KeyError, TypeError, ValueError):
+        return ""
+
+
 class AutonomyConductor:
     """Runs self-maintenance jobs consistently with observable receipts."""
 
@@ -145,6 +163,9 @@ class AutonomyConductor:
         self.jobs: dict[str, ConductedJob] = {}
         self._task: asyncio.Task | None = None
         self._stop = asyncio.Event()
+        # Said once rather than every thirty seconds for the life of the
+        # lockdown: a held runtime should be legible, not a log flood.
+        self._autonomy_denied_logged = False
 
     def register(
         self,
@@ -330,6 +351,22 @@ class AutonomyConductor:
                     )
 
     async def run_due_once(self) -> dict[str, Any]:
+        # Safe mode is documented as "Emergency lockdown. All autonomous
+        # behavior disabled." and until 2026-09-18 it disabled nothing:
+        # allows_autonomous_behavior() had no caller anywhere in the tree,
+        # and neither did is_safe(). Every autonomous job in this runtime
+        # becomes due through this one method, so this is the place the
+        # lockdown either holds or does not.
+        #
+        # Only safe and test deny it; production, live, dev, research and
+        # simulated all allow it, so this cannot fire on an ordinary run.
+        denial = _mode_denies_autonomy()
+        if denial:
+            if not self._autonomy_denied_logged:
+                self._autonomy_denied_logged = True
+                logger.warning("🛑 Autonomy held: %s", denial)
+            return {"held": denial}
+
         now = time.time()
         results: dict[str, Any] = {}
         for job in list(self.jobs.values()):
