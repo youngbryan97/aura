@@ -335,6 +335,62 @@ def _without_sentences(text: str, sentences: list[str]) -> str:
     return "\n".join(line for line in lines if line or True).strip()
 
 
+def _drop_sentences_that_put_words_in_his_mouth(
+    trace: dict[str, Any],
+    *,
+    user_message: str,
+    reply_text: str,
+) -> str:
+    """Drop a sentence that invents shared history; keep the answer.
+
+    LIVE 2026-09-15: a correct 27B answer about daylight-saving time was
+    replaced by a wrong 9B one under an apology, over one sentence. The
+    honest remedy for a sentence that puts words in his mouth is to drop
+    the sentence.
+
+    This lived inside the requested-output contract, behind its
+    ``constrained`` gate — and ``constrained`` later became "has a hard
+    token ceiling", so a brevity request like "keep it short" stopped
+    qualifying and the excision stopped running for it. Whether a reply
+    invents something he said has nothing to do with whether he also asked
+    for a word count, so it is asked of every reply now.
+    """
+
+    text = str(reply_text or "")
+    if not text:
+        return text
+    try:
+        from core.conversation.response_reliability import shared_history_violations
+
+        offending = shared_history_violations(text, user_message)
+        if not offending:
+            return text
+        excised = _without_sentences(text, offending)
+        if not excised or excised == text:
+            return text
+        _append_turn_text_mutation(
+            trace,
+            stage="chat.final_requested_output_contract",
+            method="measured_sentence_excision",
+            reasons=["fabricated_shared_history"],
+            before=text,
+            after=excised,
+            deterministic=True,
+            authorship_effect="preserved",
+        )
+        logger.info(
+            "Dropped %d sentence(s) that put words in the person's mouth and "
+            "kept the answer: %s",
+            len(offending),
+            "; ".join(item[:80] for item in offending),
+        )
+        return excised
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("chat.shared_history_excision", exc)
+        logger.error("Sentence excision failed; reply left whole: %s", exc)
+        return text
+
+
 def _enforce_final_requested_output_contract(
     trace: dict[str, Any],
     *,
@@ -389,6 +445,9 @@ def _enforce_final_requested_output_contract(
                 }
             )
             return reply_text
+        reply_text = _drop_sentences_that_put_words_in_his_mouth(
+            trace, user_message=user_message, reply_text=reply_text
+        )
         if not contract.constrained:
             trace.update(
                 {
@@ -425,27 +484,11 @@ def _enforce_final_requested_output_contract(
             # 2026-09-15: a correct 27B answer about daylight-saving time was
             # replaced by a wrong 9B one under an apology, over "The 2 o'clock
             # hour never exists that night."
-            from core.conversation.response_reliability import shared_history_violations
-
-            offending = shared_history_violations(repaired, user_message)
-            excised = _without_sentences(repaired, offending)
-            if offending and excised and excised != repaired:
-                _append_turn_text_mutation(
-                    trace,
-                    stage="chat.final_requested_output_contract",
-                    method="measured_sentence_excision",
-                    reasons=["fabricated_shared_history"],
-                    before=repaired,
-                    after=excised,
-                    deterministic=True,
-                    authorship_effect="preserved",
-                )
-                logger.info(
-                    "Dropped %d sentence(s) that put words in the person's mouth and "
-                    "kept the answer: %s",
-                    len(offending),
-                    "; ".join(item[:80] for item in offending),
-                )
+            # Shape repair can reintroduce one, so it is asked again here.
+            excised = _drop_sentences_that_put_words_in_his_mouth(
+                trace, user_message=user_message, reply_text=repaired
+            )
+            if excised != repaired:
                 repaired = excised
                 final_assessment = assess_user_facing_reply(user_message, repaired)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:

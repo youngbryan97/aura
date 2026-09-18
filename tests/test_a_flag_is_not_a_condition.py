@@ -164,16 +164,32 @@ def test_a_process_global_agent_id_cannot_key_stored_memory():
     It was the last link in the fallback chain that keyed relational memory, so
     one interlocutor's stored history could be assembled into another's
     prompt."""
-    source = (ROOT / "core" / "brain" / "llm" / "context_assembler.py").read_text("utf-8")
-    # Anchor on the read of the global, not on the comment that names it.
-    marker = source.index('getattr(estimator, "active_agent_id"')
-    block = source[marker : source.index("relational_memory.prompt_block")]
+    # Asked of whichever function decides the identity, not of the text
+    # between two anchors. This read from the ``active_agent_id`` getattr
+    # forward to the relational-memory block, and went red when the
+    # method-size sweep moved the decision into ``_build_system_prompt_agent_id``
+    # — which now sits BEFORE the getattr, so the window could not contain it.
+    # The binding was untouched the whole time.
+    from source_contract import function_containing, module_source
 
-    assert "hinted_agent" in block
-    assert "agent_id = bound_agent" in block, (
+    from core.brain.llm import context_assembler
+
+    source = module_source(context_assembler)
+    _name, decides = function_containing(
+        context_assembler, "agent_id = bound_agent"
+    )
+
+    # The hint is enough to model who she is talking to. It is not enough to
+    # hand over what somebody else told her, so it may be read and reported
+    # and never assigned.
+    assert "hinted_agent" in decides
+    assert "agent_id = hinted_agent" not in source
+    assert "agent_id = bound_agent" in decides, (
         "the identity that keys relational memory is not the bound one"
     )
-    assert "agent_id = hinted_agent" not in source
+    # And the process-global is still only ever a hint.
+    assert 'getattr(estimator, "active_agent_id"' in source
+    assert "agent_id = estimator" not in source
 
 
 def test_withholding_relational_memory_is_recorded():

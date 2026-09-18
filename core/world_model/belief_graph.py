@@ -53,6 +53,31 @@ def _on_a_running_loop() -> bool:
     return True
 
 
+def _params_overlap(p1: Dict[str, Any], p2: Dict[str, Any]) -> bool:
+    """Whether two parameter sets describe the same occasion.
+
+    Takes nothing from the graph, so it was never a method — and being one
+    cost BeliefGraph a place under the thirty-method ceiling that
+    tests/test_a_god_object_only_shrinks.py says a NEW class never gets
+    grandfathered past.
+    """
+
+    if not p1 or not p2:
+        return True
+    common = set(p1.keys()).intersection(set(p2.keys()))
+    if not common:
+        return True
+    matches = sum(1 for k in common if p1[k] == p2[k])
+    return matches / len(common) > 0.5
+
+
+def _record_graph_write_failure(exc: BaseException) -> None:
+    """Say a world-model snapshot did not land. Also takes nothing from it."""
+
+    record_degradation('belief_graph', exc)
+    logger.error("Failed to save world model: %s", exc)
+
+
 class BeliefGraph:
     """v6.5: Unified World Model & Causal Engine.
     Consolidates Beliefs, Expectations (Predictions), and Causal History (ACG).
@@ -76,7 +101,7 @@ class BeliefGraph:
         self._state_writer = SingleSlotStateWriter(
             "belief_graph.state",
             self._write_graph_payload,
-            on_error=self._record_graph_write_failure,
+            on_error=_record_graph_write_failure,
         )
 
         # Phase 44: Index sets for O(E) optimization (BUG-044)
@@ -582,10 +607,6 @@ class BeliefGraph:
                 source="belief_graph.save_graph",
             )
 
-    def _record_graph_write_failure(self, exc: BaseException) -> None:
-        record_degradation('belief_graph', exc)
-        logger.error("Failed to save world model: %s", exc)
-
     def flush(self, timeout: float = 5.0) -> bool:
         """Make a pending graph snapshot durable (tests, shutdown)."""
         return self._state_writer.flush(timeout)
@@ -671,16 +692,9 @@ class BeliefGraph:
         matches = []
         for link in self.causal_links:
             if link["action"] == action_type:
-                if params is None or self._params_overlap(link["params"], params):
+                if params is None or _params_overlap(link["params"], params):
                     matches.append(link)
         return matches
-
-    def _params_overlap(self, p1: Dict[str, Any], p2: Dict[str, Any]) -> bool:
-        if not p1 or not p2: return True
-        common = set(p1.keys()).intersection(set(p2.keys()))
-        if not common: return True
-        matches = sum(1 for k in common if p1[k] == p2[k])
-        return matches / len(common) > 0.5
 
     def _save_causal(self, force: bool = False):
         """Throttled save to prevent O(N) writes (BUG-040)."""

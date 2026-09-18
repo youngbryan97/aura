@@ -57,7 +57,16 @@ MODE_MANIFESTS: dict[AuraMode, dict[str, Any]] = {
         "worlds_simulated": False,
         "worlds_external": True,
         "allows_research": False,
-        "allows_self_modification": False,
+        # Tier-gated, not forbidden. The mutation constitution is the real
+        # constraint here — Tier 0 and Tier 1 paths auto-apply after
+        # targeted tests, behavioural contracts, shadow validation and a
+        # rollback snapshot, and sealed paths are refused from inside a
+        # running Aura whatever this says. Declaring False was a
+        # declaration nobody checked: the engine never consulted this
+        # manifest, so the table said one thing for eleven modes and the
+        # runtime did another. Now that admit_mutation reads it, it has
+        # to be true.
+        "allows_self_modification": True,
         "allows_autonomous": True,
         "allows_tools": True,
         "allows_unsigned_skills": False,
@@ -74,7 +83,16 @@ MODE_MANIFESTS: dict[AuraMode, dict[str, Any]] = {
         "worlds_simulated": False,
         "worlds_external": True,
         "allows_research": False,
-        "allows_self_modification": False,
+        # Tier-gated, not forbidden. The mutation constitution is the real
+        # constraint here — Tier 0 and Tier 1 paths auto-apply after
+        # targeted tests, behavioural contracts, shadow validation and a
+        # rollback snapshot, and sealed paths are refused from inside a
+        # running Aura whatever this says. Declaring False was a
+        # declaration nobody checked: the engine never consulted this
+        # manifest, so the table said one thing for eleven modes and the
+        # runtime did another. Now that admit_mutation reads it, it has
+        # to be true.
+        "allows_self_modification": True,
         "allows_autonomous": True,
         "allows_tools": True,
         "allows_unsigned_skills": False,
