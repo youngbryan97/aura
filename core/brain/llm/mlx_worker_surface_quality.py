@@ -220,13 +220,27 @@ def _apply_surface_generation_controls(
                 severity="error",
             )
             logger.warning("Surface steering clamp failed: %s", exc)
-    elif alpha == 0.0 and requested == 0.0:
-        # A missing optional steering engine is exactly equivalent to a zero
-        # steering request.  Treating this as an unapplied control made the
-        # neutral, user-visible path depend on the embellishment it disabled.
-        state["surface_alpha_applied"] = 0.0
     else:
-        state["apply_errors"].append("steering_unavailable")
+        # A missing steering engine is equivalent to a zero steering request,
+        # whatever was requested, because the clamp is a ceiling and not a
+        # target: it is applied as min(hook_alpha, alpha), so an absent
+        # engine produces less steering than any ceiling asks for, never
+        # more. Treating that as an unapplied control made the neutral path
+        # depend on the embellishment it disables — and where the request
+        # was non-zero it failed the whole turn closed.
+        #
+        # LIVE 2026-09-17 20:49:21: surface_controls_unavailable:
+        # steering_unavailable, classified foreground_blocking, and the
+        # person got "Generation failed" for an answer that would have been
+        # cleaner than the contract asked for.
+        state["surface_alpha_applied"] = 0.0
+        state["surface_steering_engine_absent"] = True
+        if requested > 0.0:
+            logger.info(
+                "🎚️ [WORKER] No steering engine; α=0.0 serves the requested "
+                "ceiling of %.3f, which is a floor nothing can exceed.",
+                requested,
+            )
 
     layer_view = resolve_model_layers(model)
     inner = layer_view.owner if layer_view is not None else None
@@ -965,6 +979,70 @@ def _semantic_completion_receipt_state(
         "semantic_completion_terminal_boundary": terminal_boundary,
         "semantic_completion_eos_boundary": eos_completion_boundary,
     }
+
+
+def semantic_completion_blockers(state: dict[str, Any]) -> list[str]:
+    """Name every condition that kept a generation from being complete.
+
+    The warning used to print four of the five things the decision is made
+    on. LIVE 2026-09-17, four times in one evening:
+
+        ended before semantic completion: missing_parts=[] quality=[]
+        epistemic_covered=True terminal_boundary=False tokens=244
+        stop=none spent_budget=False deadline=False
+
+    Every reported reason says the answer was fine, and the two conditions
+    that were not reported — unfulfilled discourse commitments, and whether
+    the model's own end-of-utterance counted as a boundary — are the only
+    ones left that could have fired. A warning that names four of five
+    reasons reads as a warning with no reason at all, and it is the fifth
+    that is always interesting.
+
+    Derived from the receipt rather than listed by hand, so a condition
+    added to the contract cannot be added without appearing here.
+    """
+
+    blockers: list[str] = []
+    if not state.get("semantic_completion_contract"):
+        return blockers
+    if state.get("semantic_completion_satisfied"):
+        return blockers
+    if state.get("semantic_completion_missing_part_indexes"):
+        blockers.append(
+            "unanswered_parts="
+            f"{list(state['semantic_completion_missing_part_indexes'])}"
+        )
+    if state.get("semantic_completion_quality_reasons"):
+        blockers.append(
+            f"quality={list(state['semantic_completion_quality_reasons'])}"
+        )
+    if state.get("semantic_completion_epistemic_partition_covered") is not True:
+        blockers.append(
+            "epistemic_partition="
+            f"{state.get('semantic_completion_epistemic_partition_covered')!r}"
+        )
+    unfulfilled = state.get("semantic_completion_unfulfilled_discourse") or []
+    if unfulfilled:
+        blockers.append(
+            "unfulfilled_discourse="
+            + repr(
+                [
+                    f"{item.get('kind')}:{item.get('observed_count')}"
+                    f"/{item.get('expected_count')}"
+                    for item in unfulfilled
+                ]
+            )
+        )
+    if not state.get("semantic_completion_terminal_boundary"):
+        blockers.append("no_terminal_boundary")
+    if not state.get("semantic_completion_eos_boundary"):
+        blockers.append("no_eos_boundary")
+    if not blockers:
+        # Every named condition passed and the validator still refused. That
+        # is the validator and these diagnostics disagreeing, which is worth
+        # more than either of them being quietly wrong.
+        blockers.append("validator_refused_with_no_named_condition")
+    return blockers
 
 
 def _semantic_terminal_grace_eligible(
