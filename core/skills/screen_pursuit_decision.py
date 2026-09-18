@@ -806,7 +806,16 @@ def _decide_the_next_move_nothing_task_working(can_do, move_keys, observation, o
     # habit of using only some of them can keep from ever happening.
     if not ended and knows is not None and laid_out is not None and getattr(laid_out, "cells", None):
         rules = getattr(knows, "rules", None)
-        if rules is not None and rules.rule() is not None:
+        # A rule that has never seen anything move says what she watched, not
+        # how this world works. LIVE 2026-09-17: her first four keys went into
+        # a board that had already finished, so what she composed was "this
+        # does not move" — and that rule then said a freshly dealt board was
+        # finished too. She began again, read a new board, was told it was
+        # dead, began again, forty times in a minute. Where nothing has ever
+        # moved she finds out by acting, which is what the other tests here
+        # are for.
+        has_seen_movement = int(getattr(rules, "moved", 0) or 0) > 0
+        if rules is not None and has_seen_movement and rules.rule() is not None:
             names = [str(key) for key in (can_do.available() or move_keys)]
             futures = [rules.expect(laid_out, name) for name in names]
             if names and all(
