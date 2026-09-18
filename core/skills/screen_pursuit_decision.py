@@ -1392,8 +1392,16 @@ async def decide_the_next_move(
                     len(moves),
                     holding=plan["held"].approach if plan["held"] is not None else "",
                 )
-                if reached and narrate:
-                    _tell(f"Where this stands: {going.where_it_stands(len(moves))}.")
+                if reached:
+                    # The line that was being held when she got up a rung is
+                    # a line that worked, and that is what a line is for.
+                    # Graded per move, an approach is judged on whether the
+                    # last keystroke came out — which is the move's business,
+                    # not the approach's.
+                    if plan["held"] is not None:
+                        lines.learned(A_LINE_HERE, plan["held"].approach, True)
+                    if narrate:
+                        _tell(f"Where this stands: {going.where_it_stands(len(moves))}.")
             _say_what_she_worked_out(knows, foreseen)
             _say_what_kind_of_problem(
                 knows, screen_options(move_keys), laid_out, success_when, foreseen
@@ -1577,6 +1585,10 @@ async def decide_the_next_move(
             if stalled:
                 holding = False
                 ended = f"it has not moved me on: {stalled}"
+                # And a line dropped for not moving her is a line that did
+                # not work here, which is the other half of learning one.
+                if plan["held"] is not None:
+                    lines.learned(A_LINE_HERE, plan["held"].approach, False)
                 going.it_was_reassessed()
                 logger.info("the approach is being looked at again: %s", stalled)
         time_to_ask = lost and _decide_the_next_move_part_14(ended, holding, looking_at_the_thing, moves, plan, costs)

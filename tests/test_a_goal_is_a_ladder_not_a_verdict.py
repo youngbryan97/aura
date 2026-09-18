@@ -122,10 +122,27 @@ def test_the_run_carries_it_and_the_approach_is_reconsidered_on_it():
     assert '"how_it_is_going": going.as_memory()' in source
     # A rung is recorded where she notices she got further.
     at = source.index("going.noticed(")
-    assert "holding=plan[\"held\"].approach" in source[at : at + 300]
+    assert "holding=plan[\"held\"].approach" in source[at : at + 400]
     # And the approach is reconsidered because it stopped moving her.
     at = source.index("going.why_reassess(len(moves))")
-    nearby = source[at - 200 : at + 400]
+    nearby = source[at - 200 : at + 800]
     assert "still_holds" in source[: at]
     assert "it has not moved me on" in nearby
     assert "going.it_was_reassessed()" in nearby
+
+
+def test_a_line_is_graded_by_whether_it_moved_her_up_a_rung():
+    """An approach judged per move is judged on whether the last keystroke came out.
+
+    That is the move's business. What an approach is for is getting her from
+    one rung to the next, so that is what it is credited and debited on.
+    """
+    from screen_pursuit_support import pursuit_source
+
+    source = pursuit_source()
+    at = source.index("going.noticed(")
+    credited = source[at : at + 900]
+    assert 'lines.learned(A_LINE_HERE, plan["held"].approach, True)' in credited
+    at = source.index("going.why_reassess(len(moves))")
+    debited = source[at : at + 700]
+    assert 'lines.learned(A_LINE_HERE, plan["held"].approach, False)' in debited
