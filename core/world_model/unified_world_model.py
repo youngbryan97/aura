@@ -179,7 +179,7 @@ class UnifiedWorldModel:
         fallback for the other: they answer different questions about
         different kinds of observation, and asking the wrong one gets nothing.
         """
-        if hasattr(observation, "cells") and hasattr(observation, "as_text"):
+        if self._imagination_facet(observation) == "rules":
             return self._imagine_typed(observation, action_sequence)
         m = self.learned
         if m is None:
@@ -190,6 +190,10 @@ class UnifiedWorldModel:
         except (AttributeError, RuntimeError, OSError, ValueError, TypeError) as exc:
             record_degradation("unified_world_model", exc, severity="debug", action="imagine failed")
             return None
+
+    @staticmethod
+    def _imagination_facet(observation: Any) -> str:
+        return "rules" if hasattr(observation, "cells") and hasattr(observation, "as_text") else "learned"
 
     def _imagine_typed(
         self, state: Any, action_sequence: Sequence[Any]
@@ -339,7 +343,7 @@ class UnifiedWorldModel:
         routes: Dict[str, tuple] = {
             "observe": ("learned", self.observe),
             "surprise": ("learned", lambda **k: self.surprise()),
-            "imagine": ("learned", self.imagine),
+            "imagine": (self._imagination_facet(kwargs.get("observation")), self.imagine),
             "watched": ("rules", self.watched),
             "predict_outcome": ("outcome", self.predict_outcome),
             "observe_episode": ("outcome", self.observe_episode),

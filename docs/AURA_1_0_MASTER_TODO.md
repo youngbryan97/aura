@@ -963,6 +963,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Completed atomic-literal comparison](evidence/G03_ATOMIC_LITERAL_RESULT_2026-09-14.md)
   is 473/500: four gains and five regressions against the 474/500 parent.
   Candidate not promoted; learned role assignment remains unresolved.
+  [Runtime retention trial](evidence/G03_RUNTIME_RETENTION_2026-09-17.md)
+  records the completed negative 500-row comparison and the first small
+  runtime-chart trial. The incumbent remains selected; G03 stays open.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.

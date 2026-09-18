@@ -175,9 +175,26 @@ def find_graph_counterexample(chart: ScoredArgumentChart, nodes, target_argument
         receipt.update(status="no_incorrect_graph", search_complete=True, equivalence_class_proof=class_proof)
         return GraphCounterexampleSearch(positive, None, receipt,
                                          positive_evidence[0] if positive_evidence else ())
-    excluded = [target_arguments]
+    return find_program_counterexample(chart, nodes, target, probes=probes, max_graphs=max_graphs,
+        progress=progress, solve_time_limit_s=solve_time_limit_s, positive=positive,
+        positive_evidence=positive_evidence[0] if positive_evidence else (), excluded_graphs=(target_arguments,))
+
+
+def find_program_counterexample(chart: ScoredArgumentChart, nodes, target: Program, *, probes=(), max_graphs=128,
+                                progress=None, solve_time_limit_s=None, positive=None,
+                                positive_evidence=(), excluded_graphs=()):
+    """Search a runtime chart even when its operations differ from the source target."""
+    if type(max_graphs) is not int or max_graphs < 1:
+        raise ValueError("counterexample graph allowance must be positive")
+    if target.n_inputs != chart.n_inputs:
+        raise ValueError("semantic contrast public input geometry differs")
+    receipt = {"schema": "aura.semantic_graph_counterexample.v1", "serving_authority": False,
+               "source_target_available": True, "max_graphs": max_graphs, "examined": [],
+               "solve_time_limit_s": solve_time_limit_s,
+               "search_complete": False, "highest_incorrect_proven": False}
+    excluded = list(excluded_graphs)
     unresolved = False
-    best_evidence = positive_evidence[0] if positive_evidence else ()
+    best_evidence = positive_evidence
     for _ in range(max_graphs):
         if progress:
             progress({"stage": "alternative_graph", "excluded_graphs": len(excluded)})
@@ -202,9 +219,14 @@ def find_graph_counterexample(chart: ScoredArgumentChart, nodes, target_argument
                                             candidate_evidence[0] if candidate_evidence else ())
         if comparison["status"] == "unknown":
             unresolved = True
-        elif candidate[0][0] > positive[0][0]:
+        elif positive is None or candidate[0][0] > positive[0][0]:
             positive = candidate
             best_evidence = candidate_evidence[0] if candidate_evidence else ()
+        class_proof = uniform_reduction_equivalence(chart, nodes)
+        if comparison["status"] == "equivalent" and class_proof is not None:
+            receipt.update(status="no_incorrect_graph", search_complete=True,
+                           equivalence_class_proof=class_proof)
+            return GraphCounterexampleSearch(positive, None, receipt, best_evidence)
         excluded.append(arguments)
     receipt["status"] = "search_incomplete"
     return GraphCounterexampleSearch(positive, None, receipt, best_evidence)

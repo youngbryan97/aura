@@ -16,7 +16,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from core.world_model.learned_world_model import LearnedWorldModel, WorldModelPrediction
+from core.world_model.learned_world_model import LearnedWorldModel
 
 logger = logging.getLogger("Aura.MCTSPlanner")
 
@@ -73,7 +73,7 @@ class LearnedMCTSPlanner:
         if not action_space:
             raise ValueError("LearnedMCTSPlanner requires at least one action")
         self.action_space = action_space
-        self.value_scorer = value_scorer  # Must score a latent/observation state
+        self.value_scorer = value_scorer  # Scores the recurrent hidden state.
         self.c_puct = exploration_constant
         self.max_depth = max_depth
         self.num_simulations = num_simulations
@@ -146,18 +146,7 @@ class LearnedMCTSPlanner:
     def _encode_root(self, current_observation: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Encode the current observation without mutating the learned model."""
 
-        obs = self.world_model._pad_or_truncate(
-            current_observation,
-            self.world_model.config.observation_dim,
-        )
-        hidden = self.world_model.h.copy()
-        enc_input = np.concatenate([obs, hidden])
-        post_params = self.world_model.W_enc @ enc_input + self.world_model.b_enc
-        post_mean, _post_logvar = np.split(post_params, 2)
-        latent = np.asarray(post_mean, dtype=np.float32)
-        zero_action = np.zeros(self.world_model.config.action_dim, dtype=np.float32)
-        next_hidden = self.world_model._gru_step(np.concatenate([latent, zero_action]), hidden)
-        return latent, next_hidden
+        return self.world_model.rollout_start(current_observation)
 
     def _select_child(self, node: MCTSNode) -> Tuple[int, MCTSNode]:
         """Select child using PUCT algorithm (combines Q, Prior, and Uncertainty)."""
@@ -201,25 +190,13 @@ class LearnedMCTSPlanner:
                 node.children[action_idx] = child
                 continue
 
-            # Use VRNN to predict next state
-            act_pad = self.world_model._pad_or_truncate(action, self.world_model.config.action_dim)
-            
-            # Predict from Prior: P(z | h)
-            prior_params = self.world_model.W_prior @ node.hidden_state + self.world_model.b_prior
-            prior_mean, prior_logvar = np.split(prior_params, 2)
-            prior_logvar = np.clip(prior_logvar, -5.0, 2.0)
-            
-            # Use the deterministic prior mean for planning stability. The
-            # variance still contributes to uncertainty-driven exploration.
-            z = prior_mean.astype(np.float32)
-            
-            # Transition: h' = GRU(z, a, h)
-            gru_input = np.concatenate([z, act_pad])
-            next_h = self.world_model._gru_step(gru_input, node.hidden_state)
+            prediction, next_h = self.world_model.rollout_step(
+                node.latent_state, node.hidden_state, action
+            )
             
             # Create child
             child = MCTSNode(
-                latent_state=z,
+                latent_state=prediction.latent_mean,
                 hidden_state=next_h,
                 parent=node,
                 action_from_parent=action,
@@ -227,7 +204,7 @@ class LearnedMCTSPlanner:
             )
             
             # High variance in the prior means uncertain transition
-            child.uncertainty = float(np.mean(np.exp(prior_logvar)))
+            child.uncertainty = float(np.mean(np.exp(prediction.latent_logvar)))
             
             node.children[action_idx] = child
 

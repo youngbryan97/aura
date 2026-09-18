@@ -10,6 +10,7 @@ from core.learning.semantic_graph_counterexamples import (
     argument_graph_program,
     compare_program_meanings,
     find_graph_counterexample,
+    find_program_counterexample,
     uniform_reduction_equivalence,
 )
 from core.learning.semantic_program_ir import TokenSpan
@@ -56,6 +57,29 @@ def test_real_wrong_binding_has_a_floor_execution_witness():
     witness = comparison["witness"]
     assert witness["outputs"][0] == 9 and witness["outputs"][1] != 9
     assert all(r["execution_engine"] == "universal_metered_floor" for r in witness["execution_receipts"])
+
+
+def test_other_operation_chart_is_compared_without_forcing_source_operations():
+    target = Program(2, (Instruction("mul", (0, 1)),))
+    result = find_program_counterexample(chart(2), nodes("sub"), target, probes=[(2, 7)])
+    assert result.positive is None
+    assert result.negative is not None and result.receipt["highest_incorrect_proven"]
+    witness = result.receipt["examined"][0]["comparison"]["witness"]
+    assert witness["outputs"][0] == 14 and witness["outputs"][1] != 14
+
+
+def test_cross_chart_equivalent_program_can_supply_a_positive_without_a_source_binding():
+    result = find_program_counterexample(chart(2), nodes(),
+        Program(2, (Instruction("add", (1, 0)),)), probes=[])
+    assert result.positive is not None and result.negative is None
+    assert result.receipt["search_complete"]
+
+
+def test_cross_chart_finite_agreement_is_not_retained_as_positive():
+    result = find_program_counterexample(chart(2), nodes("sub"),
+        Program(2, (Instruction("mul", (0, 1)),)), probes=[(0, 0)])
+    assert result.positive is None and result.negative is None
+    assert result.receipt["status"] == "equivalence_unresolved"
 
 
 def test_no_distinguishing_probe_is_unknown_not_an_incorrect_label():

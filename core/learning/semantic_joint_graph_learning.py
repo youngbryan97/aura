@@ -47,11 +47,17 @@ def score_annotated_graph(model, item, instructions, input_spans, *, solve_time_
         time_limit_s=solve_time_limit_s, relation_observer=evidence.append)
     if result is None:
         return None
+    return scored_graph_evidence(model, item, nodes, result, evidence[0], learn_arguments=learn_arguments)
+
+
+def scored_graph_evidence(model, item, nodes, result, relations, *, learn_arguments=False):
+    """Retain differentiable terms for the same latent graph the solver selected."""
     score = result[0][0] + sum(node.score for node in nodes) - model.operation_length_penalty * len(nodes)
     from core.learning.semantic_argument_graph_learning import argument_graph_evidence
     terms = argument_graph_evidence(model, item.hidden_states, nodes, result[0][2]) if learn_arguments else ()
-    return {"score": score, "argument_score": result[0][0], "relations": evidence[0], "argument_terms": terms,
-            "operations": operations, "program": argument_graph_program(nodes, arguments, n_inputs=count)}
+    return {"score": score, "argument_score": result[0][0], "relations": relations, "argument_terms": terms,
+            "operations": operation_graph_evidence(model, item.hidden_states, nodes),
+            "program": argument_graph_program(nodes, result[0][1], n_inputs=len(item.public_inputs))}
 
 
 def joint_graph_contrast(model, positive, negative, *, weight=1.):
@@ -218,7 +224,7 @@ def source_operation_constraints(model, supervision, *, weight=1.):
 def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
                                     solve_time_limit_s=20., progress=None, source_weight=1.,
                                     constraint_learning=False, learn_arguments=False,
-                                    checkpoint_dir=None):
+                                    checkpoint_dir=None, retention_operation_charts=32):
     """Remine source-training predictions after each joint operation/relation update."""
     from core.learning.semantic_graph_margin import graph_refit_source_splits
     from core.learning.semantic_program_campaign import _sha
@@ -230,6 +236,8 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         raise ValueError("argument graph learning requires retained constraints")
     if checkpoint_dir is not None and not constraint_learning:
         raise ValueError("fit checkpoints require retained semantic constraints")
+    if type(retention_operation_charts) is not int or retention_operation_charts < 1:
+        raise ValueError("runtime retention chart allowance must be positive")
     training, validation = graph_refit_source_splits(model, examples)
     if not np.isfinite(source_weight) or source_weight < 0:
         raise ValueError('invalid source operation retention weight')
@@ -252,6 +260,15 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
                 retained.append(contrast)
                 new_pairs += 1
             if constraint_learning:
+                from core.learning.semantic_runtime_graph_retention import mine_runtime_graph_constraints
+
+                competitors, competitor_record = mine_runtime_graph_constraints(candidate, item,
+                    weight=1. / weights[_geometry(item)], max_charts=retention_operation_charts,
+                    solve_time_limit_s=solve_time_limit_s, learn_arguments=learn_arguments)
+                record["runtime_constraints"] = competitor_record
+                competitor_record["retained_pairs"] = list(range(len(retained), len(retained) + len(competitors)))
+                retained.extend(competitors)
+                new_pairs += len(competitors)
                 binding, binding_record = mine_source_binding_constraint(candidate, item,
                     weight=1. / weights[_geometry(item)], solve_time_limit_s=solve_time_limit_s, learn_arguments=learn_arguments)
                 record["binding_constraint"] = binding_record
@@ -309,6 +326,8 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         "constraint_learning": constraint_learning,
         "argument_heads_trainable": learn_arguments,
         "already_correct_binding_competitors_retained": constraint_learning,
+        "runtime_operation_competitors_retained": constraint_learning,
+        "retention_operation_charts": retention_operation_charts if constraint_learning else None,
         "input_coordinate_policy": "source_anchor_value_preserving_permutation_v1",
     }
     return replace(candidate, training_receipt={**body, "receipt_sha256": _sha(body)})
