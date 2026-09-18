@@ -49,6 +49,7 @@ from core.config import config
 from core.continuity import is_evaluation_contamination
 from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
+from core.agency.commitment_engine import a_place_for_its_commitment
 from core.runtime.lockdep import checked_lock
 from core.runtime.skill_task_bridge import looks_like_multi_step_skill_request
 from core.runtime.structured_input import looks_like_learning_resource_bundle
@@ -680,6 +681,10 @@ class TaskCommitmentVerifier(_KeepsTheTaskLedger):
             source="commitment_verifier_inline",
             quick_win=True,
         )
+        # Somewhere for the work to find its promise, made before the work
+        # starts so the work holds it. A task that outlasts the inline wait is
+        # given its commitment then, and reports how far along it is into it.
+        slot = a_place_for_its_commitment()
         execution_task = get_task_tracker().create_task(
             task_engine.execute(
                 goal=objective,
@@ -753,6 +758,7 @@ class TaskCommitmentVerifier(_KeepsTheTaskLedger):
             )
         except asyncio.TimeoutError:
             commitment_id = self._register_commitment(objective)
+            slot["id"] = commitment_id
             updates: Dict[str, Any] = {"status": "running_async"}
             if commitment_id:
                 updates["commitment_id"] = commitment_id
@@ -828,6 +834,8 @@ class TaskCommitmentVerifier(_KeepsTheTaskLedger):
         execution_origin = self._resolve_execution_origin(state)
         # Register with CommitmentEngine for cross-session tracking
         commitment_id = self._register_commitment(objective)
+        slot = a_place_for_its_commitment()
+        slot["id"] = commitment_id
 
         await self._store_task_entry_async(
             task_id,

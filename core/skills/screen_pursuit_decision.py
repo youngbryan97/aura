@@ -880,6 +880,14 @@ async def decide_the_next_move(
                     doing.getting_somewhere(
                         going.where_it_stands(len(moves)), reached=made
                     )
+                    # And the promise this run belongs to, when a request made
+                    # one: what she carries into conversation about it said
+                    # 0% for as long as she worked on it.
+                    from core.agency.commitment_engine import report_progress
+
+                    report_progress(
+                        going.share_done(len(moves)), going.where_it_stands(len(moves))
+                    )
                     # How the line she was holding did against what she said
                     # it would do. A prediction nobody reports on is a wish.
                     if narrate:

@@ -32,6 +32,7 @@ from core.runtime.atomic_writer import atomic_write_text
 import json
 import logging
 import time
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -84,7 +85,16 @@ class Commitment:
             time_str = f"{remaining:.1f}h remaining"
         else:
             time_str = f"{remaining/24:.1f}d remaining"
-        return f"[{self.commitment_type.value}] {self.description[:60]} — {time_str}"
+        brief = f"[{self.commitment_type.value}] {self.description[:60]} — {time_str}"
+        # How far along, where the work has said. A promise carried into
+        # conversation at 0% while the work was three rungs from its finish
+        # was her own record contradicting what she was doing.
+        if self.progress > 0.0:
+            brief = f"{brief}, {self.progress:.0%} done"
+            said = next((note for note in reversed(self.notes) if note.startswith("[Update] ")), "")
+            if said:
+                brief = f"{brief} ({said[len('[Update] '):][:100]})"
+        return brief
 
 
 class CommitmentEngine:
@@ -474,6 +484,64 @@ class CommitmentEngine:
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
 _engine: Optional[CommitmentEngine] = None
+
+
+#: The promise the work running here belongs to, where it belongs to one.
+#:
+#: A slot rather than the id. A task that turns out to be long is given its
+#: commitment after it has started, and the work it started with still holds
+#: the same slot, so it reports into the promise without having to know one
+#: was made.
+_WORKING_FOR: ContextVar[dict[str, str | None] | None] = ContextVar(
+    "aura_commitment_working_for", default=None
+)
+
+#: What progress may say before the work itself says it is finished. A
+#: projection that reaches the end is still a projection, and only the work's
+#: own verdict fulfils a promise.
+_SHORT_OF_DONE = 0.99
+
+#: How many updates a promise keeps. The latest is what is carried into
+#: conversation; the rest are the story of how it went.
+_UPDATES_KEPT = 24
+
+
+def a_place_for_its_commitment() -> dict[str, str | None]:
+    """Give the work about to start here somewhere to find its promise.
+
+    Called before the work starts; the promise's id is put in the slot when it
+    exists.
+    """
+    slot: dict[str, str | None] = {"id": None}
+    _WORKING_FOR.set(slot)
+    return slot
+
+
+def report_progress(share: float, note: str = "") -> bool:
+    """How far along the work running here is, told to the promise it belongs to.
+
+    False where it belongs to none. Saved off the event loop: the work that
+    reports is usually on it, and a write there stops everything else.
+    """
+    slot = _WORKING_FOR.get()
+    promised = (slot or {}).get("id")
+    if not promised:
+        return False
+    engine = get_commitment_engine()
+    commitment = engine._commitments.get(str(promised))  # noqa: SLF001 - its own module
+    if commitment is None or commitment.status != CommitmentStatus.ACTIVE:
+        return False
+    commitment.progress = max(0.0, min(_SHORT_OF_DONE, float(share)))
+    if note:
+        commitment.notes.append(f"[Update] {' '.join(str(note).split())[:200]}")
+        del commitment.notes[:-_UPDATES_KEPT]
+    try:
+        import asyncio  # noqa: PLC0415
+
+        asyncio.get_running_loop().run_in_executor(None, engine._save)  # noqa: SLF001
+    except RuntimeError:
+        engine._save()  # noqa: SLF001 - no loop here, so nothing to stop
+    return True
 
 
 def get_commitment_engine() -> CommitmentEngine:
