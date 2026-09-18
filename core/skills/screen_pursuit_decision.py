@@ -1383,13 +1383,23 @@ async def decide_the_next_move(
             )
             if len(moves) % 6 == 0 and knows.rules is not None:
                 logger.info(
-                    "after %d move(s): %s%s | reading %dx%d%s",
+                    "after %d move(s): %s%s | reading %dx%d%s | %s",
                     len(moves),
                     knows.rules.says(),
                     _what_she_is_not_reading(knows.rules),
                     laid_out.rows,
                     laid_out.columns,
                     _what_she_could_not_learn_from(dropped),
+                    # What a move costs her, said where anyone watching the
+                    # run can see it: a demo is a latency measurement.
+                    "a look took %.2fs of which %.2fs was reading it, and she "
+                    "thought for %.2fs"
+                    % (
+                        float(observation.get("seconds_to_still", 0.0) or 0.0)
+                        + float(observation.get("seconds_reading", 0.0) or 0.0),
+                        float(observation.get("seconds_reading", 0.0) or 0.0),
+                        float(pending.get("thought_for", 0.0) or 0.0),
+                    ),
                 )
         _decide_the_next_move_learned_same_measurement(anchor, attempt, observation, pending, previous, responds, target_app)
         if moves:
@@ -1788,19 +1798,32 @@ async def decide_the_next_move(
             # confirms. Measured 2026-09-17 on eight simulated games: at 0.3s
             # a move all eight reached 2048, and a two-second allowance won the
             # same eight with pauses of nearly three seconds.
-            looks = list(getattr(run, "reading_took", None) or [])
-            a_look = (sum(looks) / len(looks)) if looks else 0.3
+            # As long as reading one costs her, not as long as the world
+            # takes to answer.
+            #
+            # The time between her act and her next look is mostly the world
+            # moving: a board slides and settles. Counting that as the cost of
+            # looking made her think for two seconds a move on a game that
+            # answers in a fifth of one, which is a demo nobody would call
+            # real time (live, 2026-09-17).
+            a_read = float(observation.get("seconds_reading", 0.0) or 0.0)
+            if a_read <= 0.0:
+                looks = list(getattr(run, "reading_took", None) or [])
+                a_read = (sum(looks) / len(looks)) if looks else 0.3
+            thinking_for = max(0.05, min(2.0, (ends_at - time.monotonic()) * 0.02, max(0.3, a_read)))
+            thought_from = time.monotonic()
             ahead = look_ahead(
                 knows.rules,
                 laid_out,
                 [option.name for option in available],
                 toward=aiming_at,
                 approach=held_line,
-                budget_s=max(0.05, min(2.0, (ends_at - time.monotonic()) * 0.02, max(0.3, a_look))),
+                budget_s=thinking_for,
                 world=world,
                 # What matters HERE, once she has watched enough to say.
                 weights=matters.weights(),
             )
+            pending["thought_for"] = time.monotonic() - thought_from
         # And what a move would TELL her, which is a different question
         # from where it leads.
         #
