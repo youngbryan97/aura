@@ -116,3 +116,53 @@ async def test_an_unlocked_screen_says_nothing(monkeypatch):
     )
     await wait_for_a_screen_to_look_at(time.monotonic() + 30.0)
     assert said == []
+
+
+@pytest.mark.asyncio
+async def test_a_screen_locked_mid_run_is_waited_out_not_the_end_of_it(monkeypatch):
+    """LIVE 2026-09-17: the screen locked on move 226 of a game she was winning.
+
+    The reading came back refused and the run ended, "nothing on screen
+    offered a move". It is the same condition she waits out before a run
+    starts, and it passes the same way.
+    """
+    from types import SimpleNamespace
+
+    from core.skills import screen_pursuit_observing as observing
+
+    readings = [
+        {"ok": False, "text": "", "layout": [], "grids": [], "refused_because": "session_locked"},
+        {"ok": True, "text": "2 4", "layout": [], "grids": [{"rows": 4, "columns": 4, "says": ["2"] * 16}]},
+    ]
+    waited: list[str] = []
+
+    async def read(app_name="", over=None):
+        return readings.pop(0) if len(readings) > 1 else readings[0]
+
+    async def unlocks(ends_at, *, app=""):
+        waited.append(app)
+        return True
+
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "wait_for_a_screen_to_look_at", unlocks)
+    monkeypatch.setattr(observing, "_frontmost", _no_one, raising=False)
+
+    seen = await observing.observe_the_screen(
+        SimpleNamespace(
+            anchor={"app": "Some Game", "page": "", "settled": True},
+            at_rest={"reading": None},
+            drawn={"where": None},
+            ends_at=time.monotonic() + 30.0,
+            expect_page="",
+            lost_page={"value": False},
+            open_page=None,
+            reading_took=[],
+            target_app="Some Game",
+        )
+    )
+    assert waited == ["Some Game"]
+    assert seen.get("ok") is True
+
+
+async def _no_one(*_a, **_k):
+    return "Some Game"

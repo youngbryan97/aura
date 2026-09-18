@@ -1241,6 +1241,7 @@ async def pursue_on_screen(
                 anchor=anchor,
                 at_rest=at_rest,
                 drawn=drawn,
+                ends_at=ends_at,
                 expect_page=expect_page,
                 lost_page=lost_page,
                 open_page=open_page,
