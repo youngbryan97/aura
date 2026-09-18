@@ -657,6 +657,22 @@ class HowItMoves:
         self.seen += 1
         self.recent.append((str(action), frozenset(agreed)))
         del self.recent[:-REMEMBERED]
+        # What a pair that agreed with nothing actually was.
+        #
+        # A rule sitting at half of what it watched is either a world that
+        # does not work the way she thinks or a pair she should not have
+        # believed, and the two are told apart by looking at the pair. Said
+        # for the first few and then every twentieth, because it is the same
+        # fault repeating or it is not a fault.
+        if not agreed and told_apart:
+            self.disagreed = getattr(self, "disagreed", 0) + 1
+            if self.disagreed <= 3 or not self.disagreed % 20:
+                logger.info(
+                    "nothing she knows explains %s: %s -> %s",
+                    action,
+                    " / ".join(_rows_of(here)),
+                    " / ".join(_rows_of(there)),
+                )
 
     # ── using it ─────────────────────────────────────────────────────────
 
@@ -1000,6 +1016,18 @@ class HowItMoves:
                 said = f"{said}; closest is {name} at {right}/{tried}"
             return f"{said})"
         return f"this {rule.name} — right {self.confidence():.0%} of {self.tried.get(rule.name, 0)}"
+
+
+def _rows_of(arrangement: Any) -> list[str]:
+    """One line per row, for saying a small world out loud."""
+    rows: list[str] = []
+    for row in range(int(getattr(arrangement, "rows", 0) or 0)):
+        said = []
+        for column in range(int(getattr(arrangement, "columns", 0) or 0)):
+            cell = arrangement.at(row, column)
+            said.append(str(getattr(cell, "says", "") or ".") if cell else ".")
+        rows.append(" ".join(said))
+    return rows
 
 
 def prediction_held(predicted: Any, seen: Any) -> bool:
