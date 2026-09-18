@@ -13,7 +13,6 @@ would say about itself.
 
 from __future__ import annotations
 
-import ast
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -162,8 +161,9 @@ def test_the_tick_is_closed_in_a_finally_so_failed_turns_are_kept() -> None:
     # red when the method-size sweep lifted the whole finally-body into
     # _run_thinking_loop_closed_rather_after — leaving the CALL in the
     # finally, so the guarantee never moved. Checked as the exit path now.
-    import core.brain.cognitive_engine as engine_module
     from source_contract import reached_from_a_finally
+
+    import core.brain.cognitive_engine as engine_module
 
     assert reached_from_a_finally(engine_module, "_close_provenance_tick("), (
         "the provenance tick is closed on the success path only, so a turn "
