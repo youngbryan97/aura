@@ -31,7 +31,7 @@ def valid_background_contract(head, receipt):
         and record.get("background_label") == OPERATION_BACKGROUND_LABEL
         and record.get("modes") == list(head.modes)
         and record.get("labels") == list(head.labels)
-        and record.get("score") == "pointer_plus_log_joint_operation_probability_v1"
+        and record.get("score") in {"pointer_plus_log_joint_operation_probability_v1", "joint_operation_background_log_odds_v2"}
         and record.get("validation_used_for_fit") is False
         and record.get("test_examples_used") == 0
         and record.get("serving_authority") is False
@@ -61,8 +61,10 @@ def operation_background_training_spans(item, pointer, max_span_tokens):
     return tuple(rows)
 
 
-def refit_compositional_operation_background(model, examples, *, progress=None):
+def refit_compositional_operation_background(model, examples, *, progress=None, background_log_odds=False):
     """Fit one shared head on source training spans, including non-operation spans."""
+    if type(background_log_odds) is not bool:
+        raise ValueError("background odds option must be boolean")
     train = tuple(item for item in examples if item.split == "train")
     held = tuple(item for item in examples if item.split != "train")
     ids = [item.ir.source_text_sha256 for item in train]
@@ -96,6 +98,8 @@ def refit_compositional_operation_background(model, examples, *, progress=None):
     head = MultiViewClassifierHead(model.operation_head.modes, tuple(heads))
     coefficient = model._coefficient_body()
     coefficient["operation_head"] = head.to_dict()
+    penalty = 0.0 if background_log_odds else model.operation_length_penalty
+    coefficient["operation_length_penalty"] = penalty
     body = {key: value for key, value in model.training_receipt.items() if key != "receipt_sha256"}
     body["coefficient_sha256"] = _sha(coefficient)
     body["operation_background_fit"] = {
@@ -103,7 +107,8 @@ def refit_compositional_operation_background(model, examples, *, progress=None):
         "parent_transducer_receipt_sha256": model.receipt_sha256,
         "background_label": OPERATION_BACKGROUND_LABEL,
         "modes": list(head.modes), "labels": list(head.labels),
-        "score": "pointer_plus_log_joint_operation_probability_v1",
+        "score": "joint_operation_background_log_odds_v2" if background_log_odds
+        else "pointer_plus_log_joint_operation_probability_v1",
         "training_examples": len(train), "training_ids_sha256": _sha(sorted(ids)),
         "positive_spans": sum(label != OPERATION_BACKGROUND_LABEL for label in labels),
         "background_spans": labels.count(OPERATION_BACKGROUND_LABEL),
@@ -113,4 +118,5 @@ def refit_compositional_operation_background(model, examples, *, progress=None):
     }
     if body.get("operation_search_policy") == "complete_bounded_v1":
         body["operation_label_limit"] = len(head.labels)
-    return replace(model, operation_head=head, training_receipt={**body, "receipt_sha256": _sha(body)})
+    return replace(model, operation_head=head, operation_length_penalty=penalty,
+                   training_receipt={**body, "receipt_sha256": _sha(body)})

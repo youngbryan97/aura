@@ -129,3 +129,35 @@ def test_duplicate_or_cross_split_source_rejected_before_fit(parent, monkeypatch
     for extra in (item, replace(item, split="validation")):
         with pytest.raises(ValueError, match="unique disjoint"):
             background.refit_compositional_operation_background(parent, (*examples, extra))
+
+
+def test_background_odds_are_one_joint_score_not_two_evidence_scales(parent):
+    item = _examples()[0]
+    width = parent.operation_head.heads[0].width
+    head = LinearClassifierHead((OPERATION_BACKGROUND_LABEL, "add", "sub"),
+                                np.zeros((3, width)), np.array([0., 2., 1.]))
+    nodes = _operation_nodes(pointer=parent.operation_pointer,
+        classifier=MultiViewClassifierHead(parent.operation_head.modes, (head,)),
+        hidden=item.hidden_states, input_spans=item.ir.input_spans,
+        max_span_tokens=parent.max_span_tokens, hidden_channels=parent.hidden_channels,
+        hidden_channel_widths=parent.hidden_channel_widths, label_limit=3, background_log_odds=True)
+    assert nodes and len({node.pointer_score for node in nodes}) > 1
+    assert all(node.score == pytest.approx(2. if node.operation == "add" else 1.) for node in nodes)
+
+
+def test_joint_background_policy_survives_export_and_reaches_decode(parent, monkeypatch):
+    model = background.refit_compositional_operation_background(parent, _examples(), background_log_odds=True)
+    assert model.operation_length_penalty == 0.
+    restored = compositional_semantic_program_transducer_from_dict(model.to_dict())
+    import core.learning.semantic_program_compositional_transducer as runtime
+    original = runtime._operation_nodes
+    seen = []
+    def capture(**kwargs):
+        seen.append(kwargs["background_log_odds"])
+        return original(**kwargs)
+    monkeypatch.setattr(runtime, "_operation_nodes", capture)
+    item = _examples()[0]
+    restored.decode(source_token_ids=item.ir.source_token_ids, hidden_states=item.hidden_states,
+        public_inputs=item.public_inputs, source_text_sha256=item.ir.source_text_sha256,
+        model_basis_sha256=item.ir.model_basis_receipt_sha256)
+    assert seen == [True]

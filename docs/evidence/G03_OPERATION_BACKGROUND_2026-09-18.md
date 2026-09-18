@@ -47,3 +47,38 @@ skipped. Lint, compile, governance and layering gates passed.
 An initial scratch replay passed the wrong keywords to the cohort selector
 after fitting. The saved candidate was reused unchanged after correcting
 that call. The failed invocation did not produce an evaluation result.
+
+## Joint odds follow-up
+
+A second candidate uses learned operation/background log odds without adding
+raw pointer logits. The pointer still supplies source candidates; the typed
+graph selects connected computations. Its operation-count penalty is zero
+because the background alternative supplies the odds baseline. Both scoring
+policies are explicit in the coefficient-bound training receipt.
+
+The same 60-case replay completed after resuming its interrupted checkpoint:
+36 exact, 37 equivalent, two gains, fourteen exact regressions and thirteen
+equivalent regressions. The incumbent remains at 48/60 and remains selected.
+No full-run, serving or G03 closure claim follows.
+
+Candidate:
+`fd83625f5c60875afc04169216a26b13eb299ff75ee1baedec77e494effbb935`.
+Report: `~/.aura/rlc-evidence/semantic-operation-background-odds-20260918/small.json`.
+Content receipt:
+`554d842fc1f80a759224da2af6450dd357dba97bf1bd31f5e53f72e27e31b857`.
+Focused tests: 59 passed. Repeated smoke: 164 passed, one skipped; lint,
+compile, governance and layering passed.
+
+## Failure attribution
+
+On the twelve genuine incumbent failures, all 24 annotated operations are
+present among the pointer candidates when every trained opcode is retained.
+Twenty-two have the correct top-ranked label at their annotated span. Thus
+missing primitive capacity is not the measured obstruction in this cohort.
+Selected fragments and result references outscore complete operation spans;
+operand direction also fails in one arithmetic case. These diagnoses come
+from exposed development data and are not runtime oracle inputs.
+
+The source surfaces identify three recurring patterns: forward references,
+named-result aliases, and operand direction. Attribution artifact:
+`~/.aura/rlc-evidence/semantic-operation-background-20260918/attribution.json`.

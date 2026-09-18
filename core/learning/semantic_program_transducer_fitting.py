@@ -494,9 +494,12 @@ def _operation_nodes(
     hidden_channel_widths: Sequence[int],
     label_limit: int = 1,
     complete_inventory: bool = False,
+    background_log_odds: bool = False,
 ) -> tuple[_OperationNode, ...]:
     if type(label_limit) is not int or not 1 <= label_limit <= len(classifier.labels):
         raise ValueError("operation label limit is outside the learned vocabulary")
+    if type(background_log_odds) is not bool or (background_log_odds and OPERATION_BACKGROUND_LABEL not in classifier.labels):
+        raise ValueError("operation odds need a learned background class")
     nodes: list[_OperationNode] = []
     for span, pointer_score in pointer.decode_candidates(
         hidden,
@@ -524,7 +527,11 @@ def _operation_nodes(
                      if classifier.labels[index] != OPERATION_BACKGROUND_LABEL][:label_limit]
             alternatives = tuple((classifier.labels[index], float(probabilities[index])) for index in order)
         for operation, confidence in alternatives:
-            score = float(pointer_score + math.log(max(confidence, 1e-12)))
+            if background_log_odds:
+                background = float(probabilities[classifier.labels.index(OPERATION_BACKGROUND_LABEL)])
+                score = math.log(max(confidence, 1e-12)) - math.log(max(background, 1e-12))
+            else:
+                score = float(pointer_score + math.log(max(confidence, 1e-12)))
             nodes.append(
                 _OperationNode(
                     span=span,

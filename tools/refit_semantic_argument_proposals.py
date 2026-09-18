@@ -85,6 +85,7 @@ def main() -> int:
     parser.add_argument("--evaluate-existing", action="store_true",
                         help="evaluate the saved output candidate without fitting again")
     parser.add_argument("--runtime-operation-views", action="store_true")
+    parser.add_argument("--background-log-odds", action="store_true")
     parser.add_argument("--runtime-mention-margin", action="store_true")
     parser.add_argument("--joint-operation-argument-scores", action="store_true")
     parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "graph_factors", "graph_relations", "joint_graphs", "operation_pointer", "argument_pointer", "definition_pointer", "operation_views", "paired_operation_pointer", "ranked_operation_pointer", "operation_background"),
@@ -114,6 +115,8 @@ def main() -> int:
         parser.error("validation checkpoint must not overwrite inputs or final outputs")
     if args.runtime_operation_views and args.objective != "pairwise_arguments":
         parser.error("runtime operation views require pairwise_arguments")
+    if args.background_log_odds and args.objective != "operation_background":
+        parser.error("background log odds require operation_background")
     if args.runtime_mention_margin and args.objective != "pairwise_arguments":
         parser.error("runtime mention margin requires pairwise_arguments")
     if args.joint_operation_argument_scores and args.objective != "joint_graphs":
@@ -205,6 +208,8 @@ def main() -> int:
         options["progress"] = lambda row: print(json.dumps(row, sort_keys=True), flush=True)
     if args.objective == "ranked_operation_pointer":
         options = {"ranking": True}
+    if args.objective == "operation_background":
+        options["background_log_odds"] = args.background_log_odds
     if args.evaluate_existing:
         candidate = compositional_semantic_program_transducer_from_dict(
             json.loads(args.output.read_text("ascii"))
