@@ -1395,6 +1395,16 @@ async def pursue_on_screen(
     #: their sixth go at Ninja Gaiden is not reacting — they are replaying
     #: what they know and thinking only where they died last time.
     got_to = TheFurthestSheHasGot.from_memory(knew.get("got_to") or {})
+    #: What she is working toward, the rungs she has passed on the way, and
+    #: whether this one is taking longer than her own record says it should.
+    #: A goal that exists only as a finishing condition can be passed or
+    #: failed and says nothing in between, which is where all the deciding is.
+    from core.agency.how_it_is_going import HowItIsGoing
+
+    going = HowItIsGoing.from_memory(
+        knew.get("how_it_is_going") or {},
+        toward=_a_number_in(success_when),
+    )
     # What each thing about a situation is worth HERE, rather than the
     # standing guess. The organ was written, tested and never called by
     # anything: she judged every world by the same five numbers somebody
@@ -1508,6 +1518,7 @@ async def pursue_on_screen(
                 furthest=furthest,
                 goal=goal,
                 got_to=got_to,
+                going=going,
                 graph=graph,
                 history=history,
                 in_flight=in_flight,
@@ -1783,6 +1794,9 @@ async def pursue_on_screen(
             "lattice": responds["lattice"].as_memory(),
             "reaches": reaches.as_memory(),
             "got_to": got_to.as_memory(),
+            # The ladder: what she reached here, what each rung cost, and
+            # what she was holding when she reached it.
+            "how_it_is_going": going.as_memory(),
             "opens": opens.as_memory(),
             "supply": supply.as_memory() if hasattr(supply, "as_memory") else {},
             "coming": coming.as_memory(),
@@ -1857,6 +1871,19 @@ async def pursue_on_screen(
     _pursue_on_screen_part_7(anchor, expect_page, lost_page, moves, needs_person, receipt, result, target_app)
     return result
 
+
+
+def _a_number_in(said: str) -> float:
+    """The number a finishing condition names, or nothing when it names none."""
+    import re as _re
+
+    found = _re.search(r"\d[\d,]*(?:\.\d+)?", str(said or ""))
+    if not found:
+        return 0.0
+    try:
+        return float(found.group(0).replace(",", ""))
+    except ValueError:
+        return 0.0
 
 
 def _tell(line: str) -> None:

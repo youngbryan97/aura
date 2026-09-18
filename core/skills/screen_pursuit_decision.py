@@ -1165,6 +1165,7 @@ async def decide_the_next_move(
     marks = run.marks
     matters = run.matters
     move_keys = run.move_keys
+    going = getattr(run, "going", None)
     moves = run.moves
     narrate = run.narrate
     needs_person = run.needs_person
@@ -1377,6 +1378,17 @@ async def decide_the_next_move(
                 furthest["here"] = max(furthest["here"], made)
                 if narrate:
                     _tell(further)
+            if going is not None and made:
+                # A rung, and what it cost, and what she was holding while she
+                # worked on it. Said with the reaching, because "the biggest
+                # so far" on its own tells nobody whether it is going well.
+                reached = going.noticed(
+                    made,
+                    len(moves),
+                    holding=plan["held"].approach if plan["held"] is not None else "",
+                )
+                if reached and narrate:
+                    _tell(f"Where this stands: {going.where_it_stands(len(moves))}.")
             _say_what_she_worked_out(knows, foreseen)
             _say_what_kind_of_problem(
                 knows, screen_options(move_keys), laid_out, success_when, foreseen
@@ -1552,6 +1564,16 @@ async def decide_the_next_move(
         # here, before she acts, so a pivot is something she was watching
         # for and not something that happened to her.
         holding, ended = still_holds(plan["held"], seen, len(moves))
+        # An approach is reconsidered because it has stopped working, not
+        # because a number of moves has gone by. Her own record of what a
+        # rung costs here is what says so.
+        if holding and going is not None:
+            stalled = going.why_reassess(len(moves))
+            if stalled:
+                holding = False
+                ended = f"it has not moved me on: {stalled}"
+                going.it_was_reassessed()
+                logger.info("the approach is being looked at again: %s", stalled)
         time_to_ask = lost and _decide_the_next_move_part_14(ended, holding, looking_at_the_thing, moves, plan, costs)
         if not holding and time_to_ask:
             plan["asked_at"] = len(moves)
