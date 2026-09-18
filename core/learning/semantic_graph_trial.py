@@ -67,7 +67,7 @@ def _observe(model, item):
 
 def run_semantic_graph_trial(model, examples, *, training_count=8, validation_count=8,
                              training_pool_count=None, steps=20, max_charts=32, progress=None,
-                             objective="squared_deficit"):
+                             objective="squared_deficit", operation_retention_count=None):
     """Fit only selected source rows and independently replay both small cohorts.
 
     This returns no deployable candidate. Validation rows never enter mining
@@ -101,7 +101,12 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
         before.append(_observe(model, item))
         if progress:
             progress({"stage": "trial_before", "completed": len(before), "row": before[-1]})
-    constraints = source_operation_constraints(model, source_operation_supervision(model, training))
+    operation_training = (training if operation_retention_count is None else
+                          select_trial_examples(examples, split="train", count=operation_retention_count))
+    if not {item.ir.source_text_sha256 for item in training}.issubset(
+            {item.ir.source_text_sha256 for item in operation_training}):
+        raise ValueError("operation retention must include the graph training cohort")
+    constraints = source_operation_constraints(model, source_operation_supervision(model, operation_training))
     records = []
     for item in training:
         rows, record = mine_runtime_graph_constraints(model, item, max_charts=max_charts, learn_arguments=True)
@@ -155,6 +160,7 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
             "training_acquisition_policy": "witnessed_training_failures_then_retention_v1",
             "training_pool_observations": pool_observations,
             "training_sources": [item.ir.source_text_sha256 for item in training],
+            "operation_retention_sources": [item.ir.source_text_sha256 for item in operation_training],
             "validation_sources": [item.ir.source_text_sha256 for item in validation],
             "validation_used_for_fit": False, "test_examples_used": 0,
             "before": before, "after": after, "mining": records, "fit": fit,

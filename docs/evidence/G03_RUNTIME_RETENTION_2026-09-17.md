@@ -111,3 +111,32 @@ input and fuel identities, bounded eviction, domain failures and mutation
 isolation. The diagnostic replay's first training example reused 65
 observations and performed seven fresh executions. That is avoided duplicate
 work, not a measured end-to-end speedup or a general search-completeness claim.
+
+## Refusal localization
+
+The train-only fit was reproduced with the same final loss. Its non-serving
+candidate and component-restoration observations are retained under
+`~/.aura/rlc-evidence/semantic-likelihood-diagnosis-20260917/`.
+The cataphoric source `041682cce3dc244504989f04531772a51e939aac8cda24230057db847e6de5f4`
+has a sequence input, but the fitted classifier's sixteen selected charts
+contain only `mul` and `idiv`. Restoring only the parent operation classifier
+removes the refusal. Restoring only relation or argument heads does not.
+The restored classifier still gives an incorrect program; this intervention
+localizes refusal, not the full interpretation error.
+
+Two retained operation labels still refuse. Four labels produce a program
+whose result is 4 where the source program produces 5. Increasing label count
+alone therefore does not solve the semantic failure. No variant is promoted.
+
+The next small trial retains source operation labels from 48 training rows
+while mining full graph competitors from eight. It reuses the source-label
+constraints already implemented by the compiler. This separates cheap
+classifier retention from expensive graph search and does not fit validation.
+
+That trial completed with 723 inequalities satisfied, training 8/8 and
+validation 6/8. There were no gains, and the cataphoric decode still refused.
+The broader source-label retention did not solve the failure. Receipt:
+`~/.aura/rlc-evidence/semantic-wide-operation-retention-20260917/trial.json`,
+content receipt
+`e7cf55399e659737b8d24364b3bff7039aec2f9a0cc8c667046968ebc256cb56`.
+This negative result does not authorize a larger trial or serving change.

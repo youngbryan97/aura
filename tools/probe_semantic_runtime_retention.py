@@ -30,6 +30,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--training-count", type=int, default=8)
     parser.add_argument("--training-pool-count", type=int)
+    parser.add_argument("--operation-retention-count", type=int)
     parser.add_argument("--validation-count", type=int, default=8)
     parser.add_argument("--steps", type=int, default=20)
     parser.add_argument("--max-charts", type=int, default=32)
@@ -48,6 +49,7 @@ def main():
     result = run_semantic_graph_trial(model.with_joint_operation_argument_scores(), examples,
         training_count=args.training_count, validation_count=args.validation_count,
         training_pool_count=args.training_pool_count,
+        operation_retention_count=args.operation_retention_count,
         steps=args.steps, max_charts=args.max_charts,
         objective=args.objective,
         progress=report_progress)
