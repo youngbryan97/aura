@@ -55,8 +55,12 @@ def select_compositional_program_candidate(
     incumbent: str,
     checkpoint_path=None,
     progress=None,
+    scoring="register_indices_v1",
 ) -> dict[str, Any]:
     """Select on autonomous validation programs, never gold answers or test tasks."""
+    from core.learning.semantic_validation_checkpoint import VALIDATION_SCORING
+    if scoring not in VALIDATION_SCORING:
+        raise ValueError("unknown semantic validation scoring")
     if incumbent not in candidates:
         raise ValueError("program selection needs a named incumbent")
     selected = tuple(item for item in examples if item.split == "validation")
@@ -76,7 +80,7 @@ def select_compositional_program_candidate(
         )
 
         checkpoint = SemanticValidationCheckpoint(
-            checkpoint_path, validation_identity(candidates, selected), candidates, ids,
+            checkpoint_path, validation_identity(candidates, selected, scoring=scoring), candidates, ids,
         )
     outcomes = {}
     equivalents = {}
@@ -101,14 +105,22 @@ def select_compositional_program_candidate(
                 source_text_sha256=item.ir.source_text_sha256,
                 model_basis_sha256=item.ir.model_basis_receipt_sha256,
             )
-            exact = bool(
-                outcome.ir is not None
-                and outcome.ir.to_program() == item.ir.to_program()
-            )
+            target = item.ir.to_program()
+            grounding_valid = True
+            if outcome.ir is not None and scoring == "source_anchors_v2":
+                from core.learning.semantic_joint_graph_learning import align_source_input_registers
+                from core.learning.procedure_induction import Instruction, Program
+                try:
+                    instructions, _ = align_source_input_registers(item, outcome.ir.input_spans)
+                    target = Program(len(item.public_inputs), tuple(
+                        Instruction(instruction.op, instruction.args) for instruction in instructions))
+                except ValueError:
+                    grounding_valid = False
+            exact = bool(outcome.ir is not None and grounding_valid and outcome.ir.to_program() == target)
             rows.append(exact)
             equivalent_rows.append(exact or bool(
-                outcome.ir is not None and semantic_programs_structurally_equivalent(
-                    outcome.ir.to_program(), item.ir.to_program()
+                outcome.ir is not None and grounding_valid and semantic_programs_structurally_equivalent(
+                    outcome.ir.to_program(), target
                 )
             ))
             if checkpoint is not None:
@@ -159,6 +171,11 @@ def select_compositional_program_candidate(
         "equivalence_used_for_selection": False,
         "serving_authority": False,
     }
+    if scoring == "source_anchors_v2":
+        body.update(schema="aura.semantic_program_validation_selection.v2",
+                    scoring=scoring,
+                    objective="source_anchored_exact_program_gain_without_validation_regression",
+                    equivalence_rule="source_anchors_and_connected_graph_schedule_and_integer_add_mul_exchange_v2")
     return {**body, "report_sha256": _sha(body)}
 
 

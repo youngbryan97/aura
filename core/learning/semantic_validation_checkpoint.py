@@ -14,7 +14,12 @@ def _digest(value):
                                      allow_nan=False).encode()).hexdigest()
 
 
-def validation_identity(candidates, examples):
+VALIDATION_SCORING = ("register_indices_v1", "source_anchors_v2")
+
+
+def validation_identity(candidates, examples, *, scoring="register_indices_v1"):
+    if scoring not in VALIDATION_SCORING:
+        raise ValueError("unknown semantic validation scoring")
     observations = []
     for item in examples:
         hidden = np.asarray(item.hidden_states) if item.hidden_states is not None else None
@@ -32,8 +37,11 @@ def validation_identity(candidates, examples):
                 "sha256": hashlib.sha256(hidden.tobytes(order="C")).hexdigest(),
             },
         })
+        if scoring == "source_anchors_v2":
+            observations[-1]["input_anchors"] = [(span.start, span.end) for span in item.ir.input_spans]
     return _digest({"models": {name: model.receipt_sha256 for name, model in candidates.items()},
-                    "observations": observations, "scoring": "exact_and_equivalent_program_v1"})
+                    "observations": observations, "scoring": "exact_and_equivalent_program_v1"
+                    if scoring == "register_indices_v1" else "source_anchored_exact_and_equivalent_program_v2"})
 
 
 class SemanticValidationCheckpoint:

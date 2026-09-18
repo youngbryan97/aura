@@ -78,6 +78,8 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--validation-output", type=Path)
     parser.add_argument("--validation-checkpoint", type=Path)
+    parser.add_argument("--validation-scoring", choices=("register_indices_v1", "source_anchors_v2"),
+                        default="register_indices_v1")
     parser.add_argument("--fit-checkpoint-dir", type=Path,
                         help="retained-constraint optimizer state; defaults beside the output candidate")
     parser.add_argument("--evaluate-existing", action="store_true",
@@ -222,6 +224,7 @@ def main() -> int:
         selection = select_compositional_program_candidate(
             candidates, bound, incumbent="incumbent",
             checkpoint_path=args.validation_checkpoint,
+            scoring=args.validation_scoring,
             progress=lambda row: print(json.dumps(row, sort_keys=True), flush=True),
         )
         payload = json.dumps(selection, sort_keys=True, separators=(",", ":")) + "\n"
