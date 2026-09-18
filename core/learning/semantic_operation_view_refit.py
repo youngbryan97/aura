@@ -31,6 +31,10 @@ def _selection_key(row, *, predicted_charts):
 
 def valid_operation_view_contract(head, receipt, channels, widths):
     """Check every selected view against both its evidence and tensor geometry."""
+    from core.learning.semantic_operation_background import valid_background_contract
+
+    if not valid_background_contract(head, receipt):
+        return False
     try:
         if any(
             component.weight.shape[1] != _operation_feature_width(

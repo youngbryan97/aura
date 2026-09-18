@@ -834,11 +834,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  tasks using the existing language and computational substrates.
+  [Background competition](evidence/G03_OPERATION_BACKGROUND_2026-09-18.md)
+  tests a learned non-operation class on source spans. The small replay
+  regresses from 48/60 to 45/60; no candidate promotion or full-run claim.
   [Source-anchored scoring](evidence/G03_SOURCE_ANCHORED_SCORING_2026-09-17.md)
   measures 488/500 for the unchanged incumbent and typed candidate. Sixteen
   historical failures were register-coordinate mismatches; twelve remain
   semantic failures. This is an evaluator correction, not a learning gain.
-  tasks using the existing language and computational substrates.
   [Typed operation search](evidence/G03_TYPED_SEARCH_2026-09-17.md) preserves
   feasible type states before beam pruning. The small replay repairs a joint
   decoder regression but does not beat the stronger incumbent. No promotion.

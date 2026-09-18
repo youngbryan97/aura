@@ -43,6 +43,7 @@ from core.learning.semantic_program_shared_transducer import (
     _relation_span_vector,
 )
 from core.learning.semantic_program_transducer import (
+    OPERATION_BACKGROUND_LABEL,
     LinearPointerHead,
     LinearPointerSequenceScores,
     MultiViewClassifierHead,
@@ -514,11 +515,13 @@ def _operation_nodes(
                 )
                 for mode in classifier.modes
             )
-        if label_limit == 1:
+        if label_limit == 1 and OPERATION_BACKGROUND_LABEL not in classifier.labels:
             alternatives = (classifier.predict(features),)
         else:
             probabilities = classifier.predict_probabilities(features)
-            order = np.argsort(-probabilities, kind="stable")[:label_limit]
+            # Background competes in the probability denominator, never as an opcode.
+            order = [index for index in np.argsort(-probabilities, kind="stable")
+                     if classifier.labels[index] != OPERATION_BACKGROUND_LABEL][:label_limit]
             alternatives = tuple((classifier.labels[index], float(probabilities[index])) for index in order)
         for operation, confidence in alternatives:
             score = float(pointer_score + math.log(max(confidence, 1e-12)))

@@ -87,7 +87,7 @@ def main() -> int:
     parser.add_argument("--runtime-operation-views", action="store_true")
     parser.add_argument("--runtime-mention-margin", action="store_true")
     parser.add_argument("--joint-operation-argument-scores", action="store_true")
-    parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "graph_factors", "graph_relations", "joint_graphs", "operation_pointer", "argument_pointer", "definition_pointer", "operation_views", "paired_operation_pointer", "ranked_operation_pointer"),
+    parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "graph_factors", "graph_relations", "joint_graphs", "operation_pointer", "argument_pointer", "definition_pointer", "operation_views", "paired_operation_pointer", "ranked_operation_pointer", "operation_background"),
                         default="binary_proposals")
     parser.add_argument("--graph-rounds", type=int, default=3)
     parser.add_argument("--graph-update-steps", type=int, default=100)
@@ -129,6 +129,7 @@ def main() -> int:
     ):
         parser.error("evaluate-existing starting options require compare-fit-start")
     from core.learning.semantic_operation_view_refit import refit_compositional_operation_views
+    from core.learning.semantic_operation_background import refit_compositional_operation_background
     from core.learning.semantic_graph_margin import refit_compositional_graph_scales
     from core.learning.semantic_relation_graph_learning import refit_compositional_graph_relations
     from core.learning.semantic_joint_graph_learning import refit_compositional_joint_graphs
@@ -181,11 +182,12 @@ def main() -> int:
         "argument_pointer": refit_compositional_argument_proposals,
         "definition_pointer": refit_compositional_definition_pointer,
         "operation_views": refit_compositional_operation_views,
+        "operation_background": refit_compositional_operation_background,
         "paired_operation_pointer": refit_compositional_paired_operation_pointer,
         "ranked_operation_pointer": refit_compositional_paired_operation_pointer,
     }[args.objective]
     options = {"refit_pointer": True} if args.objective == "argument_pointer" else {}
-    if args.objective in {"graph_factors", "graph_relations", "joint_graphs"}:
+    if args.objective in {"graph_factors", "graph_relations", "joint_graphs", "operation_background"}:
         options["progress"] = lambda row: print(json.dumps(row, sort_keys=True), flush=True)
     if args.objective in {"graph_relations", "joint_graphs"}:
         options.update(rounds=args.graph_rounds, steps=args.graph_update_steps)
