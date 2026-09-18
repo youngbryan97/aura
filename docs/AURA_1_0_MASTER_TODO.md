@@ -292,6 +292,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   which is contention and not the section itself; `core.language.learned_matcher`
   148ms; `earned_metric.axis.valence` 87ms; `core.canonical.state.singleton`
   53ms.
+  CLOSED 2026-09-18, and the four were the other half of the pattern. Three
+  were contention on the read path of something written once: the canonical
+  state took its lock on every call including the overwhelming majority that
+  find the singleton already built, and the two registers took theirs to
+  append one element and to copy the map. Published by rebinding now, so a
+  reader takes nothing and still sees one whole version — including the test
+  reset helpers, because clearing in place under a lockless reader is how it
+  would see half a register. The fourth really was work: `earned_metric`
+  trimmed with `del self._states[:n]` on a list of `capacity`, inside the
+  lock, on every observation once full; a deque bounded at the same capacity
+  evicts in constant time. 7d4f5caca.
   PARTIAL 2026-09-07. The wedge itself is fixed: an ABBA deadlock between two
   logging handlers, eleven threads blocked in `logging.Handler.acquire`, the
   process alive and the port listening for thirty-three minutes. Guarded at the
@@ -1432,8 +1443,25 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   recomputes on the next request and nobody reads as a record, which is
   rarer than the ring count suggests and is why a real ladder is short.
   Two adopted on that test (cached deliberations, cached pass analyses),
-  511fb9115. Still open: lifetime, leaks, shutdown/restart, sleep/wake and
-  single-resident ownership.
+  511fb9115.
+  PARTIAL 2026-09-18, single-resident ownership — observed and not enforced.
+  `core/runtime/lease.py` elects a leader across processes, file-backed, with
+  a liveness check on the holder's pid and boot id, and the docstring of its
+  fail-closed gate names "launching a model" as the canonical thing to gate.
+  **`is_leader` had no caller anywhere in the tree but the invariant that
+  checks it.** What does gate model loads is the in-process admission control
+  plane, which weighs priority, fairness and declared footprint and cannot
+  see another Aura at all — so nothing stopped a second process loading a
+  second cortex beside the first. That is the incident `oom_policy.py` opens
+  with, "a duplicate 32B load that doubled memory and took the wedged runtime
+  with it"; the lease was built after it and then not consulted.
+  Gated on the provable condition rather than on leadership: refusing
+  whenever no election is running would block every tool and test, while
+  refusing when another process is provably alive holding an unexpired lease
+  has no false positive. Heavy lanes only; fails open on an unreadable lease,
+  where the memory probe beside it fails closed, because a bookkeeping fault
+  is not evidence of a second runtime. 572129cbf.
+  Still open: lifetime, leaks, shutdown/restart and sleep/wake.
 - [ ] Q04 Scoped tool authority, privacy, prompt-injection boundaries, sandbox,
   secret handling, and fail-safe behavior without suppressing correct work.
   PARTIAL 2026-09-18, prompt-injection boundaries. `prompt_fencing` is the
@@ -1532,6 +1560,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,
   governance, production, enterprise, documentation, and release gates.
+  IN FLIGHT 2026-09-18, 00:10. The chunked full suite is running at 40 chunks
+  of 100 files, `--continue-on-failure --min-free-gb 6`, on an idle host with
+  the live instance down. Green as it goes: compile, lint, layering (37
+  grandfathered), security (4,646 files, 0 findings), smoke (164 passed),
+  writing at baseline.
+  `make deps-check` was red and the cause was not an import. `core/organism`
+  names a MODULE — `core.knowledge.revision_validation`, for the one thing it
+  takes from that package — and the generator emits package-level rules only,
+  so regenerating widens it to the whole of core.knowledge with the gate back
+  green and the narrowing silently gone. `generate_deps.py` already carries
+  eight entries in HANDWRITTEN for exactly this and says in its own comment
+  how core/learning sat here failing, one regeneration from being deleted.
+  organism is the ninth (9c20b5e1b).
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
   FOUND 2026-09-07, second session, and it was not order dependence.
   `test_runtime_invariants_are_registered_and_run_clean` passed alone and
@@ -1580,6 +1621,35 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   cost on the live instance every time it promotes a fix. The walk prunes
   those directories before entering them and skips any directory with its own
   .git (dfdb6505d).
+  2026-09-18. The register is being produced. Four chunks in, four reds, and
+  **not one of them is order dependence** — each fails in isolation too, so
+  the isolated run confirms the batch rather than erasing it. Three are the
+  same defect, which is the finding: **a test that reads source for a call
+  site**. It fails on every refactor that does not change behaviour, and
+  passes on every change that keeps the words and breaks the meaning.
+  - `test_the_exemption_is_read_from_the_shared_marker_list` read
+    `inspect.getsource(record_degradation)` for the text
+    `not _is_admission_backpressure`, and went red when the method-size sweep
+    moved the decision into an extracted helper. The marker list was a LOCAL
+    inside that helper, so nothing could check that the demotion and the
+    escalation agree — which is the exact bug the file exists for. Promoted
+    to `BACKPRESSURE_MARKERS` at module scope and asserted over the list.
+  - `test_the_recorded_answer_is_applied_after_every_repair` named
+    `_api_chat_turn`; the sweep moved the call into `_api_chat_turn_part_10`.
+    It now finds whichever function applies the record and checks the
+    ordering inside that one.
+  - `test_thinking_follows_the_reading_not_the_waiting` read the 700
+    characters after the reading time was taken. The derivation is untouched
+    — nineteen lines apart instead of seven, because comments were written
+    between. A proximity window is a measurement of formatting; asked as an
+    ordering now.
+  The fourth was not a refactor artifact and not a regression:
+  `test_the_representation_bound_tissue_is_quarantined` expected `steering`
+  to be quarantined, and the live manifest now signs it `caa_model_bound` —
+  bound to this checkpoint, rebindable. That is the migration progressing,
+  and the test read the queue's current occupants as permanent truths. Split,
+  with a new assertion that survives the migration finishing: a disposition
+  is never invented beside its authority. 7d4f5caca, 9c20b5e1b.
 - [ ] Q10 Run source-matched multi-hour soak only after short gates pass;
   inspect latency, growth, errors, capability retention, and recovery.
 - [ ] Q11 Validate installation/update/uninstall and ordinary desktop launch.
