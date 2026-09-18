@@ -219,14 +219,17 @@ def _serve() -> None:  # pragma: no cover - runs in the other process
             if picture is None:
                 print(json.dumps({"ok": False, "error": "no picture of that window"}), flush=True)
                 continue
-            # The same wait as at home: a thing half moved is not a state.
+            # The same wait as at home: a thing half moved is not a state,
+            # and two pictures agreeing is not the same as having stopped.
             still = not bool(job.get("wait_for_stillness", True))
             within = float(job.get("still_within_s") or 1.5)
+            agreed = 0
             while not still and time.monotonic() - began < within:
                 again = take()
                 if again is None:
                     break
-                still = pixels.how_different(picture, again) < pixels.STILL
+                agreed = agreed + 1 if pixels.how_different(picture, again) < pixels.STILL else 0
+                still = agreed >= pixels.AGREEING_LOOKS
                 picture = again
             reading = pixels.looker_for(owner).read(picture)
             reading["_shape"] = [int(picture.shape[1]), int(picture.shape[0])]

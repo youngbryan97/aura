@@ -791,6 +791,15 @@ _STILL_WITHIN_S = 1.5
 #: this on average, in 0..255. Compression and cursor blink sit below it.
 _STILL = 0.05
 
+#: How many times running a picture has to agree with the one before it to
+#: count as having stopped. Two pictures agreeing is not enough: a window
+#: redraws in parts, and a picture taken across a redraw holds one part of
+#: what the act did and another part of what was there before. Read as a
+#: state, that is a world doing something no rule can explain — live,
+#: 2026-09-17, one row of a board slid and another had not, and her rule sat
+#: at 88% of what it watched because of pairs like it.
+_AGREEING_LOOKS = 2
+
 
 _SAID: set[str] = set()
 
@@ -898,6 +907,9 @@ def how_different(a: Any, b: Any) -> float:
 #: How still counts as still, for whoever is doing the looking.
 STILL = _STILL
 
+#: How many agreements in a row count as stopped, for the same.
+AGREEING_LOOKS = _AGREEING_LOOKS
+
 
 def crop_to(image: Any, over: tuple[float, float, float, float] | None) -> Any:
     """The part of a picture a caller is interested in. Public for the reader
@@ -986,12 +998,14 @@ async def look_at_window(
         picture = await take()
         if picture is None:
             return None
+        agreed = 0
         still = not wait_for_stillness
         while not still and time.monotonic() - began < still_within_s:
             again = await take()
             if again is None:
                 break
-            still = _how_different(picture, again) < _STILL
+            agreed = agreed + 1 if _how_different(picture, again) < _STILL else 0
+            still = agreed >= _AGREEING_LOOKS
             picture = again
         looked_took = time.monotonic() - began
         reading = await asyncio.to_thread(looker_for(window.owner).read, picture)
