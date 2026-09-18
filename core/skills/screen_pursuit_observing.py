@@ -85,6 +85,7 @@ async def observe_the_screen(
         logger,
         read_screen,
     )
+    from .screen_pursuit_looking import PASSES_ON_ITS_OWN, wait_for_a_screen_to_look_at
 
     # Put the target back in front before looking at it.
     #
@@ -227,4 +228,19 @@ async def observe_the_screen(
         }
     reading_took.append(time.monotonic() - began_looking)
     del reading_took[:-LOOKS_REMEMBERED]
+    # A screen she may not look at is a pause, not an ending.
+    #
+    # The person locked theirs while she was playing, and the reading that
+    # came back refused took the run with it: "nothing on screen offered a
+    # move (after 226 moves)", on a game she was winning. It is the same
+    # condition she waits out before a run starts, and it passes the same
+    # way — by somebody coming back.
+    why = str(seen.get("refused_because") or "")
+    if not seen.get("ok") and why in PASSES_ON_ITS_OWN:
+        ends_at = float(getattr(run, "ends_at", 0.0) or 0.0)
+        if ends_at > time.monotonic() and await wait_for_a_screen_to_look_at(
+            ends_at, app=target_app
+        ):
+            logger.info("she can look again; carrying on where she left off")
+            return await observe_the_screen(run)
     return seen

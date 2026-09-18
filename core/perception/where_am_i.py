@@ -97,7 +97,14 @@ def where_am_i(
     anywhere.
     """
     filled = int(getattr(reading, "occupied", lambda: 0)() or 0)
-    if reading is None or not filled:
+    rows = int(getattr(reading, "rows", 0) or 0)
+    columns = int(getattr(reading, "columns", 0) or 0)
+    # Places she can see are the thing, whether or not anything is in them.
+    # A board that has just been started is empty for an instant, and reading
+    # that instant as "I cannot read anything here" stopped her from acting
+    # in the thing she had just started (live, 2026-09-17).
+    seen_places = bool(getattr(reading, "places_seen", False)) and rows >= 2 and columns >= 2
+    if reading is None or (not filled and not seen_places):
         return WhereSheIs(False, "I cannot read anything here", _what_this_looks_like(reading))
 
     if lattice is not None and getattr(lattice, "held", False):

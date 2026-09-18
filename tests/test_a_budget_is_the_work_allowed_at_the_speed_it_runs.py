@@ -110,3 +110,18 @@ def test_nonsense_written_down_is_ignored(tmp_path, monkeypatch):
     monkeypatch.setattr(watched_goal, "_MEASURED_AT", kept)
     watched_goal._A_CYCLE["seconds"] = 0.0
     assert seconds_a_cycle() == 0.0
+
+
+def test_thinking_follows_the_reading_not_the_waiting():
+    """The time between her act and her next look is mostly the world moving.
+
+    Counted as the cost of looking, it made her think for two seconds a move
+    on a game that answers in a fifth of one (live, 2026-09-17).
+    """
+    from screen_pursuit_support import pursuit_source
+
+    source = pursuit_source()
+    at = source.index("a_read = float(observation.get(\"seconds_reading\"")
+    nearby = source[at : at + 700]
+    assert "budget_s=thinking_for" in nearby
+    assert "max(0.3, a_read)" in nearby

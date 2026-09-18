@@ -14,6 +14,8 @@ acting in, the finishing condition counts only inside them.
 """
 from __future__ import annotations
 
+import time
+
 import pytest
 from screen_pursuit_support import patch_pursuit
 
@@ -241,3 +243,102 @@ async def test_whether_she_may_look_is_asked_of_the_window_she_will_read(monkeyp
     assert asked == [("Some Game", "Some Game")]
     # With no window of that name, the whole screen is what she would read.
     assert await wait_for_a_screen_to_look_at(time.monotonic() + 0.5, app="Nothing Open") is False
+
+
+def test_a_rule_that_has_never_seen_movement_does_not_end_a_run():
+    """Her first keys went into a board that had already finished.
+
+    Every observation said nothing changed, so what she composed was "this
+    does not move" — and that rule then said a freshly dealt board was
+    finished too. LIVE 2026-09-17: she began again, read a new board, was
+    told it was dead, and began again, forty times in a minute.
+    """
+    from types import SimpleNamespace
+
+    from core.perception.how_it_moves import HowItMoves
+    from core.perception.what_is_there import Arrangement, Cell
+    from core.perception.where_it_responds import Responsive
+    from core.skills.screen_pursuit_decision import _decide_the_next_move_nothing_task_working
+
+    def board(values):
+        return Arrangement(
+            4, 4, tuple(Cell(i // 4, i % 4, str(v), (0.0, 0.0)) for i, v in enumerate(values) if v)
+        )
+
+    finished = board([2, 4, 8, 16, 32, 64, 128, 256, 2, 4, 8, 16, 32, 64, 128, 256])
+    rules = HowItMoves()
+    for move in ("up", "down", "left", "right", "up", "down", "left", "right"):
+        rules.watched(finished, move, finished)
+    assert rules.rule() is not None, "she did compose one, which is the trap"
+
+    class _CanDo:
+        def available(self):
+            return ["up", "down", "left", "right"]
+
+    fresh = board([2, 0, 0, 0] + [0] * 11 + [4])
+    _options, ended = _decide_the_next_move_nothing_task_working(
+        _CanDo(), ("up", "down", "left", "right"), {"layout": []},
+        {"was_there": None, "said": False}, {"state": Responsive()},
+        knows=SimpleNamespace(rules=rules), laid_out=fresh,
+    )
+    assert ended is False
+
+
+def test_a_place_whose_places_she_can_see_is_the_thing_even_when_empty():
+    """A board just started is empty for an instant; that is not a failure to read."""
+    from core.perception.what_is_there import Arrangement
+    from core.perception.where_am_i import where_am_i
+
+    empty = Arrangement(4, 4, (), (0.3, 0.45, 0.6, 0.75), (0.2, 0.35, 0.5, 0.65), places_seen=True)
+    assert where_am_i(empty).the_thing_is_here is True
+    guessed = Arrangement(4, 4, (), (0.3, 0.45, 0.6, 0.75), (0.2, 0.35, 0.5, 0.65))
+    assert where_am_i(guessed).the_thing_is_here is False
+
+
+@pytest.mark.asyncio
+async def test_reading_up_takes_no_longer_than_the_world_waits(monkeypatch):
+    """A lookup that outlasts the game is not a lookup, it is leaving.
+
+    LIVE 2026-09-17, on a board that answered in a fifth of a second: one
+    lookup went to the web and took three minutes fifty-two, another
+    forty-three, while a person watched a board that did not move.
+    """
+    import asyncio
+
+    from screen_pursuit_support import patch_pursuit
+
+    from core.skills import screen_pursuit as sp
+
+    reading = _with_a_grid(title_only=True)
+    slow = {"started": 0}
+
+    async def never_comes_back(*_a, **_k):
+        slow["started"] += 1
+        await asyncio.sleep(30)
+        raise AssertionError("the world waited for a web search")
+
+    async def read(app_name="", over=None):
+        return reading
+
+    async def yes(*_a, **_k):
+        return True
+
+    async def identity():
+        return {"url": "", "title": "", "error": ""}
+
+    async def thinks(*_a, **_k):
+        return "I will press left."
+
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "press", yes)
+    patch_pursuit(monkeypatch, "_ensure_frontmost", yes)
+    patch_pursuit(monkeypatch, "current_page_identity", identity)
+    patch_pursuit(monkeypatch, "_bring_the_thing_back_to_the_front", yes, raising=False)
+    patch_pursuit(monkeypatch, "learn_about", never_comes_back, raising=False)
+    began = time.monotonic()
+    await sp.pursue_on_screen(
+        goal="play until the 2048 tile", success_when="2048", think=thinks,
+        target_app="Some Game", max_cycles=2, max_seconds=25.0,
+        narrate=False, lived=False, research=True,
+    )
+    assert time.monotonic() - began < 20.0, "one lookup ate the whole run"

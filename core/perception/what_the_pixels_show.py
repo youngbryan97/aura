@@ -889,6 +889,22 @@ def looker_for(app: str) -> Looker:
     return _LOOKERS[key]
 
 
+def how_different(a: Any, b: Any) -> float:
+    """How far two pictures of the same thing are apart. Public for the reader
+    that runs in its own process."""
+    return _how_different(a, b)
+
+
+#: How still counts as still, for whoever is doing the looking.
+STILL = _STILL
+
+
+def crop_to(image: Any, over: tuple[float, float, float, float] | None) -> Any:
+    """The part of a picture a caller is interested in. Public for the reader
+    that runs in its own process."""
+    return _crop(image, over)
+
+
 def _crop(image: Any, over: tuple[float, float, float, float] | None) -> Any:
     if image is None or over is None:
         return image
@@ -949,22 +965,37 @@ async def look_at_window(
             "refused_because": str(admission.reason),
         }
     began = time.monotonic()
+    # Somewhere else if they will have it: a reading is mostly Python holding
+    # the interpreter, and in her own process it waits behind everything else
+    # she is doing — an eighth of a second of work took nearly a second while
+    # she played (live, 2026-09-17).
+    from core.perception.eyes_of_their_own import look_through_them  # noqa: PLC0415
 
-    async def take() -> Any:
-        return _crop(await _the_pixels_of(window), over)
+    elsewhere = await asyncio.to_thread(
+        look_through_them, window, over, wait_for_stillness, still_within_s
+    )
+    if elsewhere is not None:
+        picture_shape = tuple(elsewhere.pop("_shape", ()) or ())
+        still = bool(elsewhere.pop("_settled", True))
+        reading = elsewhere
+        looked_took = float(reading.pop("_looked_took", 0.0) or 0.0)
+    else:
+        async def take() -> Any:
+            return _crop(await _the_pixels_of(window), over)
 
-    picture = await take()
-    if picture is None:
-        return None
-    still = not wait_for_stillness
-    while not still and time.monotonic() - began < still_within_s:
-        again = await take()
-        if again is None:
-            break
-        still = _how_different(picture, again) < _STILL
-        picture = again
-    looked_took = time.monotonic() - began
-    reading = await asyncio.to_thread(looker_for(window.owner).read, picture)
+        picture = await take()
+        if picture is None:
+            return None
+        still = not wait_for_stillness
+        while not still and time.monotonic() - began < still_within_s:
+            again = await take()
+            if again is None:
+                break
+            still = _how_different(picture, again) < _STILL
+            picture = again
+        looked_took = time.monotonic() - began
+        reading = await asyncio.to_thread(looker_for(window.owner).read, picture)
+        picture_shape = (int(picture.shape[1]), int(picture.shape[0]))
     front = await asyncio.to_thread(window_server.front_owner)
     left, top, wide, tall = window.bounds
     bounds = [left, top, wide, tall]
@@ -974,9 +1005,12 @@ async def look_at_window(
     if window.owner not in _LOOKED_AT:
         _LOOKED_AT.add(window.owner)
         grids_seen = [(g["rows"], g["columns"]) for g in reading.get("grids") or []]
+        wide_px, tall_px = (picture_shape + (0, 0))[:2]
         logger.info(
             "first look at %r by %s: %dx%d, %s panel(s), grids %s, %d run(s) of text",
-            window.owner, _HOW_PIXELS_COME["way"] or "nothing", picture.shape[1], picture.shape[0],
+            window.owner,
+            "eyes of their own" if elsewhere is not None else (_HOW_PIXELS_COME["way"] or "nothing"),
+            wide_px, tall_px,
             reading.get("panels", 0), grids_seen, len(reading.get("layout") or []),
         )
     reading.update(

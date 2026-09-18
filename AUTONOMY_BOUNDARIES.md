@@ -45,8 +45,6 @@ warning and falls back to `production` — it does not fail open.
 
 *Verified against `core/runtime/mode.py` on 2026-08-01 by reading
 `MODE_MANIFESTS` directly.*
-| `safe` | Level 0 (Disabled) |
-| `simulation` | Level 3 (Proactive, sandboxed) |
 
 ## Boundary Rules
 
