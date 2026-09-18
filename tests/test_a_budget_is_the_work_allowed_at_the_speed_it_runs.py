@@ -120,8 +120,16 @@ def test_thinking_follows_the_reading_not_the_waiting():
     """
     from screen_pursuit_support import pursuit_source
 
+    # Asked as an ordering rather than as a distance. This read the 700
+    # characters after the reading time was taken, and went red when
+    # comments were written between the two — the derivation untouched,
+    # nineteen lines apart instead of seven. A proximity window is a
+    # measurement of formatting.
     source = pursuit_source()
-    at = source.index("a_read = float(observation.get(\"seconds_reading\"")
-    nearby = source[at : at + 700]
-    assert "budget_s=thinking_for" in nearby
-    assert "max(0.3, a_read)" in nearby
+    reads = source.index("a_read = float(observation.get(\"seconds_reading\"")
+    derives = source.index("max(0.3, a_read)", reads)
+    spends = source.index("budget_s=thinking_for", derives)
+    assert reads < derives < spends, (
+        "the thinking budget must be derived from the reading time and then "
+        "spent, in that order"
+    )
