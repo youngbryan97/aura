@@ -1409,6 +1409,12 @@ async def decide_the_next_move(
                     holding=plan["held"].approach if plan["held"] is not None else "",
                 )
                 if reached:
+                    # And the rest of her hears about it: what she is doing
+                    # is not only what she set out to do and how she is going
+                    # about it, but whether any of it is working.
+                    doing.getting_somewhere(
+                        going.where_it_stands(len(moves)), reached=made
+                    )
                     # The line that was being held when she got up a rung is
                     # a line that worked, and that is what a line is for.
                     # Graded per move, an approach is judged on whether the

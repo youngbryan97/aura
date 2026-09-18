@@ -141,8 +141,38 @@ def test_a_line_is_graded_by_whether_it_moved_her_up_a_rung():
 
     source = pursuit_source()
     at = source.index("going.noticed(")
-    credited = source[at : at + 900]
+    credited = source[at : at + 1400]
     assert 'lines.learned(A_LINE_HERE, plan["held"].approach, True)' in credited
     at = source.index("going.why_reassess(len(moves))")
     debited = source[at : at + 700]
     assert 'lines.learned(A_LINE_HERE, plan["held"].approach, False)' in debited
+
+
+def test_what_she_is_doing_says_how_far_along_it_is():
+    """Asked what she is doing, "playing 2048" is half the answer.
+
+    A run of five hundred moves and a run of five read the same from outside
+    when all that is carried is what she set out to do and how she is going
+    about it.
+    """
+    from core.agency import what_she_is_doing as doing
+
+    doing.taking_on("play until the 2048 tile", where="2048 Game")
+    doing.going_about_it("keep the largest in a corner", because="it worked here before")
+    assert not any("How far along" in line for line in doing.as_lines())
+    doing.getting_somewhere("128 so far, working on 256, 5 rung(s) toward 2048", reached=128)
+    lines = doing.as_lines()
+    assert any("How far along: 128 so far, working on 256" in line for line in lines)
+    assert doing.right_now().reached == 128.0
+    # Said once per thing reached, not per move.
+    before = doing.right_now().changed_at
+    doing.getting_somewhere("128 so far, working on 256, 5 rung(s) toward 2048")
+    assert doing.right_now().changed_at == before
+
+
+def test_a_rung_is_told_to_the_rest_of_her():
+    from screen_pursuit_support import pursuit_source
+
+    source = pursuit_source()
+    at = source.index("doing.getting_somewhere(")
+    assert "going.where_it_stands(len(moves))" in source[at : at + 200]
