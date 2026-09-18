@@ -5,8 +5,10 @@ What this class used to do, in full: ``os.makedirs(sandbox_dir)`` and pass
 The command could still read every file the user can read, write outside the
 directory with one absolute path, open sockets, and spawn whatever it liked.
 It was named ``LocalCommandSandbox``, its docstring said "restricts command
-scopes using directory isolations", :class:`~core.security.consent_kernel.ConsentKernel`
-held it as its isolation primitive, and a test named
+scopes using directory isolations", a ``ConsentKernel``
+held it as its isolation primitive — a chain that advertised itself as the
+complete safety verification and that nothing ever called, deleted
+2026-09-18 — and a test named
 ``test_subsystem_hardening_checkpoint`` asserted that it ran ``python -V``.
 
 Nothing in that arrangement was false about the code and all of it was false
