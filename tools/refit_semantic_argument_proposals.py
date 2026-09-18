@@ -93,6 +93,8 @@ def main() -> int:
                         help="source-label retention in joint_graphs; zero reproduces contrast-only fitting")
     parser.add_argument("--retain-semantic-constraints", action="store_true",
                         help="joint_graphs only: retain satisfied witnesses and source bindings during fitting")
+    parser.add_argument("--retention-operation-charts", type=int, default=32,
+                        help="runtime operation charts searched per source-training example for retention")
     parser.add_argument("--learn-argument-heads", action="store_true",
                         help="retained joint_graphs only: differentiate runtime argument-mention heads too")
     parser.add_argument("--compare-fit-start", action="store_true",
@@ -191,6 +193,7 @@ def main() -> int:
         options["learn_arguments"] = args.learn_argument_heads
         if args.retain_semantic_constraints:
             options["checkpoint_dir"] = args.fit_checkpoint_dir or args.output.with_suffix(".fit-checkpoints")
+            options["retention_operation_charts"] = args.retention_operation_charts
     if args.runtime_mention_margin:
         options["runtime_mention_margin"] = True
     if args.runtime_operation_views:

@@ -1008,6 +1008,56 @@ class CompositionalSemanticProgramTransducer:
             )
         )
 
+    def _runtime_operation_charts(self, tokens, hidden, inputs, inference_max_steps):
+        """Share source grounding and operation candidates with offline graph learning."""
+        input_banks: list[tuple[tuple[TokenSpan, float], ...]] = []
+        argument_pointer_scores = self.argument_pointer.score_sequence(hidden)
+        for index, value in enumerate(inputs):
+            spans = self.input_grounding.candidate_spans(tokens, value)
+            if not spans:
+                raise ValueError(f"input_value_not_grounded:{index}")
+            input_banks.append(
+                tuple((span, argument_pointer_scores.score_span(span)) for span in spans)
+            )
+        grounded = _joint_pointer_assignment(tuple(input_banks), ordered=False)
+        if grounded is None:
+            raise ValueError("input_pointer_assignment_failed")
+        input_spans, input_scores = grounded
+        nodes = _operation_nodes(
+            pointer=self.operation_pointer,
+            classifier=self.operation_head,
+            hidden=hidden,
+            input_spans=input_spans,
+            max_span_tokens=self.max_span_tokens,
+            hidden_channels=self.hidden_channels,
+            hidden_channel_widths=self.hidden_channel_widths,
+            label_limit=self.training_receipt.get("operation_label_limit", 1),
+            complete_inventory=self.training_receipt.get("operation_search_policy") == "complete_bounded_v1",
+        )
+        from core.learning.semantic_operation_search import OperationChartSearch
+
+        complete_search = self.training_receipt.get("operation_search_policy") == "complete_bounded_v1"
+        charts = (OperationChartSearch(
+            nodes, max_steps=inference_max_steps, length_penalty=self.operation_length_penalty,
+            feasible=lambda selected: _operation_chart_use_feasible(
+                selected, n_inputs=len(inputs), contract=self.register_use_contract),
+            max_expansions=self.training_receipt.get("operation_search_max_expansions"),
+        ) if complete_search else _operation_chart_candidates(
+            nodes,
+            max_steps=inference_max_steps,
+            length_penalty=self.operation_length_penalty,
+            limit=self.operation_chart_beam,
+            feasible=(
+                lambda selected: _operation_chart_use_feasible(
+                    selected, n_inputs=len(inputs), contract=self.register_use_contract,
+                )
+            ) if self.training_receipt.get("operation_chart_feasibility") in {"register_edge_bounds_v2", "arity_state_bounds_v3"} else None,
+            preserve_arity_states=self.training_receipt.get("operation_chart_feasibility") == "arity_state_bounds_v3",
+        ))
+        if not charts:
+            raise ValueError("operation_chart_empty")
+        return input_spans, input_scores, argument_pointer_scores, charts
+
     def decode(
         self,
         *,
@@ -1032,57 +1082,12 @@ class CompositionalSemanticProgramTransducer:
         inference_max_steps = self.inference_step_limit(len(inputs))
         if inference_max_steps is None:
             return SemanticTransductionOutcome(None, "public_input_count_unsupported", {}, {})
-        input_banks: list[tuple[tuple[TokenSpan, float], ...]] = []
-        argument_pointer_scores = self.argument_pointer.score_sequence(hidden)
-        for index, value in enumerate(inputs):
-            spans = self.input_grounding.candidate_spans(tokens, value)
-            if not spans:
-                return SemanticTransductionOutcome(
-                    None,
-                    f"input_value_not_grounded:{index}",
-                    {},
-                    {},
-                )
-            input_banks.append(
-                tuple((span, argument_pointer_scores.score_span(span)) for span in spans)
-            )
-        grounded = _joint_pointer_assignment(tuple(input_banks), ordered=False)
-        if grounded is None:
-            return SemanticTransductionOutcome(None, "input_pointer_assignment_failed", {}, {})
-        input_spans, input_scores = grounded
-        nodes = _operation_nodes(
-            pointer=self.operation_pointer,
-            classifier=self.operation_head,
-            hidden=hidden,
-            input_spans=input_spans,
-            max_span_tokens=self.max_span_tokens,
-            hidden_channels=self.hidden_channels,
-            hidden_channel_widths=self.hidden_channel_widths,
-            label_limit=self.training_receipt.get("operation_label_limit", 1),
-            complete_inventory=self.training_receipt.get("operation_search_policy") == "complete_bounded_v1",
-        )
-        from core.learning.semantic_operation_search import OperationChartSearch, OperationSearchIncompleteError
-
-        complete_search = self.training_receipt.get("operation_search_policy") == "complete_bounded_v1"
-        charts = (OperationChartSearch(
-            nodes, max_steps=inference_max_steps, length_penalty=self.operation_length_penalty,
-            feasible=lambda selected: _operation_chart_use_feasible(
-                selected, n_inputs=len(inputs), contract=self.register_use_contract),
-            max_expansions=self.training_receipt.get("operation_search_max_expansions"),
-        ) if complete_search else _operation_chart_candidates(
-            nodes,
-            max_steps=inference_max_steps,
-            length_penalty=self.operation_length_penalty,
-            limit=self.operation_chart_beam,
-            feasible=(
-                lambda selected: _operation_chart_use_feasible(
-                    selected, n_inputs=len(inputs), contract=self.register_use_contract,
-                )
-            ) if self.training_receipt.get("operation_chart_feasibility") in {"register_edge_bounds_v2", "arity_state_bounds_v3"} else None,
-            preserve_arity_states=self.training_receipt.get("operation_chart_feasibility") == "arity_state_bounds_v3",
-        ))
-        if not charts:
-            return SemanticTransductionOutcome(None, "operation_chart_empty", {}, {})
+        try:
+            input_spans, input_scores, argument_pointer_scores, charts = self._runtime_operation_charts(
+                tokens, hidden, inputs, inference_max_steps)
+        except ValueError as exc:
+            return SemanticTransductionOutcome(None, str(exc), {}, {})
+        from core.learning.semantic_operation_search import OperationSearchIncompleteError
         from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
         from core.learning.semantic_argument_chart import select_operation_argument_graph
         relation_score_cache = {}
