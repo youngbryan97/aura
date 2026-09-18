@@ -812,6 +812,10 @@ MODEL_PATHS = {
     "DeepSeek-R1-Distill-Qwen-32B-8bit": BASE_DIR / "models" / "DeepSeek-R1-Distill-Qwen-32B-8bit",
     "Qwen3-72B-Instruct":         BASE_DIR / "models" / "Qwen3-72B-Instruct",
     "Qwen2.5-72B-Instruct-Q4":    BASE_DIR / "models" / "Qwen2.5-72B-Instruct-Q4",
+    # Qwen3.5 27B at two bits with the outlier rotation folded in: a
+    # 27B-class model in the brainstem's footprint class. Loaded through
+    # core/brain/llm/prism_hadamard.py, which mlx_worker routes to.
+    "Ternary-Bonsai-2-27B-mlx-2bit": BASE_DIR / "models" / "Ternary-Bonsai-2-27B-mlx-2bit",
 }
 
 #: Where MODEL_PATHS was baked. The table above is built once at import, so a
