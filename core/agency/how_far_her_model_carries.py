@@ -79,16 +79,13 @@ class HowFarHerModelCarries:
         by saying nothing changes, and a model that only matches that is not
         carrying her anywhere.
         """
-        far = max(1, int(distance))
+        if type(distance) is not int or distance < 1:
+            raise ValueError("distance must count delivered acts")
+        outcome = PredictionOutcome(confidence, 0.0 if was_right else 1.0, tolerance=0.5)
+        far = distance
         self.graded[far] = self.graded.get(far, 0) + 1
         if far == 1:
-            self.calibration.observe(
-                PredictionOutcome(
-                    confidence=max(0.0, min(1.0, float(confidence))),
-                    error=0.0 if was_right else 1.0,
-                    tolerance=0.5,
-                )
-            )
+            self.calibration.observe(outcome)
         self.carrying.observe(
             far,
             error=0.0 if was_right else 1.0,
@@ -112,12 +109,8 @@ class HowFarHerModelCarries:
         return useful
 
     def how_sure_she_should_be(self, claimed: float) -> float:
-        """A confidence with her own record of overclaiming taken out of it."""
-        stated = max(0.0, min(1.0, float(claimed)))
-        over = self.calibration.overconfidence
-        if over is None or self.calibration.n < ENOUGH_AT_A_DISTANCE:
-            return stated
-        return max(0.0, min(1.0, stated - float(over)))
+        """A confidence calibrated against predictions in the same bin."""
+        return self.calibration.calibrated_probability(claimed, minimum_count=ENOUGH_AT_A_DISTANCE)
 
     def says(self) -> str:
         """What her model is worth here, for a log line and for a receipt."""
@@ -135,15 +128,9 @@ class HowFarHerModelCarries:
 
     def as_memory(self) -> dict[str, Any]:
         return {
+            "measurement_version": 2,
             "graded": {str(far): count for far, count in self.graded.items()},
-            "calibration": {
-                "n": self.calibration.n,
-                "squared": self.calibration.squared,
-                "confidence_sum": self.calibration.confidence_sum,
-                "correct_sum": self.calibration.correct_sum,
-                "counts": list(self.calibration.counts),
-                "hits": list(self.calibration.hits),
-            },
+            "calibration": self.calibration.as_memory(),
             "carrying": {
                 str(far): [
                     list(self.carrying._errors.get(far) or ())[-64:],  # noqa: SLF001 - her own record
@@ -159,18 +146,11 @@ class HowFarHerModelCarries:
         carried = cls()
         if not isinstance(held, dict):
             return carried
+        if held.get("measurement_version") != 2:
+            logger.info("legacy planning measurements lack delivered-action provenance; starting a new measurement")
+            return carried
         try:
-            calibration = held.get("calibration") or {}
-            carried.calibration.n = int(calibration.get("n") or 0)
-            carried.calibration.squared = float(calibration.get("squared") or 0.0)
-            carried.calibration.confidence_sum = float(calibration.get("confidence_sum") or 0.0)
-            carried.calibration.correct_sum = float(calibration.get("correct_sum") or 0.0)
-            counts = list(calibration.get("counts") or ())
-            hits = list(calibration.get("hits") or ())
-            if len(counts) == len(carried.calibration.counts):
-                carried.calibration.counts = [int(one) for one in counts]
-            if len(hits) == len(carried.calibration.hits):
-                carried.calibration.hits = [int(one) for one in hits]
+            carried.calibration = CalibrationCurve.from_memory(held.get("calibration") or {})
             for far, rows in (held.get("carrying") or {}).items():
                 errors, baseline = (list(rows[0]), list(rows[1])) if len(rows) == 2 else ([], [])
                 for error, base in zip(errors, baseline, strict=False):

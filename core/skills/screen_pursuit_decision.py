@@ -407,12 +407,14 @@ async def _decide_the_next_move_part_6(anchor, confirmed_here, expect_page, open
             await _put_her_own_window_away()
         await _bring_the_thing_back_to_the_front(anchor["app"] or target_app)
 
-def _decide_the_next_move_world_where_she(expected, far, in_flight, laid_out, observation, pending, previous, responds):
+def _decide_the_next_move_world_where_she(expected, far, in_flight, laid_out, observation, pending, previous, responds, carries=None):
+    from core.perception.how_it_moves import prediction_held
+
     from .screen_pursuit import logger
     # Was the world where she said it would be? That is what decides
     # how far she goes next time, and it is the only thing that does.
     in_flight.it_landed(previous.chosen.name if previous.chosen else "")
-    if expected["took"] >= 1 and expected["after"] is not None:
+    if expected["took"] >= 1 and expected["after"] is not None and laid_out is not None:
         # Came out, meaning nothing she predicted is missing. Not
         # meaning identical: in a world that deals a tile after every
         # move of hers, the board she predicted is never the board
@@ -421,23 +423,21 @@ def _decide_the_next_move_world_where_she(expected, far, in_flight, laid_out, ob
         # did what she thought — an arrival she never claimed to know
         # about is the world's business, and she has somewhere else
         # to put those.
-        said = {
-            (one.row, one.column): one.says
-            for one in getattr(expected["after"], "cells", ())
-        }
-        really = {
-            (one.row, one.column): one.says
-            for one in getattr(laid_out, "cells", ())
-        }
-        same = bool(said) and all(
-            really.get(where) == what for where, what in said.items()
-        )
+        same = prediction_held(expected["after"], laid_out)
         (far.it_was_where_she_said if same else far.it_was_not)(
             expected["took"]
         )
         if not same:
             logger.info("the run did not come out: %s", far.describe())
-        expected["after"], expected["took"] = None, 0
+        if carries is not None and pending["arranged"] is not None and expected.get("confidence") is not None:
+            carries.it_predicted(
+                distance=expected["took"],
+                confidence=expected["confidence"],
+                was_right=same,
+                would_no_change_have_been_right=prediction_held(pending["arranged"], laid_out),
+            )
+        # Learning below still needs the delivered count. Consume only the forecast.
+        expected["after"] = None
     # What leaning on these acts has come to. The tally she found on
     # the screen herself is the measure where there is one, because
     # nobody has told her what progress is and something on the screen
@@ -609,17 +609,18 @@ def _decide_the_next_move_what_she_what(began_at, cannot_explain, laid_out, narr
                 )
             trying["name"] = ""
 
-def _decide_the_next_move_part_12(furthest, laid_out, pending, plan, previous, responds, skilled, success_when):
-    skilled.learned(
-        pending["arranged"].as_shape(),
-        previous.chosen.name,
-        _left_her_better_off(
-            pending["arranged"],
-            laid_out,
-            success_when,
-            plan["held"].approach if plan["held"] is not None else "",
-        ),
-    )
+def _decide_the_next_move_part_12(furthest, laid_out, pending, plan, previous, responds, skilled, success_when, single_action=True):
+    if single_action:
+        skilled.learned(
+            pending["arranged"].as_shape(),
+            previous.chosen.name,
+            _left_her_better_off(
+                pending["arranged"],
+                laid_out,
+                success_when,
+                plan["held"].approach if plan["held"] is not None else "",
+            ),
+        )
     # And when she has just built the biggest thing she has ever
     # built here, which is the thing somebody watching came for.
     # Only once she knows what the thing itself is. Before the
@@ -1294,6 +1295,14 @@ async def decide_the_next_move(
     # forty times because nothing ever checked that the board moved.
     previous = pending["deliberation"]
     if previous is not None:
+        if expected["took"] > 1 and expected["after"] is not None:
+            from core.perception.how_it_moves import prediction_held
+
+            previous.expected = replace(
+                previous.expected or previous.chosen.expectation,
+                becomes=expected["after"],
+                becomes_holds=lambda after, forecast=expected["after"]: prediction_held(forecast, after),
+            )
         attempt = confirm(
             previous,
             pending["before"],
@@ -1309,7 +1318,7 @@ async def decide_the_next_move(
             went.append((pending["arranged"], bool(attempt.progressed)))
             # And against WHAT KIND of situation it went that way, which
             # is the fact that carries to a place she has not been.
-            if previous.chosen is not None:
+            if previous.chosen is not None and expected["took"] == 1:
                 was = pending["arranged"]
                 kind = was.as_shape() if hasattr(was, "as_shape") else ""
                 if kind:
@@ -1319,7 +1328,7 @@ async def decide_the_next_move(
                         well=bool(attempt.progressed),
                     )
                     repeats.she_saw(kind, previous.chosen.name, laid_out)
-        rose = _decide_the_next_move_world_where_she(expected, far, in_flight, laid_out, observation, pending, previous, responds)
+        rose = _decide_the_next_move_world_where_she(expected, far, in_flight, laid_out, observation, pending, previous, responds, carries)
         if rose is not None:
             reaches.went(rose)
             if rose > 0:
@@ -1342,22 +1351,7 @@ async def decide_the_next_move(
                     logger.info("%s", matters.says())
                     if narrate:
                         _tell(f"I know what matters here now — {matters.says()}.")
-        if previous.chosen is not None:
-            # What that prediction was worth, at the distance it was made
-            # from. Every move carries one, and a plan she committed to
-            # carries one per step; graded here, they say how far her model
-            # of this world is worth searching.
-            if carries is not None and pending["arranged"] is not None:
-                nothing_changed = (
-                    laid_out is not None
-                    and pending["arranged"].as_text() == laid_out.as_text()
-                )
-                carries.it_predicted(
-                    distance=max(1, int(len(pending.get("ahead") or ()) or 1)),
-                    confidence=float(knows.rules.confidence() if knows.rules is not None else 0.0),
-                    was_right=bool(attempt.verdict.held),
-                    would_no_change_have_been_right=bool(nothing_changed),
-                )
+        if previous.chosen is not None and expected["took"] == 1:
             # A key that never changes anything is not one of her actions
             # in this world, whoever wrote it down.
             can_do.tried(previous.chosen.name, attempt.verdict.observed_change)
@@ -1398,14 +1392,15 @@ async def decide_the_next_move(
             # What a rule said would happen, before it is folded in. The
             # difference between that and what she actually saw is the
             # world's doing, and it is free at exactly this moment.
-            foretold = knows.rules.expect(pending["arranged"], previous.chosen.name)
-            world.watched(foretold, knows.rules.the_thing(laid_out))
+            if expected["took"] == 1:
+                foretold = knows.rules.expect(pending["arranged"], previous.chosen.name)
+                world.watched(foretold, knows.rules.the_thing(laid_out))
             went_well = _decide_the_next_move_part_10(dropped, expected, knows, laid_out, pending, plan, previous, responds, success_when)
             if plan["held"] is not None:
                 lines.learned(A_LINE_HERE, plan["held"].approach, went_well)
                 lines_held[plan["held"].approach] = plan["held"].as_memory()
             _decide_the_next_move_what_she_what(began_at, cannot_explain, laid_out, narrate, pending, plan, success_when, trying)
-            further, made = _decide_the_next_move_part_12(furthest, laid_out, pending, plan, previous, responds, skilled, success_when)
+            further, made = _decide_the_next_move_part_12(furthest, laid_out, pending, plan, previous, responds, skilled, success_when, single_action=expected["took"] == 1)
             if further:
                 furthest["here"] = max(furthest["here"], made)
                 if narrate:
@@ -1474,6 +1469,7 @@ async def decide_the_next_move(
             moves[-1]["held"] = attempt.verdict.held
             moves[-1]["outcome"] = attempt.verdict.why()
         pending["deliberation"] = None
+        expected["after"], expected["took"] = None, 0
 
     if policy is not None:
         try:
@@ -2088,7 +2084,9 @@ async def decide_the_next_move(
             # How far she can trust her own arithmetic here, which is how
             # often the rule she is using has been right about this world.
             how_sure=(
-                knows.rules.confidence() if knows.rules is not None else 0.0
+                carries.how_sure_she_should_be(knows.rules.confidence())
+                if carries is not None and knows.rules is not None
+                else knows.rules.confidence() if knows.rules is not None else 0.0
             ),
             # What a pass costs, in moves not made, from this run's own
             # clock. Live on a resident model it was about ten.
@@ -2357,7 +2355,8 @@ async def decide_the_next_move(
         and (knows.rules is None or not knows.rules.world_adds_things())
         and world.acts_with_arrivals < 2
     ):
-        going = far.how_many(trusted=float(knows.rules.confidence()))
+        trusted = float(knows.rules.confidence())
+        going = far.how_many(trusted=carries.how_sure_she_should_be(trusted) if carries is not None else trusted)
         if going > 1:
             follow_on, _ = _the_rest_of_the_run(
                 key,
@@ -2387,6 +2386,8 @@ async def decide_the_next_move(
     # being read perfectly the whole time; the learner was being told the
     # wrong question.
     expected["took"] = len(follow_on) + 1
+    expected["prefixes"] = []
+    expected["confidence"] = float(knows.rules.confidence()) if knows.rules is not None else None
     if foresee is not None and pending["arranged"] is not None:
         # Folded over the whole run, because a claim about one act is not
         # a claim about the board she will actually be looking at.
@@ -2395,6 +2396,7 @@ async def decide_the_next_move(
             where = foresee(where, step)
             if where is None:
                 break
+            expected["prefixes"].append(where)
         expected["after"] = where
     logger.info(
         "about to press %r then %s (brief=%s, made=%s)",
