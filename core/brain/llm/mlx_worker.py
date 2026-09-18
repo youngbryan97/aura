@@ -6719,7 +6719,33 @@ def _mlx_worker_loop(
         # Import the model stack only after the process-local device contract
         # is established. Import-time tensors must never inherit the desktop
         # parent's CPU ownership.
-        from mlx_lm import load
+        from mlx_lm import load as _mlx_lm_load
+
+        def load(model_path, adapter_path=None):
+            """Load a checkpoint, including packs mlx_lm cannot read itself.
+
+            A Prism Hadamard pack is Qwen3.5 at two bits with the outlier
+            rotation folded into the weights. Everything after loading is
+            the ordinary decode path — the model it produces answers the
+            same calls — so this is the only place that has to know.
+            """
+
+            from core.brain.llm.prism_hadamard import (
+                is_prism_hadamard_pack,
+                load_prism_hadamard_pack,
+            )
+
+            if is_prism_hadamard_pack(model_path):
+                if adapter_path:
+                    raise ValueError(
+                        "A Prism Hadamard pack has its weights folded through a "
+                        "Hadamard rotation; a LoRA trained on the unrotated base "
+                        "cannot be fused onto it"
+                    )
+                return load_prism_hadamard_pack(model_path)
+            if adapter_path:
+                return _mlx_lm_load(model_path, adapter_path=adapter_path)
+            return _mlx_lm_load(model_path)
 
         try:
             from mlx_lm.sample_utils import make_sampler

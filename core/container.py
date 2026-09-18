@@ -252,6 +252,24 @@ class _BootRegistrationLease:
             self._token = None
 
 
+def _offer_to_the_shed_order(name: str, instance: Any) -> None:
+    """Tell the OOM policy about an organ that can free memory.
+
+    A singleton becomes real here and nowhere else, which makes this the
+    only place the shed order can be complete. It used to be built by one
+    sweep of the container in boot wave one, when the container is nearly
+    empty by design, so the ladder had no rungs and the only answer to
+    memory pressure was a restart.
+    """
+
+    try:
+        from core.runtime.oom_policy import offer_organ
+
+        offer_organ(name, instance)
+    except Exception:  # noqa: BLE001 — a shed offer never fails a service
+        logger.debug("shed-order offer skipped for %r", name, exc_info=True)
+
+
 class ServiceContainer:
     """Aura 3.0 Static ServiceContainer.
     
@@ -635,6 +653,7 @@ class ServiceContainer:
                 desc.instance = instance
                 desc.factory = lambda: instance
                 desc.initialized = True
+                _offer_to_the_shed_order(resolved_name, instance)
                 return
         if cls._registration_locked:
             logger.debug("⚠️ Late instance registration (post-lock): '%s' — allowed for pre-built instances.", name)
@@ -1016,6 +1035,7 @@ class ServiceContainer:
                 if desc.lifetime == ServiceLifetime.SINGLETON:
                     desc.instance = instance
                     desc.initialized = True
+                    _offer_to_the_shed_order(resolved_name, instance)
 
                 return instance
             except (CircularDependencyError, ServiceNotFoundError):

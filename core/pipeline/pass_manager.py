@@ -37,6 +37,8 @@ that is already written and load-bearing gets bisect and timing by asking
 
 from __future__ import annotations
 
+from core.runtime.sheddable import CacheHolder
+
 import contextvars
 import logging
 import threading
@@ -145,7 +147,7 @@ class _CacheEntry:
     hits: int = 0
 
 
-class AnalysisManager(Generic[Unit]):
+class AnalysisManager(CacheHolder, Generic[Unit]):
     """Caches analysis results and invalidates them on the preservation contract."""
 
     def __init__(self) -> None:
@@ -155,6 +157,12 @@ class AnalysisManager(Generic[Unit]):
         self.computations = 0
         self.hits = 0
         self.invalidations = 0
+
+    #: Analyses already computed for the current unit. The preservation
+    #: contract invalidates them routinely, so dropping them early is the
+    #: same event the manager already handles.
+    sheddable_caches = ("_cache",)
+    oom_rationale = "cached pass analyses, recomputed on the next request"
 
     def register(self, analysis: Analysis[Unit]) -> None:
         name = getattr(analysis, "name", "") or type(analysis).__name__

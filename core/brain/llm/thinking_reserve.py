@@ -360,7 +360,9 @@ def record_decode_rate(
 _LONG_ENOUGH_TO_TIME = 32
 
 
-def seconds_to_decode(tokens: int, model: str = "") -> float:
+def seconds_to_decode(
+    tokens: int, model: str = "", *, typical: bool = False
+) -> float:
     """How long a budget of this many tokens takes, or 0.0 when unmeasured.
 
     Deliberately pessimistic: the tenth-percentile rate, because a deadline
@@ -370,7 +372,76 @@ def seconds_to_decode(tokens: int, model: str = "") -> float:
     Only generations of a comparable length count. Pooling them all lets a
     window full of short background prompts report a rate no long foreground
     turn reaches, which is a deadline sized on the wrong evidence.
+
+    ``typical`` asks for the median rate instead of the slow tail, and the
+    two callers need opposite tails. A deadline must assume writing will be
+    slow or it cancels the long answers it exists to protect. A *reading*
+    budget divides the same estimate the other way: assuming writing is
+    slow buys more reading, so the pessimism that protects a deadline
+    inflates a budget. Measured on this host, the slow tail put a
+    457-token answer at 218 seconds and afforded 126,798 characters of
+    prompt — while the turn it was sized for read 44,192 characters in
+    83 seconds and decoded in 71. The budget could not fire.
+
+    And it rises with the budget, which the comparable-length rule does not
+    give on its own. "Comparable" is a *set* that shrinks as the budget
+    grows, so its tenth percentile moves as readings drop out of it, and the
+    answer moved the wrong way: measured on 512 readings, 101 tokens came
+    back at 218.4 seconds and 102 tokens at 35.2, with 26 such steps below
+    2,048. Anything sized on this — a deadline, a reading budget — then said
+    a longer answer was cheaper than a shorter one. The estimate for a
+    budget is now the slowest estimate for any budget it contains, so it can
+    only rise, and it is never less pessimistic than the rule alone.
     """
+
+    try:
+        wanted = int(tokens)
+    except (TypeError, ValueError) as exc:
+        logger.debug("Token count is not a number, reporting no seconds: %s", exc)
+        return 0.0
+    if wanted <= 0:
+        return 0.0
+    _restore_once()
+    with _lock:
+        lengths = sorted(
+            {length for window in _rates.values() for length, _rate in window}
+        )
+        recorded = sum(len(window) for window in _rates.values())
+    key = (str(model or ""), wanted, recorded, typical)
+    cached = _MONOTONE_CACHE.get(key)
+    if cached is not None:
+        return cached
+    # A shorter budget can only be reached through a superset of readings,
+    # so its estimate is the one to beat. The set only changes where a
+    # reading enters or leaves it, which is at twice a recorded length.
+    worst = _comparable_seconds_to_decode(wanted, model, typical=typical)
+    if worst <= 0.0:
+        # Zero means unmeasured, not instant. Lifting it to a shorter
+        # budget's estimate would invent evidence for a budget that has
+        # none, which is the reading this whole module exists to refuse.
+        _MONOTONE_CACHE[key] = 0.0
+        return 0.0
+    ladder = sorted({2 * length for length in lengths if 2 * length < wanted})
+    for step in ladder:
+        earlier = _comparable_seconds_to_decode(step, model, typical=typical)
+        if earlier > worst:
+            worst = earlier
+    if len(_MONOTONE_CACHE) > _MONOTONE_CACHE_ENTRIES:
+        _MONOTONE_CACHE.clear()
+    _MONOTONE_CACHE[key] = worst
+    return worst
+
+
+#: Monotone estimates are worked out over a ladder, so they are remembered
+#: until a new reading changes the answer.
+_MONOTONE_CACHE: dict[tuple[str, int, int, bool], float] = {}
+_MONOTONE_CACHE_ENTRIES = 512
+
+
+def _comparable_seconds_to_decode(
+    tokens: int, model: str = "", *, typical: bool = False
+) -> float:
+    """The comparable-length estimate, before it is made to rise."""
 
     try:
         wanted = int(tokens)
@@ -441,7 +512,8 @@ def seconds_to_decode(tokens: int, model: str = "") -> float:
             comparable = sorted(rate for _length, rate in longest)
     if len(comparable) < _ENOUGH_TO_EXPRESS_A_PERCENTILE:
         return 0.0
-    index = min(len(comparable) - 1, int((1.0 - _PERCENTILE) * len(comparable)))
+    share = 0.5 if typical else (1.0 - _PERCENTILE)
+    index = min(len(comparable) - 1, int(share * len(comparable)))
     rate = comparable[index]
     if not (rate > 0.0):
         return 0.0

@@ -391,6 +391,35 @@ def get_oom_policy() -> OomPolicy:
     return _POLICY
 
 
+def offer_organ(name: str, instance: Any) -> bool:
+    """Register a service as a shed candidate if it can be shed.
+
+    Discovery used to be a single sweep of the already-instantiated
+    services, run in boot wave one. Almost nothing is instantiated in wave
+    one — that is what wave one is — so the sweep saw an empty container
+    and the ladder it built had no rungs. Anything constructed later, which
+    is everything, was never offered at all.
+
+    So the offer happens where an organ becomes real, and the shed order
+    fills as the runtime does. Registering is idempotent by name.
+    """
+
+    shed = getattr(instance, "shed_memory", None)
+    if not callable(shed):
+        return False
+    footprint = getattr(instance, "memory_footprint_bytes", None)
+    register_organ(
+        str(name),
+        oom_score_adj=int(getattr(instance, "oom_score_adj", 0) or 0),
+        footprint=footprint if callable(footprint) else None,
+        shed=shed,
+        rationale=str(getattr(instance, "oom_rationale", "") or "")
+        or f"{name} exposes shed_memory()",
+        recoverable=bool(getattr(instance, "oom_recoverable", True)),
+    )
+    return True
+
+
 def register_organ(
     name: str,
     *,
@@ -429,6 +458,7 @@ __all__ = [
     "ShedEvent",
     "get_oom_policy",
     "oom_report",
+    "offer_organ",
     "register_organ",
     "reset_oom_policy_for_test",
 ]

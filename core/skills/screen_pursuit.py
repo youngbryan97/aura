@@ -1416,14 +1416,15 @@ async def pursue_on_screen(
     #: their sixth go at Ninja Gaiden is not reacting — they are replaying
     #: what they know and thinking only where they died last time.
     got_to = TheFurthestSheHasGot.from_memory(knew.get("got_to") or {})
-    #: What she is working toward, the rungs she has passed on the way, and
-    #: whether this one is taking longer than her own record says it should.
-    #: A goal that exists only as a finishing condition can be passed or
-    #: failed and says nothing in between, which is where all the deciding is.
     #: How far ahead her model of this world has been worth using, measured
     #: while she uses it. What bounds a search is not the clock: a level
     #: deeper than her model is right is a level of fiction.
     from core.agency.how_far_her_model_carries import HowFarHerModelCarries
+
+    #: What she is working toward, the rungs she has passed on the way, and
+    #: whether this one is taking longer than her own record says it should.
+    #: A goal that exists only as a finishing condition can be passed or
+    #: failed and says nothing in between, which is where all the deciding is.
     from core.agency.how_it_is_going import HowItIsGoing
 
     carries = HowFarHerModelCarries.from_memory(knew.get("carries") or {})

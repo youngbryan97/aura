@@ -17,6 +17,8 @@ The class never calls an LLM directly.  It receives an ``llm_fn`` callback
 at construction time, making it backend-agnostic and trivially testable.
 """
 from __future__ import annotations
+
+from core.runtime.sheddable import CacheHolder
 from core.runtime.errors import record_degradation
 
 
@@ -186,7 +188,7 @@ def _is_complex(objective: str, context: list[dict[str, Any]]) -> bool:
 # Main class
 # ---------------------------------------------------------------------------
 
-class TreeOfThoughts:
+class TreeOfThoughts(CacheHolder):
     """Multi-draft deliberative reasoning engine.
 
     Generates several candidate response strategies, critiques them against
@@ -227,6 +229,12 @@ class TreeOfThoughts:
 
         # fingerprint -> (ThoughtResult, timestamp)
         self._cache: dict[str, tuple[ThoughtResult, float]] = {}
+
+    #: Deliberations already done, keyed by their fingerprint. Dropping
+    #: them costs the time to think again and loses nothing that was
+    #: recorded, which is what makes this a rung rather than evidence.
+    sheddable_caches = ("_cache",)
+    oom_rationale = "cached deliberations, recomputable by deliberating again"
 
     # ------------------------------------------------------------------
     # Public API
