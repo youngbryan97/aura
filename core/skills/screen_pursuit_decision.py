@@ -751,6 +751,17 @@ def _decide_the_next_move_part_14(ended, holding, looking_at_the_thing, moves, p
     )
     return time_to_ask
 
+def _a_move_here(run: Any) -> float:
+    """How long a move in this world has been taking, from her own looks.
+
+    What a thought may cost is a fact about the world she is thinking in: a
+    board that answers in a fifth of a second does not wait half a minute for
+    words about it.
+    """
+    looks = list(getattr(run, "reading_took", None) or [])
+    return (sum(looks) / len(looks)) if looks else 0.0
+
+
 def _decide_the_next_move_nothing_task_working(can_do, move_keys, observation, offered_a_restart, responds, knows=None, laid_out=None):
     from .screen_pursuit import logger
     # When nothing in the task is working, the task itself becomes a
@@ -1593,7 +1604,9 @@ async def decide_the_next_move(
                 knowledge["held"],
                 seen,
                 screen_options(move_keys),
-                think=_within_the_run(think or _her_reasoning(stakes), ends_at),
+                think=_within_the_run(
+                    think or _her_reasoning(stakes), ends_at, _a_move_here(run)
+                ),
                 history=history[-RECENT_ATTEMPTS:],
             )
         learned = learned + [meaning.as_evidence() for meaning in knowledge["meant"]]
@@ -1634,7 +1647,9 @@ async def decide_the_next_move(
                 # is not the same question as deciding one of them, and
                 # asking it with the thinking that suits a move got the
                 # model's own warm-up handed back as a plan.
-                think=_within_the_run(think or _reasoning_for_a_plan(), ends_at),
+                think=_within_the_run(
+                    think or _reasoning_for_a_plan(), ends_at, _a_move_here(run)
+                ),
                 knowledge=learned,
                 history=history[-RECENT_ATTEMPTS:],
                 previous=plan["held"],
@@ -2101,7 +2116,11 @@ async def decide_the_next_move(
             available,
             foresight=ahead or None,
             seeing=laid_out,
-            think=_within_the_run(think or _her_reasoning(weight), ends_at) if asking else None,
+            think=(
+                _within_the_run(think or _her_reasoning(weight), ends_at, _a_move_here(run))
+                if asking
+                else None
+            ),
             knowledge=learned,
             history=history[-RECENT_ATTEMPTS:],
             stakes=stakes,

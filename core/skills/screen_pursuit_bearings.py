@@ -359,8 +359,8 @@ def _time_left(began: float, max_seconds: float, deadline_at: float) -> float:
     return max(1.0, ends_at - now)
 
 
-def _within_the_run(think: Any, ends_at: float) -> Any:
-    """Her thinking, bounded by what is left of the run rather than its own budget.
+def _within_the_run(think: Any, ends_at: float, a_move_takes: float = 0.0) -> Any:
+    """Her thinking, bounded by the run and by the world she is thinking in.
 
     A cycle checks the clock at its top and then goes away to think. When the
     thought outlasts the run, the deadline is only noticed after it returns,
@@ -368,6 +368,12 @@ def _within_the_run(think: Any, ends_at: float) -> Any:
     more — has already cancelled everything. LIVE 2026-08-26: twenty-nine
     narrated moves, a 64 built into the corner, and "Operation took too long.
     Completed 0/0 steps."
+
+    And by what the world will wait for. Words are for the moments acting and
+    looking have stopped carrying her, which is exactly when she cannot afford
+    to stop: a move that asked for them cost twenty-six seconds on a board
+    answering in a fifth of one (live, 2026-09-18). She gets the time ten of
+    her own moves take, and carries on without them after that.
     """
     if think is None or ends_at <= 0.0:
         return think
@@ -376,6 +382,8 @@ def _within_the_run(think: Any, ends_at: float) -> Any:
         left = ends_at - time.monotonic()
         if left <= 1.0:
             raise TimeoutError("the run is out of time to think")
+        if a_move_takes > 0.0:
+            left = min(left, max(2.0, 10.0 * a_move_takes))
         return await asyncio.wait_for(think(objective, evidence), timeout=left)
 
     return bounded
