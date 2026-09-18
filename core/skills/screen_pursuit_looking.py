@@ -813,17 +813,31 @@ def _expected_of(chosen: Any) -> str:
 #: actually done, so a slow surface is waited for and a fast one is not.
 _ANSWERING_TOOK: dict[str, float] = {"longest": 0.0, "quickest": 0.0}
 
+#: The last few answers, for asking what this world usually takes.
+_ANSWERS: list[float] = []
+
+#: How many answers make a usual one. Enough to be a habit of the world
+#: rather than one slow reply, few enough to follow it as it changes.
+_A_FEW_ANSWERS = 8
+
 
 def _before_looking_again() -> float:
     """How long to leave the world alone between looks.
 
-    Half the quickest answer she has ever seen from it: sleeping less than
-    that cannot step over an answer, and a reading of a window costs less
-    than a tenth of a second, so waiting longer than the world needs is the
-    expensive half of a move. Before she has seen one answer there is no
-    measurement and she looks at once, because the look is the measurement.
+    As long as this world usually takes to answer. Looking sooner reads a
+    thing in the middle of moving: a tile between two places belongs to
+    neither, so two readings taken while it travels agree with each other and
+    disagree with everything her rule says — 19 pairs of 34, live, on a board
+    she was playing correctly.
+
+    The usual answer is the middle of the last few, so one slow reply does not
+    slow every move after it. Before she has seen one there is no measurement
+    and she looks at once, because the look is the measurement.
     """
-    return max(0.0, _ANSWERING_TOOK["quickest"] * 0.5)
+    if not _ANSWERS:
+        return 0.0
+    ordered = sorted(_ANSWERS)
+    return max(0.0, ordered[len(ordered) // 2])
 
 
 def _how_long_to_wait() -> float:
@@ -844,6 +858,8 @@ def _answering_took(seconds: float) -> None:
     _ANSWERING_TOOK["longest"] = max(_ANSWERING_TOOK["longest"], took)
     quickest = _ANSWERING_TOOK["quickest"]
     _ANSWERING_TOOK["quickest"] = took if not quickest else min(quickest, took)
+    _ANSWERS.append(took)
+    del _ANSWERS[:-_A_FEW_ANSWERS]
 
 
 async def _settled_after(

@@ -82,24 +82,33 @@ def test_the_move_path_waits_at_all() -> None:
     assert "_settled_after(" in act, "a keystroke must be given time to land"
 
 
-def test_the_pause_between_looks_is_half_the_quickest_answer_she_has_seen():
-    """A look costs less than a tenth of a second, so a tenth of a second of waiting was the move."""
+def test_the_pause_between_looks_is_what_this_world_usually_takes():
+    """Looking sooner reads a thing in the middle of moving.
+
+    A tile between two places belongs to neither, so two readings taken while
+    it travels agree with each other and disagree with everything her rule
+    says: 19 pairs of 34, live, on a board she was playing correctly.
+    """
     from core.skills.screen_pursuit_looking import (
         _ANSWERING_TOOK,
+        _ANSWERS,
         _answering_took,
         _before_looking_again,
     )
 
-    was = dict(_ANSWERING_TOOK)
+    was, answers = dict(_ANSWERING_TOOK), list(_ANSWERS)
     try:
         _ANSWERING_TOOK["longest"] = _ANSWERING_TOOK["quickest"] = 0.0
+        _ANSWERS.clear()
         # Nothing measured yet: she looks at once, because the look measures it.
         assert _before_looking_again() == 0.0
         _answering_took(0.5)
         _answering_took(0.2)
         _answering_took(0.9)
         assert _ANSWERING_TOOK["longest"] == 0.9
-        # Never long enough to step over the quickest answer the world gave.
-        assert _before_looking_again() == 0.1
+        # The middle of them, so one slow reply does not slow every move after.
+        assert _before_looking_again() == 0.5
     finally:
         _ANSWERING_TOOK.update(was)
+        _ANSWERS.clear()
+        _ANSWERS.extend(answers)

@@ -25,6 +25,11 @@ logger = logging.getLogger("Aura.KeepingTheScreenAwake")
 
 __all__ = ["keeping_it_awake", "it_is_being_kept_awake"]
 
+#: How long a declaration of activity lasts before it is asked for again.
+#: Longer than any task, because the hold ends with the task rather than with
+#: the clock, and it is tied to this process either way.
+_A_DAY_S = 86400
+
 _LOCK = threading.Lock()
 #: The holder, and how many things are relying on it.
 _HOLDING: Any = None
@@ -44,7 +49,20 @@ def _take_hold(why: str) -> Any:
         # Tied to this process: if Aura goes, the hold goes with it rather
         # than leaving a machine that never sleeps again.
         return subprocess.Popen(  # noqa: S603 - a system tool, fixed arguments
-            ["/usr/bin/caffeinate", "-d", "-i", "-w", str(os.getpid())],
+            [
+                "/usr/bin/caffeinate",
+                # The display, the system, and the idle timer that starts the
+                # screen saver. Keeping the display awake is not enough on its
+                # own: the saver starts over a display that is still on, and
+                # locking follows the saver. LIVE 2026-09-17.
+                "-d",
+                "-i",
+                "-u",
+                "-t",
+                str(_A_DAY_S),
+                "-w",
+                str(os.getpid()),
+            ],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
