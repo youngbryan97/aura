@@ -56,7 +56,7 @@ architecture alone.
 5. [Activation steering (CAA)](#5-activation-steering)
 6. [Persistent emotional network](#6-persistent-emotional-network-formerly-liquid-substrate)
 7. [STDP online learning](#7-stdp-online-learning)
-8. [Memory architecture](#8-memory-architecture)
+8. [Memory architecture](#8-memory-architecture-116-modules)
 9. [The consciousness stack](#9-the-consciousness-stack) (9.1–9.23, including resilience and self-modification)
 10. [Personality persistence and anti-drift](#10-personality-persistence-and-anti-drift)
 11. [Quantization and emergence](#11-quantization-and-emergence)

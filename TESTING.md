@@ -1,6 +1,7 @@
 # Testing
 
-As of 2026-09-15 the tree collects **~45,600 tests across 4,097 files**.
+Use `make test-inventory` to collect the current suite. The retained count
+and its source revision are in `config/test_inventory.json`.
 That count is recorded in `config/test_inventory.json` and checked by
 `make doc-drift`; refresh it with `make test-inventory` rather than editing
 the sentence.
@@ -30,7 +31,7 @@ can't earn that word doesn't appear in this table.
 
 | subsystem | status | tests that exercise it |
 |---|---|---|
-| `core/consciousness/phi_core.py` (16-node φ) | **real** (2,940 lines) | causal exclusion suite, phi reference validation, null hypothesis suite |
+| `core/consciousness/phi_core.py` (16-node φ) | **real** | causal exclusion suite, phi reference validation, null hypothesis suite |
 | `core/consciousness/hierarchical_phi.py` (32-node) | **real** | causal exclusion suite, scale sweep |
 | `core/consciousness/affective_steering.py` (CAA injection) | **real injection mechanism** | CAA 32B validation harness, A/B steering tests, geometry controls |
 | `training/caa_32b_validation.py` | **real production-model artifact validator** | vector/PCA/permutation/prompt-hygiene proof bundle output |

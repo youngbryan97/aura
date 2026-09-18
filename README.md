@@ -158,7 +158,7 @@ from how confident the prose sounds.
 - `core/brain/llm/sensorimotor_grounding.py` maps camera/screen/audio
   observations into the substrate input vector, so live sensor events perturb
   the ODE directly instead of arriving only as text/tool summaries.
-- `core/consciousness/phi_core.py` (2,940 lines) implements real IIT-style
+- `core/consciousness/phi_core.py` implements real IIT-style
   integration math: binarization, empirical TPM, KL-divergence φ, exclusion
   postulate, polynomial-time spectral partitioning, with an exhaustive
   8-bipartition validation baseline.
@@ -1143,11 +1143,11 @@ make smoke     # ~100 contract tests, under 10s — the after-every-change gate
 make test      # full offline suite in 6 bounded process chunks
 ```
 
-As of 2026-09-15 the tree collects **~45,600 tests across 4,097 test files**
-(`pytest tests/ --collect-only -q`); `make test` runs the offline subset that
-needs neither hardware nor a network. The count lives in
-`config/test_inventory.json`, `make doc-drift` fails any document that
-disagrees with it, and `make test-inventory` refreshes it.
+`make test` runs the offline subset that needs neither hardware nor a
+network. `config/test_inventory.json` records the count, date and source
+revision of its last collection; it is not a measurement of later revisions.
+`make test-inventory` refreshes it. `make doc-drift` checks quoted counts
+against that recorded inventory.
 
 `make test` runs `tools/run_test_chunks.py --chunks 6 --marker "not live and
 not network and not external"`. Use the chunk runner rather than a single
