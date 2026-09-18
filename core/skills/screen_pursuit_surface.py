@@ -38,6 +38,11 @@ async def window_bounds(app_name: str) -> tuple[int, int, int, int] | None:
     found = window_server.window_of(app_name)
     if found is not None:
         return found.bounds
+    if window_server.windows(on_screen_only=False):
+        # The window server answered, and no window of it belongs to that
+        # name. System Events would give the same answer, after a subprocess
+        # and, for a name no process has, a timeout.
+        return None
     from core.capabilities.host_automation import get_host_automation
 
     script = (

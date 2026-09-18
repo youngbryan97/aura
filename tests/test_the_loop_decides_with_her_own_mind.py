@@ -284,17 +284,18 @@ async def test_the_moves_offered_are_the_ones_the_caller_named(screen):
         spine=_Store(),
         graph=_Store(),
     )
-    asks = [
-        [line for line in call if line.startswith("Available move")]
-        for call in think.asked
-    ]
-    asks = [lines for lines in asks if lines]
-    assert asks, "she never asked anything"
-    # What the caller named, and nothing else, for as long as any of it works.
-    first = asks[0]
-    assert any("tab" in line for line in first)
-    assert any("return" in line for line in first)
-    assert not any("up" in line or "left" in line or "right" in line for line in first)
+    # What the caller named comes first, and anything else only once all of
+    # it has been tried here and changed nothing. When she first asks is a
+    # matter of timing — by then, on a screen where nothing works, the named
+    # keys have usually been shown inert and she has widened, correctly — so
+    # the contract is read off what she pressed, in order.
+    pressed = list(screen["pressed"])
+    assert pressed, "she pressed nothing"
+    named = {"tab", "return"}
+    others = [at for at, key in enumerate(pressed) if key not in named]
+    if others:
+        before_anything_else = set(pressed[: others[0]])
+        assert named <= before_anything_else, pressed
     # She widens only after the named keys have proved inert here, which is a
     # different capability and has its own tests.
     from core.agency.what_i_can_do_here import WhatWorksHere

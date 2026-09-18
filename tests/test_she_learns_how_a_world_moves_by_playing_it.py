@@ -309,3 +309,47 @@ def test_a_policy_driven_run_also_reaches_the_rule(world):
 
     assert len(world.pressed) > 0
     assert reached["n"] > 0, "a policy-driven run fed the learner nothing"
+
+
+def test_a_rule_that_clearly_leads_is_kept_through_a_noisy_stretch():
+    """Four pictures in ten taken across a redraw put her rule at 60%.
+
+    Dropped under the bar, she went from searching three moves deep to
+    pressing whichever key had been pressed least recently (live,
+    2026-09-18). The true rule of a world read imperfectly is still the best
+    explanation of it, by a distance no other rule comes near.
+    """
+    from core.perception.how_it_moves import HowItMoves, shifted_and_combined
+    from core.perception.what_is_there import Arrangement, Cell
+
+    def board(values):
+        return Arrangement(
+            4, 4, tuple(Cell(i // 4, i % 4, str(v), (0.0, 0.0)) for i, v in enumerate(values) if v)
+        )
+
+    rules = HowItMoves()
+    state = board([2, 4, 0, 8, 0, 2, 4, 0, 4, 0, 0, 2, 64, 2, 0, 4])
+    moves = ("left", "up", "right", "down") * 5
+    for turn, move in enumerate(moves):
+        after = shifted_and_combined(state, move)
+        seen = after
+        if turn % 5 in (1, 3):
+            # A picture that was wrong: a phantom tile in a corner.
+            cells = list(after.cells) + [Cell(0, 0, "256", (0.0, 0.0))]
+            seen = Arrangement(4, 4, tuple(c for c in cells if not (c.row == 0 and c.column == 0 and c.says != "256")))
+        rules.watched(state, move, seen)
+        state = after
+    kept = rules.rule()
+    assert kept is not None, "a rule right three times in five, and far ahead of the rest, was dropped"
+    assert "combin" in kept.name
+
+
+def test_a_rule_that_does_not_lead_is_still_not_trusted():
+    from core.perception.how_it_moves import _clearly_ahead
+
+    # Two rules neck and neck on few observations: neither is clearly ahead.
+    assert _clearly_ahead("a", {"a": (0.6, 10), "b": (0.55, 10)}) is False
+    # One far ahead of the rest on enough observations is.
+    assert _clearly_ahead("a", {"a": (0.62, 40), "b": (0.2, 40)}) is True
+    # Nothing to compare with is not a lead.
+    assert _clearly_ahead("a", {"a": (0.6, 10)}) is False

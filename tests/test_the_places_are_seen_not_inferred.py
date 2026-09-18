@@ -294,3 +294,62 @@ def test_two_things_that_look_alike_are_read_rather_than_guessed(monkeypatch):
     monkeypatch.setattr(pixels, "recognize_text", lambda image: [])
     says = looker.read(other)["grids"][0]["says"]
     assert says[0] in ("", "256")
+
+
+def _growing(scale: float) -> np.ndarray:
+    """A board with one thing at (1, 1) drawn at this share of its square."""
+    picture = _a_board({})
+    pitch, size, left, top = 110, 96, 47, 117
+    x, y = left + 1 * pitch, top + 1 * pitch
+    half = int(size * scale / 2)
+    if half > 0:
+        middle_x, middle_y = x + size // 2, y + size // 2
+        _fill(picture, (middle_x - half, middle_y - half), (middle_x + half, middle_y + half), (97, 204, 237))
+    return picture
+
+
+def test_a_thing_still_growing_into_its_place_is_not_a_settled_reading(monkeypatch):
+    """LIVE 2026-09-18: a freshly made 256 was missing from readings called settled.
+
+    A tile that has just been made grows into its square. At its first
+    frames it reads as an empty place, and two of those in a row say the
+    same thing, so a reading was settled while the tile was still arriving.
+    What has to stop is how each place looks, as well as what it says.
+    """
+    import time
+
+    from core.perception import what_the_pixels_show as pixels
+
+    frames = [_growing(scale) for scale in (0.1, 0.2, 0.45, 0.8, 1.0, 1.0, 1.0)]
+    showing = {"at": -1}
+
+    def take():
+        showing["at"] = min(showing["at"] + 1, len(frames) - 1)
+        return frames[showing["at"]]
+
+    def strip(self, image, grid_, spots):
+        # Recognition finds the number once the thing is its full size.
+        if showing["at"] >= 4 and (1, 1) in spots:
+            return {(1, 1): "256"}
+        return {}
+
+    monkeypatch.setattr(pixels, "recognize_text", lambda image: [])
+    monkeypatch.setattr(Looker, "_read_as_a_strip", strip)
+    looker = Looker()
+    # What it says alone agrees across the first two frames: both empty.
+    early = [pixels.what_a_reading_says(Looker().read(frame)) for frame in frames[:2]]
+    assert early[0] == early[1]
+
+    _picture, reading, still = pixels.settled_reading(
+        take, looker, wait=True, within_s=5.0, began=time.monotonic()
+    )
+    assert still
+    assert reading["grids"][0]["says"][1 * 4 + 1] == "256"
+
+
+def test_a_place_that_cannot_be_read_is_not_the_same_as_an_empty_one():
+    from core.perception.what_the_pixels_show import what_a_reading_says
+
+    empty = {"grids": [{"rows": 1, "columns": 2, "says": ["", "2"], "unsure": []}], "layout": []}
+    arriving = {"grids": [{"rows": 1, "columns": 2, "says": ["", "2"], "unsure": [[0, 0]]}], "layout": []}
+    assert what_a_reading_says(empty) != what_a_reading_says(arriving)

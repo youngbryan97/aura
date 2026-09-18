@@ -596,6 +596,25 @@ def _best_ahead(
     return None
 
 
+def _overruled(
+    advised: ActionOption,
+    ahead: ActionOption,
+    foresight: dict[str, tuple[float, str]] | None,
+) -> bool:
+    """Whether her own looking ahead has a reason to set the voice aside.
+
+    Only where it rates what the voice named below its own pick. A choice it
+    cannot rate, or rates as highly, is not something it knows better about.
+    """
+    if advised.name == ahead.name or not can_be_part_of_a_plan(advised):
+        return False
+    scored = {str(name).strip().lower(): row[0] for name, row in (foresight or {}).items()}
+    theirs = scored.get(advised.name.lower())
+    if theirs is None:
+        return True
+    return float(theirs) < float(scored.get(ahead.name.lower(), theirs))
+
+
 def choose_without_language(
     options: Sequence[ActionOption],
     history: Sequence[Attempt] = (),
@@ -1020,7 +1039,19 @@ async def deliberate(
     # anything — no rule yet, nothing ranked — the suggestion is the only
     # direction there is, and she takes it and grades it like any other.
     advised = chosen
+    # Her own reason, where her own reasoning is what chose. Kept apart from
+    # what the voice said: joined into one text, the sentence-finder below
+    # read them as one speaker. LIVE 2026-09-18, the voice cut off at "I
+    # choose **" and her own "down has not been tried yet" came out as "I
+    # choose ** down has not been tried yet".
+    her_own_why = ""
     ahead = _best_ahead(foresight, options)
+    if ahead is not None and advised is not None and not _overruled(advised, ahead, foresight):
+        # Her looking ahead has nothing against what the voice said: it rates
+        # it as highly as its own pick, or it is a decision about how she goes
+        # on — to slow down, to say less — that a search through the world's
+        # moves has no view on. Advice among equals is what advice is for.
+        ahead = None
     if ahead is not None:
         if advised is not None and advised.name != ahead.name:
             logger.info(
@@ -1032,6 +1063,8 @@ async def deliberate(
         structural = ahead
         why = str((foresight or {}).get(ahead.name, (0.0, ""))[1] or "").strip()
         why = why or "it is the best of the ways this could go"
+        if advised is None or advised.name != ahead.name:
+            her_own_why = why
         reply = why if not spoke else f"{(reply or '').strip()}\n{why}".strip()
     if chosen is None:
         if structural is None:
@@ -1044,6 +1077,7 @@ async def deliberate(
                 recalled=tuple(recalled),
             )
         chosen = structural
+        her_own_why = why
         reply = why if not spoke else f"{(reply or '').strip()}\n{why}".strip()
 
     # How far ahead to commit, and to what.
@@ -1091,7 +1125,9 @@ async def deliberate(
     # graded on what it actually said.
     from core.agency.standing_strategy import claim_in  # noqa: PLC0415
 
-    reason_text = _reason_or_nothing(
+    # What the voice said is her reason only where the voice named this move.
+    # Where her own reasoning chose, her own account of it is the reason.
+    reason_text = her_own_why or _reason_or_nothing(
         _rationale(reply, chosen, options), [*evidence, _objective(goal, options)], options
     )
     if not reason_text:

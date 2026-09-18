@@ -70,6 +70,13 @@ _SAME_SIZE = 0.14
 #: under this many Lab units.
 _SAME_LOOK = 9.0
 
+#: How far one place's look may move between two readings and still be the
+#: same place standing still. Measured on the 2048 app, 2026-09-18: six
+#: captures of a still window gave per-place distances of exactly 0, and a
+#: tile growing into its square moved 1.5 between its smallest frames, when
+#: both still read as an empty place.
+_PLACE_STILL = 1.0
+
 #: The side of the small picture an appearance is kept as.
 _LOOK_SIDE = 24
 
@@ -442,6 +449,35 @@ class Looker:
     #: and the words that were outside them.
     around: Any = None
     around_says: tuple[dict[str, Any], ...] = ()
+    #: How every place of every grid looked in the last reading, for telling
+    #: whether anything in it is still on its way somewhere.
+    last_looks: list[dict[tuple[int, int], Any]] = field(default_factory=list)
+
+    def places_still(
+        self,
+        before: Sequence[dict[tuple[int, int], Any]],
+        after: Sequence[dict[tuple[int, int], Any]],
+    ) -> bool:
+        """Whether every place looks now as it did a reading ago.
+
+        Asked of each place and not of the picture. A tile growing into its
+        square is a sixteenth of a board, and the whole picture barely moves
+        while it grows; read at its first frames it is an empty place, and a
+        freshly made 256 went missing from readings that were called settled
+        (live, 2026-09-18).
+        """
+        if len(before) != len(after):
+            return False
+        for was, now in zip(before, after, strict=False):
+            if set(was) != set(now):
+                return False
+            for spot, look in now.items():
+                earlier = was.get(spot)
+                if earlier is None and look is None:
+                    continue
+                if self._apart(earlier, look) >= _PLACE_STILL:
+                    return False
+        return True
 
     def _look_of(self, image: Any, panel: Panel) -> Any:
         tall, wide = image.shape[:2]
@@ -571,9 +607,11 @@ class Looker:
             self._remember_around(image, grids, layout)
         read_grids: list[dict[str, Any]] = []
         extra: list[dict[str, Any]] = []
+        every_look: list[dict[tuple[int, int], Any]] = []
         for grid in grids:
             says: dict[tuple[int, int], str] = {}
             looks: dict[tuple[int, int], Any] = {}
+            every_look.append(looks)
             covered = False
             for region in layout:
                 # A run of text wider or taller than one place is not the
@@ -665,6 +703,7 @@ class Looker:
                 }
             )
         full = layout + extra
+        self.last_looks = every_look
         return {
             "ok": True,
             "text": " ".join(str(region["text"]) for region in full),
@@ -799,6 +838,56 @@ _STILL = 0.05
 #: 2026-09-17, one row of a board slid and another had not, and her rule sat
 #: at 88% of what it watched because of pairs like it.
 _AGREEING_LOOKS = 2
+
+
+def what_a_reading_says(reading: dict[str, Any]) -> tuple:
+    """What a reading says, for telling one reading from another.
+
+    The places of every grid, which of them could not be read, and the words
+    around them. A place that looks like something and could not be read is
+    not an empty place, though both say nothing: two readings that differ only
+    in that are a thing arriving, not a state.
+    """
+    grids = tuple(
+        (
+            grid.get("rows"),
+            grid.get("columns"),
+            tuple(grid.get("says") or ()),
+            tuple(sorted(tuple(spot) for spot in (grid.get("unsure") or ()))),
+        )
+        for grid in (reading.get("grids") or ())
+    )
+    words = tuple(sorted(str(run.get("text") or "") for run in (reading.get("layout") or ())))
+    return (grids, words)
+
+
+def settled_reading(
+    take: Any, looker: Looker, *, wait: bool, within_s: float, began: float
+) -> tuple[Any, dict[str, Any] | None, bool]:
+    """Read a window until what it says and how each place looks both stop changing.
+
+    ``take`` gives a fresh picture each call. Returns the last picture, its
+    reading and whether it settled; a window that never stops is still read,
+    and says it was not still.
+    """
+    import time  # noqa: PLC0415
+
+    picture = take()
+    if picture is None:
+        return None, None, False
+    reading = looker.read(picture)
+    said, looks = what_a_reading_says(reading), looker.last_looks
+    still = not wait
+    while not still and time.monotonic() - began < within_s:
+        again = take()
+        if again is None:
+            break
+        picture = again
+        reading_again = looker.read(picture)
+        said_again, looks_again = what_a_reading_says(reading_again), looker.last_looks
+        still = said_again == said and looker.places_still(looks, looks_again)
+        reading, said, looks = reading_again, said_again, looks_again
+    return picture, reading, still
 
 
 _SAID: set[str] = set()
@@ -998,17 +1087,24 @@ async def look_at_window(
         picture = await take()
         if picture is None:
             return None
-        agreed = 0
+        # The same test as the eyes of their own apply: what the picture says
+        # and how each place in it looks, both unchanged from the reading
+        # before. Pixels agreeing across the whole window let a tile that was
+        # still growing into its square be read as an empty one.
+        looker = looker_for(window.owner)
+        reading = await asyncio.to_thread(looker.read, picture)
+        said, looks = what_a_reading_says(reading), looker.last_looks
         still = not wait_for_stillness
         while not still and time.monotonic() - began < still_within_s:
             again = await take()
             if again is None:
                 break
-            agreed = agreed + 1 if _how_different(picture, again) < _STILL else 0
-            still = agreed >= _AGREEING_LOOKS
             picture = again
+            reading_again = await asyncio.to_thread(looker.read, picture)
+            said_again, looks_again = what_a_reading_says(reading_again), looker.last_looks
+            still = said_again == said and looker.places_still(looks, looks_again)
+            reading, said, looks = reading_again, said_again, looks_again
         looked_took = time.monotonic() - began
-        reading = await asyncio.to_thread(looker_for(window.owner).read, picture)
         picture_shape = (int(picture.shape[1]), int(picture.shape[0]))
     front = await asyncio.to_thread(window_server.front_owner)
     left, top, wide, tall = window.bounds

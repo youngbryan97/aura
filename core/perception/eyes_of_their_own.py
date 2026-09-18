@@ -185,17 +185,10 @@ def look_through_them(
 
 
 def _what_it_says(reading: dict[str, Any]) -> tuple:
-    """What a reading says, for telling one reading from another.
+    """What a reading says, for telling one reading from another."""
+    from core.perception.what_the_pixels_show import what_a_reading_says  # noqa: PLC0415
 
-    The places of every grid and the words around them. Two readings that say
-    this same thing are the same state, whatever the pixels are doing.
-    """
-    grids = tuple(
-        (grid.get("rows"), grid.get("columns"), tuple(grid.get("says") or ()))
-        for grid in (reading.get("grids") or ())
-    )
-    words = tuple(sorted(str(run.get("text") or "") for run in (reading.get("layout") or ())))
-    return (grids, words)
+    return what_a_reading_says(reading)
 
 
 def _serve() -> None:  # pragma: no cover - runs in the other process
@@ -229,30 +222,23 @@ def _serve() -> None:  # pragma: no cover - runs in the other process
                     return None
                 return pixels.crop_to(picture, part) if part else picture
 
-            picture = take()
-            if picture is None:
-                print(json.dumps({"ok": False, "error": "no picture of that window"}), flush=True)
-                continue
             # A thing half moved is not a state, and pixels stopping is not
             # the same as the thing having stopped. A tile easing into place
             # moves less between two captures than compression noise, so the
             # pictures agree while it is still a few pixels short of its
             # square — and the reading puts it in the wrong one. What has to
-            # stop changing is what the picture SAYS.
-            still = not bool(job.get("wait_for_stillness", True))
-            within = float(job.get("still_within_s") or 1.5)
-            looker = pixels.looker_for(owner)
-            reading = looker.read(picture)
-            said = _what_it_says(reading)
-            while not still and time.monotonic() - began < within:
-                again = take()
-                if again is None:
-                    break
-                picture = again
-                reading_again = looker.read(picture)
-                says_again = _what_it_says(reading_again)
-                still = says_again == said
-                reading, said = reading_again, says_again
+            # stop changing is what the picture SAYS, and how each place in it
+            # looks.
+            picture, reading, still = pixels.settled_reading(
+                take,
+                pixels.looker_for(owner),
+                wait=bool(job.get("wait_for_stillness", True)),
+                within_s=float(job.get("still_within_s") or 1.5),
+                began=began,
+            )
+            if picture is None or reading is None:
+                print(json.dumps({"ok": False, "error": "no picture of that window"}), flush=True)
+                continue
             reading["_shape"] = [int(picture.shape[1]), int(picture.shape[0])]
             reading["_settled"] = bool(still)
             reading["_looked_took"] = round(time.monotonic() - began, 3)

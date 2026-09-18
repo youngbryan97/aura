@@ -122,6 +122,8 @@ def test_thinking_follows_the_reading_not_the_waiting():
 
     source = pursuit_source()
     at = source.index("a_read = float(observation.get(\"seconds_reading\"")
-    nearby = source[at : at + 700]
-    assert "budget_s=thinking_for" in nearby
+    # From the reading to the search it pays for: comments between them are
+    # allowed to grow.
+    nearby = source[at : source.index("budget_s=thinking_for", at) + 40]
     assert "max(0.3, a_read)" in nearby
+    assert "thinking_for" in nearby
