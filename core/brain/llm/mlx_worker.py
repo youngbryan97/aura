@@ -295,10 +295,6 @@ def _state_application_quarantine_response(
 
 
 
-_CORRUPT_LANGUAGE_MARKERS = re.compile(
-    r"\b(?:xublcate|ingediate|evocer)\b",
-    re.IGNORECASE,
-)
 _OPERATOR_EVIDENCE_DRIFT_MARKERS = re.compile(
     r"(?:\bSarah Connor\b|\bMother'?s Day\b|\bhuman error rate\b|"
     r"\bdeath by overthinking\b|\b100 rounds\b|\b100%\s+pass rate\b|"
@@ -4029,10 +4025,10 @@ from core.brain.llm.prompt_cache import (  # noqa: E402
     capture_prompt_cache_one_token_rollback as _capture_prompt_cache_one_token_rollback,
 )
 
-# Here rather than at the top because the surface modules read this module's
-# own names while they load — moving either import up raises
-# "cannot import name '_CORRUPT_LANGUAGE_MARKERS' from partially initialized
-# module". The names above them are what they need to already exist.
+# Here rather than at the top because the surface modules read names this
+# module defines above them while they load. The marker patterns that used
+# to make this a true cycle — where neither half could be imported first —
+# now live in mlx_worker_surface_markers, which imports neither.
 from .mlx_worker_surface_quality import (  # noqa: E402
     _BACKEND_SYMBOLIC_SURFACE_MARKERS,
     _apply_surface_generation_controls,

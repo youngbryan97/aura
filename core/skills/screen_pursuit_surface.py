@@ -38,6 +38,11 @@ async def window_bounds(app_name: str) -> tuple[int, int, int, int] | None:
     found = window_server.window_of(app_name)
     if found is not None:
         return found.bounds
+    if window_server.windows(on_screen_only=False):
+        # The window server answered, and no window of it belongs to that
+        # name. System Events would give the same answer, after a subprocess
+        # and, for a name no process has, a timeout.
+        return None
     from core.capabilities.host_automation import get_host_automation
 
     script = (
@@ -562,6 +567,80 @@ def _bound_to_a_window(key: str, expect_app: str) -> bool:
     return bool(str(expect_app or "").strip())
 
 
+#: The two ways a key reaches an application: addressed to its process, which
+#: goes to it whatever is in front, or typed into the stream a keyboard types
+#: into, which goes to whatever is in front and so only when it is.
+TO_THE_WINDOW = "to the window"
+AS_TYPED = "as typed"
+
+#: Which way keys reach each application, found out rather than assumed.
+_HOW_KEYS_LAND: dict[str, str] = {}
+#: The keys sent the current way that changed nothing, in a row, per application.
+_UNANSWERED: dict[str, list[str]] = {}
+#: The ways that have ever been answered, per application.
+_EVER_ANSWERED: dict[str, set[str]] = {}
+
+
+def how_keys_land(app: str) -> str:
+    """The way keys are sent to this application now."""
+    return _HOW_KEYS_LAND.get(str(app or "").strip().lower(), TO_THE_WINDOW)
+
+
+def it_answered(app: str, key: str, changed: bool) -> None:
+    """Whether a key sent to this application changed anything.
+
+    Keys addressed to a process are the better way when they land, and an
+    application can stop taking them: live, 2026-09-18, the same 2048 window
+    that had answered every arrow that morning answered none, from her or from
+    a trusted shell, while it was in front. Every move then read as a board
+    that refused everything, and she began again forty times.
+
+    So nothing answering several keys running — more than one key, because a
+    board can refuse one direction for a while — is a reason to send them the
+    other way, and whichever way the world answers is the way that stays.
+    """
+    from core.agency.what_i_can_do_here import ENOUGH_TO_JUDGE
+
+    name = str(app or "").strip().lower()
+    if not name:
+        return
+    if changed:
+        _UNANSWERED.pop(name, None)
+        _EVER_ANSWERED.setdefault(name, set()).add(how_keys_land(name))
+        return
+    missed = _UNANSWERED.setdefault(name, [])
+    missed.append(str(key or "").strip().lower())
+    if len(missed) < ENOUGH_TO_JUDGE or len(set(missed)) < 2:
+        return
+    was = how_keys_land(name)
+    if was in _EVER_ANSWERED.get(name, set()):
+        # A way that has been answered here is not what stopped working.
+        # Nothing answering it now is the world: a game that has ended, a
+        # dialog over it. Live, the switch fired at a Game Over, and every
+        # key after the next game began went the slower way.
+        _UNANSWERED.pop(name, None)
+        return
+    now = AS_TYPED if was == TO_THE_WINDOW else TO_THE_WINDOW
+    _HOW_KEYS_LAND[name] = now
+    _UNANSWERED.pop(name, None)
+    logger.info(
+        "%d key(s) sent %s changed nothing (%s); sending them %s",
+        len(missed), was, ", ".join(missed), now,
+    )
+
+
+async def _send(app: str, keys: Sequence[str]) -> int:
+    """Keys to ``app`` the way that lands there. How many went; nought to press the old way."""
+    if how_keys_land(app) == AS_TYPED:
+        from core.capabilities import window_server
+
+        # Typed keys go to whatever is in front, so only when this is.
+        if not window_server.owns_the_front(app):
+            return 0
+        return window_server.type_keys(list(keys))
+    return await _send_to_the_window(app, keys)
+
+
 async def press(key: str, *, expect_app: str = "") -> bool:
     """Press one of the allowed keys. False if it is not one of them.
 
@@ -577,7 +656,7 @@ async def press(key: str, *, expect_app: str = "") -> bool:
     if not _bound_to_a_window(name, expect_app):
         logger.info("not pressing %r: nothing is bound to receive it", name)
         return False
-    if await _send_to_the_window(expect_app, [name]) == 1:
+    if await _send(expect_app, [name]) == 1:
         return True
     from core.capabilities.host_automation import get_host_automation
 
@@ -626,7 +705,7 @@ async def press_many(keys: Sequence[str], *, expect_app: str = "") -> int:
     if not all(_bound_to_a_window(key, expect_app) for key in wanted):
         logger.info("not pressing %s: nothing is bound to receive them", wanted)
         return 0
-    sent = await _send_to_the_window(expect_app, wanted)
+    sent = await _send(expect_app, wanted)
     if sent:
         return sent
     from core.capabilities.host_automation import get_host_automation

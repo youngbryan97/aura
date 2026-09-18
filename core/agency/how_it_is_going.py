@@ -33,6 +33,7 @@ a second attempt starts knowing what the first reached and what that took.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass, field
 from statistics import median
 from typing import Any
@@ -165,15 +166,58 @@ class HowItIsGoing:
         costs = [float(rung.took) for rung in self.rungs if rung.took > 0]
         if not costs:
             return 0.0
-        if len(costs) >= ENOUGH_TO_SEE_A_PATTERN + 1:
-            growth = [
-                later / earlier
-                for earlier, later in zip(costs, costs[1:], strict=False)
-                if earlier > 0
-            ]
-            if growth and _all_nearly(growth):
-                return max(costs[-1] * median(growth), 1.0)
+        growth = self._cost_grows_by()
+        if growth != 1.0:
+            return max(costs[-1] * growth, 1.0)
         return max(median(costs), 1.0)
+
+    def _cost_grows_by(self) -> float:
+        """How much each rung costs over the one before, where that holds. One where it does not."""
+        costs = [float(rung.took) for rung in self.rungs if rung.took > 0]
+        if len(costs) < ENOUGH_TO_SEE_A_PATTERN + 1:
+            return 1.0
+        growth = [
+            later / earlier for earlier, later in zip(costs, costs[1:], strict=False) if earlier > 0
+        ]
+        return median(growth) if growth and _all_nearly(growth) else 1.0
+
+    def _rungs_still_to_climb(self) -> int | None:
+        """How many rungs lie between here and the finish, on the pattern behind her."""
+        reached = [rung.reached for rung in self.rungs]
+        if len(reached) < ENOUGH_TO_SEE_A_PATTERN or not self.toward or self.best <= 0:
+            return None
+        ratios = [
+            later / earlier for earlier, later in zip(reached, reached[1:], strict=False) if earlier > 0
+        ]
+        steps = [later - earlier for earlier, later in zip(reached, reached[1:], strict=False)]
+        if ratios and _all_nearly(ratios) and median(ratios) > 1.0:
+            return max(0, math.ceil(math.log(self.toward / self.best) / math.log(median(ratios)) - 1e-9))
+        if steps and _all_nearly(steps) and median(steps) > 0:
+            return max(0, math.ceil((self.toward - self.best) / median(steps) - 1e-9))
+        return None
+
+    def share_done(self, at_move: int) -> float:
+        """How much of the way to the finish she has come, in the moves it costs.
+
+        Not in rungs. Where every rung costs twice the last, four rungs of
+        eleven is a thirtieth of the work, and a report of "a third of the way"
+        would be a promise about time she does not have. Measured as the moves
+        spent against the moves still to go, projected from what her own rungs
+        cost. With no pattern behind her it is how much of the finish she has
+        reached, and with no finish it is nothing.
+        """
+        if not self.toward or self.best <= 0:
+            return 0.0
+        if self.best >= self.toward:
+            return 1.0
+        spent = float(sum(rung.took for rung in self.rungs) + self.how_long_this_one_has_taken(at_move))
+        rungs_left = self._rungs_still_to_climb()
+        first = self.usually_takes()
+        if rungs_left is None or first <= 0.0 or spent <= 0.0:
+            return min(1.0, self.best / self.toward)
+        growth = self._cost_grows_by()
+        still_to_go = sum(first * growth**step for step in range(rungs_left))
+        return spent / (spent + still_to_go)
 
     def how_long_this_one_has_taken(self, at_move: int) -> int:
         return max(0, int(at_move) - int(self.last_rung_at))

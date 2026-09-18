@@ -517,7 +517,7 @@ def backpressure_markers() -> tuple[str, ...]:
     return BACKPRESSURE_MARKERS
 
 
-def _record_degradation_admission_backpressure_decision_admission_backpressure_decision(_is_timeout, _shutting_down, action, enforce_failure_policy, error, extra, receipt_required, severity, subsystem):
+def _record_degradation_backpressure_decision(_is_timeout, _shutting_down, action, enforce_failure_policy, error, extra, receipt_required, severity, subsystem):
     # ── Admission backpressure is a DECISION, not a fault ─────────────
     # Warmup backoff, model-load admission refusal, spawn-gate contention and
     # crash-loop backoff are the runtime deliberately declining to start a
@@ -910,7 +910,7 @@ def _record_degradation_admission_backpressure_decision_admission_backpressure_d
     return _FALL_THROUGH
 
 def _record_degradation_admission_backpressure_decision(_is_timeout, _shutting_down, action, enforce_failure_policy, error, extra, receipt_required, severity, subsystem):
-    _left = _record_degradation_admission_backpressure_decision_admission_backpressure_decision(_is_timeout, _shutting_down, action, enforce_failure_policy, error, extra, receipt_required, severity, subsystem)
+    _left = _record_degradation_backpressure_decision(_is_timeout, _shutting_down, action, enforce_failure_policy, error, extra, receipt_required, severity, subsystem)
     if _left is not _FALL_THROUGH:
         return _left
 

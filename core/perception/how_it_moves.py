@@ -704,6 +704,16 @@ class HowItMoves:
             # is what fills these counts.
             return None
         best: tuple[float, Rule] | None = None
+        # Every rule's record, so the leader can be compared with the rest.
+        #
+        # A rule under the bar was dropped outright, and with it everything
+        # she could see: four pictures in ten taken across a redraw put the
+        # rule she had been playing well with at 60%, and she went from
+        # searching three moves deep to pressing whichever key had been
+        # pressed least recently (live, 2026-09-18). The true rule of a world
+        # read imperfectly is still the best explanation of it, by a distance
+        # no other rule comes near. What she has to know is whether it leads.
+        shares: dict[str, tuple[float, int]] = {}
         for rule in RULES:
             tried = (
                 self.tried_when_it_moved.get(rule.name, 0)
@@ -717,8 +727,12 @@ class HowItMoves:
                 if anything_moves
                 else self.right.get(rule.name, 0)
             )
-            share = right / tried
-            if share < OFTEN_ENOUGH:
+            shares[rule.name] = (right / tried, tried)
+        for rule in RULES:
+            if rule.name not in shares:
+                continue
+            share, tried = shares[rule.name]
+            if share < OFTEN_ENOUGH and not _clearly_ahead(rule.name, shares):
                 continue
             # Ties go to the rule that claims the LEAST.
             #
@@ -1028,6 +1042,23 @@ def _rows_of(arrangement: Any) -> list[str]:
             said.append(str(getattr(cell, "says", "") or ".") if cell else ".")
         rows.append(" ".join(said))
     return rows
+
+
+def _clearly_ahead(name: str, shares: dict[str, tuple[float, int]]) -> bool:
+    """Whether one rule explains what she has seen better than every other, beyond noise.
+
+    Ahead of the next best by twice the standard error of its own share: the
+    ordinary test of whether a difference between two proportions is more
+    than the luck of which pictures happened to come in.
+    """
+    if name not in shares:
+        return False
+    share, tried = shares[name]
+    others = [other for key, (other, _n) in shares.items() if key != name]
+    if not others or tried <= 0:
+        return False
+    standard_error = (max(share * (1.0 - share), 1e-9) / tried) ** 0.5
+    return share - max(others) > 2.0 * standard_error
 
 
 def prediction_held(predicted: Any, seen: Any) -> bool:

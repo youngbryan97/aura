@@ -291,20 +291,38 @@ def test_the_write_happens_after_the_checkpoint_invariant():
         for node in ast.walk(tree)
         if isinstance(node, ast.FunctionDef) and node.name == "_reason_episode"
     )
+    # The flush moved into an extracted helper, so the episode calls it
+    # rather than containing it. Follow the call: the ordering this
+    # protects is between closing the invariant and writing the
+    # candidate, wherever the write itself now lives.
+    holders = {
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef)
+        and any(
+            getattr(inner.func, "attr", "") == "_flush_consolidation_export"
+            for inner in ast.walk(node)
+            if isinstance(inner, ast.Call)
+        )
+    }
+
     flush = None
     post_episode = None
     for node in ast.walk(episode):
         if not isinstance(node, ast.Call):
             continue
         attr = getattr(node.func, "attr", "")
-        if attr == "_flush_consolidation_export":
-            flush = node.lineno
+        if attr == "_flush_consolidation_export" or attr in holders:
+            if flush is None or node.lineno < flush:
+                flush = node.lineno
         if attr == "post_episode" and post_episode is None:
             post_episode = node.lineno
 
     assert flush is not None, "the episode never flushes the staged candidate"
     assert post_episode is not None, "the episode never closes the invariant"
-    assert post_episode < flush
+    assert post_episode < flush, (
+        "the staged candidate is written before the checkpoint invariant closes"
+    )
 
 
 # ─────────────────────────── the erase proof checks structure

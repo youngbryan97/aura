@@ -139,13 +139,15 @@ def test_a_line_is_graded_by_whether_it_moved_her_up_a_rung():
     """
     from screen_pursuit_support import pursuit_source
 
+    from source_contract import in_order
+
     source = pursuit_source()
-    at = source.index("going.noticed(")
-    credited = source[at : at + 1400]
-    assert 'lines.learned(A_LINE_HERE, plan["held"].approach, True)' in credited
-    at = source.index("going.why_reassess(len(moves))")
-    debited = source[at : at + 700]
-    assert 'lines.learned(A_LINE_HERE, plan["held"].approach, False)' in debited
+    in_order(source, "going.noticed(", 'lines.learned(A_LINE_HERE, plan["held"].approach, True)')
+    in_order(
+        source,
+        "going.why_reassess(len(moves))",
+        'lines.learned(A_LINE_HERE, plan["held"].approach, False)',
+    )
 
 
 def test_what_she_is_doing_says_how_far_along_it_is():

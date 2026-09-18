@@ -660,6 +660,28 @@ def _serve_measured_belief_history(reply: object) -> object:
     return reply
 
 
+def _a_superlative_is_owed(which: str, present: list[Any], text: str) -> bool:
+    """Whether the reply has the counts right and still owes the extreme.
+
+    Leaving her wording alone is the right default, and it was applied to
+    the whole question: a reply whose count was right kept its guess at the
+    largest file, because the check only ever asked about counts.
+    """
+
+    if not which:
+        return False
+    from core.conversation.filesystem_check import the_extreme_file
+
+    for counted in present:
+        extreme = the_extreme_file(counted, which)
+        if extreme is None:
+            continue
+        name, _size = extreme
+        if Path(name).name.lower() not in text.lower():
+            return True
+    return False
+
+
 def _serve_measured_filesystem_count(user_message: object, reply: object) -> object:
     """Replace a contradicted file count with the one the runtime took.
 
@@ -737,8 +759,26 @@ def _serve_measured_filesystem_count(user_message: object, reply: object) -> obj
     # this an `all()` over an empty sequence, which is True — so a single
     # missing directory short-circuited to "leave her wording alone" and the
     # "no directory" report was never reached.
+    from core.conversation.filesystem_check import (
+        superlative_asked,
+        the_extreme_file,
+    )
+
+    # A count and a superlative are two questions, and the count answered
+    # one. LIVE 2026-09-18, "How many Python files are under
+    # core/consciousness, and which one is the largest by bytes?": 171 and
+    # a list of names, with the second half unanswered. The sizes have
+    # ridden along in the reading since 2026-09-16 — added because that
+    # half had been answered by a guess, conscious_core.py against
+    # phi_core.py at 125,814 bytes — and nothing had ever read them.
+    which = superlative_asked(user_message)
+
     present = [counted for counted in counts if counted.exists]
-    if len(present) == len(counts) and all(str(c.count) in text for c in present):
+    if (
+        len(present) == len(counts)
+        and all(str(c.count) in text for c in present)
+        and not _a_superlative_is_owed(which, present, text)
+    ):
         return reply  # she already has them right; leave her wording alone
 
     sentences: list[str] = []
@@ -755,7 +795,16 @@ def _serve_measured_filesystem_count(user_message: object, reply: object) -> obj
         # listing twelve filenames under it answers a question that was not
         # asked. Measured live 2026-08-18: asked for two counts and "just the
         # numbers", the reply opened with a dozen test filenames.
-        if len(counts) == 1 and not _brevity_requested(user_message):
+        extreme = the_extreme_file(counted, which) if which else None
+        if extreme is not None:
+            # The half that was asked and not answered, from the same
+            # reading that produced the count.
+            name, size = extreme
+            sentences.append(
+                f"{counted.count} {kind}files, counted from disk. The {which} "
+                f"is {name} at {size:,} bytes."
+            )
+        elif len(counts) == 1 and not _brevity_requested(user_message):
             listed = ", ".join(counted.names[:12])
             more = (
                 "" if len(counted.names) <= 12 else f", and {len(counted.names) - 12} more"

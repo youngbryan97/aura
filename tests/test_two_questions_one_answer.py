@@ -29,10 +29,12 @@ def test_a_move_can_change_things_and_still_break_its_claim():
 
 
 def test_the_band_learner_is_asked_whether_the_act_had_an_effect():
-    where = SOURCE.index("noticed(")
-    window = SOURCE[where : where + 1200]
-    assert "worked=attempt.verdict.observed_change" in window
-    assert "worked=attempt.verdict.held" not in window
+    # The band learner's call, found by what it is given: the state of which
+    # part answers. Other things are "noticed(" too — a rung she reached is.
+    where = SOURCE.index('noticed(\n            responds["state"],')
+    call = SOURCE[where : SOURCE.index("\n        )", where)]
+    assert "worked=attempt.verdict.observed_change" in call
+    assert "worked=attempt.verdict.held" not in call
 
 
 def test_the_record_of_what_she_did_still_carries_the_claim():

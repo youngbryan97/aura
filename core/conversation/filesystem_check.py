@@ -60,6 +60,55 @@ _COUNT_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: "which file in core/consciousness is the largest", "what's the biggest
+#: python file under core/"
+#:
+#: The reading has carried every file's size, largest first, since
+#: 2026-09-16 — added so that "which is the largest" could be answered from
+#: the reading instead of a guess. The GATE that decides whether to read
+#: was never taught the question. Measured live 2026-09-18: "How many
+#: Python files are under core/consciousness, and which one is the largest
+#: by bytes?" read the directory and answered 171 correctly, because it
+#: contains "how many"; the same question asked on its own — "Which single
+#: file under core/consciousness is the largest by bytes?" — matched
+#: nothing, so no reading was attached, and she refused rather than invent
+#: a name. The refusal was right. The silence was the defect.
+#:
+#: Superlative and noun, in either order: "which file is the largest",
+#: "the largest file". The preposition is the anchor, as above.
+_LARGEST_RE = re.compile(
+    r"\b(?:which|what)\s+(?:single\s+)?(?P<kind>[.\w+]*?)\s*"
+    r"(?:files?|scripts?|modules?)\s+(?:\w+\s+){0,3}?"
+    r"(?:is|are)\s+(?:the\s+)?(?:largest|biggest|longest)"
+    r"[^.?!]{0,40}?\s(?:in|inside|under|within)\s+"
+    r"(?:the\s+)?(?P<path>[\w./\-]+)",
+    re.IGNORECASE,
+)
+
+#: The order where the place comes first: "which file IN core/consciousness
+#: is the largest", "which single file under core/brain is the biggest".
+#: English puts the prepositional phrase either side of the copula and both
+#: are ordinary; matching only one of them is how the live question missed.
+_LARGEST_PLACE_FIRST_RE = re.compile(
+    r"\b(?:which|what)\s+(?:single\s+)?(?P<kind>[.\w+]*?)\s*"
+    r"(?:files?|scripts?|modules?)\s+"
+    r"(?:in|inside|under|within)\s+(?:the\s+)?(?P<path>[\w./\-]+)"
+    r"[^.?!]{0,40}?\b(?:is|are)\s+(?:the\s+)?(?:largest|biggest|longest)",
+    re.IGNORECASE,
+)
+
+#: The same question with the superlative in front: "the largest python
+#: file in core/consciousness". Two patterns rather than one alternation,
+#: because both need a group called `kind` and a regex may not name two.
+_LARGEST_FIRST_RE = re.compile(
+    r"\b(?:largest|biggest|longest)\s+(?P<kind>[.\w+]*?)\s*"
+    r"(?:files?|scripts?|modules?)"
+    r"[^.?!]{0,40}?\s(?:in|inside|under|within)\s+"
+    r"(?:the\s+)?(?P<path>[\w./\-]+)",
+    re.IGNORECASE,
+)
+
+
 #: "how many test files do you have", "how many tests are there"
 #:
 #: A question with no "in <path>" clause at all. The counting pattern above
@@ -324,6 +373,21 @@ def requested_filesystem_counts(user_message: Any) -> list[FilesystemCount]:
         if found:
             return found
 
+    # "Which file is the largest" is the same reading as "how many files",
+    # asked for a different column of it. Tried before the counting shapes
+    # so a question carrying both is still one reading.
+    for pattern in (_LARGEST_PLACE_FIRST_RE, _LARGEST_RE, _LARGEST_FIRST_RE):
+        for match in pattern.finditer(text):
+            stated_a_place = True
+            counted = _count_for_match(match, text)
+            if counted is None:
+                continue
+            key = f"{counted.path}|{counted.suffix}"
+            if key in seen:
+                continue
+            seen.add(key)
+            found.append(counted)
+
     for match in _COUNT_RE.finditer(text):
         stated_a_place = True
         counted = _count_for_match(match, text)
@@ -551,6 +615,45 @@ def _count_in(
         measure=measure,
         recursive=recursive,
     )
+
+
+#: A superlative asked about the files a count measured. These are the
+#: question words themselves, not a vocabulary of phrasings: "which is the
+#: largest" and "which one is biggest" differ in the comparative, and the
+#: comparative is the whole question.
+_ASKS_BIGGEST = re.compile(
+    r"\b(?:largest|biggest|longest|heaviest|most\s+bytes)\b", re.IGNORECASE
+)
+_ASKS_SMALLEST = re.compile(
+    r"\b(?:smallest|tiniest|shortest|least\s+bytes)\b", re.IGNORECASE
+)
+
+
+def superlative_asked(text: Any) -> str:
+    """"largest", "smallest" or "" — which extreme the question wants.
+
+    The sizes have been collected since 2026-09-16 and nothing read them,
+    so "which one is the largest by bytes?" kept being answered by a guess
+    beside a count that was measured from disk. A reading that carries the
+    answer and a sentence that does not use it is the same defect as not
+    having taken the reading.
+    """
+
+    body = str(text or "")
+    if _ASKS_SMALLEST.search(body):
+        return "smallest"
+    if _ASKS_BIGGEST.search(body):
+        return "largest"
+    return ""
+
+
+def the_extreme_file(counted: "FilesystemCount", which: str) -> tuple[str, int] | None:
+    """The largest or smallest file this count measured, with its size."""
+
+    if not counted.sizes or which not in ("largest", "smallest"):
+        return None
+    # `sizes` is largest first, by construction.
+    return counted.sizes[0] if which == "largest" else counted.sizes[-1]
 
 
 def _sizes_largest_first(target: Path, files: list[Path]) -> tuple[tuple[str, int], ...]:

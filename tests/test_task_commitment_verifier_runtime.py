@@ -308,9 +308,13 @@ async def test_task_commitment_verifier_async_acceptance_is_evidence_bounded(mon
 
     assert acceptance.outcome == DispatchOutcome.STARTED
     assert acceptance.commitment_id == "commit-123"
-    assert "task accepted into governed background execution" in acceptance.summary.lower()
-    assert "task ledger is tracking completion status" in acceptance.summary.lower()
-    assert "no completion is claimed yet" in acceptance.summary.lower()
+    # Honest in a person's words: it has started, nothing is finished, and
+    # the internal ids ride in the payload rather than the sentence.
+    said = acceptance.summary.lower()
+    assert "started" in said
+    assert "nothing is finished yet" in said
+    assert acceptance.commitment_id not in acceptance.summary
+    assert acceptance.task_id not in acceptance.summary
     assert "i'll" not in acceptance.summary.lower()
     assert "follow up" not in acceptance.summary.lower()
     assert tracker.dispatches

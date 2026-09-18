@@ -58,8 +58,22 @@ PAGE = (
 
 
 @pytest.fixture(autouse=True)
-def _fresh():
+def _fresh(monkeypatch):
     forget_everything()
+    # These are about what she does with the web where there is one. Whether
+    # the machine running the tests has a network is not what they ask.
+    from core.agency import task_knowledge
+
+    monkeypatch.setattr(task_knowledge, "_there_is_a_network", lambda: True)
+    # Nor do they open real pages. Left real, a search that came back as
+    # headlines opened the top result on the actual internet, and what these
+    # tests saw depended on what 2048.is said that day.
+
+    async def no_pages(*_a, **_k):
+        return []
+
+    monkeypatch.setattr(task_knowledge, "_search_results_for", no_pages)
+    monkeypatch.setattr(task_knowledge, "_read_the_best_answer", no_pages)
     yield
     forget_everything()
 
@@ -71,9 +85,15 @@ def test_a_sentence_that_says_how_beats_one_that_says_what():
 
 
 def test_the_question_is_built_from_the_goal_itself():
-    assert how_is_this_done("play 2048 until you get a 128 tile").endswith(
-        "play 2048 until you get a 128 tile"
-    )
+    """The thing itself, with the instructions to her taken off.
+
+    Asked as written, "how to do this well: play 2048 until you get a 256
+    tile" matched the only common word in it and came back with definitions
+    of "do".
+    """
+    asked = how_is_this_done("play 2048 until you get a 128 tile")
+    assert "2048" in asked
+    assert "until" not in asked
     assert how_is_this_done("") == ""
 
 
@@ -119,9 +139,12 @@ async def test_a_thin_record_sends_her_looking():
     engine = _Engine(PAGE)
     known = await learn_about("play 2048 until 128", engine=engine, graph=_Graph())
     assert engine.asked, "she never looked it up"
-    name, params = engine.asked[0]
-    assert name == "web_search"
-    assert "play 2048" in params["query"]
+    # Her own shelf first, and the web after it where there is one.
+    names = [name for name, _params in engine.asked]
+    assert names[0] == "local_reference_search"
+    assert "web_search" in names
+    params = dict(engine.asked[names.index("web_search")][1])
+    assert "2048" in params["query"]
     assert known.searched
 
 
@@ -129,8 +152,9 @@ async def test_a_thin_record_sends_her_looking():
 async def test_looking_it_up_twice_for_one_goal_is_not_needed():
     engine = _Engine(PAGE)
     await learn_about("play 2048 until 128", engine=engine, graph=_Graph())
+    asked_once = len(engine.asked)
     await learn_about("play 2048 until 128", engine=engine, graph=_Graph())
-    assert len(engine.asked) == 1
+    assert asked_once and len(engine.asked) == asked_once
 
 
 @pytest.mark.asyncio

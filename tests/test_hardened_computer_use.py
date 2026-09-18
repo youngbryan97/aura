@@ -1125,7 +1125,14 @@ async def test_computer_use_clipboard_actions_use_system_clipboard(monkeypatch):
             return SimpleNamespace(returncode=0, stdout="copied text", stderr="")
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("core.skills.computer_use.subprocess.run", fake_run)
+    # Through the gateway the skill actually uses. Patched at subprocess.run
+    # after the skill moved onto the gateway, this caught nothing and every
+    # run of the suite wrote "copied text" to the real clipboard.
+    class _Gateway:
+        def run(self, args, **kwargs):
+            return fake_run(args, **kwargs)
+
+    monkeypatch.setattr("core.skills.computer_use.get_subprocess_gateway", lambda: _Gateway())
 
     set_result = await skill.execute({"action": "set_clipboard", "target": "copied text"}, {})
     get_result = await skill.execute({"action": "get_clipboard", "target": ""}, {})

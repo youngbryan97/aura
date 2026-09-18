@@ -77,6 +77,7 @@ def pursuit_loop_source() -> str:
     # `_<function>_<slug>` helpers are read back at their call sites.
     here = pathlib.Path(__file__).resolve().parent.parent / "core" / "skills"
     parts = []
+    siblings = tuple(sorted(here.glob("screen_pursuit_*.py")))
     for module_name, function_name in (
         ("screen_pursuit", "pursue_on_screen"),
         ("screen_pursuit_observing", "observe_the_screen"),
@@ -84,7 +85,15 @@ def pursuit_loop_source() -> str:
         ("screen_pursuit_decision", "decide_the_next_move"),
         ("screen_pursuit_acting", "carry_out_the_move"),
     ):
-        parts.append(inlined_function_source(here / f"{module_name}.py", function_name))
+        own = here / f"{module_name}.py"
+        parts.append(
+            inlined_function_source(
+                own,
+                function_name,
+                # Helpers a later sweep moved on into a module of their own.
+                helpers_also_in=tuple(path for path in siblings if path != own),
+            )
+        )
     return "\n".join(parts)
 
 

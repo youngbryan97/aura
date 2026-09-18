@@ -829,6 +829,10 @@ def _reset_process_wide_state():
         ("core.cognition.value_of_computation", lambda m: m.reset_swings()),
         ("core.verify.epistemic_independence", lambda m: m.registry().clear()),
         ("core.governance.value_levels", lambda m: m.registry().clear()),
+        # Which way keys reach each application, found out by playing.
+        ("core.skills.screen_pursuit_surface", lambda m: (m._HOW_KEYS_LAND.clear(), m._UNANSWERED.clear(), m._EVER_ANSWERED.clear())),
+        # How long this world takes to answer, found by probing it.
+        ("core.skills.screen_pursuit_looking", lambda m: (m._WAIT.update(seconds=0.0), m._STILL_FLOOR.update(seconds=float("inf")))),
     ):
         try:
             import importlib
@@ -839,6 +843,55 @@ def _reset_process_wide_state():
             # reason to fail the test that was about to run.
             continue
     yield
+
+
+@pytest.fixture(autouse=True)
+def _what_she_learned_about_worlds_is_per_test(tmp_path_factory):
+    """Each test starts knowing no world, and leaves none behind.
+
+    The test profile's state root is one directory for every run, so a world a
+    test played in last week was "a place she has been before" in this one: a
+    board where "down" had once done nothing took the caller's own keys away
+    before either was pressed, and whether a test passed depended on what
+    had run on this machine before it. A test about remembering names its own
+    directory and overrides this one.
+    """
+    import importlib
+
+    try:
+        learned = importlib.import_module("core.runtime.what_she_learned")
+    except ImportError:
+        yield
+        return
+    before = learned._KEPT_IN
+    learned._KEPT_IN = tmp_path_factory.mktemp("worlds")
+    try:
+        yield
+    finally:
+        learned._KEPT_IN = before
+
+
+@pytest.fixture(autouse=True)
+def _a_test_has_no_network_unless_it_says_so():
+    """Nothing she looks up in a test goes out to the real internet.
+
+    Every screen pursuit asks how its task is done, and the web half of that
+    opened real pages: tests took minutes, and what they saw depended on what
+    a website said that day. A test about the web says there is one.
+    """
+    import importlib
+
+    try:
+        knowing = importlib.import_module("core.agency.task_knowledge")
+    except ImportError:
+        yield
+        return
+    before = knowing._there_is_a_network
+    knowing._there_is_a_network = lambda: False
+    try:
+        yield
+    finally:
+        knowing._there_is_a_network = before
 
 
 @pytest.fixture(autouse=True)

@@ -20,19 +20,22 @@ from core.agency.task_knowledge import (
 
 
 @pytest.mark.parametrize(
-    ("said", "about"),
+    ("said", "about", "asked"),
     [
-        ("play 2048 until you get a 256 tile", "play 2048"),
+        ("play 2048 until you get a 256 tile", "play 2048", "how to play 2048"),
         (
             "Find 2048 online, play it, and get to a 256 tile. Say what you are about "
             "to do before each move, and tell me here when you have it.",
             "play 2048",
+            # A named place and a state to reach in it: the question is how
+            # to get there, which "how to play" answers with the rules.
+            "2048 strategy",
         ),
         ("fill in the visa application form step by step and narrate as you go",
-         "fill in the visa application form"),
+         "fill in the visa application form", "how to fill in the visa application form"),
     ],
 )
-def test_the_question_is_about_the_task_not_the_instructions_to_her(said, about):
+def test_the_question_is_about_the_task_not_the_instructions_to_her(said, about, asked):
     """A request is written to her, and most of it is addressed to her: when
     to stop, what to say while working, who to tell at the end.
 
@@ -41,7 +44,7 @@ def test_the_question_is_about_the_task_not_the_instructions_to_her(said, about)
     dictionary definitions of the word "do".
     """
     assert what_it_is_about(said) == about
-    assert how_is_this_done(said) == f"how to {about}"
+    assert how_is_this_done(said) == asked
 
 
 def test_she_asks_more_than_one_way():

@@ -112,3 +112,24 @@ def test_the_pursuit_offers_what_works_rather_than_what_it_was_told():
     source = pursuit_source()
     assert "screen_options(can_do.available() or move_keys)" in source
     assert "can_do.tried(previous.chosen.name, attempt.verdict.observed_change)" in source
+
+
+# ── what she was told is judged on itself ────────────────────────────────
+
+def test_a_dead_key_nobody_named_does_not_take_the_named_ones_away():
+    """A remembered dead "down" took the caller's Tab and Return before either was pressed."""
+    here = WhatWorksHere(told=("tab", "return"))
+    for _ in range(ENOUGH_TO_JUDGE):
+        here.tried("down", changed=False)
+    here.tried("up", changed=True)
+    assert here.available() == ("tab", "return")
+
+
+def test_one_named_key_shown_dead_keeps_the_other_and_widens():
+    here = WhatWorksHere(told=("tab", "return"))
+    for _ in range(ENOUGH_TO_JUDGE):
+        here.tried("return", changed=False)
+    offered = here.available()
+    assert offered[0] == "tab"
+    assert "return" not in offered
+    assert set(COMMITS_TO_NOTHING) <= set(offered)

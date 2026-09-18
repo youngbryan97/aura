@@ -146,7 +146,7 @@ def _say_with(model, tok, prompt: str, *, temperature: float, max_tokens: int) -
     )
 
 
-def _run(trials: int, channels: tuple[str, ...], out: Path) -> int:
+def _run(trials: int, channels: tuple[str, ...], out: Path, substrate: str = SUBSTRATE) -> int:
     from core.verify.causal_influence import get_influence_ledger
     from core.verify.influence_probe import measure_channel
 
@@ -164,7 +164,7 @@ def _run(trials: int, channels: tuple[str, ...], out: Path) -> int:
     )
     print(f"advisory frames carrying a bias: {carried}/3")
 
-    model, tokenizer, lease = _load()
+    model, tokenizer, lease = _load(substrate)
     ledger = get_influence_ledger()
     started = time.time()
     findings: dict[str, Any] = {}
@@ -216,7 +216,7 @@ def _run(trials: int, channels: tuple[str, ...], out: Path) -> int:
 
     receipt = {
         "schema": "aura.influence.substrate_trials.v1",
-        "substrate": SUBSTRATE,
+        "substrate": substrate,
         "base_token_budget": BASE_TOKEN_BUDGET,
         "neutral_temperature": NEUTRAL_TEMPERATURE,
         "stimulus": THE_SAME_THING_ASKED_EVERY_TIME,
@@ -229,10 +229,10 @@ def _run(trials: int, channels: tuple[str, ...], out: Path) -> int:
         ],
         "findings": findings,
         "what_this_is_not": (
-            "a verdict at the 27B. The substrate is a 1.5B and the result is "
-            "a result at that substrate. Read `what_moved` per channel before "
-            "reading its verdict: a channel whose budget half did not move was "
-            "measured on its temperature alone."
+            f"a verdict at any substrate but {substrate}. A result here is a "
+            "result at the model that produced it. Read `what_moved` per "
+            "channel before reading its verdict: a channel whose budget half "
+            "did not move was measured on its temperature alone."
         ),
     }
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -280,9 +280,20 @@ def main() -> int:
         default=ROOT / "artifacts" / "influence" / "substrate_trials.json",
     )
     parser.add_argument("--channels", nargs="*", default=None)
+    parser.add_argument(
+        "--substrate",
+        default=SUBSTRATE,
+        help=(
+            "the checkpoint to measure on. The default is the 1.5B this "
+            "harness was built against; every receipt it writes says the "
+            "result does not transfer, so the way to get a verdict at "
+            "another model is to name it here rather than to read this one "
+            "as if it were that one."
+        ),
+    )
     args = parser.parse_args()
     channels = tuple(args.channels) if args.channels else the_channels_this_call_can_bite()
-    return _run(args.trials, channels, args.out)
+    return _run(args.trials, channels, args.out, substrate=args.substrate)
 
 
 if __name__ == "__main__":

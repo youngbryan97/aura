@@ -150,8 +150,13 @@ def says_how(sentence: str) -> bool:
         return True
     if _RULE_OPENER.match(said) and "," in said:
         return True
-    words = re.findall(r"[A-Za-z][A-Za-z'\-]*", said)
+    # Numbers are words here. Read as letters only, "2048 is a sliding
+    # puzzle game" began with "is a", which is how an order begins.
+    words = re.findall(r"[A-Za-z0-9][A-Za-z0-9'\-]*", said)
     if not words:
+        return False
+    if words[0][0].isdigit():
+        # A sentence that opens on a number opens on what it is about.
         return False
     if words[0].lower() in NOT_A_VERB_OPENER:
         return False
@@ -265,6 +270,31 @@ def _from_her_own_record(goal: str, *, graph: Any = None) -> list[Finding]:
             worked = "worked" if row.get("success") else "did not work"
             findings.append(Finding(says=f"last time this {worked}: {outcome}"[:MAX_FINDING_CHARS], source="my own record"))
     return findings
+
+
+def _there_is_a_network() -> bool:
+    """Whether going out is even possible, from what she already knows.
+
+    Read off the capability report she makes of her own machine, not by
+    trying and waiting: a system that is meant to work with no network at all
+    must not learn that it has none by blocking on it.
+    """
+    return _what_her_machine_says_about_a_network()
+
+
+def _what_her_machine_says_about_a_network() -> bool:
+    """The capability report's answer. None, and she is free to try."""
+    try:
+        from core.capabilities.capability_discovery import (  # noqa: PLC0415
+            get_capability_discovery,
+        )
+
+        report = get_capability_discovery().get_report()
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        # Nothing said otherwise, so the old behaviour stands.
+        return True
+    known = getattr(report, "has_network", None)
+    return True if known is None else bool(known)
 
 
 async def _from_her_own_shelf(question: str, *, engine: Any = None) -> list[Finding]:
@@ -759,9 +789,21 @@ async def learn_about(
         )
         knowledge.asking = kind_of_question(question)
         knowledge.searched = question
-        if knowledge.asking == BACKGROUND:
-            knowledge.findings.extend(await _from_her_own_shelf(question, engine=engine))
-        if knowledge.asking == TACTIC or not knowledge.findings:
+        # Her own shelf first, whatever the question is.
+        #
+        # She carries an encyclopedia and answers from it in tens of
+        # milliseconds, with no network and nothing to wait for. Asked only
+        # about what a thing IS, it sat unread while a question about how to
+        # do something went out to the web — which is going outside for
+        # context that is in the building, and is also the thing that cannot
+        # be relied on.
+        knowledge.findings.extend(await _from_her_own_shelf(question, engine=engine))
+        # The web is an extra, and only where there is one.
+        #
+        # She is a local system. A machine with no network, or with a browser
+        # that refuses, must cost her nothing at all: she knows it is not
+        # there and does not go, rather than finding out by waiting.
+        if (knowledge.asking == TACTIC or not knowledge.findings) and _there_is_a_network():
             read, _asked = await _from_search(question, engine=engine)
             if read:
                 knowledge.findings.extend(read)

@@ -115,10 +115,17 @@ class WhatWorksHere:
         anything else worth trying while some of what she was told is not
         working. A world where the named keys do the job never widens.
         """
-        told = tuple(key for key in self.told if key not in self.dead())
-        if told and not self.dead():
+        dead = set(self.dead())
+        told = tuple(key for key in self.told if key not in dead)
+        # Only what she was told can be shown wrong about what she was told.
+        # A key nobody named that never did anything says nothing about the
+        # ones they did: a remembered dead "down" took the caller's Tab and
+        # Return away before either had been pressed once.
+        if told and len(told) == len(self.told):
             return told
-        wider = [key for key in worth_trying(self.told) if key not in self.dead()]
+        wider = list(told) + [
+            key for key in worth_trying(self.told) if key not in dead and key not in told
+        ]
         if wider and set(wider) != set(self.told) and not self.said_it_differs:
             self.said_it_differs = True
             logger.info(

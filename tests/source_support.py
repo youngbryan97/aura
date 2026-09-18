@@ -67,6 +67,8 @@ def _statements(fn: ast.AST):
 def _expanded(lines: list[str], fn: ast.AST, helpers: dict[str, ast.AST], indent: int, used: set[str], stack: tuple[str, ...] = ()) -> list[str]:
     """``fn``'s body lines, re-based to ``indent``, with helper calls expanded."""
     stack = (*stack, fn.name)
+    # A helper moved into a sibling module carries its own file's lines.
+    lines = getattr(fn, "_source_lines", lines)
     body = list(fn.body)
     if body and isinstance(body[0], ast.Expr) and isinstance(getattr(body[0], "value", None), ast.Constant) and isinstance(body[0].value.value, str):
         body = body[1:]  # the helper's docstring is not a line of the caller
@@ -143,12 +145,29 @@ def inlined_module_source(path: str | pathlib.Path) -> str:
     return "\n".join(lines) + "\n"
 
 
-def inlined_function_source(path: str | pathlib.Path, qualname: str) -> str:
-    """One function's text, as it runs. ``qualname`` may be ``Class.method``."""
+def inlined_function_source(
+    path: str | pathlib.Path, qualname: str, *, helpers_also_in: tuple[str | pathlib.Path, ...] = ()
+) -> str:
+    """One function's text, as it runs. ``qualname`` may be ``Class.method``.
+
+    ``helpers_also_in`` names sibling modules its moved blocks may have been
+    moved on to: a second size sweep took the pursuit's decision helpers into
+    a module of their own, and a function read from its own file alone then
+    reported every call site in them as missing.
+    """
     text = pathlib.Path(path).read_text(encoding="utf-8")
     lines = text.splitlines()
     tree = ast.parse(text)
     helpers = _module_helpers(tree)
+    for other in helpers_also_in:
+        other_text = pathlib.Path(other).read_text(encoding="utf-8")
+        other_lines = other_text.splitlines()
+        more = _module_helpers(ast.parse(other_text))
+        helpers[""] = sorted(set(helpers[""]) | set(more.pop("", ())), key=len, reverse=True)
+        for name, node in more.items():
+            if name not in helpers:
+                node._source_lines = other_lines  # noqa: SLF001 - read by _expanded
+                helpers[name] = node
     *owners, name = qualname.split(".")
     scope: ast.AST = tree
     for owner in owners:

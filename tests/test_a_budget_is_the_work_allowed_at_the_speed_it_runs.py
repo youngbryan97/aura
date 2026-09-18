@@ -125,11 +125,11 @@ def test_thinking_follows_the_reading_not_the_waiting():
     # comments were written between the two — the derivation untouched,
     # nineteen lines apart instead of seven. A proximity window is a
     # measurement of formatting.
-    source = pursuit_source()
-    reads = source.index("a_read = float(observation.get(\"seconds_reading\"")
-    derives = source.index("max(0.3, a_read)", reads)
-    spends = source.index("budget_s=thinking_for", derives)
-    assert reads < derives < spends, (
-        "the thinking budget must be derived from the reading time and then "
-        "spent, in that order"
+    from source_contract import in_order
+
+    in_order(
+        pursuit_source(),
+        "a_read = float(observation.get(\"seconds_reading\"",
+        "max(0.3, a_read)",
+        "budget_s=thinking_for",
     )
