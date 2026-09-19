@@ -162,6 +162,17 @@ description is that document's own title.
 | `G10_STEERING_BASIS_AND_OWNERSHIP_2026-09-14.md` | G10: steering evidence follows the loaded basis |
 | `G11_DESKTOP_SERVING_2026-09-14.md` | G11: qualified desktop serving |
 | `G11_MANIFEST_CONTINUITY_2026-09-14.md` | G11: component-scoped manifest continuity |
+| `BRAINSTEM_LANE_COULD_NOT_LOAD_2026-09-19.md` | The brainstem lane could not load, whichever model was bound to it |
+| `G03_BACKGROUND_SCORE_REPLAY_2026-09-18.md` | Background score replay |
+| `G03_BACKGROUND_TRAINER_INTEGRATION_2026-09-18.md` | Background scoring reaches joint training |
+| `G03_BINDING_FACE_RETENTION_2026-09-18.md` | Binding faces and retained margins |
+| `G03_BINDING_FACE_TRIAL_2026-09-18.md` | Binding-face source trial and unchanged-round termination |
+| `G03_CURVED_RETENTION_2026-09-18.md` | Curved retention boundaries and competing feasible steps |
+| `G03_EXACT_SCALE_CONFLICT_2026-09-18.md` | Exact graph-scale conflict |
+| `G03_RELATION_CAPACITY_EXPANSION_2026-09-18.md` | Opt-in relation capacity expansion |
+| `G03_WORKING_FACE_FULL_LAUNCH_2026-09-18.md` | Frozen working-face development run |
+| `G08_PAIRED_PUBLIC_MEASUREMENT_2026-09-18.md` | Paired public-answer measurement |
+| `G09_ORDINARY_EVALUATION_PATH_2026-09-18.md` | Evaluation requests use ordinary reasoning |
 | `G_RUNTIME_WATCH_AND_RESIDUAL_2026-09-16.md` | Runtime recovery and residual sampling |
 | `TERNARY_BONSAI_2_27B_2026-09-17.md` | Ternary Bonsai 2 27B on this host, 2026-09-17 |
 

@@ -1707,6 +1707,50 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   The register itself is being produced the only way it can be: the 97
   files re-run against one pinned revision in a worktree.
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
+  2026-09-19, 59 of the 130 closed, and the register's own heading was
+  wrong. The dominant cause is not order dependence: it is a test reading
+  SOURCE for a call site the method-size sweep moved. Three shapes, each now
+  written once in `tests/source_contract.py` rather than fixed per test —
+  `function_with_its_helpers` for a block lifted into a helper beside it,
+  `class_with_its_bases` for one lifted into a mixin the class inherits, and
+  `declared_in` for one that moved to another file. A fourth kind of drift
+  had no helper and needed none: a hand-written list of modules.
+  `patch_chat_lane` replaces a name in every chat lane module that binds it,
+  and which modules those are was a tuple somebody maintained. Its own
+  comment said what that costs — "a lane missing from this list is a lane a
+  patch will miss" — and `lane_modules_on_disk` had been written after four
+  went missing. A fifth did: `chat_reply_repair_about_herself` carried
+  `_emit_chat_output_receipt` out with it, so a test asserting a turn was
+  receipted watched the real function run and read its own empty double. The
+  list is read from the directory now.
+  The same shape twice more, both with a test passing because of it.
+  `test_warmup_deferral_backpressure` patched `record_degradation` on
+  `core.brain.inference_gate` after `_note_foreground_warmup_failure` moved
+  into `inference_gate_cortex_warmup`, which binds it itself: one test failed
+  and its sibling asserted "no record was made" and passed, because nothing
+  it could see was ever called. And `test_recurrent_sft_kernel_probe` stood
+  its double at `probe.subprocess.run` after the probe was routed through the
+  subprocess gateway, so the real sandbox script ran on every one of those
+  three tests.
+  Not a test problem: `core/verify/which_lesions_a_direct_call_can_bite.py`
+  reads lexical enclosure to decide which channels a background caller can
+  move, and the sweep lifted `apply_channel` for
+  `affect.circumplex_sampling` out of `if not is_background and
+  self._origin_is_user_facing(origin)` into a helper called from inside it.
+  The verifier began reporting the circumplex as background-reachable — the
+  exact fact it was written to hold, and the one that explained three weeks
+  of zeros. It follows a guard into a helper that only guarded code calls
+  now, to a fixed point.
+  Ratchets tightened rather than refreshed while the register was worked:
+  raw AURA_* env reads 578 to 571 (EventLoopMonitor's seven knobs declared),
+  raw `ServiceContainer.get` 1760 to 1639 (the two most-resolved services
+  moved onto the resolvers that already existed for them, 84 files), lock
+  constructions 657 to 655, the indirect async-write list 112 to 108, the
+  dead-code-after-return allowance 3 to 0, and the mypy strict ratchet back
+  to green on ten regressions across four files. The god-object ratchet is
+  left alone deliberately: it is +2,281 lines over budget from 15,549 lines
+  of growth across many files, and it is the active lane of the sweep that
+  produced most of the failures above.
   FOUND 2026-09-07, second session, and it was not order dependence.
   `test_runtime_invariants_are_registered_and_run_clean` passed alone and
   failed in a batch; the batch had built the ontogeny singletons, so
