@@ -1,967 +1,991 @@
 {
-  "entries": [
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "aura_bench/nonparametric_probe.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "acquire_standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "aura_bench/reasoning_delta.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "acquire_in_process_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "in_process_heartbeat",
-      "path": "benchmarks/reasoning/run.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "acquire_in_process_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "in_process_heartbeat",
-      "path": "core/adaptation/post_training_validator.py"
-    },
-    {
-      "allowed_importers": [
-        "core/brain/llm/mlx_worker.py"
-      ],
-      "expected_load_references": 1,
-      "guard_path": "core/brain/llm/mlx_client.py",
-      "guard_symbol": "_model_load_admission_context",
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "worker_component",
-      "path": "core/brain/llm/contrastive_decoding.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "acquire_in_process_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "in_process_heartbeat",
-      "path": "core/brain/llm/local_code_model.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_path": "core/brain/llm/mlx_vision_client.py",
-      "guard_symbol": "prepare_model_lane_claim",
-      "modules": [
-        "mlx_vlm"
-      ],
-      "ownership_mode": "worker_process",
-      "path": "core/brain/llm/mlx_vision_worker.py",
-      "worker_entrypoint": "_mlx_vision_worker_loop"
-    },
-    {
-      "expected_load_references": 4,
-      "guard_path": "core/brain/llm/mlx_client.py",
-      "guard_symbol": "_model_load_admission_context",
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "worker_process",
-      "path": "core/brain/llm/mlx_worker.py",
-      "worker_entrypoint": "_mlx_worker_loop"
-    },
-    {
-      "expected_load_references": 2,
-      "guard_symbol": "acquire_in_process_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "in_process_heartbeat",
-      "path": "core/brain/llm/nucleus_manager.py"
-    },
-    {
-      "expected_load_references": 3,
-      "guard_symbol": "acquire_in_process_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "in_process_heartbeat",
-      "path": "core/learning/live_learner.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "require_active_synchronous_in_process_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "sentence_transformers"
-      ],
-      "ownership_mode": "in_process_sync_heartbeat_required_by_constructor",
-      "path": "core/memory/embedding_model.py"
-    },
-    {
-      "expected_load_references": 5,
-      "guard_symbol": "_acquire_voice_model_lane",
-      "min_guard_sites": 4,
-      "modules": [
-        "coqui_tts",
-        "faster_whisper",
-        "piper"
-      ],
-      "ownership_mode": "in_process_sync_heartbeat",
-      "path": "core/senses/voice_engine.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "acquire_in_process_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "from_pretrained"
-      ],
-      "ownership_mode": "in_process_heartbeat",
-      "path": "core/skills/image_gen.py"
-    },
-    {
-      "expected_load_references": 2,
-      "guard_symbol": "acquire_synchronous_in_process_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "faster_whisper"
-      ],
-      "ownership_mode": "in_process_sync_heartbeat",
-      "path": "core/voice/duplex/streaming_asr.py"
-    },
-    {
-      "expected_load_references": 2,
-      "guard_symbol": "acquire_synchronous_in_process_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "coqui_tts",
-        "piper"
-      ],
-      "ownership_mode": "in_process_sync_heartbeat",
-      "path": "core/voice/duplex/tts_stream.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "acquire_standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "research/consciousness/selfreport_steering_ab.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "acquire_synchronous_in_process_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "sentence_transformers"
-      ],
-      "ownership_mode": "in_process_sync_heartbeat",
-      "path": "research/consciousness/valence_scorer.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "acquire_standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "scripts/generate_steering_vectors.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "from_pretrained"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "scripts/run_finetune_gpt2.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "from_pretrained"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "scripts/self_update.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "scripts/train_with_recurrent_depth.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "acquire_standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/affect_causality_mlx.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 2,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/bench_speculative_decoding.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "acquire_standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/capability_ablation_mlx.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/capture_27b_steering_vectors.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/cortex_generation_upgrade.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/derive_generation_position_steering_vectors.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/eval_integrated_reasoning.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/eval_intrinsic_accuracy.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/evaluate_recurrent_sft_falsification.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/evaluate_unified_intrinsic_checkpoint.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "acquire_standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/experiments/run_matched_27b.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/front_door_demo.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/fuse_rlc_candidate.py",
-      "purpose": "fuse"
-    },
-    {
-      "expected_load_references": 2,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 2,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/generate_lora_consolidation_proof.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/heldout_eval.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/integrated_rlc_eval.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/intrinsic_recurrence_probe.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/latent_consolidation_train.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/latent_cortex_lab.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "acquire_standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/matched/run_matched_substrate.py"
-    },
-    {
-      "cleanup_scope": "guarded_finally",
-      "cleanup_symbol": "clear_cache",
-      "expected_load_references": 1,
-      "guard_scope": "enclosing_context",
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/measure_candidate_cortex_checkpoint.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "acquire_standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/measure_candidate_peakedness.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/measure_fusion_channel.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/measure_pass_divergence.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/measure_progressive_collapse.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/nonparametric_proof.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/proof/probe_nonparametric_memory.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/qualify_27b_steering.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/recurrence_native_train.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/recurrence_native_train_v2.py",
-      "purpose": "training"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/replay_verified_recurrent_policy_states.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/rlc_accuracy_ladder.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_caa_steering_campaign.py",
-      "purpose": "evaluation"
-    },
-    {
-      "cleanup_scope": "guarded_finally",
-      "cleanup_symbol": "_release_model_memory",
-      "expected_load_references": 1,
-      "guard_scope": "enclosing_context",
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_candidate_cortex_fusion_target.py",
-      "purpose": "fusion"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_certified_recurrence_behavioral_gate.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 2,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_episodic_delta_transplant_canary.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "acquire_standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_exclusion_ab.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "acquire_standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_falsification_matrix.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "mlx_memory_envelope",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_generated_rollin_objective_canary.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_induced_neural_procedure_decode_canary.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_latent_cortex_paired_campaign.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_mathematics_memory_decode_canary.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_native_transition_discriminator.py",
-      "purpose": "training"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_recurrent_depth_arms.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_recurrent_grpo_behavioral_canary.py",
-      "purpose": "training"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_recurrent_state_information_probe.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_recurrent_transition_discriminator.py",
-      "purpose": "training"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_rlc_checkpoint_sweep.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_rlc_reconciliation_sweep.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_semantic_neural_composition_decode_canary.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_semantic_neural_decode_canary.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_semantic_output_transfer_canary.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_semantic_program_ordinary_baseline.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "acquire_standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_state_causality_semantic.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_unified_recurrent_broad_canary.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 3,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 2,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/run_verified_trajectory_distillation_canary.py",
-      "purpose": "training"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/schedule_search_campaign.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/selfplay_harvest.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/sweep_steering_injection_geometry.py",
-      "purpose": "evaluation"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/train_grpo.py",
-      "purpose": "training"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/train_intrinsic_recurrence.py",
-      "purpose": "training"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/train_recurrent_sft_controls.py",
-      "purpose": "training"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/train_resident_recurrent_sft_bootstrap.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/train_steering_vectors_by_gradient.py",
-      "purpose": "training"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/train_structured_sft_research.py",
-      "purpose": "training"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/train_unified_intrinsic_recurrence.py",
-      "purpose": "training"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "tools/verify_rlc_decode_path.py",
-      "purpose": "verification"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "standalone_model_lane",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "standalone_process",
-      "path": "training/extract_steering_vectors.py"
-    },
-    {
-      "expected_load_references": 1,
-      "guard_symbol": "run_model_blocking",
-      "min_guard_sites": 1,
-      "modules": [
-        "mlx_lm"
-      ],
-      "ownership_mode": "delegated_worker_process",
-      "path": "training/train_and_fuse.py"
-    }
-  ],
-  "schema": "aura.model_load_ownership.v1"
+ "entries": [
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "aura_bench/nonparametric_probe.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "acquire_standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "aura_bench/reasoning_delta.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "acquire_in_process_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "in_process_heartbeat",
+   "path": "benchmarks/reasoning/run.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "acquire_in_process_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "in_process_heartbeat",
+   "path": "core/adaptation/post_training_validator.py"
+  },
+  {
+   "allowed_importers": [
+    "core/brain/llm/mlx_worker.py"
+   ],
+   "expected_load_references": 1,
+   "guard_path": "core/brain/llm/mlx_client.py",
+   "guard_symbol": "_model_load_admission_context",
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "worker_component",
+   "path": "core/brain/llm/contrastive_decoding.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "acquire_in_process_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "in_process_heartbeat",
+   "path": "core/brain/llm/local_code_model.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_path": "core/brain/llm/mlx_vision_client.py",
+   "guard_symbol": "prepare_model_lane_claim",
+   "modules": [
+    "mlx_vlm"
+   ],
+   "ownership_mode": "worker_process",
+   "path": "core/brain/llm/mlx_vision_worker.py",
+   "worker_entrypoint": "_mlx_vision_worker_loop"
+  },
+  {
+   "expected_load_references": 3,
+   "guard_path": "core/brain/llm/mlx_client.py",
+   "guard_symbol": "_model_load_admission_context",
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "worker_process",
+   "path": "core/brain/llm/mlx_worker.py",
+   "worker_entrypoint": "_mlx_worker_loop"
+  },
+  {
+   "expected_load_references": 2,
+   "guard_symbol": "acquire_in_process_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "in_process_heartbeat",
+   "path": "core/brain/llm/nucleus_manager.py"
+  },
+  {
+   "allowed_importers": [
+    "core/brain/llm/mlx_worker.py",
+    "tools/matched/run_matched_substrate.py"
+   ],
+   "expected_load_references": 1,
+   "guard_path": "core/brain/llm/mlx_client.py",
+   "guard_symbol": "_model_load_admission_context",
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "worker_component",
+   "path": "core/brain/llm/prism_hadamard.py"
+  },
+  {
+   "expected_load_references": 3,
+   "guard_symbol": "acquire_in_process_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "in_process_heartbeat",
+   "path": "core/learning/live_learner.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "require_active_synchronous_in_process_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "sentence_transformers"
+   ],
+   "ownership_mode": "in_process_sync_heartbeat_required_by_constructor",
+   "path": "core/memory/embedding_model.py"
+  },
+  {
+   "expected_load_references": 5,
+   "guard_symbol": "_acquire_voice_model_lane",
+   "min_guard_sites": 4,
+   "modules": [
+    "coqui_tts",
+    "faster_whisper",
+    "piper"
+   ],
+   "ownership_mode": "in_process_sync_heartbeat",
+   "path": "core/senses/voice_engine.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "acquire_in_process_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "from_pretrained"
+   ],
+   "ownership_mode": "in_process_heartbeat",
+   "path": "core/skills/image_gen.py"
+  },
+  {
+   "expected_load_references": 2,
+   "guard_symbol": "acquire_synchronous_in_process_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "faster_whisper"
+   ],
+   "ownership_mode": "in_process_sync_heartbeat",
+   "path": "core/voice/duplex/streaming_asr.py"
+  },
+  {
+   "expected_load_references": 2,
+   "guard_symbol": "acquire_synchronous_in_process_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "coqui_tts",
+    "piper"
+   ],
+   "ownership_mode": "in_process_sync_heartbeat",
+   "path": "core/voice/duplex/tts_stream.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "acquire_standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "research/consciousness/selfreport_steering_ab.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "acquire_synchronous_in_process_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "sentence_transformers"
+   ],
+   "ownership_mode": "in_process_sync_heartbeat",
+   "path": "research/consciousness/valence_scorer.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "acquire_standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "scripts/generate_steering_vectors.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "from_pretrained"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "scripts/run_finetune_gpt2.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "from_pretrained"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "scripts/self_update.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "scripts/train_with_recurrent_depth.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "acquire_standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/affect_causality_mlx.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 2,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/bench_speculative_decoding.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "acquire_standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/capability_ablation_mlx.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/capture_27b_steering_vectors.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/cortex_generation_upgrade.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/derive_generation_position_steering_vectors.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/eval_integrated_reasoning.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/eval_intrinsic_accuracy.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/evaluate_recurrent_sft_falsification.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/evaluate_unified_intrinsic_checkpoint.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "acquire_standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/experiments/run_matched_27b.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/front_door_demo.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/fuse_rlc_candidate.py",
+   "purpose": "fuse"
+  },
+  {
+   "expected_load_references": 2,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 2,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/generate_lora_consolidation_proof.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/heldout_eval.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/integrated_rlc_eval.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/intrinsic_recurrence_probe.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/latent_consolidation_train.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/latent_cortex_lab.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "acquire_standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/matched/run_matched_substrate.py"
+  },
+  {
+   "cleanup_scope": "guarded_finally",
+   "cleanup_symbol": "clear_cache",
+   "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/measure_candidate_cortex_checkpoint.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "acquire_standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/measure_candidate_peakedness.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/measure_fusion_channel.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/measure_pass_divergence.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/measure_progressive_collapse.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/nonparametric_proof.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/proof/probe_nonparametric_memory.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/qualify_27b_steering.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/recurrence_native_train.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/recurrence_native_train_v2.py",
+   "purpose": "training"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/replay_verified_recurrent_policy_states.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/rlc_accuracy_ladder.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_caa_steering_campaign.py",
+   "purpose": "evaluation"
+  },
+  {
+   "cleanup_scope": "guarded_finally",
+   "cleanup_symbol": "_release_model_memory",
+   "expected_load_references": 1,
+   "guard_scope": "enclosing_context",
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_candidate_cortex_fusion_target.py",
+   "purpose": "fusion"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_certified_recurrence_behavioral_gate.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 2,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_episodic_delta_transplant_canary.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "acquire_standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_exclusion_ab.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "acquire_standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_falsification_matrix.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "mlx_memory_envelope",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_generated_rollin_objective_canary.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_induced_neural_procedure_decode_canary.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_latent_cortex_paired_campaign.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_mathematics_memory_decode_canary.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_native_transition_discriminator.py",
+   "purpose": "training"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_public_shape_canary.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_recurrent_depth_arms.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_recurrent_grpo_behavioral_canary.py",
+   "purpose": "training"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_recurrent_state_information_probe.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_recurrent_transition_discriminator.py",
+   "purpose": "training"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_rlc_checkpoint_sweep.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_rlc_reconciliation_sweep.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_semantic_neural_composition_decode_canary.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_semantic_neural_decode_canary.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_semantic_output_transfer_canary.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_semantic_program_ordinary_baseline.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "acquire_standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_state_causality_semantic.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_unified_recurrent_broad_canary.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 3,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 2,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/run_verified_trajectory_distillation_canary.py",
+   "purpose": "training"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/schedule_search_campaign.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/selfplay_harvest.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/sweep_steering_injection_geometry.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/train_grpo.py",
+   "purpose": "training"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/train_intrinsic_recurrence.py",
+   "purpose": "training"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/train_recurrent_sft_controls.py",
+   "purpose": "training"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/train_resident_recurrent_sft_bootstrap.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/train_steering_vectors_by_gradient.py",
+   "purpose": "training"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/train_structured_sft_research.py",
+   "purpose": "training"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/train_unified_intrinsic_recurrence.py",
+   "purpose": "training"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/verify_rlc_decode_path.py",
+   "purpose": "verification"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "training/extract_steering_vectors.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "run_model_blocking",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "delegated_worker_process",
+   "path": "training/train_and_fuse.py"
+  }
+ ],
+ "schema": "aura.model_load_ownership.v1"
 }
