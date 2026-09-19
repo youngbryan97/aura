@@ -5949,44 +5949,17 @@ class CognitiveEngine(_RunsItsAugmentors):
         fast_path: bool,
         context: dict[str, Any] | None = None,
     ) -> Thought | None:
-        """Return a governed structured floor for bounded evaluation prompts."""
+        """Keep governance refusals; evaluation labels cannot substitute an answer.
+
+        ``fast_path`` remains part of refusal provenance for existing callers.
+        Plans, introspection, and computed answers use the ordinary pipeline.
+        """
 
         try:
             from core.reasoning.structured_evaluation import structured_evaluation_response
 
             response = structured_evaluation_response(objective, state=state, origin=origin)
-            if response is None:
-                if fast_path:
-                    from core.synthesis import deterministic_user_facing_floor
-
-                    direct = deterministic_user_facing_floor(objective)
-                    if direct:
-                        floor_metadata = self._live_mind_structured_floor_metadata(
-                            context,
-                            source="deterministic_user_facing_floor",
-                        )
-                        floor_metadata.update(self._structured_floor_receipt(fast_path))
-                        thought = Thought(
-                            id=str(uuid.uuid4()),
-                            content=direct,
-                            mode=mode,
-                            # Was 0.99 — near-certainty for an answer derived
-                            # from PROMPT SHAPE alone, with no semantic check,
-                            # no evidence requirement and no held-out
-                            # calibration behind it. The floor is deterministic,
-                            # which makes it reproducible, not correct.
-                            confidence=0.7,
-                            reasoning=[
-                                "Deterministic bounded-answer floor selected before model generation.",
-                                "Response computed from the prompt shape; no fixture keys or benchmark ids used.",
-                                "The modular phase pipeline did not run for this answer.",
-                            ],
-                            metadata=floor_metadata,
-                        )
-                        self.thoughts.append(thought)
-                        return thought
-                return None
-            if not fast_path and response.kind not in {"safety_refusal"}:
+            if response is None or response.kind != "safety_refusal":
                 return None
 
             floor_metadata = self._live_mind_structured_floor_metadata(

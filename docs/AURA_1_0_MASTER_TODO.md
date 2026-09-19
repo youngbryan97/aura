@@ -1143,6 +1143,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   baseline-dependent task filtering in the retrieval/depth diagnostic. The
   68-test focused pass does not qualify a model or close campaign verification.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [Ordinary evaluation path](evidence/G09_ORDINARY_EVALUATION_PATH_2026-09-18.md)
+  removes non-safety canned answers selected solely by test/proof/evaluation
+  origin. Planning and factual requests reach ordinary reasoning; governance
+  refusals remain. 659 focused and regression tests pass. No live or broad-gain
+  result is inferred from routing repair.
   [Forecast attribution](evidence/G09_FORECAST_ATTRIBUTION_2026-09-18.md) repairs
   calibration cancellation and binds planning outcomes to pre-action forecasts
   and delivered action counts. 121 focused tests pass, including partial

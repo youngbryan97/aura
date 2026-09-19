@@ -835,7 +835,7 @@ def test_the_floor_receipt_reaches_the_thought():
 
     source = inspect.getsource(engine_mod)
 
-    assert source.count("_structured_floor_receipt(fast_path)") == 2
+    assert source.count("_structured_floor_receipt(fast_path)") == 1
     assert "The modular phase pipeline did not run for this answer." in source
 
 
