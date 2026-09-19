@@ -26,8 +26,8 @@ def _graph_margin_loss(scales, differences, offsets, weights, initial, regulariz
 def graph_scale_feasibility(differences, offsets, *, required_margin=.1):
     """Test representability of retained inequalities by the existing scales.
 
-    A feasible witness is checked independently. Solver-reported infeasibility
-    is numerical evidence, not an exact proof or an unseen-task guarantee.
+    A feasible witness is checked independently. Infeasibility requires the
+    shared score-capacity proof kernel, not a solver status alone.
     """
     from scipy.optimize import linprog
 
@@ -54,13 +54,23 @@ def graph_scale_feasibility(differences, offsets, *, required_margin=.1):
             margins = differences @ scales + offsets
     verified = bool(margins is not None and np.all(np.isfinite(scales))
                     and np.all(scales >= 1e-6) and np.all(margins >= required_margin))
+    capacity = None
+    exact_infeasible = False
+    if not verified and result.status == 2:
+        from core.learning.score_capacity import assess_score_capacity, verify_score_capacity
+
+        capacity = assess_score_capacity(differences, offsets, margin=required_margin,
+                                         lower_bounds=[1e-6] * 3)
+        exact_infeasible = capacity["status"] == "infeasible" and verify_score_capacity(capacity)
     return {"schema": "aura.graph_scale_feasibility.v1", "pairs": len(offsets),
             "required_margin": required_margin, "solver_status": int(result.status),
             "status": "verified_witness" if verified else (
+                "exactly_infeasible" if exact_infeasible else
                 "numerically_infeasible" if result.status == 2 else "unverified"),
             "scales": scales.tolist() if verified else None,
             "minimum_margin": float(margins.min()) if margins is not None else None,
-            "exact_infeasibility_proven": False, "fresh_transfer_claim": False,
+            "exact_infeasibility_proven": exact_infeasible, "capacity_certificate": capacity,
+            "fresh_transfer_claim": False,
             "serving_authority": False}
 
 

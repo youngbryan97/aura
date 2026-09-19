@@ -80,3 +80,24 @@ def test_invalid_retention_allowances_fail(trained, allowance):
     model, examples = trained
     with pytest.raises(ValueError, match="allowances"):
         mine_runtime_graph_constraints(model, examples[0], max_charts=allowance)
+
+
+@pytest.mark.parametrize("complete_search", [False, True])
+def test_exhausted_beam_is_not_a_complete_search_proof(trained, monkeypatch, complete_search):
+    from core.learning.semantic_operation_search import OperationChartSearch
+
+    model, examples = trained
+    item = next(row for row in examples if row.split == "train")
+    runtime_charts = type(model)._runtime_operation_charts
+
+    def exhausted(self, *args):
+        spans, scores, arguments, _ = runtime_charts(self, *args)
+        candidates = (OperationChartSearch((), max_steps=1, length_penalty=0)
+                      if complete_search else iter(()))
+        return spans, scores, arguments, candidates
+
+    monkeypatch.setattr(type(model), "_runtime_operation_charts", exhausted)
+    _, record = mine_runtime_graph_constraints(model, item)
+    assert record["candidate_inventory_exhausted"]
+    assert record["operation_search_complete"] is complete_search
+    assert not record["highest_incorrect_proven"]

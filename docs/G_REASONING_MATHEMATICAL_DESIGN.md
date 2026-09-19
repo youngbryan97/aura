@@ -33,6 +33,19 @@ compiler. If they cannot separate the data, richer reusable features or a
 different representation are needed; more iterations cannot make incompatible
 linear inequalities compatible.
 
+The retained 2026-09-15 graph-factor log supplies 728 such contrasts. Replaying
+their three variable factor differences and fixed offsets (proposal scale
+0.875) through the feasibility check returns HiGHS status 2 at required margin
+0.1: numerically infeasible. This concerns that historical candidate pool and
+three-scale representation, not all richer models. It is not an exact rational
+infeasibility certificate. The log remains at
+`~/.aura/rlc-evidence/semantic-graph-factor-supervisor-20260915/detached.log`.
+
+The [exact capacity replay and trainer integration](evidence/G03_EXACT_SCALE_CONFLICT_2026-09-18.md)
+reproduces the existing September 15 proof-kernel result: a contradiction even
+for strict ranking without a fixed margin. Four retained comparisons suffice.
+This is not a new discovery or a claim about richer representations.
+
 ## Transfer
 
 A sufficient compositional route is a semantics-preserving translation for

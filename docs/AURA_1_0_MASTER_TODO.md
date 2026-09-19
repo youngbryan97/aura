@@ -938,6 +938,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   feasibility, complete decoding, compositional transfer, and paired selection
   gain. The existing graph-scale trainer now reports convex representability;
   neither that measurement nor optimizer convergence closes G03.
+  [Exact capacity integration](evidence/G03_EXACT_SCALE_CONFLICT_2026-09-18.md)
+  connects the trainer to the existing proof kernel and reproduces September
+  15's strict-ranking contradiction. Retention now distinguishes an exhausted
+  beam from a complete operation search. Seventy focused tests pass.
+  The [frozen full run](evidence/G03_WORKING_FACE_FULL_LAUNCH_2026-09-18.md)
+  is independently supervised; acquisition progress is not an accuracy result.
   [Background competition](evidence/G03_OPERATION_BACKGROUND_2026-09-18.md)
   tests a learned non-operation class on source spans. The small replay
   regresses from 48/60 to 45/60; no candidate promotion or full-run claim.
