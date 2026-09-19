@@ -814,7 +814,7 @@
       "category": "direct_atomic_file_write",
       "count": 1,
       "path": "core/consciousness/continuous_experience.py",
-      "scope": "<module>.ContinuousExperienceStream.save"
+      "scope": "<module>.ContinuousExperienceStream._save_now"
     },
     {
       "callee": "core.runtime.atomic_writer.atomic_write_json",
@@ -822,7 +822,7 @@
       "category": "direct_atomic_file_write",
       "count": 1,
       "path": "core/consciousness/continuous_experience.py",
-      "scope": "<module>.ContinuousExperienceStream.save"
+      "scope": "<module>.ContinuousExperienceStream._save_now"
     },
     {
       "callee": "core.runtime.atomic_writer.atomic_write_text",
@@ -16570,6 +16570,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "861ce9e6ccc2adef935c5322b09e80d4e84024d0fb6ae3248a87c8f8d7745d5c",
+  "inventory_sha256": "ac0fdd9059f7db6c49f19ac8dc7bcc7641eb1496c5d4461f2ca5a27fbd55739b",
   "schema_version": 1
 }

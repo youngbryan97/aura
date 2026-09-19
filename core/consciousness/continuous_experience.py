@@ -536,6 +536,15 @@ class ContinuousExperienceStream:
     def save(self) -> None:
         if not self.persist_path:
             return
+        # Autosave runs on every committed frame, and frames are committed
+        # from the loop: the journal append's fsync ran on the event loop
+        # thread (live, 2026-09-19). Behind it, one save at a time, the last
+        # one reading the latest state.
+        from core.runtime.executors import behind_the_loop
+
+        behind_the_loop(f"continuous_experience:{self.persist_path}", self._save_now)
+
+    def _save_now(self) -> None:
         with self._lock:
             pending = list(self._pending_journal_frames)
             snapshot_frames = list(self._frames)[-self._snapshot_frame_limit :]

@@ -804,9 +804,15 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
             from core.morphogenesis import telemetry
 
             status = self.governor.status()
-            status["component_sizes"] = ",".join(
-                str(len(component)) for component in self.graph.components()
-            )
+            pieces = sorted(self.graph.components(), key=len, reverse=True)
+            status["component_sizes"] = ",".join(str(len(piece)) for piece in pieces)
+            cut_off = sorted(cell for piece in pieces[1:] for cell in piece)
+            if cut_off:
+                # Sizes alone said "44,1,1,1,1,1,1" live (2026-09-19) and no
+                # surface could say which six cells nothing binds to.
+                shown = ", ".join(cut_off[:12])
+                more = f" and {len(cut_off) - 12} more" if len(cut_off) > 12 else ""
+                status["component_sizes"] += f"; cut off from the rest: {shown}{more}"
             telemetry.publish(status)
             telemetry.publish_motifs(self.motifs.status())
         except (ImportError, AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:

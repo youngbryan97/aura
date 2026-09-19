@@ -34,6 +34,8 @@ from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any
 
+from core.runtime.lockdep import checked_lock
+
 logger = logging.getLogger("Aura.Executors")
 
 # ---------------------------------------------------------------------------
@@ -351,6 +353,53 @@ def submit_blocking_io[T](
                 logger.info("Blocking IO '%s' completed in %.1f ms", tag, elapsed)
 
     return pool.submit(_run)
+
+
+#: Keys with a run queued or in flight, and whether it was asked for again.
+_BEHIND_RUNS: dict[str, bool] = {}
+_BEHIND_RUNS_LOCK = checked_lock("core.runtime.executors.behind_the_loop")
+
+
+def behind_the_loop(key: str, fn: Callable[[], Any]) -> bool:
+    """Run ``fn`` now, or, on a thread running an event loop, soon and off it.
+
+    For synchronous work that async code reaches through ordinary calls and
+    that reads its own state when it runs: a save that snapshots an object
+    and appends a journal. Off the loop it runs here and returns True. On the
+    loop one run per ``key`` is queued on the blocking I/O lane; asking again
+    while it is queued or running asks for one more run after it, never for
+    two at once, so the last state asked for is the last one saved and runs
+    for the same key never overlap. Returns False when the run was deferred.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        fn()
+        return True
+    with _BEHIND_RUNS_LOCK:
+        if key in _BEHIND_RUNS:
+            _BEHIND_RUNS[key] = True
+            return False
+        _BEHIND_RUNS[key] = False
+
+    def drain() -> None:
+        while True:
+            try:
+                fn()
+            except Exception as exc:  # noqa: BLE001 - the caller's own errors are its to record
+                logger.warning("work behind the loop for %s failed: %s", key, exc)
+            with _BEHIND_RUNS_LOCK:
+                if not _BEHIND_RUNS.get(key):
+                    _BEHIND_RUNS.pop(key, None)
+                    return
+                _BEHIND_RUNS[key] = False
+
+    try:
+        submit_blocking_io(drain, label=f"behind_the_loop:{key}")
+    except RuntimeError:
+        # Shutting down: nothing will run it later, so this call pays for it.
+        drain()
+    return False
 
 
 # ---------------------------------------------------------------------------
