@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.file_read_gateway import read_stable_bytes
-from core.verify import invariant
 
 MANIFEST_HISTORY_DIRECTORY = "manifest-history"
 MAX_MANIFEST_BYTES = 512 * 1024
@@ -36,7 +35,6 @@ def read_manifest_bytes(path: Path) -> bytes:
     return raw
 
 
-@invariant("cortex.manifest_dependency_continuity", scope="inference", owner="model_registry")
 def verify_manifest_component_continuity(
     *,
     manifest: Path,

@@ -255,6 +255,23 @@ def invariant(
     """
 
     def decorate(fn: CheckFn) -> CheckFn:
+        # The verifier calls a check with nothing. A function that needs
+        # arguments registered as one failed every pass with a TypeError and
+        # tainted the runtime for it (cortex.manifest_dependency_continuity,
+        # live 2026-09-19); refusing it here makes that an import error.
+        import inspect
+
+        needs = [
+            parameter.name
+            for parameter in inspect.signature(fn).parameters.values()
+            if parameter.default is inspect.Parameter.empty
+            and parameter.kind not in (parameter.VAR_POSITIONAL, parameter.VAR_KEYWORD)
+        ]
+        if needs:
+            raise TypeError(
+                f"invariant {name!r} is called with no arguments, and "
+                f"{fn.__qualname__} requires {', '.join(needs)}"
+            )
         _REGISTRY.register(
             InvariantSpec(
                 name=name,

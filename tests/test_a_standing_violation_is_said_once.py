@@ -49,3 +49,15 @@ def test_the_same_finding_is_logged_once_and_a_new_one_is_logged(caplog):
         with registry._lock:
             registry._specs.pop(f"{scope}.standing", None)
         invariants.reset_verifier_for_test()
+
+
+def test_a_check_that_needs_arguments_is_refused_when_it_is_declared():
+    """LIVE 2026-09-19: a proof function taking four arguments was declared an
+    invariant, and every verification pass failed it with a TypeError."""
+    import pytest
+
+    with pytest.raises(TypeError, match="requires manifest"):
+
+        @invariant("test.needs_arguments", scope="test_needs_arguments", owner="test")
+        def _needs(*, manifest):
+            return ()
