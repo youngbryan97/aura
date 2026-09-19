@@ -204,8 +204,8 @@ class EmbeddingEngine:
         self._encode_lock = checked_lock("vector_memory_engine.encode", rank=LockRank.LEAF)
         #: Query vectors already made, newest last, and the ones being made.
         #: One recall asks from several sources at once, in threads, and each
-        #: embedded the same question behind the encode lock: 1 to 13 s per
-        #: query measured live (2026-09-19) with every document cached.
+        #: embedded the same question behind the encode lock. The slowest
+        #: measured live took 13.3 s (2026-09-19), with every document cached.
         self._query_lock = checked_lock("vector_memory_engine.queries", rank=LockRank.LEAF)
         self._query_vectors: OrderedDict[tuple[str, str], np.ndarray] = OrderedDict()
         self._query_inflight: dict[tuple[str, str], Future] = {}
