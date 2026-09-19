@@ -87,6 +87,11 @@ def _the_store():
     )
 
 
+#: Where this process last wrote and what, so an unchanged body is not
+#: written again.
+_LAST_KEPT: dict[str, tuple[str, str] | None] = {"body": None}
+
+
 def keep() -> bool:
     """Write down every property and every meaning she has worked out."""
     from core.agency.how_good_is_this import AS_GOOD_A_GUESS_AS_ANY, INVENTED, ON_TRIAL
@@ -119,6 +124,10 @@ def keep() -> bool:
         if len(written) > _MOST_KEPT:
             logger.info("what she invented is too big to keep (%d)", len(written))
             return False
+        if _LAST_KEPT["body"] == (str(_kept_at()), written) and _kept_at().exists():
+            # The conductor asks every five minutes; a file rewritten and
+            # fsynced with the same bytes is disk work that records nothing.
+            return True
         def _write() -> None:
             with local_internal_governed_scope(
                 "what_she_invented.keep", domain="state_mutation"
@@ -129,6 +138,7 @@ def keep() -> bool:
                 _the_store().save(body)
 
         _write()
+        _LAST_KEPT["body"] = (str(_kept_at()), written)
         logger.info("kept %d propert(ies) she worked out", len(body["measures"]))
         return True
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
@@ -205,6 +215,7 @@ def forget_everything() -> bool:
         from core.runtime.file_write_gateway import get_file_write_gateway
 
         get_file_write_gateway().delete_file(_kept_at(), source="what_she_invented")
+        _LAST_KEPT["body"] = None
         return True
     except (OSError, RuntimeError, AttributeError):
         return False

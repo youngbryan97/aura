@@ -74,16 +74,25 @@ def test_generate_retries_report_cumulative_decoded_work():
 
 
 def _emit_block() -> str:
-    """The emission block, bounded by the stop check that follows it.
+    """The function that decides what one decoded step sends to the parent.
 
-    The end marker used to be "if stop_hit:" exactly. A second condition was
-    added — `if stop_hit or semantic_stop_ready:` — and every case in this
-    file died on ValueError from the slice, about code that had not changed.
-    The prefix is the stable part.
+    Read as the smallest function that computes ``emit_text``, not as a text
+    slice. The slice was bounded first by "if stop_hit:", then by the prefix
+    "if stop_hit", and each time the loop was reshaped around it every case
+    here died on ValueError about code that had not changed. The emission is
+    now a function of its own, and the function is the unit that has to hold
+    both branches.
     """
     src = WORKER.read_text(encoding="utf-8")
-    start = src.index("                                    emit_text = (")
-    return src[start : src.index("if stop_hit", start)]
+    holding = [
+        node
+        for node in ast.walk(ast.parse(src))
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and "emit_text = (" in (ast.get_source_segment(src, node) or "")
+    ]
+    assert holding, "nothing in the worker computes emit_text any more"
+    smallest = min(holding, key=lambda node: node.end_lineno - node.lineno)
+    return ast.get_source_segment(src, smallest) or ""
 
 
 def test_a_step_with_no_visible_text_still_reports_progress() -> None:

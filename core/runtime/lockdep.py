@@ -170,6 +170,16 @@ SANCTIONED_BLOCKING_LOCKS: dict[str, str] = {
         "through its own SemanticRagWarm thread, and the lane "
         "evict/compensate callbacks through asyncio.to_thread."
     ),
+    "core.persistence.a_versioned_store.self._io_lane": (
+        "The lane exists to order one file's writes. A flush takes what is "
+        "held, writes it atomically and makes it durable; releasing the lane "
+        "before the fsync lets an older flush finish after a newer one and "
+        "leave the older body on disk. State is under a separate lock that "
+        "is never held across the write, so hold() never waits on the disk. "
+        "The one live caller, what_she_invented.keep, runs through "
+        "asyncio.to_thread from the autonomy conductor and from the end of a "
+        "screen run, never on the loop."
+    ),
     "endogenous_pair_recorder.store": (
         "Rotation and append form one bounded corpus commit: releasing the lock "
         "between them lets concurrent turns rotate the same generation or append "

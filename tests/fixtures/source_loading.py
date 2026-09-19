@@ -18,6 +18,7 @@ about.
 from __future__ import annotations
 
 import ast
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -52,7 +53,10 @@ def load_functions(
     if missing:
         raise ValueError(f"{path.name} defines no top-level {sorted(missing)}")
 
-    scope: dict[str, Any] = {"Any": Any}
+    # Every module here logs through a module-level `logger`, and a function
+    # that logs on its error path fails with a NameError only when the error
+    # happens, which is exactly the path a test of it exercises.
+    scope: dict[str, Any] = {"Any": Any, "logger": logging.getLogger(path.stem)}
     scope.update(namespace or {})
     module = ast.Module(body=body, type_ignores=[])
     # noqa: S102 — reviewed. The compiled object is an AST assembled above

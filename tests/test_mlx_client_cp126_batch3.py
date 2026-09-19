@@ -311,9 +311,14 @@ class TestLatentAnswerContract:
     """d78cbfa4: ok requires a real nonempty string answer."""
 
     def test_source_rejects_non_string_answers(self):
-        import inspect
+        # Read as it runs: the status check moved out of the method into a
+        # helper in the same module, and the method alone no longer names it.
+        from tests.source_support import inlined_function_source
 
-        source = inspect.getsource(mc.MLXLocalClient.latent_reason_async)
+        source = inlined_function_source(
+            "core/brain/llm/mlx_latent_reasoning.py",
+            "_ReasonsInLatentSpace.latent_reason_async",
+        )
         assert 'str(res.get("text") or "")' not in source
         assert "latent_answer_invalid" in source
 
