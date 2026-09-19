@@ -1741,6 +1741,30 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   exact fact it was written to hold, and the one that explained three weeks
   of zeros. It follows a guard into a helper that only guarded code calls
   now, to a fixed point.
+  More of the same shape, found by working the register rather than by
+  looking for it. A window measures formatting, and four of them were
+  measuring another module entirely: the recollection guard read 300
+  characters above where the clause used to be in `chat.py` after it moved
+  to `chat_own_source`; the deliberate-cancel reason was matched as a
+  multi-line literal carrying twenty-eight spaces of indentation, so
+  re-indenting the block dropped the count to zero while the assignment had
+  not moved; `_abandonment_source` sliced between two markers that the sweep
+  had put in different functions; and `continuity_sections = (` was counted
+  inside a method the assembly had left, so "exactly once" was zero.
+  Three more doubles standing at doors their subject stopped using — the MLX
+  runtime probe, the readiness block, and a swarm shard that asks the
+  container for `llm_router` rather than going through the orchestrator's
+  cognitive engine.
+  Four tests were passing because of the drift rather than despite it, which
+  is the worse half: `test_warmup_deferral_backpressure`'s sibling asserted
+  "no record was made" with the recorder patched onto a module nothing
+  called; `test_a_control_carrying_most_of_the_effect...` asserted
+  `effect_is_specific is False` on a report whose controls were never scored,
+  so the subject was never measured; `test_reach_gateway` counted a step
+  nobody verified as verified progress; and the governed-scope detector said
+  outright that it had "drifted from the code and is no longer checking
+  anything" — its own guard on itself, and it was right.
+
   Ratchets tightened rather than refreshed while the register was worked:
   raw AURA_* env reads 578 to 571 (EventLoopMonitor's seven knobs declared),
   raw `ServiceContainer.get` 1760 to 1639 (the two most-resolved services
