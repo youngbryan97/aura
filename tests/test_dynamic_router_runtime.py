@@ -129,6 +129,10 @@ def test_dynamic_router_record_outcome_sanitizes_and_persists(tmp_path):
 
     for _ in range(10):
         asyncio.run(router.record_outcome("Model\x00A", "yes", "not-int", "not-a-task"))
+    # Saved behind the loop, as it is live; settled before it is read.
+    from core.runtime.atomic_writer import flush_writes_behind
+
+    flush_writes_behind()
 
     assert router.db_path.exists()
     saved = json.loads(router.db_path.read_text(encoding="utf-8"))

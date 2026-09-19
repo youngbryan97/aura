@@ -480,7 +480,11 @@ class StrangeLoop:
             # -- 10. Periodic persistence -------------------------------
             now = time.time()
             if now - self._last_persist_time > _PERSIST_INTERVAL_S:
-                self._save_weights()
+                # Off the loop: tick() is a coroutine step, and the weights
+                # are read when the save runs, so the newest ones are kept.
+                from core.runtime.executors import behind_the_loop
+
+                behind_the_loop("strange_loop.weights", self._save_weights)
                 self._last_persist_time = now
 
             # -- Build and return LoopState -----------------------------

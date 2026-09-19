@@ -11,7 +11,7 @@ from typing import Any
 from core.container import ServiceContainer
 from core.conversation.word_markers import names_any
 from core.event_bus import get_event_bus
-from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.atomic_writer import atomic_write_text_behind
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.utils.paths import aura_data_dir
 from core.utils.task_tracker import task_tracker
@@ -234,7 +234,9 @@ class DynamicRouter:
     def _save_history(self):
         try:
             payload = self._sanitize_history(self.performance_history)
-            atomic_write_text(self.db_path, json.dumps(payload, indent=2, allow_nan=False))
+            # Behind the loop: saved as routing outcomes arrive, from async
+            # code (the indirect async-write ratchet lists record_outcome).
+            atomic_write_text_behind(self.db_path, json.dumps(payload, indent=2, allow_nan=False))
             self._dirty_outcomes = 0
         except (OSError, RuntimeError, TypeError, ValueError) as e:
             _emit_router_fault(

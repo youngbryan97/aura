@@ -28,7 +28,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.atomic_writer import atomic_write_text_behind
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
@@ -324,7 +324,8 @@ Sound like yourself. Be direct. You can note if your thinking has evolved."""
                 del self._opinions[old.topic]
 
         try:
-            atomic_write_text(self._db_path, 
+            # Behind the loop: opinions are formed and saved from async code.
+            atomic_write_text_behind(self._db_path, 
                 json.dumps([asdict(o) for o in self._opinions.values()], indent=2)
             )
         except (json.JSONDecodeError, TypeError, ValueError) as e:

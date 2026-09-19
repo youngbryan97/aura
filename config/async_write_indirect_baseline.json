@@ -72,36 +72,6 @@
    "_save"
   ],
   [
-   "core/agency/tension_engine.py",
-   "tick",
-   "_save"
-  ],
-  [
-   "core/agency/tension_engine.py",
-   "tick",
-   "_scan_belief_contradictions"
-  ],
-  [
-   "core/agency/tension_engine.py",
-   "tick",
-   "_scan_broken_expectations"
-  ],
-  [
-   "core/agency/tension_engine.py",
-   "tick",
-   "_scan_curiosity_gaps"
-  ],
-  [
-   "core/agency/tension_engine.py",
-   "tick",
-   "_scan_goal_conflicts"
-  ],
-  [
-   "core/agency/tension_engine.py",
-   "tick",
-   "_scan_identity_drift"
-  ],
-  [
    "core/agi/hierarchical_planner.py",
    "decompose_goal",
    "add_goal"
@@ -162,11 +132,6 @@
    "_save_graph"
   ],
   [
-   "core/cognitive/strange_loop.py",
-   "tick",
-   "_save_weights"
-  ],
-  [
    "core/consciousness/mhaf_field.py",
    "stop",
    "_save"
@@ -185,21 +150,6 @@
    "core/container.py",
    "wake",
    "write_sovereignty_seal"
-  ],
-  [
-   "core/control/dynamic_router.py",
-   "_background_learner",
-   "_save_history"
-  ],
-  [
-   "core/control/dynamic_router.py",
-   "record_outcome",
-   "_save_history"
-  ],
-  [
-   "core/control/dynamic_router.py",
-   "stop",
-   "_save_history"
   ],
   [
    "core/conversation/chat_preflight.py",
@@ -264,16 +214,6 @@
   [
    "core/epistemics/inquiry_engine.py",
    "stop",
-   "_save"
-  ],
-  [
-   "core/epistemics/opinion_engine.py",
-   "form_opinion",
-   "_save"
-  ],
-  [
-   "core/epistemics/opinion_engine.py",
-   "surface_random",
    "_save"
   ],
   [

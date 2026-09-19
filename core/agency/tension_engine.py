@@ -12,7 +12,7 @@ Persists to disk so tensions survive restarts.
 from __future__ import annotations
 from core.runtime.errors import record_degradation
 
-from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.atomic_writer import atomic_write_text_behind
 
 import json
 import logging
@@ -129,7 +129,8 @@ class TensionEngine:
     def _save(self) -> None:
         try:
             payload = [t.to_dict() for t in self._tensions.values()]
-            atomic_write_text(self._persist_path, json.dumps(payload, indent=2))
+            # Behind the loop: tick() saves as it registers tensions.
+            atomic_write_text_behind(self._persist_path, json.dumps(payload, indent=2))
         except (json.JSONDecodeError, TypeError, ValueError) as exc:
             record_degradation('tension_engine', exc)
             logger.error("TensionEngine failed to persist tensions: %s", exc)

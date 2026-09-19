@@ -453,13 +453,25 @@ def _drain_behind(key: str) -> None:
             )
 
 
-def flush_writes_behind() -> int:
-    """Write everything still held, on this thread. Returns how many."""
+def flush_writes_behind(*, wait_s: float = 10.0) -> int:
+    """Write everything still held, on this thread, and wait out writes in flight.
+
+    Returns how many were written here. A drain already running on the I/O
+    lane has taken its body out of the hold, so this waits, up to ``wait_s``,
+    until no path has a drain queued or running: after it returns, every
+    save that was asked for is on disk.
+    """
     with _BEHIND_LOCK:
         keys = list(_BEHIND)
         _BEHIND_QUEUED.update(keys)
     for key in keys:
         _drain_behind(key)
+    deadline = time.monotonic() + max(0.0, wait_s)
+    while time.monotonic() < deadline:
+        with _BEHIND_LOCK:
+            if not _BEHIND_QUEUED:
+                break
+        time.sleep(0.005)
     return len(keys)
 
 
