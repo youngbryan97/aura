@@ -17,8 +17,8 @@ Design:
 from __future__ import annotations
 
 import logging
-import re
 import math
+import re
 import threading
 import time
 from collections import deque
@@ -26,9 +26,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.being.aura_now import BodyState
+from core.conversation.word_markers import names_any
 from core.runtime.consequence_bus import ConsequenceBus, ConsequenceEvent
 from core.runtime.errors import record_degradation
-from core.conversation.word_markers import names_any
 
 logger = logging.getLogger("Aura.BodyStateService")
 
@@ -150,6 +150,18 @@ _REFUSAL_OUTCOME_MARKERS = (
 )
 
 
+def _words_not_codes(text: str) -> str:
+    """Underscores and hyphens read as the word boundaries they are."""
+
+    return text.replace("_", " ").replace("-", " ")
+
+
+#: The same markers, in the form the text is matched in.
+_REFUSAL_OUTCOME_MARKERS_AS_WORDS = tuple(
+    _words_not_codes(marker) for marker in _REFUSAL_OUTCOME_MARKERS
+)
+
+
 def _is_refusal_outcome(event: Any) -> bool:
     """Whether a 'failure' consequence is a refusal rather than failed work."""
     text = " ".join(
@@ -158,7 +170,13 @@ def _is_refusal_outcome(event: Any) -> bool:
     ).lower()
     if not text.strip():
         return False
-    return names_any(text, _REFUSAL_OUTCOME_MARKERS)
+    # Underscores and hyphens are word boundaries here. These fields carry
+    # CODES as often as prose — `model_load_admission_denied`,
+    # `welfare_recovery_required_before_action` — and word-aware matching
+    # reads those as one long word, so "admission" did not find the
+    # admission refusal and the lane was charged fatigue for declining to
+    # act. Split, and "admission" still does not match "readmission".
+    return names_any(_words_not_codes(text), _REFUSAL_OUTCOME_MARKERS_AS_WORDS)
 
 
 class BodyStateService:
