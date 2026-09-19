@@ -819,11 +819,7 @@ class CognitiveHeartbeat:
 
         # Qualia Metrics
         try:
-            # Looked up directly: a container that fails here is recorded as
-            # this heartbeat's degradation, which optional_service would hide.
-            substrate = ServiceContainer.get("liquid_state", default=None) or ServiceContainer.get(
-                "liquid_substrate", default=None
-            )
+            substrate = optional_service("liquid_state", "liquid_substrate", default=None)
             if substrate and hasattr(substrate, "get_state_summary"):
                 summary_result = substrate.get_state_summary()
                 sub_summary = (

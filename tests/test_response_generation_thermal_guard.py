@@ -290,7 +290,12 @@ def _live_latent_receipt(text: str, objective: str):
 
 
 def _latent_context(objective):
+    # The general latent episode runs on an explicit requirement only, since
+    # 58468e715: deliberate mode alone once held the lane 595 s on a question
+    # it had no proven gain on. These tests are about what the episode does
+    # once it runs, so the turn asks for it.
     return {
+        "latent_cortex_required": True,
         "desktop_cognitive_engine_required": True,
         "cognitive_engine_required": True,
         "visible_user_message": objective,

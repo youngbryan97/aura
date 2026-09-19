@@ -42,7 +42,6 @@ def _observer(frustration: float) -> SimpleNamespace:
     return SimpleNamespace(
         _models={"sam": model},
         _load_agent=lambda *_a, **_k: model,
-        _frustration=OtherAgentStateEstimator._frustration,
     )
 
 

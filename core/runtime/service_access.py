@@ -9,13 +9,18 @@ from core.exceptions import ServiceNotFoundError
 
 
 def optional_service(*names: Any, default: Any = None) -> Any:
+    """The first of these services that is registered, else ``default``.
+
+    An absent service is the container's own ``default=None`` answer. A
+    container that raises is not an absent service: the error reaches the
+    caller, which knows what it does without the service and records that.
+    Swallowing it here hid the failure from every caller that had wrapped the
+    raw lookup in its own handler before it was moved onto this one.
+    """
     for name in names:
         if name in (None, ""):
             continue
-        try:
-            service = ServiceContainer.get(name, default=None)
-        except (ImportError, AttributeError, RuntimeError):
-            continue
+        service = ServiceContainer.get(name, default=None)
         if service is not None:
             return service
     return default
