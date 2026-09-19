@@ -182,15 +182,18 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         while True:
             projection_receipt = None
             if update_rule == "minimum_change":
-                from core.learning.margin_repair import minimum_margin_repair
+                from core.learning.margin_repair import minimum_stored_margin_repair
 
                 indices = tuple(normals)
                 matrix = np.stack(tuple(normals.values()))
                 required = required_margin - margins[list(indices)] + matrix @ (flat - anchor)
-                proposal = minimum_margin_repair(matrix, required, tolerance=1e-7)
-                projection_receipt = proposal.receipt
-                if projection_receipt["status"] != "verified_numerically":
+                proposal = minimum_stored_margin_repair(matrix, required, anchor, tolerance=1e-7)
+                projection_receipt = proposal.receipt["continuous_projection"]
+                if not proposal.receipt["stored_primal_feasible"]:
                     status = "local_margin_projection_unverified"
+                    if progress:
+                        progress({"stage": "constraint_projection_unverified", "step": step + 1,
+                                  "projection": proposal.receipt})
                     break
                 direction = anchor + proposal.displacement - flat
             else:
@@ -246,10 +249,24 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                                   "projected_constraints": len(normals)}
                     if projection_receipt is not None:
                         entry.update(local_affine_projection=projection_receipt,
+                                     stored_affine_projection=proposal.receipt,
                                      displacement_from_anchor=float(np.linalg.norm(trial - anchor)))
                     if best_trial is None or trial_loss < best_trial[2]["loss"]:
                         best_trial = trial, trial_margins, entry
                     break
+                last_rejected_step = {
+                    "step": step + 1, "backtracks": backtrack,
+                    "constraint_cut_rounds": cut_rounds,
+                    "projected_constraints": len(normals),
+                    "retention_violations": len(violated),
+                    "maximum_floor_deficit": float(np.max(floors[violated] - trial_margins[violated]))
+                    if len(violated) else 0.,
+                    "loss_before": loss, "loss_after": trial_loss,
+                    "displacement_norm": float(np.linalg.norm(trial - flat)),
+                    "restoration_steps": restoration_steps,
+                }
+                if progress and backtrack in {0, 23}:
+                    progress({"stage": "constraint_step_rejected", **last_rejected_step})
             # Keep the feasible proposal while testing blocking-face
             # alternative. A tiny accepted step must not hide a much better
             # tangent step; adding a slack face must not discard useful motion.
@@ -297,10 +314,10 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         "accepted_steps": trace, "projection_batch_size": max_active,
         "accepted_constraint_cut_rounds": sum(row["constraint_cut_rounds"] for row in trace),
         "peak_accepted_projected_constraints": max((row["projected_constraints"] for row in trace), default=0),
-        "step_policy": ("minimum_change_working_set_v1" if update_rule == "minimum_change" else
-                        ("working_face_logistic_v6" if objective == "pairwise_logistic"
-                         else "working_face_deficit_v6")
-                        if adaptive_step else "working_face_fixed_v6"),
+        "step_policy": ("minimum_change_stored_working_set_v2" if update_rule == "minimum_change" else
+                        "working_face_fixed_v6" if not adaptive_step else
+                        "working_face_logistic_v6" if objective == "pairwise_logistic" else
+                        "working_face_deficit_v6"),
         "update_rule": update_rule,
         "displacement_from_anchor": float(np.linalg.norm(flat - anchor)),
         "global_minimum_change_proven": False,

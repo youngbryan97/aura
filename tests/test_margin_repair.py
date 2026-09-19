@@ -6,6 +6,7 @@ import pytest
 from core.learning.margin_repair import (
     margin_neighborhood_bound,
     minimum_margin_repair,
+    minimum_stored_margin_repair,
     verify_exact_margin_repair,
     verify_margin_repair,
 )
@@ -68,6 +69,52 @@ def test_contradictory_corrections_are_unresolved_not_a_false_infeasibility_proo
 def test_zero_feature_cannot_repair_a_positive_deficit():
     result = minimum_margin_repair([[0., 0.]], [1.], max_iterations=5)
     assert not result.receipt["primal_feasible"]
+
+
+def test_stored_repair_respects_many_binding_faces_after_rounding():
+    rng = np.random.default_rng(912)
+    anchor = rng.normal(size=128).astype(np.float32).astype(float)
+    a = rng.normal(size=(49, 128))
+    b = np.r_[np.zeros(48), 25.1 - a[-1] @ anchor]
+    proposal = minimum_stored_margin_repair(a, b, anchor)
+    assert proposal.receipt["stored_primal_feasible"]
+    assert np.all(a @ proposal.displacement >= b)
+    point = anchor + proposal.displacement
+    np.testing.assert_array_equal(point, point.astype(np.float32).astype(float))
+    assert not proposal.receipt["global_minimum_change_proven"]
+
+
+def test_active_equalities_are_polished_before_accepting_a_numerical_certificate():
+    rng = np.random.default_rng(912)
+    anchor = rng.normal(size=128).astype(np.float32).astype(float)
+    a = rng.normal(size=(49, 128))
+    b = np.r_[np.zeros(48), 25.1 - a[-1] @ anchor]
+    result = minimum_margin_repair(a, b, tolerance=1e-10)
+    assert result.receipt["status"] == "verified_numerically"
+    assert result.receipt["active_equalities_polished"]
+    assert np.min(a @ result.displacement - b) >= -1e-10
+
+
+def test_exactly_representable_equalities_need_no_artificial_interior():
+    result = minimum_stored_margin_repair([[1., 0.], [-1., 0.], [0., 1.]],
+                                         [0., 0., .5], [1., 0.])
+    assert result.receipt["stored_primal_feasible"]
+    np.testing.assert_array_equal(result.displacement, [0., .5])
+    assert result.receipt["maximum_margin_reserve"] == 0.
+
+
+def test_storage_infeasibility_is_unresolved_not_a_false_continuous_proof():
+    lower, upper = 1. + 2. ** -26, 1. + 2. ** -25
+    result = minimum_stored_margin_repair([[1.], [-1.]], [lower, -upper], [0.],
+                                         max_rounding_rounds=2)
+    assert not result.receipt["stored_primal_feasible"]
+    assert not result.receipt["infeasibility_proven"]
+
+
+@pytest.mark.parametrize("anchor,rounds", [([float("nan")], 8), ([0., 0.], 8), ([0.], 0), ([0.], True)])
+def test_invalid_storage_geometry_cannot_return_a_witness(anchor, rounds):
+    with pytest.raises(ValueError):
+        minimum_stored_margin_repair([[1.]], [1.], anchor, max_rounding_rounds=rounds)
 
 
 def test_neighborhood_bound_is_tight_and_does_not_claim_coverage():

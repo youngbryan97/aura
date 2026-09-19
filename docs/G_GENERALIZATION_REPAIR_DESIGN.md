@@ -64,6 +64,21 @@ unverified local projection, exhaust its search allowance or fail to improve.
 None of those outcomes proves that the architecture cannot learn the task.
 An affine optimality certificate is not a nonlinear global optimum.
 
+The stored solver also accounts for coefficient rounding. A continuous
+projection can satisfy a boundary that float32 storage crosses. For a row
+a and rounding error e, the margin can fall by at most |a|^T|e|.
+`minimum_stored_margin_repair` adds a reserve to affected comparisons,
+solves the stronger affine subproblem and checks the rounded coefficients
+against the original inequalities. It never lowers a retained floor.
+An exactly representable equality needs no reserve. A problem with no
+admitted stored solution remains unresolved, not certified infeasible.
+
+The continuous optimizer can also stop on objective precision before its
+active margins meet the requested tolerance. The solver checks its proposed
+active equalities with a least-squares solve, then verifies all original
+inequalities and the dual witness. The active set is not trusted merely
+because the optimizer proposed it.
+
 ## 4. Ground-up experiment
 
 1. Reproduce the capacity change with a failing unit test.
