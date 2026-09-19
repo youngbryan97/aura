@@ -161,3 +161,55 @@ def test_joint_background_policy_survives_export_and_reaches_decode(parent, monk
         public_inputs=item.public_inputs, source_text_sha256=item.ir.source_text_sha256,
         model_basis_sha256=item.ir.model_basis_receipt_sha256)
     assert seen == [True]
+
+
+def test_graph_training_replays_runtime_background_odds_and_gradient(parent):
+    from core.learning.semantic_operation_graph_learning import operation_graph_evidence
+
+    model = background.refit_compositional_operation_background(parent, _examples(), background_log_odds=True)
+    item = _examples()[0]
+    nodes = _operation_nodes(pointer=model.operation_pointer, classifier=model.operation_head,
+        hidden=item.hidden_states, input_spans=item.ir.input_spans,
+        max_span_tokens=model.max_span_tokens, hidden_channels=model.hidden_channels,
+        hidden_channel_widths=model.hidden_channel_widths, label_limit=3, background_log_odds=True)
+    parameters = tuple(value.astype(np.float64) for head in model.operation_head.heads
+                       for value in (head.weight, head.bias))
+    for node, (bank, label) in zip(nodes[:5], operation_graph_evidence(model, item.hidden_states, nodes[:5]), strict=True):
+        value, gradient = bank.score_gradient(label, parameters)
+        assert value == pytest.approx(node.score, abs=1e-6)
+        assert bank.score(label, parameters) == pytest.approx(value)
+        rng = np.random.default_rng(42)
+        direction = tuple(rng.normal(size=p.shape) for p in parameters)
+        epsilon = 1e-5
+        plus = tuple(p + epsilon * d for p, d in zip(parameters, direction, strict=True))
+        minus = tuple(p - epsilon * d for p, d in zip(parameters, direction, strict=True))
+        measured = (bank.score(label, plus) - bank.score(label, minus)) / (2 * epsilon)
+        assert measured == pytest.approx(sum(np.sum(g * d) for g, d in zip(gradient, direction, strict=True)), abs=1e-6)
+
+
+def test_annotated_graph_does_not_reintroduce_pointer_score_absent_from_runtime(parent):
+    from core.learning.semantic_joint_graph_learning import score_annotated_graph
+
+    model = background.refit_compositional_operation_background(parent, _examples(), background_log_odds=True)
+    model = model.with_joint_definition_graph().with_categorical_relation_scores()
+    measured = 0
+    for item in _examples():
+        outcome = model.decode(source_token_ids=item.ir.source_token_ids, hidden_states=item.hidden_states,
+            public_inputs=item.public_inputs, source_text_sha256=item.ir.source_text_sha256,
+            model_basis_sha256=model.model_basis_sha256)
+        if outcome.ir is None:
+            continue
+        nodes = _operation_nodes(pointer=model.operation_pointer, classifier=model.operation_head,
+            hidden=item.hidden_states, input_spans=outcome.ir.input_spans,
+            max_span_tokens=model.max_span_tokens, hidden_channels=model.hidden_channels,
+            hidden_channel_widths=model.hidden_channel_widths, label_limit=len(model.operation_head.labels),
+            background_log_odds=True)
+        scores = {(node.span, node.operation): node.score for node in nodes}
+        expected = outcome.pointer_scores["argument_graph_total"] + sum(
+            scores[(ins.operation_span, ins.op)] for ins in outcome.ir.instructions)
+        graph = score_annotated_graph(model, item, outcome.ir.instructions, outcome.ir.input_spans,
+                                      learn_operation_pointer=True)
+        assert graph is not None and graph["score"] == pytest.approx(expected, abs=1e-5)
+        assert not graph["argument_terms"]
+        measured += 1
+    assert measured > 0

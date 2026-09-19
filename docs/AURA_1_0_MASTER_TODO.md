@@ -947,6 +947,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Background competition](evidence/G03_OPERATION_BACKGROUND_2026-09-18.md)
   tests a learned non-operation class on source spans. The small replay
   regresses from 48/60 to 45/60; no candidate promotion or full-run claim.
+  [Background score replay](evidence/G03_BACKGROUND_SCORE_REPLAY_2026-09-18.md)
+  aligns graph training with runtime log odds and excludes the unused pointer
+  term. Eighty-nine focused tests pass; the negative trial is not relabeled.
   [Source-anchored scoring](evidence/G03_SOURCE_ANCHORED_SCORING_2026-09-17.md)
   measures 488/500 for the unchanged incumbent and typed candidate. Sixteen
   historical failures were register-coordinate mismatches; twelve remain

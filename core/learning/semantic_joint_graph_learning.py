@@ -33,7 +33,8 @@ def score_annotated_graph(model, item, instructions, input_spans, *, solve_time_
     operations = operation_graph_evidence(model, item.hidden_states, nodes)
     components = tuple(np.asarray(value, dtype=np.float64) for head in model.operation_head.heads
                        for value in (head.weight, head.bias))
-    nodes = tuple(replace(node, score=node.pointer_score + bank.score_gradient(label, components)[0])
+    nodes = tuple(replace(node, score=(node.pointer_score if bank.normalizer_label is None else 0.)
+                          + bank.score_gradient(label, components)[0])
                   for node, (bank, label) in zip(nodes, operations, strict=True))
     charts = []
     _assign_typed_arguments(model=model, hidden=item.hidden_states, inputs=item.public_inputs,
@@ -56,7 +57,8 @@ def scored_graph_evidence(model, item, nodes, result, relations, *, learn_argume
     score = result[0][0] + sum(node.score for node in nodes) - model.operation_length_penalty * len(nodes)
     from core.learning.semantic_argument_graph_learning import argument_graph_evidence
     terms = argument_graph_evidence(model, item.hidden_states, nodes, result[0][2]) if learn_arguments else ()
-    if learn_operation_pointer:
+    if learn_operation_pointer and model.training_receipt.get("operation_background_fit", {}).get("score") \
+            != "joint_operation_background_log_odds_v2":
         from core.learning.semantic_operation_pointer_learning import operation_pointer_graph_evidence
         terms += operation_pointer_graph_evidence(model, item.hidden_states, nodes)
     return {"score": score, "argument_score": result[0][0], "relations": relations, "argument_terms": terms,

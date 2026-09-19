@@ -12,12 +12,12 @@ from core.learning.semantic_relation_graph_learning import RelationGraphContrast
 from tests.test_semantic_relation_graph_learning import fixture
 
 
-def problem():
+def problem(normalizer=None):
     query, definition, relation = fixture()
     rng = np.random.default_rng(70)
     parameters = (query, definition, rng.normal(size=(3, 5)), rng.normal(size=3),
                   rng.normal(size=(3, 4)), rng.normal(size=3), rng.normal(size=6), np.array(.3))
-    banks = [OperationEvidenceBank((rng.normal(size=5), rng.normal(size=4))) for _ in range(5)]
+    banks = [OperationEvidenceBank((rng.normal(size=5), rng.normal(size=4)), normalizer) for _ in range(5)]
     term = ArgumentScoreTerm(6, rng.normal(size=6), .7, "independent_positive_v1")
     rows = tuple(replace(relation, fixed_margin=i * .01,
                          positive_operations=((banks[i % 5], i % 3),),
@@ -27,8 +27,9 @@ def problem():
 
 
 @pytest.mark.parametrize("chunk_bytes", [1, 256, 1_000_000])
-def test_values_gradients_and_direction_agree_across_chunk_sizes(chunk_bytes):
-    parameters, rows = problem()
+@pytest.mark.parametrize("normalizer", [None, 2])
+def test_values_gradients_and_direction_agree_across_chunk_sizes(chunk_bytes, normalizer):
+    parameters, rows = problem(normalizer)
     batch = GraphConstraintBatch(rows, scale=1.7, max_feature_bytes=chunk_bytes)
     coefficients = np.linspace(-1., 2., len(rows))
     direction = tuple(np.ones_like(value) * .07 for value in parameters)
