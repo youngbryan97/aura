@@ -496,27 +496,30 @@ class EmbeddingEngine:
         if tokenizer is None:
             raise RuntimeError("embedding_model_tokenizer_unavailable")
         prefix = embedding_model.query_prompt(query_task) if query_task is not None else ""
-        flat_views: list[embedding_model.EmbeddingView] = []
-        owners: list[int] = []
-        for owner, text in enumerate(texts):
-            views = embedding_model.operational_views(
-                str(text or ""),
-                tokenizer,
-                prefix=prefix,
-            )
-            if not views:
-                views = embedding_model.operational_views(" ", tokenizer, prefix=prefix)
-            flat_views.extend(views)
-            owners.extend([owner] * len(views))
-
-        vectors_by_owner: list[list[np.ndarray]] = [[] for _ in texts]
-        weights_by_owner: list[list[float]] = [[] for _ in texts]
-        batches = embedding_model.embedding_microbatches(flat_views)
-        cursor = 0
-        release_transients = len(flat_views) > len(texts) or any(
-            view.token_count >= embedding_model.OPERATIONAL_INPUT_TOKENS // 2 for view in flat_views
-        )
+        # The views are cut with the same tokenizer the encode uses, so they
+        # are cut under the same lock. Cutting outside it let a warmup cut
+        # views while a turn encoded: "Already borrowed" (live, 2026-09-19).
         with self._encode_lock:
+            flat_views: list[embedding_model.EmbeddingView] = []
+            owners: list[int] = []
+            for owner, text in enumerate(texts):
+                views = embedding_model.operational_views(
+                    str(text or ""),
+                    tokenizer,
+                    prefix=prefix,
+                )
+                if not views:
+                    views = embedding_model.operational_views(" ", tokenizer, prefix=prefix)
+                flat_views.extend(views)
+                owners.extend([owner] * len(views))
+
+            vectors_by_owner: list[list[np.ndarray]] = [[] for _ in texts]
+            weights_by_owner: list[list[float]] = [[] for _ in texts]
+            batches = embedding_model.embedding_microbatches(flat_views)
+            cursor = 0
+            release_transients = len(flat_views) > len(texts) or any(
+                view.token_count >= embedding_model.OPERATIONAL_INPUT_TOKENS // 2 for view in flat_views
+            )
             return self._encode_batches(
                 model, texts, batches, owners, vectors_by_owner, weights_by_owner, cursor,
                 release_transients, background=background, query_task=query_task,

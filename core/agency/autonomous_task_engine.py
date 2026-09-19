@@ -1373,6 +1373,12 @@ The plan is a JSON array of steps:
             steps_data = extract_json_list(raw)
             if not steps_data:
                 raise ValueError("No JSON array in response")
+            # A step is an object. LIVE 2026-09-19 the array the reader found
+            # held numbers, and the first `s.get` raised "'int' object has no
+            # attribute 'get'", which named neither the plan nor the model.
+            steps_data = [s for s in steps_data if isinstance(s, dict)]
+            if not steps_data:
+                raise ValueError("The JSON array in the response holds no step objects")
             steps = []
             for i, s in enumerate(steps_data[: max_steps]):
                 tool_name = s.get("tool", "think")

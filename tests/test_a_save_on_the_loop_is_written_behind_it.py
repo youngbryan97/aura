@@ -23,15 +23,15 @@ def test_off_the_loop_it_writes_before_returning(tmp_path):
 def test_on_the_loop_the_newest_body_lands_off_it(tmp_path):
     target = tmp_path / "prefs.json"
     writers: list[str] = []
-    real = atomic_writer.atomic_write_text
+    real = atomic_writer.atomic_write_bytes
 
-    def watched(path, text, **kwargs):
+    def watched(path, payload, **kwargs):
         writers.append(threading.current_thread().name)
-        return real(path, text, **kwargs)
+        return real(path, payload, **kwargs)
 
     async def burst() -> list[bool]:
         loop_thread = threading.current_thread().name
-        atomic_writer.atomic_write_text = watched
+        atomic_writer.atomic_write_bytes = watched
         try:
             now = [atomic_writer.atomic_write_text_behind(target, f"v{n}") for n in range(20)]
             for _ in range(200):
@@ -39,7 +39,7 @@ def test_on_the_loop_the_newest_body_lands_off_it(tmp_path):
                     break
                 await asyncio.sleep(0.01)
         finally:
-            atomic_writer.atomic_write_text = real
+            atomic_writer.atomic_write_bytes = real
         assert loop_thread not in writers
         return now
 
@@ -52,7 +52,7 @@ def test_on_the_loop_the_newest_body_lands_off_it(tmp_path):
 def test_what_is_held_at_shutdown_is_written(tmp_path):
     target = tmp_path / "prefs.json"
     with atomic_writer._BEHIND_LOCK:
-        atomic_writer._BEHIND[str(target)] = ("held", "utf-8", 0o600)
+        atomic_writer._BEHIND[str(target)] = (b"held", True, False, 0o600)
     assert atomic_writer.flush_writes_behind() == 1
     assert target.read_text() == "held"
 

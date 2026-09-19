@@ -61,6 +61,24 @@ async def test_task_engine_fallback_plan_survives_malformed_decomposition():
 
 
 @pytest.mark.asyncio
+async def test_an_array_of_numbers_is_not_a_plan(caplog):
+    """LIVE 2026-09-19: the array the reader found held numbers, and the first
+    step raised "'int' object has no attribute 'get'"."""
+    import logging
+
+    llm = SimpleNamespace(think=AsyncCallRecorder(return_value="Steps: [1, 2, 3]"))
+    kernel = SimpleNamespace(organs={"llm": SimpleNamespace(get_instance=lambda: llm)})
+    engine = AutonomousTaskEngine(kernel)
+
+    with caplog.at_level(logging.INFO):
+        plan = await engine._decompose_goal("Inspect runtime health", "plan_nums", context=None)
+
+    assert plan.steps, "the deterministic fallback plan still runs"
+    assert "has no attribute 'get'" not in caplog.text
+    assert "holds no step objects" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_task_engine_recoverable_decomposition_failure_does_not_trip_fail_closed(monkeypatch):
     llm = SimpleNamespace(think=AsyncCallRecorder(return_value=""))
     kernel = SimpleNamespace(organs={"llm": SimpleNamespace(get_instance=lambda: llm)})

@@ -1188,6 +1188,9 @@ def assert_no_locks_held(operation: str, *, strict: bool = False) -> list[str]:
     return offenders
 
 
+#: inspect.CO_COROUTINE, without importing inspect into the lock path.
+_CO_COROUTINE = 0x0080
+
 #: Files whose frames are plumbing between a caller and a blocking call, so
 #: the site a report names is the caller that chose to block.
 _PLUMBING = (
@@ -1219,12 +1222,24 @@ def report_blocking_on_loop(operation: str) -> bool:
         if frame is not None
         else "<unknown>"
     )
+    # The coroutine whose step made the call is where a fix usually goes: the
+    # writer is often a plain function several calls below it.
+    coroutine = frame
+    while coroutine is not None and not coroutine.f_code.co_flags & _CO_COROUTINE:
+        coroutine = coroutine.f_back
+    reached_from = (
+        f"{coroutine.f_code.co_filename.rsplit('/', 1)[-1]}:{coroutine.f_lineno} "
+        f"in {coroutine.f_code.co_name}"
+        if coroutine is not None and coroutine is not frame
+        else ""
+    )
     if _VALIDATOR.note_blocking_on_loop(site, operation):
         logger.warning(
-            "🔒 %s on the event loop thread from %s — every task waits on the disk "
+            "🔒 %s on the event loop thread from %s%s — every task waits on the disk "
             "for as long as it takes; said once per place",
             operation,
             site,
+            f", reached from the coroutine {reached_from}" if reached_from else "",
         )
     return True
 

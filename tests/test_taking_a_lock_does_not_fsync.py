@@ -55,6 +55,14 @@ def test_a_directory_that_holds_real_data_is_still_fsynced(tmp_path, counted_fsy
     assert counted_fsync, "a durability directory must reach stable storage"
 
 
+def test_a_directory_that_was_already_there_is_not_fsynced_again(tmp_path, counted_fsync):
+    """Nothing in the parent changed. Asked before every save, the fsync ran
+    on the event loop thread each time (live, 2026-09-19)."""
+    (tmp_path / "already").mkdir()
+    ensure_private_directory(tmp_path / "already")
+    assert counted_fsync == []
+
+
 def test_a_non_durable_write_does_no_fsync(tmp_path, counted_fsync):
     atomic_write_text(tmp_path / "probe", "ok", durable=False)
     assert counted_fsync == []

@@ -288,8 +288,15 @@ class LearnedWorldModel:
         self._last_prediction = prediction
 
         # Checkpoint on wall-clock, not step count: a model that is stepped
-        # rarely still deserves to survive a restart.
-        if time.time() - self._last_checkpoint >= _CHECKPOINT_INTERVAL_S:
+        # rarely still deserves to survive a restart. Where the trainer thread
+        # runs, it checkpoints on the same interval off the loop; observe() is
+        # called from the mind tick, and saving here as well compressed and
+        # fsynced the weights on the event loop thread (live, 2026-09-19).
+        trainer = self._trainer_thread
+        if (
+            time.time() - self._last_checkpoint >= _CHECKPOINT_INTERVAL_S
+            and not (trainer is not None and trainer.is_alive())
+        ):
             self.save()
 
         return prediction

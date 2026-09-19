@@ -345,7 +345,7 @@
       "scope": "<module>.SkillLibrary._save"
     },
     {
-      "callee": "core.runtime.atomic_writer.atomic_write_text",
+      "callee": "core.runtime.atomic_writer.atomic_write_text_behind",
       "canonical_owner": false,
       "category": "direct_atomic_file_write",
       "count": 1,
@@ -833,7 +833,7 @@
       "scope": "<module>.ContinuousRecurrentSelfModel._save"
     },
     {
-      "callee": "core.runtime.atomic_writer.atomic_write_text",
+      "callee": "core.runtime.atomic_writer.atomic_write_text_behind",
       "canonical_owner": false,
       "category": "direct_atomic_file_write",
       "count": 1,
@@ -1073,7 +1073,7 @@
       "scope": "<module>.SelfTestSynthesizer.write_pytest_file"
     },
     {
-      "callee": "core.runtime.atomic_writer.atomic_write_text",
+      "callee": "core.runtime.atomic_writer.atomic_write_text_behind",
       "canonical_owner": false,
       "category": "direct_atomic_file_write",
       "count": 1,
@@ -1201,7 +1201,7 @@
       "scope": "<module>.EntityIdentity._persist"
     },
     {
-      "callee": "core.runtime.atomic_writer.atomic_write_json",
+      "callee": "core.runtime.atomic_writer.atomic_write_json_behind",
       "canonical_owner": false,
       "category": "direct_atomic_file_write",
       "count": 1,
@@ -2137,7 +2137,7 @@
       "scope": "<module>.StartupValidator._check_sys_02"
     },
     {
-      "callee": "core.runtime.atomic_writer.atomic_write_bytes",
+      "callee": "core.runtime.atomic_writer.atomic_write_bytes_behind",
       "canonical_owner": false,
       "category": "direct_atomic_file_write",
       "count": 1,
@@ -2151,6 +2151,14 @@
       "count": 1,
       "path": "core/runtime/activation_audit.py",
       "scope": "<module>.ActivationAuditor.write_report"
+    },
+    {
+      "callee": "atomic_write_bytes",
+      "canonical_owner": true,
+      "category": "direct_atomic_file_write",
+      "count": 1,
+      "path": "core/runtime/atomic_writer.py",
+      "scope": "<module>._drain_behind"
     },
     {
       "callee": "atomic_append_text",
@@ -2209,6 +2217,14 @@
       "scope": "<module>.async_ensure_private_directory"
     },
     {
+      "callee": "atomic_write_bytes",
+      "canonical_owner": true,
+      "category": "direct_atomic_file_write",
+      "count": 1,
+      "path": "core/runtime/atomic_writer.py",
+      "scope": "<module>.atomic_write_bytes_behind"
+    },
+    {
       "callee": "atomic_write_text",
       "canonical_owner": true,
       "category": "direct_atomic_file_write",
@@ -2217,12 +2233,28 @@
       "scope": "<module>.atomic_write_json"
     },
     {
+      "callee": "atomic_write_text_behind",
+      "canonical_owner": true,
+      "category": "direct_atomic_file_write",
+      "count": 1,
+      "path": "core/runtime/atomic_writer.py",
+      "scope": "<module>.atomic_write_json_behind"
+    },
+    {
       "callee": "atomic_write_bytes",
       "canonical_owner": true,
       "category": "direct_atomic_file_write",
       "count": 1,
       "path": "core/runtime/atomic_writer.py",
       "scope": "<module>.atomic_write_text"
+    },
+    {
+      "callee": "atomic_write_bytes_behind",
+      "canonical_owner": true,
+      "category": "direct_atomic_file_write",
+      "count": 1,
+      "path": "core/runtime/atomic_writer.py",
+      "scope": "<module>.atomic_write_text_behind"
     },
     {
       "callee": "ensure_private_directory",
@@ -16538,6 +16570,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "2bbfcf040b2523baf4faa2f74ac37dce06068c938c85da569287998e7067128a",
+  "inventory_sha256": "861ce9e6ccc2adef935c5322b09e80d4e84024d0fb6ae3248a87c8f8d7745d5c",
   "schema_version": 1
 }

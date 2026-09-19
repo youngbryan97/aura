@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.atomic_writer import atomic_write_text_behind
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
 from core.runtime.state_ownership import state_root
@@ -104,7 +104,9 @@ class ResourceStakesEngine:
     def _save_state(self):
         """Persist resource state to disk."""
         try:
-            atomic_write_text(self._state_path, json.dumps({
+            # Behind the loop: saved as budgets move, from async code (live,
+            # 2026-09-19: an fsync on the loop thread from here).
+            atomic_write_text_behind(self._state_path, json.dumps({
                 "compute_budget": round(self._state.compute_budget, 4),
                 "memory_budget": round(self._state.memory_budget, 4),
                 "background_allowance": round(self._state.background_allowance, 4),

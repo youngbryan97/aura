@@ -161,9 +161,15 @@ def ensure_private_directory(path: PathLike, *, durable: bool = True) -> Path:
     """
 
     directory = Path(path)
+    # The parent is fsynced only when this call made the directory. A
+    # directory that was already there changed nothing in its parent, and
+    # the fsync was paid on every save that asked first: three at the tool
+    # sandbox, one before each world-model checkpoint, all on the event loop
+    # thread (live, 2026-09-19).
+    created = not directory.is_dir()
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     directory.chmod(0o700)
-    if durable:
+    if durable and created:
         _fsync_dir(directory.parent)
     return directory
 
@@ -346,36 +352,44 @@ def atomic_write_text(
     )
 
 
-#: Bodies waiting to be written behind, newest only, by path.
-_BEHIND: dict[str, tuple[str, str, int]] = {}
+#: Bodies waiting to be written behind, newest only, by path, with how each
+#: is to be written: (payload, durable, power_safe, mode).
+_BEHIND: dict[str, tuple[bytes, bool, bool, int]] = {}
 #: Paths with a drain already queued, so a burst of saves queues one write.
 _BEHIND_QUEUED: set[str] = set()
 _BEHIND_LOCK = checked_lock("core.runtime.atomic_writer.behind")
 
 
-def atomic_write_text_behind(
-    path: PathLike, text: str, *, encoding: str = "utf-8", mode: int = 0o600
+def atomic_write_bytes_behind(
+    path: PathLike,
+    payload: bytes,
+    *,
+    durable: bool = True,
+    power_safe: bool = False,
+    mode: int = 0o600,
 ) -> bool:
     """Write now, or, on a thread that is running an event loop, soon and off it.
 
     For synchronous saves that async code reaches through ordinary calls: a
     preference file updated as a choice is made, three calls below an
-    ``async def``. Off the loop it is ``atomic_write_text``. On the loop the
+    ``async def``. Off the loop it is ``atomic_write_bytes``. On the loop the
     newest body for the path is held and one write is queued on the blocking
     I/O lane; saves that arrive before it runs replace the held body, so
     what lands is the last one and the order on disk is the order of the
-    calls. Returns True when the file was written before returning.
+    calls. ``durable`` and ``power_safe`` mean what they mean for
+    ``atomic_write_bytes``: the write is later, never weaker. Returns True
+    when the file was written before returning.
     """
     import asyncio
 
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        atomic_write_text(path, text, encoding=encoding, mode=mode)
+        atomic_write_bytes(path, payload, durable=durable, power_safe=power_safe, mode=mode)
         return True
     key = str(Path(path))
     with _BEHIND_LOCK:
-        _BEHIND[key] = (text, encoding, mode)
+        _BEHIND[key] = (bytes(payload), durable, power_safe, mode)
         if key in _BEHIND_QUEUED:
             return False
         _BEHIND_QUEUED.add(key)
@@ -389,6 +403,38 @@ def atomic_write_text_behind(
     return False
 
 
+def atomic_write_text_behind(
+    path: PathLike,
+    text: str,
+    *,
+    encoding: str = "utf-8",
+    durable: bool = True,
+    power_safe: bool = False,
+    mode: int = 0o600,
+) -> bool:
+    """``atomic_write_bytes_behind`` for text."""
+    return atomic_write_bytes_behind(
+        path, text.encode(encoding), durable=durable, power_safe=power_safe, mode=mode
+    )
+
+
+def atomic_write_json_behind(
+    path: PathLike,
+    obj: Any,
+    *,
+    schema_version: int,
+    schema_name: str | None = None,
+    indent: int | None = 2,
+    power_safe: bool = False,
+) -> bool:
+    """``atomic_write_json``'s envelope, written behind the loop when on it."""
+    return atomic_write_text_behind(
+        path,
+        _json_envelope(path, obj, schema_version=schema_version, schema_name=schema_name, indent=indent),
+        power_safe=power_safe,
+    )
+
+
 def _drain_behind(key: str) -> None:
     while True:
         with _BEHIND_LOCK:
@@ -396,9 +442,9 @@ def _drain_behind(key: str) -> None:
             if held is None:
                 _BEHIND_QUEUED.discard(key)
                 return
-        text, encoding, mode = held
+        payload, durable, power_safe, mode = held
         try:
-            atomic_write_text(key, text, encoding=encoding, mode=mode)
+            atomic_write_bytes(key, payload, durable=durable, power_safe=power_safe, mode=mode)
         except OSError as exc:
             from core.runtime.errors import record_degradation
 
@@ -594,6 +640,20 @@ def atomic_write_json(
     reconstructed if the machine loses power — identity, commitments, ledger
     state. See :func:`atomic_write_bytes` for why it is not the default.
     """
+    text = _json_envelope(
+        path, obj, schema_version=schema_version, schema_name=schema_name, indent=indent
+    )
+    atomic_write_text(path, text, power_safe=power_safe)
+
+
+def _json_envelope(
+    path: PathLike,
+    obj: Any,
+    *,
+    schema_version: int,
+    schema_name: str | None,
+    indent: int | None,
+) -> str:
     if not isinstance(schema_version, int) or schema_version < 1:
         raise AtomicWriteError("schema_version must be a positive int")
     target = Path(path)
@@ -604,8 +664,7 @@ def atomic_write_json(
         "schema_version": schema_version,
         "payload": obj,
     }
-    text = json.dumps(envelope, indent=indent, sort_keys=True, default=str)
-    atomic_write_text(path, text, power_safe=power_safe)
+    return json.dumps(envelope, indent=indent, sort_keys=True, default=str)
 
 
 async def async_atomic_write_json(

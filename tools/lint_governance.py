@@ -443,6 +443,11 @@ _ATOMIC_FILE_CALL_SUFFIXES = (
     "durable_replace",
     "durable_unlink",
     "ensure_private_directory",
+    # Written a moment later and off the event loop, but written: a caller
+    # moved onto these is still a caller that writes a file.
+    "atomic_write_bytes_behind",
+    "atomic_write_json_behind",
+    "atomic_write_text_behind",
 )
 _DESKTOP_MUTATION_METHODS = frozenset(
     {

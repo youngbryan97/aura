@@ -21,7 +21,7 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.runtime.atomic_writer import atomic_write_json, read_json_envelope
+from core.runtime.atomic_writer import atomic_write_json_behind, read_json_envelope
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.IdentityLedger")
@@ -212,7 +212,10 @@ class IdentityLedger:
             "snapshots": [asdict(s) for s in self.versioning.all()],
             "saved_at": time.time(),
         }
-        atomic_write_json(
+        # Behind the loop when persisted from it, and no less power-safe for
+        # that: the write is later, never weaker (live, 2026-09-19: an
+        # F_FULLFSYNC on the loop thread from here).
+        atomic_write_json_behind(
             path, payload,
             schema_version=self.SCHEMA_VERSION,
             schema_name="identity_ledger",

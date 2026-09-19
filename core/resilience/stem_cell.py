@@ -47,7 +47,7 @@ from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path
 from typing import Any
 
-from core.runtime.atomic_writer import atomic_write_bytes
+from core.runtime.atomic_writer import atomic_write_bytes_behind
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.state_ownership import state_root
 
@@ -244,7 +244,8 @@ class StemCellRegistry:
             "signature_hex": record.signature.hex(),
         }).encode("utf-8")
         payload = len(header).to_bytes(4, "big") + header + record.payload
-        atomic_write_bytes(path, payload)
+        # Behind the loop when captured from it (live, 2026-09-19).
+        atomic_write_bytes_behind(path, payload)
 
     @staticmethod
     def _read(path: Path) -> StemCellRecord | None:

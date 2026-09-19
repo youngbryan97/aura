@@ -32,7 +32,7 @@ from typing import Any
 
 from core.container import ServiceContainer
 from core.exceptions import ContainerError
-from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.atomic_writer import atomic_write_text_behind
 from core.runtime.background_policy import (
     MAINTENANCE_BACKGROUND_POLICY,
     background_activity_reason,
@@ -627,7 +627,8 @@ class EvolutionOrchestrator:
                     for name, ax in self._snapshot.axes.items()
                 },
             }
-            atomic_write_text(self._STATE_FILE, json.dumps(data, indent=2))
+            # Behind the loop: the tick that saves runs on it (live, 2026-09-19).
+            atomic_write_text_behind(self._STATE_FILE, json.dumps(data, indent=2))
         except _EVOLUTION_RECOVERABLE_ERRORS as exc:
             _record_evolution_degradation(exc, action="continued execution without saving evolution snapshot", severity="error")
             logger.debug("Evolution state save failed: %s", exc)
