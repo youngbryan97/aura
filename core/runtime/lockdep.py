@@ -1215,7 +1215,9 @@ def report_blocking_on_loop(operation: str) -> bool:
     ``async def`` three synchronous calls away. Reports and returns True when
     this is the loop thread; never raises.
     """
-    if not _VALIDATOR.on_the_loop_thread():
+    if not _VALIDATOR.on_the_loop_thread() or _get_running_loop() is None:
+        # The thread that ran the loop keeps its mark after the loop stops:
+        # an atexit save on it waits on nobody.
         return False
     frame = sys._getframe(1)
     while frame is not None and frame.f_code.co_filename.endswith(_PLUMBING):

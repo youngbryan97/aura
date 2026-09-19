@@ -1314,7 +1314,10 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                 try:
                     from core.conversation.chat_preflight import acknowledge_delivery
 
-                    acknowledged = acknowledge_delivery(
+                    # A read-modify-write under an interprocess lock, with an
+                    # fsync: on a thread, never on the loop that serves chat.
+                    acknowledged = await asyncio.to_thread(
+                        acknowledge_delivery,
                         pending_ids,
                         delivery_owner=pending_owner,
                     )
@@ -1336,7 +1339,9 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                 try:
                     from core.conversation.chat_preflight import release_delivery_claims
 
-                    release_delivery_claims(pending_ids, delivery_owner=pending_owner)
+                    await asyncio.to_thread(
+                        release_delivery_claims, pending_ids, delivery_owner=pending_owner
+                    )
                 except _CHAT_RECOVERABLE_ERRORS as exc:
                     record_degradation("chat.pending_delivery_release", exc)
             await _stop_chat_delivery_heartbeat(heartbeat_task)

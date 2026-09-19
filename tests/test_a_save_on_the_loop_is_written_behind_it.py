@@ -89,3 +89,14 @@ def test_off_the_loop_thread_nothing_is_reported(tmp_path):
         assert not lockdep.lockdep_report()["blocking_on_loop"]
     finally:
         lockdep.reset_lockdep_for_test()
+
+
+def test_the_loop_thread_after_its_loop_has_stopped_is_not_reported(tmp_path):
+    """An atexit save runs on the thread the loop ran on, with no loop."""
+    lockdep.reset_lockdep_for_test()
+    try:
+        lockdep.note_event_loop_thread()
+        atomic_writer.atomic_write_text(tmp_path / "z.json", "{}")
+        assert not lockdep.lockdep_report()["blocking_on_loop"]
+    finally:
+        lockdep.reset_lockdep_for_test()
