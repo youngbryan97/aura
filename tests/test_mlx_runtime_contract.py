@@ -460,7 +460,6 @@ def test_worker_never_expands_admitted_cap_for_mode_specific_contracts():
     import inspect
 
     from core.brain.llm import mlx_worker
-
     from tests.source_contract import in_order
 
     source = inspect.getsource(mlx_worker._mlx_worker_loop)
