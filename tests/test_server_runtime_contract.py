@@ -88,15 +88,13 @@ def test_cognitive_engine_turn_required_contract_has_no_kernel_fallback_language
 
 
 def test_desktop_cognitive_turn_carries_generic_execution_planning_contract():
-    from core.phases.response_generation import ResponseGenerationPhase
+    from core.phases import response_generation
     from core.runtime.desktop_task_contract import (
         DESKTOP_TASK_ALLOWED_ACTIONS,
         desktop_task_action_sentence,
         desktop_task_planning_schema,
     )
     from interface.routes import chat
-
-    from core.phases import response_generation
     from tests.source_contract import function_with_its_helpers
 
     # Both methods hand their work to helpers the method-size sweep lifted

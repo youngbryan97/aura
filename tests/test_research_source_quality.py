@@ -362,7 +362,6 @@ def test_text_under_the_limit_is_untouched() -> None:
 def test_the_fallback_composer_does_not_assert_an_opinion_it_never_formed() -> None:
     """The composer runs BECAUSE authored synthesis was suppressed."""
     from core.skills.desktop_task import DesktopTaskSkill
-
     from tests.source_contract import class_with_its_bases
 
     # The class and the mixins it inherits from. The composer moved into
