@@ -6525,7 +6525,7 @@ def _mlx_worker_loop_part_31(expert_adapter_state, logger, model, previous_adapt
             cache_invalidated = False
     return cache_invalidated, prompt_cache_lru
 
-def _mlx_worker_loop_last_guard_before(e, ipc_writer, logger):
+def _mlx_worker_loop_last_guard_before(e, ipc_writer, logger, job=None, action=None):
     # The last guard before a job disappears. KeyboardInterrupt and
     # SystemExit are BaseException and are handled above, so shutdown
     # still shuts down; everything else becomes the typed error the
@@ -6538,7 +6538,15 @@ def _mlx_worker_loop_last_guard_before(e, ipc_writer, logger):
     import traceback
 
     tb = traceback.format_exc()
-    resolved_action = locals().get("action") or "unknown"
+    # Passed in, not read out of `locals()`.
+    #
+    # This body used to be the except clause itself, where `job` and `action`
+    # are the loop's own names and `locals()` could reach them defensively —
+    # the exception may land before either is bound. Lifted into a helper,
+    # `locals()` sees three parameters and neither name, so every error frame
+    # went back with action "unknown" and an empty id. The comment four lines
+    # below says what that costs: the parent cannot resolve an id-less error.
+    resolved_action = action or "unknown"
     logger.error(
         "❌ [WORKER] Unhandled error during '%s': %s\n%s",
         resolved_action,
@@ -6549,7 +6557,7 @@ def _mlx_worker_loop_last_guard_before(e, ipc_writer, logger):
     # error) and keep the full traceback in worker logs only — raw
     # internal paths do not belong in the IPC payload the parent may
     # surface into telemetry or metadata.
-    resolved_job = locals().get("job")
+    resolved_job = job
     resolved_id = (
         str(resolved_job.get("id") or "") if isinstance(resolved_job, dict) else ""
     )
@@ -10683,7 +10691,15 @@ def _mlx_worker_loop(
             logger.info("🛑 [WORKER] Shutdown signal received; exiting quietly.")
             break
         except Exception as e:  # noqa: BLE001 — a job without an answer is worse
-            _mlx_worker_loop_last_guard_before(e, ipc_writer, logger)
+            # `locals()` here, because this IS the frame that binds them and
+            # the exception may land before either is bound.
+            _mlx_worker_loop_last_guard_before(
+                e,
+                ipc_writer,
+                logger,
+                job=locals().get("job"),
+                action=locals().get("action"),
+            )
 
     _shutdown_worker_runtime(
         ipc_writer=ipc_writer,
