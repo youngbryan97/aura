@@ -368,7 +368,15 @@ def load_encoder(*, model_lane_lease: Any, device: str | None = None) -> Any:
         "sentence_transformers",
         "SentenceTransformer",
     )
-    model = sentence_transformer_cls(REPO_ID, truncate_dim=VECTOR_DIM)
+    try:
+        # From the local cache first. Without this every load asked the hub
+        # whether the model had changed, and with no network it waited out
+        # the hub's retries before using the copy already on disk. She is
+        # local; a missing network is not a reason to wait.
+        model = sentence_transformer_cls(REPO_ID, truncate_dim=VECTOR_DIM, local_files_only=True)
+    except OSError:
+        # Not on this machine yet: the one download there is.
+        model = sentence_transformer_cls(REPO_ID, truncate_dim=VECTOR_DIM)
     assert_window_matches_model(model)
     if device:
         model = model.to(device)

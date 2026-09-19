@@ -39,6 +39,9 @@ from .episodic_ranking import _RanksWhatToRecall
 
 logger = logging.getLogger("Memory.Episodic")
 
+#: A recall slower than this names its stages in the log.
+_SLOW_RECALL_S = 1.5
+
 # ---------------------------------------------------------------------------
 # Data model
 # ---------------------------------------------------------------------------
@@ -1347,6 +1350,12 @@ class EpisodicMemory(_RanksWhatToRecall):
         """
         seen_ids: set = set()
         combined: list[Episode] = []
+        # Each stage timed. Recall from here ran into the retrieval phase's
+        # 15 s bound on most live turns (2026-09-19) while the same query on
+        # a copy of the same store answered in 0.06 s without the vector
+        # stage, so the log has to say which stage the time went to.
+        took: dict[str, float] = {}
+        began = time.monotonic()
 
         # 1. Vector search (semantic similarity)
         if self._vector_memory:
@@ -1368,9 +1377,11 @@ class EpisodicMemory(_RanksWhatToRecall):
             except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('episodic_memory', e)
                 logger.debug("Vector recall failed: %s", e)
+            took["vector"] = time.monotonic() - began
 
         # 2. Keyword search only when vector recall is insufficient or the user
         # is clearly asking for exact wording.
+        stage = time.monotonic()
         if len(combined) < limit or self._query_needs_keyword_fallback(query):
             try:
                 keyword_results = self._keyword_search(query, limit)
@@ -1381,10 +1392,12 @@ class EpisodicMemory(_RanksWhatToRecall):
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('episodic_memory', e)
                 logger.debug("Keyword recall failed: %s", e)
+        took["keyword"] = time.monotonic() - stage
 
         # 2b. Associative pattern completion — re-present the query's cues to the
         # hippocampal index to surface engrams that share them (partial cue →
         # whole memory), the way a smell or a word can summon a full episode.
+        stage = time.monotonic()
         if len(combined) < limit:
             try:
                 cues = HippocampalIndex.extract_cues(query)
@@ -1403,9 +1416,20 @@ class EpisodicMemory(_RanksWhatToRecall):
         # wins, weakly-relevant ones are gated out below threshold, and the
         # homeostatic bound stops one over-strong trace from swamping recall
         # (anti-confabulation). Falls back to the static importance+recency blend.
+        took["association"] = time.monotonic() - stage
+        stage = time.monotonic()
         ranked = self._competitive_rank(combined, query)
         self._observe_ranked_recall(ranked, returned_count=limit)
-        return self._register_recall(ranked[:limit])
+        recalled = self._register_recall(ranked[:limit])
+        took["ranking"] = time.monotonic() - stage
+        whole = time.monotonic() - began
+        if whole >= _SLOW_RECALL_S:
+            logger.info(
+                "episodic recall took %.1fs (%s)",
+                whole,
+                ", ".join(f"{name} {seconds:.1f}s" for name, seconds in took.items()),
+            )
+        return recalled
 
 
 

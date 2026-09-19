@@ -85,7 +85,12 @@ def _install_fake_embedding_dependencies(
         #: whole reason this signature is mirrored rather than **kwargs-ed.
         max_seq_length = embedding_model.MAX_INPUT_TOKENS
 
-        def __init__(self, _model_name: str, truncate_dim: int | None = None) -> None:
+        def __init__(
+            self,
+            _model_name: str,
+            truncate_dim: int | None = None,
+            local_files_only: bool = False,
+        ) -> None:
             assert truncate_dim == embedding_model.VECTOR_DIM, (
                 f"encoder must be pinned to {embedding_model.VECTOR_DIM} dims; "
                 f"got truncate_dim={truncate_dim!r}"

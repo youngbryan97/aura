@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import threading
+import time
 from collections import OrderedDict
 from typing import Any
 
@@ -10,6 +11,9 @@ from core.memory import embedding_model, retrieval_calibration
 from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.RAG")
+
+#: A query embedding slower than this is logged with what it was waiting on.
+_SLOW_QUERY_EMBED_S = 1.0
 
 # ── Semantic layer (July capability raise) ────────────────────────────────
 # Real dense embeddings (sentence-transformers MiniLM via the existing
@@ -267,10 +271,21 @@ def _semantic_scores(query: str, texts: list[str], task: str | None = None) -> l
         # The query goes through the asymmetric path; the documents above do
         # not. Same width, different prompt — see EmbeddingEngine.embed_query.
         _embed_query = getattr(engine, "embed_query", None)
+        began = time.monotonic()
         qvec = np.asarray(
             _embed_query(query, task=task) if callable(_embed_query) else engine.embed(query),
             dtype=np.float32,
         )
+        took = time.monotonic() - began
+        if took >= _SLOW_QUERY_EMBED_S:
+            # One query is a few dozen tokens; seconds here is the embedder
+            # waiting its turn, not working. Named so a slow recall can be
+            # told apart from a slow scan (live, 2026-09-19: recall ran into
+            # its 15 s bound on most turns).
+            logger.info(
+                "embedding one query took %.1fs (%s); %d texts, %d embedded now",
+                took, type(engine).__name__, len(texts), len(uncached),
+            )
         qn = float(np.linalg.norm(qvec))
         if qn <= 1e-8:
             return None
