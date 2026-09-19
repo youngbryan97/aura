@@ -4717,11 +4717,6 @@ def _explicit_brevity_requested(user_message: Any) -> bool:
     )
 
 
-def _is_task_turn(user_message: Any) -> bool:
-    text = _normalize(user_message)
-    return bool(text and names_any(text, _TASK_MARKERS))
-
-
 def is_practical_diagnostic_turn(user_message: Any) -> bool:
     text = _normalize(user_message)
     if not text:
