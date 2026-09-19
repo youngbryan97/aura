@@ -680,7 +680,10 @@ class LockdepValidator:
         for entry in splats:
             entry["occurrences"] = counts.get(entry["signature"], 1)
         return {
-            "clean": not splats,
+            # A starved hold stays listed, as evidence of what the host did,
+            # and does not make the ordering unclean: the thread was off the
+            # CPU and the section did nothing with the time.
+            "clean": not [splat for splat in splats if not splat.get("starved")],
             "acquires_checked": acquires,
             "known_locks": sorted(set(edges) | set(ranks)),
             "declared_ranks": ranks,
@@ -1249,7 +1252,8 @@ def lockdep_report() -> dict[str, Any]:
 
 
 def lockdep_clean() -> bool:
-    return not _VALIDATOR.splats()
+    """No finding against a section. A starved hold is the host's, not one."""
+    return not [splat for splat in _VALIDATOR.splats() if not splat.starved]
 
 
 def note_event_loop_thread() -> None:

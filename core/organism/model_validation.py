@@ -4287,7 +4287,9 @@ def _lockdep_splats() -> int:
             f"lockdep knows {len(report['known_locks'])} lock(s) but observed 0 "
             "acquisitions; no ordering was exercised"
         )
-    return len(report["splats"])
+    # A starved hold is the host's time, not a finding against a section;
+    # lockdep lists it as evidence and does not count it against the order.
+    return len([splat for splat in report["splats"] if not splat.get("starved")])
 
 
 def _semantic_autonomy_contract_holds() -> bool:

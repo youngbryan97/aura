@@ -207,6 +207,11 @@ def _no_open_splats() -> Iterator[Violation]:
 
     report = lockdep_report()
     for splat in report["splats"]:
+        if splat.get("starved"):
+            # The host or the GIL took the time; the section did nothing with
+            # it. Live on 2026-09-19 three of these under test load were
+            # errors here and tainted the runtime for a load it did not make.
+            continue
         yield Violation(
             subject=splat["acquiring"],
             message=splat["message"],

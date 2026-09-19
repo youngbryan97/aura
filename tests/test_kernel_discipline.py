@@ -570,6 +570,9 @@ def test_a_hold_spent_waiting_is_named_as_waiting(caplog):
     assert "ms on CPU" in splat["message"]
     record = next(r for r in caplog.records if "sleeping_section" in r.getMessage())
     assert record.levelno == logging.WARNING
+    # Listed as evidence, and not a finding against the ordering.
+    assert lockdep_report()["clean"] is True
+    assert lockdep_mod.lockdep_clean()
     # And no degradation record for it: the loop monitor owns the stall.
     assert not any(
         "DEGRADATION" in r.getMessage() and "sleeping_section" in r.getMessage()
