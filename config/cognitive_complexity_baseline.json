@@ -1,9 +1,9 @@
 {
-  "organs": 122,
-  "cross_package_edges": 1996,
-  "dependency_entropy": 9.1527,
-  "kernel_lines": 604286,
-  "at_commit": "86e5819ef814d0c4acef944c779f44cf9d763b42",
+  "organs": 123,
+  "cross_package_edges": 2029,
+  "dependency_entropy": 9.1562,
+  "kernel_lines": 616369,
+  "at_commit": "25521aea7ba3f8bbd4221c320fccfe036e692f03",
   "history": [
     {
       "raised": [
@@ -300,6 +300,98 @@
         ],
         "commits_by_author": {
           "Claude": 2
+        }
+      }
+    },
+    {
+      "raised": [
+        "organs",
+        "cross_package_edges",
+        "dependency_entropy",
+        "kernel_lines"
+      ],
+      "from": {
+        "organs": 122,
+        "cross_package_edges": 1996,
+        "dependency_entropy": 9.1527,
+        "kernel_lines": 604286
+      },
+      "to": {
+        "organs": 123,
+        "cross_package_edges": 2029,
+        "dependency_entropy": 9.1562,
+        "kernel_lines": 616369
+      },
+      "because": "Twelve thousand kernel lines over 342 files since 86e5819ef, and most of the top of the list is the method-size sweep moving code rather than writing it: latent_receipt_contract (1930), mlx_latent_reasoning (1869), inference_gate_prompt (1691), mlx_worker_surface_quality (1293) and mlx_worker_surface_repair (1198) are all extractions out of inference_gate and mlx_worker, and a split costs the import header and TYPE_CHECKING block it needs at both ends. brain carries 5223 of the net and runtime 3058. The organ count goes 122 to 123. 191 commits by Claude and 34 by Codex in the window. The measurement is below rather than a sentence about it.",
+      "landed": {
+        "since": "86e5819ef814d0c4acef944c779f44cf9d763b42",
+        "net_kernel_lines": 12106,
+        "files_touched": 342,
+        "per_package": {
+          "brain": 5223,
+          "runtime": 3058,
+          "cognition": 1078,
+          "consciousness": 1069,
+          "memory": 722,
+          "knowledge": 334,
+          "world_model": 285,
+          "reasoning": 257,
+          "planning": 80,
+          "evidence": 0
+        },
+        "largest_files": [
+          {
+            "path": "core/brain/latent_receipt_contract.py",
+            "net_lines": 1930
+          },
+          {
+            "path": "core/brain/llm/mlx_latent_reasoning.py",
+            "net_lines": 1869
+          },
+          {
+            "path": "core/brain/inference_gate_prompt.py",
+            "net_lines": 1691
+          },
+          {
+            "path": "core/brain/llm/mlx_worker_surface_quality.py",
+            "net_lines": 1293
+          },
+          {
+            "path": "core/brain/llm/mlx_worker_surface_repair.py",
+            "net_lines": 1198
+          },
+          {
+            "path": "core/brain/llm/mlx_warmup_and_adapters.py",
+            "net_lines": 1165
+          },
+          {
+            "path": "core/brain/inference_gate_cortex_warmup.py",
+            "net_lines": 917
+          },
+          {
+            "path": "core/brain/llm/mlx_unified_recurrent.py",
+            "net_lines": 912
+          },
+          {
+            "path": "core/brain/latent_receipt_evidence.py",
+            "net_lines": 871
+          },
+          {
+            "path": "core/brain/llm_background_deferral.py",
+            "net_lines": 540
+          },
+          {
+            "path": "core/brain/llm/a_shape_the_decoder_enforces.py",
+            "net_lines": 450
+          },
+          {
+            "path": "core/brain/llm/mlx_client_worker_identity.py",
+            "net_lines": 445
+          }
+        ],
+        "commits_by_author": {
+          "Claude": 191,
+          "Codex": 34
         }
       }
     }
