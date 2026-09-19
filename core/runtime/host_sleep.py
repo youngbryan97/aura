@@ -30,10 +30,11 @@ Three states and they are not interchangeable, which is the point:
 from __future__ import annotations
 
 import sys
-import threading
 import time
 from dataclasses import dataclass
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "HostGap",
@@ -99,7 +100,7 @@ class _HostClock:
     """One sample of all three clocks, advanced on demand."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = checked_lock("runtime.host_sleep")
         self._wall = time.time()
         self._monotonic = time.monotonic()
         self._inclusive = sleep_inclusive_monotonic()

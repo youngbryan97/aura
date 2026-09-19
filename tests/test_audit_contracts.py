@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 import json
+import re
 import tomllib
 from pathlib import Path
 
 import pytest
 
-from core.container import ServiceContainer
 from core.config import SecurityConfig
+from core.container import ServiceContainer
 from core.executive.authority_gateway import AuthorityGateway
+from core.runtime.version import VERSION
 from core.security.privacy_stealth import StealthMode, get_stealth_mode
 from core.skills.malware_analysis import MalwareAnalysisSkill
-from core.runtime.version import VERSION
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -105,9 +105,16 @@ def test_ownership_paths_exist():
         cells = [cell.strip() for cell in line.strip().split("|")[1:-1]]
         if len(cells) < 3:
             continue
-        candidate = cells[-1].strip("`")
-        if candidate.startswith("core/"):
-            paths.append(candidate)
+        # Every backticked path in the cell, not the cell.
+        #
+        # A row may name a canonical file and its facade —
+        # "`core/governance/will.py` (`core/will.py` facade)" — and
+        # stripping the outer backticks off the whole cell produced a string
+        # that is not a path and cannot exist, reported as a missing owner
+        # while both files were sitting there. Both are checked now.
+        for candidate in re.findall(r"`([^`]+)`", cells[-1]):
+            if candidate.startswith("core/"):
+                paths.append(candidate)
 
     assert paths, "OWNERSHIP.md should enumerate canonical file owners."
     missing = [path for path in paths if not (ROOT / path).exists()]

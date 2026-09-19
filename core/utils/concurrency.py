@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import os
 import random
 import threading
 import time
@@ -373,6 +372,14 @@ def get_robust_lock(name: str) -> RobustLock:
     return _LOCK_REGISTRY[name]
 
 
+#: The defaults in EventLoopMonitor's own signature. A declared flag has one
+#: spec per knob, so these cannot come from a caller's argument.
+_SIGNATURE_DEFAULTS = {
+    "AURA_EVENT_LOOP_MONITOR_THRESHOLD_S": 0.75,
+    "AURA_EVENT_LOOP_MONITOR_STARTUP_GRACE_S": 300.0,
+}
+
+
 class EventLoopMonitor:
     """
     Monitors the asyncio event loop for blocking operations.
@@ -383,27 +390,63 @@ class EventLoopMonitor:
     def __init__(
         self, threshold: float = 0.75, interval: float = 1.0, startup_grace: float = 300.0
     ):
-        try:
-            self.threshold = float(os.getenv("AURA_EVENT_LOOP_MONITOR_THRESHOLD_S", str(threshold)))
-        except (TypeError, ValueError):
-            self.threshold = float(threshold)
-        try:
-            self.active_threshold = max(
-                self.threshold,
-                float(os.getenv("AURA_EVENT_LOOP_MONITOR_ACTIVE_THRESHOLD_S", "5.0")),
-            )
-        except (TypeError, ValueError):
-            self.active_threshold = max(self.threshold, 5.0)
+        # Declared, so the knob has one owner, one spelling and one way of
+        # being parsed. Seven raw reads in this constructor each had their own
+        # try/except and their own idea of what "true" looks like.
+        from core.runtime.flags import FlagKind, declare, env_bool, env_float
+
+        _owner = "core.utils.concurrency.EventLoopMonitor"
+
+        def _seconds(name: str, fallback: float, description: str) -> float:
+            """The knob when it is set, otherwise what this caller asked for.
+
+            A declaration is one spec per knob, and these two defaults are
+            constructor arguments — so declaring them with the caller's value
+            made the second monitor with a different threshold a conflicting
+            declaration. The declared default is the signature's; the caller's
+            argument is used only where nothing set the knob at all, which is
+            what the raw `os.getenv(name, str(threshold))` meant.
+            """
+            resolved, source = declare(
+                name,
+                kind=FlagKind.FLOAT,
+                default=_SIGNATURE_DEFAULTS[name],
+                description=description,
+                owner=_owner,
+            ).value_with_source()
+            if source.startswith("default"):
+                return float(fallback)
+            try:
+                return float(resolved)
+            except (TypeError, ValueError):
+                return float(fallback)
+
+        self.threshold = _seconds(
+            "AURA_EVENT_LOOP_MONITOR_THRESHOLD_S",
+            threshold,
+            "Loop lag, in seconds, that counts as a breach while idle.",
+        )
+        self.active_threshold = max(
+            self.threshold,
+            env_float(
+                "AURA_EVENT_LOOP_MONITOR_ACTIVE_THRESHOLD_S",
+                default=5.0,
+                description="Loop lag tolerated while a turn is being served.",
+                owner=_owner,
+            ),
+        )
         self.interval = interval
-        try:
-            self.startup_grace = float(
-                os.getenv("AURA_EVENT_LOOP_MONITOR_STARTUP_GRACE_S", str(startup_grace))
-            )
-        except (TypeError, ValueError):
-            self.startup_grace = float(startup_grace)
-        self.log_transient_lag = os.getenv(
-            "AURA_EVENT_LOOP_LOG_TRANSIENTS", ""
-        ).strip().lower() in {"1", "true", "yes"}
+        self.startup_grace = _seconds(
+            "AURA_EVENT_LOOP_MONITOR_STARTUP_GRACE_S",
+            startup_grace,
+            "Seconds after start before loop lag is reported at all.",
+        )
+        self.log_transient_lag = env_bool(
+            "AURA_EVENT_LOOP_LOG_TRANSIENTS",
+            default=False,
+            description="Log every transient lag sample, not only sustained breaches.",
+            owner=_owner,
+        )
         self._stop_event = asyncio.Event()
         self._task: asyncio.Task | None = None
         self._last_lag: float = 0.0
@@ -428,25 +471,29 @@ class EventLoopMonitor:
         self._last_incident_reason: str = ""
         self._last_recovered_at: float = 0.0
         self._incident_count: int = 0
-        try:
-            self.hard_failure_threshold = float(
-                os.getenv("AURA_EVENT_LOOP_MONITOR_HARD_FAILURE_S", "5.0")
-            )
-        except (TypeError, ValueError):
-            self.hard_failure_threshold = 5.0
-        try:
-            self.failure_recovery_window_s = float(
-                os.getenv("AURA_EVENT_LOOP_MONITOR_FAILURE_RECOVERY_S", "15.0")
-            )
-        except (TypeError, ValueError):
-            self.failure_recovery_window_s = 15.0
-        try:
-            self.failure_recovery_samples = max(
-                1,
-                int(os.getenv("AURA_EVENT_LOOP_MONITOR_RECOVERY_SAMPLES", "3")),
-            )
-        except (TypeError, ValueError):
-            self.failure_recovery_samples = 3
+        from core.runtime.flags import env_int
+
+        self.hard_failure_threshold = env_float(
+            "AURA_EVENT_LOOP_MONITOR_HARD_FAILURE_S",
+            default=5.0,
+            description="Loop lag, in seconds, that is recorded as a hard failure.",
+            owner=_owner,
+        )
+        self.failure_recovery_window_s = env_float(
+            "AURA_EVENT_LOOP_MONITOR_FAILURE_RECOVERY_S",
+            default=15.0,
+            description="Seconds of healthy samples before a failure counts as recovered.",
+            owner=_owner,
+        )
+        self.failure_recovery_samples = max(
+            1,
+            env_int(
+                "AURA_EVENT_LOOP_MONITOR_RECOVERY_SAMPLES",
+                default=3,
+                description="Healthy samples required before declaring recovery.",
+                owner=_owner,
+            ),
+        )
 
     def _active_runtime_reason(self) -> str | None:
         try:

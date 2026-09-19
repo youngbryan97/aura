@@ -237,20 +237,87 @@ def _calls_with_their_guards(tree: ast.AST) -> list[tuple[ast.Call, bool]]:
         source = ast.dump(test)
         return any(guard in source for guard in THE_FOREGROUND_GUARDS)
 
-    def walk(node: ast.AST, under: bool) -> None:
+    def called_name(node: ast.Call) -> str:
+        return getattr(node.func, "id", "") or getattr(node.func, "attr", "")
+
+    functions: dict[str, ast.AST] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            functions.setdefault(node.name, node)
+
+    def walk(node: ast.AST, under: bool, *, into: set[str] | None = None) -> None:
         if isinstance(node, ast.Call):
             found.append((node, under))
+            if into is not None:
+                into.add(called_name(node))
         if isinstance(node, ast.If):
             inside = under or guardy(node.test)
             for child in ast.iter_child_nodes(node.test):
-                walk(child, under)
+                walk(child, under, into=into)
             for statement in node.body:
-                walk(statement, inside)
+                walk(statement, inside, into=into)
             for statement in node.orelse:
-                walk(statement, under)
+                walk(statement, under, into=into)
+            return
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and into is None:
+            # A function's own body, entered at whatever the caller analysis
+            # below decided about it.
+            for statement in node.body:
+                walk(statement, _entered_under_a_guard.get(node.name, False))
             return
         for child in ast.iter_child_nodes(node):
-            walk(child, under)
+            walk(child, under, into=into)
+
+    # Which local helpers only guarded code calls.
+    #
+    # The method-size sweep lifts the body of a guarded branch into a helper
+    # beside it. Lexically the site leaves the guard; on every path it is
+    # still behind it. LIVE 2026-09-18: `apply_channel` for
+    # affect.circumplex_sampling moved into
+    # `_generate_with_metadata_sink_part_10`, called from inside
+    # `if not is_background and self._origin_is_user_facing(origin)`, and
+    # this file began reporting the circumplex as reachable from a
+    # background call — the exact fact it was written to hold.
+    #
+    # A helper is behind the guard when it has callers and every one of them
+    # is. One unguarded caller is enough to lose it, which keeps the bias
+    # where the docstring says: reporting a site as reachable is the safe
+    # direction.
+    _entered_under_a_guard: dict[str, bool] = {}
+    guarded_callers: dict[str, list[bool]] = {}
+
+    def collect(node: ast.AST, under: bool) -> None:
+        if isinstance(node, ast.Call):
+            name = called_name(node)
+            if name in functions:
+                guarded_callers.setdefault(name, []).append(under)
+        if isinstance(node, ast.If):
+            inside = under or guardy(node.test)
+            for child in ast.iter_child_nodes(node.test):
+                collect(child, under)
+            for statement in node.body:
+                collect(statement, inside)
+            for statement in node.orelse:
+                collect(statement, under)
+            return
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for statement in node.body:
+                collect(statement, _entered_under_a_guard.get(node.name, False))
+            return
+        for child in ast.iter_child_nodes(node):
+            collect(child, under)
+
+    # To a fixed point, so a helper calling a helper carries the guard down.
+    for _pass in range(len(functions) + 1):
+        guarded_callers = {}
+        collect(tree, False)
+        settled = {
+            name: bool(where) and all(where)
+            for name, where in guarded_callers.items()
+        }
+        if settled == _entered_under_a_guard:
+            break
+        _entered_under_a_guard = settled
 
     walk(tree, False)
     return found

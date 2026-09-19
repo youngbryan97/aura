@@ -2629,7 +2629,6 @@ def _generate_with_metadata_sink_part_2_2(self, _is_user_facing, repairable_draf
         visible_user_prompt,
         is_user_facing=_is_user_facing,
     )
-    return _FALL_THROUGH
 
 def _generate_with_metadata_sink_primary_failure_metadata(self, context, desktop_cognitive_engine_contract, health_probe, local_label, origin, proof_evaluation_contract, strict_primary_proof_lane):
     primary_failure_metadata = self.get_last_generation_metadata()

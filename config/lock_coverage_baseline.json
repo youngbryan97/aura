@@ -1,7 +1,7 @@
 {
-  "raw_lock_calls": 657,
-  "files_with_raw_locks": 412,
-  "files_using_checked_locks": 273,
+  "raw_lock_calls": 655,
+  "files_with_raw_locks": 411,
+  "files_using_checked_locks": 283,
   "raw_by_file": {
     "core/actuators/actuator_registry.py": 3,
     "core/actuators/actuator_synthesis.py": 2,
@@ -111,7 +111,7 @@
     "core/config.py": 1,
     "core/consciousness/absorbed_voices.py": 1,
     "core/consciousness/adaptive_mood.py": 2,
-    "core/consciousness/affective_steering.py": 2,
+    "core/consciousness/affective_steering.py": 1,
     "core/consciousness/alife_extensions.py": 5,
     "core/consciousness/attention_gate.py": 1,
     "core/consciousness/attention_schema.py": 2,
@@ -319,7 +319,6 @@
     "core/runtime/live_mind_runtime.py": 2,
     "core/runtime/liveness.py": 1,
     "core/runtime/managed_entropy.py": 1,
-    "core/runtime/memory_consent.py": 1,
     "core/runtime/memory_infra.py": 1,
     "core/runtime/metal_scheduler.py": 5,
     "core/runtime/model_lane_control.py": 3,

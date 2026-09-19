@@ -80,6 +80,90 @@ starts mattering to how the system runs, it belongs somewhere else.
 | `WHITEPAPER_CONSCIOUSNESS_EXPANSION.md` | Research whitepaper (interior detail, not the banner) |
 | `aura_deep_qa_report.md` | Deep QA report |
 
+## Generality and runtime evidence, 13-18 September 2026
+
+Written while the G-series and the runtime watch were running. Each row's
+description is that document's own title.
+
+| Document | What it records |
+| --- | --- |
+| `G03_ALIGNED_FIT_RECOVERY_2026-09-16.md` | G03: recover the saved aligned fit without training again |
+| `G03_ARGUMENT_RANKING_2026-09-13.md` | Source argument ranking development |
+| `G03_ARITY_STATE_SEARCH_2026-09-13.md` | Arity-state search correction |
+| `G03_ATOMIC_LITERAL_ARGUMENTS_2026-09-14.md` | G03: Literal atoms in the argument chart |
+| `G03_ATOMIC_LITERAL_RESULT_2026-09-14.md` | G03: complete atomic-literal development result |
+| `G03_CAPACITY_AND_SEARCH_2026-09-15.md` | Frozen score capacity and complete operation search |
+| `G03_CHART_FEATURE_REUSE_2026-09-15.md` | Decode-local chart features |
+| `G03_CONSTRAINED_FRESH_RESULT_2026-09-15.md` | Fresh-source retained-constraint result |
+| `G03_COUNTERFACTUAL_CORPUS_2026-09-15.md` | Counterfactual source training |
+| `G03_DEFINITION_ATTACHMENT_2026-09-13.md` | Definition ownership development |
+| `G03_DURABLE_BATCHED_FIT_2026-09-17.md` | G03: preserve accepted updates and share repeated evidence work |
+| `G03_FRESH_SOURCE_FIT_2026-09-15.md` | Fresh source fit |
+| `G03_GRAPH_FACTOR_RESULT_2026-09-15.md` | Source graph-factor calibration |
+| `G03_GRAPH_RELATION_CANARY_2026-09-15.md` | G03 complete-graph relation learning canary |
+| `G03_GRAPH_RELATION_RESULT_2026-09-15.md` | Full-cohort graph relation refit |
+| `G03_INPUT_COORDINATE_REPAIR_2026-09-16.md` | G03 input-coordinate repair |
+| `G03_JOINT_GRAPH_TRAINER_2026-09-15.md` | Joint operation and relation training |
+| `G03_JOINT_SCORE_TRIAL_2026-09-13.md` | Joint operation and argument scoring: development trial |
+| `G03_LEARNED_PROCEDURE_REUSE_2026-09-15.md` | Learned procedure reuse measurement |
+| `G03_LITERAL_RETENTION_2026-09-13.md` | Literal retention and failure attribution, 2026-09-13 |
+| `G03_OPERATION_BACKGROUND_2026-09-18.md` | Operation/background competition: rejected candidate |
+| `G03_OPERATION_BOUNDARY_LEARNING_2026-09-18.md` | Operation boundary learning, 2026-09-18 |
+| `G03_OPERATION_FEASIBILITY_2026-09-13.md` | Operation-chart feasibility development |
+| `G03_OPERATION_LABEL_ALTERNATIVES_2026-09-14.md` | G03: retaining operation label alternatives |
+| `G03_OPERATION_VIEWS_2026-09-13.md` | G03 operation views and register-link diagnosis |
+| `G03_OVERLAP_DOMINANCE_2026-09-14.md` | Overlap-complete argument development |
+| `G03_PROCEDURE_DOMAIN_CONTRACT_2026-09-15.md` | Reusable procedure domain contract |
+| `G03_RANKED_OPERATION_POINTER_2026-09-14.md` | G03: reject the source-grouped operation ranker |
+| `G03_REUSABLE_PROCEDURE_RESULT_2026-09-15.md` | Corrected full-cohort procedure reuse |
+| `G03_RUNTIME_ARGUMENT_VIEWS_2026-09-14.md` | G03: runtime operation boundaries are a measured null |
+| `G03_RUNTIME_MARGIN_RESULT_2026-09-14.md` | Full-mention pointer-margin result |
+| `G03_RUNTIME_RETENTION_2026-09-17.md` | Runtime graph retention and small-trial result |
+| `G03_SEMANTIC_COUNTEREXAMPLES_2026-09-15.md` | G03 semantic counterexample admission |
+| `G03_SINGLE_LOAD_REACQUISITION_2026-09-15.md` | One-load source reacquisition |
+| `G03_SOURCE_ANCHORED_SCORING_2026-09-17.md` | Source-anchored program scoring |
+| `G03_SOURCE_OPERATION_RETENTION_2026-09-15.md` | Source operation retention |
+| `G03_SOURCE_RETENTION_RESULT_2026-09-15.md` | Source-operation retention did not qualify |
+| `G03_TYPED_SEARCH_2026-09-17.md` | Typed operation search development |
+| `G05_RESIDENT_SHAPE_CANARY_2026-09-14.md` | G05: resident public-shape canary |
+| `G05_RESIDENT_SHAPE_RESULT_2026-09-14.md` | G05: resident shape result |
+| `G05_RUNTIME_TOKENIZER_CONTRACT_2026-09-14.md` | G05: use the runtime tokenizer's declared vocabulary |
+| `G05_TYPED_DECODER_STATE_2026-09-14.md` | G05: preserve the decoder's actual output boundary |
+| `G06_COMPOSITION_PUBLIC_DIAGNOSTIC_2026-09-14.md` | Public composition diagnostic |
+| `G06_NATIVE_CODING_DIAGNOSTIC_2026-09-14.md` | Native-thinking coding diagnostic |
+| `G06_PUBLIC_CHANNEL_DIAGNOSTIC_2026-09-14.md` | Public-channel measurement repair |
+| `G07_PREREGISTRATION_INTEGRITY_2026-09-14.md` | G07 preregistration integrity |
+| `G07_PROSPECTIVE_TASK_POWER_2026-09-15.md` | Prospective paired replication |
+| `G09_ACTION_COMPLETION_EVIDENCE_2026-09-14.md` | Action completion and checked outcomes |
+| `G09_ACTION_CONDITIONED_WORLD_2026-09-17.md` | Shared action-conditioned world rollout |
+| `G09_COMPUTED_VALUE_PLANS_2026-09-14.md` | G09: plan for computed values, then observe them |
+| `G09_CONCLUSIVE_VERIFICATION_2026-09-14.md` | G09: conclusive verification follows the measured verdict |
+| `G09_EVIDENCE_IDENTITY_2026-09-16.md` | G09: retain the identity of learning evidence |
+| `G09_EVIDENCE_REFRESH_2026-09-14.md` | G09: retain outcomes that arrive during value refresh |
+| `G09_FORECAST_ATTRIBUTION_2026-09-18.md` | Planning forecast attribution, 2026-09-18 |
+| `G09_GOAL_BOUND_PROCEDURES_2026-09-13.md` | Goal-bound common procedures |
+| `G09_INDEPENDENT_OUTCOME_COUNTS_2026-09-14.md` | G09: count observations, not pending retries |
+| `G09_KNOWLEDGE_REVISION_2026-09-15.md` | Knowledge revision through the existing graph |
+| `G09_MISSION_OBSERVATION_RECOVERY_2026-09-14.md` | Mission Effects and Delayed Observation |
+| `G09_OUTCOME_CONTRACT_2026-09-16.md` | Learning after an outcome rule changes |
+| `G09_OUTCOME_LEARNING_EVIDENCE_2026-09-14.md` | Outcome learning evidence |
+| `G09_PLAN_ALTERNATIVES_2026-09-14.md` | G09: Search alternatives before learning which plan works |
+| `G09_PROCEDURE_DATAFLOW_2026-09-13.md` | Procedure dataflow in the cognitive event graph |
+| `G09_SHARED_PROCEDURE_EXECUTION_2026-09-13.md` | Shared procedure execution, 2026-09-13 |
+| `G09_TASK_PLAN_FEEDBACK_2026-09-14.md` | G09: measured task outcomes can change procedure selection |
+| `G10_CAMPAIGN_PROGRESS_2026-09-14.md` | G10: interrupted campaigns retain completed samples |
+| `G10_CURRENT_CHANNEL_2026-09-14.md` | G10: Current-generation channel measurement |
+| `G10_FUSION_INTERVENTION_OWNERSHIP_2026-09-14.md` | G10: isolate fusion interventions from live state |
+| `G10_OWNED_REENTRY_AND_CALIBRATION_2026-09-14.md` | G10: public calibration and owned lock recursion |
+| `G10_PROBE_CHECKPOINT_IDENTITY_2026-09-14.md` | G10: load the checkpoint the probe certifies |
+| `G10_PUBLIC_STEERING_MEASUREMENT_2026-09-14.md` | G10: measure steering on completed public answers |
+| `G10_PUBLIC_STEERING_RESULT_2026-09-14.md` | Complete public steering comparison: negative |
+| `G10_STEERING_BASIS_AND_OWNERSHIP_2026-09-14.md` | G10: steering evidence follows the loaded basis |
+| `G11_DESKTOP_SERVING_2026-09-14.md` | G11: qualified desktop serving |
+| `G11_MANIFEST_CONTINUITY_2026-09-14.md` | G11: component-scoped manifest continuity |
+| `G_RUNTIME_WATCH_AND_RESIDUAL_2026-09-16.md` | Runtime recovery and residual sampling |
+| `TERNARY_BONSAI_2_27B_2026-09-17.md` | Ternary Bonsai 2 27B on this host, 2026-09-17 |
+
 Machine-generated proof bundles live under `artifacts/` (see
 [ARTIFACT_INDEX.md](../../ARTIFACT_INDEX.md)); test standards live in
 `docs/` proper.

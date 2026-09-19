@@ -907,7 +907,6 @@ def _record_degradation_backpressure_decision(_is_timeout, _shutting_down, actio
     if failure_policy_violation and enforce_failure_policy:
         raise RuntimeError(failure_policy_error)
     return record
-    return _FALL_THROUGH
 
 def _record_degradation_admission_backpressure_decision(_is_timeout, _shutting_down, action, enforce_failure_policy, error, extra, receipt_required, severity, subsystem):
     _left = _record_degradation_backpressure_decision(_is_timeout, _shutting_down, action, enforce_failure_policy, error, extra, receipt_required, severity, subsystem)

@@ -32,11 +32,39 @@ def gate():
     return InferenceGate.__new__(InferenceGate)  # classifier needs no gate state
 
 
-def test_memory_deferral_is_backpressure_no_record(gate, monkeypatch):
-    import core.brain.inference_gate as gate_mod
+def _patch_recorder(monkeypatch, probe) -> int:
+    """Replace `record_degradation` in every gate module that binds it.
 
+    `_note_foreground_warmup_failure` moved into
+    `inference_gate_cortex_warmup`, which imports `record_degradation` at
+    module scope — its own binding. Patching only `core.brain.inference_gate`
+    left the real recorder running, and both tests here read the empty probe:
+    one failed, and the other asserted "no record was made" and passed
+    because nothing it could see was ever called.
+
+    Returns how many modules were patched, so a patch that lands nowhere
+    fails loudly instead of quietly agreeing with whatever is asserted.
+    """
+    import importlib
+    import pkgutil
+
+    import core.brain as brain
+
+    patched = 0
+    for info in pkgutil.iter_modules(brain.__path__):
+        if not info.name.startswith("inference_gate"):
+            continue
+        module = importlib.import_module(f"core.brain.{info.name}")
+        if hasattr(module, "record_degradation"):
+            monkeypatch.setattr(module, "record_degradation", probe)
+            patched += 1
+    assert patched, "no inference-gate module binds record_degradation"
+    return patched
+
+
+def test_memory_deferral_is_backpressure_no_record(gate, monkeypatch):
     probe = RecorderProbe()
-    monkeypatch.setattr(gate_mod, "record_degradation", probe)
+    _patch_recorder(monkeypatch, probe)
     deferred = gate._note_foreground_warmup_failure(
         RuntimeError("foreground_warmup_deferred:memory_pressure:69.2%/19.7GB")
     )
@@ -45,10 +73,8 @@ def test_memory_deferral_is_backpressure_no_record(gate, monkeypatch):
 
 
 def test_genuine_warmup_fault_still_records(gate, monkeypatch):
-    import core.brain.inference_gate as gate_mod
-
     probe = RecorderProbe()
-    monkeypatch.setattr(gate_mod, "record_degradation", probe)
+    _patch_recorder(monkeypatch, probe)
     deferred = gate._note_foreground_warmup_failure(
         RuntimeError("worker crashed during shader compile")
     )
@@ -62,10 +88,9 @@ def test_genuine_warmup_fault_still_records(gate, monkeypatch):
 
 def test_recording_a_deferral_on_fail_closed_gate_would_raise(monkeypatch):
     """The WHY of this contract: prove the cascade the classifier prevents."""
+    import core.runtime.mode as mode_mod
     from core.runtime.errors import record_degradation
     from core.runtime.mode import AuraMode
-
-    import core.runtime.mode as mode_mod
 
     monkeypatch.setattr(mode_mod, "get_mode", lambda: AuraMode.PRODUCTION)
     import core.runtime.service_registry as registry_mod

@@ -1110,7 +1110,6 @@ def _reason_episode_part_1_1(self, answer_replacement_private, continuation_capt
         decode_token_logprobs=decode_token_logprobs,
         answer_replacement_private=answer_replacement_private,
     )
-    return _FALL_THROUGH
 
 class LatentCortexEngine:
     """Runs complete latent-reasoning episodes on one frozen model."""

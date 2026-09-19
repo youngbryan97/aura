@@ -417,7 +417,6 @@ def _think_and_act_final_answer_tool(contract, response_text, tool_ledger, turn)
         "tool_calls": tool_ledger,
         **({"error": "unmet_evidence_contract"} if contract_failure else {}),
     }
-    return _FALL_THROUGH
 
 class LocalAgentClient(LocalBrain):
     """ReAct-style tool loop on top of Aura's internal model lane."""

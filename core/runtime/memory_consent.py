@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import hashlib
 import re
-import threading
 import time
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import checked_lock
 
 
 class MemoryConsentMode(StrEnum):
@@ -36,7 +36,7 @@ class MemoryConsentPolicy:
     def __init__(self, *, default_mode: MemoryConsentMode = MemoryConsentMode.ASK_BEFORE_REMEMBERING):
         self.mode = default_mode
         self._session_only_records: list[StoredRecordRef] = []
-        self._lock = threading.RLock()
+        self._lock = checked_lock("runtime.memory_consent.requests", reentrant=True)
 
     def set_mode(self, mode: MemoryConsentMode) -> None:
         self.mode = mode
@@ -120,7 +120,7 @@ class _UnhonouredDeletionRequests:
     """
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = checked_lock("runtime.memory_consent.unhonoured")
         self.count = 0
         self.principals: set[str] = set()
         self.last_at: float = 0.0

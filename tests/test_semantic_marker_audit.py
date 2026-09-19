@@ -213,17 +213,41 @@ class TestUnreachableImplementation:
                 if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     continue
                 body = node.body
+                # A `yield` under a `raise` is how a function is DECLARED a
+                # generator when it only ever refuses: `stream_generate` on
+                # the retired runtime raises and then yields "", and without
+                # that yield the call returns a coroutine and `async for`
+                # fails on it instead of raising what it means to. Never
+                # reached, and not dead.
+                is_generator = any(
+                    isinstance(inner, (ast.Yield, ast.YieldFrom))
+                    for inner in ast.walk(node)
+                )
                 for i, stmt in enumerate(body):
                     if isinstance(stmt, (ast.Return, ast.Raise)) and i < len(body) - 1:
                         # Check if next statement is NOT a function/class def (those are fine)
                         remaining = body[i+1:]
-                        real_stmts = [s for s in remaining
-                                      if not isinstance(s, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))]
+                        real_stmts = [
+                            s
+                            for s in remaining
+                            if not isinstance(
+                                s, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+                            )
+                            and not (
+                                is_generator
+                                and isinstance(s, ast.Expr)
+                                and isinstance(s.value, (ast.Yield, ast.YieldFrom))
+                            )
+                        ]
                         if real_stmts:
                             findings.append(f"{rel}:{stmt.lineno} {node.name}() — dead code after return/raise")
                         break  # Only check first unconditional return
-        # Allow up to 3 findings (some legacy edge cases)
-        assert len(findings) <= 3, (
+        # None. The allowance was three and the seven that appeared were six
+        # extraction artefacts and a generator declaration: `return
+        # _FALL_THROUGH` appended below a function that already ended in an
+        # unconditional return, and a `yield` the audit now understands. A
+        # budget with nothing left in it is a budget that should be zero.
+        assert findings == [], (
             f"dead code after return/raise ({len(findings)} findings):\n"
             + "\n".join(findings[:10])
         )
