@@ -250,7 +250,6 @@ def test_soft_cancelled_ok_response_bypasses_empty_telemetry_and_retries():
 
 
 def test_cooperative_quality_rejection_is_preserved_before_partial_return():
-    import inspect
 
     from tests.source_contract import function_with_its_helpers, in_order
 
