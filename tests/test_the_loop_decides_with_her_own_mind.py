@@ -448,3 +448,59 @@ async def test_research_can_be_switched_off_for_a_run(screen, monkeypatch):
         graph=_Store(),
     )
     assert seen.get("search") is False
+
+
+@pytest.mark.asyncio
+async def test_a_voice_that_does_not_answer_is_given_time_before_it_is_asked_again(screen):
+    """Live, a voice that could not answer was asked every move, thirteen seconds each."""
+    calls = {"n": 0}
+
+    async def silent(objective, evidence):
+        calls["n"] += 1
+        raise TimeoutError("the voice did not answer in time")
+
+    screen["works"] = {"up", "down", "left", "right"}
+    await sp.pursue_on_screen(
+        goal="raise the number",
+        success_when="never happens",
+        think=silent,
+        max_cycles=14,
+        max_seconds=20.0,
+        narrate=False,
+        lived=False,
+        spine=_Store(),
+        graph=_Store(),
+    )
+    assert len(screen["pressed"]) >= 8, "she stopped playing when her voice went quiet"
+    assert calls["n"] <= len(screen["pressed"]) // 2, (calls["n"], len(screen["pressed"]))
+
+
+@pytest.mark.asyncio
+async def test_a_lookup_that_ran_out_of_time_is_not_tried_again_every_move(screen, monkeypatch):
+    """Live, a lookup that timed out was tried again on every move she was lost, nine seconds each."""
+    import asyncio
+
+    from core.agency import task_knowledge
+
+    looked = {"n": 0}
+
+    async def slow_lookup(*_args, **_kwargs):
+        looked["n"] += 1
+        await asyncio.sleep(60)
+
+    # Imported where it is used, so it is replaced where it lives.
+    monkeypatch.setattr(task_knowledge, "learn_about", slow_lookup)
+    screen["works"] = set()
+    await sp.pursue_on_screen(
+        goal="raise the number",
+        success_when="never happens",
+        think=None,
+        max_cycles=14,
+        max_seconds=40.0,
+        narrate=False,
+        lived=False,
+        spine=_Store(),
+        graph=_Store(),
+    )
+    assert len(screen["pressed"]) >= 6, "she stopped playing while she could not look anything up"
+    assert looked["n"] <= 2, looked["n"]

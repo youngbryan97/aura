@@ -648,6 +648,12 @@ def _the_grid_in_the_pixels(
     # unread 32 was an empty place, and the move that followed read as a 32
     # vanishing — a world nothing she knows explains (live, 2026-09-18).
     unknown: list[tuple[int, int]] = []
+    if best.get("covered"):
+        # Something is lying over the places — a message over a finished
+        # board — so none of them looks like itself and what they say is not
+        # a state. Live, "16 Tr. 4" was read off a board under "Try again"
+        # and went to her rule as a move.
+        unknown = [(row, column) for row in range(rows) for column in range(columns)]
     for spot in best.get("unsure") or ():
         try:
             row, column = int(spot[0]), int(spot[1])

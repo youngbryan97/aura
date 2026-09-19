@@ -234,10 +234,12 @@ def ways_out(observation: dict[str, Any], *, ended: bool = False) -> list[Any]:
             name=SEE_IT_THROUGH,
             detail="keep playing this out and learn from how it ends",
             # Needing a reason in words protects live work from being thrown
-            # away on a ranking. Where nothing answers any more there is no
-            # live work to protect, and the alternative to choosing is
-            # pressing keys into something that has finished.
-            needs_words=not ended,
+            # away on a ranking, which is what starting again does. Seeing it
+            # through throws nothing away, so it is hers to choose without
+            # words. Needing them too, it left a silent voice with nothing it
+            # could say yes to, and the run ended there after eighty-eight
+            # moves (live, 2026-09-18).
+            needs_words=False,
             expectation=Expectation(
                 changed=False, describes="to reach the end of this attempt and know why it failed"
             ),

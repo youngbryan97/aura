@@ -536,6 +536,16 @@ def read_strategy(
         # stack toward the left edge" says. What makes it an approach is that
         # it names something to hold to, which is checked below either way.
         approach = _whole_words(text)
+        # Only if it reads as something to do. Taken whole, "I don't have a
+        # view on that yet" became her plan, bound to the largest thing on
+        # the board, and was narrated as "Plan: I don't have a view on that
+        # yet" (offline through her own loop, 2026-09-19). A decline says what
+        # she does not know; a line says what to do.
+        from core.agency.task_knowledge import says_how
+
+        if approach and not says_how(approach):
+            logger.info("that says nothing about what to do: %r", approach[:200])
+            return None
     if not approach:
         return None
     # A move is not a line, whatever else the answer mentions.

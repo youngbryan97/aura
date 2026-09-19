@@ -462,3 +462,12 @@ def test_a_pair_with_a_place_she_could_not_read_teaches_nothing():
         'dropped["a place she could not read"] += 1',
         'knows.watched(pending["arranged"], previous.chosen.name, laid_out)',
     )
+
+
+def test_a_board_with_something_lying_over_it_is_not_a_state():
+    """LIVE 2026-09-18: "16 Tr. 4" read off a board under "Try again" went to her rule."""
+    says = ["2", "4", "8", "16"] + [""] * 12
+    observation = _observation((0.3, 0.42, 0.54, 0.66), (0.2, 0.35, 0.5, 0.65), says)
+    observation["grids"][0]["covered"] = True
+    seen = what_is_there(observation, None)
+    assert len(seen.unknown) == 16

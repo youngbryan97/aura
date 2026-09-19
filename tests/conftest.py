@@ -893,6 +893,62 @@ def _what_she_learned_about_worlds_is_per_test(tmp_path_factory):
 
 
 @pytest.fixture(autouse=True)
+def _no_test_moves_the_real_pointer(monkeypatch):
+    """A test never scrolls, clicks or types on the machine running it.
+
+    Every screen pursuit that did not find its grid at once scrolled the real
+    page under the real pointer, six screenfuls at a time, and one run ended
+    in PyAutoGUI's fail-safe because the pointer sat in a corner
+    (2026-09-18). PyAutoGUI here is a stand-in that records what it was asked
+    and does nothing; the desktop bridge, which acts through Aura.app, is
+    not offered. A test about either puts its own in place after this one.
+    """
+    import types
+
+    stand_in = types.ModuleType("pyautogui")
+    stand_in.asked = []
+
+    class FailSafeException(Exception):
+        """What the real one raises when the pointer is thrown into a corner."""
+
+    stand_in.FailSafeException = FailSafeException
+    stand_in.FAILSAFE = True
+    stand_in.PAUSE = 0.0
+
+    def _recorded(name):
+        def act(*args, **kwargs):
+            stand_in.asked.append((name, args, kwargs))
+
+        return act
+
+    for name in (
+        "click", "rightClick", "middleClick", "doubleClick", "tripleClick",
+        "moveTo", "moveRel", "move", "dragTo", "dragRel", "drag",
+        "mouseDown", "mouseUp", "scroll", "hscroll", "vscroll",
+        "press", "keyDown", "keyUp", "hotkey", "typewrite", "write",
+    ):
+        setattr(stand_in, name, _recorded(name))
+    stand_in.size = lambda: (1440, 900)
+    stand_in.position = lambda: (720, 450)
+    stand_in.onScreen = lambda *args, **kwargs: True
+    monkeypatch.setitem(sys.modules, "pyautogui", stand_in)
+    try:
+        import core.security.native_desktop_bridge as bridge
+    except ImportError:
+        bridge = None
+    if bridge is not None and hasattr(bridge, "get_native_pyautogui"):
+        monkeypatch.setattr(bridge, "get_native_pyautogui", lambda *a, **k: None)
+    try:
+        import core.skills._pyautogui_runtime as runtime
+    except ImportError:
+        runtime = None
+    if runtime is not None:
+        monkeypatch.setattr(runtime, "_PYAUTOGUI_MODULE", None, raising=False)
+        monkeypatch.setattr(runtime, "_PYAUTOGUI_ERROR", None, raising=False)
+    yield stand_in
+
+
+@pytest.fixture(autouse=True)
 def _a_test_has_no_network_unless_it_says_so():
     """Nothing she looks up in a test goes out to the real internet.
 

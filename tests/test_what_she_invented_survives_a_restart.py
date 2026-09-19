@@ -201,3 +201,15 @@ def test_and_writes_it_down_as_it_goes():
     conductor = AutonomyConductor()
     conductor.register_defaults()
     assert "remember_what_she_invented" in (conductor.status().get("jobs") or {})
+
+
+def test_dropping_the_last_one_is_kept_as_well():
+    """A property she dropped came back at the next start, from the file she no longer agreed with."""
+    from core.agency.how_good_is_this import forget
+
+    name = promote(Measure("neighbours", "the gap between them", "on average", True), 0.4)
+    assert keep() is True
+    forget(name)
+    assert keep() is True
+    INVENTED.clear()
+    assert recall()["measures"] == 0

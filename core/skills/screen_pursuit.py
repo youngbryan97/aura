@@ -1901,7 +1901,88 @@ async def pursue_on_screen(
     _pursue_on_screen_part_6(cannot_see, moves, no_move, not_there, receipt, result, success_when, undecided)
     result["success_region"] = [region_top, region_bottom]
     _pursue_on_screen_part_7(anchor, expect_page, lost_page, moves, needs_person, receipt, result, target_app)
+    # And what she judges by, played out in her own model of this world before
+    # she carries it into the next run. After the run, and beside it rather
+    # than in front of it, so nothing she says about this run waits on it.
+    _judge_what_she_judges_by_in_her_model(
+        knows, world, pending, matters, move_keys, success_when or pending.get("aiming_at") or "", narrate
+    )
     return result
+
+
+def _judge_what_she_judges_by_in_her_model(
+    knows: Any,
+    world: Any,
+    pending: dict[str, Any],
+    matters: Any,
+    move_keys: Sequence[str],
+    toward: str,
+    narrate: bool,
+) -> Any:
+    """Rehearse every property she invented, and let go of any that does worse.
+
+    Returns the task it runs as, or None where there is nothing to rehearse.
+
+    A property kept on a live trial compared two stretches of a life. Two came
+    back that way on 2048, and played out from the same four starts with her
+    own rule and search they took her from 2048 in all four to 2048 in one
+    (2026-09-19). Where she has a model of the world, she can ask it instead.
+    """
+    from core.agency.how_good_is_this import INVENTED
+
+    # From where this run began, not where it ended: a run often ends on a
+    # finished position, and from there every way of judging goes nowhere.
+    start = pending.get("first_arranged") or pending.get("arranged")
+    rules = getattr(knows, "rules", None)
+    if start is None or rules is None or getattr(rules, "rule", lambda: None)() is None or not INVENTED:
+        return None
+
+    def rehearse_them() -> None:
+        from core.agency import what_she_invented
+        from core.agency.how_good_is_this import forget
+        from core.agency.looking_ahead import _default_weights
+        from core.agency.rehearsing_in_her_model import rehearse
+
+        judged_by = dict(matters.weights() or _default_weights())
+        let_go: list[str] = []
+        for name in list(INVENTED):
+            worth = float(judged_by.get(name, 0.0) or 0.0)
+            if worth <= 0.0:
+                continue
+            without = {key: value for key, value in judged_by.items() if key != name}
+            rehearsed = rehearse(
+                rules, world, start, list(move_keys),
+                weights=without, trying={name: worth}, toward=toward,
+            )
+            if rehearsed is None:
+                return
+            if rehearsed.hurts():
+                forget(name)
+                let_go.append(name)
+                if narrate:
+                    _tell(f"I stopped judging by {name!r}: {rehearsed.says()}.")
+        if let_go:
+            what_she_invented.keep()
+            logger.info("let go of %s after playing them out in her own model", ", ".join(let_go))
+
+    async def beside_the_run() -> None:
+        try:
+            await asyncio.to_thread(rehearse_them)
+        except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "screen_pursuit", exc, severity="info",
+                action="kept what she judges by without rehearsing it",
+            )
+
+    try:
+        from core.utils.task_tracker import get_task_tracker
+
+        return get_task_tracker().create_task(beside_the_run(), name="rehearse_what_she_judges_by")
+    except (ImportError, RuntimeError, TypeError) as exc:
+        record_degradation(
+            "screen_pursuit", exc, severity="info", action="did not rehearse what she judges by"
+        )
+        return None
 
 
 

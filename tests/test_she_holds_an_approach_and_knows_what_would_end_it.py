@@ -367,17 +367,24 @@ def test_when_everything_available_needs_words_she_says_so():
     assert "words" in why
 
 
-def test_the_ways_out_of_a_stuck_run_are_the_ones_held_behind_words():
-    from core.skills.screen_pursuit import ways_out
+def test_the_way_out_that_throws_work_away_is_held_behind_words():
+    """Starting again throws the attempt away; seeing it through keeps it.
+
+    With both held behind words, a voice that timed out at an impasse left
+    nothing she could choose, and the run ended after eighty-eight moves
+    (live, 2026-09-18).
+    """
+    from core.skills.screen_pursuit import SEE_IT_THROUGH, START_OVER, ways_out
 
     seen = {
         "ok": True,
         "text": "New Game",
         "layout": [{"text": "New Game", "x": 0.5, "y": 0.2, "center_x": 0.5, "center_y": 0.2}],
     }
-    offered = ways_out(seen)
+    offered = {option.name: option for option in ways_out(seen)}
     assert offered, "a stuck run was offered no way out at all"
-    assert all(option.needs_words for option in offered)
+    assert offered[START_OVER].needs_words
+    assert not offered[SEE_IT_THROUGH].needs_words
 
 
 def test_where_nothing_answers_the_way_out_needs_no_words():
@@ -577,3 +584,13 @@ def test_a_line_that_excludes_something_is_a_line():
 
 def test_with_one_way_forward_there_is_nothing_to_exclude():
     assert not standing_strategy.keeps_every_option_open("press left", MOVES[:1])
+
+
+def test_a_decline_is_not_a_line_to_take():
+    """Taken whole, "I don't have a view on that yet" became her plan (2026-09-19)."""
+    from core.agency.standing_strategy import read_strategy
+
+    assert read_strategy("I don't have a view on that yet.", situation="2 4 8 64") is None
+    assert read_strategy("Not sure yet.", situation="2 4 8 64") is None
+    held = read_strategy("Keep the largest tile in the corner", situation="2 4 8 64")
+    assert held is not None

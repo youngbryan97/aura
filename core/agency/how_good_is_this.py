@@ -274,7 +274,14 @@ def how_the_trial_is_going(name: str, standing_at: float) -> str:
     was = trial.get("before")
     now = (float(trial["to"]) - float(trial["from"])) / max(1, trial["seen"])
     ON_TRIAL.pop(str(name), None)
-    if was is None or now >= float(was):
+    if was is None:
+        # Nothing to compare against is no evidence that it helped, and
+        # keeping a property needs that. Kept this way, two came back in every
+        # later run at full weight and cost three games in four.
+        forget(str(name))
+        logger.info("%r had nothing to be compared against — dropped", name)
+        return "dropped"
+    if now >= float(was):
         logger.info(
             "%r earned its place: %.4f a move against %s", name, now, was
         )

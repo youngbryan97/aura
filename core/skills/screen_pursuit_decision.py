@@ -876,6 +876,8 @@ async def decide_the_next_move(
                 # What was on the board when she arrived is where she starts,
                 # not something she climbed to.
                 going.starting_from(made)
+                # Where this run began, for playing things out from later.
+                pending.setdefault("first_arranged", laid_out)
             elif going is not None and made:
                 # A rung, and what it cost, and what she was holding while she
                 # worked on it. Said with the reaching, because "the biggest
@@ -1025,7 +1027,12 @@ async def decide_the_next_move(
         )
         no_model = knows.rules is None or knows.rules.rule() is None
         lost = not sees and (stuck(history) or (tried_everything and no_model))
-        if lost and (knowledge["held"] is None or knowledge["relearned"] < MAX_RELEARNS):
+        # A lookup that ran out of time is not tried again at once. Its
+        # timeout left nothing held, and nothing held was the reason to look,
+        # so it ran again on every move she was lost — nine seconds each
+        # (live, 2026-09-18). Twice as long to wait each time it fails.
+        may_look = len(moves) >= int(knowledge.get("quiet_until", 0))
+        if lost and may_look and (knowledge["held"] is None or knowledge["relearned"] < MAX_RELEARNS):
             if knowledge["held"] is not None:
                 knowledge["relearned"] += 1
             relearning = knowledge["held"] is not None
@@ -1057,10 +1064,14 @@ async def decide_the_next_move(
                     timeout=may_take,
                 )
             except TimeoutError:
+                knowledge["timeouts"] = int(knowledge.get("timeouts", 0)) + 1
+                knowledge["quiet_until"] = len(moves) + min(64, 4 * 2 ** int(knowledge["timeouts"]))
                 logger.info(
                     "reading up took longer than %.1fs, which is longer than this "
-                    "world waits; carrying on with what she knows",
+                    "world waits; carrying on with what she knows, and not asking "
+                    "again for %d move(s)",
                     may_take,
+                    int(knowledge["quiet_until"]) - len(moves),
                 )
                 knowledge["held"] = None
         learned = knowledge["held"].as_evidence() if knowledge["held"] is not None else []
@@ -1574,6 +1585,13 @@ async def decide_the_next_move(
             asking, because_of = False, f"playing in real time ({because_of})"
         if len(available) == 1:
             asking, because_of = False, "there is only one thing to do"
+        # A voice that has not been answering is given time before it is
+        # asked again. Asked every move while it could not answer, it cost
+        # thirteen seconds a move for as long as she was lost (live,
+        # 2026-09-18), and the move she made at the end of each wait was the
+        # one she would have made without it.
+        if asking and len(moves) < int(asked.get("quiet_until", 0)):
+            asking, because_of = False, "my voice has not been answering, so I am deciding this myself"
         if recognised and not asking:
             skilled.took(kind)
         if asking != last_call["asked"] or last_call["why"] != because_of:
@@ -1610,6 +1628,13 @@ async def decide_the_next_move(
         if asking:
             costs["pass_s"] += time.monotonic() - thinking_from
             costs["passes"] += 1.0
+            # Twice as long each time it does not answer, and from nothing
+            # again the first time it does.
+            if chosen.spoke:
+                asked["misses"] = 0
+            else:
+                asked["misses"] = int(asked.get("misses", 0)) + 1
+                asked["quiet_until"] = len(moves) + min(32, 2 ** int(asked["misses"]))
         else:
             costs["was_quiet"] = 1.0
         pending["ahead"] = dict(ahead or {})

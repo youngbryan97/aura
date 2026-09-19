@@ -65,6 +65,47 @@ def named(*parts: str) -> str:
     return cleaned[:80] or "somewhere"
 
 
+
+def _the_longest_list(value: Any, path: tuple[str, ...] = ()) -> tuple[tuple[str, ...], list] | None:
+    """Where the longest list in a record is, and the list itself."""
+    best: tuple[tuple[str, ...], list] | None = None
+    if isinstance(value, list):
+        best = (path, value)
+        items = enumerate(value)
+    elif isinstance(value, dict):
+        items = value.items()
+    else:
+        return None
+    for key, inner in items:
+        found = _the_longest_list(inner, (*path, str(key)))
+        if found is not None and (best is None or len(found[1]) > len(best[1])):
+            best = found
+    return best
+
+
+def _fitted(what: dict[str, Any], most: int) -> tuple[dict[str, Any], list[str]]:
+    """The record made small enough to keep, and what was let go to do it.
+
+    A record over the bound used to be refused whole, so a long run lost
+    everything it learned for being long: live, 2026-09-18, "too big to keep
+    (124122)" at the end of eighty-eight moves, and the next run began from
+    what the run before that knew. The longest list goes first, and the older
+    half of it: these are records she appends to as she goes, so the newer
+    half is what is most like now.
+    """
+    fitted = json.loads(json.dumps(what))
+    let_go: list[str] = []
+    while len(json.dumps(fitted)) > most:
+        found = _the_longest_list(fitted)
+        if found is None or len(found[1]) < 8:
+            break
+        path, longest = found
+        dropped = len(longest) // 2
+        del longest[:dropped]
+        let_go.append(f"{'.'.join(path) or 'the record'} lost its oldest {dropped}")
+    return fitted, let_go
+
+
 def remember(world: str, what: dict[str, Any]) -> bool:
     """Keep what she worked out about this thing."""
     key = named(world)
@@ -85,8 +126,15 @@ def remember(world: str, what: dict[str, Any]) -> bool:
         # be. Whichever way a collision resolves, one of the two is lost.
         body = json.dumps({"_kept_for": key, **what})
         if len(body) > _MOST_KEPT:
-            logger.info("what she learned about %r is too big to keep (%d)", key, len(body))
-            return False
+            fitted, let_go = _fitted(what, _MOST_KEPT - len(json.dumps({"_kept_for": key})))
+            body = json.dumps({"_kept_for": key, **fitted})
+            if len(body) > _MOST_KEPT:
+                logger.info("what she learned about %r is too big to keep (%d)", key, len(body))
+                return False
+            logger.info(
+                "what she learned about %r was %d over, so %s",
+                key, len(json.dumps({"_kept_for": key, **what})) - _MOST_KEPT, "; ".join(let_go),
+            )
         get_file_write_gateway().ensure_directory(_kept_in(), source="what_she_learned")
         with local_internal_governed_scope(
             "what_she_learned.remember",

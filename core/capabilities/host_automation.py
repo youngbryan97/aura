@@ -26,6 +26,7 @@ import logging
 import os
 import re
 import subprocess
+import sys
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -86,6 +87,25 @@ _HOST_AUTOMATION_ERRORS = (
     ValueError,
     asyncio.TimeoutError,
 )
+
+
+def _pointer_stops() -> tuple[type[BaseException], ...]:
+    """What PyAutoGUI raises when the person throws the pointer into a corner.
+
+    That is its fail-safe, and it means stop. Uncaught, it ended a whole run
+    rather than the one scroll it interrupted, so a person parking the pointer
+    in a corner took her out of what she was doing mid-move.
+    """
+    module = sys.modules.get("pyautogui")
+    stop = getattr(module, "FailSafeException", None)
+    return (stop,) if isinstance(stop, type) and issubclass(stop, BaseException) else ()
+
+
+def _what_stopped_it(error: BaseException) -> str:
+    """The receipt's reason, saying so plainly when the person said stop."""
+    if _pointer_stops() and isinstance(error, _pointer_stops()):
+        return "stopped_by_person: the pointer was put in a corner of the screen"
+    return str(error)
 
 
 # ---------------------------------------------------------------------------
@@ -1431,11 +1451,14 @@ class HostAutomationProvider(_ReadsTheScreen):
                     adapter="pyautogui", success=True,
                     duration_ms=(time.time() - start) * 1000,
                 )
-            except (ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError) as e:
+            except (
+                ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError,
+                *_pointer_stops(),
+            ) as e:
                 receipt = AutomationReceipt(
                     action="click", target=f"{x},{y}",
                     adapter="pyautogui", success=False,
-                    error=str(e),
+                    error=_what_stopped_it(e),
                     duration_ms=(time.time() - start) * 1000,
                 )
         except TimeoutError:
@@ -1482,11 +1505,14 @@ class HostAutomationProvider(_ReadsTheScreen):
                 adapter="pyautogui", success=True,
                 duration_ms=(time.time() - start) * 1000,
             )
-        except (ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError) as e:
+        except (
+            ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError,
+            *_pointer_stops(),
+        ) as e:
             receipt = AutomationReceipt(
                 action="scroll", target=f"dx={dx},dy={dy}",
                 adapter="pyautogui", success=False,
-                error=str(e),
+                error=_what_stopped_it(e),
                 duration_ms=(time.time() - start) * 1000,
             )
         self._log_receipt(receipt)

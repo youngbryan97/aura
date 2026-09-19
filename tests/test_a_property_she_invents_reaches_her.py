@@ -217,3 +217,18 @@ def test_the_pursuit_reports_what_the_run_came_to_as_a_rate():
     source = pursuit_source()
     assert 'began_at["seen"]' in source
     assert "finished_on - float(began_at" in source
+
+
+def test_a_trial_with_nothing_to_compare_against_does_not_keep_it():
+    """No rate from before means no evidence it helped, and keeping it needs that.
+
+    A property kept this way came back in every later run at its full weight.
+    The two she carries on 2048, played out from four starts with her own rule
+    and search, took her from 2048 in all four to 2048 in one (2026-09-19).
+    """
+    name = on_trial(SOMETHING, 0.4)
+    verdict = ""
+    for step in range(A_FAIR_TRIAL):
+        verdict = how_the_trial_is_going(name, 100.0 + step * 5.0)
+    assert verdict == "dropped"
+    assert name not in INVENTED

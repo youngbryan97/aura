@@ -106,7 +106,10 @@ def keep() -> bool:
             if hasattr(measure, "at")
         ],
     }
-    if not body["measures"]:
+    # Nothing to keep writes nothing, unless something was kept before: then
+    # the empty list is what she knows now. Returning regardless left the last
+    # list on disk, so a property she had dropped came back at the next start.
+    if not body["measures"] and not _kept_at().exists():
         return False
     try:
         from core.governance_context import local_internal_governed_scope
