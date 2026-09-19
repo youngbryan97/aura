@@ -18,6 +18,8 @@ from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 from core.utils.task_tracker import get_task_tracker
 
+from .memory_facade_normalisation import _NormalisesWhatItReturns
+
 logger = logging.getLogger("Aura.Memory")
 
 # ── Probe-harness memory hygiene ─────────────────────────────────────────────
@@ -61,7 +63,7 @@ def _writes_go_through_the_gateway() -> bool:
     return said not in ("1", "true", "yes")
 
 
-class MemoryFacade:
+class MemoryFacade(_NormalisesWhatItReturns):
     """
     Unified entry point for episodic, semantic, and vector memories.
     Provides a simple API for the rest of the system to manage its continuity.
@@ -338,24 +340,6 @@ class MemoryFacade:
             return {}
         return {} if raw is None else {}
 
-    def _normalize_memory_result(
-        self,
-        *,
-        content: str,
-        metadata: dict[str, Any] | None = None,
-        memory_id: str = "",
-        score: float | None = None,
-    ) -> dict[str, Any]:
-        payload = {
-            "id": memory_id,
-            "text": content,
-            "content": content,
-            "metadata": self._safe_metadata(metadata),
-        }
-        if score is not None:
-            payload["score"] = score
-        return payload
-
     @classmethod
     def _memory_visible_to_principal(
         cls,
@@ -414,10 +398,6 @@ class MemoryFacade:
         if match:
             return match.group(1)
         return None
-
-    @classmethod
-    def _normalize_source_label(cls, raw: Any) -> str:
-        return str(raw or "").strip().lower().replace("-", "_")
 
     @classmethod
     def _is_user_facing_source(cls, raw: Any) -> bool:
@@ -672,19 +652,6 @@ class MemoryFacade:
         to choose. Within the same cap as every search.
         """
         return min(100, max(limit, limit * 6, 32))
-
-    @staticmethod
-    def _normalize_search_limit(
-        limit: int | None = None,
-        *,
-        top_k: int | None = None,
-        default: int = 5,
-    ) -> int:
-        raw_limit = top_k if top_k is not None else limit
-        try:
-            return max(1, min(100, int(raw_limit if raw_limit is not None else default)))
-        except (TypeError, ValueError, OverflowError):
-            return default
 
     def _search_gateway_records_sync(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
         """Search gateway records via the shared in-memory index.
