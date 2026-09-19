@@ -222,8 +222,29 @@ def import_time_env_leaks() -> tuple[str, ...]:
     return tuple(_IMPORT_TIME_ENV_LEAKS)
 
 
+def _stay_out_of_the_dock() -> None:
+    """A test process is not an application, and should not appear as one.
+
+    Something under test makes the process a Cocoa application, and on macOS
+    that puts a Python rocket in the Dock for every process that does it: six
+    of them for a run split six ways (2026-09-18). Marked as an agent before
+    anything registers it, the process still gets its application and never
+    gets an icon. The runtime does the same for itself in aura_main.
+    """
+    if sys.platform != "darwin":
+        return
+    try:
+        from Foundation import NSBundle
+    except ImportError:
+        return
+    info = NSBundle.mainBundle().infoDictionary()
+    if info is not None and info.get("LSUIElement") is None:
+        info["LSUIElement"] = "1"
+
+
 def pytest_sessionstart(session):
     """Record what the run started with, before any test module is imported."""
+    _stay_out_of_the_dock()
     _capture_env_baseline()
 
 

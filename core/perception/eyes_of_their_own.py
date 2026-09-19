@@ -190,6 +190,24 @@ def look_through_them(
     return reading
 
 
+def _stay_out_of_the_dock() -> None:  # pragma: no cover - runs in the other process
+    """These eyes are part of her, not an application of their own.
+
+    Anything here that makes the process a Cocoa application would put a
+    Python rocket in the Dock while she plays. Marked as an agent first, it
+    never gets an icon, as the runtime does for itself in aura_main.
+    """
+    if sys.platform != "darwin":
+        return
+    try:
+        from Foundation import NSBundle
+    except ImportError:
+        return
+    info = NSBundle.mainBundle().infoDictionary()
+    if info is not None and info.get("LSUIElement") is None:
+        info["LSUIElement"] = "1"
+
+
 def _what_it_says(reading: dict[str, Any]) -> tuple:
     """What a reading says, for telling one reading from another."""
     from core.perception.what_the_pixels_show import what_a_reading_says  # noqa: PLC0415
@@ -200,6 +218,8 @@ def _what_it_says(reading: dict[str, Any]) -> tuple:
 def _serve() -> None:  # pragma: no cover - runs in the other process
     """Read windows for whoever asks, one line of JSON at a time."""
     import time
+
+    _stay_out_of_the_dock()
 
     from core.capabilities import window_server
     from core.perception import what_the_pixels_show as pixels
