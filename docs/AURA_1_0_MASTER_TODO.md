@@ -1110,6 +1110,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   design](G_GENERALIZATION_REPAIR_DESIGN.md) derives and implements a
   minimum-change graph update with explicit proof limits and falsification.
   These implementation changes do not close G03 or establish fresh transfer.
+  [Minimum-change trials](evidence/G03_MINIMUM_CHANGE_TRIAL_2026-09-19.md)
+  isolate and repair a float32 boundary-rejection defect. All 2,504 retained
+  inequalities pass after one update, but validation falls from 52/60 to
+  51/60. The candidate is not promoted; component attribution continues.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.

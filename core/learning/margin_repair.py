@@ -103,8 +103,78 @@ def minimum_margin_repair(normals, required, *, max_iterations=1000, tolerance=1
     if not np.all(np.isfinite(displacement)) or not np.all(np.isfinite(lam)):
         displacement, lam = np.zeros(a.shape[1]), np.zeros(len(a))
     receipt = verify_margin_repair(a, b, displacement, lam, tolerance=tolerance)
-    receipt.update(solver_status=int(result.status), solver_iterations=int(result.nit))
+    polished = False
+    support = np.flatnonzero(result.x > 0.)
+    if len(support):
+        # L-BFGS can stop on objective precision before its binding margins
+        # resolve. Solve its proposed active equalities and independently
+        # verify the whole problem; support is a proposal, not an authority.
+        values = np.linalg.lstsq(gram[np.ix_(support, support)], target[support], rcond=None)[0]
+        if np.all(values >= 0.) and np.all(np.isfinite(values)):
+            candidate = np.zeros(len(a))
+            candidate[support] = values / scales[support]
+            candidate_displacement = a.T @ candidate
+            checked = verify_margin_repair(a, b, candidate_displacement, candidate, tolerance=tolerance)
+            if checked["status"] == "verified_numerically":
+                displacement, lam, receipt, polished = candidate_displacement, candidate, checked, True
+    receipt.update(solver_status=int(result.status), solver_iterations=int(result.nit),
+                   active_equalities_polished=polished)
     return MarginRepair(displacement, lam, receipt)
+
+
+def minimum_stored_margin_repair(normals, required, anchor, *, max_rounding_rounds=8,
+                                 max_iterations=1000, tolerance=1e-7):
+    """Repair affine margins in the precision that the model actually stores.
+
+    For rounding error e, a_i*(d+e) >= a_i*d - |a_i|*|e|. Add
+    a reserve only to violated rows, solve again, and check stored values
+    against the original requirements. Tight equalities can still succeed
+    without an artificial interior. Exhaustion does not prove infeasibility.
+    """
+    a, b, origin = (np.asarray(value, dtype=np.float64)
+                    for value in (normals, required, anchor))
+    if (a.ndim != 2 or origin.shape != (a.shape[1],)
+            or not np.all(np.isfinite(origin))
+            or type(max_rounding_rounds) is not int or max_rounding_rounds < 1):
+        raise ValueError("invalid stored margin repair geometry")
+    reserves = np.zeros_like(b)
+    stored = np.zeros_like(origin)
+    minimum_slack = None
+    feasible = False
+    for _iteration in range(max_rounding_rounds):
+        proposal = minimum_margin_repair(a, b + reserves,
+            max_iterations=max_iterations, tolerance=tolerance)
+        if proposal.receipt["status"] != "verified_numerically":
+            break
+        point = origin + proposal.displacement
+        with np.errstate(over="ignore"):
+            rounded = point.astype(np.float32).astype(np.float64)
+        if not np.all(np.isfinite(rounded)):
+            break
+        stored = rounded - origin
+        slack = a @ stored - b
+        minimum_slack = float(slack.min())
+        violated = slack < 0.
+        if not np.any(violated):
+            feasible = True
+            break
+        # Nearest float32 rounding has relative error <= 2^-24, plus
+        # half a subnormal quantum. The original constraints stay unchanged.
+        error_bound = np.abs(a[violated]) @ (
+            np.finfo(np.float32).eps * .5 * np.abs(point) + 2. ** -150)
+        reserves[violated] += np.maximum(2. * tolerance, 2. * error_bound)
+    receipt = {
+        "schema": "aura.stored_affine_margin_repair.v1",
+        "status": "stored_feasible" if feasible else "stored_unresolved",
+        "stored_primal_feasible": feasible, "stored_minimum_slack": minimum_slack,
+        "storage_dtype": "float32", "rounding_rounds": _iteration,
+        "maximum_margin_reserve": float(reserves.max()),
+        "continuous_projection": proposal.receipt,
+        "stored_displacement_norm": float(np.linalg.norm(stored)),
+        "global_minimum_change_proven": False, "infeasibility_proven": False,
+        "scope": "supplied_affine_comparisons", "serving_authority": False,
+    }
+    return MarginRepair(stored, proposal.multipliers, receipt)
 
 
 def margin_neighborhood_bound(parameters, feature_difference, *, radius, offset=0.):
