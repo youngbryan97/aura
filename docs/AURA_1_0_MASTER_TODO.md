@@ -907,6 +907,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Operation boundary learning](evidence/G03_OPERATION_BOUNDARY_LEARNING_2026-09-18.md)
+  connects the runtime pointer to the retained graph objective. The latest
+  boundary/binding subset passes 56 focused tests. A targeted development trial
+  gains one of eight validation cases without regression, but retains an
+  incorrect training failure and leaves search/constraint blockers; no
+  promotion or full-run claim.
   [Background competition](evidence/G03_OPERATION_BACKGROUND_2026-09-18.md)
   tests a learned non-operation class on source spans. The small replay
   regresses from 48/60 to 45/60; no candidate promotion or full-run claim.
@@ -1502,7 +1508,40 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   fetched pages and have nobody waiting on the reply — and deliberately not
   the conversational surface, where a decoy that works costs the person
   their answer. 8004d0637.
-  Still open: scoped tool authority, privacy, sandbox, secret handling.
+  PARTIAL 2026-09-18, scoped authority — **an emergency lockdown that
+  locked nothing down.** `core/runtime/mode.py` declares a capability
+  manifest per mode, its docstring says every module needing to ask "am I
+  in production?" must use its helpers, and safe mode is documented as
+  "Emergency lockdown. All autonomous behavior disabled. No tools." The
+  production importers of that module were five — `validate_mode_at_startup`,
+  `strict_will_active`, `governance_production_active`, `contracts_enforced`,
+  `get_mode` — and **`is_safe()` had none**. Nor did
+  `allows_tool_execution`, `allows_autonomous_behavior`,
+  `allows_unsigned_skills`, `max_autonomy_level`, `enforce_production_gate`
+  or `get_active_manifest`. The manifest was a table nothing read.
+  (An earlier note in this file said safe mode was enforced in forty-one
+  places through `is_safe()`. That was wrong: those were coincidental
+  matches on a common local variable name — `ScriptASTGuard` returning
+  `(is_safe, reason)`, an unrelated `IdentityGuard.is_safe`, a
+  risk-evaluation local. Corrected here.)
+  Three gates wired, each at the single place every path through it passes,
+  and each checked against all seven manifests first so it cannot fire on an
+  ordinary run: self-modification at `admit_mutation` (572129cbf), tools at
+  `ToolExecutor.execute_tool` (547ffecf6), autonomous work at
+  `AutonomyConductor.run_due_once` (e0580a40e). All three fail OPEN on an
+  unreadable mode, because muting a runtime over a bookkeeping fault is
+  worse than the other gates carrying on alone.
+  Checked and deliberately not wired: `allows_unsigned_skills`. There is no
+  signing infrastructure in this tree, so production declaring False
+  describes a mechanism that was never built and enforcing it would refuse
+  every skill. The declaration is wrong there, not the code.
+  The dead safety chain is gone: `consent_kernel` advertised itself as "the
+  complete safety verification chain" and nothing called it; its six
+  dependencies had no consumer outside `core/security` either, and every
+  guarantee it claimed has a stricter live owner (ffa3cf56a). The guard is
+  general — every module in `core/security` must have a consumer outside
+  the package.
+  Still open: privacy and sandbox.
 - [x] Q05 Persistence, migration, corruption recovery, backups, and rollback.
   CLOSED 2026-09-13. Three ways there was no backup while a green target
   said otherwise: `make backup` had raised ModuleNotFoundError since
@@ -1592,6 +1631,24 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   eight entries in HANDWRITTEN for exactly this and says in its own comment
   how core/learning sat here failing, one regeneration from being deleted.
   organism is the ninth (9c20b5e1b).
+  RUN 2026-09-18, 00:10 to 06:45, and the result is a finding about the
+  measurement rather than about the tree. 30 chunks finished, 314 minutes,
+  10.5 minutes each; 2 timed out (`test_doc_drift_gate`,
+  `test_shutdown_lifecycle_hardening`) and produced no verdict for their
+  files. 169 failures across 97 files.
+  **Twenty-six commits landed in the checkout between the first chunk and
+  the thirty-third.** Several agents commit here and a full run takes about
+  eight hours, so chunks either side of a commit tested different code: the
+  169 are a mixture across 26 trees, not a register of one. A green chunk
+  said nothing about the tree the red chunk found, and a failure could have
+  been fixed hours before the summary was read. Nothing in the runner said
+  so — it printed a clean-looking list. It records the revision before each
+  chunk now, announces a move when it happens and again in the summary, and
+  says plainly when a run did hold still (d28398d13). CLAUDE.md already
+  forbids launching chunks while editing Python files; this is that rule at
+  the scale of a whole run.
+  The register itself is being produced the only way it can be: the 97
+  files re-run against one pinned revision in a worktree.
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
   FOUND 2026-09-07, second session, and it was not order dependence.
   `test_runtime_invariants_are_registered_and_run_clean` passed alone and

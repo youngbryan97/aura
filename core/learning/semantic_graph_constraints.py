@@ -85,7 +85,8 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         from core.learning.semantic_fit_checkpoint import SemanticFitCheckpoint, fit_identity
 
         source_files = ("semantic_graph_constraints.py", "semantic_graph_batch.py", "semantic_relation_graph_learning.py",
-                        "semantic_operation_graph_learning.py", "semantic_argument_graph_learning.py")
+                        "semantic_operation_graph_learning.py", "semantic_argument_graph_learning.py",
+                        "semantic_operation_pointer_learning.py")
         identity = fit_identity({
             "algorithm": [Path(__file__).with_name(name).read_text() for name in source_files],
             "owner": checkpoint_identity, "initial": initial, "contrasts": tuple(contrasts),
@@ -232,11 +233,15 @@ def fit_graph_constraints(head, operation_head, contrasts, **options):
     return (*_fitted_heads(head, operation_head, values), receipt)
 
 
-def fit_complete_graph_constraints(model, contrasts, **options):
+def fit_complete_graph_constraints(model, contrasts, *, learn_operation_pointer=False, **options):
     from core.learning.semantic_argument_graph_learning import argument_parameters
+    from core.learning.semantic_operation_pointer_learning import operation_pointer_from_parameters, operation_pointer_parameters
 
+    if type(learn_operation_pointer) is not bool:
+        raise ValueError("operation pointer learning option must be boolean")
     base = _model_parameters(model.definition_relation_head, model.operation_head)
-    values, receipt = _fit_graph_parameters((*base, *argument_parameters(model)), contrasts, **options)
+    pointers = operation_pointer_parameters(model) if learn_operation_pointer else ()
+    values, receipt = _fit_graph_parameters((*base, *argument_parameters(model), *pointers), contrasts, **options)
     relation, operation = _fitted_heads(model.definition_relation_head, model.operation_head, values)
     offset = len(base)
     roles = tuple(replace(head, weight=values[offset + 4 * index],
@@ -245,8 +250,10 @@ def fit_complete_graph_constraints(model, contrasts, **options):
     proposals = tuple(replace(head, weight=values[offset + 4 * index + 2],
                               bias=float(values[offset + 4 * index + 3]))
                       for index, head in enumerate(model.argument_proposal_heads))
+    changes = {"operation_pointer": operation_pointer_from_parameters(values[-2:])} if learn_operation_pointer else {}
+    receipt["operation_pointer_trainable"] = learn_operation_pointer
     return model._with_coefficients(definition_relation_head=relation, operation_head=operation,
-        argument_role_heads=roles, argument_proposal_heads=proposals), receipt
+        argument_role_heads=roles, argument_proposal_heads=proposals, **changes), receipt
 
 
 @invariant("learning.graph_constraint_direction_respects_protected_halfspaces", scope="learning",

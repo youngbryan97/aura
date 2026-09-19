@@ -53,10 +53,18 @@ def test_the_guard_is_wired_into_the_escalation_decision() -> None:
     a fail-closed registry and a non-timeout error to reach, and a test
     that reconstructed all three would be testing its own scaffolding.
     """
-    import inspect
+    from source_contract import function_containing, in_order
 
-    source = inspect.getsource(errors.record_degradation)
-    assert "_already_escalated = _ESCALATION_MARKER in str(error)" in source
-    assert "and not _already_escalated" in source
+    # Read from whichever function makes the decision, not from
+    # record_degradation by name: the method-size sweep moved the branch
+    # into an extracted helper and the guard went with it, untouched.
+    _name, decides = function_containing(
+        errors, "_already_escalated = _ESCALATION_MARKER in str(error)"
+    )
+    assert "and not _already_escalated" in decides
     # And the guard must be decided before the escalation is built.
-    assert source.index("_already_escalated =") < source.index("failure_policy_error = (")
+    in_order(
+        decides,
+        "_already_escalated =",
+        "failure_policy_error = (",
+    )

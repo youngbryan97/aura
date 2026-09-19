@@ -122,28 +122,51 @@ def _wake_the_faculties() -> tuple[str, ...]:
     return tuple(sorted(get_lesion_registry().channels()))
 
 
-def _load():
-    """Load the substrate under a lane held for as long as it is resident.
+def _load(substrate: str | None = None):
+    """Load a substrate under a lane held for as long as it is resident.
 
     The caller keeps the returned lease and releases it when the model goes.
     A cortex-sized model beside the resident one is what the lane prevents.
+
+    ``substrate`` defaults to the 1.5B this harness was built on. It is a
+    parameter because the boundary it creates was being disclaimed rather
+    than crossed: every artifact this produces says "a verdict here is not
+    a verdict at the 27B", and nothing could be pointed at the 27B to get
+    one. A hard-coded substrate that every receipt then apologises for is
+    a measurement nobody can extend.
     """
     import mlx_lm
 
     from core.runtime.model_lane_control import acquire_standalone_model_lane
 
+    path = str(substrate or SUBSTRATE)
     lease = acquire_standalone_model_lane(
         owner_id="matched-substrate",
-        model_path=str(SUBSTRATE),
+        model_path=path,
         purpose="measurement",
-        metadata={"tool": "run_matched_substrate"},
+        metadata={"tool": "run_matched_substrate", "substrate": path},
     )
     try:
-        model, tokenizer = mlx_lm.load(SUBSTRATE)
+        model, tokenizer = _load_any(path)
     except BaseException:
         lease.release()
         raise
     return model, tokenizer, lease
+
+
+def _load_any(path: str):
+    """Load a checkpoint, including a pack mlx_lm cannot read itself."""
+
+    import mlx_lm
+
+    from core.brain.llm.prism_hadamard import (
+        is_prism_hadamard_pack,
+        load_prism_hadamard_pack,
+    )
+
+    if is_prism_hadamard_pack(path):
+        return load_prism_hadamard_pack(path)
+    return mlx_lm.load(path)
 
 
 #: The temperature a generation gets when no faculty modulates it. The same

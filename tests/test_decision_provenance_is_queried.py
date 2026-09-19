@@ -13,7 +13,6 @@ would say about itself.
 
 from __future__ import annotations
 
-import ast
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -157,21 +156,16 @@ def test_every_legacy_phase_is_measured_and_skips_are_recorded() -> None:
 def test_the_tick_is_closed_in_a_finally_so_failed_turns_are_kept() -> None:
     """A record of only the turns that went well is the wrong half."""
 
-    source = _ENGINE.read_text("utf-8")
-    tree = ast.parse(source)
-    closed_in_finally = False
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Try) or not node.finalbody:
-            continue
-        for statement in node.finalbody:
-            for inner in ast.walk(statement):
-                if (
-                    isinstance(inner, ast.Call)
-                    and isinstance(inner.func, ast.Name)
-                    and inner.func.id == "_close_provenance_tick"
-                ):
-                    closed_in_finally = True
-    assert closed_in_finally, (
+    # "Closed in a finally" is a property of the exit path, not of where
+    # the line sits. This walked for the call inside a finalbody and went
+    # red when the method-size sweep lifted the whole finally-body into
+    # _run_thinking_loop_closed_rather_after — leaving the CALL in the
+    # finally, so the guarantee never moved. Checked as the exit path now.
+    from source_contract import reached_from_a_finally
+
+    import core.brain.cognitive_engine as engine_module
+
+    assert reached_from_a_finally(engine_module, "_close_provenance_tick("), (
         "the provenance tick is closed on the success path only, so a turn "
         "that timed out or crashed leaves no record"
     )

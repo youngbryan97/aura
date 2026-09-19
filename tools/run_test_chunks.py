@@ -87,6 +87,36 @@ def free_memory_gb() -> float | None:
     return reclaimable * page_size / (1024**3)
 
 
+def working_tree_revision() -> str:
+    """The revision the tests are about to read, or "" when unknowable.
+
+    Includes a dirty marker, because an uncommitted edit changes what runs
+    just as surely as a commit does.
+    """
+
+    try:
+        head = subprocess.run(
+            ["git", "-C", str(ROOT), "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if head.returncode != 0:
+            return ""
+        revision = head.stdout.strip()
+        dirty = subprocess.run(
+            ["git", "-C", str(ROOT), "status", "--porcelain", "--untracked-files=no"],
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        if dirty.returncode == 0 and dirty.stdout.strip():
+            revision += "-dirty"
+        return revision
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return ""
+
+
 def note_progress(path: Path | None, message: str) -> None:
     """Append one line to the progress file. Never raises.
 
@@ -321,10 +351,37 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 2
+    # What tree is this? A full run takes hours, and this repository is a
+    # shared checkout that several agents commit to — measured 2026-09-18,
+    # 26 commits landed between the first chunk and the thirty-third. Chunks
+    # that ran before and after a commit tested different code, so the
+    # collected failures were a mixture across 26 trees rather than a
+    # register of one, and a green chunk said nothing about the tree the red
+    # chunk found. The revision is recorded per chunk, and a move is said
+    # out loud while there is still a run to interpret.
+    started_at_revision = working_tree_revision()
+    note_progress(
+        args.progress_file,
+        f"RUN begins revision={started_at_revision or 'unknown'} "
+        f"chunks={len(chunk_lists)} files={len(files)}",
+    )
+    moved_at: list[tuple[int, str]] = []
+
     results: list[tuple[bool, str, list[str]]] = []
     for i, chunk in enumerate(chunk_lists, start=1):
         if selected_indexes is not None and i not in selected_indexes:
             continue
+        current_revision = working_tree_revision()
+        if started_at_revision and current_revision and current_revision != started_at_revision:
+            if not moved_at or moved_at[-1][1] != current_revision:
+                moved_at.append((i, current_revision))
+                message = (
+                    f"MOVED chunk {i}/{len(chunk_lists)} tree is now "
+                    f"{current_revision}, run began on {started_at_revision} — "
+                    "chunks before and after this point tested different code"
+                )
+                note_progress(args.progress_file, message)
+                print(f"\n⚠️  {message}\n", flush=True)
         result = run_chunk(
             i,
             len(chunk_lists),
@@ -403,6 +460,20 @@ def main(argv: list[str] | None = None) -> int:
             print(f"⚠️  defect register write failed: {_reg_exc}", file=sys.stderr, flush=True)
 
     print("\n━━ chunk summary ━━")
+    if moved_at:
+        # Said here as well as when it happened, because a summary read
+        # hours later is where the mixture would otherwise be invisible.
+        print(
+            f"\n⚠️  THE TREE MOVED {len(moved_at)} time(s) during this run: began on "
+            f"{started_at_revision}, "
+            + ", ".join(f"chunk {i} on {rev}" for i, rev in moved_at)
+        )
+        print(
+            "    Chunks either side of a move tested different code, so this is "
+            "not one register. Re-run in a worktree pinned to a revision."
+        )
+    elif started_at_revision:
+        print(f"revision {started_at_revision}, unchanged for the whole run")
     chunk_failures = 0
     for ok, line, _ids in results:
         print(("✅ " if ok else "❌ ") + line)

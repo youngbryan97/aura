@@ -396,9 +396,21 @@ async def test_depth_worthy_desktop_turn_uses_one_latent_generation(monkeypatch)
                 followup_probability=0.0,
             )
 
-        def shape_response(self, text):
-            first, rest = text.split(". ", 1)
-            return [first + ".", rest]
+        # Production passes preserve_semantic_content since 794a843369
+        # ("keep voice and repair semantically lossless"). A double that
+        # does not take it raises TypeError inside the phase, which the
+        # phase records as a fault and recovers from — so the test saw
+        # zero latent calls and no sign of why.
+        def shape_response(self, text, *, preserve_semantic_content=None):
+            # Splitting is the point of this double, but a reply with no
+            # sentence break is not a reason to raise: the unpack threw
+            # ValueError inside the phase, which recorded a fault and
+            # recovered, and the test then saw zero latent calls with
+            # nothing to say why.
+            head, sep, tail = str(text).partition(". ")
+            if not sep:
+                return [str(text)]
+            return [head + ".", tail]
 
         def decide_followup(self, **_kwargs):
             return SimpleNamespace(should_followup=False)

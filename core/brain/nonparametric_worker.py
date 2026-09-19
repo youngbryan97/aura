@@ -243,10 +243,28 @@ def _quarantine_unusable_datastore(memory: Any, reason: str) -> str:
     return ", ".join(moved)
 
 
-#: Refusal reasons already said out loud. A refusal that cannot change while
-#: the process runs is a standing fact, and a standing fact repeated every
-#: turn is what makes a feed unreadable.
+#: Refusal CONDITIONS already said out loud. A refusal that cannot change
+#: while the process runs is a standing fact, and a standing fact repeated
+#: every turn is what makes a feed unreadable.
+#:
+#: Keyed on the condition and not on the sentence. The sentence carries the
+#: entry count, so a store that gained one row was a new string and said
+#: itself again: measured live 2026-09-18, five identical "520 entries is
+#: too sparse" warnings in one boot, from a set that exists to make it one.
+#: The count belongs in the message a reader sees, not in the identity of
+#: the thing being deduplicated.
 _REPORTED_REFUSALS: set[str] = set()
+
+
+def _refusal_condition(reason: str) -> str:
+    """Which standing condition this refusal is, ignoring its numbers."""
+
+    lowered = str(reason or "").lower()
+    if "too sparse" in lowered:
+        return "too_sparse"
+    if "carry no recallable token" in lowered or "recallable token" in lowered:
+        return "unrecallable_tokens"
+    return lowered[:60]
 
 
 def _unusable_datastore_reason(memory: Any) -> str:
@@ -338,8 +356,9 @@ def maybe_build_foreground(
             # against a floor nothing on this host reaches. The recall outcome
             # above still carries it every turn, where a reader asking about
             # this turn will find it.
-            if unusable not in _REPORTED_REFUSALS:
-                _REPORTED_REFUSALS.add(unusable)
+            condition = _refusal_condition(unusable)
+            if condition not in _REPORTED_REFUSALS:
+                _REPORTED_REFUSALS.add(condition)
                 logger.warning(
                     "🧠 [WORKER] Foreground non-parametric memory REFUSED: %s. "
                     "Generating from the model alone. Said once; the recall "

@@ -10,9 +10,12 @@ from __future__ import annotations
 import hashlib
 import re
 import threading
+import time
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
+
+from core.runtime.errors import record_degradation
 
 
 class MemoryConsentMode(StrEnum):
@@ -108,6 +111,55 @@ _DELETE_ALL_COMMANDS = frozenset(
 )
 
 
+class _UnhonouredDeletionRequests:
+    """How often somebody asked to be forgotten and was not answered.
+
+    A log line is read by whoever is looking. A counter is read by the
+    integrity surface, which is where a privacy control that is quietly
+    doing nothing becomes visible without anyone having to look.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self.count = 0
+        self.principals: set[str] = set()
+        self.last_at: float = 0.0
+
+    def record(self, principal: str) -> None:
+        with self._lock:
+            self.count += 1
+            if principal:
+                self.principals.add(principal[:160])
+            self.last_at = time.time()
+
+    def status(self) -> dict[str, Any]:
+        with self._lock:
+            return {
+                "unhonoured_deletion_requests": self.count,
+                "people_affected": len(self.principals),
+                "last_at": self.last_at or None,
+            }
+
+    def reset(self) -> None:
+        with self._lock:
+            self.count = 0
+            self.principals.clear()
+            self.last_at = 0.0
+
+
+_UNHONOURED = _UnhonouredDeletionRequests()
+
+
+def memory_consent_report() -> dict[str, Any]:
+    """For the integrity surface."""
+
+    return _UNHONOURED.status()
+
+
+def reset_unhonoured_deletion_requests_for_test() -> None:
+    _UNHONOURED.reset()
+
+
 def _normalized_command_body(text: str) -> str:
     normalized = " ".join(str(text or "").strip().lower().split())
     normalized = _COMMAND_PREFIX.sub("", normalized, count=1)
@@ -142,6 +194,27 @@ def apply_relational_memory_command(
     mode = parse_consent_command(normalized)
     delete_all = is_delete_all_relational_memory_command(normalized)
     if mode is None and not delete_all:
+        # Not a command — but if it MEANT erasure, saying nothing is the
+        # defect. The exact-match set above is right to be exact, because
+        # erasing what she knows about somebody is irreversible and "do not
+        # forget everything about me" must never fire it. What was wrong is
+        # that a near miss went out as an ordinary message: the person
+        # asked, believed they had asked, and nothing happened and nothing
+        # said so. Five of seven ordinary phrasings, measured 2026-09-18.
+        if looks_like_a_deletion_request(normalized):
+            _UNHONOURED.record(exact_id)
+            record_degradation(
+                "memory_consent.deletion_request",
+                RuntimeError(
+                    "a message asking to be forgotten matched no exact command "
+                    f"and was not acted on: {normalized[:120]!r}"
+                ),
+                severity="warning",
+                action=(
+                    "left relational memory untouched; the person's request "
+                    "was not in the command vocabulary"
+                ),
+            )
         return None
     evidence = hashlib.sha256(
         f"{exact_id}\n{normalized}".encode("utf-8", errors="replace")
@@ -206,15 +279,70 @@ def apply_relational_memory_command(
     }
 
 
-def is_forget_command(text: str) -> bool:
-    lower = text.lower().strip()
-    return any(
-        cmd in lower
-        for cmd in (
-            "forget this",
-            "delete this memory",
-            "erase that",
-            "forget the session",
-            "delete the movie session",
-        )
-    )
+#: Erasure asked for in the imperative. Composed rather than enumerated:
+#: a verb that means erase, and an object that means what you hold about
+#: me. That covers phrasings nobody wrote down, which is the whole point —
+#: the exact-match command set below cannot, and the predicate it replaced
+#: was five literal sentences called by nothing, one of them
+#: "delete the movie session", a past test case left in a production check.
+_ERASURE_VERBS = (
+    "forget",
+    "delete",
+    "erase",
+    "wipe",
+    "remove",
+    "scrub",
+    "purge",
+    "clear",
+)
+_MEMORY_OBJECTS = (
+    "about me",
+    "about myself",
+    "you know about",
+    "you have about",
+    "you have on me",
+    "you hold about",
+    "have on me",
+    "you remember about",
+    "you stored",
+    "you've stored",
+    "my data",
+    "my memory",
+    "my memories",
+    "my history",
+    "my information",
+    "my details",
+    "relational memory",
+    "everything about",
+    "all of it",
+)
+
+
+def looks_like_a_deletion_request(text: str) -> bool:
+    """Whether this reads as asking to be forgotten, however it is phrased.
+
+    Deliberately NOT the trigger for the deletion itself. Erasing what she
+    knows about somebody is irreversible, so the act stays behind the
+    exact-match command set below, where "do not forget everything about
+    me" cannot fire it.
+
+    Loose on purpose, and safe because of what it does not do. "do not
+    forget everything about me" reads as a deletion request here and costs
+    a log line; it cannot cost a deletion, because deletion is decided
+    elsewhere. A predicate whose only output is visibility can afford to be
+    generous where one that erases cannot.
+
+    This is the other half: a request that means erasure and does not match
+    exactly must not be *silent*. Measured 2026-09-18, five of seven
+    ordinary phrasings did nothing and said nothing — including "Aura,
+    forget everything you know about me", whose prefix the normaliser
+    strips and whose body is one word away from a command. The person
+    asked, believed they had asked, and nothing happened.
+    """
+
+    body = _normalized_command_body(text)
+    if not body:
+        return False
+    if not any(verb in body for verb in _ERASURE_VERBS):
+        return False
+    return any(obj in body for obj in _MEMORY_OBJECTS)
