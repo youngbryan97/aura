@@ -43,11 +43,19 @@ from core.brain.llm import mlx_client
 
 
 def _abandonment_source() -> str:
-    """The first-token abandonment branch, read from the module."""
-    source = inspect.getsource(mlx_client)
-    start = source.index("livelock_ceiling = self._first_token_hard_ceiling")
-    end = source.index("soft_cancel_active_generation(\"abandoned_first_token_sla\")", start)
-    return source[start:end]
+    """The waiting method and the helpers lifted out of it.
+
+    This used to be the slice between `livelock_ceiling = ...` and the soft
+    cancel. The method-size sweep split that branch across a helper and its
+    caller, so the two markers stopped bracketing one run of code and the
+    slice no longer held `request_hard_ceiling` or the request-id fence —
+    both still there, both still on the path, neither inside the cut.
+    """
+    from tests.source_contract import function_with_its_helpers
+
+    return function_with_its_helpers(
+        mlx_client, "MLXLocalClient._wait_for_generation_result"
+    )
 
 
 class TestTheTwoCeilingsAreDistinguished:
@@ -71,11 +79,32 @@ class TestTheTwoCeilingsAreDistinguished:
         assert "request_hard_ceiling," in source
 
 
+def _the_block_after(source: str, marker: str) -> str:
+    """The indented body that follows `marker`, and nothing after it.
+
+    A negative assertion needs a boundary. `_abandonment_source()` is the
+    waiting method plus its helpers, so slicing "from here to the end"
+    reaches into functions the branch has nothing to do with, and
+    "_deferred_reboot_reason is absent" stops meaning anything.
+    """
+    lines = source.splitlines()
+    at = next(i for i, line in enumerate(lines) if marker in line)
+    opener = len(lines[at]) - len(lines[at].lstrip())
+    body = [lines[at]]
+    for line in lines[at + 1 :]:
+        if line.strip() and (len(line) - len(line.lstrip())) <= opener:
+            break
+        body.append(line)
+    return "\n".join(body)
+
+
 class TestRecycleIsReservedForRealWedges:
     def test_a_healthy_worker_past_its_deadline_is_not_recycled(self):
         """The branch Bryan's turn took. It must not set a reboot reason."""
         source = _abandonment_source()
-        healthy_branch = source[source.index("else:", source.index("elif livelocked")):]
+        healthy_branch = _the_block_after(
+            source[source.index("elif livelocked") :], "else:"
+        )
         assert "_deferred_reboot_reason" not in healthy_branch
         assert "KEEPING the warm lane" in healthy_branch
 

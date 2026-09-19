@@ -71,8 +71,19 @@ def test_every_continuity_block_reaches_every_path(objective, marker):
 
 
 def test_continuity_group_is_defined_exactly_once():
-    """The group must not drift back into per-path copies."""
-    source = inspect.getsource(ContextAssembler.build_system_prompt)
+    """The group must not drift back into per-path copies.
+
+    Counted over the whole assembler rather than over `build_system_prompt`
+    alone: the method-size sweep moved the assembly into
+    `_build_system_prompt_stability_v58_zenith`, so reading the method found
+    zero of something that is still defined exactly once. "Exactly once" is
+    the property, and the module is where once means once.
+    """
+    from core.brain.llm import context_assembler
+
+    from tests.source_contract import module_source
+
+    source = module_source(context_assembler)
     assert source.count("continuity_sections = (") == 1
     assert source.count("personhood_sections = (") == 1
 
