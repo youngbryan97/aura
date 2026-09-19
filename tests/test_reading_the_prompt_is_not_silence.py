@@ -13,34 +13,29 @@ From outside that looks exactly like a mind that is not thinking.
 """
 from __future__ import annotations
 
-import inspect
-
 from core.brain.llm import mlx_client
 
 
 def _cancel_block() -> str:
-    """The whole function that decides whether to cancel, not a window into it.
+    """The whole function that decides whether to cancel, plus what it calls.
 
     This used to return 1,100 characters either side of `prefilling = (`. The
     function grew past that, and `test_the_livelock_ceiling_still_applies`
     started failing on a line that is still there — the slice had simply
     stopped reaching it. A test that measures how long a block is, while
     claiming to measure what it does, fails for a reason it cannot report.
-    """
-    import ast
 
-    source = inspect.getsource(mlx_client)
-    at = source[: source.index("prefilling = (")].count("\n") + 1
-    tree = ast.parse(source)
-    holding = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        and node.lineno <= at <= (node.end_lineno or 0)
-    ]
-    assert holding, "nothing in mlx_client contains the prefill decision any more"
-    innermost = max(holding, key=lambda node: node.lineno)
-    return ast.get_source_segment(source, innermost) or ""
+    Then the method-size sweep split the decision in two: `prefilling = (`
+    went into `_wait_for_generation_result_ceiling_about_fire` and the
+    ceiling it feeds stayed in `_wait_for_generation_result`. Anchoring on
+    either half reads a function that no longer holds the other, so the unit
+    is the waiting method together with the helpers lifted out of it.
+    """
+    from tests.source_contract import function_with_its_helpers
+
+    return function_with_its_helpers(
+        mlx_client, "MLXLocalClient._wait_for_generation_result"
+    )
 
 
 def test_prefill_in_flight_lifts_the_callers_first_token_ceiling():

@@ -30,10 +30,26 @@ import inspect
 import pytest
 
 from interface.routes import chat_turn_contract as contract
+from tests.source_contract import function_containing
 
 
 def _source() -> str:
     return inspect.getsource(contract)
+
+
+#: The statement that works the flag out, rather than the first place the
+#: name is typed. A comment was written above the computation explaining
+#: which proof is deliberately NOT required, so `source.index` on the bare
+#: name began landing on prose 494 lines earlier and the 1,800-character
+#: window that followed it held none of the rule.
+_THE_OWNERSHIP_RULE = "single_owner_model_generation_proven = bool("
+
+
+def _the_ownership_rule() -> str:
+    """The whole function that decides single ownership."""
+
+    _name, body = function_containing(contract, _THE_OWNERSHIP_RULE)
+    return body
 
 
 @pytest.mark.parametrize(
@@ -66,9 +82,7 @@ def test_both_completion_outcomes_prove_single_ownership(path):
     not change the ownership story, and naming only one outcome meant the
     better one could not be served.
     """
-    source = _source()
-    start = source.index("single_owner_model_generation_proven")
-    block = source[start : start + 1800]
+    block = _the_ownership_rule()
 
     assert f'"{path}"' in block, path
 
@@ -92,9 +106,7 @@ def test_a_genuinely_unknown_path_is_still_refused():
 
 def test_the_generation_arithmetic_is_unchanged():
     """The count rule is what makes ownership provable; it must not loosen."""
-    source = _source()
-    start = source.index("single_owner_model_generation_proven")
-    block = source[start : start + 1800]
+    block = _the_ownership_rule()
 
     assert "foreground_model_generation_count == 1 + completion_retry_count" in block
     assert "completion_retry_count <= _MAX_USER_SURFACE_CONTINUATIONS" in block

@@ -113,18 +113,21 @@ class TestTheFetchFollowsTheRequest:
         to find an arbitrary number." A "+1 spare for a dead link" was the
         same mistake one size smaller.
         """
-        import inspect
+        # The class and the mixins it inherits from. The rule moved into
+        # `_ResearchesBeforeItWrites`, which is where the skill still gets
+        # it from — reading the class alone found neither half of this.
+        from tests.source_contract import class_with_its_bases
 
-        source = inspect.getsource(DesktopTaskSkill)
+        source = class_with_its_bases(DesktopTaskSkill)
         assert "num_results = requested" in source
         assert "requested + 1" not in source
 
     def test_an_unstated_count_is_not_invented(self):
         """The key is simply not sent, so web_search's own documented default
         applies — one default where it is described, not five guesses."""
-        import inspect
+        from tests.source_contract import class_with_its_bases
 
-        source = inspect.getsource(DesktopTaskSkill)
+        source = class_with_its_bases(DesktopTaskSkill)
         assert '**({"num_results": num_results} if num_results else {})' in source
 
     def test_the_only_surviving_bound_protects_the_runtime(self):

@@ -31,8 +31,10 @@ import inspect
 from types import ModuleType
 
 __all__ = [
+    "class_with_its_bases",
     "declared_in",
     "function_containing",
+    "function_with_its_helpers",
     "in_order",
     "module_source",
     "reached_from_a_finally",
@@ -242,3 +244,32 @@ def _dedent(body: str) -> str:
     import textwrap
 
     return textwrap.dedent(body)
+def class_with_its_bases(cls: type) -> str:
+    """``cls``'s own source plus every base it inherits behaviour from.
+
+    The third shape the method-size work produces: a block is lifted out of
+    a class into a mixin the class then inherits. What the class DOES is
+    unchanged, and ``inspect.getsource(TheClass)`` stops containing it.
+
+    LIVE 2026-09-18: the rule that sends exactly the number of sources the
+    person asked for — ``num_results = requested``, with the key omitted
+    when they asked for none — moved from ``DesktopTaskSkill`` into
+    ``_ResearchesBeforeItWrites``. Two tests read the class and found
+    neither, while the skill still behaved exactly as they describe.
+
+    ``object`` is skipped, and so is anything whose source cannot be read
+    (a C extension, a dynamically built class), because a base that cannot
+    be read is not evidence either way.
+    """
+
+    seen: list[str] = []
+    for base in cls.__mro__:
+        if base is object:
+            continue
+        try:
+            seen.append(inspect.getsource(base))
+        except (OSError, TypeError) as exc:  # pragma: no cover - C bases
+            del exc
+    if not seen:
+        raise AssertionError(f"no source could be read for {cls!r} or its bases")
+    return "\n".join(seen)
