@@ -198,7 +198,10 @@ class CodeFixGenerator:
 
         """
         logger.info("Generating fix for %s:%d", file_path, line_number)
-        
+        # Why the last attempt came back empty, when it was put off rather
+        # than failed. Cleared here so an old wait is not read as this one.
+        self.last_deferred = ""
+
         # Read the buggy code
         try:
             code_context = self._extract_code_context(file_path, line_number, context_lines)
@@ -345,6 +348,9 @@ Start your response with the first line of fixed code."""
             router = ServiceContainer.get("llm_router", default=None)
             if router is None or not hasattr(router, "think"):
                 raise RuntimeError("no LLM router is registered for code repair")
+            import time as _time
+
+            asked_at = _time.time()
             response = await router.think(
                 prompt=prompt,
                 prefer_tier="primary",
@@ -356,6 +362,16 @@ Start your response with the first line of fixed code."""
             )
             raw = response if isinstance(response, str) else getattr(response, "content", "") or ""
             code = extract_python_code(str(raw)).strip()
+            if not raw:
+                # Nothing came back. Where the router put the request off —
+                # the cortex busy with her conversation, a lane still
+                # warming — that is a wait, and it was reported as "Fix
+                # generation failed" a hundred and ten times in one session.
+                from core.brain.llm.deferral_record import take_deferral
+
+                deferred = take_deferral(origin="code_repair", not_before=asked_at)
+                if deferred is not None:
+                    self.last_deferred = str(getattr(deferred, "reason", "") or "deferred")
             return code or None
 
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
@@ -1075,6 +1091,9 @@ class AutonomousCodeRepair:
                 stage="fix_generation",
                 detail="CodeFixGenerator returned no fix",
             )
+            deferred = str(getattr(self.generator, "last_deferred", "") or "")
+            if deferred:
+                return False, None, {"error": f"deferred: {deferred}", "deep_repair": deep_repair}
             return False, None, {"error": "Fix generation failed", "deep_repair": deep_repair}
         
         logger.info("Generated fix:\n%s", fix.generate_diff())

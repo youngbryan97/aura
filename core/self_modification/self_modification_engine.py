@@ -483,6 +483,11 @@ class AutonomousSelfModificationEngine:
                     "🛡️ Autonomous repair declined by the Growth Ladder: %s", reason
                 )
                 return None
+            # Put off, not failed: no model was free to write it. A hundred
+            # and ten of these read as a broken repair pipeline in one session.
+            if reason.startswith("deferred:"):
+                logger.info("Autonomous repair waiting for a model to be free: %s", reason)
+                return None
             logger.warning("Fix generation or sandbox testing failed: %s", reason)
             return None
 
@@ -977,7 +982,13 @@ class AutonomousSelfModificationEngine:
             fix_proposal = await self.propose_fix(top_bug)
 
             if not fix_proposal:
-                logger.warning("Failed to generate fix proposal")
+                deferred = str(
+                    getattr(getattr(self.code_repair, "generator", None), "last_deferred", "") or ""
+                )
+                (logger.info if deferred else logger.warning)(
+                    "Failed to generate fix proposal%s",
+                    f" (put off: {deferred})" if deferred else "",
+                )
                 return {
                     "success": False,
                     "bugs_found": len(bugs),

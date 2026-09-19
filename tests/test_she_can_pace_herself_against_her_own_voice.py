@@ -273,9 +273,7 @@ def test_effort_follows_what_rides_on_the_decision():
 
 
 def test_a_routine_move_is_treated_as_routine():
-    import inspect
 
-    from core.skills import screen_pursuit
 
     source = pursuit_loop_source()
     assert "min(stakes, 0.3)" in source, "every step was being paid for at full weight"
@@ -355,7 +353,8 @@ def test_language_is_asked_where_it_changes_the_answer():
     assert "lost = not sees and (stuck(history) or (tried_everything and no_model))" in source
     assert "if asking and not (lost or offered_pacing):" in source
     assert "time_to_ask = lost and" in source
-    assert "if lost and (knowledge[" in source
+    # Only when lost — and not while a lookup that timed out is waiting.
+    assert "if lost and may_look and (knowledge[" in source
     assert screen_pursuit._ask_again_after(0) == screen_pursuit.LANGUAGE_EVERY
     assert screen_pursuit._ask_again_after(-1) > screen_pursuit.LANGUAGE_EVERY
 
@@ -564,7 +563,6 @@ async def test_words_take_no_longer_than_the_world_she_is_thinking_in_waits():
 
 @pytest.mark.asyncio
 async def test_with_no_measurement_of_the_world_the_run_is_the_only_bound():
-    import asyncio
     import time
 
     from core.skills.screen_pursuit_bearings import _within_the_run

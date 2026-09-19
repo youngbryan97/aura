@@ -2416,11 +2416,13 @@ class TestReadyMeansRespondingNotMerelyAlive:
         unsynchronised — turning the recovery into the wedge. Tear down
         inline, exactly as the stale-handshake branch below it does.
         """
-        import inspect
 
         import core.brain.llm.mlx_client as mod
 
-        source = inspect.getsource(mod.MLXLocalClient._ensure_worker_alive_inner)
+        from source_support import inlined_function_source
+
+        # As it runs: the size sweep moved its blocks into helpers.
+        source = inlined_function_source(mod.__file__, "MLXLocalClient._ensure_worker_alive_inner")
         marker = source.index("ready_check_worker_silent")
         window = source[marker : marker + 1200]
         assert "reboot_worker" not in window
@@ -2583,11 +2585,13 @@ class TestBenchmarkTrustIsNotSelfDeclared:
         benchmark run — so a self-declared label alone cannot silence the one
         signal that says the lane is misbehaving.
         """
-        import inspect
 
         import core.brain.llm.mlx_client as mod
 
-        source = inspect.getsource(mod.MLXLocalClient._generate_inner)
+        from source_support import inlined_function_source
+
+        # As it runs: the size sweep moved its blocks into helpers.
+        source = inlined_function_source(mod.__file__, "MLXLocalClient._generate_inner")
         marker = source.index("benchmark_baseline_cancel = ")
         window = source[marker : marker + 400]
         assert "_benchmark_run_context_active()" in window
@@ -2596,11 +2600,13 @@ class TestBenchmarkTrustIsNotSelfDeclared:
     def test_non_string_worker_text_does_not_raise(self, client):
         """CP126 0e318b3a: strip() on a mapping is an AttributeError, not a
         typed failure, and worker corruption became a client exception."""
-        import inspect
 
         import core.brain.llm.mlx_client as mod
 
-        source = inspect.getsource(mod.MLXLocalClient._generate_inner)
+        from source_support import inlined_function_source
+
+        # As it runs: the size sweep moved its blocks into helpers.
+        source = inlined_function_source(mod.__file__, "MLXLocalClient._generate_inner")
         assert 'if not isinstance(raw_text, str):' in source
         assert "treated non-string worker text as empty response" in source
 

@@ -1169,6 +1169,16 @@ async def decide_the_next_move(
                         wants = going.expecting(fresh.approach, len(moves))
                         if wants:
                             said = f"{said} — {wants}"
+                    # And whether anything she read bears it out. Her voice
+                    # is one witness; what she read is another, and a line
+                    # only her own voice vouches for is held knowing that.
+                    read = knowledge["held"].findings if knowledge["held"] is not None else []
+                    if read:
+                        from core.agency.what_agrees import borne_out
+
+                        borne = borne_out(fresh.approach, read)
+                        said = f"{said} ({borne.says_so()})"
+                        logger.info("the line she took, against what she read: %s", borne.says_so())
                     _tell(f"{said} ({ended})" if changing and ended else said)
                 elif going is not None:
                     going.expecting(fresh.approach, len(moves))

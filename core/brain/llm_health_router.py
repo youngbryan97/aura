@@ -114,7 +114,7 @@ _GENERATION_GATE_NEXT_LEASE_ID = 0
 _GENERATION_GATE_LAST_ACQUIRED_AT = 0.0
 _GENERATION_GATE_LAST_OWNER = ""
 # Wait long enough to outlast one full serialized generation: gated
-# turns measure 31-46s live (2026-06-11), so the old 20s wait starved
+# turns measured up to 46s live (2026-06-11), so the old 20s wait starved
 # any request arriving while both slots were mid-turn — external
 # validation's third coding repair died exactly that way while holding
 # an unused 240s budget. 75s covers one slow turn plus margin; callers
@@ -1078,7 +1078,12 @@ class EndpointHealth:
             self.last_failure_reason = f"transient:{str(reason or '')[:180]}"
             self.half_open_probe_at_monotonic = 0.0
             if self.state != CircuitState.OPEN:
-                logger.warning(
+                # A lane still warming is not failing: it is skipped until it
+                # is ready, which is what this trip is for. Said as a warning
+                # it was a third of the warnings a live session produced, and
+                # it rotated the ones worth reading out of her panel.
+                log = logger.info if _only_warming(reason) else logger.warning
+                log(
                     "Circuit OPEN for %s on transient runtime failure. Reason: %s",
                     self.name,
                     reason,
@@ -1291,6 +1296,13 @@ def _is_transient_local_runtime_failure(error: str) -> bool:
             "warmup_deferred",
         )
     )
+
+
+
+def _only_warming(reason: str) -> bool:
+    """Whether a lane was skipped only because it is still coming up."""
+    said = str(reason or "")
+    return said.startswith(("lane_not_ready:", "warmup_deferred", "foreground_warmup_timeout"))
 
 
 def _background_error_is_quiet(error: str) -> bool:
@@ -3508,7 +3520,14 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
         else:
             now = time.time()
             if now - self._last_fallback_warning_at > 30.0:
-                logger.warning(
+                # Every lane for this tier warming is a wait, not a fault.
+                warming = [
+                    ep for ep in self.endpoints.values()
+                    if _only_warming(str(getattr(ep, "last_failure_reason", "") or "").removeprefix("transient:"))
+                ]
+                unavailable = [ep for ep in self.endpoints.values() if not ep.is_available()]
+                log = logger.info if unavailable and len(warming) == len(unavailable) else logger.warning
+                log(
                     "⚠️ Router: no endpoints matched routing plan for tier '%s'. Failing closed to safe fallback order.",
                     prefer_tier,
                 )

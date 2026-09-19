@@ -614,9 +614,20 @@ class MetabolicCoordinator:
 
             # Level 0 (Lockdown) is extremely conservative
             if volition == 0 and self._is_resource_constrained():
-                logger.warning("Metabolism: Throttling due to resource pressure (Lockdown active).")
+                # Said when it starts, not on every tick it lasts: fifty-eight
+                # identical warnings in one session said one thing once and
+                # pushed the rest of her warnings out of the panel.
+                if not getattr(self, "_throttled_since", 0.0):
+                    self._throttled_since = time.monotonic()
+                    logger.warning("Metabolism: Throttling due to resource pressure (Lockdown active).")
                 await asyncio.sleep(10)
                 return False
+            if getattr(self, "_throttled_since", 0.0):
+                logger.info(
+                    "Metabolism: pressure eased after %.0fs of throttling",
+                    time.monotonic() - self._throttled_since,
+                )
+                self._throttled_since = 0.0
 
             # Levels 1-3 are progressively more willing to spend resources
             if volition > 0:

@@ -26,10 +26,20 @@ import sys
 import threading
 from typing import Any
 
+from core.runtime.flags import FlagKind, declare
+
 from core.governance_context import GovernanceViolation
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 
 logger = logging.getLogger("Aura.EyesOfTheirOwn")
+
+_EYES_IN_THIS_PROCESS = declare(
+    "AURA_EYES_IN_THIS_PROCESS",
+    kind=FlagKind.BOOL,
+    default=False,
+    description="Read windows in this process instead of in the eyes' own process",
+    owner="core/perception/eyes_of_their_own.py",
+)
 
 __all__ = ["look_through_them", "stop_them", "they_are_running"]
 
@@ -147,7 +157,7 @@ def look_through_them(
     None when they are not available or did not answer in time, which means
     the caller should look for itself.
     """
-    if os.getenv("AURA_EYES_IN_THIS_PROCESS", "").strip().lower() in {"1", "true", "yes"}:
+    if bool(_EYES_IN_THIS_PROCESS.value()):
         return None
     global _CHILD, _GAVE_UP
     with _LOCK:
@@ -184,10 +194,33 @@ def look_through_them(
             _let_go(child)
             return None
         child._has_answered = True  # noqa: SLF001 - her own handle
+    # What the eyes noticed while reading, said here where it is heard. Their
+    # own logging goes nowhere: the other process has no log of its own.
+    for line in reading.pop("_noticed", None) or ():
+        logger.info("her eyes: %s", str(line)[:300])
     if reading.get("ok") is False:
         logger.info("they could not read it (%s); reading here", reading.get("error"))
         return None
     return reading
+
+
+class _WhatTheyNoticed(logging.Handler):
+    """The other process's log lines, kept to go back with the next reading."""
+
+    def __init__(self) -> None:
+        super().__init__(level=logging.INFO)
+        self.lines: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:  # pragma: no cover - other process
+        try:
+            self.lines.append(record.getMessage())
+            del self.lines[:-20]
+        except (TypeError, ValueError):
+            return
+
+    def taken(self) -> list[str]:
+        lines, self.lines = self.lines, []
+        return lines
 
 
 def _stay_out_of_the_dock() -> None:  # pragma: no cover - runs in the other process
@@ -220,6 +253,11 @@ def _serve() -> None:  # pragma: no cover - runs in the other process
     import time
 
     _stay_out_of_the_dock()
+    noticed = _WhatTheyNoticed()
+    for name in ("Aura.WhatThePixelsShow", "Aura.WindowServer"):
+        watched = logging.getLogger(name)
+        watched.addHandler(noticed)
+        watched.setLevel(logging.INFO)
 
     from core.capabilities import window_server
     from core.perception import what_the_pixels_show as pixels
@@ -268,6 +306,9 @@ def _serve() -> None:  # pragma: no cover - runs in the other process
             reading["_shape"] = [int(picture.shape[1]), int(picture.shape[0])]
             reading["_settled"] = bool(still)
             reading["_looked_took"] = round(time.monotonic() - began, 3)
+            said = noticed.taken()
+            if said:
+                reading["_noticed"] = said
             print(json.dumps(reading, default=float), flush=True)
         except Exception as why:  # noqa: BLE001 - the parent reads it instead
             print(json.dumps({"ok": False, "error": f"{type(why).__name__}: {why}"}), flush=True)

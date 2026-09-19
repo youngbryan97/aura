@@ -2,6 +2,7 @@ import asyncio
 import inspect
 import json
 import logging
+import time
 from typing import Any
 
 from core.runtime.errors import FallbackClassification, record_degradation
@@ -13,6 +14,10 @@ from ..state.aura_state import AuraState
 from . import BasePhase
 
 logger = logging.getLogger(__name__)
+
+#: When recall has taken long enough to be worth saying where the time went:
+#: the kernel's own budget for a background phase (core/kernel/aura_kernel.py).
+_SLOW_ENOUGH_TO_SAY_S = 1.5
 
 _MEMORY_RECOVERABLE_ERRORS = (
     ImportError,
@@ -782,13 +787,35 @@ class MemoryRetrievalPhase(BasePhase):
                 )
                 return None
 
+        # Each source timed, so a slow phase says which part of it was slow.
+        # The kernel measured this phase at five to nine seconds a background
+        # tick (live, 2026-09-18) and could only name the phase.
+        took: dict[str, float] = {}
+
+        async def _timed(name: str, source: Any) -> Any:
+            began = time.monotonic()
+            try:
+                return await source
+            finally:
+                took[name] = time.monotonic() - began
+
+        gathered_from = time.monotonic()
         dual_res, kg_res, facade_res, episodic_res, intentional_res = await asyncio.gather(
-            _get_dual(),
-            _get_kg(),
-            _get_facade(),
-            _get_episodic(),
-            _get_intentional(),
+            _timed("dual memory", _get_dual()),
+            _timed("knowledge graph", _get_kg()),
+            _timed("memory facade", _get_facade()),
+            _timed("episodic", _get_episodic()),
+            _timed("intentional", _get_intentional()),
         )
+        if time.monotonic() - gathered_from > _SLOW_ENOUGH_TO_SAY_S and took:
+            slowest = max(took, key=took.get)
+            logger.info(
+                "recall took %.1fs; slowest source %s at %.1fs (%s)",
+                time.monotonic() - gathered_from,
+                slowest,
+                took[slowest],
+                ", ".join(f"{name} {seconds:.1f}s" for name, seconds in sorted(took.items())),
+            )
 
         memories: list[str] = []
         memory_candidates: list[tuple[float, str]] = []

@@ -26,6 +26,15 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.perception.what_is_there import Arrangement, Cell, arranged
+from core.runtime.flags import FlagKind, declare
+
+_NOTE_READINGS = declare(
+    "AURA_NOTE_READINGS",
+    kind=FlagKind.STRING,
+    default="",
+    description="A file to append each screen reading to, for fixing a crop against what she saw",
+    owner="core/perception/where_it_responds.py",
+)
 
 logger = logging.getLogger("Aura.Responds")
 
@@ -749,9 +758,7 @@ def _note_what_was_seen(
     Off unless AURA_NOTE_READINGS names a file. Her screen access is hers, so
     a reading cannot be sampled from beside her.
     """
-    import os
-
-    where = os.environ.get("AURA_NOTE_READINGS")
+    where = str(_NOTE_READINGS.value() or "").strip()
     if not where:
         return
     try:

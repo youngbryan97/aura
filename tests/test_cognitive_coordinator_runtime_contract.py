@@ -18,6 +18,12 @@ class _Trace:
     def save(self):
         self.saved = True
 
+    async def save_async(self):
+        # What finalize_response calls: a write from async code goes off the
+        # loop. With only save() here the call failed quietly and the trace
+        # was reported unsaved.
+        self.saved = True
+
 
 def _coordinator(orch):
     coord = CognitiveCoordinator.__new__(CognitiveCoordinator)

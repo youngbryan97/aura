@@ -922,6 +922,15 @@ def settled_reading(
             and not anything_unread(reading_again)
         )
         reading, said, looks = reading_again, said_again, looks_again
+    if not still and wait:
+        unread = [
+            tuple(spot) for grid in (reading.get("grids") or ()) for spot in (grid.get("unsure") or ())
+        ]
+        logger.info(
+            "not still after %.1fs: %s",
+            time.monotonic() - began,
+            f"place(s) {unread} could not be read" if unread else "it was still changing",
+        )
     return picture, reading, still
 
 

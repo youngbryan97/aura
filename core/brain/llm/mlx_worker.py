@@ -90,6 +90,22 @@ _FLAG_UNIFIED_RECURRENT_SHADOW_PACKAGE = _declare_flag(
     ),
     owner="unified-recurrent-shadow",
 )
+# Declared exactly as mlx_client declares them: one knob, one meaning, and a
+# re-declaration that differs in any field raises.
+_FLAG_CONTRASTIVE_DECODING = _declare_flag(
+    "AURA_CONTRASTIVE_DECODING",
+    kind=_FlagKind.BOOL,
+    default=False,
+    description="Enable contrastive decoding with an amateur model",
+    owner="core.brain.llm.mlx_client",
+)
+_FLAG_CONTRASTIVE_AMATEUR_MODEL = _declare_flag(
+    "AURA_CONTRASTIVE_AMATEUR_MODEL",
+    kind=_FlagKind.STRING,
+    default="",
+    description="Amateur model path for contrastive decoding",
+    owner="core.brain.llm.mlx_client",
+)
 _FLAG_REASONING_STEERING = _declare_flag(
     "AURA_REASONING_STEERING",
     kind=_FlagKind.STRING,
@@ -5409,13 +5425,8 @@ def _mlx_worker_loop_tier_forward_pass(logger, logits_processors, tokenizer):
         "on",
         "yes",
     }
-    _cd_on = os.environ.get("AURA_CONTRASTIVE_DECODING", "").strip().lower() in {
-        "1",
-        "true",
-        "on",
-        "yes",
-    }
-    _amateur_path = os.environ.get("AURA_CONTRASTIVE_AMATEUR_MODEL", "").strip()
+    _cd_on = bool(_FLAG_CONTRASTIVE_DECODING.value())
+    _amateur_path = str(_FLAG_CONTRASTIVE_AMATEUR_MODEL.value() or "").strip()
     if _steer_on or (_cd_on and _amateur_path):
         try:
             from core.brain.llm.contrastive_decoding import (
@@ -7565,7 +7576,7 @@ def _mlx_worker_loop(
                             max_internal_retries = 1 if proof_evaluation_contract else 2
 
                             # This clock belongs to REPAIR, not drafting. A healthy
-                            # resident-32B first pass takes 30-70s under load; starting
+                            # resident-32B first pass takes up to 70s under load; starting
                             # a 20s repair wall before that pass made the wall expire
                             # before a rejected draft even existed, so an authored
                             # correction could never run.

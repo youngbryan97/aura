@@ -211,7 +211,13 @@ class TaskKnowledge:
         tail = f", and {rest} other thing{'s' if rest > 1 else ''}" if rest > 0 else ""
         opening = "This stopped working, so I looked it up" if self.stuck else "I read that"
         joiner = ": " if self.stuck else " "
-        return f"{opening}{joiner}{lead}{tail}. I am going to try that."
+        # And whether a second source says the same, which is what makes a
+        # thing read worth leaning on rather than one page's opinion.
+        from core.agency.what_agrees import witnesses
+
+        first = witnesses(self.findings)[0]
+        seconded = f" ({first.source} and {', '.join(first.by)} agree)" if first.by else ""
+        return f"{opening}{joiner}{lead}{seconded}{tail}. I am going to try that."
 
 
 _remembered: dict[str, TaskKnowledge] = {}

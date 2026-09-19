@@ -334,10 +334,13 @@ def test_the_latent_client_returns_the_answer_tokens():
     from mlx_source import client_source
 
     source = client_source()
-    marker = '"ok": True,\n                    "text": answer,'
-    assert marker in source
-    payload = source[source.index(marker) : source.index(marker) + 1800]
-    keys = re.findall(r'^\s{20}"([a-z_0-9]+)":', payload, re.M)
+    # Found by what it says, at whatever depth it sits: it moved from a method
+    # to module level and the indentation this matched on went with it.
+    found = re.search(r'"ok": True,\n(\s+)"text": answer,', source)
+    assert found, "the latent lane's answer payload was not found"
+    indent = len(found.group(1))
+    payload = source[found.start() : found.start() + 1800]
+    keys = re.findall(r"^\s{%d}\"([a-z_0-9]+)\":" % indent, payload, re.M)
 
     assert "tokens" in keys, "latent_reason must hand the facade the answer tokens"
 

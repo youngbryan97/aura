@@ -143,3 +143,45 @@ def test_reader_uses_registered_non_model_process_owner(monkeypatch):
     assert options["read_only"] and options["accelerator_capability"] == "none"
     assert options["source"] == "perception.window_reader"
     assert options["env"]["AURA_EYES_IN_THIS_PROCESS"] == "1"
+
+
+def test_what_her_eyes_notice_is_heard(monkeypatch, caplog):
+    """Her eyes run in a process with no log of its own; what they notice comes back with the reading."""
+    import logging
+
+    from core.perception import eyes_of_their_own as eyes
+
+    class _Child:
+        _has_answered = True
+
+    monkeypatch.setattr(eyes, "_start_them", lambda: True)
+    monkeypatch.setattr(eyes, "_CHILD", _Child())
+    monkeypatch.setattr(
+        eyes, "_ask",
+        lambda child, job, wait_s: {"ok": True, "grids": [], "_noticed": ["not still after 1.5s: it was still changing"]},
+    )
+
+    class _Window:
+        number, owner = 7, "2048 Game"
+
+    with caplog.at_level(logging.INFO, logger="Aura.EyesOfTheirOwn"):
+        reading = eyes.look_through_them(_Window())
+    assert reading is not None and "_noticed" not in reading
+    assert any("her eyes: not still after 1.5s" in record.getMessage() for record in caplog.records)
+
+
+def test_what_the_other_process_logs_is_kept_for_the_next_reading():
+    import logging
+
+    from core.perception.eyes_of_their_own import _WhatTheyNoticed
+
+    noticed = _WhatTheyNoticed()
+    logger = logging.getLogger("Aura.WhatThePixelsShow.test")
+    logger.addHandler(noticed)
+    logger.setLevel(logging.INFO)
+    try:
+        logger.info("first look at %r", "2048 Game")
+        assert noticed.taken() == ["first look at '2048 Game'"]
+        assert noticed.taken() == []
+    finally:
+        logger.removeHandler(noticed)
