@@ -33,7 +33,6 @@ generator.
 
 from __future__ import annotations
 
-from core.runtime.service_access import optional_service
 import logging
 import re
 import time
@@ -44,6 +43,7 @@ from typing import Any
 
 from core.interiority.ledger import RelationalLedger
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import optional_service
 
 logger = logging.getLogger("Aura.Interiority.Stakes")
 
@@ -318,7 +318,6 @@ class StakeFeed:
         if not wanted:
             return None
         try:
-            from core.container import ServiceContainer
 
             engine = optional_service("capability_engine", default=None)
         except (ImportError, RuntimeError, AttributeError, TypeError, ValueError, KeyError):
@@ -377,13 +376,6 @@ class StakeFeed:
         if not force and not self.due(moment):
             return self._last_report
         self._last_harvest = moment
-
-        try:
-            from core.container import ServiceContainer
-        except ImportError as exc:  # pragma: no cover - container is always present
-            record_degradation("interiority.stakes", exc, action="no container to read stakes from")
-            self._last_report = HarvestReport(at=moment)
-            return self._last_report
 
         reports: list[SourceReport] = []
         for keys, harvest, label in SOURCES:

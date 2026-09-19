@@ -47,12 +47,13 @@ no instrument here reaches it, and it survives this pass untouched.
 
 from __future__ import annotations
 
-from core.runtime.service_access import optional_service
 import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
+
+from core.runtime.service_access import optional_service
 
 logger = logging.getLogger("Aura.Introspection.SelfDenial")
 
@@ -121,7 +122,6 @@ def _pipeline_phases() -> tuple[bool, str]:
 def _episodic_memory() -> tuple[bool, str]:
     """Whether anything is remembered across turns."""
     try:
-        from core.container import ServiceContainer
         from core.service_names import ServiceNames
 
         store = optional_service(ServiceNames.EPISODIC, default=None)
@@ -165,7 +165,6 @@ def _affect_substrate() -> tuple[bool, str]:
     and nothing in this module claims it does.
     """
     try:
-        from core.container import ServiceContainer
         from core.service_names import ServiceNames
 
         engine = optional_service(ServiceNames.AFFECT, default=None)

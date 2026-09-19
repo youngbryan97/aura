@@ -20,7 +20,6 @@ core/agi, core/consciousness, core/resilience, and core/evolution.
 """
 from __future__ import annotations
 
-from core.runtime.service_access import optional_service
 import asyncio
 import importlib.util
 import json
@@ -33,15 +32,16 @@ from typing import Any
 
 from core.container import ServiceContainer
 from core.exceptions import ContainerError
+from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.background_policy import (
     MAINTENANCE_BACKGROUND_POLICY,
     background_activity_reason,
     background_loop_start_reason,
 )
-from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
+from core.runtime.service_access import optional_service
 from core.runtime.state_ownership import state_root
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Evolution")
 

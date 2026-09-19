@@ -8,7 +8,6 @@ sovereign_browser.py; this is the half that thinks about what came back.
 """
 from __future__ import annotations
 
-from core.runtime.service_access import optional_service
 import asyncio
 import json
 import re
@@ -17,6 +16,7 @@ from typing import Any
 
 from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import optional_service
 
 #: A decision round must never take the browser down with it. The loop can
 #: always report a failed round and stop; it can never leave a live lease and a
@@ -184,7 +184,6 @@ class _UnderstandsThePage:
         try:
             from urllib.parse import urlsplit
 
-            from core.container import ServiceContainer
 
             world = optional_service("world_model", default=None)
             beliefs = getattr(world, "beliefs", None)
@@ -221,7 +220,6 @@ class _UnderstandsThePage:
         if not shape or not expected:
             return
         try:
-            from core.container import ServiceContainer
 
             world = optional_service("world_model", default=None)
             if world is None or not hasattr(world, "add_belief"):
@@ -250,7 +248,6 @@ class _UnderstandsThePage:
 
         try:
             from core.brain.llm.context_assembler import ContextAssembler
-            from core.container import ServiceContainer
 
             state = optional_service("aura_state", default=None)
             if state is None:
@@ -287,7 +284,6 @@ class _UnderstandsThePage:
         try:
             from urllib.parse import urlsplit
 
-            from core.container import ServiceContainer
 
             world = optional_service("world_model", default=None)
             if world is None or not hasattr(world, "add_belief"):
@@ -328,7 +324,6 @@ class _UnderstandsThePage:
         if not expected:
             return
         try:
-            from core.container import ServiceContainer
 
             calibration = optional_service("calibration_engine", default=None)
             recorder = getattr(calibration, "record_prediction", None)
@@ -369,7 +364,6 @@ class _UnderstandsThePage:
         understanding is given back to her and she is asked what changed.
         """
 
-        from core.container import ServiceContainer
 
         router = optional_service("llm_router", default=None)
         if router is None:
@@ -669,7 +663,6 @@ class _UnderstandsThePage:
         independent is the difference between minutes and most of an hour.
         """
 
-        from core.container import ServiceContainer
 
         router = optional_service("llm_router", default=None)
         if router is None:

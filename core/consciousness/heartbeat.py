@@ -1,5 +1,3 @@
-from core.container import ServiceContainer
-from core.runtime.service_access import optional_service
 import asyncio
 import inspect
 import logging
@@ -8,6 +6,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.service_access import optional_service
 from core.utils.exceptions import capture_and_log
 
 if TYPE_CHECKING:
@@ -18,6 +17,7 @@ if TYPE_CHECKING:
     from .temporal_binding import TemporalBindingEngine
 
 from core.consciousness.workspace_feed import FLOOR as WORKSPACE_BID_FLOOR
+from core.container import ServiceContainer  # noqa: F401 - tests patch heartbeat.ServiceContainer
 from core.event_bus import get_event_bus
 from core.schemas import TelemetryPayload
 

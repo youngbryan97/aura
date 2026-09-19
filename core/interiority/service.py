@@ -34,7 +34,6 @@ a consumer can call it on a hot path.
 
 from __future__ import annotations
 
-from core.runtime.service_access import optional_service
 import asyncio
 import inspect
 import logging
@@ -64,6 +63,7 @@ from core.interiority.senses import availability, live_channels
 from core.interiority.stakes import StakeFeed
 from core.runtime.errors import record_degradation
 from core.runtime.lockdep import checked_lock
+from core.runtime.service_access import optional_service
 from core.runtime.task_ownership import create_owned_asyncio_task
 
 

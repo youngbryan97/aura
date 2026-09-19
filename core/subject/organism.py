@@ -42,10 +42,11 @@ is stopped as soon as it comes up, along with the free-running loops.
 
 from __future__ import annotations
 
-from core.runtime.service_access import optional_service
 import logging
 from dataclasses import dataclass, field
 from typing import Any
+
+from core.runtime.service_access import optional_service
 
 __all__ = ["Organism", "bring_up", "quiesce", "wind_down"]
 
@@ -256,7 +257,6 @@ def _stop_threads() -> list[str]:
     """
     stopped: list[str] = []
     try:
-        from core.container import ServiceContainer
 
         model = optional_service("unified_world_model", default=None)
         learned = getattr(model, "learned", None) if model is not None else None
