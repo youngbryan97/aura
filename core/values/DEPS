@@ -8,7 +8,7 @@
 #
 # 8 outbound edges when this was generated.
 
-description = "core.values: may import only what it already imports; every new edge is an edit here."
+description = "core.values: existing dependencies plus the shared word-marker helper for principle matching; no conversation services."
 
 include_rules = [
     "+core.values",
@@ -17,6 +17,7 @@ include_rules = [
     "+core.agency",
     "+core.config",
     "+core.container",
+    "+core.conversation.word_markers",
     "+core.event_bus",
     "+core.governance",
     "+core.runtime",

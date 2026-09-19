@@ -1102,6 +1102,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   joint refit reaches 390/500 equivalent with 102 regressions. The selector
   correctly retains the incumbent; G03 remains open and no candidate is
   promoted.
+  [September 19 attribution correction](evidence/G03_WORKING_FACE_ATTRIBUTION_2026-09-19.md)
+  records that the frozen run did not include background repairs. Its refit
+  had 102 exact and 98 equivalent regressions against the incumbent. Component
+  interventions found a silently added boundary-interaction block; ordinary
+  refitting now preserves pointer capacity. The [five-part generalization
+  design](G_GENERALIZATION_REPAIR_DESIGN.md) derives and implements a
+  minimum-change graph update with explicit proof limits and falsification.
+  These implementation changes do not close G03 or establish fresh transfer.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.

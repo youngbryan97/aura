@@ -67,10 +67,27 @@ def _observe(model, item):
             "target_program_sha256": target["program"].sha()}
 
 
+def _constraint_group_summary(groups, fit):
+    """Attribute measured fitting deficits without interpreting missing data as zero."""
+    before, after = fit.get("initial_margins"), fit.get("stored_margins")
+    if before is None or after is None:
+        return None
+    if len(before) != len(after) or sorted(i for indices in groups.values() for i in indices) != list(range(len(before))):
+        raise ValueError("constraint attribution does not partition the measured fit")
+    target = fit["required_margin"]
+    return {name: {"count": len(indices),
+            "initial_wrong_or_tied": sum(before[i] <= 0 for i in indices),
+            "stored_wrong_or_tied": sum(after[i] <= 0 for i in indices),
+            "initial_squared_deficit": sum(max(target - before[i], 0.) ** 2 for i in indices),
+            "stored_squared_deficit": sum(max(target - after[i], 0.) ** 2 for i in indices)}
+            for name, indices in groups.items()}
+
+
 def run_semantic_graph_trial(model, examples, *, training_count=8, validation_count=8,
                              training_pool_count=None, steps=20, max_charts=32, progress=None,
                              objective="squared_deficit", operation_retention_count=None,
-                             learn_operation_pointer=False):
+                             learn_operation_pointer=False, update_rule="working_face",
+                             boundary_policy="supervised"):
     """Fit only selected source rows and independently replay both small cohorts.
 
     This returns no deployable candidate. Validation rows never enter mining
@@ -110,35 +127,43 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
             {item.ir.source_text_sha256 for item in operation_training}):
         raise ValueError("operation retention must include the graph training cohort")
     operation_supervision = source_operation_supervision(model, operation_training)
-    constraints = list(source_operation_constraints(model, operation_supervision))
+    constraints, groups = [], defaultdict(list)
+
+    def retain(name, rows):
+        rows = tuple(rows)
+        groups[name].extend(range(len(constraints), len(constraints) + len(rows)))
+        constraints.extend(rows)
+
+    retain("operation_labels", source_operation_constraints(model, operation_supervision))
     if learn_operation_pointer:
         # Pointer retention follows the full source-retention cohort, just as
         # operation-label retention does. The fitted candidate must not learn
         # boundaries from only the small witnessed-error cohort.
-        constraints.extend(source_operation_pointer_constraints(model, operation_training))
+        retain("operation_boundaries", source_operation_pointer_constraints(model, operation_training,
+                                                                             policy=boundary_policy))
     records = []
     for item in training:
         # The winning joint graph need not occur in the first operation charts.
         selected_contrast, selected_record = mine_runtime_graph_contrast(
             model, item, learn_arguments=True, learn_operation_pointer=learn_operation_pointer)
         if selected_contrast is not None:
-            constraints.append(selected_contrast)
+            retain("selected_runtime_errors", (selected_contrast,))
         rows, record = mine_runtime_graph_constraints(model, item, max_charts=max_charts, learn_arguments=True,
                                                       learn_operation_pointer=learn_operation_pointer)
         record["selected_decode"] = selected_record
         records.append(record)
-        constraints.extend(rows)
+        retain("runtime_graph_competitors", rows)
         binding, binding_record = mine_source_binding_constraint(
             model, item, learn_arguments=True,
         )
         record["binding_constraint"] = binding_record
         if binding is not None:
-            constraints.append(binding)
+            retain("source_binding_competitors", (binding,))
         if progress:
             progress({"stage": "trial_mining", "completed": len(records), "pairs": len(constraints), "row": record})
     candidate, fit = fit_complete_graph_constraints(model, tuple(constraints),
         scale=model.definition_relation_scale, steps=steps, adaptive_step=True, progress=progress,
-        objective=objective, learn_operation_pointer=learn_operation_pointer)
+        objective=objective, learn_operation_pointer=learn_operation_pointer, update_rule=update_rule)
     after = []
     for item in (*training, *validation):
         after.append(_observe(candidate, item))
@@ -187,6 +212,8 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
             "operation_retention_sources": [item.ir.source_text_sha256 for item in operation_training],
             "validation_sources": [item.ir.source_text_sha256 for item in validation],
             "validation_used_for_fit": False, "test_examples_used": 0,
+            "boundary_policy": boundary_policy,
             "before": before, "after": after, "mining": records, "fit": fit,
+            "constraint_groups": _constraint_group_summary(groups, fit),
             "summaries": summaries, "larger_development_run_ready": not blockers, "blockers": blockers}
     return {**body, "receipt_sha256": _sha(body)}

@@ -40,9 +40,12 @@ def _project_direction(direction, normals):
 def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                           required_margin=.1, learning_rate=.001, max_active=32,
                           adaptive_step=False, checkpoint_path=None, progress=None,
-                          checkpoint_identity=None, batched=True, objective="squared_deficit"):
+                          checkpoint_identity=None, batched=True, objective="squared_deficit",
+                          update_rule="working_face"):
     """Search for all retained inequalities; retain every already-positive margin."""
     if (objective not in {"squared_deficit", "pairwise_logistic"}
+            or update_rule not in {"working_face", "minimum_change"}
+            or (update_rule == "minimum_change" and objective != "squared_deficit")
             or type(batched) is not bool or type(adaptive_step) is not bool or not contrasts or type(steps) is not int or steps < 1 or type(max_active) is not int
             or max_active < 1 or not np.isfinite(required_margin) or required_margin <= 0
             or not np.isfinite(learning_rate) or learning_rate <= 0
@@ -68,6 +71,7 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         return values
 
     flat = np.concatenate([value.ravel() for value in initial])
+    anchor = flat.copy()
     margins = evaluate(flat)
     before = margins.copy()
     # A positive margin means this witnessed error already loses. Its floor
@@ -108,17 +112,19 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
 
         source_files = ("semantic_graph_constraints.py", "semantic_graph_batch.py", "semantic_relation_graph_learning.py",
                         "semantic_operation_graph_learning.py", "semantic_argument_graph_learning.py",
-                        "semantic_operation_pointer_learning.py")
+                        "semantic_operation_pointer_learning.py", "margin_repair.py")
         identity = fit_identity({
             "algorithm": [Path(__file__).with_name(name).read_text() for name in source_files],
             "owner": checkpoint_identity, "initial": initial, "contrasts": tuple(contrasts),
-            "options": (scale, steps, required_margin, learning_rate, max_active, adaptive_step, batched, objective),
+            "options": (scale, steps, required_margin, learning_rate, max_active, adaptive_step, batched, objective,
+                        update_rule),
         })
         checkpoint = SemanticFitCheckpoint(checkpoint_path, identity)
         saved = checkpoint.load()
         if saved is not None:
             allowed = {"running", "search_budget_exhausted", "retained_constraints_satisfied",
-                       "no_feasible_direction_found", "no_retention_preserving_step_found"}
+                       "no_feasible_direction_found", "no_retention_preserving_step_found",
+                       "local_margin_projection_unverified"}
             start_step, status, trace = saved["next_step"], saved["status"], saved["trace"]
             if (type(start_step) is not int or not 0 <= start_step <= steps or status not in allowed
                     or len(trace) != start_step
@@ -158,6 +164,9 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         # slack may decrease while remaining above its retained floor.
         active = sorted(np.flatnonzero(np.isfinite(floors) & (margins == floors)),
                         key=lambda index: margins[index] - floors[index])[:max_active]
+        if update_rule == "minimum_change":
+            active = sorted(set(active) | set(sorted(np.flatnonzero(deficits),
+                key=lambda index: (-deficits[index], index))[:max_active]))
         for index, row in enumerate(contrasts):
             if index not in active and (batch is not None or not deficits[index]):
                 continue
@@ -171,14 +180,29 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         loss = loss_at(margins)
         accepted, cut_rounds, best_trial = False, 0, None
         while True:
-            direction = _project_direction(descent, list(normals.values()))
+            projection_receipt = None
+            if update_rule == "minimum_change":
+                from core.learning.margin_repair import minimum_margin_repair
+
+                indices = tuple(normals)
+                matrix = np.stack(tuple(normals.values()))
+                required = required_margin - margins[list(indices)] + matrix @ (flat - anchor)
+                proposal = minimum_margin_repair(matrix, required, tolerance=1e-7)
+                projection_receipt = proposal.receipt
+                if projection_receipt["status"] != "verified_numerically":
+                    status = "local_margin_projection_unverified"
+                    break
+                direction = anchor + proposal.displacement - flat
+            else:
+                direction = _project_direction(descent, list(normals.values()))
             largest = np.max(np.abs(direction))
             if largest == 0 or not np.isfinite(largest):
                 status = "no_feasible_direction_found"
                 break
-            direction /= largest
-            step_size = learning_rate
-            if adaptive_step:
+            step_size = 1. if update_rule == "minimum_change" else learning_rate
+            if update_rule == "working_face":
+                direction /= largest
+            if adaptive_step and update_rule == "working_face":
                 # Use the local loss curvature along the protected direction.
                 slopes = (batch.directional_derivative(parameters, unpack(direction))
                           if batch is not None else np.zeros_like(margins))
@@ -202,6 +226,9 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                 trial_loss = loss_at(trial_margins)
                 violated = np.flatnonzero(trial_margins < floors)
                 blockers.update(int(index) for index in violated if index not in normals)
+                if update_rule == "minimum_change":
+                    worsening = np.flatnonzero((trial_margins < required_margin) & (trial_margins < margins))
+                    blockers.update(int(index) for index in worsening if index not in normals)
                 restoration_steps = 0
                 if len(violated) and all(index in normals for index in violated):
                     trial, trial_margins, restoration_steps = restore_trial(trial, trial_margins)
@@ -217,6 +244,9 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                                   "constraint_cut_rounds": cut_rounds,
                                   "restoration_steps": restoration_steps,
                                   "projected_constraints": len(normals)}
+                    if projection_receipt is not None:
+                        entry.update(local_affine_projection=projection_receipt,
+                                     displacement_from_anchor=float(np.linalg.norm(trial - anchor)))
                     if best_trial is None or trial_loss < best_trial[2]["loss"]:
                         best_trial = trial, trial_margins, entry
                     break
@@ -267,9 +297,13 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         "accepted_steps": trace, "projection_batch_size": max_active,
         "accepted_constraint_cut_rounds": sum(row["constraint_cut_rounds"] for row in trace),
         "peak_accepted_projected_constraints": max((row["projected_constraints"] for row in trace), default=0),
-        "step_policy": (("working_face_logistic_v6" if objective == "pairwise_logistic"
+        "step_policy": ("minimum_change_working_set_v1" if update_rule == "minimum_change" else
+                        ("working_face_logistic_v6" if objective == "pairwise_logistic"
                          else "working_face_deficit_v6")
                         if adaptive_step else "working_face_fixed_v6"),
+        "update_rule": update_rule,
+        "displacement_from_anchor": float(np.linalg.norm(flat - anchor)),
+        "global_minimum_change_proven": False,
         "all_constraints_checked_at_acceptance": True,
         "infeasibility_proven": False, "latent_choices_frozen_for_update": True,
         "serving_authority": False,
@@ -295,7 +329,10 @@ def fit_graph_constraints(head, operation_head, contrasts, **options):
 
 def fit_complete_graph_constraints(model, contrasts, *, learn_operation_pointer=False, **options):
     from core.learning.semantic_argument_graph_learning import argument_parameters
-    from core.learning.semantic_operation_pointer_learning import operation_pointer_from_parameters, operation_pointer_parameters
+    from core.learning.semantic_operation_pointer_learning import (
+        operation_pointer_from_parameters,
+        operation_pointer_parameters,
+    )
 
     if type(learn_operation_pointer) is not bool:
         raise ValueError("operation pointer learning option must be boolean")
@@ -310,8 +347,12 @@ def fit_complete_graph_constraints(model, contrasts, *, learn_operation_pointer=
     proposals = tuple(replace(head, weight=values[offset + 4 * index + 2],
                               bias=float(values[offset + 4 * index + 3]))
                       for index, head in enumerate(model.argument_proposal_heads))
-    changes = {"operation_pointer": operation_pointer_from_parameters(values[-2:])} if learn_operation_pointer else {}
+    changes = {"operation_pointer": operation_pointer_from_parameters(
+        values[-2:], pointer=model.operation_pointer)} if learn_operation_pointer else {}
     receipt["operation_pointer_trainable"] = learn_operation_pointer
+    receipt["operation_pointer_capacity_preserved"] = True
+    receipt["operation_pointer_interaction_trainable"] = bool(
+        learn_operation_pointer and model.operation_pointer.pair_weight is not None)
     return model._with_coefficients(definition_relation_head=relation, operation_head=operation,
         argument_role_heads=roles, argument_proposal_heads=proposals, **changes), receipt
 
