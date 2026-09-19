@@ -3255,8 +3255,19 @@ def _apply_memory_pressure_generation_controls(
     return options
 
 
-def _carry_decode_rate_across(receipt: dict[str, Any]) -> None:
-    """Record the worker's measured decode rate in this process."""
+def _carry_decode_rate_across(receipt: dict[str, Any], model: str = "") -> None:
+    """Record the worker's measured decode rate in this process, under its model.
+
+    ``model`` because the rate belongs to the checkpoint that produced it.
+    Recorded without one, every lane's readings went into the single window
+    the reserve keeps for a caller who names no model — the resident cortex,
+    the brainstem and the reflex all writing to one place, and the readers
+    that name no model sizing every budget from the blend.
+
+    ``runtime_model_measurement_key`` exists for exactly this and says so:
+    "preserve explicit specialist names and paths so independent lanes do not
+    borrow the resident cortex's measurements." This was the borrowing.
+    """
 
     verified = receipt.get("worker_verified")
     if not isinstance(verified, dict):
@@ -3271,7 +3282,9 @@ def _carry_decode_rate_across(receipt: dict[str, Any]) -> None:
     try:
         from core.brain.llm.thinking_reserve import record_decode_rate
 
-        record_decode_rate(generated_tokens=int(rate * 10), elapsed_s=10.0)
+        record_decode_rate(
+            generated_tokens=int(rate * 10), elapsed_s=10.0, model=model
+        )
     except (ImportError, TypeError, ValueError) as exc:
         logger.debug("Decode rate not recorded to the thinking reserve: %s", exc)
         return
@@ -6119,7 +6132,21 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             # deadline. Without carrying the number across, the deadline is
             # derived from the origin and the tier and can be shorter than the
             # budget the same request just computed.
-            _carry_decode_rate_across(receipt)
+            # Named where this client has an assignment, and unnamed where it
+            # does not. `runtime_model_measurement_key("")` resolves to the
+            # ACTIVE_MODEL alias, so passing an absent path would file the
+            # brainstem's rate under the cortex — which is the very swap this
+            # is here to stop. An unnamed reading is still read by every
+            # caller that names no model.
+            _bound = str(getattr(self, "model_path", "") or "")
+            if _bound:
+                from .model_registry import runtime_model_measurement_key
+
+                _carry_decode_rate_across(
+                    receipt, runtime_model_measurement_key(_bound)
+                )
+            else:
+                _carry_decode_rate_across(receipt)
 
     def _bind_surface_receipt_provenance(
         self, receipt: dict[str, Any], response: Any
