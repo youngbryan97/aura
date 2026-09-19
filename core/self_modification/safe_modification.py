@@ -101,7 +101,7 @@ class GitIntegration:
             return False
         try:
             result = get_subprocess_gateway().run(
-                ["git", "status"],
+                ["git", "-c", "core.fsmonitor=false", "status"],
                 cwd=self.repo_path,
                 capture_output=True,
                 read_only=True,
@@ -199,7 +199,7 @@ class GitIntegration:
             return False
         try:
             result = await self._git(
-                ["git", "status", "--porcelain"],
+                ["git", "-c", "core.fsmonitor=false", "status", "--porcelain"],
                 timeout=5,
                 read_only=True,
                 source="core.self_modification.safe_modification.git_status",

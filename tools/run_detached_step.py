@@ -305,10 +305,17 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+#: Every Git call here reads. The file-system monitor makes a read wait on
+#: its daemon, and on this repository that took ls-files --cached 19.6 s
+#: against 0.06 s without it (2026-09-19): long enough that a launch passed
+#: the 30 s its callers allow.
+_GIT = ("/usr/bin/git", "-c", "core.fsmonitor=false")
+
+
 def _git_root(cwd: Path) -> Path | None:
     try:
         result = subprocess.run(
-            ["/usr/bin/git", "-C", str(cwd), "rev-parse", "--show-toplevel"],
+            [*_GIT, "-C", str(cwd), "rev-parse", "--show-toplevel"],
             check=False,
             capture_output=True,
             text=True,
@@ -343,14 +350,14 @@ def _git_tracked_paths(
 ) -> list[Path]:
     try:
         tracked_result = subprocess.run(
-            ["/usr/bin/git", "-C", str(root), "ls-files", "-z", "--cached"],
+            [*_GIT, "-C", str(root), "ls-files", "-z", "--cached"],
             check=True,
             capture_output=True,
             timeout=30.0,
         )
         untracked_result = subprocess.run(
             [
-                "/usr/bin/git",
+                *_GIT,
                 "-C",
                 str(root),
                 "ls-files",
