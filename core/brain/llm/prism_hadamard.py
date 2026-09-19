@@ -267,6 +267,18 @@ def load_prism_hadamard_pack(directory: str | Path) -> tuple[Any, Any]:
 
     from mlx_lm.tokenizer_utils import load as load_tokenizer
 
+    # transformers warns on every load of this pack that the tokenizer has
+    # "an incorrect regex pattern", links a Mistral-Small discussion, and
+    # says to pass ``fix_mistral_regex=True`` or get incorrect tokenization.
+    #
+    # Measured before believing it. The pack's ``tokenizer_class`` is
+    # ``Qwen2Tokenizer``, not a Mistral one, and loading it both ways gives
+    # byte-identical ids on the cases that regex governs — digit grouping,
+    # contractions, runs of whitespace, accented text: 0 differences of 7.
+    # Round-trip is exact on code, unicode and the chat special tokens.
+    #
+    # So the flag is not passed. Adding it would be changing a loader on the
+    # strength of a warning that describes another checkpoint.
     directory = Path(directory)
     model, _config = load_prism_hadamard_text_model(directory)
     tokenizer = load_tokenizer(directory, eos_token_ids=_eos_ids(directory))
