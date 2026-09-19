@@ -56,6 +56,9 @@ import sqlite3
 import threading
 import time
 import traceback
+from collections import OrderedDict
+from concurrent.futures import Future
+from concurrent.futures import TimeoutError as FutureTimeout
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -72,6 +75,13 @@ from core.runtime.lockdep import LockRank, checked_lock
 logger = logging.getLogger("Aura.VectorMemory")
 
 _VECTOR_SQLITE_ERRORS = (OSError, sqlite3.Error, RuntimeError, TypeError, ValueError)
+
+#: How many query vectors one engine keeps. A recall asks one question of
+#: several sources; this is room for the questions of many recalls.
+_QUERY_VECTORS_KEPT = 256
+#: How long a second asker waits for the first to finish the same query
+#: before making it itself.
+_QUERY_WAIT_S = 30.0
 
 
 def _loads_list(value: Any) -> list[str]:
@@ -192,6 +202,13 @@ class EmbeddingEngine:
         #: guards the lifecycle; this guards the tokenizer and the forward
         #: pass, off the event loop, where a wait costs only the waiter.
         self._encode_lock = checked_lock("vector_memory_engine.encode", rank=LockRank.LEAF)
+        #: Query vectors already made, newest last, and the ones being made.
+        #: One recall asks from several sources at once, in threads, and each
+        #: embedded the same question behind the encode lock: 1 to 13 s per
+        #: query measured live (2026-09-19) with every document cached.
+        self._query_lock = checked_lock("vector_memory_engine.queries", rank=LockRank.LEAF)
+        self._query_vectors: OrderedDict[tuple[str, str], np.ndarray] = OrderedDict()
+        self._query_inflight: dict[tuple[str, str], Future] = {}
         self._loader: threading.Thread | None = None
         self._closing = False
         #: Encodes running right now, outside the lifecycle lock. Eviction
@@ -603,10 +620,42 @@ class EmbeddingEngine:
         Falls back to the document path when the model has no named prompts,
         so a recall is never lost to a missing prompt template.
         """
+        key = (str(task or embedding_model.DEFAULT_TASK), str(text))
+        with self._query_lock:
+            known = self._query_vectors.get(key)
+            if known is not None:
+                self._query_vectors.move_to_end(key)
+                return known.copy()
+            making = self._query_inflight.get(key)
+            mine = making is None
+            if mine:
+                making = self._query_inflight[key] = Future()
+        if not mine:
+            try:
+                return np.array(making.result(timeout=_QUERY_WAIT_S))
+            except (FutureTimeout, RuntimeError, AttributeError, TypeError, ValueError):
+                pass  # the maker failed or is stuck; make it here
+        try:
+            vector = self._embed_query_uncached(text, key[0])
+        except BaseException as exc:
+            with self._query_lock:
+                self._query_inflight.pop(key, None)
+            if mine:
+                making.set_exception(exc)
+            raise
+        with self._query_lock:
+            self._query_vectors[key] = vector
+            while len(self._query_vectors) > _QUERY_VECTORS_KEPT:
+                self._query_vectors.popitem(last=False)
+            self._query_inflight.pop(key, None)
+        if mine:
+            making.set_result(vector)
+        return vector.copy()
+
+    def _embed_query_uncached(self, text: str, query_task: str) -> np.ndarray:
         model = self._checkout_model()
         if model is not None:
             try:
-                query_task = str(task or embedding_model.DEFAULT_TASK)
                 views = self._encode_views_with_model(
                     model,
                     [text],
