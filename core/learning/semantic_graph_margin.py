@@ -23,6 +23,57 @@ def _graph_margin_loss(scales, differences, offsets, weights, initial, regulariz
     )
 
 
+def graph_scale_feasibility(differences, offsets, *, required_margin=.1):
+    """Test representability of retained inequalities by the existing scales.
+
+    A feasible witness is checked independently. Infeasibility requires the
+    shared score-capacity proof kernel, not a solver status alone.
+    """
+    from scipy.optimize import linprog
+
+    differences = np.asarray(differences, dtype=np.float64)
+    offsets = np.asarray(offsets, dtype=np.float64)
+    if (differences.ndim != 2 or differences.shape[1] != 3 or not len(differences)
+            or offsets.shape != (len(differences),)
+            or not np.all(np.isfinite(differences)) or not np.all(np.isfinite(offsets))
+            or not np.isfinite(required_margin) or required_margin <= 0):
+        raise ValueError("invalid graph scale feasibility constraints")
+    result = linprog(np.zeros(3), A_ub=-differences,
+                     b_ub=offsets - required_margin, bounds=[(1e-6, None)] * 3,
+                     method="highs")
+    scales = np.asarray(result.x) if result.success else None
+    margins = differences @ scales + offsets if scales is not None else None
+    if margins is not None and np.any(margins < required_margin):
+        # Ask for an interior witness rather than weakening the replay check.
+        interior = 1e-7 * np.maximum(1., np.abs(offsets))
+        retry = linprog(np.zeros(3), A_ub=-differences,
+                        b_ub=offsets - required_margin - interior,
+                        bounds=[(1e-6, None)] * 3, method="highs")
+        if retry.success:
+            scales = np.asarray(retry.x)
+            margins = differences @ scales + offsets
+    verified = bool(margins is not None and np.all(np.isfinite(scales))
+                    and np.all(scales >= 1e-6) and np.all(margins >= required_margin))
+    capacity = None
+    exact_infeasible = False
+    if not verified and result.status == 2:
+        from core.learning.score_capacity import assess_score_capacity, verify_score_capacity
+
+        capacity = assess_score_capacity(differences, offsets, margin=required_margin,
+                                         lower_bounds=[1e-6] * 3)
+        exact_infeasible = capacity["status"] == "infeasible" and verify_score_capacity(capacity)
+    return {"schema": "aura.graph_scale_feasibility.v1", "pairs": len(offsets),
+            "required_margin": required_margin, "solver_status": int(result.status),
+            "status": "verified_witness" if verified else (
+                "exactly_infeasible" if exact_infeasible else
+                "numerically_infeasible" if result.status == 2 else "unverified"),
+            "scales": scales.tolist() if verified else None,
+            "minimum_margin": float(margins.min()) if margins is not None else None,
+            "exact_infeasibility_proven": exact_infeasible, "capacity_certificate": capacity,
+            "fresh_transfer_claim": False,
+            "serving_authority": False}
+
+
 def fit_graph_score_scales(differences, offsets, weights, initial, *, regularization=.01):
     """Fit positive role/relation/pointer scales; the proposal scale stays fixed."""
     from scipy.optimize import minimize
@@ -52,6 +103,7 @@ def fit_graph_score_scales(differences, offsets, weights, initial, *, regulariza
         "initial_scales": initial.tolist(), "fitted_scales": result.x.tolist(),
         "regularization": regularization, "converged": True,
         "proposal_scale_held_fixed": True,
+        "representability": graph_scale_feasibility(differences, offsets),
     }
 
 

@@ -1,45 +1,25 @@
-"""The test the thesis has never faced: organs + recurrence, together (CP236).
+"""Pair retrieval and depth interventions on knowledge-combination tasks.
 
-Every measurement this arc ran used a bare model on self-contained puzzles.
-Retrieval could not help, because the answer was always already in the
-prompt. That harness had no power to detect the effect the RLC exists for.
+The solver receives a question, retrieved passages and a requested depth.
+The default measurement grades its terminal public scalar and requires both
+ablations to disrupt the same task before reporting joint necessity. Exact
+paired tails accompany the descriptive effects; this diagnostic is neither
+a preregistered replication nor proof of the callback's runtime identity.
 
-Bryan's proof requirement (RLC Context) is precise. To show reasoning
-rather than recall, the tasks must have:
-
-* an answer ABSENT from the prompt and from the base model's likely recall;
-* required facts available ONLY through retrieval;
-* multiple pieces that must be COMBINED;
-* some sources that CONFLICT;
-* and then two ablations must both bite:
-    - disabling retrieval breaks the result  (knowledge was external);
-    - disabling recurrence breaks the result (depth did the combining).
-
-Only when BOTH ablations break the same task have we shown the thing the
-whole project claims: Aura searched for knowledge she did not possess and
-used recurrent computation to derive an answer she could not produce from
-innate knowledge alone.
-
-This module builds those tasks and runs the factorial
-{retrieval on/off} x {depth 1/2/4} that makes the two causal claims
-falsifiable. It is model-agnostic: a solver callback produces an answer
-given (prompt, retrieved_context, depth), so the harness is testable with a
-fixture solver and drives the live 32B unchanged.
-
-The honesty burden is the opposite of the earlier puzzles'. There the risk
-was a task too easy to need depth; here it is a task the base model can
-answer from memory, which would credit retrieval for knowledge the model
-already had. So every task carries a ``base_recall_guard``: a check that
-the answer is NOT derivable from the prompt alone, verified by running the
-solver with EMPTY retrieval and requiring it to fail.
+Fixture retrieval supplies planted facts directly. It measures whether a
+solver uses supplied facts, not whether Aura's live retrieval found them.
+No-retrieval errors do not prove that a model lacks the relevant knowledge.
+The legacy policy keeps the original CP236 grading and aggregation replayable.
 """
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Protocol
 
-INTEGRATED_EVAL_SCHEMA = "aura.integrated_reasoning_eval.v1"
+INTEGRATED_EVAL_SCHEMA = "aura.integrated_reasoning_eval.v2"
+INTEGRATED_EVAL_POLICY = "public_terminal_paired_v2"
+LEGACY_EVAL_POLICY = "substring_aggregate_v1"
 
 # The nine operational marks of reasoning (RLC Context). Each task declares
 # which it exercises, so a run reports COVERAGE rather than asserting it.
@@ -131,20 +111,64 @@ class FixtureRetrieval:
             list(task.facts) + list(task.distractors),
             key=lambda f: -f.authority,
         )
-        self.passages[task.task_id] = [(f.authority, f.as_passage()) for f in ranked]
+        self.passages[task.prompt] = [(f.authority, f.as_passage()) for f in ranked]
 
     def retrieve(self, query: str, *, limit: int) -> list[str]:
-        # The query carries its task id in a controlled fixture; a real
-        # source matches on content. Both honour the limit.
-        for task_id, ranked in self.passages.items():
-            if task_id in query:
-                return [passage for _authority, passage in ranked[:limit]]
-        return []
+        return [passage for _authority, passage in self.passages.get(query, ())[:limit]]
 
 
 # Retrieval mode and depth define the factorial cells.
 RETRIEVAL_ON = "retrieval_on"
 RETRIEVAL_OFF = "retrieval_off"
+
+
+def _selected_public_answer(produced: object) -> str:
+    """Read a terminal scalar answer using the shared channel and text rules."""
+    from core.brain.llm.chat_format import split_native_thinking_generation
+    from core.learning.heldout_battery import normalize_answer
+
+    if not isinstance(produced, str):
+        return ""
+    channels = split_native_thinking_generation(produced, native_thinking="<think>" in produced)
+    if not channels.boundary_closed or "<think>" in channels.surface:
+        return ""
+    lines = channels.surface.strip().splitlines()
+    if not lines:
+        return ""
+    selected = lines[-1].strip()
+    label, separator, value = selected.partition(":")
+    if separator and label.casefold() in {"final_answer", "answer"}:
+        selected = value.strip()
+    return normalize_answer(selected, "str")
+
+
+def _grade_answer(produced: object, answer: str, policy: str) -> bool:
+    if policy == LEGACY_EVAL_POLICY:
+        return answer.strip().lower() in str(produced or "").strip().lower()
+    if policy != INTEGRATED_EVAL_POLICY:
+        raise ValueError("unknown integrated evaluation policy")
+    from core.learning.heldout_battery import normalize_answer
+
+    selected = _selected_public_answer(produced)
+    return bool(selected) and selected == normalize_answer(answer, "str")
+
+
+def _validate_design(tasks, depths, policy):
+    if policy not in {INTEGRATED_EVAL_POLICY, LEGACY_EVAL_POLICY}:
+        raise ValueError("unknown integrated evaluation policy")
+    if not tasks:
+        raise ValueError("no tasks to evaluate")
+    if policy == INTEGRATED_EVAL_POLICY:
+        from core.learning.heldout_battery import normalize_answer
+
+        if any(not normalize_answer(task.answer, "str") for task in tasks):
+            raise ValueError("task answer has no normalized public value")
+    if (not depths or any(type(d) is not int or d < 1 for d in depths)
+            or tuple(depths) != tuple(sorted(set(depths)))):
+        raise ValueError("depths must be distinct increasing positive integers")
+    if (len({task.task_id for task in tasks}) != len(tasks)
+            or len({task.prompt for task in tasks}) != len(tasks)):
+        raise ValueError("duplicate integrated evaluation tasks")
 
 
 def run_factorial(
@@ -154,22 +178,17 @@ def run_factorial(
     *,
     depths: tuple[int, ...] = (1, 2, 4),
     retrieval_limit: int = 6,
+    evaluation_policy: str = INTEGRATED_EVAL_POLICY,
 ) -> dict[str, Any]:
     """Run {retrieval on/off} x {depth} and grade every cell.
 
-    ``solve(prompt, context, depth)`` returns the model's answer. Grading
-    is case-insensitive containment of the gold answer, which is lenient on
-    form and strict on the fact -- the answer string is a planted token
-    that does not occur by chance.
+    ``solve(prompt, context, depth)`` returns the model's answer. New runs
+    grade the terminal public scalar and pair both ablations on each task.
+    The explicit legacy policy permits replay of historical measurements.
     """
-    if not tasks:
-        raise ValueError("no tasks to evaluate")
-    if not depths or any(type(d) is not int or d < 1 for d in depths):
-        raise ValueError("depths must be positive integers")
-
-    def graded(prompt: str, context: list[str], depth: int, answer: str) -> bool:
-        produced = solve(prompt, context, depth)
-        return answer.strip().lower() in str(produced or "").strip().lower()
+    _validate_design(tasks, depths, evaluation_policy)
+    if type(retrieval_limit) is not int or retrieval_limit < 1:
+        raise ValueError("retrieval limit must be a positive integer")
 
     cells: dict[str, dict[int, list[bool]]] = {
         RETRIEVAL_ON: {d: [] for d in depths},
@@ -177,11 +196,15 @@ def run_factorial(
     }
     per_task: list[dict[str, Any]] = []
     for task in tasks:
-        context = source.retrieve(task.task_id + " " + task.prompt, limit=retrieval_limit)
-        row: dict[str, Any] = {"task_id": task.task_id, "hops": task.hops}
+        context = source.retrieve(task.prompt, limit=retrieval_limit)
+        row: dict[str, Any] = {"task_id": task.task_id, "hops": task.hops, "selected_answers": {}}
         for depth in depths:
-            on = graded(task.prompt, context, depth, task.answer)
-            off = graded(task.prompt, [], depth, task.answer)
+            on_text = solve(task.prompt, list(context), depth)
+            off_text = solve(task.prompt, [], depth)
+            on = _grade_answer(on_text, task.answer, evaluation_policy)
+            off = _grade_answer(off_text, task.answer, evaluation_policy)
+            row["selected_answers"].update({f"on@{depth}": _selected_public_answer(on_text),
+                                             f"off@{depth}": _selected_public_answer(off_text)})
             cells[RETRIEVAL_ON][depth].append(on)
             cells[RETRIEVAL_OFF][depth].append(off)
             row[f"on@{depth}"] = on
@@ -194,17 +217,66 @@ def run_factorial(
     }
     return {
         "schema": INTEGRATED_EVAL_SCHEMA,
+        "evaluation_policy": evaluation_policy,
         "n_tasks": len(tasks),
         "depths": list(depths),
         "accuracy": accuracy,
-        "verdicts": _verdicts(accuracy, depths),
+        "verdicts": (_verdicts(accuracy, depths) if evaluation_policy == LEGACY_EVAL_POLICY
+                     else _paired_verdicts(accuracy, depths, per_task)),
         "criteria_coverage": _coverage(tasks),
+        "task_manifest": [asdict(task) for task in tasks],
         "per_task": per_task,
+        "fixture_oracle_retrieval": isinstance(source, FixtureRetrieval),
+        "runtime_retrieval_verified": False,
+        "ordinary_pipeline_verified": False,
+        "confirmatory_evidence": False,
+        "serving_authority": False,
     }
 
 
 def _mean(flags: list[bool]) -> float:
     return round(sum(1 for f in flags if f) / len(flags), 4) if flags else 0.0
+
+
+def _paired_verdicts(accuracy, depths, per_task):
+    """Report fixed-depth effects and their intersection on the same tasks."""
+    from core.brain.llm.latent_cortex.exact_paired_statistics import exact_paired_binomial_tail
+
+    shallow, deep = depths[0], depths[-1]
+    treatment = f"on@{deep}"
+
+    def paired(control):
+        wins = sum(row[treatment] and not row[control] for row in per_task)
+        losses = sum(row[control] and not row[treatment] for row in per_task)
+        return {"wins": wins, "losses": losses, "ties": len(per_task) - wins - losses,
+                "effect": (wins - losses) / len(per_task),
+                "exact_one_sided_tail": asdict(exact_paired_binomial_tail(wins, losses))}
+
+    retrieval = paired(f"off@{deep}")
+    depth = paired(f"on@{shallow}")
+    joint = [row["task_id"] for row in per_task
+             if row[treatment] and not row[f"off@{deep}"] and not row[f"on@{shallow}"]]
+    retrieval_helps, depth_helps = retrieval["effect"] > .1, depth["effect"] > .1
+    both = bool(joint) and retrieval_helps and depth_helps
+    return {
+        "retrieval_is_causal": retrieval_helps,
+        "recurrence_helps": depth_helps,
+        "recurrence_hurts": depth["effect"] < -.1,
+        "both_required": both,
+        "joint_success_task_ids": joint,
+        "joint_success_fraction": len(joint) / len(per_task),
+        "retrieval_comparison_depth": deep,
+        "depth_comparison": [shallow, deep],
+        "paired_retrieval": retrieval,
+        "paired_depth": depth,
+        "on_shallow": accuracy[RETRIEVAL_ON][shallow],
+        "on_deep": accuracy[RETRIEVAL_ON][deep],
+        "off_at_deep": accuracy[RETRIEVAL_OFF][deep],
+        "confirmatory_evidence": False,
+        "claim": ("Diagnostic: the tested solver used both factors on the same tasks for answers "
+                  "it could not produce alone. Runtime identity and fresh replication remain unverified."
+                  if both else "The diagnostic does not show both factors required on the same tasks."),
+    }
 
 
 def _verdicts(accuracy: dict, depths: tuple[int, ...]) -> dict[str, Any]:
@@ -374,22 +446,18 @@ def assert_base_recall_guard(
     solve: Callable[[str, list[str], int], str],
     *,
     depth: int = 4,
+    evaluation_policy: str = INTEGRATED_EVAL_POLICY,
 ) -> dict[str, Any]:
-    """Prove the answers are NOT already in the model, before trusting a gain.
-
-    Runs each task with EMPTY retrieval at full depth. Any task the model
-    answers from memory alone is disqualified: a retrieval gain on it would
-    credit external knowledge for something the model already knew. This is
-    the mirror of the earlier puzzles' failure -- there, tasks too easy to
-    need depth; here, tasks the base model can recall.
-    """
+    """Measure answers without retrieval; failure does not prove absent knowledge."""
+    _validate_design(tasks, (depth,), evaluation_policy)
     leaked = []
     for task in tasks:
         produced = solve(task.prompt, [], depth)
-        if task.answer.strip().lower() in str(produced or "").strip().lower():
+        if _grade_answer(produced, task.answer, evaluation_policy):
             leaked.append(task.task_id)
     return {
         "schema": INTEGRATED_EVAL_SCHEMA,
+        "evaluation_policy": evaluation_policy,
         "tasks": len(tasks),
         "answered_from_memory": leaked,
         "guard_passed": not leaked,
@@ -398,6 +466,8 @@ def assert_base_recall_guard(
 
 __all__ = [
     "INTEGRATED_EVAL_SCHEMA",
+    "INTEGRATED_EVAL_POLICY",
+    "LEGACY_EVAL_POLICY",
     "REASONING_CRITERIA",
     "RETRIEVAL_OFF",
     "RETRIEVAL_ON",

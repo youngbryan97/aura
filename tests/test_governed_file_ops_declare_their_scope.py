@@ -35,10 +35,33 @@ from pathlib import Path
 
 import pytest
 
+#: Where to look. Not one file: `host_automation.py` was split and its
+#: FILE_WRITE calls went to `host_automation_screen.py`, so a detector
+#: anchored on the original path found nothing and said so — "the detector
+#: has drifted from the code and is no longer checking anything" is this
+#: file's own guard reporting that it had stopped being a test.
+#:
+#: The host-automation family, as the directory has it. The scope this
+#: file is about is the one for INTERNAL MAINTENANCE writes — the runtime's
+#: own housekeeping, which the Will refuses without it. A skill that writes
+#: a file because somebody asked it to is not that, and wrapping those in an
+#: internal scope would be declaring the person's request to be the
+#: runtime's own errand.
+_ACTING_MODULES = "core/capabilities"
+_FAMILY = "host_automation"
+
+
+def _modules_that_could_write() -> list[Path]:
+    here = Path(__file__).resolve().parent.parent
+    return [
+        path
+        for path in sorted((here / _ACTING_MODULES).glob(f"{_FAMILY}*.py"))
+        if "__pycache__" not in path.parts
+    ]
+
+
+#: The original single path, for the tests that read one module's structure.
 _HOST_AUTOMATION = Path("core/capabilities/host_automation.py")
-#: The module and the parts split off it: the file operations moved into
-#: host_automation_screen.py and this read only the original, finding nothing.
-_HOST_AUTOMATION_PARTS = tuple(sorted(Path("core/capabilities").glob("host_automation*.py")))
 
 
 def _governed_file_write_calls() -> list[tuple[str, int, bool]]:
@@ -49,8 +72,8 @@ def _governed_file_write_calls() -> list[tuple[str, int, bool]]:
     the call, and the whole defect class is a call sitting outside its scope.
     """
     found: list[tuple[str, int, bool]] = []
-    for part in _HOST_AUTOMATION_PARTS:
-        found.extend(_calls_in(part))
+    for module in _modules_that_could_write():
+        found.extend(_calls_in(module))
     return found
 
 
@@ -92,7 +115,9 @@ def _calls_in(path: Path) -> list[tuple[str, int, bool]]:
         enclosed = any(
             start <= node.lineno <= end for start, end in scoped_ranges
         )
-        found.append((action_name or f"line {node.lineno}", node.lineno, enclosed))
+        found.append(
+            (action_name or f"{path.name} line {node.lineno}", node.lineno, enclosed)
+        )
     return found
 
 

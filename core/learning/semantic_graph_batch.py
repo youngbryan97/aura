@@ -21,6 +21,8 @@ class GraphConstraintBatch:
                         bank_indices[id(bank)] = len(self.banks)
                         self.banks.append(bank)
                     entries.append((row_index, bank_indices[id(bank)], label, sign))
+                    if bank.normalizer_label is not None:
+                        entries.append((row_index, bank_indices[id(bank)], bank.normalizer_label, -sign))
             for sign, choices in ((1., row.positive), (-1., row.negative)):
                 for bank, label in choices:
                     key = (id(bank), label)

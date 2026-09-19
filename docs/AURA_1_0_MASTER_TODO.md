@@ -913,9 +913,48 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   gains one of eight validation cases without regression, but retains an
   incorrect training failure and leaves search/constraint blockers; no
   promotion or full-run claim.
+  2026-09-18 follow-up: the completed full comparison is 474/500 versus
+  incumbent 488/500; zero accepted updates leave the pre-fit regression
+  unchanged. Two reproduced projection defects are repaired and covered by
+  82 focused tests. The numerical replay fixes the selected training error
+  (7/8 to 8/8) while validation remains 6/8, including one decode refusal.
+  Full-cohort refitting and fresh transfer remain required; G03 stays open.
+  [Binding-face retention](evidence/G03_BINDING_FACE_RETENTION_2026-09-18.md)
+  reproduces a further feasible-update stall: margins above their floors were
+  treated as binding. The scalar and batched counterexamples now pass without
+  weakening retained-margin acceptance. The prior full run stopped after its
+  first round accepted zero updates; no new validation result is claimed.
+  The completed [binding-face trial](evidence/G03_BINDING_FACE_TRIAL_2026-09-18.md)
+  improves training 7/8 to 8/8 but leaves validation at 6/8 with one refusal;
+  17 retained comparisons remain wrong or tied. No promotion. Unchanged
+  campaign rounds now terminate explicitly instead of repeating mining.
+  [Curved retention](evidence/G03_CURVED_RETENTION_2026-09-18.md) reproduces
+  tangent-step and nearby-face stalls in the actual graph score. Bounded
+  nonlinear correction and competing feasible proposals pass 80 focused
+  tests without relaxing retained floors; the final working-face trial satisfies
+  all 2,504 retained inequalities in 14 updates. Training is 8/8, validation
+  6/8, with no refusals; operation search coverage remains incomplete.
+  [Mathematical design](G_REASONING_MATHEMATICAL_DESIGN.md) separates score
+  feasibility, complete decoding, compositional transfer, and paired selection
+  gain. The existing graph-scale trainer now reports convex representability;
+  neither that measurement nor optimizer convergence closes G03.
+  [Exact capacity integration](evidence/G03_EXACT_SCALE_CONFLICT_2026-09-18.md)
+  connects the trainer to the existing proof kernel and reproduces September
+  15's strict-ranking contradiction. Retention now distinguishes an exhausted
+  beam from a complete operation search. Seventy focused tests pass.
+  The [frozen full run](evidence/G03_WORKING_FACE_FULL_LAUNCH_2026-09-18.md)
+  is independently supervised; acquisition progress is not an accuracy result.
   [Background competition](evidence/G03_OPERATION_BACKGROUND_2026-09-18.md)
   tests a learned non-operation class on source spans. The small replay
   regresses from 48/60 to 45/60; no candidate promotion or full-run claim.
+  [Background score replay](evidence/G03_BACKGROUND_SCORE_REPLAY_2026-09-18.md)
+  aligns graph training with runtime log odds and excludes the unused pointer
+  term. Eighty-nine focused tests pass; the negative trial is not relabeled.
+  [Relation capacity expansion](evidence/G03_RELATION_CAPACITY_EXPANSION_2026-09-18.md)
+  adds opt-in trainable dimensions to the existing head with zero initial
+  contribution and explicit lineage. No transfer benefit is measured. The
+  unchanged full run satisfies 28,143 first-round margins and continues mining;
+  this is not autonomous validation or G03 closure.
   [Source-anchored scoring](evidence/G03_SOURCE_ANCHORED_SCORING_2026-09-17.md)
   measures 488/500 for the unchanged incumbent and typed candidate. Sixteen
   historical failures were register-coordinate mismatches; twelve remain
@@ -1054,6 +1093,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Runtime retention trial](evidence/G03_RUNTIME_RETENTION_2026-09-17.md)
   records the completed negative 500-row comparison and the first small
   runtime-chart trial. The incumbent remains selected; G03 stays open.
+  [Background trainer integration](evidence/G03_BACKGROUND_TRAINER_INTEGRATION_2026-09-18.md)
+  connects the repaired score replay to joint training and retains source
+  non-operation targets. Neither candidate promotion nor G03 closure follows.
+  [Full paired working-face result](evidence/G03_WORKING_FACE_FULL_RUN_2026-09-18.md)
+  completes the pending 500-row development comparison: the incumbent retains
+  488/500, fit-start reaches 474/500 with 7 gains and 21 regressions, and the
+  joint refit reaches 390/500 equivalent with 102 regressions. The selector
+  correctly retains the incumbent; G03 remains open and no candidate is
+  promoted.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
@@ -1099,7 +1147,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   turn exposed development cases into fresh or powered replication.
 - [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
+  [Paired public measurement](evidence/G08_PAIRED_PUBLIC_MEASUREMENT_2026-09-18.md)
+  repairs containment false positives, disjoint-task causal attribution, and
+  baseline-dependent task filtering in the retrieval/depth diagnostic. The
+  68-test focused pass does not qualify a model or close campaign verification.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [Ordinary evaluation path](evidence/G09_ORDINARY_EVALUATION_PATH_2026-09-18.md)
+  removes non-safety canned answers selected solely by test/proof/evaluation
+  origin. Planning and factual requests reach ordinary reasoning; governance
+  refusals remain. 659 focused and regression tests pass. No live or broad-gain
+  result is inferred from routing repair.
   [Forecast attribution](evidence/G09_FORECAST_ATTRIBUTION_2026-09-18.md) repairs
   calibration cancellation and binds planning outcomes to pre-action forecasts
   and delivered action counts. 121 focused tests pass, including partial

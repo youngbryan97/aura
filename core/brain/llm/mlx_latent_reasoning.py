@@ -152,7 +152,6 @@ def _latent_reason_async_cp126_d78cbfa4_status(self, action_capture_receipt, act
         "progress": dict(self._latent_progress_by_request.get(req_id) or {}),
         "reason": str(res.get("reason") or ""),
     }
-    return _FALL_THROUGH
 
 class _ReasonsInLatentSpace:
     """Lifted whole from MLXLocalClient; see mlx_client.py."""

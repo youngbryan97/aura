@@ -10,7 +10,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import nnls
 
 from core.learning.semantic_graph_batch import GraphConstraintBatch
 from core.learning.semantic_relation_graph_learning import graph_margin, graph_margin_gradient
@@ -26,13 +26,15 @@ def _project_direction(direction, normals):
     a = a[norms > 0] / norms[norms > 0, None]
     if not len(a):
         return direction
-    gram, linear = a @ a.T, a @ direction
-    result = minimize(lambda value: (.5 * value @ gram @ value + linear @ value,
-                                     gram @ value + linear), np.zeros(len(a)),
-                      jac=True, bounds=[(0., None)] * len(a), method="L-BFGS-B")
-    if not result.success or not np.all(np.isfinite(result.x)):
-        return np.zeros_like(direction)
-    return direction + a.T @ result.x
+    magnitude = np.max(np.abs(direction))
+    if magnitude == 0:
+        return direction.copy()
+    normalized = direction / magnitude
+    # The dual is min ||A.T * multiplier + direction||^2, multiplier >= 0.
+    # Its KKT conditions give A * projected >= 0. Normalizing the direction
+    # keeps a small training gradient from satisfying an absolute stop rule.
+    multiplier, _ = nnls(a.T, -normalized)
+    return (normalized + a.T @ multiplier) * magnitude
 
 
 def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
@@ -78,6 +80,26 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         terms = (np.logaddexp(0., -values) if objective == "pairwise_logistic"
                  else np.maximum(required_margin - values, 0.) ** 2)
         return float(weights @ terms)
+
+    def restore_trial(trial, values):
+        # Tangent motion can leave a curved feasible boundary at second order.
+        # Correct the most violated face locally, then recheck every nonlinear
+        # margin at exported precision. This search never relaxes a floor.
+        for attempt in range(8):
+            violated = np.flatnonzero(values < floors)
+            if not len(violated):
+                return trial, values, attempt
+            index = max(violated, key=lambda i: floors[i] - values[i])
+            _, gradient = graph_margin_gradient(unpack(trial), contrasts[index], scale=scale)
+            normal = np.concatenate([value.ravel() for value in gradient])
+            squared_norm = float(normal @ normal)
+            if squared_norm == 0 or not np.isfinite(squared_norm):
+                break
+            interior = 8 * np.finfo(np.float32).eps * max(1., abs(floors[index]))
+            correction = (floors[index] - values[index] + interior) / squared_norm
+            trial = (trial + correction * normal).astype(np.float32).astype(np.float64)
+            values = evaluate(trial)
+        return trial, values, 8
 
     trace, status = [], "search_budget_exhausted"
     checkpoint, start_step = None, 0
@@ -131,9 +153,11 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         direction = (np.concatenate([value.ravel() for value in
                      batch.weighted_gradient(parameters, weights * deficits)])
                      if batch is not None else np.zeros_like(flat))
-        normals = []
-        active = set(sorted(np.flatnonzero(np.isfinite(floors)),
-                            key=lambda index: margins[index] - floors[index])[:max_active])
+        normals = {}
+        # Only binding faces constrain infinitesimal motion. A witness with
+        # slack may decrease while remaining above its retained floor.
+        active = sorted(np.flatnonzero(np.isfinite(floors) & (margins == floors)),
+                        key=lambda index: margins[index] - floors[index])[:max_active]
         for index, row in enumerate(contrasts):
             if index not in active and (batch is not None or not deficits[index]):
                 continue
@@ -142,55 +166,89 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
             if batch is None:
                 direction += weights[index] * deficits[index] * vector
             if index in active:
-                normals.append(vector)
-        direction = _project_direction(direction, normals)
-        largest = np.max(np.abs(direction))
-        if largest == 0 or not np.isfinite(largest):
-            status = "no_feasible_direction_found"
-            break
-        direction /= largest
-        step_size = learning_rate
-        if adaptive_step:
-            # Use the local loss curvature along the protected direction.
-            slopes = (batch.directional_derivative(parameters, unpack(direction))
-                      if batch is not None else np.zeros_like(margins))
-            if batch is None:
-                for index in np.flatnonzero(deficits):
-                    _margin, gradient = graph_margin_gradient(parameters, contrasts[index], scale=scale)
-                    slopes[index] = sum(float(np.sum(value * part)) for value, part in
-                                        zip(gradient, unpack(direction), strict=True))
-            slopes[deficits == 0] = 0.
-            curvature = deficits * (1. - deficits) if objective == "pairwise_logistic" else 1.
-            denominator = float(weights @ (curvature * slopes ** 2))
-            numerator = float(weights @ (deficits * slopes))
-            if denominator > 0 and numerator > 0:
-                step_size = numerator / denominator
-        direction *= step_size
+                normals[index] = vector
+        descent = direction
         loss = loss_at(margins)
-        accepted = False
-        for backtrack in range(24):
-            # The exported dtype participates in acceptance, not just a later
-            # loss check that could silently erase a small positive margin.
-            trial = (flat + direction * 2. ** -backtrack).astype(np.float32).astype(np.float64)
-            trial_margins = evaluate(trial)
-            trial_loss = loss_at(trial_margins)
-            if np.all(trial_margins >= floors) and trial_loss < loss:
-                flat, margins = trial, trial_margins
-                floors = np.maximum(floors, np.where(margins > 0.,
-                    np.minimum(margins, required_margin), -np.inf))
-                accepted = True
-                trace.append({"step": step + 1, "loss": trial_loss,
-                              "wrong_or_tied": int(np.count_nonzero(margins <= 0)),
-                              "minimum_margin": float(margins.min()), "backtracks": backtrack,
-                              "step_size": step_size * 2. ** -backtrack})
-                persist("running")
-                if progress:
-                    progress({"stage": "constraint_fit_step", "completed": step + 1,
-                              "total": steps, **trace[-1]})
+        accepted, cut_rounds, best_trial = False, 0, None
+        while True:
+            direction = _project_direction(descent, list(normals.values()))
+            largest = np.max(np.abs(direction))
+            if largest == 0 or not np.isfinite(largest):
+                status = "no_feasible_direction_found"
                 break
+            direction /= largest
+            step_size = learning_rate
+            if adaptive_step:
+                # Use the local loss curvature along the protected direction.
+                slopes = (batch.directional_derivative(parameters, unpack(direction))
+                          if batch is not None else np.zeros_like(margins))
+                if batch is None:
+                    for index in np.flatnonzero(deficits):
+                        _margin, gradient = graph_margin_gradient(parameters, contrasts[index], scale=scale)
+                        slopes[index] = sum(float(np.sum(value * part)) for value, part in
+                                            zip(gradient, unpack(direction), strict=True))
+                slopes[deficits == 0] = 0.
+                curvature = deficits * (1. - deficits) if objective == "pairwise_logistic" else 1.
+                denominator = float(weights @ (curvature * slopes ** 2))
+                numerator = float(weights @ (deficits * slopes))
+                if denominator > 0 and numerator > 0:
+                    step_size = numerator / denominator
+            direction *= step_size
+            blockers = set()
+            for backtrack in range(24):
+                # Accept only the margins obtained after export to float32.
+                trial = (flat + direction * 2. ** -backtrack).astype(np.float32).astype(np.float64)
+                trial_margins = evaluate(trial)
+                trial_loss = loss_at(trial_margins)
+                violated = np.flatnonzero(trial_margins < floors)
+                blockers.update(int(index) for index in violated if index not in normals)
+                restoration_steps = 0
+                if len(violated) and all(index in normals for index in violated):
+                    trial, trial_margins, restoration_steps = restore_trial(trial, trial_margins)
+                    trial_loss = loss_at(trial_margins)
+                    violated = np.flatnonzero(trial_margins < floors)
+                    blockers.update(int(index) for index in violated if index not in normals)
+                if not len(violated) and trial_loss < loss:
+                    accepted = True
+                    entry = {"step": step + 1, "loss": trial_loss,
+                                  "wrong_or_tied": int(np.count_nonzero(trial_margins <= 0)),
+                                  "minimum_margin": float(trial_margins.min()), "backtracks": backtrack,
+                                  "step_size": step_size * 2. ** -backtrack,
+                                  "constraint_cut_rounds": cut_rounds,
+                                  "restoration_steps": restoration_steps,
+                                  "projected_constraints": len(normals)}
+                    if best_trial is None or trial_loss < best_trial[2]["loss"]:
+                        best_trial = trial, trial_margins, entry
+                    break
+            # Keep the feasible proposal while testing blocking-face
+            # alternative. A tiny accepted step must not hide a much better
+            # tangent step; adding a slack face must not discard useful motion.
+            if accepted and not blockers:
+                break
+            if not blockers:
+                status = "no_retention_preserving_step_found"
+                break
+            # A rejected proposal supplies additional constraints to the same
+            # projection. The batch size limits discovery, not protection.
+            for index in sorted(blockers, key=lambda i: (margins[i] - floors[i], i))[:max_active]:
+                _, gradient = graph_margin_gradient(parameters, contrasts[index], scale=scale)
+                normals[index] = np.concatenate([value.ravel() for value in gradient])
+            cut_rounds += 1
+            if progress:
+                progress({"stage": "constraint_direction_refined", "step": step + 1,
+                          "constraint_cut_rounds": cut_rounds,
+                          "projected_constraints": len(normals)})
         if not accepted:
-            status = "no_retention_preserving_step_found"
             break
+        flat, margins, entry = best_trial
+        status = "search_budget_exhausted"
+        floors = np.maximum(floors, np.where(margins > 0.,
+            np.minimum(margins, required_margin), -np.inf))
+        trace.append(entry)
+        persist("running")
+        if progress:
+            progress({"stage": "constraint_fit_step", "completed": step + 1,
+                      "total": steps, **entry})
     if objective == "squared_deficit" and np.all(margins >= required_margin):
         status = "retained_constraints_satisfied"
     elif status == "running":
@@ -206,10 +264,12 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         "initial_wrong_or_tied": int(np.count_nonzero(before <= 0)),
         "stored_wrong_or_tied": int(np.count_nonzero(margins <= 0)),
         "retained_positive_regressions": int(np.count_nonzero((before > 0) & (margins <= 0))),
-        "accepted_steps": trace, "max_projected_constraints": max_active,
-        "step_policy": (("linearized_logistic_backtracking_v1" if objective == "pairwise_logistic"
-                         else "linearized_deficit_backtracking_v1")
-                        if adaptive_step else "fixed_max_parameter_step_v1"),
+        "accepted_steps": trace, "projection_batch_size": max_active,
+        "accepted_constraint_cut_rounds": sum(row["constraint_cut_rounds"] for row in trace),
+        "peak_accepted_projected_constraints": max((row["projected_constraints"] for row in trace), default=0),
+        "step_policy": (("working_face_logistic_v6" if objective == "pairwise_logistic"
+                         else "working_face_deficit_v6")
+                        if adaptive_step else "working_face_fixed_v6"),
         "all_constraints_checked_at_acceptance": True,
         "infeasibility_proven": False, "latent_choices_frozen_for_update": True,
         "serving_authority": False,

@@ -7,7 +7,7 @@ from core.learning.semantic_graph_counterexamples import (
 from core.learning.semantic_joint_graph_learning import (
     align_source_input_registers, joint_graph_contrast, score_annotated_graph, scored_graph_evidence,
 )
-from core.learning.semantic_operation_search import OperationSearchIncompleteError
+from core.learning.semantic_operation_search import OperationChartSearch, OperationSearchIncompleteError
 from core.learning.semantic_program_transducer_fitting import _assign_typed_arguments
 
 
@@ -26,7 +26,8 @@ def mine_runtime_graph_constraints(model, item, *, weight=1., max_charts=32, max
               "source_text_sha256": item.ir.source_text_sha256, "serving_authority": False,
               "candidate_origin": "runtime_operation_charts", "source_operations_supplied": False,
               "max_charts": max_charts, "max_graphs_per_chart": max_graphs,
-              "charts": [], "operation_search_complete": False, "highest_incorrect_proven": False}
+              "charts": [], "candidate_inventory_exhausted": False,
+              "operation_search_complete": False, "highest_incorrect_proven": False}
     step_limit = model.inference_step_limit(len(item.public_inputs))
     if step_limit is None:
         return (), {**record, "status": "public_input_count_unsupported"}
@@ -53,7 +54,9 @@ def mine_runtime_graph_constraints(model, item, *, weight=1., max_charts=32, max
         for index in range(max_charts + 1):
             nodes = next(candidates, None)
             if nodes is None:
-                record["operation_search_complete"] = True
+                record["candidate_inventory_exhausted"] = True
+                record["operation_search_complete"] = (
+                    isinstance(candidates, OperationChartSearch) and candidates.complete)
                 break
             if index == max_charts:
                 break

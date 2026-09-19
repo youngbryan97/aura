@@ -17,11 +17,12 @@ from __future__ import annotations
 import logging
 import os
 import subprocess
-import threading
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any, Iterator
+from typing import Any
 
 from core.governance_context import GovernanceViolation, local_internal_governed_scope
+from core.runtime.lockdep import checked_lock
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 
 logger = logging.getLogger("Aura.KeepingTheScreenAwake")
@@ -33,7 +34,7 @@ __all__ = ["keeping_it_awake", "it_is_being_kept_awake"]
 #: the clock, and it is tied to this process either way.
 _A_DAY_S = 86400
 
-_LOCK = threading.Lock()
+_LOCK = checked_lock("capabilities.keeping_the_screen_awake")
 #: The holder, and how many things are relying on it.
 _HOLDING: Any = None
 _RELYING = 0

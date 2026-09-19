@@ -1,23 +1,10 @@
 #!/usr/bin/env python3
-"""Run the organs+recurrence factorial on the live 32B (CP238).
+"""Run the CP238 model-local retrieval/depth diagnostic.
 
-The runner for CP236. Drives the live model through the factorial
-{retrieval on/off} x {recurrence depth 1/2/4} on knowledge-gated tasks
-whose answers are absent from the prompt and base recall, and reports the
-two causal verdicts plus the conjunction that proves the thesis.
-
-Retrieval is supplied by FixtureRetrieval: the facts are planted and
-retrievable by construction. This is deliberate and isolates the question
-the RLC actually makes -- given the facts ARE retrievable, can the model
-combine them using recurrent depth? A weak organ recall would only add
-noise; if the model cannot use perfectly-retrieved facts, the organ's
-recall is moot. Live-organ recall is a separate, later measurement.
-
-Recurrence is the real intrinsic path: the token stream re-enters the
-middle block T times (CP226), so depth is applied to the answer's own
-computation, not a side scratchpad. Retrieval-off passes empty context;
-depth-1 is the shallow control. The base-recall guard runs first and
-disqualifies any task the model answers from memory with no retrieval.
+This uses planted fixture retrieval and direct intrinsic recurrence. It does
+not exercise Aura's ordinary desktop pipeline or measure live retrieval.
+The scalar-prefill generation protocol is retained for historical comparison;
+new reports identify the versioned public-answer and paired-task grader.
 """
 from __future__ import annotations
 
@@ -43,7 +30,7 @@ from core.learning.intrinsic_recurrence import (  # noqa: E402
 )
 from core.runtime.mlx_memory_guard import mlx_memory_envelope  # noqa: E402
 
-INTEGRATED_RUN_SCHEMA = "aura.integrated_reasoning_run.v1"
+INTEGRATED_RUN_SCHEMA = "aura.integrated_reasoning_run.v2"
 BRIDGE = "\n\nFINAL_ANSWER: "
 
 
@@ -62,6 +49,7 @@ def make_solver(model, tokenizer, *, prelude_end, coda_start, max_tokens, envelo
     """
     import mlx.core as mx
 
+    from core.brain.llm.chat_format import split_native_thinking_generation
     from core.brain.llm.latent_cortex.answer_contract import is_contract_complete
 
     def solve(prompt: str, context: list[str], depth: int) -> str:
@@ -72,8 +60,9 @@ def make_solver(model, tokenizer, *, prelude_end, coda_start, max_tokens, envelo
         rendered = tokenizer.apply_chat_template(
             [{"role": "user", "content": "\n\n".join(blocks)}],
             add_generation_prompt=True, tokenize=False,
-        ) + BRIDGE
-        ids = tokenizer.encode(rendered)
+        )
+        native_thinking = rendered.rstrip().endswith("<think>")
+        ids = tokenizer.encode(rendered + BRIDGE)
         plan = RecurrentDepthPlan(
             prelude_end=prelude_end, coda_start=coda_start,
             iterations=depth, renormalize=True,
@@ -82,13 +71,19 @@ def make_solver(model, tokenizer, *, prelude_end, coda_start, max_tokens, envelo
         hidden, _ = recurrent_hidden_states(model, mx.array([ids]), plan, caches=caches)
         token = int(mx.argmax(_head_logits(model, hidden)[0, -1]))
         eos = tokenizer.eos_token_id
-        pieces: list[str] = []
+        generated: list[int] = []
+        public = ""
         for step in range(max_tokens):
             if token == eos:
                 break
-            pieces.append(tokenizer.decode([token]))
-            text = "".join(pieces)
-            if "}" in text or is_contract_complete(text) or "\n" in text:
+            generated.append(token)
+            raw = tokenizer.decode(generated, skip_special_tokens=False)
+            channels = split_native_thinking_generation(
+                raw, native_thinking=native_thinking or raw.lstrip().startswith("<think>"))
+            public = channels.surface if channels.boundary_closed else ""
+            if channels.boundary_closed and (
+                "}" in public or is_contract_complete(public) or "\n" in public.lstrip()
+            ):
                 break
             hidden, _ = recurrent_hidden_states(
                 model, mx.array([[token]]), plan, caches=caches
@@ -98,7 +93,7 @@ def make_solver(model, tokenizer, *, prelude_end, coda_start, max_tokens, envelo
                 envelope.reclaim(force=True)
         if envelope is not None:
             envelope.reclaim(force=True)
-        return "".join(pieces)
+        return public
 
     return solve
 
@@ -118,6 +113,9 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=20260721)
     parser.add_argument("--memory-fraction", type=float, default=0.5)
     args = parser.parse_args()
+    output = Path(args.out).expanduser().absolute()
+    if output.exists():
+        raise FileExistsError(output)
 
     families = [f.strip() for f in args.families.split(",") if f.strip()]
     hops = [int(h) for h in args.hops.split(",") if h.strip()]
@@ -154,29 +152,32 @@ def main() -> int:
             max_tokens=args.max_tokens, envelope=envelope,
         )
 
-        # Disqualify anything answerable from memory BEFORE trusting a gain.
+        # Keep baseline successes in the cohort so regressions remain measurable.
         guard = assert_base_recall_guard(tasks, solver, depth=max(depths))
-        print(f"[guard] answerable_from_memory={len(guard['answered_from_memory'])}", flush=True)
-        clean = [t for t in tasks if t.task_id not in set(guard["answered_from_memory"])]
-        if not clean:
-            raise RuntimeError("every task was answerable from memory; none measure retrieval")
-
-        report = run_factorial(clean, source, solver, depths=depths)
+        print(f"[baseline] correct_without_retrieval={len(guard['answered_from_memory'])}", flush=True)
+        report = run_factorial(tasks, source, solver, depths=depths)
 
     report.update({
+        "factorial_schema": report["schema"],
         "schema": INTEGRATED_RUN_SCHEMA,
         "model": args.model,
         "adapter": args.adapter or None,
         "base_recall_guard": guard,
-        "tasks_after_guard": len(clean),
+        "tasks_after_guard": len(tasks),
+        "task_selection_policy": "all_declared_tasks_no_observed_outcome_filter",
         "elapsed_minutes": round((time.time() - started) / 60.0, 2),
     })
-    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.out).write_text(json.dumps(report, indent=2))
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.atomic_writer import atomic_write_bytes_if_absent
+
+    with local_internal_governed_scope("integrated-reasoning-evaluation"):
+        if not atomic_write_bytes_if_absent(output,
+                (json.dumps(report, indent=2, allow_nan=False) + "\n").encode("utf-8"), mode=0o400):
+            raise FileExistsError(output)
     v = report["verdicts"]
     print(
         f"[verdict] retrieval_causal={v['retrieval_is_causal']} "
-        f"recurrence_causal={v['recurrence_is_causal']} "
+        f"recurrence_helps={v['recurrence_helps']} "
         f"both_required={v['both_required']}",
         flush=True,
     )

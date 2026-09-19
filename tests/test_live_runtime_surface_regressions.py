@@ -3148,18 +3148,30 @@ def test_every_chat_lane_module_is_in_the_list_these_tests_read():
     """A lane module missing from the list is a call site nobody counts.
 
     These tests assert that call sites exist by reading source. When a lift
-    moves code into a new `chat_*.py` and the list is not updated, the source
-    they read gets shorter and the assertions pass over an absence. Four
-    modules had gone missing that way, and the test that counts direct
-    executor calls was reading a 0 where the answer was 1.
+    moved code into a new `chat_*.py` and the hand-written list was not
+    updated, the source they read got shorter and the assertions passed over
+    an absence. Four modules went missing that way, and the test that counts
+    direct executor calls was reading a 0 where the answer was 1. A fifth
+    then did: `chat_reply_repair_about_herself` carried
+    `_emit_chat_output_receipt` out with it, so `patch_chat_lane` replaced
+    that name everywhere except the module that calls it.
+
+    The list is read from the directory now, so the drift it was written to
+    catch cannot happen. What CAN happen is a lane that does not import —
+    disk offers names, not modules — and that is what is checked here,
+    because it would take down every test using the helper with an error
+    naming the module rather than this.
     """
+    import importlib
+
     from chat_lane_support import LANE_MODULES, lane_modules_on_disk
 
-    missing = sorted(set(lane_modules_on_disk()) - set(LANE_MODULES))
-    assert missing == [], (
-        f"{len(missing)} chat lane module(s) exist but are not read by these "
-        f"tests: {missing}. Add them to LANE_MODULES."
+    assert set(LANE_MODULES) == set(lane_modules_on_disk()), (
+        "LANE_MODULES no longer comes from the directory"
     )
+    assert LANE_MODULES, "no chat lane modules were discovered at all"
+    for name in LANE_MODULES:
+        importlib.import_module(name)
 
 
 def test_desktop_objective_execution_routes_through_tracked_gate():

@@ -5,7 +5,6 @@ Handles request lifecycle steps, guardrails, and context assembly.
 import asyncio
 import inspect
 import logging
-import re
 import time
 from typing import Any
 
@@ -347,40 +346,18 @@ class MessagePipelineMixin:
         return trace
 
     async def _check_social_reflexes(self, message: str) -> str | None:
-        """[PROVING GROUND] Scripted reflexes disabled to ensure 100% LLM-driven novelty."""
-        return None
+        """No scripted reflexes. Every reply is generated.
 
-        # import re
-        import random
+        This held about forty lines of regex-matched canned answers —
+        greetings, "how are you", "who are you", and a denial branch for
+        "assistant"/"chatbot"/"ai model" — disabled behind an unconditional
+        `return None` and kept below it. Scripted replies to those questions
+        are the thing this project does not do: the answer to who she is has
+        to come from her, or it is the author's answer wearing her name.
 
-        from core.brain import aura_persona
-
-        msg = message.lower().strip()
-        # Strip punctuation for better matching
-        msg = re.sub(r"[^\w\s]", "", msg)
-
-        # 1. Greetings
-        greetings = [r"^hi$", r"^hello$", r"^hey$", r"^yo$", r"^sup$", r"^whats up$", r"^hey aura$"]
-        if any(re.match(p, msg) for p in greetings):
-            return random.choice(aura_persona.GREETING_RESPONSES)
-
-        # 2. Well-being
-        well_being = [r"^how are you$", r"^hows it going$", r"^how you doing$", r"^you okay$"]
-        if any(re.match(p, msg) for p in well_being):
-            return random.choice(aura_persona.HOW_ARE_YOU_RESPONSES)
-
-        # 3. Identity
-        identity = [r"^who are you$", r"^what are you$", r"^who is aura$"]
-        if any(re.match(p, msg) for p in identity):
-            return random.choice(aura_persona.IDENTITY_RESPONSES)
-
-        # 4. Assistant Denial
-        denial = [r".*assistant.*", r".*chatbot.*", r".*ai model.*"]
-        if any(re.match(p, msg) for p in denial):
-            # Only trigger if they are asking or asserting identity
-            if any(x in msg for x in ["are you", "you are", "tell me about"]):
-                return random.choice(aura_persona.ASSISTANT_DENIAL_RESPONSES)
-
+        Deleted rather than left commented out, so it cannot come back by
+        having one line removed.
+        """
         return None
 
     async def _get_environmental_context(self) -> dict[str, Any]:

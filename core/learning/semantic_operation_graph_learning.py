@@ -10,12 +10,16 @@ from core.verify.invariants import invariant
 @dataclass(frozen=True)
 class OperationEvidenceBank:
     features: tuple
+    normalizer_label: int | None = None
 
     def __post_init__(self):
         features = tuple(np.asarray(value, dtype=np.float64) for value in self.features)
         if not features or any(value.ndim != 1 or not value.size or not np.all(np.isfinite(value))
                                for value in features):
             raise ValueError("operation graph features are invalid")
+        if self.normalizer_label is not None and (
+                type(self.normalizer_label) is not int or self.normalizer_label < 0):
+            raise ValueError("operation graph normalizer is invalid")
         object.__setattr__(self, "features", features)
 
     def score(self, selected, parameters):
@@ -23,11 +27,22 @@ class OperationEvidenceBank:
             raise ValueError("operation graph views differ from parameters")
         if type(selected) is not int or not 0 <= selected < len(parameters[0]):
             raise ValueError("selected operation hypothesis is invalid")
-        probabilities = [softmax(parameters[2 * index] @ feature + parameters[2 * index + 1])[selected]
+        distributions = [softmax(parameters[2 * index] @ feature + parameters[2 * index + 1])
                          for index, feature in enumerate(self.features)]
-        return float(np.log(max(sum(probabilities) / len(probabilities), 1e-12)))
+        def log_mass(label):
+            if not 0 <= label < len(distributions[0]):
+                raise ValueError("operation graph normalizer is invalid")
+            return float(np.log(max(sum(row[label] for row in distributions) / len(distributions), 1e-12)))
+        return log_mass(selected) - (log_mass(self.normalizer_label) if self.normalizer_label is not None else 0.)
 
     def score_gradient(self, selected, parameters):
+        score, gradient = self._log_probability_gradient(selected, parameters)
+        if self.normalizer_label is None:
+            return score, gradient
+        normalizer, normalizer_gradient = self._log_probability_gradient(self.normalizer_label, parameters)
+        return score - normalizer, tuple(a - b for a, b in zip(gradient, normalizer_gradient, strict=True))
+
+    def _log_probability_gradient(self, selected, parameters):
         """Use log(mean(softmax(view))) rather than softmax(mean(view))."""
         if len(parameters) != 2 * len(self.features):
             raise ValueError("operation graph views differ from parameters")
@@ -54,11 +69,14 @@ class OperationEvidenceBank:
 
 
 def operation_graph_evidence(model, hidden, nodes):
-    from core.learning.semantic_program_transducer import _operation_feature
+    from core.learning.semantic_program_transducer import _operation_feature, OPERATION_BACKGROUND_LABEL
 
+    normalizer = (model.operation_head.labels.index(OPERATION_BACKGROUND_LABEL)
+                  if model.training_receipt.get("operation_background_fit", {}).get("score")
+                  == "joint_operation_background_log_odds_v2" else None)
     return tuple((OperationEvidenceBank(tuple(_operation_feature(hidden, node.span, mode=mode,
         hidden_channels=model.hidden_channels, hidden_channel_widths=model.hidden_channel_widths)
-        for mode in model.operation_head.modes)), model.operation_head.labels.index(node.operation))
+        for mode in model.operation_head.modes), normalizer), model.operation_head.labels.index(node.operation))
         for node in nodes)
 
 

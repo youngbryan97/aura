@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:  # annotation only; that module imports this one
     from .llm_health_router import EndpointHealth
 
+import logging
 import math
 import os
 import time
@@ -22,6 +23,37 @@ from core.brain.llm.model_registry import (
     FALLBACK_ENDPOINT,
 )
 from core.runtime.desktop_boot_safety import desktop_resource_guard_enabled
+
+#: Held only when the checkpoint cannot be read at all. An unreadable
+#: artifact is not a reason to admit something whose size is unknown.
+_BRAINSTEM_FLOOR_IF_UNREADABLE_GB = 22.0
+
+_module_logger = logging.getLogger(__name__)
+
+
+def _floor_for_the_model_on_this_lane() -> float:
+    """Free memory to require before loading the brainstem.
+
+    Its projected footprint and half again, from the checkpoint bound to the
+    lane rather than from a number somebody wrote down once.
+    """
+
+    try:
+        from core.brain.llm.how_big_is_the_checkpoint import (
+            _projected_model_footprint_gb,
+        )
+        from core.brain.llm.model_registry import get_brainstem_path
+
+        projected = float(_projected_model_footprint_gb(get_brainstem_path()))
+    except (ImportError, AttributeError, OSError, TypeError, ValueError) as exc:
+        _module_logger.debug(
+            "Brainstem footprint unreadable, holding the old floor: %s", exc
+        )
+        return _BRAINSTEM_FLOOR_IF_UNREADABLE_GB
+    if not (math.isfinite(projected) and projected > 0.0):
+        return _BRAINSTEM_FLOOR_IF_UNREADABLE_GB
+    return projected * 1.5
+
 
 
 class _DefersBackgroundWork:
@@ -376,18 +408,40 @@ class _DefersBackgroundWork:
             return value if math.isfinite(value) else default
 
         if name == BRAINSTEM_ENDPOINT:
-            # Brainstem is the 9B (~6GB @ 4-bit) background lane. The old
-            # 48% / 34GB-free gate was UNMEETABLE on a desktop whose whole job
-            # is holding the ~16-20GB 32B Cortex: steady state is ~56% / ~28GB
-            # available, so background cognition could NEVER admit → mind_tick
-            # never completes a successful tick → false-death → the launcher
-            # respawns a second 32B → memory doubling → worse false-death (a
-            # self-sustaining respawn loop, observed 2026-07-06). Calibrate to
-            # the hardware: allow the 7B beside the Cortex while holding a 22GB
-            # available floor (above Reflex's 20GB) — the external memory
-            # sentinel (42GB RSS lethal) remains the hard OOM backstop.
+            # Brainstem's floor comes from the model bound to the lane.
+            #
+            # It was 22.0, calibrated when the lane held a 9B at about 6GB. The
+            # comment beside it recorded why the number before THAT one had to
+            # change: a 48% / 34GB-free gate was unmeetable on a desktop whose
+            # job is holding the Cortex, so background cognition could never
+            # admit, mind_tick never completed a tick, the launcher read that
+            # as death and respawned a second 32B — a self-sustaining loop,
+            # observed 2026-07-06.
+            #
+            # LIVE 2026-09-18, the same shape again with the new lane model:
+            # "Deferring background local endpoint Brainstem
+            # (desktop_background_headroom:Brainstem:67.9%/20.6GB(need <100.0%
+            # and >=22.0GB))", every thirty seconds for the whole uptime. The
+            # host holds ~20GB available with the Cortex resident and the floor
+            # asks for 22, so the lane was configured, registered, and could
+            # never load.
+            #
+            # A constant cannot follow the model it is protecting. The floor is
+            # the checkpoint's own projected footprint and half again: the
+            # projection is already conservative — 11.0GB against a measured
+            # active 7.7GB and peak 8.7GB for Ternary-Bonsai-2-27B at 2-bit —
+            # and the extra half keeps admission from leaving the machine at
+            # the edge. It scales with whatever is bound to the lane, and it
+            # can never sit below the footprint of the thing it is admitting,
+            # which is what made a 4GB floor kill the Cortex.
+            #
+            # The external memory sentinel (42GB RSS lethal) remains the hard
+            # OOM backstop.
             max_pressure = _threshold("AURA_BACKGROUND_BRAINSTEM_MAX_PRESSURE_PCT", 62.0)
-            min_available = _threshold("AURA_BACKGROUND_BRAINSTEM_MIN_AVAILABLE_GB", 22.0)
+            min_available = _threshold(
+                "AURA_BACKGROUND_BRAINSTEM_MIN_AVAILABLE_GB",
+                _floor_for_the_model_on_this_lane(),
+            )
         else:
             max_pressure = _threshold("AURA_BACKGROUND_REFLEX_MAX_PRESSURE_PCT", 66.0)
             min_available = _threshold("AURA_BACKGROUND_REFLEX_MIN_AVAILABLE_GB", 20.0)

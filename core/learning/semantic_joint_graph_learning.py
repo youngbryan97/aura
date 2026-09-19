@@ -33,7 +33,8 @@ def score_annotated_graph(model, item, instructions, input_spans, *, solve_time_
     operations = operation_graph_evidence(model, item.hidden_states, nodes)
     components = tuple(np.asarray(value, dtype=np.float64) for head in model.operation_head.heads
                        for value in (head.weight, head.bias))
-    nodes = tuple(replace(node, score=node.pointer_score + bank.score_gradient(label, components)[0])
+    nodes = tuple(replace(node, score=(node.pointer_score if bank.normalizer_label is None else 0.)
+                          + bank.score_gradient(label, components)[0])
                   for node, (bank, label) in zip(nodes, operations, strict=True))
     charts = []
     _assign_typed_arguments(model=model, hidden=item.hidden_states, inputs=item.public_inputs,
@@ -56,7 +57,8 @@ def scored_graph_evidence(model, item, nodes, result, relations, *, learn_argume
     score = result[0][0] + sum(node.score for node in nodes) - model.operation_length_penalty * len(nodes)
     from core.learning.semantic_argument_graph_learning import argument_graph_evidence
     terms = argument_graph_evidence(model, item.hidden_states, nodes, result[0][2]) if learn_arguments else ()
-    if learn_operation_pointer:
+    if learn_operation_pointer and model.training_receipt.get("operation_background_fit", {}).get("score") \
+            != "joint_operation_background_log_odds_v2":
         from core.learning.semantic_operation_pointer_learning import operation_pointer_graph_evidence
         terms += operation_pointer_graph_evidence(model, item.hidden_states, nodes)
     return {"score": score, "argument_score": result[0][0], "relations": relations, "argument_terms": terms,
@@ -159,6 +161,7 @@ def mine_runtime_graph_contrast(model, item, *, weight=1., solve_time_limit_s=20
 
 def source_operation_supervision(model, training):
     """Preserve all source operation labels, not only the currently wrong graphs."""
+    from core.learning.semantic_operation_background import operation_background_training_spans
     from core.learning.semantic_program_shared_transducer import _geometry
     from core.learning.semantic_program_transducer_fitting import _OperationNode
 
@@ -167,7 +170,10 @@ def source_operation_supervision(model, training):
     counts = Counter(_geometry(item) for item in training)
     evidence, weights = [], []
     for item in training:
-        nodes = tuple(_OperationNode(ins.operation_span, ins.op, 0., 0., 1.) for ins in item.ir.instructions)
+        spans = (operation_background_training_spans(item, model.operation_pointer, model.max_span_tokens)
+                 if model.training_receipt.get("operation_background_fit") else
+                 tuple((ins.operation_span, ins.op) for ins in item.ir.instructions))
+        nodes = tuple(_OperationNode(span, label, 0., 0., 1.) for span, label in spans)
         rows = operation_graph_evidence(model, item.hidden_states, nodes)
         evidence.extend(rows)
         weights.extend([1. / (counts[_geometry(item)] * len(rows))] * len(rows))
@@ -272,6 +278,7 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
     from core.learning.semantic_graph_margin import graph_refit_source_splits
     from core.learning.semantic_program_campaign import _sha
     from core.learning.semantic_program_shared_transducer import _geometry
+    from core.learning.semantic_program_transducer import OPERATION_BACKGROUND_LABEL
 
     if type(rounds) is not int or rounds < 1 or type(constraint_learning) is not bool:
         raise ValueError("joint graph learning rounds must be positive")
@@ -279,8 +286,6 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         raise ValueError("argument graph learning requires retained constraints")
     if type(learn_operation_pointer) is not bool or (learn_operation_pointer and not constraint_learning):
         raise ValueError("operation pointer learning requires retained constraints")
-    if model.training_receipt.get("operation_background_fit"):
-        raise ValueError("joint graph training does not yet replay background operation scoring")
     if checkpoint_dir is not None and not constraint_learning:
         raise ValueError("fit checkpoints require retained semantic constraints")
     if type(retention_operation_charts) is not int or retention_operation_charts < 1:
@@ -301,7 +306,9 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
             retained.extend(source_operation_pointer_constraints(
                 model, training, weight=source_weight,
             ))
+    stop_reason = "round_budget_exhausted"
     for round_index in range(rounds):
+        coefficients_before = _sha(candidate._coefficient_body())
         records, new_pairs = [], 0
         for index, item in enumerate(training):
             contrast, record = mine_runtime_graph_contrast(candidate, item,
@@ -334,6 +341,7 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
                 progress({"stage": "joint_graph_mining", "round": round_index + 1,
                           "completed": index + 1, "total": len(training), "row": record})
         if not new_pairs and not (constraint_learning and retained):
+            stop_reason = "no_new_witnessed_errors"
             history.append({"records": records, "fit": {"status": "no_new_witnessed_errors",
                             "pairs": len(retained), "coverage_complete": all(
                                 row["status"] == "equivalent" for row in records)}})
@@ -366,17 +374,26 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         history.append({"records": records, "fit": fit})
         if progress:
             progress({"stage": "joint_graph_fit", "round": round_index + 1, "fit": fit})
+        if _sha(candidate._coefficient_body()) == coefficients_before:
+            stop_reason = "coefficients_unchanged"
+            break
     body = {key: value for key, value in candidate.training_receipt.items() if key != "receipt_sha256"}
     body["joint_graph_refit"] = {
         "schema": "aura.semantic_joint_graph_refit.v1", "parent_transducer_receipt_sha256": model.receipt_sha256,
         "training_examples": len(training), "validation_examples": len(validation),
         "training_example_ids_sha256": _sha(sorted(item.ir.source_text_sha256 for item in training)),
         "validation_example_ids_sha256": _sha(sorted(item.ir.source_text_sha256 for item in validation)),
-        "rounds": history, "negative_origin": "runtime_decode", "positive_origin": "source_annotations",
+        "rounds": history, "requested_rounds": rounds, "completed_rounds": len(history),
+        "stop_reason": stop_reason,
+        "negative_origin": "runtime_decode", "positive_origin": "source_annotations",
         "negative_admission": "universal_floor_distinguishing_execution", "test_examples_used": 0,
         "validation_used_for_fit": False, "serving_authority": False,
         "source_operation_weight": source_weight,
-        "source_operations": len(supervision.labels) if supervision is not None else 0,
+        "source_operations": sum(model.operation_head.labels[index] != OPERATION_BACKGROUND_LABEL
+                                 for index in supervision.labels) if supervision is not None else 0,
+        "source_training_spans": len(supervision.labels) if supervision is not None else 0,
+        "source_supervision_includes_background": bool(
+            supervision is not None and model.training_receipt.get("operation_background_fit")),
         "constraint_learning": constraint_learning,
         "argument_heads_trainable": learn_arguments,
         "operation_pointer_trainable": learn_operation_pointer,

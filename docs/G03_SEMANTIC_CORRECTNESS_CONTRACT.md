@@ -139,6 +139,12 @@ shorter description or more expressive grammar alone does not demonstrate it.
 Packages two through four have work that does not depend on G03 closure. They
 must not promote an unqualified compiler while developing those connections.
 
+The [2026-09-18 paired public measurement repair](evidence/G08_PAIRED_PUBLIC_MEASUREMENT_2026-09-18.md)
+replaces the legacy containment grader and removes fixture identifiers from
+retrieval queries. It keeps baseline successes in the declared cohort and
+recounts both interventions on the same tasks. The fixture and direct model
+solver still do not establish ordinary runtime retrieval or broad gain.
+
 The first execution connection in package two now uses
 `core/cognition/procedure_execution.py` to lower registered compositions into
 the existing tool-plan executor. Caller-supplied backends produce explicit

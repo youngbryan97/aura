@@ -29,6 +29,7 @@ from typing import Any
 from core.runtime.flags import FlagKind, declare
 
 from core.governance_context import GovernanceViolation
+from core.runtime.lockdep import checked_lock
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 
 logger = logging.getLogger("Aura.EyesOfTheirOwn")
@@ -52,7 +53,7 @@ _LONG_ENOUGH_S = 2.0
 #: How long the child has to come up before she gives up on it for this run.
 _TO_START_S = 20.0
 
-_LOCK = threading.Lock()
+_LOCK = checked_lock("perception.eyes_of_their_own")
 _CHILD: Any = None
 #: Set when the child could not be started, so nothing tries again every look.
 _GAVE_UP = False

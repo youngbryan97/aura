@@ -34,6 +34,30 @@ from core.learning.semantic_program_transducer import (
 _DIRECTIONAL_RELATION_PARTS: Final = 3
 
 
+def valid_relation_rank_contract(head, receipt) -> bool:
+    """Keep original training rank historical; validate explicit expansion lineage."""
+    fit = receipt.get("relation_tissue_fit")
+    if not isinstance(fit, Mapping):
+        return False
+    rank = fit.get("rank")
+    expansions = receipt.get("relation_rank_expansions", [])
+    if type(rank) is not int or not isinstance(expansions, list):
+        return False
+    for event in expansions:
+        if (not isinstance(event, dict) or event.get("schema") != "aura.semantic_relation_rank_expansion.v1"
+                or type(event.get("previous_rank")) is not int or event["previous_rank"] != rank
+                or type(event.get("rank")) is not int or not rank < event["rank"] <= min(64, head.channel_width)
+                or type(event.get("seed")) is not int or event["seed"] < 0
+                or event.get("initialization") != "orthogonal_query_zero_definition_v1"
+                or event.get("serving_authority") is not False or event.get("numerical_replay_required") is not True):
+            return False
+        parent = event.get("parent_transducer_receipt_sha256")
+        if not isinstance(parent, str) or len(parent) != 64 or any(c not in "0123456789abcdef" for c in parent):
+            return False
+        rank = event["rank"]
+    return rank == head.query_projection.shape[1]
+
+
 def _directional_relation_feature(
     reference: np.ndarray,
     definition: np.ndarray,
@@ -162,6 +186,30 @@ class DirectionalRelationHead:
             "query_projection": self.query_projection.tolist(),
             "definition_projection": self.definition_projection.tolist(),
         }
+
+    def expanded_rank(self, rank: int, *, seed: int = 0) -> DirectionalRelationHead:
+        """Add trainable directions with zero initial bilinear contribution.
+
+        One factor is nonzero so the new component can learn immediately.
+        The mathematical score is preserved; exported floating-point scores
+        still need the same replay checks as any other candidate.
+        """
+        previous = self.query_projection.shape[1]
+        if (type(rank) is not int or not previous < rank <= min(64, self.channel_width)
+                or type(seed) is not int or seed < 0):
+            raise ValueError("relation expansion requires a larger supported rank and nonnegative seed")
+        # Orthogonalize against the actual old column space, including a
+        # rank-deficient factor, rather than treating every column as a basis.
+        u, singular, _ = np.linalg.svd(self.query_projection.astype(np.float64), full_matrices=False)
+        tolerance = np.finfo(np.float64).eps * max(self.query_projection.shape) * singular.max()
+        basis = u[:, singular > tolerance]
+        extra = np.random.default_rng(seed).normal(size=(self.channel_width, rank - previous))
+        extra -= basis @ (basis.T @ extra)
+        directions, _ = np.linalg.qr(extra, mode="reduced")
+        return DirectionalRelationHead(self.weight.copy(), self.bias, self.pointer_scale,
+            np.concatenate((self.query_projection, directions.astype(np.float32)), axis=1),
+            np.concatenate((self.definition_projection,
+                            np.zeros((self.channel_width, rank - previous), dtype=np.float32)), axis=1))
 
 
 def _fit_directional_relation_head(

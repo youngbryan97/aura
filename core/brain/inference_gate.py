@@ -2629,7 +2629,6 @@ def _generate_with_metadata_sink_part_2_2(self, _is_user_facing, repairable_draf
         visible_user_prompt,
         is_user_facing=_is_user_facing,
     )
-    return _FALL_THROUGH
 
 def _generate_with_metadata_sink_primary_failure_metadata(self, context, desktop_cognitive_engine_contract, health_probe, local_label, origin, proof_evaluation_contract, strict_primary_proof_lane):
     primary_failure_metadata = self.get_last_generation_metadata()
@@ -4617,7 +4616,9 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
         return max(cls._reasoning_reserve(model), bounded)
 
     @staticmethod
-    def _tokens_the_clock_can_deliver(max_tokens: Any, *, seconds: float) -> int:
+    def _tokens_the_clock_can_deliver(
+        max_tokens: Any, *, seconds: float, model: str = ""
+    ) -> int:
         """Cut a token budget the clock cannot pay for at the measured rate.
 
         The timeout and the token budget come from two separate tables keyed
@@ -4648,7 +4649,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             from core.brain.llm.thinking_reserve import seconds_to_decode
         except ImportError:
             return wanted
-        needed = seconds_to_decode(wanted)
+        needed = seconds_to_decode(wanted, model)
         if needed <= 0 or needed <= allowed:
             return wanted
         fits = max(1, int(wanted * (allowed / needed)))
@@ -11230,8 +11231,14 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             _generations = 1
         return _generations, max_tokens
 
-    def _generate_with_metadata_sink__decode_s(self, _tokens_to_pay_for, messages, system_prompt):
-        _decode_s = _seconds_to_decode(_tokens_to_pay_for)
+    def _generate_with_metadata_sink__decode_s(
+        self, _tokens_to_pay_for, messages, system_prompt, model: str = ""
+    ):
+        # The rate belongs to the model. `_seconds_to_decode` has taken one
+        # since the 9B's readings aborted three generations on the 27B, and
+        # both call sites in this file passed nothing — so the parameter that
+        # names the fix was never given the thing it needed.
+        _decode_s = _seconds_to_decode(_tokens_to_pay_for, model)
         # Reading the prompt is the other half of a generation, and
         # on this hardware it is the larger half. A turn was given time
         # to SAY its answer and none to read the question.
@@ -12853,7 +12860,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                     seconds_remaining=float(timeout_val or 0.0),
                 )
                 _tokens_to_pay_for = max_tokens + _reserve_the_worker_adds
-                _decode_s, _read_s = self._generate_with_metadata_sink__decode_s(_tokens_to_pay_for, messages, system_prompt)
+                _decode_s, _read_s = self._generate_with_metadata_sink__decode_s(_tokens_to_pay_for, messages, system_prompt, _model_for_clock)
                 if _decode_s > 0.0:
                     _needed = (
                         (_decode_s + _read_s) * _generations
@@ -12893,8 +12900,15 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             # still yield on its deadline, and there an oversized budget buys
             # nothing but a decode cut off part-way.
             if not _is_user_facing:
+                # Named, because this is the background lane and the
+                # background lane is not the resident cortex. Pricing its
+                # budget on a window every lane wrote into is the same
+                # mistake one level down from the one `_seconds_to_decode`
+                # documents.
                 max_tokens = self._tokens_the_clock_can_deliver(
-                    max_tokens, seconds=float(primary_timeout or timeout_val)
+                    max_tokens,
+                    seconds=float(primary_timeout or timeout_val),
+                    model=self._model_now_serving(requested_tier),
                 )
             else:
                 # Raised to what the turn's own wall clock can pay for, so a

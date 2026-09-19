@@ -174,12 +174,20 @@ def test_the_container_gate_allows_legitimate_code(label):
 
 
 def test_record_degradation_does_not_import_service_container():
-    import core.runtime.errors as errors
-    from source_support import inlined_function_source
+    """`record_degradation` and what it calls, two extractions down.
 
-    # As it runs: the size sweep moved its body into helpers, and read alone
-    # it no longer named the registry it still uses.
-    source = inlined_function_source(errors.__file__, "record_degradation")
+    The method-size sweep moved the failure-policy lookup and the counter
+    into `_record_degradation_backpressure_decision`, so reading the
+    function alone found neither the import it must have nor the two it
+    must not. Reading the helpers as well makes both halves stricter: the
+    imports it must not reach for are now refused anywhere on its path,
+    not merely in its own body.
+    """
+    import core.runtime.errors as errors
+
+    from tests.source_contract import function_with_its_helpers
+
+    source = function_with_its_helpers(errors, "record_degradation", depth=3)
     assert "from core.container import ServiceContainer" not in source
     assert "core.observability.metrics" not in source
     assert "core.runtime.service_registry" in source

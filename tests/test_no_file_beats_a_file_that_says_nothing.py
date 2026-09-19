@@ -20,6 +20,35 @@ from __future__ import annotations
 import inspect
 
 from core.skills.desktop_task import DesktopTaskSkill
+from tests.source_contract import declared_in, function_containing
+
+#: Every purpose under which she writes a document for somebody.
+AUTHORING_PURPOSES = (
+    "authored_artifact_body",
+    "authored_self_document",
+    "research_document_synthesis",
+)
+
+
+def _the_authoring_call(purpose: str) -> str:
+    """The function that makes the generation call for this purpose.
+
+    Not a character window around the marker. A window measures formatting:
+    the three tests below read 900, 1400 and 1800 characters either side of
+    ``purpose="..."`` and each number was the length of the comments
+    somebody had written that week. The enclosing function is the unit the
+    declarations actually have to agree within, and it survives both a
+    method-size extraction and a move to another module.
+    """
+
+    from core.skills import desktop_research, desktop_task
+
+    module_name, _ = declared_in(
+        f'purpose="{purpose}"', desktop_task, desktop_research
+    )
+    module = desktop_task if module_name.endswith("desktop_task") else desktop_research
+    _, body = function_containing(module, f'purpose="{purpose}"')
+    return body
 
 
 def test_a_failed_authorship_returns_nothing_written():
@@ -110,20 +139,10 @@ def test_every_authoring_call_declares_itself_internal():
     Nothing in an authoring prompt needs a tool. The tool is the step that
     writes down what it returns.
     """
-    from pathlib import Path
-
-    source = Path("core/skills/desktop_task.py").read_text(encoding="utf-8")
-    purposes = [
-        "authored_artifact_body",
-        "authored_self_document",
-        "research_document_synthesis",
-    ]
-    for purpose in purposes:
-        where = source.index(f'purpose="{purpose}"')
-        assert "_non_chat_inference=True" in source[where : where + 900], (
+    for purpose in AUTHORING_PURPOSES:
+        assert "_non_chat_inference=True" in _the_authoring_call(purpose), (
             f"{purpose} still presents as a chat turn"
         )
-    assert source.count("_non_chat_inference=True") == len(purposes)
 
 
 def test_an_internal_generation_is_never_forced_to_call_a_tool_first():
@@ -198,14 +217,10 @@ def test_every_authoring_call_is_internal_where_the_gate_reads_it_too():
     already returns nothing to an internal caller for exactly this reason. It
     could not tell this was one.
     """
-    from pathlib import Path
-
-    source = Path("core/skills/desktop_task.py").read_text(encoding="utf-8")
-    for purpose in ("authored_artifact_body", "authored_self_document", "research_document_synthesis"):
-        where = source.index(f'purpose="{purpose}"')
-        window = source[where : where + 1800]
-        assert "_non_chat_inference=True" in window, purpose
-        assert "internal_inference=True" in window, purpose
+    for purpose in AUTHORING_PURPOSES:
+        call = _the_authoring_call(purpose)
+        assert "_non_chat_inference=True" in call, purpose
+        assert "internal_inference=True" in call, purpose
 
 
 def test_her_authoring_origin_is_not_the_surface_the_person_typed_at():
@@ -229,10 +244,8 @@ def test_her_authoring_origin_is_not_the_surface_the_person_typed_at():
     assert InferenceGate._origin_is_user_facing("desktop_task"), "the dispatch is unchanged"
     assert InferenceGate._origin_is_user_facing("desktop_ui")
 
-    source = Path("core/skills/desktop_task.py").read_text(encoding="utf-8")
-    for purpose in ("authored_artifact_body", "authored_self_document", "research_document_synthesis"):
-        where = source.index(f'purpose="{purpose}"')
-        assert 'origin="internal_desktop_authoring"' in source[max(0, where - 1400) : where], purpose
+    for purpose in AUTHORING_PURPOSES:
+        assert 'origin="internal_desktop_authoring"' in _the_authoring_call(purpose), purpose
 
 
 def test_the_wait_for_a_warming_lane_is_bounded_and_repeats():

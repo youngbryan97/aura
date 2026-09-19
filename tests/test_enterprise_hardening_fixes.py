@@ -2871,10 +2871,19 @@ def test_structured_evaluation_floor_reports_limits_without_overclaiming():
 
 @pytest.mark.asyncio
 @requires_mlx
-async def test_cognitive_engine_uses_structured_floor_for_proof_evaluation(monkeypatch):
+async def test_cognitive_engine_runs_the_pipeline_for_proof_planning(monkeypatch):
     from core.brain.cognitive_engine import CognitiveEngine
+    from core.brain.types import ThinkingMode, Thought
 
     monkeypatch.setenv("AURA_PROOF_RUN", "1")
+    visited = []
+
+    async def pipeline(self, state, objective, mode, origin, context, **kwargs):
+        visited.append((objective, origin))
+        return Thought(id="pipeline-result", content="A computed plan", mode=ThinkingMode.FAST,
+                       confidence=0.5, reasoning=["pipeline test backend"])
+
+    monkeypatch.setattr(CognitiveEngine, "_run_thinking_loop", pipeline)
 
     thought = await CognitiveEngine().think(
         objective=(
@@ -2884,10 +2893,9 @@ async def test_cognitive_engine_uses_structured_floor_for_proof_evaluation(monke
         origin="test",
     )
 
-    content = thought.content.lower()
-    for term in ("backup", "checksum", "continuity", "distributed"):
-        assert term in content
-    assert any("structured runtime evaluation floor" in item.lower() for item in thought.reasoning)
+    assert len(visited) == 1 and visited[0][1] == "test"
+    assert thought.id == "pipeline-result"
+    assert not any("structured runtime evaluation floor" in item.lower() for item in thought.reasoning)
 
 
 @pytest.mark.asyncio

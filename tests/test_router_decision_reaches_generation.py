@@ -23,20 +23,33 @@ from __future__ import annotations
 
 import inspect
 
-from source_support import inlined_function_source
-
 from core.phases import response_generation
+from tests.source_contract import function_with_its_helpers, in_order
+
+
+def _generation_execute() -> str:
+    """`execute` and the helpers the method-size sweep lifted out of it.
+
+    The desktop planning contract moved into
+    `_execute_derived_merely_read`, so reading `execute` alone stopped
+    finding any of this while the seam was untouched.
+    """
+
+    return function_with_its_helpers(
+        response_generation, "ResponseGenerationPhase.execute"
+    )
 
 
 def test_generation_reads_the_routers_matched_skills():
-    # As it runs: its blocks were moved into helpers by the size sweep.
-    source = inlined_function_source(response_generation.__file__, "ResponseGenerationPhase.execute")
+    source = _generation_execute()
     assert 'state.response_modifiers.get("matched_skills")' in source, (
         "the router's own decision must be consumed, not re-derived from text"
     )
-    contract_at = source.index("LIVE DESKTOP EXECUTION PLANNING CONTRACT")
-    read_at = source.index('state.response_modifiers.get("matched_skills")')
-    assert read_at < contract_at, "the decision must be read before the contract renders"
+    in_order(
+        source,
+        'state.response_modifiers.get("matched_skills")',
+        "LIVE DESKTOP EXECUTION PLANNING CONTRACT",
+    )
 
 
 def test_the_router_writes_the_decision_it_makes():
@@ -63,6 +76,4 @@ def test_a_desktop_skill_match_is_recognised():
 
 def test_the_text_detector_remains_as_a_fallback():
     """A lane that never reached the router must still plan, not deny."""
-    # As it runs: its blocks were moved into helpers by the size sweep.
-    source = inlined_function_source(response_generation.__file__, "ResponseGenerationPhase.execute")
-    assert "looks_like_desktop_objective" in source
+    assert "looks_like_desktop_objective" in _generation_execute()

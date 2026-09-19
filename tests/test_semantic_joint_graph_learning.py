@@ -117,6 +117,32 @@ def test_missing_operation_parameters_cannot_silently_ignore_operation_supervisi
         relation_graph_loss(query, definition, (row,), scale=1., initial=(query, definition), regularization=0.)
 
 
+def test_unchanged_coefficients_stop_repeated_mining_without_claiming_convergence(monkeypatch):
+    from core.learning import semantic_joint_graph_learning as learning
+
+    model, examples = model_examples()
+    model = model.with_joint_operation_argument_scores().with_source_ordered_definitions()
+    mined = []
+
+    def mine(candidate, item, **kwargs):
+        mined.append(item.ir.source_text_sha256)
+        return object(), {"status": "counterexample"}
+
+    def unchanged(relation, operation, contrasts, **kwargs):
+        return relation, operation, {"status": "no_retention_preserving_step_found"}
+
+    monkeypatch.setattr(learning, "mine_runtime_graph_contrast", mine)
+    monkeypatch.setattr(learning, "fit_joint_graph_contrasts", unchanged)
+    candidate = learning.refit_compositional_joint_graphs(model, examples, rounds=3)
+    receipt = candidate.training_receipt["joint_graph_refit"]
+    assert len(mined) == receipt["training_examples"]
+    assert receipt["requested_rounds"] == 3
+    assert receipt["completed_rounds"] == 1
+    assert receipt["stop_reason"] == "coefficients_unchanged"
+    assert receipt["rounds"][0]["records"][0]["status"] == "counterexample"
+    assert not receipt["serving_authority"]
+
+
 def test_actual_runtime_operation_errors_drive_joint_training():
     from core.learning.semantic_joint_graph_learning import mine_runtime_graph_contrast, refit_compositional_joint_graphs
     model, examples = model_examples()
