@@ -9816,13 +9816,21 @@ async def test_self_condition_prompt_keeps_delivered_history_and_one_fresh_proje
     monkeypatch.setattr(
         ce_module,
         "_desktop_history_messages_from_context",
-        lambda _context: [
-            {"role": "user", "content": "How are you doing?"},
-            {
-                "role": "assistant",
-                "content": "Draft one. This is not accurate. Draft two.",
-            },
-        ],
+        # (messages, note). The real one gained the note when history got a
+        # reading budget; this double kept returning a bare list, so the
+        # unpack handed `history_messages` a single dict and the prompt
+        # builder iterated its KEYS — "'str' object has no attribute 'get'",
+        # swallowed as a degraded desktop generation.
+        lambda _context: (
+            [
+                {"role": "user", "content": "How are you doing?"},
+                {
+                    "role": "assistant",
+                    "content": "Draft one. This is not accurate. Draft two.",
+                },
+            ],
+            "",
+        ),
     )
     evidence = (
         "Aura has a fresh self-condition sample. The direct runtime evidence "
