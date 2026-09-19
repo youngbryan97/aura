@@ -9,9 +9,11 @@ substituted into the visible answer when it came out empty. A `requires_search`
 contract added a line to the prompt and was never checked. And the loop
 executed tools while returning no record that any had run.
 """
+
 from __future__ import annotations
 
 import asyncio
+import re
 
 import pytest
 
@@ -249,9 +251,8 @@ def test_an_exhausted_episode_returns_a_truthful_result():
 def test_no_request_pins_the_model_for_a_day():
     """keep_alive was hard-coded to 24h on every turn, so one request asserted
     a residency decision that belongs to the model lane."""
-    from pathlib import Path
-
     import ast
+    from pathlib import Path
 
     source = (
         Path(__file__).resolve().parents[1]
@@ -297,7 +298,12 @@ def test_compaction_budgets_the_prompt_that_is_actually_sent():
         / "core" / "brain" / "llm" / "local_agent_client.py"
     ).read_text("utf-8")
 
-    assert ".prune(\n                    history, reinforced_system\n                )" in source
+    # Matched without the indentation baked in. This carried twenty spaces
+    # of it and the call now sits at sixteen, so re-indenting the block broke
+    # an assertion about what gets budgeted, not about how deeply it nests.
+    assert re.search(r"\.prune\(\s*history,\s*reinforced_system\s*\)", source), (
+        "the budget must be taken on the prompt that is actually sent"
+    )
     assert ".prune(history, system_prompt)" not in source
 
 

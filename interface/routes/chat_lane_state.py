@@ -13,6 +13,7 @@ from typing import Any
 
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_inference_gate
 from interface.routes import chat_preflight as _chat_preflight  # noqa: E402
 from interface.routes.chat_common import (
     _CHAT_RECOVERABLE_ERRORS,
@@ -119,7 +120,7 @@ def _mark_conversation_lane_timeout(reason: str = "foreground_timeout") -> dict[
     _force_clear_mlx_foreground_owner(reason=reason, min_age_s=45.0)
 
     try:
-        gate = ServiceContainer.get("inference_gate", default=None)
+        gate = resolve_inference_gate()
         if gate and hasattr(gate, "note_foreground_timeout"):
             gate.note_foreground_timeout(reason)
     except _CHAT_RECOVERABLE_ERRORS as exc:

@@ -1,9 +1,9 @@
+
 """core/adaptation/self_optimizer.py - MLX Self-Optimization Engine
 
 Orchestrates on-device LoRA fine-tuning for Aura's internal Nucleus models.
 This allows Aura to update her own weights based on captured experiences.
 """
-
 import asyncio
 import json
 import logging
@@ -13,13 +13,13 @@ import time
 from pathlib import Path
 from typing import Any
 
-from core.container import ServiceContainer
 from core.learning.cortex_generation_upgrade import record_upgrade_candidate
 from core.runtime import resource_psutil as psutil
 from core.runtime.background_policy import background_activity_reason
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.lockdep import LockRank, checked_lock
+from core.runtime.service_access import resolve_orchestrator
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.utils.task_tracker import get_task_tracker
@@ -62,7 +62,7 @@ class SelfOptimizer:
             return {"ok": False, "error": "shutdown_requested"}
 
         reason = background_activity_reason(
-            ServiceContainer.get("orchestrator", default=None),
+            resolve_orchestrator(),
             min_idle_seconds=float(os.getenv("AURA_SELF_OPTIMIZER_MIN_IDLE_S", "900") or 900),
             max_memory_percent=float(os.getenv("AURA_SELF_OPTIMIZER_MAX_RAM_PCT", "65") or 65),
             max_failure_pressure=float(os.getenv("AURA_SELF_OPTIMIZER_MAX_FAILURE_PRESSURE", "0.20") or 0.20),

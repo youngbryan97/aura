@@ -75,13 +75,17 @@ def test_no_missing_proof_at_all_is_not_a_reason_to_serve() -> None:
 
 
 def test_the_route_consults_it_before_replacing_the_reply() -> None:
-    from pathlib import Path
+    """The unfinished-answer check runs before the reply is replaced.
 
-    source = Path("interface/routes/chat.py").read_text()
-    start = source.index("def _fail_closed_on_an_unproven_full_mind_contract(")
-    end = source.index("async def _serve_the_bounded_repair(", start)
-    body = source[start:end]
-    assert "_a_proof_that_says_the_answer_is_unfinished" in body
-    assert body.index("_a_proof_that_says_the_answer_is_unfinished") < body.index(
-        "failing "
-    ), "the check must come before the replacement, not after it"
+    Read out of `interface/routes/chat.py` by two markers. The gate moved to
+    `chat_refusals`, so the first `index` raised ValueError rather than
+    failing an assertion — the ordering it holds was never checked again.
+    The function is the unit, and `in_order` has no opinion about distance.
+    """
+    from interface.routes import chat_refusals
+    from tests.source_contract import function_containing, in_order
+
+    _name, body = function_containing(
+        chat_refusals, "def _fail_closed_on_an_unproven_full_mind_contract("
+    )
+    in_order(body, "_a_proof_that_says_the_answer_is_unfinished", "failing ")

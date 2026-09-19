@@ -44,6 +44,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_orchestrator
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Viability")
@@ -385,7 +386,7 @@ def _sample_from_container() -> ViabilitySample:
         logger.debug("Viability psutil probe failed: %s", exc)
     try:
         from core.container import ServiceContainer
-        orch = ServiceContainer.get("orchestrator", default=None)
+        orch = resolve_orchestrator()
         if orch is not None:
             start = float(
                 getattr(orch, "start_time", None)

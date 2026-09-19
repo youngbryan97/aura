@@ -806,11 +806,21 @@ def test_desktop_background_headroom_defers_brainstem_before_memory_spike(monkey
     # is now calibrated to admit at steady state (see
     # tests/test_brainstem_background_headroom_calibration.py) while STILL
     # deferring as real pressure builds toward a spike, which this asserts.
+    #
+    # 2026-09-19: available_gb was 20.0 against a flat 22GB floor, and 20GB
+    # is what the host actually has free with the resident Cortex — so this
+    # case had drifted into steady state exactly as 58%/26.5GB did before
+    # it, and the brainstem lane was unloadable on every boot. The floor is
+    # derived from the bound checkpoint now, so the number that means
+    # "genuinely tight" is derived with it.
+    from core.brain.llm_background_deferral import _floor_for_the_model_on_this_lane
+
+    _below_the_floor = _floor_for_the_model_on_this_lane() - 1.0
     monkeypatch.setattr(
         "core.utils.memory_monitor.get_memory_pressure_snapshot",
         lambda: SimpleNamespace(
             pressure_pct=68.0,
-            available_gb=20.0,
+            available_gb=_below_the_floor,
             process_rss_gb=20.0,
             process_rss_limit_gb=40.0,
         ),

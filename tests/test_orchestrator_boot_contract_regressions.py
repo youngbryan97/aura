@@ -36,6 +36,25 @@ def test_final_boot_complete_uses_fresh_runtime_health_check():
     assert "_final_boot_health_log(" in final_boot_slice
 
 
+#: How a bounded wait on the scheduler's start is spelled.
+#:
+#: It was `await asyncio.wait_for(scheduler.start(), timeout=5.0)`. It is
+#: now `await_while_the_task_moves(scheduler.start(), stall_s=5.0, ...)`,
+#: which cancels on a STALL rather than on a deadline — a start that is
+#: still making progress is no longer killed at five seconds. The property
+#: these tests hold is that the start is bounded at all, so they read the
+#: call and the bound rather than the name of the waiter.
+_STARTS_THE_SCHEDULER = "scheduler.start()"
+_AND_BOUNDS_IT = ("timeout=5.0", "stall_s=5.0")
+
+
+def _starts_the_scheduler_under_a_bound(source: str) -> bool:
+    for line in source.splitlines():
+        if _STARTS_THE_SCHEDULER in line and any(b in line for b in _AND_BOUNDS_IT):
+            return True
+    return False
+
+
 def test_boot_phase_health_contract_does_not_emit_runtime_critical_summary():
     boot_source = (PROJECT_ROOT / "core" / "orchestrator" / "boot.py").read_text(
         encoding="utf-8"
@@ -53,7 +72,7 @@ def test_boot_phase_health_contract_does_not_emit_runtime_critical_summary():
         1,
     )[0]
     assert "Scheduler heartbeat disabled for foreground-only boot" not in scheduler_slice
-    assert "await asyncio.wait_for(scheduler.start(), timeout=5.0)" in scheduler_slice
+    assert _starts_the_scheduler_under_a_bound(scheduler_slice)
 
 
 def test_canonical_boot_refreshes_health_before_manifest():
@@ -409,7 +428,7 @@ def test_foreground_start_keeps_scheduler_heartbeat_alive():
 
     assert "heartbeat remains active for runtime health" in foreground_slice
     assert "if not scheduler.is_alive():" in foreground_slice
-    assert "await asyncio.wait_for(scheduler.start(), timeout=5.0)" in foreground_slice
+    assert _starts_the_scheduler_under_a_bound(foreground_slice)
 
 
 def test_foreground_boot_defers_mycelium_infrastructure_mapping():

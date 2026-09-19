@@ -36,6 +36,7 @@ from typing import Any
 from core.cognition.cognitive_kernel import CognitiveBrief, InputDomain, ResponseStrategy
 from core.runtime import resource_psutil as psutil
 from core.runtime.errors import Severity, record_degradation
+from core.runtime.service_access import resolve_inference_gate
 
 logger = logging.getLogger("Aura.InnerMonologue")
 
@@ -472,9 +473,8 @@ class InnerMonologue:
     def _should_use_api(self, brief: CognitiveBrief) -> bool:
         """Decide whether to use an API model to deepen the reasoning."""
         try:
-            from core.container import ServiceContainer
 
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             if gate and hasattr(gate, "_background_local_deferral_reason"):
                 if gate._background_local_deferral_reason(origin="inner_monologue"):
                     return False

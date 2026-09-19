@@ -108,8 +108,9 @@ def _the_decision_and_what_follows() -> tuple[str, str]:
     they were both in was split, and the branch that follows the check now
     lives in a helper called from it.
     """
-    from core.brain import inference_gate
     from source_contract import function_containing
+
+    from core.brain import inference_gate
 
     _name, body = function_containing(inference_gate, "if deep_handoff and not local_deep_solver_enabled():")
     later, _body = function_containing(inference_gate, "if deep_handoff and not explicit_background:")

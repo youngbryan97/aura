@@ -24,11 +24,29 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def test_it_finds_the_seam_inside_the_function_we_already_cut():
-    """_run_chat_preflight is one big try; its body should read as one seam."""
-    seams = analyse(ROOT / "interface/routes/chat_preflight.py", "_run_chat_preflight")
+    """_run_chat_preflight is one big try; its body should read as one seam.
+
+    As a SHARE of the function, not as a line count. This asked for more
+    than 300 lines and the seam is 278 of a 345-line function — the
+    function got smaller, which is the work this tool exists to support,
+    and the assertion was going to fail on every cut that succeeded.
+    """
+    import ast
+
+    path = ROOT / "interface/routes/chat_preflight.py"
+    seams = analyse(path, "_run_chat_preflight")
     assert seams, "no seam found in a function that is a single try block"
     biggest = max(seams, key=lambda s: s.lines)
-    assert biggest.lines > 300
+
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "_run_chat_preflight"
+    )
+    whole = (function.end_lineno or function.lineno) - function.lineno + 1
+    assert biggest.lines > whole / 2, (biggest.lines, whole)
 
 
 def test_multiple_early_returns_block_a_seam():

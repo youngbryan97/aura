@@ -107,13 +107,27 @@ def test_assistant_prefill_rejects_control_tokens():
 
 
 def test_delivered_chat_reaches_capacity_owner_without_secondary_pruning(monkeypatch):
+    """History that FITS arrives whole. Nothing trims it a second time.
+
+    The fixture asked for 24,400 characters of history inside a 2,048-token
+    window — about 6,100 characters — so thirty of its forty messages had to
+    go, and what it was calling secondary pruning was the only pruning there
+    is. Sized to the budget it declares, so "no second trim" is a statement
+    about the assembler rather than about arithmetic.
+
+    What happens when it does NOT fit is
+    `test_older_history_stays_contiguous_under_budget_pressure`.
+    """
     state = AuraState.default()
     state.response_modifiers["black_box_steering"] = True
     monkeypatch.setattr(ContextAssembler, "build_system_prompt", staticmethod(lambda *_a, **_kw: "SYS"))
     history = [
-        {"role": role, "content": (f"{role} {index}: " + "original words " * 40).strip()}
-        for index in range(20) for role in ("user", "assistant")
+        {"role": role, "content": (f"{role} {index}: " + "original words " * 10).strip()}
+        for index in range(6) for role in ("user", "assistant")
     ]
+    assert sum(len(message["content"]) for message in history) < 2048, (
+        "this fixture has to fit, or it is measuring the budget instead"
+    )
     messages = ContextAssembler.build_messages(state, "Compare the proposals", max_tokens=2048, conversation_history=history)
     assert [message for message in messages if message["role"] in {"user", "assistant"}] == history + [
         {"role": "user", "content": "Compare the proposals"},

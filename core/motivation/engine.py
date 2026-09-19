@@ -1,9 +1,9 @@
+
 """core/motivation/engine.py — Aura Consolidated Motivation Engine
 =========================================================
 The "Digital Metabolism" version: Merges resource budgets, boredom 
 triggers, and autonomous intention generation into a single system.
 """
-
 import asyncio
 import logging
 import random
@@ -18,6 +18,7 @@ from core.motivation.intention import DriveType, Intention
 from core.runtime.background_policy import background_activity_allowed
 from core.runtime.errors import record_degradation
 from core.runtime.proposal_governance import queue_governed_initiative
+from core.runtime.service_access import resolve_orchestrator
 from core.utils.task_tracker import task_tracker
 
 logger = logging.getLogger("Aura.Motivation")
@@ -110,7 +111,7 @@ class MotivationEngine:
         """Starts the autonomous will loop."""
         if self.running: return
         
-        self.orchestrator = ServiceContainer.get("orchestrator", default=None)
+        self.orchestrator = resolve_orchestrator()
         self.affect = ServiceContainer.get("affect_manager", default=None)
         self.cognitive = ServiceContainer.get("cognitive_engine", default=None)
         

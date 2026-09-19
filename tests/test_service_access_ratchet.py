@@ -25,8 +25,15 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # seven inference-gate and orchestrator lookups onto the facade, and to 1703
 # on 2026-09-01 when cognitive_integration_layer moved its nineteen — four
 # onto named resolvers and the rest onto optional_service, which is the
-# sanctioned wrapper for a seam that has no named resolver yet.
-RAW_GET_BUDGET = 1703
+# sanctioned wrapper for a seam that has no named resolver yet; and to 1639
+# on 2026-09-18, when the two most-resolved services in the tree moved onto
+# the resolvers that already existed for them. `resolve_orchestrator` and
+# `resolve_inference_gate` are each exactly
+# `optional_service("<name>", default=default)`, so the 128 call sites
+# written as `ServiceContainer.get("<name>", default=None)` were the same
+# call spelled the long way — 85 files, and the container import went with
+# them wherever nothing else there used it.
+RAW_GET_BUDGET = 1639
 
 # The facade itself is the one sanctioned wrapper around the container.
 FACADE = REPO_ROOT / "core" / "runtime" / "service_access.py"

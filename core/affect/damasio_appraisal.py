@@ -15,6 +15,7 @@ from typing import Any
 
 from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_inference_gate
 
 
 class _AppraisesWhatHappened:
@@ -171,9 +172,8 @@ class _AppraisesWhatHappened:
 
     async def _appraise_with_llm(self, trigger: str, context: dict | None) -> dict[str, float]:
         """Issue 98/99: LLM-based affective appraisal."""
-        from core.container import ServiceContainer
 
-        gate = ServiceContainer.get("inference_gate", default=None)
+        gate = resolve_inference_gate()
         if not gate or not hasattr(gate, "generate"):
             raise RuntimeError("router_unavailable")
 

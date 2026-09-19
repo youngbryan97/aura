@@ -639,6 +639,9 @@ def estimate_model_job_footprint_gb(model_path: str, *, purpose: str) -> float:
     artifact_gb = _path_size_gb(model_path)
     if artifact_gb > 0.0:
         base_gb = artifact_gb + max(1.0, artifact_gb * 0.25)
+    # Substring, deliberately: `lowered` is a model PATH — a directory named
+    # `Qwen2.5-72B-solver-4bit` — where these tokens are compounded with
+    # hyphens and digits and word matching would stop seeing them.
     elif any(token in lowered for token in ("72b", "solver")):
         base_gb = 41.0
     elif any(token in lowered for token in ("32b", "cortex", "zenith")):
@@ -1006,6 +1009,8 @@ def declared_model_process_claim(
         purpose = "fuse"
     elif "--train" in lowered or " lora " in f" {joined} ":
         purpose = "train"
+    # Substring, deliberately: `joined` is a COMMAND LINE, where the marker
+    # arrives as `--eval` or `--proof-only` rather than as a word.
     elif any(marker in joined for marker in ("eval", "benchmark", "proof")):
         purpose = "benchmark"
     else:

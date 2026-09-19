@@ -18,6 +18,7 @@ import numpy as np
 from core.affect import AffectState
 from core.autonomic.iot_bridge import PhysicalActuator
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_inference_gate, resolve_orchestrator
 from core.utils.concurrency import RobustLock
 from core.utils.task_tracker import get_task_tracker
 
@@ -1398,10 +1399,9 @@ class AffectEngineV2(_AppraisesWhatHappened):
     @staticmethod
     def _background_llm_should_defer() -> bool:
         try:
-            from core.container import ServiceContainer
             from core.runtime import background_policy
 
-            orch = ServiceContainer.get("orchestrator", default=None)
+            orch = resolve_orchestrator()
             policy_reason = background_policy.background_activity_reason(
                 orch,
                 profile=background_policy.THOUGHT_BACKGROUND_POLICY,
@@ -1410,7 +1410,7 @@ class AffectEngineV2(_AppraisesWhatHappened):
             if policy_reason:
                 return True
 
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             if not gate or not hasattr(gate, "get_conversation_status"):
                 return True
             lane = gate.get_conversation_status() or {}

@@ -42,7 +42,19 @@ def test_semantic_work_contract_is_domain_general_for_structured_explanation():
     contract = build_semantic_work_contract(objective)
 
     assert contract.delivery_mode == INLINE_REPLY
-    assert contract.obligation_count == 3
+    # `obligation_count` is the MAX of the several ways a prompt's parts can
+    # be counted, which is deliberate: under-counting obligations is the
+    # failure that lets an answer stop early. This objective segments into
+    # three deliverables and reads as four imperatives, because "Walk me
+    # through this policy choice" is one too. An exact count pins the
+    # conservative side of a max that is meant to move.
+    assert contract.obligation_count >= 3
+    for asked in (
+        "Give the governing principle",
+        "compare two alternatives",
+        "show a concrete counterexample",
+    ):
+        assert any(asked in item for item in contract.obligations), asked
     assert contract.requires_deliberation is True
     assert "policy" not in contract.decision_basis
 

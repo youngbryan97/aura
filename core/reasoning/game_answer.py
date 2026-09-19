@@ -15,6 +15,7 @@ from typing import Awaitable, Callable
 from core.reasoning.finite_game import describe_solution, solve_game
 from core.reasoning.game_planner import describes_a_game, game_schema, plan_from_json
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_inference_gate
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +26,8 @@ _PLAN_TOKENS = 700
 
 
 async def _ask_the_model(text: str) -> str:
-    from core.container import ServiceContainer
 
-    gate = ServiceContainer.get("inference_gate", default=None)
+    gate = resolve_inference_gate()
     if gate is None or not hasattr(gate, "think"):
         return ""
     return str(

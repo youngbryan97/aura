@@ -82,14 +82,20 @@ class Packed(nn.Module):
         block: int = 0,
         signs: mx.array | None = None,
         embedding: bool = False,
-        dtype: Any = mx.float16,
+        # Resolved in the body, not in the signature. A default evaluated
+        # where the class is DEFINED runs at import, so any mlx that does
+        # not carry `float16` — a stand-in in a test, an older build —
+        # raises AttributeError before the module finishes loading, and the
+        # worker reports it as an initialisation failure rather than as the
+        # missing attribute it is.
+        dtype: Any = None,
     ) -> None:
         super().__init__()
         self.weight, self.scales, self.biases = [mx.array(a) for a in arrays]
         self.block = block
         self.signs = signs
         self.embedding = embedding
-        self.dtype = dtype
+        self.dtype = getattr(mx, "float16", None) if dtype is None else dtype
 
     def __call__(self, x: mx.array) -> mx.array:
         if self.embedding:
@@ -267,6 +273,18 @@ def load_prism_hadamard_pack(directory: str | Path) -> tuple[Any, Any]:
 
     from mlx_lm.tokenizer_utils import load as load_tokenizer
 
+    # transformers warns on every load of this pack that the tokenizer has
+    # "an incorrect regex pattern", links a Mistral-Small discussion, and
+    # says to pass ``fix_mistral_regex=True`` or get incorrect tokenization.
+    #
+    # Measured before believing it. The pack's ``tokenizer_class`` is
+    # ``Qwen2Tokenizer``, not a Mistral one, and loading it both ways gives
+    # byte-identical ids on the cases that regex governs — digit grouping,
+    # contractions, runs of whitespace, accented text: 0 differences of 7.
+    # Round-trip is exact on code, unicode and the chat special tokens.
+    #
+    # So the flag is not passed. Adding it would be changing a loader on the
+    # strength of a warning that describes another checkpoint.
     directory = Path(directory)
     model, _config = load_prism_hadamard_text_model(directory)
     tokenizer = load_tokenizer(directory, eos_token_ids=_eos_ids(directory))

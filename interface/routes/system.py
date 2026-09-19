@@ -54,7 +54,7 @@ from core.runtime.runtime_shell_snapshot import (
 from core.runtime.runtime_shell_snapshot import (
     publish_runtime_shell_snapshot as _publish_runtime_shell_snapshot,
 )
-from core.runtime.service_access import optional_service
+from core.runtime.service_access import optional_service, resolve_orchestrator
 from core.runtime.shutdown_coordinator import (
     get_shutdown_coordinator,
     is_shutdown_requested,
@@ -1847,7 +1847,7 @@ def _build_boot_health_payload_sync(*, is_gui_proxy: bool) -> tuple[dict[str, An
     if not acquired:
         raise TimeoutError("health_probe_already_running")
     try:
-        orch = ServiceContainer.get("orchestrator", default=None)
+        orch = resolve_orchestrator()
         rt = _get_runtime_state_safe()
         conversation_lane = _collect_conversation_lane_status_resilient()
         try:
@@ -4069,7 +4069,7 @@ async def metrics(request: Request):
     try:
         from core.runtime.health_contract import runtime_health_report
 
-        orch = ServiceContainer.get("orchestrator", default=None)
+        orch = resolve_orchestrator()
         orch_status = orch.get_status() if orch else {}
         contract = runtime_health_report()
 
@@ -5526,7 +5526,7 @@ async def api_ui_bootstrap(request: Request = None):
     _restore_owner_session_from_request(request)
     access_profile = request_access_profile(request)
     conversation_only = bool(access_profile.get("conversation_only", True))
-    orch = ServiceContainer.get("orchestrator", default=None)
+    orch = resolve_orchestrator()
     rt = _get_runtime_state_safe()
     constitutional_status = {}
     executive_status = {}

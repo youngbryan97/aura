@@ -1,24 +1,34 @@
 """Train the existing semantic heads against witnessed runtime interpretations."""
 
+import math
 from collections import Counter
 from dataclasses import replace
-import math
 from pathlib import Path
 
 import numpy as np
 
 from core.learning.semantic_graph_counterexamples import (
-    argument_graph_program, compare_program_meanings, counterfactual_inputs,
+    argument_graph_program,
+    compare_program_meanings,
+    counterfactual_inputs,
 )
 from core.learning.semantic_operation_graph_learning import (
-    operation_graph_evidence, OperationEvidenceBank, OperationSourceSupervision,
+    OperationEvidenceBank,
+    OperationSourceSupervision,
+    operation_graph_evidence,
 )
-from core.learning.semantic_relation_graph_learning import RelationGraphContrast, fit_joint_graph_contrasts
+from core.learning.semantic_relation_graph_learning import (
+    RelationGraphContrast,
+    fit_joint_graph_contrasts,
+)
 
 
 def score_annotated_graph(model, item, instructions, input_spans, *, solve_time_limit_s=20., learn_arguments=False, learn_operation_pointer=False):
     """Score a supplied graph with the runtime's latent mention and definition choices."""
-    from core.learning.semantic_program_transducer_fitting import _assign_typed_arguments, _OperationNode
+    from core.learning.semantic_program_transducer_fitting import (
+        _assign_typed_arguments,
+        _OperationNode,
+    )
 
     # Runtime charts are source-ordered even when the annotation is execution-ordered.
     order = sorted(range(len(instructions)), key=lambda index: (
@@ -59,7 +69,9 @@ def scored_graph_evidence(model, item, nodes, result, relations, *, learn_argume
     terms = argument_graph_evidence(model, item.hidden_states, nodes, result[0][2]) if learn_arguments else ()
     if learn_operation_pointer and model.training_receipt.get("operation_background_fit", {}).get("score") \
             != "joint_operation_background_log_odds_v2":
-        from core.learning.semantic_operation_pointer_learning import operation_pointer_graph_evidence
+        from core.learning.semantic_operation_pointer_learning import (
+            operation_pointer_graph_evidence,
+        )
         terms += operation_pointer_graph_evidence(model, item.hidden_states, nodes)
     return {"score": score, "argument_score": result[0][0], "relations": relations, "argument_terms": terms,
             "operations": operation_graph_evidence(model, item.hidden_states, nodes),
@@ -185,8 +197,11 @@ def source_operation_supervision(model, training):
 def mine_source_binding_constraint(model, item, *, weight=1., max_graphs=32, solve_time_limit_s=20., learn_arguments=False):
     """Keep a witnessed binding competitor even when the source already decodes correctly."""
     from core.learning.semantic_graph_counterexamples import find_graph_counterexample
+    from core.learning.semantic_program_transducer_fitting import (
+        _assign_typed_arguments,
+        _OperationNode,
+    )
     from core.learning.semantic_relation_graph_learning import contrast_from_search
-    from core.learning.semantic_program_transducer_fitting import _assign_typed_arguments, _OperationNode
 
     if item.split != "train":
         raise ValueError("semantic constraint mining requires source training examples")
@@ -209,7 +224,10 @@ def mine_source_binding_constraint(model, item, *, weight=1., max_graphs=32, sol
     contrast = contrast_from_search(result, model.definition_relation_head,
                                    scale=model.definition_relation_scale, weight=weight)
     if learn_arguments:
-        from core.learning.semantic_argument_graph_learning import argument_graph_evidence, argument_parameters
+        from core.learning.semantic_argument_graph_learning import (
+            argument_graph_evidence,
+            argument_parameters,
+        )
         parameters = (model.definition_relation_head.query_projection,
                       model.definition_relation_head.definition_projection,
                       *(v for h in model.operation_head.heads for v in (h.weight, h.bias)),
@@ -234,18 +252,24 @@ def source_operation_constraints(model, supervision, *, weight=1.):
     return constraints
 
 
-def source_operation_pointer_constraints(model, training, *, weight=1., required_margin=.1):
+def source_operation_pointer_constraints(model, training, *, weight=1., required_margin=.1,
+                                         policy="supervised"):
     """Retain source operation boundaries against the pointer's hard negatives."""
     from types import SimpleNamespace
 
+    from core.learning.semantic_operation_pointer_learning import (
+        operation_pointer_graph_evidence,
+        operation_pointer_parameters,
+    )
     from core.learning.semantic_paired_pointer_refit import paired_boundary_training_spans
-    from core.learning.semantic_operation_pointer_learning import operation_pointer_graph_evidence
 
     if not training or any(item.split != "train" for item in training):
         raise ValueError("operation pointer retention requires source training examples")
-    if not math.isfinite(weight) or weight <= 0 or not math.isfinite(required_margin) or required_margin <= 0:
+    if (not math.isfinite(weight) or weight <= 0 or not math.isfinite(required_margin) or required_margin <= 0
+            or policy not in {"supervised", "retain_existing"}):
         raise ValueError("operation pointer retention configuration is invalid")
     constraints = []
+    pointer_weight, pointer_bias = operation_pointer_parameters(model)
     for item in training:
         positives = tuple(instruction.operation_span for instruction in item.ir.instructions)
         pairs = paired_boundary_training_spans(
@@ -260,8 +284,16 @@ def source_operation_pointer_constraints(model, training, *, weight=1., required
                 negative_term = operation_pointer_graph_evidence(
                     model, item.hidden_states, (SimpleNamespace(span=negative),),
                 )[0]
+                floor = 0.
+                if policy == "retain_existing":
+                    # Local annotations may choose a narrower span than a
+                    # semantically equivalent runtime graph. Preserve its
+                    # current evidence without creating an auxiliary deficit.
+                    difference = (float(positive_term.feature @ pointer_weight + pointer_bias)
+                                  - float(negative_term.feature @ pointer_weight + pointer_bias))
+                    floor = min(difference, 0.)
                 constraints.append(RelationGraphContrast(
-                    (), (), required_margin, weight,
+                    (), (), required_margin - floor, weight,
                     argument_terms=((1., positive_term), (-1., negative_term)),
                 ))
     if not constraints:
@@ -273,7 +305,8 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
                                     solve_time_limit_s=20., progress=None, source_weight=1.,
                                     constraint_learning=False, learn_arguments=False,
                                     checkpoint_dir=None, retention_operation_charts=32,
-                                    learn_operation_pointer=False):
+                                    learn_operation_pointer=False, update_rule="working_face",
+                                    boundary_policy="supervised"):
     """Remine source-training predictions after each joint operation/relation update."""
     from core.learning.semantic_graph_margin import graph_refit_source_splits
     from core.learning.semantic_program_campaign import _sha
@@ -282,6 +315,11 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
 
     if type(rounds) is not int or rounds < 1 or type(constraint_learning) is not bool:
         raise ValueError("joint graph learning rounds must be positive")
+    if update_rule not in {"working_face", "minimum_change"} or (
+            update_rule != "working_face" and not constraint_learning):
+        raise ValueError("minimum-change graph learning requires retained constraints")
+    if boundary_policy not in {"supervised", "retain_existing"}:
+        raise ValueError("unknown graph boundary policy")
     if type(learn_arguments) is not bool or (learn_arguments and not constraint_learning):
         raise ValueError("argument graph learning requires retained constraints")
     if type(learn_operation_pointer) is not bool or (learn_operation_pointer and not constraint_learning):
@@ -304,7 +342,7 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         retained.extend(source_operation_constraints(model, supervision, weight=source_weight))
         if learn_operation_pointer:
             retained.extend(source_operation_pointer_constraints(
-                model, training, weight=source_weight,
+                model, training, weight=source_weight, policy=boundary_policy,
             ))
     stop_reason = "round_budget_exhausted"
     for round_index in range(rounds):
@@ -319,7 +357,9 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
                 retained.append(contrast)
                 new_pairs += 1
             if constraint_learning:
-                from core.learning.semantic_runtime_graph_retention import mine_runtime_graph_constraints
+                from core.learning.semantic_runtime_graph_retention import (
+                    mine_runtime_graph_constraints,
+                )
 
                 competitors, competitor_record = mine_runtime_graph_constraints(candidate, item,
                     weight=1. / weights[_geometry(item)], max_charts=retention_operation_charts,
@@ -348,6 +388,7 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
             break
         fit_options = {}
         if constraint_learning:
+            fit_options["update_rule"] = update_rule
             fit_options["progress"] = (lambda row: progress({**row, "round": round_index + 1})) if progress else None
             if checkpoint_dir is not None:
                 fit_options.update(
@@ -397,6 +438,8 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         "constraint_learning": constraint_learning,
         "argument_heads_trainable": learn_arguments,
         "operation_pointer_trainable": learn_operation_pointer,
+        "update_rule": update_rule,
+        "boundary_policy": boundary_policy,
         "already_correct_binding_competitors_retained": constraint_learning,
         "runtime_operation_competitors_retained": constraint_learning,
         "retention_operation_charts": retention_operation_charts if constraint_learning else None,

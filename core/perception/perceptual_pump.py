@@ -47,6 +47,7 @@ from core.perception.multimodal_sync import (
     PrivacyPolicy,
 )
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_inference_gate
 from core.runtime.task_ownership import create_tracked_task
 
 if TYPE_CHECKING:
@@ -773,7 +774,7 @@ class PerceptualPump:
         narrows under load; it does not flail.
         """
         try:
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             used_lightweight_probe = False
             for probe_name in ("_foreground_user_turn_active", "_foreground_owner_active"):
                 probe = getattr(gate, probe_name, None)

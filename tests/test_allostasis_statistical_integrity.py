@@ -247,8 +247,18 @@ class TestThreatChannelRecovery:
 class TestPulseDoesNotBlockTheLoop:
     def test_the_snapshot_runs_off_the_event_loop(self):
         source = inspect.getsource(AllostasisEngine.sample_and_regulate)
-        assert "asyncio.to_thread" in source
-        assert "asyncio.wait_for" in source
+        # Either way of leaving the loop. `asyncio.to_thread` became
+        # `run_on_a_thread_while_it_works`, which cancels on a STALL rather
+        # than on a deadline — a snapshot still making progress is no longer
+        # killed at the timeout. What this holds is that the snapshot does
+        # not run ON the loop, and that the wait is bounded.
+        assert (
+            "asyncio.to_thread" in source
+            or "run_on_a_thread_while_it_works" in source
+        ), "the vitals snapshot must not run on the event loop"
+        assert "asyncio.wait_for" in source or "stall_s=" in source, (
+            "and the wait for it must be bounded"
+        )
 
     def test_a_wedged_provider_cannot_wedge_the_pulse(self):
         source = inspect.getsource(AllostasisEngine.sample_and_regulate)

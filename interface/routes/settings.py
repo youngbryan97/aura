@@ -12,6 +12,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_orchestrator
 from core.runtime.settings_control_plane import (
     RuntimeSettingsStore,
     SettingsConflictError,
@@ -125,7 +126,7 @@ def _apply_runtime_mode_from_settings(
         if callable(peek):
             orchestrator = peek("orchestrator", default=None)
         if orchestrator is None:
-            orchestrator = ServiceContainer.get("orchestrator", default=None)
+            orchestrator = resolve_orchestrator()
         if orchestrator is None:
             return {
                 "owner": "safe_mode",

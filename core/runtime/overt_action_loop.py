@@ -28,6 +28,7 @@ from core.container import ServiceContainer
 from core.health.degraded_events import record_degraded_event
 from core.runtime.background_policy import background_activity_reason
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_orchestrator
 from core.utils.task_tracker import get_task_tracker
 
 SAFE_AUTONOMOUS_SKILLS = (
@@ -265,7 +266,7 @@ class OvertActionLoop:
     def _orchestrator(self) -> Any:
         if self.orchestrator is not None:
             return self.orchestrator
-        self.orchestrator = ServiceContainer.get("orchestrator", default=None)
+        self.orchestrator = resolve_orchestrator()
         return self.orchestrator
 
     def _capability_engine(self) -> Any:

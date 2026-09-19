@@ -51,13 +51,13 @@ import enum
 import hashlib
 import logging
 import re
-import threading
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
 from core.runtime.errors import record_degradation
-from core.runtime.turn_outcome import VerificationGrade
 from core.runtime.lockdep import checked_lock
+from core.runtime.service_access import resolve_inference_gate
+from core.runtime.turn_outcome import VerificationGrade
 
 logger = logging.getLogger("Aura.CrossTier")
 
@@ -192,9 +192,8 @@ class CrossTierVerifier:
             provenance["served_by"] = "injected_generator"
             return await self._strong(prompt), provenance
 
-        from core.container import ServiceContainer
 
-        gate = ServiceContainer.get("inference_gate", default=None)
+        gate = resolve_inference_gate()
         if gate is None or not hasattr(gate, "generate_response"):
             provenance["served_by"] = "no_inference_gate"
             return "", provenance

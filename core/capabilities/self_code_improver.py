@@ -63,7 +63,9 @@ _ENACTMENT_LEDGER_DIR: Path | None = None
 def _enactment_ledger_dir() -> Path:
     if _ENACTMENT_LEDGER_DIR is not None:
         return _ENACTMENT_LEDGER_DIR
-    return state_root() / "data" / "self_improvement" / "enactments"
+    # state_root() is not followed by the ratchet's mypy, so it reads as Any.
+    root: Path = Path(state_root())
+    return root / "data" / "self_improvement" / "enactments"
 
 # Self-improvement may only rewrite Aura's OWN source, confined to a root
 # (AURA_SELF_CODE_ROOT, default the repository root) — never an arbitrary

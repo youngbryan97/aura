@@ -30,6 +30,7 @@ import time
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_orchestrator
 
 logger = logging.getLogger("Aura.Narrator")
 
@@ -257,9 +258,8 @@ class Narrator:
             record_degradation("narrator", exc, severity="info", action="spoke without the bubble")
 
         try:
-            from core.container import ServiceContainer  # noqa: PLC0415
 
-            orchestrator = ServiceContainer.get("orchestrator", default=None)
+            orchestrator = resolve_orchestrator()
             publish = getattr(orchestrator, "_publish_telemetry", None) if orchestrator else None
             if publish is None:
                 return

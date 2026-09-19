@@ -18,14 +18,15 @@ import json
 import logging
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from core.construction.app_compiler import compile_app
-from core.construction.app_planner import PlannedApp, plan_from_json, plan_schema, spec_from_plan
+from core.construction.app_planner import PlannedApp, plan_from_json, plan_schema
 from core.construction.app_verifier import verify_app
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_inference_gate
 
 logger = logging.getLogger(__name__)
 
@@ -80,9 +81,8 @@ def _plan_request_text(request: str) -> str:
 
 
 async def _ask_the_model(text: str, *, origin: str) -> str:
-    from core.container import ServiceContainer
 
-    gate = ServiceContainer.get("inference_gate", default=None)
+    gate = resolve_inference_gate()
     if gate is None or not hasattr(gate, "think"):
         return ""
     return str(

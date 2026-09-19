@@ -228,9 +228,14 @@ ZeroSyncGuard = zero_sync_guard
 class _BootRegistrationLease:
     __slots__ = ("_container", "_token", "active", "name")
 
-    def __init__(self, container: type, name: str) -> None:
+    #: The ServiceContainer class this lease belongs to. Named rather than
+    #: bare `type`, which has no `_boot_lease`, so the three reads of it
+    #: below could not be checked at all.
+    _container: "type[ServiceContainer]"
+
+    def __init__(self, container: "type[ServiceContainer]", name: str) -> None:
         self._container = container
-        self._token: contextvars.Token | None = None
+        self._token: contextvars.Token[Any] | None = None
         self.active = False
         self.name = name
 
@@ -1486,13 +1491,15 @@ class ServiceContainer:
         path = cls._seal_path().with_name(".sovereignty_seal.key")
         try:
             if path.exists():
-                key = path.read_bytes()
-                return key if len(key) == 32 else None
+                key: bytes | None = path.read_bytes()
+                return key if key is not None and len(key) == 32 else None
             candidate = os.urandom(32)
             with local_internal_governed_scope(
                 "service_container.sovereignty_seal_key",
                 domain="file_write",
             ):
+                # Annotated above because the gateway is not followed by the
+                # ratchet's mypy, so its return reads as Any here.
                 key = get_file_write_gateway().provision_private_bytes(
                     path,
                     candidate,

@@ -53,6 +53,7 @@ from core.runtime.launch_provenance import (
     RUNTIME_SHELL_PUBLIC_ASSETS,
     runtime_shell_request_path,
 )
+from core.runtime.service_access import resolve_inference_gate
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 
 try:
@@ -183,7 +184,7 @@ async def _prewarm_chat_dependencies_after_cortex_ready(
     deadline = asyncio.get_running_loop().time() + max(1.0, readiness_timeout_s)
     said_waiting = False
     while not is_shutdown_requested():
-        gate = ServiceContainer.get("inference_gate", default=None)
+        gate = resolve_inference_gate()
         candidate_set_ready = getattr(gate, "set_chat_dependencies_ready", None)
         if set_ready is None and callable(candidate_set_ready):
             set_ready = candidate_set_ready

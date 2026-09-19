@@ -25,6 +25,13 @@ def _brainstem_ep() -> EndpointHealth:
     return EndpointHealth(name=BRAINSTEM_ENDPOINT, url="local://brainstem", model="qwen-7b")
 
 
+def _floor() -> float:
+    """What the shipped floor is for whatever model the lane is bound to."""
+    from core.brain.llm_background_deferral import _floor_for_the_model_on_this_lane
+
+    return _floor_for_the_model_on_this_lane()
+
+
 def _reason(monkeypatch, snap: _Snap) -> str | None:
     monkeypatch.setenv("AURA_DESKTOP_RESOURCE_GUARD", "1")
     # thresholds unset -> exercise the shipped defaults
@@ -45,13 +52,39 @@ def test_admits_at_desktop_steady_state_with_cortex_loaded(monkeypatch):
 
 
 def test_still_defers_when_memory_is_genuinely_tight(monkeypatch):
-    # Genuinely low headroom must still defer (the OOM guard is intact).
-    assert _reason(monkeypatch, _Snap(pressure_pct=75.0, available_gb=15.0)) is not None
+    """Genuinely low headroom must still defer, and "low" is read off the
+    model rather than off a number.
+
+    This asked for 15GB against a flat 22GB floor. The floor is the bound
+    checkpoint's projected footprint and half again now, so the figure that
+    makes this case tight has to come from the same place — below the floor,
+    whatever the lane is holding.
+    """
+    floor = _floor()
+    assert _reason(monkeypatch, _Snap(pressure_pct=75.0, available_gb=floor - 1.0)) is not None
 
 
 def test_defers_when_available_below_floor(monkeypatch):
-    # Kernel-normal cannot erase the absolute 22GB allocation floor.
-    assert _reason(monkeypatch, _Snap(pressure_pct=50.0, available_gb=18.0)) is not None
+    """Kernel-normal cannot erase the absolute allocation floor.
+
+    The floor was 22.0 and is derived now. That is a policy change and not
+    a tidy-up: 22.0 was chosen to sit above the Reflex lane's 20.0 rather
+    than measured against anything, and with the resident Cortex leaving
+    about 20GB it could never be met — the brainstem lane was configured,
+    registered and unloadable on every boot. What still guards the machine
+    is the kernel-pressure gate, the RSS-within-6GB-of-lethal check, and the
+    fact that a derived floor can never sit below the footprint of the thing
+    it admits.
+    """
+    floor = _floor()
+    assert _reason(monkeypatch, _Snap(pressure_pct=50.0, available_gb=floor - 0.5)) is not None
+
+
+def test_admits_just_above_the_floor(monkeypatch):
+    """The other side of the same line, so the floor is a threshold rather
+    than a direction."""
+    floor = _floor()
+    assert _reason(monkeypatch, _Snap(pressure_pct=50.0, available_gb=floor + 0.5)) is None
 
 
 def test_process_rss_near_limit_still_defers(monkeypatch):

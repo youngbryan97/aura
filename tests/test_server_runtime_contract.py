@@ -88,16 +88,23 @@ def test_cognitive_engine_turn_required_contract_has_no_kernel_fallback_language
 
 
 def test_desktop_cognitive_turn_carries_generic_execution_planning_contract():
-    from core.phases.response_generation import ResponseGenerationPhase
+    from core.phases import response_generation
     from core.runtime.desktop_task_contract import (
         DESKTOP_TASK_ALLOWED_ACTIONS,
         desktop_task_action_sentence,
         desktop_task_planning_schema,
     )
     from interface.routes import chat
+    from tests.source_contract import function_with_its_helpers
 
-    chat_source = inspect.getsource(chat._run_cognitive_engine_chat_turn)
-    response_source = inspect.getsource(ResponseGenerationPhase.execute)
+    # Both methods hand their work to helpers the method-size sweep lifted
+    # out of them, so reading either alone finds a shell that calls names.
+    chat_source = function_with_its_helpers(
+        chat, "_run_cognitive_engine_chat_turn", depth=2
+    )
+    response_source = function_with_its_helpers(
+        response_generation, "ResponseGenerationPhase.execute", depth=2
+    )
 
     assert "desktop_execution_contract" in chat_source
     assert "desktop_task_planning_schema" in chat_source

@@ -48,6 +48,7 @@ from core.runtime.errors import (
     Severity,
     record_degradation,
 )
+from core.runtime.service_access import resolve_orchestrator
 
 if TYPE_CHECKING:
     from core.consciousness.unified_audit import AuditReport
@@ -412,9 +413,8 @@ class KernelInterface:
         # for the entire session.
         if origin in _USER_ORIGINS:
             try:
-                from core.container import ServiceContainer
 
-                orch = ServiceContainer.get("orchestrator", default=None)
+                orch = resolve_orchestrator()
                 if orch is not None:
                     orch._last_user_interaction_time = time.time()
             except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:

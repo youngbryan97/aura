@@ -54,8 +54,24 @@ def test_the_statements_it_returns_are_the_ones_the_question_is_about():
         "You claim you can invent new primitives for your own representation "
         "language. Prove it. What could you not express before that you can now?"
     )
-    assert "the language she makes rules out of" in said
+    # What is held is that the block is ABOUT the question, not that one
+    # particular claim survives into it. The register grew past eighty and
+    # newer language-growth claims now out-rank the one this used to name —
+    # "Admitting a way of building words enlarges the set of MEANINGS she can
+    # express" is more about inventing primitives than the sentence it
+    # displaced, which is the ranking working rather than failing.
     assert "way of building words" in said
+    assert "MEANINGS" in said
+    named = [line for line in said.splitlines() if line.startswith("- ")]
+    assert named, "the block must actually name statements"
+    domain = ("language", "express", "primitive", "meaning", "word", "universal")
+    about_language = [
+        line for line in named if any(term in line.lower() for term in domain)
+    ]
+    assert len(about_language) >= len(named) // 2, (
+        f"a question about the representation language got {about_language} "
+        f"out of {named}"
+    )
 
 
 def test_every_statement_carries_the_test_that_checks_it():

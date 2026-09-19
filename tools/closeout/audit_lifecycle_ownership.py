@@ -23,6 +23,29 @@ _REQUIRED_CALLS: dict[str, dict[str, frozenset[str]]] = {
             }
         ),
     },
+    # The three interpreter patches moved out of RuntimeHygieneManager into
+    # the mixin it inherits from, so their contract follows them. The audit
+    # reads the file that DEFINES a function; a mixin is a different file
+    # with the same guarantee.
+    "core/runtime/runtime_hygiene_patches.py": {
+        "_WatchesWhatTheRuntimeCreates._patch_threading": frozenset(
+            {"_shutdown_blocks_resource_start", "_register_thread"}
+        ),
+        "_WatchesWhatTheRuntimeCreates._patch_subprocess": frozenset(
+            {
+                "_shutdown_blocks_resource_start",
+                "_register_subprocess",
+                "_reap_crossed_subprocess",
+            }
+        ),
+        "_WatchesWhatTheRuntimeCreates._patch_multiprocessing": frozenset(
+            {
+                "_shutdown_blocks_resource_start",
+                "_register_multiprocessing_process",
+                "_reap_crossed_multiprocessing",
+            }
+        ),
+    },
     "core/runtime/runtime_hygiene.py": {
         "RuntimeHygieneManager.start": frozenset(
             {
@@ -44,23 +67,6 @@ _REQUIRED_CALLS: dict[str, dict[str, frozenset[str]]] = {
                 "_restore_patches",
                 "_shutdown_default_executor",
                 "_native_resource_summary",
-            }
-        ),
-        "RuntimeHygieneManager._patch_threading": frozenset(
-            {"_shutdown_blocks_resource_start", "_register_thread"}
-        ),
-        "RuntimeHygieneManager._patch_subprocess": frozenset(
-            {
-                "_shutdown_blocks_resource_start",
-                "_register_subprocess",
-                "_reap_crossed_subprocess",
-            }
-        ),
-        "RuntimeHygieneManager._patch_multiprocessing": frozenset(
-            {
-                "_shutdown_blocks_resource_start",
-                "_register_multiprocessing_process",
-                "_reap_crossed_multiprocessing",
             }
         ),
         "RuntimeHygieneManager.register_shutdown_resource": frozenset(

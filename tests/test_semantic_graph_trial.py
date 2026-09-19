@@ -60,6 +60,21 @@ def test_small_trial_executes_training_and_independent_replay_without_promotion(
     assert len(pool) == 4 and all(row["split"] == "train" for row in pool)
     expected = sorted(pool, key=lambda row: row["semantic_status"] not in {"different", "decode_refused"})[:2]
     assert result["training_sources"] == [row["source_text_sha256"] for row in expected]
+    groups = result["constraint_groups"]
+    assert sum(row["count"] for row in groups.values()) == result["fit"]["pairs"]
+    assert sum(row["initial_wrong_or_tied"] for row in groups.values()) == result["fit"]["initial_wrong_or_tied"]
+
+
+def test_constraint_attribution_cannot_turn_missing_or_duplicate_evidence_into_success():
+    from core.learning.semantic_graph_trial import _constraint_group_summary
+
+    assert _constraint_group_summary({"labels": [0]}, {}) is None
+    fit = {"initial_margins": [-.2, .5], "stored_margins": [.2, .5], "required_margin": .1}
+    result = _constraint_group_summary({"labels": [0], "bindings": [1]}, fit)
+    assert result["labels"]["initial_wrong_or_tied"] == 1
+    assert result["bindings"]["initial_squared_deficit"] == 0.
+    with pytest.raises(ValueError, match="partition"):
+        _constraint_group_summary({"labels": [0], "bindings": [0]}, fit)
 
 
 @pytest.mark.parametrize("pool", [0, True, 1])

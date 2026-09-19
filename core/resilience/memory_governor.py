@@ -11,6 +11,7 @@ from core.memory.physics import hawking_decay
 from core.resilience.runaway_budget import RunawayPolicy, get_runaway_budget
 from core.runtime import resource_psutil as psutil
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_inference_gate
 from core.runtime.sqlite_support import connecting
 from core.utils.exceptions import capture_and_log
 from core.utils.memory_monitor import get_memory_pressure_snapshot, process_memory_bytes
@@ -667,9 +668,8 @@ class MemoryGovernor:
                 logger.error("LLM router unload failed: %s", e)
 
         try:
-            from core.container import ServiceContainer
 
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             if gate and hasattr(gate, "_shed_background_workers_for_memory_pressure"):
                 await gate._shed_background_workers_for_memory_pressure()
                 result["background_workers_shed"] = 1

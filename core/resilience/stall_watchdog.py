@@ -1,3 +1,4 @@
+
 """StallWatchdog: Async Event Loop Monitoring + Active Recovery
 Part of Aura's Neural Neuro-Surgeon (Phase 29).
 
@@ -12,7 +13,6 @@ Design notes:
   recycle. This is what turns "we noticed the freeze" into "we ended
   the freeze."
 """
-
 import asyncio
 import io
 import logging
@@ -28,8 +28,10 @@ from core.governance_context import local_internal_governed_scope
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
-from core.runtime.flags import FlagKind as _FlagKind, declare as _declare_flag
+from core.runtime.flags import FlagKind as _FlagKind
+from core.runtime.flags import declare as _declare_flag
 from core.runtime.lockdep import LOOP_BLOCKED_CEILING_FRACTION, LOOP_HOLD_STARVED_FRACTION
+from core.runtime.service_access import resolve_inference_gate
 from core.runtime.task_ownership import create_tracked_task
 from core.runtime.thread_cpu import thread_cpu_seconds, thread_cpu_share
 
@@ -647,9 +649,8 @@ class StallWatchdog(threading.Thread):
             foreground_grace = 75.0
         if foreground_grace > 0 and elapsed <= foreground_grace:
             try:
-                from core.container import ServiceContainer
 
-                gate = ServiceContainer.get("inference_gate", default=None)
+                gate = resolve_inference_gate()
                 lane = gate.get_conversation_status() if gate and hasattr(gate, "get_conversation_status") else {}
             except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
                 logger.debug("StallWatchdog foreground lane probe unavailable: %s", exc)

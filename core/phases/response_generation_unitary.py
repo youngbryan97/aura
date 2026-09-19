@@ -61,6 +61,7 @@ from core.runtime.proof_policy import (
     proof_run_active,
     structured_proof_solver_enabled,
 )
+from core.runtime.service_access import resolve_inference_gate, resolve_orchestrator
 from core.runtime.structured_input import looks_like_learning_resource_bundle
 from core.self.inner_language import say_focus
 from core.social.witness import is_witnessing
@@ -1388,9 +1389,8 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
         if origin == "benchmark":
             return False
         try:
-            from core.container import ServiceContainer
 
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             if gate and hasattr(gate, "_background_local_deferral_reason"):
                 return bool(gate._background_local_deferral_reason(origin=origin))
         except _RESPONSE_RECOVERABLE_ERRORS:
@@ -3830,7 +3830,7 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
         attempted = False
 
         try:
-            orchestrator = ServiceContainer.get("orchestrator", default=None)
+            orchestrator = resolve_orchestrator()
             if not orchestrator or not hasattr(orchestrator, "execute_tool"):
                 return {"reply": "", "payload": None, "skill_name": "", "attempted": False}
 
@@ -4682,7 +4682,7 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
             )
             if is_deep_probe_objective:
                 try:
-                    gate = ServiceContainer.get("inference_gate", default=None)
+                    gate = resolve_inference_gate()
                     if gate and hasattr(gate, "_extend_startup_quiet_window"):
                         gate._extend_startup_quiet_window(180.0)
                     if gate and hasattr(gate, "_shed_background_workers_for_memory_pressure"):
@@ -4848,7 +4848,7 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
                 )
                 fetched_content_parts = []
                 try:
-                    orchestrator = ServiceContainer.get("orchestrator", default=None)
+                    orchestrator = resolve_orchestrator()
                     if orchestrator and hasattr(orchestrator, "execute_tool"):
                         for url in auto_browse_urls:
                             try:
@@ -5396,7 +5396,7 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
                 )
                 background_reason = None if is_test_run else response_policy.background_response_suppression_reason(
                     objective,
-                    orchestrator=ServiceContainer.get("orchestrator", default=None),
+                    orchestrator=resolve_orchestrator(),
                     include_synthetic_noise=True,
                 )
                 if background_reason:
@@ -5977,7 +5977,7 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
                     or runtime_context.get("self_condition_contract", False)
                 )
                 latent_outcome = await run_foreground_latent_episode(
-                    orchestrator=ServiceContainer.get("orchestrator", default=None),
+                    orchestrator=resolve_orchestrator(),
                     messages=messages,
                     visible_objective=str(surface_prompt.prompt or objective or ""),
                     foreground=is_user_facing and not is_background,
@@ -7429,7 +7429,7 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
         # Conversational profile (built by SingularityLoops profile injection)
         user_profile_block = ""
         try:
-            orch = ServiceContainer.get("orchestrator", default=None)
+            orch = resolve_orchestrator()
             cached_profile = getattr(orch, "_cached_user_profile_context", "") if orch else ""
             if cached_profile:
                 user_profile_block = f"## USER COMMUNICATION DNA\n{cached_profile}\n\n"

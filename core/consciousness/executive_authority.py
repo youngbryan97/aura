@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 from core.container import ServiceContainer
 from core.runtime import service_access
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_inference_gate
 
 logger = logging.getLogger("Aura.ExecutiveAuthority")
 
@@ -89,7 +90,7 @@ class ExecutiveAuthority:
             if router and getattr(router, "high_pressure_mode", False):
                 return "memory_pressure"
 
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             if gate and hasattr(gate, "_background_local_deferral_reason"):
                 reason = str(gate._background_local_deferral_reason(origin="executive_authority") or "").strip()
                 if reason:

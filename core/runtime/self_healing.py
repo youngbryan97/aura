@@ -37,10 +37,11 @@ from typing import Any
 from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
+from core.runtime.service_access import resolve_inference_gate, resolve_orchestrator
 from core.runtime.service_registry import get_runtime_service
 from core.runtime.shutdown_coordinator import is_shutdown_requested
-from core.runtime.task_ownership import create_tracked_task
 from core.runtime.state_ownership import state_root
+from core.runtime.task_ownership import create_tracked_task
 
 logger = logging.getLogger("Aura.SelfHealing")
 
@@ -384,7 +385,7 @@ class SelfHealing:
         try:
             from core.container import ServiceContainer
 
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             status_getter = getattr(gate, "get_conversation_status", None)
             if callable(status_getter):
                 status = status_getter() or {}
@@ -406,7 +407,7 @@ class SelfHealing:
         try:
             from core.container import ServiceContainer
 
-            orch = ServiceContainer.get("orchestrator", default=None) or ServiceContainer.get("aura_runtime", default=None)
+            orch = resolve_orchestrator() or ServiceContainer.get("aura_runtime", default=None)
             if orch is None:
                 return False
             status = getattr(orch, "status", None)

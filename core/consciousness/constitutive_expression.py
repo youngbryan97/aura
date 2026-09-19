@@ -1,3 +1,4 @@
+
 """core/consciousness/constitutive_expression.py
 
 Constitutive Expression Layer — RSM Paradigm Implementation.
@@ -18,7 +19,6 @@ ARCHITECTURE:
 
 All LLM calls route through CognitiveEngine -> MLX (fully local).
 """
-
 import asyncio
 import logging
 import time
@@ -29,6 +29,7 @@ from typing import Any, Callable, Coroutine, Dict, List, Optional
 import numpy as np
 
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_orchestrator
 from core.utils.exceptions import capture_and_log
 
 logger = logging.getLogger("Consciousness.CEL")
@@ -393,7 +394,7 @@ class ConstitutiveExpressionLayer:
 
             try:
                 from core.container import ServiceContainer
-                orchestrator = ServiceContainer.get("orchestrator", default=None)
+                orchestrator = resolve_orchestrator()
                 if orchestrator:
                     last_user = getattr(orchestrator, "_last_user_interaction_time", 0.0)
                     if last_user and (now - last_user) < USER_ACTIVE_COOLDOWN_S:

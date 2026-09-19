@@ -20,6 +20,7 @@ from core.config import config
 from core.conversation.word_markers import names_any
 from core.knowledge.mycelial_graph import get_mycelial
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_orchestrator
 from core.runtime.skill_task_bridge import (
     looks_like_multi_step_skill_request,
     normalize_matched_skills,
@@ -721,9 +722,8 @@ class AutonomousTaskEngine(_BuildsAPlanWithoutTheModel):
 
         # Unknown tool: try via orchestrator's capability engine
         try:
-            from core.container import ServiceContainer
 
-            orchestrator = ServiceContainer.get("orchestrator", default=None)
+            orchestrator = resolve_orchestrator()
             if orchestrator and hasattr(orchestrator, "execute_tool"):
                 kwargs = {"origin": origin} if origin else {}
                 if payload_context:
@@ -2850,9 +2850,8 @@ The plan is a JSON array of steps:
         async def _web_search(query: str, **kwargs) -> str:
             """Search the web for information."""
             try:
-                from core.container import ServiceContainer
 
-                orch = ServiceContainer.get("orchestrator", default=None)
+                orch = resolve_orchestrator()
                 if orch:
                     origin = _normalize_origin(kwargs.get("origin"))
                     payload_context = kwargs.get("payload_context")
@@ -2884,9 +2883,8 @@ The plan is a JSON array of steps:
         async def _run_python(code: str, **kwargs) -> str:
             """Execute Python code in a sandboxed environment."""
             try:
-                from core.container import ServiceContainer
 
-                orch = ServiceContainer.get("orchestrator", default=None)
+                orch = resolve_orchestrator()
                 if orch and hasattr(orch, "execute_tool"):
                     origin = _normalize_origin(kwargs.get("origin"))
                     payload_context = kwargs.get("payload_context")
@@ -2912,9 +2910,8 @@ The plan is a JSON array of steps:
         async def _write_file(path: str, content: str, **kwargs) -> Any:
             """Write through the canonical governed file capability."""
             try:
-                from core.container import ServiceContainer
 
-                orch = ServiceContainer.get("orchestrator", default=None)
+                orch = resolve_orchestrator()
                 if orch and hasattr(orch, "execute_tool"):
                     origin = _normalize_origin(kwargs.get("origin")) or (
                         "autonomous_task_engine"

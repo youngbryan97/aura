@@ -19,6 +19,7 @@ from core.runtime.background_policy import background_activity_allowed
 from core.runtime.cognitive_execution_scope import cognitive_request_allows_actions
 from core.runtime.desktop_objective_intent import looks_like_desktop_objective
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_inference_gate
 from core.runtime.skill_task_bridge import (
     looks_like_explanatory_dialogue_request,
     looks_like_inline_answer_request,
@@ -198,9 +199,8 @@ class EternalMemoryPhase(Phase):
     @staticmethod
     def _background_llm_should_defer() -> bool:
         try:
-            from core.container import ServiceContainer
 
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             if gate and hasattr(gate, "_background_local_deferral_reason"):
                 try:
                     if gate._background_local_deferral_reason(origin="eternal_memory"):

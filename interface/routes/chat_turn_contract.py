@@ -8,32 +8,28 @@ and refuse to assert a path nothing observed.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
+
+from core.brain.live_mind_contract import (
+    merge_text_mutations,
+    verify_text_mutation_chain,
+)
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_inference_gate
+from interface.routes import chat_desktop_repair as _chat_desktop_repair
+from interface.routes import chat_preflight as _chat_preflight
 from interface.routes.chat_common import (  # noqa: E402
     _CHAT_BLOCKING_PREFLIGHT_TIMEOUT_S,  # noqa: F401
     _CHAT_RECOVERABLE_ERRORS,  # noqa: F401
     _CHAT_REQUEST_PRINCIPAL,  # noqa: F401
     _CHAT_REQUEST_SURFACE,  # noqa: F401
     _MAX_CONVERSATION_LOG_EXCHANGES,  # noqa: F401
+    _MAX_USER_SURFACE_CONTINUATIONS,
+    _ORGAN_ABSENCE_STREAKS,
     _conversation_log,  # noqa: F401
     _locks,  # noqa: F401
     logger,  # noqa: F401
-)
-from interface.routes import chat_desktop_repair as _chat_desktop_repair
-from interface.routes import chat_preflight as _chat_preflight
-from core.brain.live_mind_contract import (
-    append_text_mutation,
-    merge_text_mutations,
-    normalize_live_mind_surface_control_receipt,
-    summarize_text_mutation_authorship,
-    verify_text_mutation_chain,
-)
-from core.runtime.errors import describe_error, record_degradation
-
-from interface.routes.chat_common import (
-    _MAX_USER_SURFACE_CONTINUATIONS,
-    _ORGAN_ABSENCE_STREAKS,
 )
 
 
@@ -94,7 +90,7 @@ def _runtime_inference_available(
     require_conversation_ready: bool = False,
 ) -> bool:
     try:
-        gate = ServiceContainer.get("inference_gate", default=None)
+        gate = resolve_inference_gate()
         if gate is None:
             return False
         if hasattr(gate, "get_conversation_status"):

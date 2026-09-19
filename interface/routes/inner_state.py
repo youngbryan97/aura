@@ -28,6 +28,7 @@ from fastapi.responses import JSONResponse
 
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_inference_gate
 
 logger = logging.getLogger("Aura.InnerState")
 
@@ -277,7 +278,7 @@ async def get_inner_state() -> JSONResponse:
 
     # 9. LLM tier health
     try:
-        gate = ServiceContainer.get("inference_gate", default=None)
+        gate = resolve_inference_gate()
         if gate:
             if hasattr(gate, "ensure_all_tiers_healthy"):
                 result["llm_tiers"] = await _await_maybe(gate.ensure_all_tiers_healthy())

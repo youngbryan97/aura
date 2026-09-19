@@ -18,6 +18,7 @@ from core.predictive.trajectory_predictor import TrajectoryPredictor
 from core.runtime.errors import record_degradation
 from core.runtime.pipeline_blueprint import instantiate_legacy_runtime_phases
 from core.runtime.progress_bound import run_on_a_thread_while_it_works
+from core.runtime.service_access import resolve_inference_gate
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.utils.resilience import CircuitBreaker
 from core.utils.task_tracker import get_task_tracker
@@ -480,7 +481,7 @@ class MindTick(_KnowsWhetherItIsStillAlive):
             logger.debug("MindTick router pressure probe failed: %s", exc)
 
         try:
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             if gate and hasattr(gate, "_background_local_deferral_reason"):
                 reason = str(gate._background_local_deferral_reason(origin="mind_tick") or "").strip()
                 if reason:
@@ -626,7 +627,7 @@ class MindTick(_KnowsWhetherItIsStillAlive):
         return health_pause
 
     async def _run_loop_gate(self):
-        gate = ServiceContainer.get("inference_gate", default=None)
+        gate = resolve_inference_gate()
         if gate and hasattr(gate, "ensure_all_tiers_healthy"):
             self._active_tick_stage = "llm_health"
             self._mark_loop_progress("llm_health")
@@ -757,7 +758,7 @@ class MindTick(_KnowsWhetherItIsStillAlive):
         # Check sidecar process health
         local_runtime_state = "offline"
         try:
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             lane = gate.get_conversation_status() if gate and hasattr(gate, "get_conversation_status") else {}
             if isinstance(lane, dict) and lane:
                 lane_state = str(lane.get("state", "") or "").strip().lower()

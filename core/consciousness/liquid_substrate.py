@@ -1,3 +1,4 @@
+
 """core/consciousness/liquid_substrate.py
 
 Implements the "Liquid Substrate" - a continuous-time dynamical system that gives Aura
@@ -5,7 +6,6 @@ persistence, emotional depth, and temporal continuity.
 
 Based on Liquid Time-Constant Networks (LTCs) and global workspace theory.
 """
-
 import asyncio
 import logging
 import os
@@ -20,6 +20,7 @@ import numpy as np
 import torch
 
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.service_access import resolve_orchestrator
 from core.soma.effort import note_effort
 from core.utils.exceptions import capture_and_log
 from core.utils.task_tracker import get_task_tracker, mark_task_protected
@@ -1488,9 +1489,8 @@ class LiquidSubstrate(_KeepsItsStateOnDisk):
             logger.debug("Battery throttling power-state read failed: %s", exc)
 
         try:
-            from core.container import ServiceContainer
 
-            orchestrator = ServiceContainer.get("orchestrator", default=None)
+            orchestrator = resolve_orchestrator()
             if orchestrator is not None:
                 last_user = float(
                     getattr(orchestrator, "_last_user_interaction_time", 0.0)

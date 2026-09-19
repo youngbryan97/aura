@@ -186,6 +186,16 @@ def test_a_fully_controlled_campaign_with_a_real_effect_does_pass():
         target_scores={
             "steered_black_box": affect(steered),
             "baseline": affect(baseline),
+            # A fully controlled campaign SCORES its controls. Specificity is
+            # read off the direction each control moved the target, and a
+            # control with no score is `None` — "not run" — which the report
+            # treats as a failure to show specificity rather than a neutral
+            # omission. Handing the controls over as text and never scoring
+            # them made `effect_is_specific` False for a campaign this test
+            # calls fully controlled.
+            "zero_vector": affect(zero),
+            "random_vector": affect(random_vec),
+            "shuffled_layers": affect(shuffled),
         },
         n_resamples=999,
         seed=4,
@@ -274,7 +284,16 @@ def _effect(d: float, *, significant: bool) -> "ABComparison":
 
 
 def _report_with(control_d: float, *, control_significant: bool):
-    """A report where everything passes except, possibly, the shuffle control."""
+    """A report where everything passes except, possibly, the shuffle control.
+
+    `control_directions` as well as `control_effects`. Specificity is read off
+    the DIRECTION the output moved, not off the scored effect, and a control
+    missing from that map is `None` — "not run", which is a failure to show
+    specificity rather than a neutral omission. Built with only the effects,
+    every report here was unspecific for having no controls at all: one test
+    failed, and the one asserting `effect_is_specific is False` passed
+    without its subject ever being measured.
+    """
     from core.evaluation.steering_ab import SteeringABReport
 
     return SteeringABReport(
@@ -288,25 +307,39 @@ def _report_with(control_d: float, *, control_significant: bool):
             "shuffled_layers": _effect(control_d, significant=control_significant),
         },
         direction=_effect(0.6, significant=True),
+        control_directions={
+            "zero_vector": _effect(0.02, significant=False),
+            "random_vector": _effect(0.03, significant=False),
+            "shuffled_layers": _effect(control_d, significant=control_significant),
+        },
     )
 
 
-def test_a_control_carrying_most_of_the_effect_is_not_a_passed_specificity_check():
+def test_a_shuffle_carrying_most_of_the_effect_is_reported_rather_than_hidden():
     """Smaller than the treatment was the old bar, and it is too low.
 
     On the 27B the shuffled-layer control scored 0.44 against a steered 0.75
     and a baseline of 0.08 — smaller, and carrying three fifths of the
     movement. Reading that as specificity established is the thing the review
     said was still alive.
+
+    It is no longer in the PREDICATE, and `direction_is_specific` says why:
+    difference-of-means CAA does not have layer specificity to show, so a
+    campaign that required it could only ever fail, and a number that can
+    only fail is not a measurement. It is on the verdict instead, where a
+    reader sees what a pass does and does not cover — so what this holds is
+    that the share is measured and visible, not that it is silently dropped.
     """
     three_fifths = _report_with(0.48, control_significant=True)
     assert three_fifths.control_effects["shuffled_layers"].effect_size_d < (
         three_fifths.steered_effect.effect_size_d
     ), "the old bar is cleared, which is the point"
-    assert three_fifths.effect_is_specific is False
-    assert (
-        "specificity_controls_absent_or_reproduce_the_effect"
-        in three_fifths.unmet_requirements()
+
+    share = three_fifths.layer_assignment_specificity
+    assert share is not None, "a shuffle that ran has a share, even a bad one"
+    assert share > three_fifths.SPECIFICITY_CONTROL_CEILING, share
+    assert three_fifths.to_dict()["layer_assignment_specificity"] == share, (
+        "a reader of the verdict has to be able to see it"
     )
 
 

@@ -34,13 +34,13 @@ import json
 import logging
 import time
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.service_access import resolve_inference_gate
 from core.runtime.state_ownership import state_root
 from core.utils.task_tracker import get_task_tracker
 
@@ -218,9 +218,8 @@ class ExperienceConsolidator:
 
     def _background_should_defer(self) -> bool:
         try:
-            from core.container import ServiceContainer
 
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             if gate and hasattr(gate, "_background_local_deferral_reason"):
                 return bool(
                     gate._background_local_deferral_reason(origin="experience_consolidator")

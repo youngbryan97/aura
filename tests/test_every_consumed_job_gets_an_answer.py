@@ -20,8 +20,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[1]
 WORKER = ROOT / "core/brain/llm/mlx_worker.py"
 
@@ -52,6 +50,29 @@ def _the_request_loops_own_handlers(loop: ast.FunctionDef) -> list[ast.ExceptHan
             if isinstance(statement, ast.Try) and statement.handlers:
                 return list(statement.handlers)
     raise AssertionError("the request loop is no longer a try inside a while")
+
+
+def _handler_and_what_it_calls(source: str, handler: ast.ExceptHandler) -> str:
+    """The handler's own text, plus any module function it calls.
+
+    The method-size sweep lifted the last guard's whole body into
+    `_mlx_worker_loop_last_guard_before` and left the call behind, so the
+    handler reads as one line while the job is still answered. Answering it
+    is the property; which function holds the `put` is not.
+    """
+    text = ast.get_source_segment(source, handler) or ""
+    module = ast.parse(source)
+    bodies = {
+        node.name: ast.get_source_segment(source, node) or ""
+        for node in module.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    for node in ast.walk(handler):
+        if isinstance(node, ast.Call):
+            name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+            if name in bodies:
+                text += "\n" + bodies[name]
+    return text
 
 
 def _catches_everything(handler: ast.ExceptHandler) -> bool:
@@ -90,7 +111,7 @@ def test_a_caught_failure_still_writes_a_reply() -> None:
     for handler in _handlers(loop):
         if not _catches_everything(handler):
             continue
-        segment = ast.get_source_segment(source, handler) or ""
+        segment = _handler_and_what_it_calls(source, handler)
         assert "ipc_writer.put" in segment or "response.update" in segment, (
             f"catch-all at line {handler.lineno} records the failure and does "
             "not answer the job"
@@ -111,3 +132,50 @@ def test_the_job_loop_does_not_end_on_a_tuple_of_named_types() -> None:
         "the last handler of the request loop names types: "
         f"{ast.dump(handlers[-1].type) if handlers[-1].type else 'bare'}"
     )
+
+
+def test_the_last_guard_names_the_job_it_could_not_finish() -> None:
+    """An id-less error frame is one the parent cannot resolve.
+
+    The guard's body used to be the except clause, where `job` and `action`
+    are the loop's own names and `locals()` reached them defensively — the
+    exception may land before either is bound. Lifted into a helper,
+    `locals()` sees three parameters and neither name, so every error frame
+    went back with action "unknown" and an empty id, which is exactly what
+    the comment beside it says the parent cannot resolve.
+    """
+    import logging
+
+    from core.brain.llm import mlx_worker
+
+    written: list[dict] = []
+
+    class _Writer:
+        def put(self, frame: dict) -> None:
+            written.append(frame)
+
+    logger = logging.getLogger("test_last_guard")
+    logger.addHandler(logging.NullHandler())
+
+    mlx_worker._mlx_worker_loop_last_guard_before(
+        RuntimeError("boom"),
+        _Writer(),
+        logger,
+        job={"id": "job-42"},
+        action="generate",
+    )
+    (frame,) = written
+    assert frame["status"] == "error"
+    assert frame["id"] == "job-42"
+    assert frame["action"] == "generate"
+
+    # And unbound stays answerable rather than raising: the exception may
+    # land before the loop has a job at all.
+    written.clear()
+    mlx_worker._mlx_worker_loop_last_guard_before(
+        RuntimeError("boom"), _Writer(), logger
+    )
+    (bare,) = written
+    assert bare["status"] == "error"
+    assert bare["id"] == ""
+    assert bare["action"] == "unknown"

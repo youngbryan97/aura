@@ -23,6 +23,7 @@ from typing import Any
 from core.config import config
 from core.container import ServiceContainer
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.runtime.service_access import resolve_orchestrator
 
 logger = logging.getLogger("Aura.SkillLibrary")
 
@@ -292,7 +293,7 @@ class SkillLibrary:
 
     def _update_system_health(self):
         """Wire aggregated metrics into AuraState.health (Digital Metabolism)."""
-        orchestrator = ServiceContainer.get("orchestrator", default=None)
+        orchestrator = resolve_orchestrator()
         if orchestrator and hasattr(orchestrator, "state"):
             state = orchestrator.state
 

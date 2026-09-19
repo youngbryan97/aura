@@ -13,11 +13,14 @@ import json
 import logging
 import math
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional, Tuple
+from typing import Any
 
 import numpy as np
+
+from core.conversation.word_markers import names_any
 
 logger = logging.getLogger("Aura.HeuristicImperatives")
 
@@ -47,9 +50,9 @@ class ImperativeScore:
     prosperity_delta: float
     understanding_delta: float
     aggregate: float
-    conflicts: Tuple[str, ...] = field(default_factory=tuple)
+    conflicts: tuple[str, ...] = field(default_factory=tuple)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "suffering_delta": round(self.suffering_delta, 3),
             "prosperity_delta": round(self.prosperity_delta, 3),
@@ -136,7 +139,7 @@ class PrincipleValueNetwork:
         if not tokens:
             return vector
         for pos, token in enumerate(tokens):
-            h = hashlib.blake2b(f"{pos % 5}:{token}".encode("utf-8"), digest_size=8).digest()
+            h = hashlib.blake2b(f"{pos % 5}:{token}".encode(), digest_size=8).digest()
             bucket = int.from_bytes(h[:4], "little") % self.feature_dim
             sign = 1.0 if (h[4] & 1) == 0 else -1.0
             vector[bucket] += sign
@@ -150,11 +153,16 @@ class PrincipleValueNetwork:
         target = np.zeros(len(_VALUE_HEADS), dtype=np.float32)
         # These are principle-label seeds only; proposed actions are scored by
         # the learned vector geometry, not by direct keyword counting.
-        if any(term in lowered for term in ("suffering", "harm", "repair", "protect", "agency", "care")):
+        # Word-aware: every one of these is a fragment of something this
+        # runtime writes. "build" of rebuilding, "stability" of instability,
+        # "options" of adoptions, "evidence" of unevidenced — and an
+        # imperative scored from "instability" as if it said "stability" is
+        # the inversion of what it measures.
+        if names_any(lowered, ("suffering", "harm", "repair", "protect", "agency", "care")):
             target[0] = 1.0
-        if any(term in lowered for term in ("prosperity", "capability", "stability", "flourish", "build", "options")):
+        if names_any(lowered, ("prosperity", "capability", "stability", "flourish", "build", "options")):
             target[1] = 1.0
-        if any(term in lowered for term in ("understanding", "traceable", "testable", "clear", "truth", "evidence")):
+        if names_any(lowered, ("understanding", "traceable", "testable", "clear", "truth", "evidence")):
             target[2] = 1.0
         if not np.any(target):
             target[:] = 1.0 / len(_VALUE_HEADS)
@@ -182,7 +190,7 @@ class HeuristicImperatives:
     def score_action(
         self,
         description: str,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> ImperativeScore:
         self._ensure_principles_loaded()
         text_parts = [str(description or "")]
@@ -270,7 +278,7 @@ class HeuristicImperatives:
         return principles or [dict(item) for item in _DEFAULT_PRINCIPLES]
 
 
-_singleton: Optional[HeuristicImperatives] = None
+_singleton: HeuristicImperatives | None = None
 
 
 def get_heuristic_imperatives() -> HeuristicImperatives:
@@ -282,6 +290,6 @@ def get_heuristic_imperatives() -> HeuristicImperatives:
 
 def score_action(
     description: str,
-    context: Optional[Dict[str, Any]] = None,
+    context: dict[str, Any] | None = None,
 ) -> ImperativeScore:
     return get_heuristic_imperatives().score_action(description, context)

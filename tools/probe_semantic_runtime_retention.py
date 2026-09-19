@@ -35,6 +35,8 @@ def main():
     parser.add_argument("--steps", type=int, default=20)
     parser.add_argument("--max-charts", type=int, default=32)
     parser.add_argument("--learn-operation-pointer", action="store_true")
+    parser.add_argument("--update-rule", choices=("working_face", "minimum_change"), default="working_face")
+    parser.add_argument("--boundary-policy", choices=("supervised", "retain_existing"), default="supervised")
     parser.add_argument("--objective", choices=("squared_deficit", "pairwise_logistic"), default="squared_deficit")
     args = parser.parse_args()
     if args.output.exists():
@@ -53,6 +55,8 @@ def main():
         operation_retention_count=args.operation_retention_count,
         steps=args.steps, max_charts=args.max_charts,
         objective=args.objective,
+        update_rule=args.update_rule,
+        boundary_policy=args.boundary_policy,
         learn_operation_pointer=args.learn_operation_pointer,
         progress=report_progress)
     if not atomic_write_bytes_if_absent(args.output,

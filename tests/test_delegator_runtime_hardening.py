@@ -6,21 +6,35 @@ from core.collective.delegator import AgentDelegator, SwarmAgent
 from core.runtime.errors import get_degradation_tracker
 
 
-def _mute_container(monkeypatch):
-    monkeypatch.setattr(
-        "core.collective.delegator.ServiceContainer.get",
-        lambda _name, default=None: default,
-    )
+def _mute_container(monkeypatch, router=None):
+    """Nothing in the container except the language router, when one is given.
+
+    A shard used to go through the orchestrator's cognitive engine, so these
+    tests handed `AgentDelegator` a `SimpleNamespace(cognitive_engine=...)`
+    and muted everything else. It asks the container for `llm_router`
+    directly now — "the language organ, asked directly", because through the
+    cognitive engine a shard became a cognitive turn with the prompt as its
+    objective — so muting everything left it with no router at all and both
+    tests failed on "No language router available for swarm delegation"
+    before reaching what they assert.
+    """
+
+    def _get(name, default=None):
+        if name == "llm_router" and router is not None:
+            return router
+        return default
+
+    monkeypatch.setattr("core.collective.delegator.ServiceContainer.get", _get)
 
 
 @pytest.mark.asyncio
 async def test_callback_failure_does_not_poison_completed_agent(monkeypatch):
-    _mute_container(monkeypatch)
-    get_degradation_tracker().reset()
-
     class Brain:
         async def think(self, *_args, **_kwargs):
             return SimpleNamespace(content="shard complete")
+
+    _mute_container(monkeypatch, router=Brain())
+    get_degradation_tracker().reset()
 
     callback_calls = []
 
@@ -45,11 +59,11 @@ async def test_callback_failure_does_not_poison_completed_agent(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_empty_shard_output_fails_closed_with_explicit_result(monkeypatch):
-    _mute_container(monkeypatch)
-
     class Brain:
         async def think(self, *_args, **_kwargs):
             return SimpleNamespace(content="  ")
+
+    _mute_container(monkeypatch, router=Brain())
 
     delegator = AgentDelegator(SimpleNamespace(cognitive_engine=Brain()))
     agent_id = await delegator.delegate("researcher", "find the gap")

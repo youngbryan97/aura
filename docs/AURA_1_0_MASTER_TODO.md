@@ -1102,6 +1102,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   joint refit reaches 390/500 equivalent with 102 regressions. The selector
   correctly retains the incumbent; G03 remains open and no candidate is
   promoted.
+  [September 19 attribution correction](evidence/G03_WORKING_FACE_ATTRIBUTION_2026-09-19.md)
+  records that the frozen run did not include background repairs. Its refit
+  had 102 exact and 98 equivalent regressions against the incumbent. Component
+  interventions found a silently added boundary-interaction block; ordinary
+  refitting now preserves pointer capacity. The [five-part generalization
+  design](G_GENERALIZATION_REPAIR_DESIGN.md) derives and implements a
+  minimum-change graph update with explicit proof limits and falsification.
+  These implementation changes do not close G03 or establish fresh transfer.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
@@ -1707,6 +1715,74 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   The register itself is being produced the only way it can be: the 97
   files re-run against one pinned revision in a worktree.
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
+  2026-09-19, 59 of the 130 closed, and the register's own heading was
+  wrong. The dominant cause is not order dependence: it is a test reading
+  SOURCE for a call site the method-size sweep moved. Three shapes, each now
+  written once in `tests/source_contract.py` rather than fixed per test —
+  `function_with_its_helpers` for a block lifted into a helper beside it,
+  `class_with_its_bases` for one lifted into a mixin the class inherits, and
+  `declared_in` for one that moved to another file. A fourth kind of drift
+  had no helper and needed none: a hand-written list of modules.
+  `patch_chat_lane` replaces a name in every chat lane module that binds it,
+  and which modules those are was a tuple somebody maintained. Its own
+  comment said what that costs — "a lane missing from this list is a lane a
+  patch will miss" — and `lane_modules_on_disk` had been written after four
+  went missing. A fifth did: `chat_reply_repair_about_herself` carried
+  `_emit_chat_output_receipt` out with it, so a test asserting a turn was
+  receipted watched the real function run and read its own empty double. The
+  list is read from the directory now.
+  The same shape twice more, both with a test passing because of it.
+  `test_warmup_deferral_backpressure` patched `record_degradation` on
+  `core.brain.inference_gate` after `_note_foreground_warmup_failure` moved
+  into `inference_gate_cortex_warmup`, which binds it itself: one test failed
+  and its sibling asserted "no record was made" and passed, because nothing
+  it could see was ever called. And `test_recurrent_sft_kernel_probe` stood
+  its double at `probe.subprocess.run` after the probe was routed through the
+  subprocess gateway, so the real sandbox script ran on every one of those
+  three tests.
+  Not a test problem: `core/verify/which_lesions_a_direct_call_can_bite.py`
+  reads lexical enclosure to decide which channels a background caller can
+  move, and the sweep lifted `apply_channel` for
+  `affect.circumplex_sampling` out of `if not is_background and
+  self._origin_is_user_facing(origin)` into a helper called from inside it.
+  The verifier began reporting the circumplex as background-reachable — the
+  exact fact it was written to hold, and the one that explained three weeks
+  of zeros. It follows a guard into a helper that only guarded code calls
+  now, to a fixed point.
+  More of the same shape, found by working the register rather than by
+  looking for it. A window measures formatting, and four of them were
+  measuring another module entirely: the recollection guard read 300
+  characters above where the clause used to be in `chat.py` after it moved
+  to `chat_own_source`; the deliberate-cancel reason was matched as a
+  multi-line literal carrying twenty-eight spaces of indentation, so
+  re-indenting the block dropped the count to zero while the assignment had
+  not moved; `_abandonment_source` sliced between two markers that the sweep
+  had put in different functions; and `continuity_sections = (` was counted
+  inside a method the assembly had left, so "exactly once" was zero.
+  Three more doubles standing at doors their subject stopped using — the MLX
+  runtime probe, the readiness block, and a swarm shard that asks the
+  container for `llm_router` rather than going through the orchestrator's
+  cognitive engine.
+  Four tests were passing because of the drift rather than despite it, which
+  is the worse half: `test_warmup_deferral_backpressure`'s sibling asserted
+  "no record was made" with the recorder patched onto a module nothing
+  called; `test_a_control_carrying_most_of_the_effect...` asserted
+  `effect_is_specific is False` on a report whose controls were never scored,
+  so the subject was never measured; `test_reach_gateway` counted a step
+  nobody verified as verified progress; and the governed-scope detector said
+  outright that it had "drifted from the code and is no longer checking
+  anything" — its own guard on itself, and it was right.
+
+  Ratchets tightened rather than refreshed while the register was worked:
+  raw AURA_* env reads 578 to 571 (EventLoopMonitor's seven knobs declared),
+  raw `ServiceContainer.get` 1760 to 1639 (the two most-resolved services
+  moved onto the resolvers that already existed for them, 84 files), lock
+  constructions 657 to 655, the indirect async-write list 112 to 108, the
+  dead-code-after-return allowance 3 to 0, and the mypy strict ratchet back
+  to green on ten regressions across four files. The god-object ratchet is
+  left alone deliberately: it is +2,281 lines over budget from 15,549 lines
+  of growth across many files, and it is the active lane of the sweep that
+  produced most of the failures above.
   FOUND 2026-09-07, second session, and it was not order dependence.
   `test_runtime_invariants_are_registered_and_run_clean` passed alone and
   failed in a batch; the batch had built the ontogeny singletons, so

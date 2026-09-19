@@ -460,17 +460,22 @@ def test_worker_never_expands_admitted_cap_for_mode_specific_contracts():
     import inspect
 
     from core.brain.llm import mlx_worker
+    from tests.source_contract import in_order
 
     source = inspect.getsource(mlx_worker._mlx_worker_loop)
-    operator_cap = source.index(
-        "if operator_evidence_contract:\n                    max_tokens = min(max_tokens, 192)"
+    # Ordering, on spellings that do not carry their own indentation or line
+    # breaks. Each of these was matched as a multi-line literal with the
+    # surrounding whitespace baked in, so reformatting the kwargs dict onto
+    # several lines raised ValueError out of `index` while the cap was still
+    # applied before the budget was spent.
+    in_order(
+        source,
+        "if operator_evidence_contract:",
+        "max_tokens = min(max_tokens, 192)",
+        "hard_output_token_ceiling = _safe_int(",
+        "kwargs = {",
+        '"max_tokens": max_tokens',
     )
-    hard_ceiling = source.index(
-        'hard_output_token_ceiling = _safe_int(\n                    job.get("hard_output_token_ceiling")'
-    )
-    kwargs_build = source.index('kwargs = {"max_tokens": max_tokens')
-
-    assert operator_cap < hard_ceiling < kwargs_build
     assert "max_tokens = max(max_tokens, min(exact_token_requirement" not in source
 
 

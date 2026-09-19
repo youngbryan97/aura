@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from core.runtime import resource_psutil as psutil
+from core.runtime.service_access import resolve_inference_gate
 
 if TYPE_CHECKING:
     from core.brain.lane_admission import ActiveLane
@@ -3715,9 +3716,8 @@ def _background_deferral_active(origin: str | None = None) -> str | None:
     re-spawning a worker Aura just unloaded to protect a user turn.
     """
     try:
-        from core.container import ServiceContainer
 
-        gate = ServiceContainer.get("inference_gate", default=None)
+        gate = resolve_inference_gate()
     except (ImportError, RuntimeError) as exc:
         # No container, no gate to consult, and nothing to defer from — this is
         # a build without the gate rather than a gate that failed.

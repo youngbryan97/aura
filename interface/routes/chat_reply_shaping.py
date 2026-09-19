@@ -8,27 +8,35 @@ with it; none of them decide whether to send it.
 """
 from __future__ import annotations
 
-from core.brain.live_mind_contract import append_text_mutation, merge_text_mutations, summarize_text_mutation_authorship
+import asyncio
+import hashlib
+import re
+import time
+from typing import Any
+
+from core.brain.live_mind_contract import (
+    append_text_mutation,
+    merge_text_mutations,
+    summarize_text_mutation_authorship,
+)
 from core.brain.llm.latent_cortex.output_quality import (
     OUTPUT_QUALITY_SCHEMA,
     evaluate_latent_output,
 )
-from core.container import ServiceContainer
+from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
-from interface.routes import chat_conversation_repair as _chat_conversation_repair  # noqa: E402
+from core.runtime.service_access import resolve_inference_gate
 from interface.routes import chat_delivery as _chat_delivery  # noqa: E402
 from interface.routes import chat_desktop_repair as _chat_desktop_repair  # noqa: E402
 from interface.routes import chat_memory_state as _chat_memory_state  # noqa: E402
 from interface.routes import chat_preflight as _chat_preflight  # noqa: E402
 from interface.routes import chat_turn_contract as _chat_turn_contract  # noqa: E402
 from interface.routes.chat_common import _CHAT_RECOVERABLE_ERRORS, _INCOMPLETE_TAIL_WORDS, logger
-from interface.routes.chat_self_reply import _build_self_condition_evidence, _is_self_claim_boundary_question
+from interface.routes.chat_self_reply import (
+    _build_self_condition_evidence,
+    _is_self_claim_boundary_question,
+)
 from interface.routes.chat_turn_evidence import _recent_action_receipts
-from typing import Any
-import asyncio
-import hashlib
-import re
-import time
 
 # Lifted alongside this module; imported rather than re-derived.
 from .chat_lane_bookkeeping import (
@@ -38,7 +46,6 @@ from .chat_lane_bookkeeping import (
     _is_current_request_recap_request,
     _requested_visible_required_phrases,
 )
-from core.conversation.word_markers import names_any
 
 
 async def _preserve_large_user_paste(user_msg: str) -> None:
@@ -1495,7 +1502,7 @@ async def _grounded_competent_recovery(
         pass
 
     if gate is None:
-        gate = ServiceContainer.get("inference_gate", default=None)
+        gate = resolve_inference_gate()
     if gate is None or not hasattr(gate, "generate"):
         return None
 

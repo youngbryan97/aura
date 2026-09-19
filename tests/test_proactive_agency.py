@@ -40,8 +40,25 @@ async def test_no_planner_with_default_disabled_is_safe_noop():
 
 @pytest.mark.asyncio
 async def test_default_planner_pursues_open_ended_goal():
-    # no explicit planner → the GoalPlanner default makes an open-ended goal plannable
-    pa = ProactiveAgency(pursuit=_engine())
+    """No explicit planner → the GoalPlanner default makes it plannable.
+
+    Given something to reason WITH. The default planner's reasoning step
+    deliberates over a generator, and with none supplied it falls back to
+    `inference_gate` out of the container — absent here, so the step
+    produced an empty answer and failed three times as "action did not
+    complete". What this test is about is the default planner turning an
+    open-ended goal into a pursuable plan, not about where the words come
+    from.
+    """
+    from core.agency.goal_planner import GoalPlanner
+
+    async def _reasons(prompt: str, temperature: float) -> str:
+        return "Start by listing where notes already live, then pick one place."
+
+    pa = ProactiveAgency(
+        pursuit=_engine(),
+        planner=GoalPlanner(generate=_reasons, deliberate_samples=1).plan,
+    )
     out = await pa.pursue_goal("figure out the best approach to organizing notes")
     assert out is not None and out.completed
 

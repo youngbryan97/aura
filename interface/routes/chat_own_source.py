@@ -13,8 +13,8 @@ import re
 from pathlib import Path
 from typing import Any
 
-from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_inference_gate
 from interface.routes import chat_desktop_repair as _chat_desktop_repair  # noqa: E402
 from interface.routes import chat_memory_state as _chat_memory_state  # noqa: E402
 from interface.routes.chat_common import (  # noqa: E402  # noqa: E402  # noqa: E402  # noqa: E402  # noqa: E402  # noqa: E402  # noqa: E402
@@ -605,7 +605,7 @@ async def _attempt_generated_social_grounding_repair(
         logger.debug("Generated social grounding repair not admitted: %s", admission_reason)
         return ""
     try:
-        inference_gate = ServiceContainer.get("inference_gate", default=None)
+        inference_gate = resolve_inference_gate()
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat", exc)
         return ""

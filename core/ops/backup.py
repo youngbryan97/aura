@@ -17,6 +17,7 @@ from pathlib import Path
 from core.config import config
 from core.runtime import background_policy
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.runtime.service_access import resolve_orchestrator
 
 logger = logging.getLogger("Aura.Backup")
 
@@ -135,9 +136,8 @@ class BackupManager:
 
     def _maintenance_block_reason(self) -> str:
         try:
-            from core.container import ServiceContainer
 
-            orchestrator = ServiceContainer.get("orchestrator", default=None)
+            orchestrator = resolve_orchestrator()
             return str(
                 background_policy.background_activity_reason(
                     orchestrator,

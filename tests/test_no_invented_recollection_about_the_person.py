@@ -39,14 +39,30 @@ def test_the_invented_concern_is_gone():
 
 
 def test_the_recollection_clause_requires_an_actual_recollection():
-    """The clause must be guarded by having found something."""
-    # rsplit, not split: the phrase also appears in the comment explaining why
-    # the fallback was removed, and that copy comes first in the file.
-    before = SOURCE.rsplit('parts.append(f"I still have this recent concern in view', 1)[0]
-    # The condition governing the clause sits just above it.
-    guard = before[-300:]
-    assert re.search(r"if\s+remembered_user\s+and\b", guard), (
-        f"the clause can still speak an empty or defaulted recollection: ...{guard[-200:]}"
+    """The clause must be guarded by having found something.
+
+    Read out of `interface/routes/chat.py` with a 300-character window above
+    the clause. The clause moved to `chat_own_source` and the window was
+    landing on an unrelated comment in the file it had stayed behind in —
+    a window measures formatting, and this one was measuring another module.
+
+    The guard and the clause are one statement, so the function that holds
+    them is the unit and the order is the property.
+    """
+    from interface.routes import chat_own_source
+    from tests.source_contract import function_containing, in_order
+
+    _name, body = function_containing(
+        chat_own_source,
+        'parts.append(f"I still have this recent concern in view',
+    )
+    assert re.search(r"if\s+remembered_user\s+and\b", body), (
+        "the clause can still speak an empty or defaulted recollection"
+    )
+    in_order(
+        body,
+        "if remembered_user and",
+        'parts.append(f"I still have this recent concern in view',
     )
 
 

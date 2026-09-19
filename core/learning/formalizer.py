@@ -19,6 +19,7 @@ from typing import Any
 
 from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_inference_gate
 
 logger = logging.getLogger("Aura.Formalizer")
 
@@ -138,8 +139,7 @@ class KnowledgeFormalizer:
     async def _extract_atomic_facts_llm(self, content: str, source_title: str = "", source_url: str = "") -> list[dict[str, Any]]:
         """Extract facts using the InferenceGate (LLM) when use_llm=True."""
         try:
-            from core.container import ServiceContainer
-            inference = ServiceContainer.get("inference_gate", default=None)
+            inference = resolve_inference_gate()
             if not inference:
                 return self._extract_atomic_facts(content, source_title, source_url)
 

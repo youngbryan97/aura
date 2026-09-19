@@ -11,11 +11,11 @@ import os
 import signal
 from collections import OrderedDict
 from functools import partial
-from pathlib import Path
 from typing import Any, cast
 
 from core.runtime.atomic_writer import async_atomic_write_text
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_orchestrator
 from core.runtime.shutdown_coordinator import (
     ShutdownReport,
     get_shutdown_coordinator,
@@ -23,8 +23,8 @@ from core.runtime.shutdown_coordinator import (
     publish_shutdown_verdict,
     request_shutdown,
 )
-from core.utils.task_tracker import get_task_tracker
 from core.runtime.state_ownership import state_root
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Daemon")
 
@@ -80,7 +80,7 @@ class CognitiveDaemon:
 
         # Boot orchestrator
         from core.orchestrator.main import RobustOrchestrator
-        orch: Any = ServiceContainer.get("orchestrator", default=None)
+        orch: Any = resolve_orchestrator()
         if not orch:
             orch = RobustOrchestrator()
             ServiceContainer.register_instance("orchestrator", orch)

@@ -1,5 +1,6 @@
 """Complete graph learning must reach the operation span scores used at runtime."""
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
@@ -9,14 +10,22 @@ from core.learning.semantic_argument_graph_learning import argument_parameters
 from core.learning.semantic_graph_batch import GraphConstraintBatch
 from core.learning.semantic_graph_constraints import fit_complete_graph_constraints
 from core.learning.semantic_joint_graph_learning import (
-    joint_graph_contrast, refit_compositional_joint_graphs, score_annotated_graph,
+    joint_graph_contrast,
+    refit_compositional_joint_graphs,
+    score_annotated_graph,
     source_operation_pointer_constraints,
 )
 from core.learning.semantic_operation_pointer_learning import (
-    operation_pointer_from_parameters, operation_pointer_graph_evidence, operation_pointer_parameters,
+    operation_pointer_from_parameters,
+    operation_pointer_graph_evidence,
+    operation_pointer_parameters,
 )
 from core.learning.semantic_program_ir import TokenSpan
-from core.learning.semantic_relation_graph_learning import RelationGraphContrast, graph_margin, graph_margin_gradient
+from core.learning.semantic_relation_graph_learning import (
+    RelationGraphContrast,
+    graph_margin,
+    graph_margin_gradient,
+)
 from tests.test_semantic_relation_graph_learning import model_examples
 
 
@@ -78,17 +87,52 @@ def test_complete_fit_can_repair_a_boundary_constraint_the_old_fit_cannot_reach(
     assert receipt["stored_wrong_or_tied"] == 0
     assert receipt["operation_pointer_trainable"] is True
     assert not np.array_equal(fitted.operation_pointer.start_weight, model.operation_pointer.start_weight)
+    assert fitted.operation_pointer.pair_weight is None
     assert fitted.input_grounding == model.input_grounding
     assert graph_margin(parameters(fitted), row) == pytest.approx(receipt["stored_margins"][0], abs=1e-5)
 
 
-def test_pointer_parameter_roundtrip_preserves_scores(trained):
+@pytest.mark.parametrize("paired", [False, True])
+def test_pointer_parameter_roundtrip_preserves_scores_and_capacity(trained, paired):
     model, examples = trained
-    fitted = operation_pointer_from_parameters(operation_pointer_parameters(model))
+    if paired:
+        model = model._with_coefficients(operation_pointer=replace(model.operation_pointer,
+            pair_weight=np.linspace(-.2, .3, model.operation_pointer.width)))
+    values = operation_pointer_parameters(model)
+    assert values[0].shape == ((3 if paired else 2) * model.operation_pointer.width,)
+    fitted = operation_pointer_from_parameters(values, pointer=model.operation_pointer)
+    assert (fitted.pair_weight is not None) is paired
     item = examples[0]
     for ins in item.ir.instructions:
         assert fitted.score_sequence(item.hidden_states).score_span(ins.operation_span) == pytest.approx(
             model.operation_pointer.score_sequence(item.hidden_states).score_span(ins.operation_span), abs=1e-6)
+
+
+def test_pointer_export_refuses_an_undeclared_capacity_change(trained):
+    model, _ = trained
+    values = (np.zeros(3 * model.operation_pointer.width), np.array(0.))
+    with pytest.raises(ValueError, match="pointer parameter geometry"):
+        operation_pointer_from_parameters(values, pointer=model.operation_pointer)
+
+
+@pytest.mark.parametrize("paired", [False, True])
+def test_pointer_evidence_uses_only_declared_boundary_features(trained, paired):
+    model, examples = trained
+    if paired:
+        model = model._with_coefficients(operation_pointer=replace(model.operation_pointer,
+            pair_weight=np.linspace(-.2, .3, model.operation_pointer.width)))
+    item = examples[0]
+    span = item.ir.instructions[0].operation_span
+    term = operation_pointer_graph_evidence(model, item.hidden_states, [SimpleNamespace(span=span)])[0]
+    assert term.feature.size == (3 if paired else 2) * model.operation_pointer.width
+    assert term.score(parameters(model)) == pytest.approx(
+        model.operation_pointer.score_sequence(item.hidden_states).score_span(span), abs=2e-5)
+    row = RelationGraphContrast((), (), -term.score(parameters(model)) - .2,
+                               argument_terms=((1., term),))
+    fitted, receipt = fit_complete_graph_constraints(model, (row,), steps=3,
+        adaptive_step=True, learn_operation_pointer=True)
+    assert receipt["stored_wrong_or_tied"] == 0
+    assert (fitted.operation_pointer.pair_weight is not None) is paired
 
 
 def test_graph_contrast_separates_pointer_terms_from_fixed_margin(trained):
@@ -104,7 +148,9 @@ def test_graph_contrast_separates_pointer_terms_from_fixed_margin(trained):
 
 
 def test_source_trainer_wires_pointer_learning_and_roundtrips(trained):
-    from core.learning.semantic_program_compositional_transducer import compositional_semantic_program_transducer_from_dict
+    from core.learning.semantic_program_compositional_transducer import (
+        compositional_semantic_program_transducer_from_dict,
+    )
 
     model, examples = trained
     fitted = refit_compositional_joint_graphs(model, examples, rounds=1, steps=2,
@@ -135,3 +181,20 @@ def test_source_boundary_constraints_replay_real_pointer_and_are_not_empty(train
         assert len(gradient) == len(values)
         assert row.fixed_margin == pytest.approx(.1)
         assert any(np.any(part) for part in gradient[-2:])
+
+
+def test_retention_preserves_boundary_evidence_without_inventing_training_errors(trained):
+    model, examples = trained
+    model = model._with_coefficients(operation_pointer=replace(model.operation_pointer,
+        start_weight=-model.operation_pointer.start_weight, end_weight=-model.operation_pointer.end_weight))
+    training = tuple(item for item in examples if item.split == "train")
+    rows = source_operation_pointer_constraints(model, training, policy="retain_existing")
+    values = parameters(model)
+    assert rows and all(graph_margin(values, row) >= .1 - 1e-12 for row in rows)
+    assert any(row.fixed_margin > .1 for row in rows)
+    fitted, receipt = fit_complete_graph_constraints(model, rows, steps=3,
+        learn_operation_pointer=True, adaptive_step=True)
+    assert receipt["initial_wrong_or_tied"] == 0
+    assert receipt["displacement_from_anchor"] < 1e-6
+    np.testing.assert_allclose(fitted.operation_pointer.start_weight, model.operation_pointer.start_weight,
+                               atol=1e-6)

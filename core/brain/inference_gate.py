@@ -1,3 +1,4 @@
+
 """InferenceGate: unified MLX-managed local inference gateway.
 
 Provides a single interface for all LLM inference needs.
@@ -10,7 +11,6 @@ This module is the FAST PATH for user-facing chat. It injects Aura's full
 identity/personality system prompt so responses sound like Aura, not a bare LLM.
 Timeouts are kept tight (45s) for conversational responsiveness.
 """
-
 import asyncio
 import contextvars
 import copy
@@ -23,8 +23,8 @@ import os
 import re
 import threading as _threading
 import time
-import weakref
 import uuid
+import weakref
 from collections import deque
 from collections.abc import Mapping
 from contextlib import asynccontextmanager
@@ -83,6 +83,7 @@ from core.runtime.proof_policy import (
     proof_model_tier,
     proof_run_active,
 )
+from core.runtime.service_access import resolve_orchestrator
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.runtime.structured_input import (
     analyze_prompt_shape,
@@ -222,6 +223,8 @@ _FLAG_SAFE_BOOT_BACKGROUND_GUARD_SECS = _declare_flag(
 
 from core.brain.llm.context_budget import (
     CRITICAL_FOREGROUND_HEADERS as _CRITICAL_FOREGROUND_HEADERS,
+)
+from core.brain.llm.context_budget import (
     FOREGROUND_SECTION_VOLATILITY,
 )
 
@@ -508,6 +511,8 @@ _MESH_PRE_TRUST_RATIONALES = frozenset({"acknowledgement", "resource_hold"})
 try:  # pragma: no cover - import shape only
     from core.phases.response_contract import (
         _REQUESTED_ARTIFACT_CEILING as _REQUESTED_ARTIFACT_EFFECT_CEILING,
+    )
+    from core.phases.response_contract import (
         _SELF_SERVICE_CEILING as _SELF_SERVICE_EFFECT_CEILING,
     )
 except ImportError:  # pragma: no cover - the gate still runs without them
@@ -2560,11 +2565,8 @@ def _seconds_to_decode(tokens: int, model: str = "") -> float:
         return 0.0
 
 
-from .inference_gate_prompt import _BuildsAndFitsThePrompt
-
-
 from .inference_gate_cortex_warmup import _WatchesTheCortexComeUp
-
+from .inference_gate_prompt import _BuildsAndFitsThePrompt
 
 #: When the current generate() call entered the gate; read where the first
 #: model attempt starts so the gap can be written on the turn's receipt.
@@ -5402,9 +5404,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
         orch = self.orch
         if orch is None:
             try:
-                from core.container import ServiceContainer
 
-                orch = ServiceContainer.get("orchestrator", default=None)
+                orch = resolve_orchestrator()
             except _INFERENCE_RECOVERABLE_ERRORS as exc:
                 logger.debug("Orchestrator unavailable, cannot extend the startup quiet window: %s", exc)
                 orch = None
@@ -5709,7 +5710,6 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
         """
         try:
             from core.runtime.model_lane_control import (
-                ProcessIdentity,
                 get_model_lane_controller,
             )
 
@@ -6521,9 +6521,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
     @staticmethod
     def _foreground_user_turn_active() -> bool:
         try:
-            from core.container import ServiceContainer
 
-            orch = ServiceContainer.get("orchestrator", default=None)
+            orch = resolve_orchestrator()
             if not orch:
                 return False
             status = getattr(orch, "status", None)
@@ -6554,9 +6553,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
     @staticmethod
     def _foreground_quiet_window_active() -> bool:
         try:
-            from core.container import ServiceContainer
 
-            orch = ServiceContainer.get("orchestrator", default=None)
+            orch = resolve_orchestrator()
             if not orch:
                 return False
             quiet_until = float(getattr(orch, "_foreground_user_quiet_until", 0.0) or 0.0)

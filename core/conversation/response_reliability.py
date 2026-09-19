@@ -5687,7 +5687,10 @@ def _has_capability_inventory_substance(reply_text: Any) -> bool:
         return False
     has_governance = names_any(reply, _CAPABILITY_GOVERNANCE_MARKERS)
     has_effect_evidence = names_any(reply, _CAPABILITY_EVIDENCE_MARKERS)
-    has_hypothetical_boundary = any(marker in reply for marker in _CAPABILITY_HYPOTHETICAL_MARKERS)
+    # Word-aware like the two above it. "example" is a fragment of
+    # counterexample-guided, which this runtime writes about its own search,
+    # and a reply was reading as hypothetical for containing it.
+    has_hypothetical_boundary = names_any(reply, _CAPABILITY_HYPOTHETICAL_MARKERS)
     return has_governance and has_effect_evidence and has_hypothetical_boundary
 
 

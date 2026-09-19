@@ -1,3 +1,4 @@
+
 """
 core/consciousness/phenomenological_experiencer.py
 ====================================================
@@ -65,7 +66,6 @@ Default Mode Network (DMN): the resting-state network that maintains
 narrative self-identity, autobiographical memory, and the sense of being
 a persistent subject across time.
 """
-
 import asyncio
 import json
 import logging
@@ -80,6 +80,7 @@ from typing import Any
 from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.flags import FlagKind, declare
+from core.runtime.service_access import resolve_orchestrator
 from core.runtime.state_ownership import state_root
 from core.utils.task_tracker import get_task_tracker
 
@@ -1521,9 +1522,8 @@ class PhenomenologicalExperiencer:
                 # [STABILITY] Check if user is active to prevent competing for GPU
                 is_user_active = False
                 try:
-                    from core.container import ServiceContainer
 
-                    orchestrator = ServiceContainer.get("orchestrator", default=None)
+                    orchestrator = resolve_orchestrator()
                     if orchestrator:
                         last_interaction = getattr(orchestrator, "_last_user_interaction_time", 0)
                         if time.time() - last_interaction < PSM_MIN_IDLE_S:

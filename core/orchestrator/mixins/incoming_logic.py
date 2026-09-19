@@ -12,6 +12,7 @@ import re
 import time
 from typing import Any
 
+from core.conversation.word_markers import names_any
 from core.orchestrator.mixins.incoming_seams import (
     _current_task_cancellation_pending,
     _observe_the_social_turn,
@@ -1436,10 +1437,18 @@ class IncomingLogicMixin:
                                 "rate of",
                                 "estimate",
                             ]
+                            # Word-aware, because these are prose words and
+                            # every one of them is a fragment of a word this
+                            # runtime says constantly: "fact" of artifact,
+                            # "data" of metadata, "source" of resource,
+                            # "how" of showing, "search" of research,
+                            # "current" of concurrent. A routing decision made
+                            # on "show me the artifact" reading as a factual
+                            # question is the whole reason `names_any` exists.
                             is_complex = (
                                 len(message.split()) > 8
                                 or "?" in message
-                                or any(t in message.lower() for t in _factual_triggers)
+                                or names_any(message, _factual_triggers)
                             )
                             if is_complex:
                                 self._emit_thought_stream("🧠 Engaging ReAct reasoning loop...")
