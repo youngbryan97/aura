@@ -1096,6 +1096,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Background trainer integration](evidence/G03_BACKGROUND_TRAINER_INTEGRATION_2026-09-18.md)
   connects the repaired score replay to joint training and retains source
   non-operation targets. Neither candidate promotion nor G03 closure follows.
+  [Full paired working-face result](evidence/G03_WORKING_FACE_FULL_RUN_2026-09-18.md)
+  completes the pending 500-row development comparison: the incumbent retains
+  488/500, fit-start reaches 474/500 with 7 gains and 21 regressions, and the
+  joint refit reaches 390/500 equivalent with 102 regressions. The selector
+  correctly retains the incumbent; G03 remains open and no candidate is
+  promoted.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.

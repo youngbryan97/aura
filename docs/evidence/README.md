@@ -108,6 +108,7 @@ description is that document's own title.
 | `G03_LEARNED_PROCEDURE_REUSE_2026-09-15.md` | Learned procedure reuse measurement |
 | `G03_LITERAL_RETENTION_2026-09-13.md` | Literal retention and failure attribution, 2026-09-13 |
 | `G03_OPERATION_BACKGROUND_2026-09-18.md` | Operation/background competition: rejected candidate |
+| `G03_WORKING_FACE_FULL_RUN_2026-09-18.md` | G03: full paired working-face result |
 | `G03_OPERATION_BOUNDARY_LEARNING_2026-09-18.md` | Operation boundary learning, 2026-09-18 |
 | `G03_OPERATION_FEASIBILITY_2026-09-13.md` | Operation-chart feasibility development |
 | `G03_OPERATION_LABEL_ALTERNATIVES_2026-09-14.md` | G03: retaining operation label alternatives |
