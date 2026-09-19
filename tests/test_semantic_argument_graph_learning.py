@@ -76,7 +76,7 @@ def test_measured_step_repairs_a_large_linear_deficit_without_thousands_of_updat
     _fitted, receipt = fit_complete_graph_constraints(model, (row,), steps=3, adaptive_step=True)
     assert receipt["stored_wrong_or_tied"] == 0
     assert receipt["stored_margins"][0] >= .0999
-    assert receipt["step_policy"] == "retention_cut_deficit_backtracking_v2"
+    assert receipt["step_policy"] == "binding_face_deficit_backtracking_v3"
 
 
 def test_complete_source_fit_roundtrips_without_test_or_validation_training():

@@ -134,7 +134,9 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                      batch.weighted_gradient(parameters, weights * deficits)])
                      if batch is not None else np.zeros_like(flat))
         normals = {}
-        active = sorted(np.flatnonzero(np.isfinite(floors)),
+        # Only binding faces constrain infinitesimal motion. A witness with
+        # slack may decrease while remaining above its retained floor.
+        active = sorted(np.flatnonzero(np.isfinite(floors) & (margins == floors)),
                         key=lambda index: margins[index] - floors[index])[:max_active]
         for index, row in enumerate(contrasts):
             if index not in active and (batch is not None or not deficits[index]):
@@ -231,9 +233,9 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         "accepted_steps": trace, "projection_batch_size": max_active,
         "accepted_constraint_cut_rounds": sum(row["constraint_cut_rounds"] for row in trace),
         "peak_accepted_projected_constraints": max((row["projected_constraints"] for row in trace), default=0),
-        "step_policy": (("retention_cut_logistic_backtracking_v2" if objective == "pairwise_logistic"
-                         else "retention_cut_deficit_backtracking_v2")
-                        if adaptive_step else "retention_cut_fixed_step_v2"),
+        "step_policy": (("binding_face_logistic_backtracking_v3" if objective == "pairwise_logistic"
+                         else "binding_face_deficit_backtracking_v3")
+                        if adaptive_step else "binding_face_fixed_step_v3"),
         "all_constraints_checked_at_acceptance": True,
         "infeasibility_proven": False, "latent_choices_frozen_for_update": True,
         "serving_authority": False,

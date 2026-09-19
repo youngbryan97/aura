@@ -919,6 +919,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   82 focused tests. The numerical replay fixes the selected training error
   (7/8 to 8/8) while validation remains 6/8, including one decode refusal.
   Full-cohort refitting and fresh transfer remain required; G03 stays open.
+  [Binding-face retention](evidence/G03_BINDING_FACE_RETENTION_2026-09-18.md)
+  reproduces a further feasible-update stall: margins above their floors were
+  treated as binding. The scalar and batched counterexamples now pass without
+  weakening retained-margin acceptance. The prior full run stopped after its
+  first round accepted zero updates; no new validation result is claimed.
   [Background competition](evidence/G03_OPERATION_BACKGROUND_2026-09-18.md)
   tests a learned non-operation class on source spans. The small replay
   regresses from 48/60 to 45/60; no candidate promotion or full-run claim.
@@ -1105,6 +1110,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   turn exposed development cases into fresh or powered replication.
 - [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
+  [Paired public measurement](evidence/G08_PAIRED_PUBLIC_MEASUREMENT_2026-09-18.md)
+  repairs containment false positives, disjoint-task causal attribution, and
+  baseline-dependent task filtering in the retrieval/depth diagnostic. The
+  68-test focused pass does not qualify a model or close campaign verification.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
   [Forecast attribution](evidence/G09_FORECAST_ATTRIBUTION_2026-09-18.md) repairs
   calibration cancellation and binds planning outcomes to pre-action forecasts

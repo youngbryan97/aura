@@ -85,6 +85,26 @@ def test_projection_handles_dependent_oblique_constraints():
 
 
 @pytest.mark.parametrize("batched", [False, True])
+def test_slack_witness_may_decrease_without_crossing_its_retained_floor(batched):
+    from core.learning.semantic_argument_graph_learning import ArgumentScoreTerm
+    from core.learning.semantic_graph_constraints import _fit_graph_parameters
+
+    def linear(sign, fixed):
+        terms = ((sign, ArgumentScoreTerm(2, np.array([1.]), 1., "conditional_log_odds_v1")),
+                 (-sign, ArgumentScoreTerm(2, np.array([0.]), 1., "conditional_log_odds_v1")))
+        return RelationGraphContrast((), (), fixed, argument_terms=terms)
+
+    parameters = (np.zeros((1, 1)), np.zeros((1, 1)), np.array([1.1]), np.array(0.))
+    rows = (linear(1., 0.), linear(-1., .5))
+    _, receipt = _fit_graph_parameters(parameters, rows, steps=8,
+                                      adaptive_step=True, batched=batched)
+    assert receipt["initial_wrong_or_tied"] == 1
+    assert receipt["stored_wrong_or_tied"] == 0
+    assert .1 <= receipt["stored_margins"][0] < receipt["initial_margins"][0]
+    assert receipt["retained_positive_regressions"] == 0
+
+
+@pytest.mark.parametrize("batched", [False, True])
 def test_omitted_protected_witness_supplies_a_cut_instead_of_stopping_learning(batched):
     from core.learning.semantic_argument_graph_learning import ArgumentScoreTerm
     from core.learning.semantic_graph_constraints import _fit_graph_parameters
