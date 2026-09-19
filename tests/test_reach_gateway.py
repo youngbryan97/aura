@@ -93,8 +93,17 @@ async def test_as_step_runs_through_fluid_executor():
     step = gw.as_step("trigger", "POST", "https://hooks.example.com/go", json={"a": 1}, reason="demo")
     ex = FluidExecutor(verifier=None)
     receipt = await ex.run("reach", [step])
-    assert receipt.completed and receipt.verified_progress == 1
+    assert receipt.completed
     assert http.calls and http.calls[0][0] == "POST"
+    # `as_step` declares `verify="always_true"`, which the executor now reads
+    # as "verification not requested" rather than as "verified". A step
+    # nobody checked no longer counts toward verified progress, which is the
+    # honest reading: this asserted 1 and was counting an absence.
+    (only,) = receipt.steps
+    assert only.ok is True
+    assert only.verified is False
+    assert only.verification_outcome == "not_requested"
+    assert receipt.verified_progress == 0
 
 
 @pytest.mark.asyncio
