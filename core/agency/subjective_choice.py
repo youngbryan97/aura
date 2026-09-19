@@ -31,8 +31,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from core.runtime.atomic_writer import atomic_write_text
 from core.agency.asking_the_impulse import impulse_led, impulse_record
+from core.runtime.atomic_writer import atomic_write_text_behind
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
@@ -778,7 +778,10 @@ class SubjectiveChoiceEngine:
             "saved_at": time.time(),
         }
         try:
-            atomic_write_text(
+            # Behind the loop when a choice is made on it: the arbiter chooses
+            # inside an async synthesis, and this save's fsync held the event
+            # loop for 5.5 s (live, 2026-09-19).
+            atomic_write_text_behind(
                 self._state_path,
                 json.dumps(payload, indent=2, ensure_ascii=False),
                 encoding="utf-8",

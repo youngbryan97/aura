@@ -39,6 +39,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+from core.runtime.lockdep import checked_lock
+
 logger = logging.getLogger("Aura.AtomicWriter")
 
 PathLike = str | Path
@@ -93,12 +95,13 @@ def _fsync_file(fd: int, *, full: bool = False) -> None:
     # every write in the runtime pay for power-loss durability would trade a
     # silent correctness gap for a loud liveness one. Callers that hold
     # something they cannot reconstruct ask for it; everyone else does not.
-    from core.runtime.lockdep import assert_no_locks_held
+    from core.runtime.lockdep import assert_no_locks_held, report_blocking_on_loop
     from core.runtime.pressure_stall import Resource, stall
 
     global _fullsync_unsupported
 
     assert_no_locks_held("fsync")
+    report_blocking_on_loop("fsync")
     want_full = full and _FSYNC_NEEDS_FULLSYNC and not _fullsync_unsupported
     used_full = False
     started = time.perf_counter()
@@ -341,6 +344,77 @@ def atomic_write_text(
         power_safe=power_safe,
         mode=mode,
     )
+
+
+#: Bodies waiting to be written behind, newest only, by path.
+_BEHIND: dict[str, tuple[str, str, int]] = {}
+#: Paths with a drain already queued, so a burst of saves queues one write.
+_BEHIND_QUEUED: set[str] = set()
+_BEHIND_LOCK = checked_lock("core.runtime.atomic_writer.behind")
+
+
+def atomic_write_text_behind(
+    path: PathLike, text: str, *, encoding: str = "utf-8", mode: int = 0o600
+) -> bool:
+    """Write now, or, on a thread that is running an event loop, soon and off it.
+
+    For synchronous saves that async code reaches through ordinary calls: a
+    preference file updated as a choice is made, three calls below an
+    ``async def``. Off the loop it is ``atomic_write_text``. On the loop the
+    newest body for the path is held and one write is queued on the blocking
+    I/O lane; saves that arrive before it runs replace the held body, so
+    what lands is the last one and the order on disk is the order of the
+    calls. Returns True when the file was written before returning.
+    """
+    import asyncio
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        atomic_write_text(path, text, encoding=encoding, mode=mode)
+        return True
+    key = str(Path(path))
+    with _BEHIND_LOCK:
+        _BEHIND[key] = (text, encoding, mode)
+        if key in _BEHIND_QUEUED:
+            return False
+        _BEHIND_QUEUED.add(key)
+    from core.runtime.executors import submit_blocking_io
+
+    try:
+        submit_blocking_io(_drain_behind, key, label=f"write_behind:{Path(key).name}")
+    except RuntimeError:
+        # Shutting down: nothing will run it later, so this call pays for it.
+        _drain_behind(key)
+    return False
+
+
+def _drain_behind(key: str) -> None:
+    while True:
+        with _BEHIND_LOCK:
+            held = _BEHIND.pop(key, None)
+            if held is None:
+                _BEHIND_QUEUED.discard(key)
+                return
+        text, encoding, mode = held
+        try:
+            atomic_write_text(key, text, encoding=encoding, mode=mode)
+        except OSError as exc:
+            from core.runtime.errors import record_degradation
+
+            record_degradation(
+                "atomic_writer", exc, action=f"a write behind the loop to {Path(key).name} was lost"
+            )
+
+
+def flush_writes_behind() -> int:
+    """Write everything still held, on this thread. Returns how many."""
+    with _BEHIND_LOCK:
+        keys = list(_BEHIND)
+        _BEHIND_QUEUED.update(keys)
+    for key in keys:
+        _drain_behind(key)
+    return len(keys)
 
 
 def atomic_hardlink_replace(

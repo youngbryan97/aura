@@ -698,7 +698,9 @@ class AutonomyConductor:
             what_the_probe_turn_can_bite,
         )
 
-        reachable = set(what_the_probe_turn_can_bite())
+        # A walk of the source tree: five seconds on the loop thread the first
+        # time (live, 2026-09-19 01:42), so it runs where a stall costs nothing.
+        reachable = set(await asyncio.to_thread(what_the_probe_turn_can_bite))
         unreachable = sorted(name for name in channels if name not in reachable)
         channels = [name for name in channels if name in reachable]
         if not channels:

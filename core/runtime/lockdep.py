@@ -271,6 +271,8 @@ class LockdepValidator:
         self._contexts: dict[tuple[str, int], _ContextState] = {}
         self._splats: dict[str, Splat] = {}
         self._splat_counts: dict[str, int] = {}
+        #: "operation@site" -> times a blocking call ran on the loop thread.
+        self._blocking_on_loop: dict[str, int] = {}
         self._acquires = 0
         self._loop_thread_ident: int | None = None
         # Per-thread "already reporting" flag. Reporting logs, and a log
@@ -685,6 +687,7 @@ class LockdepValidator:
             "order_edges": edges,
             "splats": splats,
             "currently_held": live,
+            "blocking_on_loop": self.blocking_on_loop(),
         }
 
     def report_external(self, *, kind: str, signature: str, message: str, held: list[str]) -> None:
@@ -713,6 +716,28 @@ class LockdepValidator:
         logger.error("🔒 LOCKDEP %s: %s", kind, message)
         taint(TaintFlag.LOCK_ORDER, f"{kind}: {message[:200]}", subsystem="lockdep")
 
+    def note_blocking_on_loop(self, site: str, operation: str) -> bool:
+        """Count a blocking call on the loop thread; True the first time for a site.
+
+        Kept apart from the splats. A splat is a lock-order hazard and what
+        "lockdep is clean" means; this is a slow thing on the wrong thread.
+        """
+        key = f"{operation}@{site}"
+        with self._lock:
+            seen = self._blocking_on_loop.get(key, 0)
+            self._blocking_on_loop[key] = seen + 1
+        return seen == 0
+
+    def blocking_on_loop(self) -> dict[str, int]:
+        with self._lock:
+            return dict(self._blocking_on_loop)
+
+    def on_the_loop_thread(self) -> bool:
+        return (
+            self._loop_thread_ident is not None
+            and threading.get_ident() == self._loop_thread_ident
+        )
+
     def already_reported(self, signature: str) -> bool:
         with self._lock:
             return signature in self._splats
@@ -731,6 +756,7 @@ class LockdepValidator:
             self._contexts.clear()
             self._splats.clear()
             self._splat_counts.clear()
+            self._blocking_on_loop.clear()
             self._acquires = 0
             # The loop-thread ident has to go too. A test that calls
             # note_loop_thread() to exercise hazard 4 otherwise leaves the
@@ -1162,6 +1188,47 @@ def assert_no_locks_held(operation: str, *, strict: bool = False) -> list[str]:
     return offenders
 
 
+#: Files whose frames are plumbing between a caller and a blocking call, so
+#: the site a report names is the caller that chose to block.
+_PLUMBING = (
+    "core/runtime/atomic_writer.py",
+    "core/runtime/file_write_gateway.py",
+    "core/runtime/lockdep.py",
+    "core/runtime/pressure_stall.py",
+    "contextlib.py",
+)
+
+
+def report_blocking_on_loop(operation: str) -> bool:
+    """Name a blocking call made on the event loop thread, once per call site.
+
+    The async-write ratchet reads source and so sees a write only where it
+    sits inside an ``async def``. A synchronous save reached from async code
+    is invisible to it and shows up only as a stall capture. LIVE
+    2026-09-19: a choice was saved with an fsync on the loop thread, from an
+    ``async def`` three synchronous calls away. Reports and returns True when
+    this is the loop thread; never raises.
+    """
+    if not _VALIDATOR.on_the_loop_thread():
+        return False
+    frame = sys._getframe(1)
+    while frame is not None and frame.f_code.co_filename.endswith(_PLUMBING):
+        frame = frame.f_back
+    site = (
+        f"{frame.f_code.co_filename.rsplit('/', 1)[-1]}:{frame.f_lineno} in {frame.f_code.co_name}"
+        if frame is not None
+        else "<unknown>"
+    )
+    if _VALIDATOR.note_blocking_on_loop(site, operation):
+        logger.warning(
+            "🔒 %s on the event loop thread from %s — every task waits on the disk "
+            "for as long as it takes; said once per place",
+            operation,
+            site,
+        )
+    return True
+
+
 def lockdep_report() -> dict[str, Any]:
     return _VALIDATOR.report()
 
@@ -1202,5 +1269,6 @@ __all__ = [
     "lockdep_clean",
     "lockdep_report",
     "note_event_loop_thread",
+    "report_blocking_on_loop",
     "reset_lockdep_for_test",
 ]

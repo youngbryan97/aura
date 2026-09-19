@@ -124,10 +124,23 @@ def _register_pool(pool: ThreadPoolExecutor, *, name: str) -> None:
         kind="executor",
         name=name,
         source="core.runtime.executors",
-        closer=functools.partial(pool.shutdown, wait=False, cancel_futures=True),
+        closer=functools.partial(_close_pool, pool),
         timeout_s=1.0,
         required=True,
     )
+
+
+def _close_pool(pool: ThreadPoolExecutor) -> None:
+    # Cancelling queued work drops any write still held behind the loop, so
+    # those are written first, here, while the process can still write.
+    if pool is BLOCKING_IO_POOL:
+        try:
+            from core.runtime.atomic_writer import flush_writes_behind
+
+            flush_writes_behind()
+        except OSError as exc:
+            logger.warning("writes held behind the loop were not all written: %s", exc)
+    pool.shutdown(wait=False, cancel_futures=True)
 
 
 # ---------------------------------------------------------------------------
@@ -363,6 +376,9 @@ def pool_status() -> dict[str, Any]:
 
 def shutdown_pools(wait: bool = False) -> None:
     """Gracefully shut down all bounded runtime pools."""
+    from core.runtime.atomic_writer import flush_writes_behind
+
+    flush_writes_behind()
     HEAVY_CPU_POOL.shutdown(wait=wait, cancel_futures=True)
     BLOCKING_IO_POOL.shutdown(wait=wait, cancel_futures=True)
     DURABLE_RECEIPT_POOL.shutdown(wait=wait, cancel_futures=True)
