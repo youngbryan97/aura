@@ -49,6 +49,10 @@ logger = logging.getLogger("Aura.RateGroups")
 SLIP_TOLERANCE = 0.10
 #: While a group keeps slipping, one line per this many cycles.
 _SAY_STREAK_EVERY = 30
+#: Slips in a row before a slip is a warning. One or two late cycles on a
+#: loaded host is weather: the 1Hz group began 247 separate streaks in one
+#: live morning (2026-09-19) and every one was a warning line.
+_SLIPS_WORTH_A_WARNING = 3
 
 
 @dataclass
@@ -219,7 +223,11 @@ class RateGroup:
             # host the 1Hz group slipped 99 cycles in half an hour and each
             # was a warning line (2026-09-16). The streak's end is said too.
             first = self.consecutive_slips == 1
-            say = logger.warning if first or self.consecutive_slips % _SAY_STREAK_EVERY == 0 else logger.info
+            sustained = (
+                self.consecutive_slips == _SLIPS_WORTH_A_WARNING
+                or self.consecutive_slips % _SAY_STREAK_EVERY == 0
+            )
+            say = logger.warning if sustained else logger.info
             say(
                 "⏱️ rate group %s slipped: cycle took %.0fms of a %.0fms period "
                 "(slowest member: %s at %.0fms)%s",

@@ -407,12 +407,30 @@ def test_a_slip_streak_is_said_when_it_starts_periodically_and_when_it_ends(capl
         if r.name == rate_groups.logger.name and "slipped:" in r.getMessage()
     ]
     warned = [r for r in slips if r.levelno == logging.WARNING]
-    # The first, and the thirtieth; the rest at info.
+    # The one that makes it a streak, and the thirtieth; the rest at info.
     assert len(warned) == 2
+    assert f"{rate_groups._SLIPS_WORTH_A_WARNING} in a row" in warned[0].getMessage()
     assert f"{rate_groups._SAY_STREAK_EVERY} in a row" in warned[1].getMessage()
     assert len(slips) == rate_groups._SAY_STREAK_EVERY + 2
     ended = [r for r in caplog.records if "back on period" in r.getMessage()]
     assert len(ended) == 1 and f"{rate_groups._SAY_STREAK_EVERY + 2} slipped" in ended[0].getMessage()
+
+
+def test_a_lone_slip_is_not_a_warning(caplog):
+    """247 streaks began in one live morning (2026-09-19), most of them one
+    late cycle long, and each was a warning line."""
+    import logging
+
+    from core.fsw import rate_groups
+
+    group = RateGroup("lone", 0.02)
+    slow = group.add("member", lambda: time.sleep(0.05))
+    with caplog.at_level(logging.INFO, logger=rate_groups.logger.name):
+        asyncio.run(group.run_cycle())
+        slow.fn = lambda: None
+        asyncio.run(group.run_cycle())
+    slips = [r for r in caplog.records if "slipped:" in r.getMessage()]
+    assert len(slips) == 1 and slips[0].levelno == logging.INFO
 
 
 def test_sustained_slipping_escalates_to_the_overload_response():
