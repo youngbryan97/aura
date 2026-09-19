@@ -301,7 +301,9 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
             retained.extend(source_operation_pointer_constraints(
                 model, training, weight=source_weight,
             ))
+    stop_reason = "round_budget_exhausted"
     for round_index in range(rounds):
+        coefficients_before = _sha(candidate._coefficient_body())
         records, new_pairs = [], 0
         for index, item in enumerate(training):
             contrast, record = mine_runtime_graph_contrast(candidate, item,
@@ -334,6 +336,7 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
                 progress({"stage": "joint_graph_mining", "round": round_index + 1,
                           "completed": index + 1, "total": len(training), "row": record})
         if not new_pairs and not (constraint_learning and retained):
+            stop_reason = "no_new_witnessed_errors"
             history.append({"records": records, "fit": {"status": "no_new_witnessed_errors",
                             "pairs": len(retained), "coverage_complete": all(
                                 row["status"] == "equivalent" for row in records)}})
@@ -366,13 +369,18 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         history.append({"records": records, "fit": fit})
         if progress:
             progress({"stage": "joint_graph_fit", "round": round_index + 1, "fit": fit})
+        if _sha(candidate._coefficient_body()) == coefficients_before:
+            stop_reason = "coefficients_unchanged"
+            break
     body = {key: value for key, value in candidate.training_receipt.items() if key != "receipt_sha256"}
     body["joint_graph_refit"] = {
         "schema": "aura.semantic_joint_graph_refit.v1", "parent_transducer_receipt_sha256": model.receipt_sha256,
         "training_examples": len(training), "validation_examples": len(validation),
         "training_example_ids_sha256": _sha(sorted(item.ir.source_text_sha256 for item in training)),
         "validation_example_ids_sha256": _sha(sorted(item.ir.source_text_sha256 for item in validation)),
-        "rounds": history, "negative_origin": "runtime_decode", "positive_origin": "source_annotations",
+        "rounds": history, "requested_rounds": rounds, "completed_rounds": len(history),
+        "stop_reason": stop_reason,
+        "negative_origin": "runtime_decode", "positive_origin": "source_annotations",
         "negative_admission": "universal_floor_distinguishing_execution", "test_examples_used": 0,
         "validation_used_for_fit": False, "serving_authority": False,
         "source_operation_weight": source_weight,

@@ -924,6 +924,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   treated as binding. The scalar and batched counterexamples now pass without
   weakening retained-margin acceptance. The prior full run stopped after its
   first round accepted zero updates; no new validation result is claimed.
+  The completed [binding-face trial](evidence/G03_BINDING_FACE_TRIAL_2026-09-18.md)
+  improves training 7/8 to 8/8 but leaves validation at 6/8 with one refusal;
+  17 retained comparisons remain wrong or tied. No promotion. Unchanged
+  campaign rounds now terminate explicitly instead of repeating mining.
   [Background competition](evidence/G03_OPERATION_BACKGROUND_2026-09-18.md)
   tests a learned non-operation class on source spans. The small replay
   regresses from 48/60 to 45/60; no candidate promotion or full-run claim.
