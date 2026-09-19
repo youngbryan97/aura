@@ -28,10 +28,12 @@ from __future__ import annotations
 
 import ast
 import inspect
+import sys
 from types import ModuleType
 
 __all__ = [
     "class_with_its_bases",
+    "module_and_the_mixins_it_builds_with",
     "declared_in",
     "function_containing",
     "function_with_its_helpers",
@@ -272,4 +274,34 @@ def class_with_its_bases(cls: type) -> str:
             del exc
     if not seen:
         raise AssertionError(f"no source could be read for {cls!r} or its bases")
+    return "\n".join(seen)
+
+
+def module_and_the_mixins_it_builds_with(module: ModuleType, cls: type) -> str:
+    """A module's own text, plus the modules its class's bases come from.
+
+    The fourth place a source read loses its subject, and the one a split
+    produces rather than an extraction: a cluster of methods moves out of a
+    class into a mixin in a NEW module, and the class inherits it. Reading
+    the original module finds neither the methods nor the lines inside them,
+    while the class still has every one.
+
+    `class_with_its_bases` answers the same question for the class alone.
+    This one keeps the module's own top level too, for a test that reads
+    both — a spawn site in a method and a constant beside it.
+    """
+
+    seen: list[str] = [inspect.getsource(module)]
+    for base in cls.__mro__:
+        if base is object:
+            continue
+        home = sys.modules.get(base.__module__)
+        if home is None or home is module:
+            continue
+        try:
+            text = inspect.getsource(home)
+        except (OSError, TypeError):  # pragma: no cover - C or dynamic base
+            continue
+        if text not in seen:
+            seen.append(text)
     return "\n".join(seen)

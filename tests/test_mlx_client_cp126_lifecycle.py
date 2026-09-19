@@ -2417,12 +2417,20 @@ class TestReadyMeansRespondingNotMerelyAlive:
         inline, exactly as the stale-handshake branch below it does.
         """
 
-        import core.brain.llm.mlx_client as mod
-
         from source_support import inlined_function_source
 
-        # As it runs: the size sweep moved its blocks into helpers.
-        source = inlined_function_source(mod.__file__, "MLXLocalClient._ensure_worker_alive_inner")
+        import core.brain.llm.mlx_client as mod
+
+        # As it runs: the size sweep moved its blocks into helpers, and a
+        # module split then moved the whole worker lifecycle into a mixin.
+        # The method lives there; the helpers it still calls live in both.
+        from core.brain.llm import mlx_client_worker_lifecycle as lifecycle
+
+        source = inlined_function_source(
+            lifecycle.__file__,
+            "_KeepsTheWorkerAlive._ensure_worker_alive_inner",
+            helpers_also_in=(mod.__file__,),
+        )
         marker = source.index("ready_check_worker_silent")
         window = source[marker : marker + 1200]
         assert "reboot_worker" not in window
@@ -2473,9 +2481,13 @@ class TestTheSwapCooldownDoesNotConvoy:
 
         import core.brain.llm.mlx_client as mod
 
+        # The CALL sites, not the first mention. The worker lifecycle moved
+        # into a mixin whose methods import their names from `mlx_client` at
+        # call time, so the import line names the admission context above the
+        # cooldown while the awaits are still in the right order.
         source = inspect.getsource(mod.MLXLocalClient._ensure_worker_alive)
-        cooldown_at = source.index("_await_swap_cooldown")
-        admission_at = source.index("_model_load_admission_context")
+        cooldown_at = source.index("await self._await_swap_cooldown(")
+        admission_at = source.index("async with _model_load_admission_context(")
         assert cooldown_at < admission_at, "cooldown must precede the shared gates"
 
         inner = inspect.getsource(mod.MLXLocalClient._ensure_worker_alive_inner)
@@ -2586,9 +2598,9 @@ class TestBenchmarkTrustIsNotSelfDeclared:
         signal that says the lane is misbehaving.
         """
 
-        import core.brain.llm.mlx_client as mod
-
         from source_support import inlined_function_source
+
+        import core.brain.llm.mlx_client as mod
 
         # As it runs: the size sweep moved its blocks into helpers.
         source = inlined_function_source(mod.__file__, "MLXLocalClient._generate_inner")
@@ -2601,9 +2613,9 @@ class TestBenchmarkTrustIsNotSelfDeclared:
         """CP126 0e318b3a: strip() on a mapping is an AttributeError, not a
         typed failure, and worker corruption became a client exception."""
 
-        import core.brain.llm.mlx_client as mod
-
         from source_support import inlined_function_source
+
+        import core.brain.llm.mlx_client as mod
 
         # As it runs: the size sweep moved its blocks into helpers.
         source = inlined_function_source(mod.__file__, "MLXLocalClient._generate_inner")
@@ -2729,7 +2741,7 @@ class TestWarmupHonoursItsDeadline:
                     warmup_timeout=budget,
                 )
             )
-        except (TimeoutError, RuntimeError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, RuntimeError) as exc:
             outcome = exc
         return time.monotonic() - started, outcome
 

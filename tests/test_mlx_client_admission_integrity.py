@@ -33,6 +33,21 @@ from core.brain.llm.unified_recurrent_shadow_contract import (
 from core.runtime.model_runtime_assignment import ModelRuntimeAssignment
 
 
+def _mlx_client_source() -> str:
+    """mlx_client's own text plus the mixins its class is built from.
+
+    The worker lifecycle — spawn, the readiness handshake, the durable lane
+    lease, reboot — moved into `mlx_client_worker_lifecycle` and
+    `MLXLocalClient` inherits it. Reading the module alone finds neither
+    those methods nor the lines inside them, while the class still has every
+    one.
+    """
+    from core.brain.llm import mlx_client as _module
+    from tests.source_contract import module_and_the_mixins_it_builds_with
+
+    return module_and_the_mixins_it_builds_with(_module, _module.MLXLocalClient)
+
+
 def _inactive_shadow_receipt():
     return seal_shadow_load_receipt(
         {
@@ -149,13 +164,13 @@ class TestHeavyLaneClassification:
         assert "_model_is_heavy_lane(self.model_path)" in source
 
     def test_the_audit_tier_uses_the_same_authority(self):
-        source = inspect.getsource(mlx_client)
+        source = _mlx_client_source()
         assert 'k in self.model_path.lower() for k in ["72b", "32b", "zenith"]' not in source
 
     def test_no_lane_decision_still_greps_the_path(self):
         """Every lane-class decision in this module goes through the
         measured predicates; none re-derive the class from substrings."""
-        source = inspect.getsource(mlx_client)
+        source = _mlx_client_source()
         assert '"32b" in lowered' not in source
         assert '"72b" in lowered' not in source
 
@@ -179,7 +194,7 @@ class TestHeavyLaneClassification:
         assert mlx_client.MLXLocalClient._is_primary_lane(cortex) is True
 
     def test_the_request_deadline_uses_the_measured_class(self):
-        source = inspect.getsource(mlx_client)
+        source = _mlx_client_source()
         assert "is_heavy = _model_is_heavy_lane(self.model_path)" in source
 
 
@@ -472,10 +487,11 @@ class TestReadyRequiresAValidatedReceipt:
         all and `split` raised IndexError rather than failing an assertion.
         The order is the property and it holds wherever the block sits.
         """
+        from core.brain.llm import mlx_client_worker_lifecycle as lifecycle
         from tests.source_contract import function_with_its_helpers, in_order
 
         source = function_with_its_helpers(
-            mlx_client, "MLXLocalClient._ensure_worker_alive_inner"
+            lifecycle, "_KeepsTheWorkerAlive._ensure_worker_alive_inner"
         )
         in_order(
             source,
@@ -485,7 +501,7 @@ class TestReadyRequiresAValidatedReceipt:
         )
 
     def test_an_invalid_receipt_does_not_leave_stale_identity(self):
-        source = inspect.getsource(mlx_client)
+        source = _mlx_client_source()
         block = source.split("refused READY on an unvalidated worker init receipt", 1)[1][:800]
         assert "self._worker_identity = {}" in block
         assert "self._recurrent_depth_status = {}" in block
