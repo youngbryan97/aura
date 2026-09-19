@@ -34,6 +34,7 @@ a consumer can call it on a hot path.
 
 from __future__ import annotations
 
+from core.runtime.service_access import optional_service
 import asyncio
 import inspect
 import logging
@@ -144,9 +145,8 @@ def _push_somatic(state: Arbitrated) -> dict[str, Any]:
     if not state.somatic:
         return {"moved": False}
     try:
-        from core.container import ServiceContainer
 
-        gate = ServiceContainer.get("somatic_marker_gate", default=None)
+        gate = optional_service("somatic_marker_gate", default=None)
         if gate is None or not hasattr(gate, "set_interior_bias"):
             # The gate has no interior-bias channel in this build; the
             # markers stay available through last() and permitted().
@@ -170,10 +170,9 @@ def _shift_goal_priorities(goals: Sequence[GoalDelta]) -> int:
     and one that is load-bearing.
     """
     try:
-        from core.container import ServiceContainer
 
-        store = ServiceContainer.get("goal_hierarchy", default=None) or (
-            ServiceContainer.get("motivation_engine", default=None)
+        store = optional_service("goal_hierarchy", default=None) or (
+            optional_service("motivation_engine", default=None)
         )
     except (ImportError, RuntimeError, AttributeError, TypeError, ValueError, KeyError):
         return 0
@@ -224,9 +223,8 @@ async def _push_workspace(state: Arbitrated) -> dict[str, Any]:
             CognitiveCandidate,
             ContentType,
         )
-        from core.container import ServiceContainer
 
-        workspace = ServiceContainer.get("global_workspace", default=None)
+        workspace = optional_service("global_workspace", default=None)
         if workspace is None or not hasattr(workspace, "submit"):
             return {"moved": False, "reason": "no workspace registered"}
 
@@ -256,9 +254,8 @@ def _push_curiosity(state: Arbitrated) -> dict[str, Any]:
     if not wanted:
         return {"moved": False}
     try:
-        from core.container import ServiceContainer
 
-        engine = ServiceContainer.get("curiosity_engine", default=None)
+        engine = optional_service("curiosity_engine", default=None)
         if engine is None or not hasattr(engine, "add_curiosity"):
             return {"moved": False, "reason": "no curiosity engine registered"}
         for bias in wanted[:3]:
@@ -502,9 +499,8 @@ class InteriorityService:
         if state.affect.empty:
             return {"moved": False}
         try:
-            from core.container import ServiceContainer
 
-            engine = ServiceContainer.get("affect_engine", default=None)
+            engine = optional_service("affect_engine", default=None)
             if engine is None:
                 return {"moved": False, "reason": "no affect engine registered"}
             # `modify` is the signed-delta channel and takes exactly these
@@ -589,10 +585,9 @@ class InteriorityService:
         if not state.goals:
             return {"moved": False}
         try:
-            from core.container import ServiceContainer
 
-            drives = ServiceContainer.get("drive_system", default=None) or (
-                ServiceContainer.get("drive_engine", default=None)
+            drives = optional_service("drive_system", default=None) or (
+                optional_service("drive_engine", default=None)
             )
             if drives is None or not hasattr(drives, "satisfy"):
                 return {"moved": False, "reason": "no drive system registered"}
@@ -1030,7 +1025,7 @@ def register_interiority(orchestrator: Any = None) -> InteriorityService:
         from core.container import ServiceContainer
 
         ServiceContainer.register(SERVICE_NAME, service)
-        registered = ServiceContainer.get(SERVICE_NAME, default=None) is service
+        registered = optional_service(SERVICE_NAME, default=None) is service
     except (ImportError, RuntimeError, AttributeError, TypeError) as exc:
         record_degradation(
             "interiority.service", exc, action="service not registered in container"

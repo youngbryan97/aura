@@ -33,6 +33,7 @@ generator.
 
 from __future__ import annotations
 
+from core.runtime.service_access import optional_service
 import logging
 import re
 import time
@@ -319,7 +320,7 @@ class StakeFeed:
         try:
             from core.container import ServiceContainer
 
-            engine = ServiceContainer.get("capability_engine", default=None)
+            engine = optional_service("capability_engine", default=None)
         except (ImportError, RuntimeError, AttributeError, TypeError, ValueError, KeyError):
             engine = None
         if engine is None:
@@ -390,7 +391,7 @@ class StakeFeed:
             found_key = ""
             for key in keys:
                 try:
-                    store = ServiceContainer.get(key, default=None)
+                    store = optional_service(key, default=None)
                 except (RuntimeError, AttributeError, TypeError, ValueError, KeyError):
                     store = None
                 if store is not None:

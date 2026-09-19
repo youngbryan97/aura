@@ -8,6 +8,7 @@ sovereign_browser.py; this is the half that thinks about what came back.
 """
 from __future__ import annotations
 
+from core.runtime.service_access import optional_service
 import asyncio
 import json
 import re
@@ -185,7 +186,7 @@ class _UnderstandsThePage:
 
             from core.container import ServiceContainer
 
-            world = ServiceContainer.get("world_model", default=None)
+            world = optional_service("world_model", default=None)
             beliefs = getattr(world, "beliefs", None)
             if not isinstance(beliefs, dict) or not beliefs:
                 return ""
@@ -222,7 +223,7 @@ class _UnderstandsThePage:
         try:
             from core.container import ServiceContainer
 
-            world = ServiceContainer.get("world_model", default=None)
+            world = optional_service("world_model", default=None)
             if world is None or not hasattr(world, "add_belief"):
                 return
             world.add_belief(
@@ -251,7 +252,7 @@ class _UnderstandsThePage:
             from core.brain.llm.context_assembler import ContextAssembler
             from core.container import ServiceContainer
 
-            state = ServiceContainer.get("aura_state", default=None)
+            state = optional_service("aura_state", default=None)
             if state is None:
                 return ""
             return ContextAssembler.build_system_prompt(state)
@@ -288,7 +289,7 @@ class _UnderstandsThePage:
 
             from core.container import ServiceContainer
 
-            world = ServiceContainer.get("world_model", default=None)
+            world = optional_service("world_model", default=None)
             if world is None or not hasattr(world, "add_belief"):
                 return
             host = urlsplit(url).netloc or url
@@ -329,7 +330,7 @@ class _UnderstandsThePage:
         try:
             from core.container import ServiceContainer
 
-            calibration = ServiceContainer.get("calibration_engine", default=None)
+            calibration = optional_service("calibration_engine", default=None)
             recorder = getattr(calibration, "record_prediction", None)
             if callable(recorder):
                 recorder(0.75, 1.0 if moved else 0.0)
@@ -370,7 +371,7 @@ class _UnderstandsThePage:
 
         from core.container import ServiceContainer
 
-        router = ServiceContainer.get("llm_router", default=None)
+        router = optional_service("llm_router", default=None)
         if router is None:
             return dict(prior or {})
 
@@ -670,7 +671,7 @@ class _UnderstandsThePage:
 
         from core.container import ServiceContainer
 
-        router = ServiceContainer.get("llm_router", default=None)
+        router = optional_service("llm_router", default=None)
         if router is None:
             return {"error": "llm_router_unavailable"}
 

@@ -47,6 +47,7 @@ no instrument here reaches it, and it survives this pass untouched.
 
 from __future__ import annotations
 
+from core.runtime.service_access import optional_service
 import logging
 import re
 from collections.abc import Callable
@@ -123,7 +124,7 @@ def _episodic_memory() -> tuple[bool, str]:
         from core.container import ServiceContainer
         from core.service_names import ServiceNames
 
-        store = ServiceContainer.get(ServiceNames.EPISODIC, default=None)
+        store = optional_service(ServiceNames.EPISODIC, default=None)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug("episodic memory unavailable: %s", exc)
         return False, ""
@@ -167,7 +168,7 @@ def _affect_substrate() -> tuple[bool, str]:
         from core.container import ServiceContainer
         from core.service_names import ServiceNames
 
-        engine = ServiceContainer.get(ServiceNames.AFFECT, default=None)
+        engine = optional_service(ServiceNames.AFFECT, default=None)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug("affect engine unavailable: %s", exc)
         return False, ""

@@ -1,3 +1,5 @@
+from core.container import ServiceContainer
+from core.runtime.service_access import optional_service
 import asyncio
 import inspect
 import logging
@@ -16,7 +18,6 @@ if TYPE_CHECKING:
     from .temporal_binding import TemporalBindingEngine
 
 from core.consciousness.workspace_feed import FLOOR as WORKSPACE_BID_FLOOR
-from core.container import ServiceContainer
 from core.event_bus import get_event_bus
 from core.schemas import TelemetryPayload
 
@@ -125,43 +126,43 @@ class CognitiveHeartbeat:
     @property
     def _audit_service(self):
         if not hasattr(self, "_audit_cache"):
-            self._audit_cache = ServiceContainer.get("subsystem_audit", default=None)
+            self._audit_cache = optional_service("subsystem_audit", default=None)
         return self._audit_cache
 
     @property
     def _mycelium(self):
         if not hasattr(self, "_mycelium_cache"):
-            self._mycelium_cache = ServiceContainer.get("mycelial_network", default=None)
+            self._mycelium_cache = optional_service("mycelial_network", default=None)
         return self._mycelium_cache
 
     @property
     def _homeostasis(self):
         if not hasattr(self, "_homeostasis_cache"):
-            self._homeostasis_cache = ServiceContainer.get("homeostasis", default=None)
+            self._homeostasis_cache = optional_service("homeostasis", default=None)
         return self._homeostasis_cache
 
     @property
     def _mind_model(self):
         if not hasattr(self, "_mind_model_cache"):
-            self._mind_model_cache = ServiceContainer.get("mind_model", default=None)
+            self._mind_model_cache = optional_service("mind_model", default=None)
         return self._mind_model_cache
 
     @property
     def _qualia_synthesizer(self):
         if not hasattr(self, "_qualia_cache"):
-            self._qualia_cache = ServiceContainer.get("qualia_synthesizer", default=None)
+            self._qualia_cache = optional_service("qualia_synthesizer", default=None)
         return self._qualia_cache
 
     @property
     def _liquid_substrate(self):
         if not hasattr(self, "_liquid_cache"):
-            self._liquid_cache = ServiceContainer.get("liquid_substrate", default=None)
+            self._liquid_cache = optional_service("liquid_substrate", default=None)
         return self._liquid_cache
 
     @property
     def _integrity_monitor(self):
         if not hasattr(self, "_integrity_cache"):
-            self._integrity_cache = ServiceContainer.get("integrity_monitor", default=None)
+            self._integrity_cache = optional_service("integrity_monitor", default=None)
         return self._integrity_cache
 
     # ------------------------------------------------------------------
@@ -171,7 +172,7 @@ class CognitiveHeartbeat:
     @property
     def _time_dilation(self):
         if not hasattr(self, "_time_dilation_cache"):
-            self._time_dilation_cache = ServiceContainer.get("time_dilation", default=None)
+            self._time_dilation_cache = optional_service("time_dilation", default=None)
         return self._time_dilation_cache
 
     # ------------------------------------------------------------------
@@ -338,7 +339,7 @@ class CognitiveHeartbeat:
     def _resolve_live_phi(self) -> float:
         """Read live phi from PhiCore first, then substrate fallback."""
         try:
-            phi_core = ServiceContainer.get("phi_core", default=None)
+            phi_core = optional_service("phi_core", default=None)
             if phi_core is not None and hasattr(phi_core, "get_live_phi"):
                 return max(0.0, float(phi_core.get_live_phi(include_surrogate=True)))
         except _RECOVERABLE_HEARTBEAT_ERRORS as e:
@@ -418,7 +419,7 @@ class CognitiveHeartbeat:
 
         # Update existential stakes and trigger neurochemical response
         try:
-            stakes = ServiceContainer.get("existential_stakes", default=None)
+            stakes = optional_service("existential_stakes", default=None)
             if stakes:
                 threat = stakes.update()
                 # Feed threat into the neurochemical system — but ACUTELY, on a
@@ -440,7 +441,7 @@ class CognitiveHeartbeat:
                 # applied to the resting memory footprint: what signals danger
                 # is the RISE toward the limit, and any sustained level high
                 # enough to be dangerous on its own.
-                ncs = ServiceContainer.get("neurochemical_system", default=None)
+                ncs = optional_service("neurochemical_system", default=None)
                 if ncs:
                     previous = float(getattr(self, "_last_signalled_threat", 0.0))
                     rising = threat >= previous + _THREAT_RISE_TO_SIGNAL
@@ -461,7 +462,7 @@ class CognitiveHeartbeat:
 
         # Tick temporal continuity accumulator (silence/drift experience)
         try:
-            tc = ServiceContainer.get("temporal_continuity", default=None)
+            tc = optional_service("temporal_continuity", default=None)
             if tc:
                 tc.tick()
         except _RECOVERABLE_HEARTBEAT_ERRORS as e:
@@ -473,7 +474,7 @@ class CognitiveHeartbeat:
 
         # Tick somatic qualia engine (raw substrate feel sampling)
         try:
-            sq = ServiceContainer.get("somatic_qualia", default=None)
+            sq = optional_service("somatic_qualia", default=None)
             if sq:
                 sq.tick()
         except _RECOVERABLE_HEARTBEAT_ERRORS as e:
@@ -561,9 +562,9 @@ class CognitiveHeartbeat:
         # ── 5b. FREE ENERGY COMPUTATION ─────────────────────────────────
         # Close the loop: PredictiveEngine surprise → FreeEnergy → action tendency
         try:
-            fe_engine = ServiceContainer.get("free_energy_engine", default=None)
+            fe_engine = optional_service("free_energy_engine", default=None)
             if fe_engine:
-                world_model = ServiceContainer.get("epistemic_state", default=None)
+                world_model = optional_service("epistemic_state", default=None)
                 # Feed attention scatter as complexity signal
                 attention_complexity = (
                     self.attention.get_coherence_for_complexity()
@@ -578,7 +579,7 @@ class CognitiveHeartbeat:
                     user_present=state.get("affect_engagement", 0) > 0.3,
                 )
                 # Push surprise signal back to predictive engine coupling
-                predictive = ServiceContainer.get("predictive_engine", default=None)
+                predictive = optional_service("predictive_engine", default=None)
                 if predictive:
                     await self._send_predictive_feedback(predictive, fe_state, surprise)
 
@@ -586,7 +587,7 @@ class CognitiveHeartbeat:
                 # Feed current FE into DriveEngine's boredom tracker.
                 # Low FE for extended periods = nothing surprising = boredom.
                 try:
-                    drive_engine = ServiceContainer.get("drive_engine", default=None)
+                    drive_engine = optional_service("drive_engine", default=None)
                     if drive_engine and hasattr(drive_engine, "tick_boredom"):
                         drive_engine.tick_boredom(fe_state.free_energy)
                 except (ImportError, AttributeError, RuntimeError) as be:
@@ -608,11 +609,11 @@ class CognitiveHeartbeat:
         # CreditAssignment domain performance feeds into hedonic gradient
         if tick % 10 == 0:  # Every 10 ticks to avoid overhead
             try:
-                credit = ServiceContainer.get("credit_assignment", default=None)
+                credit = optional_service("credit_assignment", default=None)
                 if credit:
                     credit.get_all_domain_performance()
                     # Feed influence scores to hedonic gradient for resource allocation
-                    hg = ServiceContainer.get("hedonic_gradient", default=None)
+                    hg = optional_service("hedonic_gradient", default=None)
                     if hg and hasattr(hg, "accept_credit_signal"):
                         hg.accept_credit_signal(credit.get_influence_scores())
             except (ImportError, AttributeError, RuntimeError) as e:
@@ -626,7 +627,7 @@ class CognitiveHeartbeat:
         # ── 5d. WORLD MODEL CONSISTENCY CHECK (every 30 ticks) ──────────
         if tick % 30 == 0:
             try:
-                world_model = ServiceContainer.get("epistemic_state", default=None)
+                world_model = optional_service("epistemic_state", default=None)
                 if world_model and hasattr(world_model, "get_summary"):
                     summary = world_model.get_summary()
                     # High contradiction rate contributes to free energy
@@ -634,7 +635,7 @@ class CognitiveHeartbeat:
                         1, summary.get("total_beliefs", 1)
                     )
                     if contradiction_rate > 0.1:
-                        fe_engine = ServiceContainer.get("free_energy_engine", default=None)
+                        fe_engine = optional_service("free_energy_engine", default=None)
                         if fe_engine:
                             # Belief instability adds complexity
                             fe_engine.accept_attention_complexity(
@@ -684,7 +685,7 @@ class CognitiveHeartbeat:
         if tick % self._CEL_TICK_INTERVAL == 0:
             try:
                 if self._cel_bridge is None:
-                    self._cel_bridge = ServiceContainer.get("cel_bridge", default=None)
+                    self._cel_bridge = optional_service("cel_bridge", default=None)
                 if self._cel_bridge:
                     await self._cel_bridge.tick()
             except (ImportError, AttributeError, RuntimeError) as e:
@@ -697,7 +698,7 @@ class CognitiveHeartbeat:
 
         # ── 8d. PARALLEL BRANCHES tick ────────────────────────────────
         try:
-            branch_mgr = ServiceContainer.get("branch_manager", default=None)
+            branch_mgr = optional_service("branch_manager", default=None)
             if branch_mgr:
                 await branch_mgr.tick()
         except (ImportError, AttributeError, RuntimeError) as e:
@@ -818,6 +819,8 @@ class CognitiveHeartbeat:
 
         # Qualia Metrics
         try:
+            # Looked up directly: a container that fails here is recorded as
+            # this heartbeat's degradation, which optional_service would hide.
             substrate = ServiceContainer.get("liquid_state", default=None) or ServiceContainer.get(
                 "liquid_substrate", default=None
             )
@@ -851,9 +854,7 @@ class CognitiveHeartbeat:
     def _world_surprise_now(self) -> float:
         """How far the world just departed from what was predicted."""
         try:
-            from core.container import ServiceContainer
-
-            model = ServiceContainer.get("unified_world_model", default=None)
+            model = optional_service("unified_world_model", default=None)
             value = model.surprise() if model is not None else None
             return 0.0 if value is None else float(value)
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
@@ -958,7 +959,7 @@ class CognitiveHeartbeat:
         # was allowed to speak, and won everything. Against its own previous
         # reading it is a half when nothing changed and higher when the norm is
         # climbing, which needs no scale to be chosen and cannot saturate.
-        qualia_synthesizer = ServiceContainer.get("qualia_synthesizer", default=None)
+        qualia_synthesizer = optional_service("qualia_synthesizer", default=None)
         if qualia_synthesizer is not None:
             now_norm = max(0.0, float(getattr(qualia_synthesizer, "q_norm", 0.0) or 0.0))
             was_norm = max(0.0, float(self._last_alert_urgency.get("qualia_surge", 0.0) or 0.0))
@@ -979,7 +980,7 @@ class CognitiveHeartbeat:
         # When DriveEngine's boredom accumulator crosses threshold, inject
         # a high-priority candidate to push Aura toward novelty-seeking.
         try:
-            drive_engine = ServiceContainer.get("drive_engine", default=None)
+            drive_engine = optional_service("drive_engine", default=None)
             if drive_engine and getattr(drive_engine, "seek_novelty", False):
                 boredom_lvl = max(0.0, min(1.0, float(drive_engine.boredom_level or 0.0)))
                 # At what it is, with no clock. Gated to once every two minutes
@@ -1006,7 +1007,7 @@ class CognitiveHeartbeat:
         # --- Free Energy action tendency candidate ---
         # When FE is notable, its dominant_action competes for workspace attention
         try:
-            fe_engine = ServiceContainer.get("free_energy_engine", default=None)
+            fe_engine = optional_service("free_energy_engine", default=None)
             if fe_engine and fe_engine.current and fe_engine.current.free_energy > _BID_FLOOR:
                 fe = fe_engine.current
                 urgency = fe_engine.get_action_urgency()
@@ -1100,7 +1101,7 @@ class CognitiveHeartbeat:
             # Phase Transcendental: Full Qualia V2 Snapshot
             qualia_snapshot = {}
             try:
-                qualia_synthesizer = ServiceContainer.get("qualia_synthesizer", default=None)
+                qualia_synthesizer = optional_service("qualia_synthesizer", default=None)
                 if qualia_synthesizer and hasattr(qualia_synthesizer, "get_snapshot"):
                     qualia_snapshot = qualia_synthesizer.get_snapshot()
             except (ImportError, AttributeError, RuntimeError) as qs_err:
@@ -1163,7 +1164,7 @@ class CognitiveHeartbeat:
 
             # Mycelial metrics lookup
             mycelial_data = {"nodes": 0, "edges": 0, "health": "offline"}
-            mycelium = ServiceContainer.get("mycelial_network", default=None)
+            mycelium = optional_service("mycelial_network", default=None)
             if mycelium:
                 mycelial_data["health"] = "online"
                 counter = getattr(mycelium, "get_topology_counts", None)
@@ -1262,9 +1263,7 @@ class CognitiveHeartbeat:
     def _felt_state_from_the_state(state: dict) -> bool:
         """The affect the phases settled on. False when there is none to read."""
         try:
-            from core.container import ServiceContainer
-
-            repo = ServiceContainer.get("state_repository", default=None)
+            repo = optional_service("state_repository", default=None)
             current = getattr(repo, "_current", None) if repo is not None else None
             affect = getattr(current, "affect", None)
             if affect is None:
@@ -1281,9 +1280,7 @@ class CognitiveHeartbeat:
     def _drives_from_the_state(state: dict) -> bool:
         """The drives the motivation phase settled, ranked as the engine's were. False when there are none."""
         try:
-            from core.container import ServiceContainer
-
-            repo = ServiceContainer.get("state_repository", default=None)
+            repo = optional_service("state_repository", default=None)
             current = getattr(repo, "_current", None) if repo is not None else None
             budgets = getattr(getattr(current, "motivation", None), "budgets", None)
             if not isinstance(budgets, dict):

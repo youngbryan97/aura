@@ -42,6 +42,7 @@ is stopped as soon as it comes up, along with the free-running loops.
 
 from __future__ import annotations
 
+from core.runtime.service_access import optional_service
 import logging
 from dataclasses import dataclass, field
 from typing import Any
@@ -116,9 +117,9 @@ async def bring_up(*, with_bridge: bool = True, quiet: bool = False) -> Organism
     from types import SimpleNamespace
 
     orchestrator = SimpleNamespace(
-        affect_engine=ServiceContainer.get("affect_engine", default=None),
-        substrate=ServiceContainer.get("conscious_substrate", default=None),
-        self_model=ServiceContainer.get("self_model", default=None),
+        affect_engine=optional_service("affect_engine", default=None),
+        substrate=optional_service("conscious_substrate", default=None),
+        self_model=optional_service("self_model", default=None),
         state=None,
     )
 
@@ -257,7 +258,7 @@ def _stop_threads() -> list[str]:
     try:
         from core.container import ServiceContainer
 
-        model = ServiceContainer.get("unified_world_model", default=None)
+        model = optional_service("unified_world_model", default=None)
         learned = getattr(model, "learned", None) if model is not None else None
         halt = getattr(learned, "stop_training", None)
         if callable(halt):

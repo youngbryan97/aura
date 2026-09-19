@@ -20,6 +20,7 @@ core/agi, core/consciousness, core/resilience, and core/evolution.
 """
 from __future__ import annotations
 
+from core.runtime.service_access import optional_service
 import asyncio
 import importlib.util
 import json
@@ -233,7 +234,7 @@ class EvolutionOrchestrator:
 
         # Trigger growth ladder evaluation
         try:
-            ladder = ServiceContainer.get("growth_ladder", default=None)
+            ladder = optional_service("growth_ladder", default=None)
             if ladder:
                 await ladder.evaluate_advancement()
         except _EVOLUTION_RECOVERABLE_ERRORS as exc:
@@ -251,7 +252,7 @@ class EvolutionOrchestrator:
         level = 0.1  # Base: we exist
 
         # Check canonical self
-        canonical = ServiceContainer.get("canonical_self_engine", default=None)
+        canonical = optional_service("canonical_self_engine", default=None)
         if canonical:
             level += 0.15
             milestones.append("canonical_self_active")
@@ -262,13 +263,13 @@ class EvolutionOrchestrator:
                     milestones.append("identity_stable")
 
         # Check self-model
-        self_model = ServiceContainer.get("self_model", default=None)
+        self_model = optional_service("self_model", default=None)
         if self_model:
             level += 0.1
             milestones.append("self_model_active")
 
         # Check growth ladder level
-        ladder = ServiceContainer.get("growth_ladder", default=None)
+        ladder = optional_service("growth_ladder", default=None)
         if ladder:
             gl = getattr(ladder, "_current_level", 0)
             level += min(0.3, gl * 0.075)
@@ -276,7 +277,7 @@ class EvolutionOrchestrator:
                 milestones.append(f"growth_level_{gl}")
 
         # Metacognition
-        meta = ServiceContainer.get("metacognitive_monitor", default=None)
+        meta = optional_service("metacognitive_monitor", default=None)
         if meta:
             level += 0.1
             milestones.append("metacognition_active")
@@ -290,25 +291,25 @@ class EvolutionOrchestrator:
         milestones, blockers = [], []
         level = 0.1
 
-        constitution = ServiceContainer.get("constitution", default=None)
+        constitution = optional_service("constitution", default=None)
         if constitution:
             level += 0.2
             milestones.append("constitutional_core_active")
 
-        safety = ServiceContainer.get("safety_engine", default=None) or \
-                 ServiceContainer.get("self_preservation", default=None)
+        safety = optional_service("safety_engine", default=None) or \
+                 optional_service("self_preservation", default=None)
         if safety:
             level += 0.15
             milestones.append("safety_system_active")
 
         # Belief challenger (moral reasoning)
-        challenger = ServiceContainer.get("belief_challenger", default=None)
+        challenger = optional_service("belief_challenger", default=None)
         if challenger:
             level += 0.15
             milestones.append("belief_challenge_active")
 
         # Executive core (governance)
-        executive = ServiceContainer.get("executive_core", default=None)
+        executive = optional_service("executive_core", default=None)
         if executive:
             level += 0.15
             milestones.append("executive_governance_active")
@@ -335,18 +336,18 @@ class EvolutionOrchestrator:
         milestones, blockers = [], []
         level = 0.1
 
-        learner = ServiceContainer.get("live_learner", default=None)
+        learner = optional_service("live_learner", default=None)
         if learner:
             level += 0.2
             milestones.append("live_learner_active")
 
-        distill = ServiceContainer.get("distillation_pipe", default=None)
+        distill = optional_service("distillation_pipe", default=None)
         if distill:
             level += 0.15
             milestones.append("distillation_active")
 
         # Genuine learning pipeline
-        glp = ServiceContainer.get("genuine_learning", default=None)
+        glp = optional_service("genuine_learning", default=None)
         if glp:
             level += 0.15
             milestones.append("genuine_learning_pipeline_active")
@@ -359,13 +360,13 @@ class EvolutionOrchestrator:
         # score was being awarded for a component that had never received a
         # single input. A score anybody can raise by constructing an object is
         # measuring the constructor.
-        synth = ServiceContainer.get("skill_synthesizer", default=None)
+        synth = optional_service("skill_synthesizer", default=None)
         if synth is not None and _has_actually_seen_a_gap(synth):
             level += 0.2
             milestones.append("skill_synthesis_active")
 
         # Memory consolidation
-        consolidator = ServiceContainer.get("experience_consolidator", default=None)
+        consolidator = optional_service("experience_consolidator", default=None)
         if consolidator:
             level += 0.1
             milestones.append("experience_consolidation_active")
@@ -380,32 +381,32 @@ class EvolutionOrchestrator:
         level = 0.1
 
         # Social/relational intelligence
-        relational = ServiceContainer.get("relational_intelligence", default=None)
+        relational = optional_service("relational_intelligence", default=None)
         if relational:
             level += 0.2
             milestones.append("relational_intelligence_active")
 
         # Theory of mind
-        tom = ServiceContainer.get("theory_of_mind", default=None)
+        tom = optional_service("theory_of_mind", default=None)
         if tom:
             level += 0.2
             milestones.append("theory_of_mind_active")
 
         # Conversational dynamics
-        dynamics = ServiceContainer.get("conversational_dynamics", default=None)
+        dynamics = optional_service("conversational_dynamics", default=None)
         if dynamics:
             level += 0.15
             milestones.append("conversational_dynamics_active")
 
         # Discourse tracker
-        discourse = ServiceContainer.get("discourse_tracker", default=None)
+        discourse = optional_service("discourse_tracker", default=None)
         if discourse:
             level += 0.1
             milestones.append("discourse_tracking_active")
 
         # Voice presence (communication channel)
         try:
-            voice = ServiceContainer.get("voice_engine", default=None)
+            voice = optional_service("voice_engine", default=None)
             if voice:
                 level += 0.15
                 milestones.append("voice_communication_active")
@@ -420,19 +421,19 @@ class EvolutionOrchestrator:
         level = 0.1
 
         # Hardware monitoring (soma)
-        soma = ServiceContainer.get("liquid_substrate", default=None)
+        soma = optional_service("liquid_substrate", default=None)
         if soma:
             level += 0.15
             milestones.append("somatic_substrate_active")
 
         # Sensory systems
-        sensory = ServiceContainer.get("sensory_cortex", default=None)
+        sensory = optional_service("sensory_cortex", default=None)
         if sensory:
             level += 0.15
             milestones.append("sensory_cortex_active")
 
         # Sovereign scanner (environment awareness)
-        scanner = ServiceContainer.get("sovereign_scanner", default=None)
+        scanner = optional_service("sovereign_scanner", default=None)
         if scanner:
             level += 0.15
             milestones.append("environment_scanning_active")
@@ -453,7 +454,7 @@ class EvolutionOrchestrator:
             logger.debug("Suppressed Exception: %s", _exc)
 
         # Metal scheduler (hardware resource management)
-        scheduler = ServiceContainer.get("metal_scheduler", default=None)
+        scheduler = optional_service("metal_scheduler", default=None)
         if scheduler:
             level += 0.1
             milestones.append("hardware_scheduling_active")
@@ -465,7 +466,7 @@ class EvolutionOrchestrator:
         level = 0.1
 
         # Stability guardian
-        guardian = ServiceContainer.get("stability_guardian", default=None)
+        guardian = optional_service("stability_guardian", default=None)
         if guardian:
             level += 0.2
             milestones.append("stability_guardian_active")
@@ -476,25 +477,25 @@ class EvolutionOrchestrator:
                     milestones.append("system_healthy")
 
         # Integrity monitor
-        integrity = ServiceContainer.get("integrity_monitor", default=None)
+        integrity = optional_service("integrity_monitor", default=None)
         if integrity:
             level += 0.15
             milestones.append("integrity_monitoring_active")
 
         # Code self-repair
-        repair = ServiceContainer.get("code_repair", default=None)
+        repair = optional_service("code_repair", default=None)
         if repair:
             level += 0.2
             milestones.append("self_repair_active")
 
         # State repository (persistence)
-        repo = ServiceContainer.get("state_repository", default=None)
+        repo = optional_service("state_repository", default=None)
         if repo:
             level += 0.1
             milestones.append("state_persistence_active")
 
         # Memory governor
-        governor = ServiceContainer.get("memory_governor", default=None)
+        governor = optional_service("memory_governor", default=None)
         if governor:
             level += 0.1
             milestones.append("memory_governance_active")
@@ -506,31 +507,31 @@ class EvolutionOrchestrator:
         level = 0.1
 
         # Affect engine (Damasio somatic markers)
-        affect = ServiceContainer.get("affect_engine", default=None)
+        affect = optional_service("affect_engine", default=None)
         if affect:
             level += 0.2
             milestones.append("somatic_markers_active")
 
         # Hedonic gradient
-        hedonic = ServiceContainer.get("hedonic_gradient", default=None)
+        hedonic = optional_service("hedonic_gradient", default=None)
         if hedonic:
             level += 0.1
             milestones.append("hedonic_gradient_active")
 
         # Free energy (predictive coding)
-        free_energy = ServiceContainer.get("free_energy", default=None)
+        free_energy = optional_service("free_energy", default=None)
         if free_energy:
             level += 0.15
             milestones.append("predictive_coding_active")
 
         # Affective steering (emotion → LLM injection)
-        steering = ServiceContainer.get("affective_steering", default=None)
+        steering = optional_service("affective_steering", default=None)
         if steering:
             level += 0.2
             milestones.append("affective_steering_active")
 
         # Global workspace (consciousness integration)
-        gw = ServiceContainer.get("global_workspace", default=None)
+        gw = optional_service("global_workspace", default=None)
         if gw:
             level += 0.15
             milestones.append("global_workspace_active")
@@ -557,31 +558,31 @@ class EvolutionOrchestrator:
         level = 0.1
 
         # Curiosity explorer
-        curiosity = ServiceContainer.get("curiosity_explorer", default=None)
+        curiosity = optional_service("curiosity_explorer", default=None)
         if curiosity:
             level += 0.25
             milestones.append("curiosity_engine_active")
 
         # Hierarchical planner
-        planner = ServiceContainer.get("hierarchical_planner", default=None)
+        planner = optional_service("hierarchical_planner", default=None)
         if planner:
             level += 0.15
             milestones.append("hierarchical_planning_active")
 
         # Agency core (goal pursuit)
-        agency = ServiceContainer.get("agency_core", default=None)
+        agency = optional_service("agency_core", default=None)
         if agency:
             level += 0.2
             milestones.append("autonomous_agency_active")
 
         # Initiative engine (self-initiated exploration)
-        initiative = ServiceContainer.get("initiative_engine", default=None)
+        initiative = optional_service("initiative_engine", default=None)
         if initiative:
             level += 0.15
             milestones.append("initiative_generation_active")
 
         # Dream system (creative exploration)
-        dreamer = ServiceContainer.get("dreamer", default=None)
+        dreamer = optional_service("dreamer", default=None)
         if dreamer:
             level += 0.1
             milestones.append("dream_exploration_active")
