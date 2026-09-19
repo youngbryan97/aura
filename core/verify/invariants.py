@@ -352,14 +352,25 @@ def _record(
     _LAST_REPORT = report
     checked_at = time.time()
     with _LAST_RESULTS_LOCK:
+        already = {
+            str(violation)
+            for _, result in (_LAST_RESULTS.get(name) or (0.0, ()) for name in outcomes)
+            for violation in result
+        }
         for name, result in outcomes.items():
             _LAST_RESULTS[name] = (checked_at, result)
     if report.ok and not report.warnings:
         return
+    # Said when it appears, not on every pass it is still there. One claim
+    # with no evidence was logged 130 times in a morning (live, 2026-09-19),
+    # once a pass, and the lines about it crowded out everything new. The
+    # report and last_results() still carry every standing violation.
     for violation in report.errors:
-        logger.error("🔎 VERIFIER %s", violation)
+        if str(violation) not in already:
+            logger.error("🔎 VERIFIER %s", violation)
     for violation in report.warnings:
-        logger.warning("🔎 verifier %s", violation)
+        if str(violation) not in already:
+            logger.warning("🔎 verifier %s", violation)
     if not report.errors:
         return
     try:
