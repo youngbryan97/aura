@@ -213,3 +213,48 @@ def test_annotated_graph_does_not_reintroduce_pointer_score_absent_from_runtime(
         assert not graph["argument_terms"]
         measured += 1
     assert measured > 0
+
+
+@pytest.mark.parametrize("log_odds", [False, True])
+def test_background_model_runs_the_real_retained_graph_training_loop(parent, log_odds, monkeypatch):
+    from core.learning import semantic_joint_graph_learning as learning
+    from core.learning.semantic_joint_graph_learning import (
+        refit_compositional_joint_graphs, source_operation_constraints, source_operation_supervision,
+    )
+
+    examples = _examples()
+    model = background.refit_compositional_operation_background(parent, examples, background_log_odds=log_odds)
+    model = model.with_joint_definition_graph().with_categorical_relation_scores()
+    model = model.with_joint_operation_argument_scores().with_source_ordered_definitions()
+    training = tuple(item for item in examples if item.split == "train")
+    supervision = source_operation_supervision(model, training)
+    labels = [model.operation_head.labels[index] for index in supervision.labels]
+    expected = [label for item in training for _, label in background.operation_background_training_spans(
+        item, model.operation_pointer, model.max_span_tokens)]
+    assert labels == expected
+    assert OPERATION_BACKGROUND_LABEL in labels
+    constraints = source_operation_constraints(model, supervision)
+    assert len(constraints) == len(labels) * (len(model.operation_head.labels) - 1)
+    original = learning.operation_graph_evidence
+    source_features = {id(item.hidden_states) for item in training}
+    measured = []
+
+    def source_only(candidate, hidden, nodes):
+        assert id(hidden) in source_features
+        measured.append(id(hidden))
+        return original(candidate, hidden, nodes)
+
+    monkeypatch.setattr(learning, "operation_graph_evidence", source_only)
+    fitted = refit_compositional_joint_graphs(model, examples, rounds=1, steps=1,
+        constraint_learning=True, learn_arguments=True, learn_operation_pointer=True,
+        retention_operation_charts=1)
+    receipt = fitted.training_receipt["joint_graph_refit"]
+    assert receipt["completed_rounds"] == 1
+    assert receipt["source_supervision_includes_background"]
+    assert receipt["source_operations"] == sum(label != OPERATION_BACKGROUND_LABEL for label in expected)
+    assert receipt["source_training_spans"] == len(expected)
+    assert set(measured) == source_features
+    assert receipt["test_examples_used"] == 0 and not receipt["validation_used_for_fit"]
+    assert not receipt["serving_authority"]
+    assert fitted.training_receipt["operation_background_fit"] == model.training_receipt["operation_background_fit"]
+    assert compositional_semantic_program_transducer_from_dict(fitted.to_dict()).receipt_sha256 == fitted.receipt_sha256

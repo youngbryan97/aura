@@ -161,6 +161,7 @@ def mine_runtime_graph_contrast(model, item, *, weight=1., solve_time_limit_s=20
 
 def source_operation_supervision(model, training):
     """Preserve all source operation labels, not only the currently wrong graphs."""
+    from core.learning.semantic_operation_background import operation_background_training_spans
     from core.learning.semantic_program_shared_transducer import _geometry
     from core.learning.semantic_program_transducer_fitting import _OperationNode
 
@@ -169,7 +170,10 @@ def source_operation_supervision(model, training):
     counts = Counter(_geometry(item) for item in training)
     evidence, weights = [], []
     for item in training:
-        nodes = tuple(_OperationNode(ins.operation_span, ins.op, 0., 0., 1.) for ins in item.ir.instructions)
+        spans = (operation_background_training_spans(item, model.operation_pointer, model.max_span_tokens)
+                 if model.training_receipt.get("operation_background_fit") else
+                 tuple((ins.operation_span, ins.op) for ins in item.ir.instructions))
+        nodes = tuple(_OperationNode(span, label, 0., 0., 1.) for span, label in spans)
         rows = operation_graph_evidence(model, item.hidden_states, nodes)
         evidence.extend(rows)
         weights.extend([1. / (counts[_geometry(item)] * len(rows))] * len(rows))
@@ -274,6 +278,7 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
     from core.learning.semantic_graph_margin import graph_refit_source_splits
     from core.learning.semantic_program_campaign import _sha
     from core.learning.semantic_program_shared_transducer import _geometry
+    from core.learning.semantic_program_transducer import OPERATION_BACKGROUND_LABEL
 
     if type(rounds) is not int or rounds < 1 or type(constraint_learning) is not bool:
         raise ValueError("joint graph learning rounds must be positive")
@@ -281,8 +286,6 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         raise ValueError("argument graph learning requires retained constraints")
     if type(learn_operation_pointer) is not bool or (learn_operation_pointer and not constraint_learning):
         raise ValueError("operation pointer learning requires retained constraints")
-    if model.training_receipt.get("operation_background_fit"):
-        raise ValueError("joint graph training does not yet replay background operation scoring")
     if checkpoint_dir is not None and not constraint_learning:
         raise ValueError("fit checkpoints require retained semantic constraints")
     if type(retention_operation_charts) is not int or retention_operation_charts < 1:
@@ -386,7 +389,11 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         "negative_admission": "universal_floor_distinguishing_execution", "test_examples_used": 0,
         "validation_used_for_fit": False, "serving_authority": False,
         "source_operation_weight": source_weight,
-        "source_operations": len(supervision.labels) if supervision is not None else 0,
+        "source_operations": sum(model.operation_head.labels[index] != OPERATION_BACKGROUND_LABEL
+                                 for index in supervision.labels) if supervision is not None else 0,
+        "source_training_spans": len(supervision.labels) if supervision is not None else 0,
+        "source_supervision_includes_background": bool(
+            supervision is not None and model.training_receipt.get("operation_background_fit")),
         "constraint_learning": constraint_learning,
         "argument_heads_trainable": learn_arguments,
         "operation_pointer_trainable": learn_operation_pointer,
