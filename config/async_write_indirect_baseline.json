@@ -277,16 +277,6 @@
    "_save"
   ],
   [
-   "core/evolution/evolution_orchestrator.py",
-   "stop",
-   "_save"
-  ],
-  [
-   "core/evolution/evolution_orchestrator.py",
-   "tick",
-   "_save"
-  ],
-  [
    "core/evolution/optimizer.py",
    "run",
    "_archive_dataset"
