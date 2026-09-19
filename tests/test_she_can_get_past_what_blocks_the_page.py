@@ -93,12 +93,30 @@ def test_a_consent_choice_takes_the_least_permission_option(labels, expected):
     [["I Agree"], ["Accept"], ["I understand"], ["Allow"], ["Sign in"], ["Enable"]],
 )
 def test_a_dialog_offering_only_acceptance_is_left_to_the_person(only_acceptance):
-    """Agreement binds them; closing a window afterwards does not undo it."""
+    """Agreement binds them; closing a window afterwards does not undo it.
+
+    The dialog is written here as a dialog — its wording POSITIONED with its
+    button, because that is what makes it one object. The fixture used to be
+    a page-level sentence and a lone button, which passed while a single hint
+    anywhere on screen was enough evidence. It stopped passing when
+    ``_hints_around`` began asking where the wording sits, and the thing that
+    changed was the fixture's realism rather than the property: a games page
+    carrying "SIGN UP" in one rail and "Subscribe & Save 5%" in another
+    handed the task back with the board untouched.
+
+    What the module does at the weaker reading is asserted below, so the two
+    halves of that distinction are held in one place.
+    """
     verdict = assess_overlay(
         {
-            "text": "By continuing you agree to our terms " + " ".join(only_acceptance),
+            "text": "Before you continue — cookies and privacy. By continuing "
+            "you agree to our terms " + " ".join(only_acceptance),
             "layout": [
-                {"text": only_acceptance[0], "center_x": 0.5, "center_y": 0.8}
+                {"text": "Before you continue", "center_x": 0.5, "center_y": 0.70},
+                {"text": "cookies and privacy", "center_x": 0.5, "center_y": 0.74},
+                {"text": "By continuing you agree to our terms",
+                 "center_x": 0.5, "center_y": 0.77},
+                {"text": only_acceptance[0], "center_x": 0.5, "center_y": 0.8},
             ],
         }
     )
@@ -109,6 +127,31 @@ def test_a_dialog_offering_only_acceptance_is_left_to_the_person(only_acceptance
         "escape must not be offered on a consent wall: some sites read it as a "
         "refusal and some as nothing, and either way it is the person's call"
     )
+
+
+@pytest.mark.parametrize(
+    "only_acceptance", ["I Agree", "Accept", "I understand", "Allow", "Enable"]
+)
+def test_one_word_of_consent_on_a_page_is_not_a_dialog(only_acceptance):
+    """The other half: the same button under a sentence nobody positioned.
+
+    She still does not press it — an accepting control is never a click
+    target — and she does not stop and hand the task back either, because one
+    hint is not a dialog. Pinned so that raising the evidence bar for one of
+    these two is never done without seeing the other move.
+    """
+    verdict = assess_overlay(
+        {
+            "text": f"By continuing you agree to our terms {only_acceptance}",
+            "layout": [
+                {"text": only_acceptance, "center_x": 0.5, "center_y": 0.8}
+            ],
+        }
+    )
+
+    assert not verdict.needs_person
+    assert verdict.label != only_acceptance
+    assert verdict.click_x is None
 
 
 @pytest.mark.parametrize(

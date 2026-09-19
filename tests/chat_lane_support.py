@@ -16,56 +16,16 @@ from __future__ import annotations
 from types import ModuleType
 from typing import Any
 
-#: Every module a chat turn runs through. Add new lane modules here when they
-#: are split out; a lane missing from this list is a lane a patch will miss.
-#:
-#: The reverse costs more. A name here that is no longer a module raises
-#: ModuleNotFoundError inside the patch helper, which fails every test that
-#: uses it — and the error names the module rather than this list, so the
-#: reader looks for a deleted file instead of a stale line.
-#: ``test_chat_lane_support.py`` checks every name imports.
-LANE_MODULES = (
-    "interface.routes.chat",
-    "interface.routes.chat_capability_inventory",
-    "interface.routes.chat_common",
-    "interface.routes.chat_conversation_repair",
-    "interface.routes.chat_delivery",
-    "interface.routes.chat_history",
-    "interface.routes.chat_refusals",
-    "interface.routes.chat_recorded_answers",
-    "interface.routes.chat_own_source",
-    "interface.routes.chat_foreground_lane",
-    "interface.routes.chat_http_shapes",
-    "interface.routes.chat_desktop_mode",
-    "interface.routes.chat_desktop_objective",
-    "interface.routes.chat_desktop_evidence",
-    "interface.routes.chat_desktop_objective_gates",
-    "interface.routes.chat_desktop_repair",
-    "interface.routes.chat_lane_bookkeeping",
-    "interface.routes.chat_lane_state",
-    "interface.routes.chat_memory_state",
-    "interface.routes.chat_preflight",
-    "interface.routes.chat_protected_prompt",
-    "interface.routes.chat_quality",
-    "interface.routes.chat_reply_assessment",
-    "interface.routes.chat_reply_repair",
-    "interface.routes.chat_reply_shaping",
-    "interface.routes.chat_runtime_proof",
-    "interface.routes.chat_served_answers",
-    "interface.routes.chat_self_reply",
-    "interface.routes.chat_turn_recall",
-    "interface.routes.chat_turn_contract",
-    "interface.routes.chat_turn_evidence",
-)
-
 
 def lane_modules_on_disk() -> tuple[str, ...]:
     """Every chat lane module the routes package actually has.
 
-    A lift that moves code into a new lane module and does not add it here
-    makes every source-reading test in this family read a shorter file. They
-    keep passing, because a call site nobody can see is a call site nobody
-    counts. Four modules had gone missing this way.
+    This is the list. It used to be a second opinion on a tuple written by
+    hand, because a lift that moved code into a new lane module and did not
+    update that tuple made every source-reading test in this family read a
+    shorter file — they kept passing, since a call site nobody can see is a
+    call site nobody counts. Four modules went missing that way, then a
+    fifth.
     """
     import pathlib
 
@@ -75,6 +35,23 @@ def lane_modules_on_disk() -> tuple[str, ...]:
         for path in sorted(routes.glob("chat*.py"))
         if not path.stem.endswith("__init__")
     )
+
+
+#: Every module a chat turn runs through, read from the routes package rather
+#: than listed by hand.
+#:
+#: The hand-written tuple was the defect it warned about. Its own comment said
+#: "a lane missing from this list is a lane a patch will miss", and
+#: ``lane_modules_on_disk`` was written because four had gone missing that way.
+#: A fifth then did: ``chat_reply_repair_about_herself`` split out carrying
+#: ``_emit_chat_output_receipt``, the list was not updated, and
+#: ``patch_chat_lane`` replaced that name in every lane except the one that
+#: calls it — so a test that asserts a turn was receipted watched the real
+#: function run and its own double stay empty.
+#:
+#: Reading the directory cannot go stale, and it cannot name a deleted module
+#: either, which was the stated reason for keeping the list by hand.
+LANE_MODULES = lane_modules_on_disk()
 
 
 def _loaded_lanes() -> list[ModuleType]:

@@ -1,6 +1,8 @@
 import asyncio
 import json
+import tempfile
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -26,6 +28,19 @@ class _BootProbe(BootCognitiveMixin):
 
 
 class _ResilienceProbe(BootResilienceMixin):
+    """The mixin's collaborators, stood up without running a whole boot.
+
+    Every attribute here is one the mixin declares on itself. `state_repo`
+    is the newest: `_start_state_vault_actor` builds the actor spec from
+    `self.state_repo.db_path`, and a probe without it raised AttributeError
+    inside the method's own except, which recorded a degradation and
+    returned — so five tests about what the actor does on start were all
+    failing before reaching any of it.
+
+    `_init_basic_state` is what sets it in a real boot, long before
+    `_start_state_vault_actor` runs.
+    """
+
     _actor_bus = None
     actor_bus = None
     supervisor = None
@@ -35,6 +50,7 @@ class _ResilienceProbe(BootResilienceMixin):
 
     def __init__(self):
         self.status = SimpleNamespace(temporal_drift_s=0.0)
+        self.state_repo = SimpleNamespace(db_path=Path(tempfile.gettempdir()) / "probe_vault.db")
 
 
 class _OutputProbe(OutputFormatterMixin):

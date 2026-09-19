@@ -44,6 +44,31 @@ def _observations() -> dict:
     }
 
 
+def _serve_probe_output(monkeypatch: pytest.MonkeyPatch, stdout: bytes) -> None:
+    """Stand in for the process the probe runs, at the gateway it runs it through.
+
+    These tests patched `probe.subprocess.run`, which is where the call was
+    until it moved: the probe held the last raw `subprocess.run` in the tree
+    and was routed through `get_subprocess_gateway()` so the effect would
+    have a declared owner. The patch then landed on a name nothing calls,
+    the real gateway ran the real sandbox script, and three tests failed as
+    `recurrent_sft_kernel_probe_process_failed` with an empty stderr — the
+    probe reporting a process that never produced its evidence.
+
+    The import inside the probe is function-local, so replacing the factory
+    on the gateway module is seen at call time.
+    """
+    from core.runtime import subprocess_gateway
+
+    class _Gateway:
+        def run(self, command, **_kwargs):
+            return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr=b"")
+
+    monkeypatch.setattr(
+        subprocess_gateway, "get_subprocess_gateway", lambda: _Gateway()
+    )
+
+
 def _canonical_sha256(value: object) -> str:
     payload = json.dumps(
         value,
@@ -68,16 +93,7 @@ def test_kernel_probe_executes_and_receipt_replays(
         ).encode("ascii")
         + b"\n"
     )
-    monkeypatch.setattr(
-        probe.subprocess,
-        "run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(
-            args[0],
-            0,
-            stdout=stdout,
-            stderr=b"",
-        ),
-    )
+    _serve_probe_output(monkeypatch, stdout)
 
     receipt = probe.execute_kernel_probe(
         spec,
@@ -110,16 +126,7 @@ def test_kernel_probe_rejects_observation_or_target_rebinding(
         )
         + b"\n"
     )
-    monkeypatch.setattr(
-        probe.subprocess,
-        "run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(
-            args[0],
-            0,
-            stdout=stdout,
-            stderr=b"",
-        ),
-    )
+    _serve_probe_output(monkeypatch, stdout)
     with pytest.raises(
         probe.RecurrentSFTKernelProbeError,
         match="network_expectation_failed",
@@ -154,16 +161,7 @@ def test_contained_validation_does_not_reread_denied_targets(
         ).encode("ascii")
         + b"\n"
     )
-    monkeypatch.setattr(
-        probe.subprocess,
-        "run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(
-            args[0],
-            0,
-            stdout=stdout,
-            stderr=b"",
-        ),
-    )
+    _serve_probe_output(monkeypatch, stdout)
     receipt = probe.execute_kernel_probe(
         spec,
         contract_sha256="a" * 64,
