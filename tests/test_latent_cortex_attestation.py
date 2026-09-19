@@ -92,7 +92,16 @@ def test_a_non_mapping_receipt_is_safe():
 
 
 def test_every_episode_carries_the_disclosure():
-    import inspect
+    """`deep_reason` attaches it, directly or through what it calls.
 
-    source = inspect.getsource(LatentCortexService.deep_reason)
+    The method-size sweep moved the line into `_deep_reason_part_10`, so
+    reading `deep_reason` alone found a shell that calls names while every
+    episode still carried its disclosure.
+    """
+    from core.brain import latent_cortex_service as module
+    from tests.source_contract import function_with_its_helpers
+
+    source = function_with_its_helpers(
+        module, "LatentCortexService.deep_reason", depth=2
+    )
     assert 'result["attestation"] = self._attestation_disclosure(' in source
