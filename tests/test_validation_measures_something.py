@@ -82,7 +82,9 @@ class TestLockdep:
             mv, "_lockdep", lambda: {"known_locks": [], "acquires_checked": 0, "splats": []}
         )
         suite = _suite()
-        suite.run()
+        # The boot posture: the claim is about an instrument, and running the
+        # suite's experiments as well took these tests past five minutes.
+        suite.run(include_expensive=False)
         unsupported = {c["test"] for c in suite.unsupported_claims()}
         assert "lockdep_reports_no_order_violations" in unsupported
 
@@ -93,7 +95,9 @@ class TestLockdep:
             lambda: {"known_locks": ["a"], "acquires_checked": 40, "splats": []},
         )
         suite = _suite()
-        suite.run()
+        # The boot posture: the claim is about an instrument, and running the
+        # suite's experiments as well took these tests past five minutes.
+        suite.run(include_expensive=False)
         unsupported = {c["test"] for c in suite.unsupported_claims()}
         assert "lockdep_reports_no_order_violations" not in unsupported
 
