@@ -19,6 +19,7 @@ counted as damage we suffered. These contracts pin the seam.
 """
 from __future__ import annotations
 
+import re
 from types import SimpleNamespace
 
 import pytest
@@ -89,10 +90,19 @@ def test_mlx_client_publishes_the_reason_where_the_router_reads_it() -> None:
     assert "def consume_deliberate_no_text_reason" in source
     # Set at the healthy-worker cancellation, which is the only place we choose
     # to end a generation that the worker could still have completed.
-    assert (
-        source.count('self._deliberate_no_text_reason = (\n                            "first_token_deadline_exceeded_worker_healthy"\n                        )')
-        == 1
-    ), "the reason must be published exactly at the healthy-worker cancel"
+    #
+    # Counted as a STATEMENT, not as a run of characters. This matched a
+    # multi-line literal carrying twenty-eight spaces of indentation, so the
+    # method-size sweep re-indenting the block dropped the count to zero
+    # while the assignment stayed exactly where it was.
+    published = re.findall(
+        r"self\._deliberate_no_text_reason\s*=\s*\(?\s*"
+        r'"first_token_deadline_exceeded_worker_healthy"',
+        source,
+    )
+    assert len(published) == 1, (
+        "the reason must be published exactly at the healthy-worker cancel"
+    )
 
 
 def test_router_does_not_trip_the_circuit_on_a_deliberate_cancel() -> None:

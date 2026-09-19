@@ -15,8 +15,6 @@ lift soft defers for explicit foreground desktop tools.
 """
 from __future__ import annotations
 
-import json
-
 import pytest
 
 
@@ -79,11 +77,15 @@ def test_contract_context_satisfies_standing_authority_user_check():
 
 def test_contract_context_matches_being_runtime_exemption_quintet():
     """The exact flags action_policy checks must all be shipped by the route."""
-    import inspect
-
     from core.being import runtime as being_runtime
+    from tests.source_contract import function_with_its_helpers
 
-    policy_source = inspect.getsource(being_runtime.BeingRuntime.action_policy)
+    # The exemption moved into `_action_policy_internal_runtime_maintenance`,
+    # which `action_policy` calls, so reading the method alone found none of
+    # the flags it still consults.
+    policy_source = function_with_its_helpers(
+        being_runtime, "BeingRuntime.action_policy", depth=2
+    )
     quintet = [
         "desktop_execution_contract",
         "foreground_request",
