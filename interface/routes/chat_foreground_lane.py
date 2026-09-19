@@ -14,9 +14,9 @@ import hashlib
 import time
 from typing import Any
 
-from core.container import ServiceContainer
 from core.conversation.word_markers import names_any_in_identifier
 from core.runtime.errors import describe_error, record_degradation
+from core.runtime.service_access import resolve_inference_gate
 from core.runtime.structured_input import (
     analyze_prompt_shape,
     answer_surface_token_floor,
@@ -103,7 +103,7 @@ from .chat_reply_repair import (
     _original_reply_is_safe_to_surface,  # noqa: F401
     _repair_final_degraded_reply,  # noqa: F401
     _repair_missing_followup_delta,  # noqa: F401
-    )
+)
 from .chat_reply_shaping import (  # noqa: E402
     _remove_self_denials_the_record_refutes,
     _strip_scaffolding_tags,
@@ -579,7 +579,7 @@ async def _await_foreground_gate(*, budget_s: float) -> Any:
     while boot is genuinely still in progress, wait for the gate to appear.
     Only once boot has settled or stalled is absence a real answer.
     """
-    gate = ServiceContainer.get("inference_gate", default=None)
+    gate = resolve_inference_gate()
     if gate is not None and hasattr(gate, "ensure_foreground_ready"):
         return gate
     if budget_s <= 0:
@@ -609,12 +609,12 @@ async def _await_foreground_gate(*, budget_s: float) -> Any:
             )
             announced = True
         await asyncio.sleep(0.25)
-        gate = ServiceContainer.get("inference_gate", default=None)
+        gate = resolve_inference_gate()
         if gate is not None and hasattr(gate, "ensure_foreground_ready"):
             logger.info("✅ Inference gate registered mid-turn; the turn proceeds normally.")
             return gate
 
-    return ServiceContainer.get("inference_gate", default=None)
+    return resolve_inference_gate()
 
 
 def _user_requested_primary_only(text: str) -> bool:
@@ -856,7 +856,7 @@ async def _protected_foreground_reply(
 
     if is_benchmark:
         return None
-    gate = ServiceContainer.get("inference_gate", default=None)
+    gate = resolve_inference_gate()
     if gate is None or not hasattr(gate, "generate"):
         return None
     memory_block = _protected_foreground_generation_block_reason()
@@ -1109,7 +1109,7 @@ async def _await_the_sovereign_kernel_reply(
                     hard_budget = max(2.0, _remaining_foreground_budget())
                     cortex_alive = False
                     try:
-                        gate = ServiceContainer.get("inference_gate", default=None)
+                        gate = resolve_inference_gate()
                         if gate and hasattr(gate, "is_alive"):
                             cortex_alive = gate.is_alive()
                     except _CHAT_RECOVERABLE_ERRORS as exc:

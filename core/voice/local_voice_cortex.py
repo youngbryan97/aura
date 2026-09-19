@@ -17,6 +17,7 @@ from core.runtime.errors import (
     record_degradation,
 )
 from core.runtime.runtime_settings import get_runtime_setting
+from core.runtime.service_access import resolve_orchestrator
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.utils.task_tracker import fire_and_track, get_task_tracker
 from core.voice.microphone_authority import (
@@ -167,7 +168,7 @@ class LocalVoiceCortex:
     name = "local_voice_cortex"
 
     def __init__(self, orchestrator=None):
-        self.orchestrator = orchestrator or ServiceContainer.get("orchestrator", default=None)
+        self.orchestrator = orchestrator or resolve_orchestrator()
         self.is_listening = False
 
         # Audio Settings

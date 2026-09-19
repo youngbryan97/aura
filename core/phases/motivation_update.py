@@ -1,15 +1,19 @@
 from __future__ import annotations
+
 import logging
-import time
 import random
-from typing import Any, Optional, TYPE_CHECKING
+import time
+from typing import TYPE_CHECKING, Any, Optional
+
+from core.consciousness.executive_authority import (
+    get_executive_authority as get_executive_authority,
+)
 from core.kernel.bridge import Phase
-from core.state.aura_state import AuraState
-from core.consciousness.executive_authority import get_executive_authority as get_executive_authority
-from core.runtime.service_registry import get_runtime_service, has_runtime_service
 from core.runtime.background_policy import background_activity_allowed
-from core.runtime.proposal_governance import propose_governed_initiative_to_state
 from core.runtime.errors import record_degradation
+from core.runtime.proposal_governance import propose_governed_initiative_to_state
+from core.runtime.service_registry import get_runtime_service, has_runtime_service
+from core.state.aura_state import AuraState
 
 if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
@@ -127,9 +131,7 @@ class MotivationUpdatePhase(Phase):
         # Social and Integrity drives recover when affect is high (Trust/Joy)
         e = state.affect.emotions
         if e.get("trust", 0) > 0.6 or e.get("joy", 0) > 0.6:
-            recovery = 0.5 * dt / 60 # Recover 0.5 units per minute
-            mot.budgets["social"]["level"] = min(100.0, mot.budgets["social"]["level"] + recovery)
-            mot.budgets["integrity"]["level"] = min(100.0, mot.budgets["integrity"]["level"] + recovery)
+            MotivationUpdatePhase._warmth_returns_a_drive_to_rest(mot, dt)
             logger.debug("🧡 Drive Recovery active: social=%s", f"{mot.budgets['social']['level']:.1f}")
         
         # 1b. Which urge acts now, integrated over time rather than sampled.
@@ -1081,6 +1083,46 @@ class MotivationUpdatePhase(Phase):
             return float(sum(levels.values()))
         except (ImportError, AttributeError, TypeError, ValueError):
             return 0.0
+
+    @staticmethod
+    def _warmth_returns_a_drive_to_rest(mot: Any, dt: float) -> None:
+        """Being met brings a need back toward where it sits, not to the ceiling.
+
+        The credit was half a unit a minute and integrity's need accumulates at
+        half a unit a day, so warmth restored it about fourteen hundred times
+        faster than it was ever spent. On the 2,400-turn seed-7 recording
+        `D.drive_integrity` read exactly 100.0 on 75% of frames and
+        `D.drive_social` on 64%: three of the five drive columns were a clipped
+        constant rather than a drive, in the domain the cheapest cut runs
+        through.
+
+        A need that is met returns toward its resting level — the level the
+        budget is declared to hold when nothing is happening — at the rate that
+        need accumulates. Both quantities are already declared in
+        `MOTIVATION_BUDGET_DEFAULTS`, so there is nothing here to choose, and a
+        drive can no longer be pushed above its own rest and held there by good
+        weather.
+        """
+        from core.motivation.constants import MOTIVATION_BUDGET_DEFAULTS
+
+        try:
+            step = float(dt)
+        except (TypeError, ValueError):
+            return
+        if step <= 0.0:
+            return
+        for name in ("social", "integrity"):
+            budget = mot.budgets.get(name)
+            declared = MOTIVATION_BUDGET_DEFAULTS.get(name)
+            if not isinstance(budget, dict) or declared is None:
+                continue
+            rest = float(declared["level"])
+            rate = float(declared.get("decay", 0.0))
+            level = float(budget.get("level", rest))
+            if rate <= 0.0 or level >= rest:
+                continue
+            share = min(1.0, rate * step)
+            budget["level"] = level + (rest - level) * share
 
     @staticmethod
     def _note_returning(state: Any) -> None:

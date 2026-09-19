@@ -340,7 +340,7 @@ def test_the_latent_client_returns_the_answer_tokens():
     assert found, "the latent lane's answer payload was not found"
     indent = len(found.group(1))
     payload = source[found.start() : found.start() + 1800]
-    keys = re.findall(r"^\s{%d}\"([a-z_0-9]+)\":" % indent, payload, re.M)
+    keys = re.findall(rf"^\s{{{indent}}}\"([a-z_0-9]+)\":", payload, re.M)
 
     assert "tokens" in keys, "latent_reason must hand the facade the answer tokens"
 

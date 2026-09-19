@@ -1,3 +1,4 @@
+
 """core/resilience/sovereign_watchdog.py — Enterprise Uptime Guardian
 
 The Sovereign Watchdog is the final layer of Aura's resilience. It monitors 
@@ -11,6 +12,7 @@ import time
 from typing import Any
 
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.service_access import resolve_inference_gate, resolve_orchestrator
 from core.utils.exceptions import capture_and_log
 from core.utils.task_tracker import get_task_tracker
 
@@ -100,9 +102,8 @@ class SovereignWatchdog:
 
     def _foreground_inference_snapshot(self) -> dict[str, Any]:
         try:
-            from core.container import ServiceContainer
 
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             if not gate or not hasattr(gate, "get_conversation_status"):
                 return {}
             lane = dict(gate.get_conversation_status() or {})
@@ -203,8 +204,7 @@ class SovereignWatchdog:
                     # makes it worse. Suppress for a cooldown period proportional
                     # to the lag severity.
                     try:
-                        from core.container import ServiceContainer
-                        orch = ServiceContainer.get("orchestrator", default=None)
+                        orch = resolve_orchestrator()
                         if orch:
                             # Suppress proactive presence for lag_seconds * 5
                             suppress_duration = min(60.0, loop_elapsed * 5.0)

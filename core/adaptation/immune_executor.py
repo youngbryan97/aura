@@ -19,6 +19,7 @@ from typing import Any
 
 from core.actuators.actuator_registry import ActuatorResult, get_actuator_registry
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_orchestrator
 from core.sensors.sensor_registry import get_sensor_registry
 
 logger = logging.getLogger("Aura.ImmuneHeuristicExecutor")
@@ -257,13 +258,12 @@ class ImmuneHeuristicExecutor:
             )
 
         try:
-            from core.container import ServiceContainer
             from core.runtime.background_policy import (
                 MAINTENANCE_BACKGROUND_POLICY,
                 background_activity_reason,
             )
 
-            orchestrator = ServiceContainer.get("orchestrator", default=None)
+            orchestrator = resolve_orchestrator()
             defer_reason = str(
                 background_activity_reason(
                     orchestrator,

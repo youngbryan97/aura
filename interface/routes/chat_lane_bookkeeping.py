@@ -7,8 +7,17 @@ they were most of what made one file twenty-four thousand lines long.
 """
 from __future__ import annotations
 
+import asyncio
+import hashlib
+import inspect
+import os
+import re
+from typing import Any
+
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
 from core.container import ServiceContainer
-from core.conversation.word_markers import names_any
 from core.conversation.session_scope import (
     conversation_session_var as _CHAT_REQUEST_SESSION,  # noqa: N812
 )
@@ -18,44 +27,27 @@ from core.conversation.surface_disposition import (
 from core.conversation.surface_disposition import (
     PHYSICAL_COMPLETION_REASONS as _PHYSICAL_COMPLETION_REASONS,
 )
+from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_inference_gate
 from core.utils.intent_normalization import normalize_memory_intent_text
 from core.utils.task_tracker import get_task_tracker
-from fastapi import Request
-from fastapi.responses import JSONResponse
 from interface.auth import relational_principal_id_for_request
+from interface.routes import chat_conversation_repair as _chat_conversation_repair  # noqa: E402
 from interface.routes import chat_desktop_repair as _chat_desktop_repair  # noqa: E402
 from interface.routes import chat_memory_state as _chat_memory_state  # noqa: E402
 from interface.routes import chat_preflight as _chat_preflight  # noqa: E402
-from interface.routes.chat_common import _CHAT_RECOVERABLE_ERRORS, _CHAT_SESSION_ID_MAX_CHARS, _ORGAN_ABSENCE_STREAKS, _ORGAN_INERT_STREAKS, _TOPIC_STOPWORDS, _conversation_log, logger
-from interface.routes.chat_self_reply import _is_identity_challenge_request
-from typing import Any
-import asyncio
-import hashlib
-import inspect
-import os
-import re
-from interface.routes import chat_conversation_repair as _chat_conversation_repair  # noqa: E402
-from .chat_lane_state import (
-    _canonical_runtime_model_label,  # noqa: F401
-    _conversation_lane_blocks_fallback,  # noqa: F401
-    _conversation_lane_is_standby,  # noqa: F401
-    _conversation_lane_needs_instant_social_contract,  # noqa: F401
-    _cortex_is_cold_loading,  # noqa: F401
-    _enter_recovery_cooldown,  # noqa: F401
-    _in_recovery_cooldown,  # noqa: F401
-    _force_clear_mlx_foreground_owner,  # noqa: F401
-    _host_condition,  # noqa: F401
-    _known_answer_for_this_turn,  # noqa: F401
-    _lane_reply_confidence,  # noqa: F401
-    _lane_status_message_body,  # noqa: F401
-    _mark_conversation_lane_state,  # noqa: F401
-    _mark_conversation_lane_timeout,  # noqa: F401
-    _status_represents_memory_state_result,  # noqa: F401
-    _turn_count_ordinal,  # noqa: F401
-    _with_mood,  # noqa: F401
-    _with_the_same_readings,  # noqa: F401
+from interface.routes.chat_common import (
+    _CHAT_RECOVERABLE_ERRORS,
+    _CHAT_SESSION_ID_MAX_CHARS,
+    _ORGAN_ABSENCE_STREAKS,
+    _ORGAN_INERT_STREAKS,
+    _TOPIC_STOPWORDS,
+    _conversation_log,
+    logger,
 )
+from interface.routes.chat_self_reply import _is_identity_challenge_request
+
 from .chat_http_shapes import (
     _early_chat_json_response,  # noqa: F401
     _export_json_default,  # noqa: F401
@@ -65,6 +57,26 @@ from .chat_http_shapes import (
     _pre_gate_unavailable_response,  # noqa: F401
     _request_from_local_desktop_client,
     _runtime_shutdown_response,  # noqa: F401
+)
+from .chat_lane_state import (
+    _canonical_runtime_model_label,  # noqa: F401
+    _conversation_lane_blocks_fallback,  # noqa: F401
+    _conversation_lane_is_standby,  # noqa: F401
+    _conversation_lane_needs_instant_social_contract,  # noqa: F401
+    _cortex_is_cold_loading,  # noqa: F401
+    _enter_recovery_cooldown,  # noqa: F401
+    _force_clear_mlx_foreground_owner,  # noqa: F401
+    _host_condition,  # noqa: F401
+    _in_recovery_cooldown,  # noqa: F401
+    _known_answer_for_this_turn,  # noqa: F401
+    _lane_reply_confidence,  # noqa: F401
+    _lane_status_message_body,  # noqa: F401
+    _mark_conversation_lane_state,  # noqa: F401
+    _mark_conversation_lane_timeout,  # noqa: F401
+    _status_represents_memory_state_result,  # noqa: F401
+    _turn_count_ordinal,  # noqa: F401
+    _with_mood,  # noqa: F401
+    _with_the_same_readings,  # noqa: F401
 )
 
 
@@ -102,7 +114,7 @@ async def _shed_generation_for_memory_pressure(reason: str) -> None:
     """Best-effort bounded cleanup before refusing heavy foreground work."""
 
     try:
-        gate = ServiceContainer.get("inference_gate", default=None)
+        gate = resolve_inference_gate()
         if gate is not None and hasattr(gate, "_shed_background_workers_for_memory_pressure"):
             result = gate._shed_background_workers_for_memory_pressure(
                 reason=str(reason or "foreground_memory_pressure_guard")

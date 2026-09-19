@@ -1,9 +1,9 @@
+
 """
 core/ops/hypervisor.py
 Enterprise Sentinel: Watchdog Hypervisor for Aura.
 Monitors event loop health, memory leaks, and severe freezes.
 """
-
 import asyncio
 import logging
 import os
@@ -13,6 +13,7 @@ from core.observability.metrics import get_metrics
 from core.runtime.errors import record_degradation
 from core.runtime.lockdep import LOOP_BLOCKED_CEILING_FRACTION, LOOP_HOLD_STARVED_FRACTION
 from core.runtime.resource_observation import get_resource_observer
+from core.runtime.service_access import resolve_inference_gate
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.utils.task_tracker import get_task_tracker, mark_task_protected
 
@@ -211,9 +212,8 @@ class Hypervisor:
             logger.debug("Hypervisor foreground probe unavailable: %s", exc)
 
         try:
-            from core.container import ServiceContainer
 
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             if gate and hasattr(gate, "get_conversation_status"):
                 status = dict(gate.get_conversation_status() or {})
                 if bool(status.get("foreground_owned")) or int(

@@ -10,6 +10,7 @@ from core.phases.response_contract import ResponseContract
 from core.runtime.background_policy import background_activity_allowed
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.runtime_settings import get_runtime_setting
+from core.runtime.service_access import resolve_orchestrator
 from core.state.aura_state import AuraState
 
 if TYPE_CHECKING:
@@ -239,9 +240,8 @@ class LearningPhase(Phase):
         curiosity = getattr(state.affect, "curiosity", 0.5)
         if curiosity > 0.8:
             try:
-                from core.container import ServiceContainer
 
-                orch = ServiceContainer.get("orchestrator", default=None)
+                orch = resolve_orchestrator()
             except (ImportError, AttributeError, RuntimeError) as exc:
                 _record_learning_degradation(
                     exc,

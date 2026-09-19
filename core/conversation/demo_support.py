@@ -14,6 +14,7 @@ from typing import Any
 from core.runtime import resource_psutil as psutil
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.service_access import resolve_inference_gate
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.DemoSupport")
@@ -735,7 +736,7 @@ async def maybe_build_priority_focus_reply(message: str, orchestrator: Any) -> s
     try:
         from core.container import ServiceContainer
 
-        gate = ServiceContainer.get("inference_gate", default=None)
+        gate = resolve_inference_gate()
         if gate and hasattr(gate, "get_conversation_status"):
             lane = gate.get_conversation_status()
             lane_state = str(lane.get("state", "") or "").strip().lower()

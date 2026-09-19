@@ -21,6 +21,7 @@ from core.governance_context import local_internal_governed_scope
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
+from core.runtime.service_access import resolve_orchestrator
 from core.runtime.state_ownership import state_root
 from core.runtime.task_ownership import create_tracked_task
 
@@ -434,7 +435,6 @@ class AutonomyConductor:
 
     def _job_policy_reason(self, job: ConductedJob) -> str:
         try:
-            from core.container import ServiceContainer
             from core.runtime.background_policy import (
                 MAINTENANCE_BACKGROUND_POLICY,
                 RESEARCH_BACKGROUND_POLICY,
@@ -457,7 +457,7 @@ class AutonomyConductor:
                 else MAINTENANCE_BACKGROUND_POLICY
             )
             return background_activity_reason(
-                ServiceContainer.get("orchestrator", default=None),
+                resolve_orchestrator(),
                 profile=profile,
                 allow_no_user_anchor=True,
                 allow_desktop_safe_boot=job.allow_desktop_safe_boot,
@@ -775,7 +775,7 @@ class AutonomyConductor:
         from core.autonomy.topic_selection import select_autonomous_topic
         from core.container import ServiceContainer
 
-        orchestrator = ServiceContainer.get("orchestrator", default=None)
+        orchestrator = resolve_orchestrator()
         agency = ServiceContainer.get("agency_core", default=None)
         swarm = getattr(agency, "swarm", None)
         if orchestrator is None or swarm is None or not hasattr(swarm, "run_deliberation"):

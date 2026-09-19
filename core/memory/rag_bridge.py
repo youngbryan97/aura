@@ -1,3 +1,4 @@
+
 """core/memory/rag_bridge.py
 
 The Invisible RAG Bridge. Runs parallel to the main cognitive pipeline
@@ -16,6 +17,7 @@ from core.container import ServiceContainer
 from core.memory.recall_telemetry import get_recall_telemetry
 from core.memory.temporal_rag import TimeWeightedRetriever
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_orchestrator
 
 logger = logging.getLogger("Aura.RAGBridge")
 
@@ -95,7 +97,7 @@ async def fetch_deep_context(
         # Pull any ecosystem context cached by the orchestrator
         ecosystem_context = ""
         try:
-            orchestrator = ServiceContainer.get("orchestrator", default=None)
+            orchestrator = resolve_orchestrator()
             if orchestrator and hasattr(orchestrator, "_current_ecosystem_context"):
                 ecosystem_context = orchestrator._current_ecosystem_context
         except (ImportError, AttributeError, RuntimeError) as _e:

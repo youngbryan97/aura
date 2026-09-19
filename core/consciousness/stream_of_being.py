@@ -20,8 +20,9 @@ from core.consciousness.narrative_provenance import (
     usable_as_evidence,
 )
 from core.runtime.errors import FallbackClassification, record_degradation
-from core.utils.task_tracker import get_task_tracker
+from core.runtime.service_access import resolve_inference_gate
 from core.runtime.state_ownership import state_root
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.StreamOfBeing")
 
@@ -1106,9 +1107,8 @@ class StreamOfBeing:
             return False
 
         try:
-            from core.container import ServiceContainer
 
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             status_getter = getattr(gate, "get_conversation_status", None)
             if callable(status_getter):
                 lane = dict(status_getter() or {})

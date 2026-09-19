@@ -15,6 +15,7 @@ from core.container import ServiceContainer
 from core.event_bus import get_event_bus
 from core.planning.planner import ExecutionPlan
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.service_access import resolve_orchestrator
 
 logger = logging.getLogger("Aura.CriticEngine")
 
@@ -119,7 +120,7 @@ class CriticEngine:
         self._critic_task: asyncio.Task | None = None
 
     async def start(self):
-        self.orchestrator = ServiceContainer.get("orchestrator", default=None)
+        self.orchestrator = resolve_orchestrator()
         self.cel = ServiceContainer.get("constitutive_expression_layer", default=None)
         self.running = True
         self._critic_task = None
@@ -290,7 +291,7 @@ Be concise. No extra text."""
         
         This shard reviews the insight for strategic inconsistencies or ethical risks.
         """
-        orch = ServiceContainer.get("orchestrator", default=None)
+        orch = resolve_orchestrator()
         swarm = getattr(orch, "sovereign_swarm", None) if orch else None
         if not swarm:
             logger.warning("Cannot spawn critical shard: Orchestrator or SovereignSwarm missing.")

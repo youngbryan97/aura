@@ -1,3 +1,4 @@
+
 """ConsciousnessCoordinator - Master orchestrator of unified consciousness
 
 Wires together:
@@ -12,16 +13,16 @@ Wires together:
 
 Creates ONE coherent conscious entity.
 """
-
 import asyncio
 import logging
-from typing import Optional, Any
+from typing import Any, Optional
 
-from core.consciousness.unified_self import UnifiedSelf, get_unified_self
-from core.consciousness.self_awareness import SelfAwareness, get_self_awareness
 from core.consciousness.identity_driver import IdentityDriver, get_identity_driver
+from core.consciousness.self_awareness import SelfAwareness, get_self_awareness
+from core.consciousness.unified_self import UnifiedSelf, get_unified_self
 from core.exceptions import ContainerError
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_inference_gate
 
 logger = logging.getLogger("Consciousness.Coordinator")
 
@@ -132,7 +133,7 @@ class ConsciousnessCoordinator:
             self._phenomenal_engine = ServiceContainer.get("phenomenal_engine", default=None)
             self._drive_system = ServiceContainer.get("drive_system", default=None)
             self._goal_manager = ServiceContainer.get("goal_manager", default=None)
-            self._inference_gate = ServiceContainer.get("inference_gate", default=None)
+            self._inference_gate = resolve_inference_gate()
             
             # Registration is a boot-time concern. Chat-turn consciousness
             # updates can initialize the coordinator after the ServiceContainer

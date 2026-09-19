@@ -1,3 +1,4 @@
+
 """core/autonomy/proactive_communication.py - Intelligent Proactive Messaging
 Aura decides WHEN to interrupt the user based on emotional state and context.
 """
@@ -14,6 +15,7 @@ from typing import Any
 
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.runtime_settings import get_runtime_setting
+from core.runtime.service_access import resolve_orchestrator
 from core.utils.task_tracker import get_task_tracker
 
 
@@ -63,9 +65,8 @@ def _record_proactive_degradation(
 
 def _proactivity_suppressed_now(now: float | None = None) -> bool:
     try:
-        from core.container import ServiceContainer
 
-        orch = ServiceContainer.get("orchestrator", default=None)
+        orch = resolve_orchestrator()
         if not orch:
             return False
         now = time.time() if now is None else now

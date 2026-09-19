@@ -24,6 +24,7 @@ from core.container import ServiceContainer
 from core.conversation.word_markers import names_any_in_identifier
 from core.runtime.base_module import AuraBaseModule
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.runtime.service_access import resolve_orchestrator
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("core.collective.delegator")
@@ -857,7 +858,7 @@ FINAL SYNTHESIS:"""
                 raise RuntimeError("AuraKernel not available for agentic agent")
 
             engine = AutonomousTaskEngine(kernel)
-            orchestrator = ServiceContainer.get("orchestrator", default=None)
+            orchestrator = resolve_orchestrator()
             registered_tools = self._register_orchestrator_tools(engine, orchestrator)
 
             self.logger.info(

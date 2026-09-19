@@ -4,8 +4,6 @@ Extracted from server.py — Memory retrieval endpoints:
 episodic, semantic, recent, and goal memory.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import asyncio
 import logging
@@ -19,7 +17,8 @@ from pydantic import BaseModel
 from core.container import ServiceContainer
 from core.governance.will import ActionDomain, get_will
 from core.governance_context import governed_scope
-
+from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_orchestrator
 from interface.auth import _check_rate_limit, _require_internal
 
 logger = logging.getLogger("Aura.Server.Memory")
@@ -346,7 +345,7 @@ async def api_memory_goals(limit: int = 20, _: None = Depends(_require_internal)
                 _record_memory_route_degradation("Strategic planner goals failed", _exc, degradation_reasons)
 
         # 3. Orchestrator goal queue
-        orch = ServiceContainer.get("orchestrator", default=None)
+        orch = resolve_orchestrator()
         if orch and hasattr(orch, "goals"):
             goals_list = list(orch.goals)
             for i in range(min(len(goals_list), limit)):
@@ -360,7 +359,6 @@ async def api_memory_goals(limit: int = 20, _: None = Depends(_require_internal)
         # 4. BeliefGraph goal edges
         bg = ServiceContainer.get("belief_graph", default=None)
         if bg and hasattr(bg, "graph"):
-            import networkx as _nx
             for u, v, data in bg.graph.edges(data=True):
                 if data.get("is_goal"):
                     goals.append({

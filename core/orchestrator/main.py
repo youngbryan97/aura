@@ -1,7 +1,7 @@
+
 """Robust Orchestrator for Aura.
 Central brain that coordinates cognition, motor control, and environmental grounding.
 """
-
 import asyncio
 import collections
 import hashlib
@@ -20,6 +20,7 @@ from core.health.degraded_events import record_degraded_event
 from core.runtime import resource_psutil as psutil
 from core.runtime.errors import record_degradation
 from core.runtime.progress_bound import await_while_the_task_moves
+from core.runtime.service_access import resolve_inference_gate
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.scheduler import TaskSpec, scheduler
 from core.supervisor.tree import ActorSpec
@@ -323,7 +324,7 @@ async def _start_the_perception_organs(
                     await asyncio.sleep(5.0)  # Let InferenceGate finish warming
                     from core.brain.inference_gate import InferenceGate
 
-                    _gate = ServiceContainer.get("inference_gate", default=None)
+                    _gate = resolve_inference_gate()
                     if _gate is None:
                         _gate = InferenceGate(self)
                     _orientation_prompt = (
@@ -659,7 +660,7 @@ class RobustOrchestrator(
 
             logger.debug("Suppressed Exception: %s", _exc)
         try:
-            gate = self._inference_gate or ServiceContainer.get("inference_gate", default=None)
+            gate = self._inference_gate or resolve_inference_gate()
             if gate and hasattr(gate, "_background_local_deferral_reason"):
                 reason = str(gate._background_local_deferral_reason(origin=origin) or "").strip()
                 if reason:
@@ -972,7 +973,7 @@ class RobustOrchestrator(
             await self._async_init_subsystems()
 
         if not self._inference_gate:
-            container_gate = ServiceContainer.get("inference_gate", default=None)
+            container_gate = resolve_inference_gate()
             if container_gate is not None:
                 self._inference_gate = container_gate
             else:
@@ -2417,7 +2418,7 @@ class RobustOrchestrator(
         ):
             return True
 
-        container_gate = ServiceContainer.get("inference_gate", default=None)
+        container_gate = resolve_inference_gate()
         if self._inference_gate is None and container_gate is not None:
             self._inference_gate = container_gate
             logger.info("InferenceGate adopted from ServiceContainer during %s.", context)

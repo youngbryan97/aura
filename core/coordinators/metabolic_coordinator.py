@@ -1,3 +1,4 @@
+
 """Metabolic Coordinator — background tasks, pacing, memory hygiene, world decay,
 autonomous thought triggers, RL training, and self-update.
 
@@ -26,6 +27,7 @@ from core.runtime.background_policy import (
 from core.runtime.errors import record_degradation
 from core.runtime.impulse_governance import run_governed_impulse
 from core.runtime.safe_mode import runtime_feature_enabled, runtime_mode_value
+from core.runtime.service_access import resolve_orchestrator
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.utils.task_tracker import get_task_tracker
 
@@ -561,8 +563,7 @@ class MetabolicCoordinator:
             return self._orch
 
         # Strict avoidance of resolution recursion
-        from core.container import ServiceContainer
-        obj = ServiceContainer.get("orchestrator", default=None)
+        obj = resolve_orchestrator()
         if obj:
             self._orch = obj
             return obj

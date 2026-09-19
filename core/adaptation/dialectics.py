@@ -14,6 +14,7 @@ from typing import Any
 
 from core.container import ServiceContainer
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.runtime.service_access import resolve_orchestrator
 from core.utils.exceptions import capture_and_log
 
 logger = logging.getLogger("Aura.Crucible")
@@ -93,7 +94,7 @@ class DialecticalCrucible:
                 background_activity_reason,
             )
 
-            orch = ServiceContainer.get("orchestrator", default=None)
+            orch = resolve_orchestrator()
             return background_activity_reason(
                 orch,
                 profile=THOUGHT_BACKGROUND_POLICY,

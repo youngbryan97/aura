@@ -5,10 +5,10 @@ import time
 from pathlib import Path
 from typing import Any
 
-from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.network_gateway import get_network_gateway
+from core.runtime.service_access import resolve_orchestrator
 from core.skills.base_skill import BaseSkill
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 
@@ -58,7 +58,7 @@ class InterAgentCommSkill(BaseSkill):
             await asyncio.to_thread(self._log_communication, payload)
 
             # 2. Issue 68: Lazy fetch orchestrator
-            orchestrator = ServiceContainer.get("orchestrator", default=None)
+            orchestrator = resolve_orchestrator()
             swarm_data = []
             if orchestrator and hasattr(orchestrator, 'belief_sync'):
                 logger.info("🌌 Querying swarm for context on: %s", agent_name)

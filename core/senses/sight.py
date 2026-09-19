@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 
 from core.runtime.errors import record_degradation
 from core.runtime.lockdep import LockRank, checked_async_lock
+from core.runtime.service_access import resolve_orchestrator
 
 logger = logging.getLogger("Aura.Senses.Sight")
 
@@ -195,9 +196,8 @@ class CaptureBroker:
     ) -> bool:
         """Tell the surface to capture. False when there is no surface."""
         try:
-            from core.container import ServiceContainer
 
-            orchestrator = ServiceContainer.get("orchestrator", default=None)
+            orchestrator = resolve_orchestrator()
             publish = getattr(orchestrator, "_publish_telemetry", None)
             if publish is None:
                 return False

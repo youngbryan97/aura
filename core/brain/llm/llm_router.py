@@ -1,3 +1,4 @@
+
 """Intelligent LLM Router - Multi-tier routing for Aura's internal model lanes.
 
 Routing Priority:
@@ -40,6 +41,7 @@ from core.brain.llm.runtime_wiring import (
     should_force_tool_handoff,
 )
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.service_access import resolve_inference_gate
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.utils.task_tracker import get_task_tracker
 
@@ -1216,9 +1218,8 @@ class IntelligentLLMRouter:
         if origin == "benchmark":
             return ""
         try:
-            from core.container import ServiceContainer
 
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             if gate and hasattr(gate, "_background_local_deferral_reason"):
                 return str(gate._background_local_deferral_reason(origin=origin) or "").strip()
         except ROUTER_RECOVERABLE_ERRORS as exc:

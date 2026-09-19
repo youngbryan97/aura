@@ -23,8 +23,9 @@ from typing import Any, Optional
 
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
-from core.runtime.subprocess_gateway import get_subprocess_gateway
+from core.runtime.service_access import resolve_inference_gate
 from core.runtime.sqlite_support import connecting
+from core.runtime.subprocess_gateway import get_subprocess_gateway
 
 
 @dataclass
@@ -288,8 +289,8 @@ import sqlite3
 import threading
 
 from core.runtime.shutdown_coordinator import is_shutdown_requested
-from core.utils.task_tracker import get_task_tracker
 from core.runtime.state_ownership import state_root
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.FlagshipDoctor")
 
@@ -300,7 +301,11 @@ def _sleep_anchor() -> tuple[float | None, float]:
     try:
         from core.runtime.host_sleep import sleep_anchor
 
-        return sleep_anchor()
+        # Annotated because the ratchet runs mypy with --follow-imports=skip,
+        # so host_sleep's own (strict-clean) signature is not visible here and
+        # the call reads as Any.
+        anchor: tuple[float | None, float] = sleep_anchor()
+        return anchor
     except (ImportError, AttributeError, OSError):
         return (None, time.monotonic())
 
@@ -527,9 +532,8 @@ class FlagshipDoctorDaemon:
             logger.debug("Suppressed %s in core.runtime.flagship_doctor: %s", type(_exc).__name__, _exc)
 
         try:
-            from core.container import ServiceContainer
 
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             status_getter = getattr(gate, "get_conversation_status", None)
             if callable(status_getter):
                 status = status_getter()
@@ -628,9 +632,8 @@ class FlagshipDoctorDaemon:
             return result
 
         try:
-            from core.container import ServiceContainer
 
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             # force_clear_foreground_owner already cancels the exact holder.
             # A second, unscoped abort could cancel a new or unrelated request.
             note_timeout = getattr(gate, "note_foreground_timeout", None)
@@ -712,7 +715,8 @@ class FlagshipDoctorDaemon:
         try:
             from core.runtime.host_sleep import seconds_asleep_since
 
-            return seconds_asleep_since(anchor[0], anchor[1])
+            asleep: float = seconds_asleep_since(anchor[0], anchor[1])
+            return asleep
         except (ImportError, AttributeError, TypeError, ValueError, OSError):
             # Unmeasurable is 0.0, which leaves this no worse than before.
             return 0.0

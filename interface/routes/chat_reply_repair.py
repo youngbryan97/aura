@@ -9,14 +9,13 @@ is what all of these were written after.
 """
 from __future__ import annotations
 
-import re
-from collections.abc import Sequence
 from typing import Any
 
 from fastapi.responses import JSONResponse
 
 from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_inference_gate
 from core.runtime.structured_input import (
     analyze_prompt_shape,
 )
@@ -101,8 +100,17 @@ from .chat_lane_bookkeeping import (  # noqa: E402
     _is_simple_subjective_reflex_request,
     _looks_safely_grounded_search_reply,
     _mark_conversation_lane_state,
-    _normalize_response_body,
-    _response_fingerprint,
+)
+from .chat_reply_assessment import (
+    _ends_where_it_meant_to,  # noqa: F401
+    _evaluate_reply_topicality,
+    _is_actionably_stale_response,
+    _is_same_answer_different_prompt,
+    _looks_semantically_glitched,
+    _measure_reply_quality_candidate,
+    _original_reply_is_safe_to_surface,
+    _strip_unexpected_cjk_artifacts,
+    _strip_user_visible_context_leaks,
 )
 from .chat_reply_shaping import (  # noqa: E402
     _append_sensory_claim_correction,
@@ -116,32 +124,6 @@ from .chat_reply_shaping import (  # noqa: E402
     _looks_generic_assistantish,
     _remove_self_denials_the_record_refutes,
 )
-from .chat_reply_assessment import (
-    _ends_where_it_meant_to,  # noqa: F401
-    _evaluate_reply_topicality,
-    _is_actionably_stale_response,
-    _is_same_answer_different_prompt,
-    _looks_semantically_glitched,
-    _measure_reply_quality_candidate,
-    _original_reply_is_safe_to_surface,
-    _strip_unexpected_cjk_artifacts,
-    _strip_user_visible_context_leaks,
-)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 #: What an extracted block returns when it fell through to the code after it.
 _FALL_THROUGH = object()
@@ -786,9 +768,8 @@ async def _stabilize_user_facing_reply(
 
     # ── Aura-voiced natural fallback ─────────────────────────────
     try:
-        from core.container import ServiceContainer
 
-        inference_gate = ServiceContainer.get("inference_gate", default=None)
+        inference_gate = resolve_inference_gate()
         # Match the guard in _attempt_generated_social_grounding_repair: a gate
         # that exists but exposes no think() raised AttributeError deep in the
         # rewrite call, which surfaced as an emergency-severity chat incident

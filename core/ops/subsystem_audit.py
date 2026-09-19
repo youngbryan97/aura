@@ -5,6 +5,7 @@ from typing import Any
 
 from core.runtime import resource_psutil as psutil
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_inference_gate
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 
 logger = logging.getLogger("Aura.SubsystemAudit")
@@ -177,9 +178,8 @@ def _collect_conversation_lane_status() -> dict[str, Any]:
     closed rather than calling the process healthy from background heartbeats.
     """
     try:
-        from core.container import ServiceContainer
 
-        gate = ServiceContainer.get("inference_gate", default=None)
+        gate = resolve_inference_gate()
         if gate is not None and hasattr(gate, "get_conversation_status"):
             lane = gate.get_conversation_status()
             if isinstance(lane, dict):

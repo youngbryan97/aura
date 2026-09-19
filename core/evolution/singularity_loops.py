@@ -28,6 +28,7 @@ from typing import Any
 
 from core.container import ServiceContainer
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.service_access import resolve_orchestrator
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.SingularityLoops")
@@ -252,7 +253,7 @@ class SingularityLoops:
         if not pending:
             return
 
-        orchestrator = ServiceContainer.get("orchestrator", default=None)
+        orchestrator = resolve_orchestrator()
 
         try:
             results = await asyncio.wait_for(
@@ -308,7 +309,7 @@ class SingularityLoops:
             return
 
         router = ServiceContainer.get("llm_router", default=None)
-        orchestrator = ServiceContainer.get("orchestrator", default=None)
+        orchestrator = resolve_orchestrator()
 
         # 1. Decompose strategic goals with no children
         try:
@@ -430,7 +431,7 @@ class SingularityLoops:
         if not profiler:
             return
 
-        orchestrator = ServiceContainer.get("orchestrator", default=None)
+        orchestrator = resolve_orchestrator()
         if not orchestrator:
             return
 

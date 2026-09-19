@@ -16,6 +16,7 @@ from core.fictional.common import (
     record_fictional_degradation,
 )
 from core.runtime.progress_bound import run_on_a_thread_while_it_works
+from core.runtime.service_access import resolve_orchestrator
 
 logger = logging.getLogger("Aura.FictionalSynthesis")
 
@@ -110,13 +111,13 @@ class TemporalDilationScheduler:
             # The injected orchestrator first, then the container. The old
             # path consulted only the container, so a scheduler constructed
             # WITH an orchestrator still could not find its brain.
-            host = self.orchestrator or ServiceContainer.get("orchestrator", default=None)
+            host = self.orchestrator or resolve_orchestrator()
             if host is not None and getattr(host, "brain", None):
                 brain = host.brain
         if brain is not None:
             self._brain = brain
 
-        orch = self.orchestrator or ServiceContainer.get("orchestrator", default=None)
+        orch = self.orchestrator or resolve_orchestrator()
         last_user = self._last_user_activity
         if orch:
             last_user = float(getattr(orch, "_last_user_interaction_time", last_user) or last_user)

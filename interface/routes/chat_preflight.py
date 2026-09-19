@@ -8,62 +8,50 @@ turn including the ones that will be rejected.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
-from collections.abc import Callable, Sequence
+import asyncio
+import dataclasses
+import hashlib
+import json
+import re
+import sqlite3
+import time
+import uuid
+from collections.abc import Callable
 from contextvars import ContextVar
-from core.runtime.flags import FlagKind, declare
-from fastapi.responses import JSONResponse
-from core.container import ServiceContainer
 from datetime import UTC, datetime
+from typing import Any
+
+from fastapi.responses import JSONResponse
+
+from core.container import ServiceContainer
+from core.conversation.session_scope import (
+    conversation_session_var as _CHAT_REQUEST_SESSION,  # noqa: N812
+)
+from core.runtime.desktop_objective_intent import (
+    looks_like_desktop_objective as _shared_looks_like_desktop_objective,
+)
+from core.runtime.errors import record_degradation
+from core.runtime.flags import FlagKind, declare
+from core.runtime.lockdep import checked_async_lock, checked_lock
+from core.runtime.service_access import resolve_orchestrator
+from core.utils.task_tracker import get_task_tracker
+from interface.auth import (
+    paired_device_session_id,
+)
+from interface.routes import chat_memory_state as _chat_memory_state
 from interface.routes.chat_common import (  # noqa: E402
     _CHAT_BLOCKING_PREFLIGHT_TIMEOUT_S,  # noqa: F401
     _CHAT_RECOVERABLE_ERRORS,  # noqa: F401
     _CHAT_REQUEST_PRINCIPAL,  # noqa: F401
     _CHAT_REQUEST_SURFACE,  # noqa: F401
+    _CHAT_SESSION_ID_MAX_CHARS,
+    _INTERNAL_SURFACE_CONTEXT,
     _MAX_CONVERSATION_LOG_EXCHANGES,  # noqa: F401
+    _UNSET,
     _conversation_log,  # noqa: F401
     _locks,  # noqa: F401
     logger,  # noqa: F401
 )
-from core.conversation.session_scope import (
-    conversation_session_var as _CHAT_REQUEST_SESSION,  # noqa: N812
-)
-from interface.routes import chat_memory_state as _chat_memory_state
-from core.runtime.desktop_objective_intent import (
-    looks_like_desktop_objective as _shared_looks_like_desktop_objective,
-)
-import asyncio
-import dataclasses
-from core.utils.task_tracker import get_task_tracker
-import hashlib
-import json
-from interface.auth import (
-    CHEAT_CODE_COOKIE_NAME,
-    CHEAT_CODE_COOKIE_TTL_SECS,
-    _activate_cheat_code_for_request,
-    _check_rate_limit,
-    _encode_owner_session_cookie,
-    _require_internal,
-    _restore_owner_session_from_request,
-    paired_device_session_id,
-    relational_principal_id_for_request,
-    request_access_profile,
-    validate_runtime_security_request,
-)
-import re
-from core.runtime.errors import describe_error, record_degradation
-import sqlite3
-import threading
-import time
-import uuid
-
-from interface.routes.chat_common import (
-    _CHAT_SESSION_ID_MAX_CHARS,
-    _INTERNAL_SURFACE_CONTEXT,
-    _UNSET,
-)
-from core.runtime.lockdep import checked_async_lock, checked_lock
-
 
 _EXPRESSIVE_AFFORDANCES_FLAG = declare(
     "AURA_EXPRESSIVE_AFFORDANCES",
@@ -232,9 +220,8 @@ async def _apply_camera_control(turn_on: bool) -> dict[str, Any]:
         # the hardware another, which is the worst possible split for a
         # camera: a control that reads "on" over a device that is off, or the
         # reverse.
-        from core.container import ServiceContainer
 
-        orchestrator = ServiceContainer.get("orchestrator", default=None)
+        orchestrator = resolve_orchestrator()
         publish = getattr(orchestrator, "_publish_telemetry", None)
         if publish is not None:
             publish({"type": "camera_privacy", "enabled": bool(turn_on)})
@@ -275,9 +262,8 @@ def _publish_media_card(resolution: Any) -> None:
     if item is None:
         return
     try:
-        from core.container import ServiceContainer
 
-        orchestrator = ServiceContainer.get("orchestrator", default=None)
+        orchestrator = resolve_orchestrator()
         publish = getattr(orchestrator, "_publish_telemetry", None)
         if publish is None:
             return
@@ -1631,7 +1617,7 @@ def _resolve_live_aura_state() -> Any | None:
     if state is not None:
         return state
 
-    orch = ServiceContainer.get("orchestrator", default=None)
+    orch = resolve_orchestrator()
     if orch is not None:
         state = _unwrap_state(getattr(orch, "state_repo", None))
         if state is None:

@@ -6,19 +6,19 @@ initiates. The difference between a tool and a partner.
 
 from __future__ import annotations
 
-import logging
 import asyncio
+import logging
 import time
 from collections import deque
 from typing import Any
-
-from core.runtime import resource_psutil as psutil
-from core.runtime.lockdep import LockRank, checked_lock
 
 from core.fictional.common import (
     disk_percent_value,
     record_fictional_degradation,
 )
+from core.runtime import resource_psutil as psutil
+from core.runtime.lockdep import LockRank, checked_lock
+from core.runtime.service_access import resolve_orchestrator
 
 logger = logging.getLogger("Aura.FictionalSynthesis")
 
@@ -355,7 +355,7 @@ class ProactiveAnticipationEngine:
                     "timestamp": time.time(),
                 })
 
-            orch = self.orchestrator or ServiceContainer.get("orchestrator", default=None)
+            orch = self.orchestrator or resolve_orchestrator()
             if orch is not None and hasattr(orch, "emit_spontaneous_message"):
                 await orch.emit_spontaneous_message(
                     f"[Proactive/JARVIS] {content}",

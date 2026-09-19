@@ -1,3 +1,4 @@
+
 """
 core/consciousness/closed_loop.py
 ===================================
@@ -10,7 +11,6 @@ theory (Laukkonen, Friston & Chandaria 2025), and the Free Energy Principle:
   [B] SelfPredictiveCore: substrate predicts itself → error → stimulus
   [C] PhiWitness:         measures resulting causal integration via transfer entropy
 """
-
 import asyncio
 import inspect
 import logging
@@ -26,8 +26,9 @@ from typing import Any
 import numpy as np
 
 from core.runtime.errors import FallbackClassification, record_degradation
-from core.utils.task_tracker import get_task_tracker
+from core.runtime.service_access import resolve_inference_gate
 from core.runtime.state_ownership import state_root
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.ClosedLoop")
 
@@ -1019,9 +1020,8 @@ class ClosedCausalLoop:
     def _foreground_request_active() -> bool:
         """Keep expensive consciousness maintenance off the critical reply path."""
         try:
-            from core.container import ServiceContainer
 
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             mlx = getattr(gate, "_mlx_client", None)
             if mlx is None or not hasattr(mlx, "get_lane_status"):
                 return False

@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.service_access import resolve_orchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -54,9 +55,8 @@ def _proactivity_suppressed_now(now: float | None = None) -> bool:
     thing the control exists to prevent, and it reaches the person.
     """
     try:
-        from core.container import ServiceContainer
 
-        orch = ServiceContainer.get("orchestrator", default=None)
+        orch = resolve_orchestrator()
         if not orch:
             _record_initiative_degradation(
                 RuntimeError("orchestrator unavailable"),
@@ -209,8 +209,7 @@ class ProactiveInitiativeEngine:
         last_aura_said = ""
         awaiting_user_response = False
         try:
-            from core.container import ServiceContainer
-            orch = ServiceContainer.get("orchestrator", default=None)
+            orch = resolve_orchestrator()
             if orch:
                 history = getattr(orch, "conversation_history", [])
                 if history:
@@ -327,9 +326,8 @@ class ProactiveInitiativeEngine:
             delivered = False
             try:
                 from core.consciousness.executive_authority import get_executive_authority
-                from core.container import ServiceContainer
 
-                orchestrator = ServiceContainer.get("orchestrator", default=None)
+                orchestrator = resolve_orchestrator()
                 authority = get_executive_authority(orchestrator)
                 decision = await authority.release_expression(
                     spoken_text,

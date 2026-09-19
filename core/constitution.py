@@ -19,6 +19,7 @@ from typing import Any
 from core.container import ServiceContainer
 from core.memory.retention_policy import working_history_retention_policy
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_orchestrator
 from core.security.structural_redaction import (
     redact_mapping,
     redact_structure,
@@ -1763,7 +1764,7 @@ class ConstitutionalCore:
         return constraints
 
     def _get_state_repository(self) -> Any:
-        orch = self.orchestrator or ServiceContainer.get("orchestrator", default=None)
+        orch = self.orchestrator or resolve_orchestrator()
         return getattr(orch, "state_repo", None) or ServiceContainer.get("state_repository", default=None)
 
     def _strict_enforcement_active(self) -> bool:

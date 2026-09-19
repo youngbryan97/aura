@@ -7,12 +7,12 @@ from typing import Any
 import numpy as np
 from playwright.async_api import async_playwright
 
-from core.container import ServiceContainer
 from core.media.safe_imports import cv2_main_process_blocked
 from core.runtime.boot_safety import main_process_camera_policy
 from core.runtime.errors import record_degradation
 from core.runtime.permission_gates import camera_allowed
 from core.runtime.resource_observation import get_resource_observer
+from core.runtime.service_access import resolve_inference_gate, resolve_orchestrator
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.SensoryMotor")
@@ -37,7 +37,7 @@ class SensoryMotorCortex:
     name = "sensory_motor_cortex"
 
     def __init__(self, orchestrator=None, config: dict[str, Any] = None):
-        self.orchestrator = orchestrator or ServiceContainer.get("orchestrator", default=None)
+        self.orchestrator = orchestrator or resolve_orchestrator()
         self.config = config or {}
         self.is_active = False
         self.last_interaction_time = time.time()
@@ -526,8 +526,7 @@ class SensoryMotorCortex:
         rather than raw content — entities, key claims, relationships.
         """
         try:
-            from core.container import ServiceContainer
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             if not gate:
                 return raw_text[:1200]
 

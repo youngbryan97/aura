@@ -18,6 +18,7 @@ from typing import Any
 
 from core.container import ServiceContainer
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.service_access import resolve_orchestrator
 
 logger = logging.getLogger("Aura.Memory.Defrag")
 
@@ -246,7 +247,7 @@ class SemanticDefragmenter:
                 background_activity_reason,
             )
 
-            orchestrator = ServiceContainer.get("orchestrator", default=None)
+            orchestrator = resolve_orchestrator()
             return background_activity_reason(
                 orchestrator,
                 profile=MAINTENANCE_BACKGROUND_POLICY,

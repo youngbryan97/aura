@@ -22,9 +22,9 @@ import asyncio
 import copy
 import hashlib
 import json
-import re
 import logging
 import math
+import re
 import threading
 import time
 from collections import Counter, defaultdict, deque
@@ -42,8 +42,9 @@ from core.adaptation.immune_state_writer import (
 )
 from core.adaptation.spatial_receptor_code import annotate_antigen_like
 from core.cognitive.anomaly_detector import FeatureExtractor
-from core.runtime.lockdep import LockRank, checked_lock
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.lockdep import LockRank, checked_lock
+from core.runtime.service_access import resolve_orchestrator
 
 logger = logging.getLogger("Aura.AdaptiveImmunity")
 
@@ -93,13 +94,12 @@ def _record_adaptive_immunity_degradation(
 def _maintenance_background_deferral_reason() -> str:
     """Return the runtime background-policy reason for deferring heavy immune work."""
     try:
-        from core.container import ServiceContainer
         from core.runtime.background_policy import (
             MAINTENANCE_BACKGROUND_POLICY,
             background_activity_reason,
         )
 
-        orchestrator = ServiceContainer.get("orchestrator", default=None)
+        orchestrator = resolve_orchestrator()
         return str(
             background_activity_reason(
                 orchestrator,

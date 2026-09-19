@@ -14,6 +14,7 @@ from typing import Any
 
 from core.epistemics.epistemic_tracker import EpistemicTracker, get_epistemic_tracker
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_orchestrator
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.AGI.CuriosityDaemon")
@@ -85,7 +86,7 @@ class AutonomousCuriosityDaemon:
                     resolved_engine = capability_engine or ServiceContainer.get(
                         "capability_engine", default=None
                     )
-                    orchestrator = ServiceContainer.get("orchestrator", default=None)
+                    orchestrator = resolve_orchestrator()
                     execution_context = {
                         "origin": "curiosity_daemon",
                         "source": "curiosity_daemon",

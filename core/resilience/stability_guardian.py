@@ -16,6 +16,7 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
+from core.runtime.service_access import resolve_inference_gate
 from core.runtime.state_ownership import state_root
 
 try:
@@ -186,9 +187,8 @@ class StabilityGuardian:
 
     def _inference_or_foreground_active(self) -> bool:
         try:
-            from core.container import ServiceContainer
 
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             if gate and hasattr(gate, "get_conversation_status"):
                 lane = dict(gate.get_conversation_status() or {})
                 if bool(lane.get("foreground_owned")) or int(lane.get("active_generations", 0) or 0) > 0:

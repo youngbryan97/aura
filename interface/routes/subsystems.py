@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse, Response
 
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
-from core.runtime.service_access import optional_service
+from core.runtime.service_access import optional_service, resolve_orchestrator
 from core.utils.concurrency import run_io_bound
 from interface.auth import _require_internal, _restore_owner_session_from_request, _verify_token
 from interface.routes.devices import _owner_authenticated
@@ -353,7 +353,7 @@ def _prepare_live_skill_expectation(
 
 def _get_live_orchestrator_state() -> Any | None:
     """Best-effort access to the active runtime state used by the live orchestrator."""
-    orch = ServiceContainer.get("orchestrator", default=None)
+    orch = resolve_orchestrator()
     if not orch:
         return None
 
@@ -967,7 +967,7 @@ async def api_brain_retry(
     _: None = Depends(_require_internal),
 ):
     """Signal the orchestrator to retry its cognitive engine connection."""
-    orch = ServiceContainer.get("orchestrator", default=None)
+    orch = resolve_orchestrator()
     if orch and hasattr(orch, "retry_brain_connection"):
         await orch.retry_brain_connection()
         return JSONResponse({"status": "retry_sent"})

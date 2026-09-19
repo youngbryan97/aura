@@ -101,6 +101,25 @@ def _pointer_stops() -> tuple[type[BaseException], ...]:
     return (stop,) if isinstance(stop, type) and issubclass(stop, BaseException) else ()
 
 
+def _pointer_faults() -> tuple[type[BaseException], ...]:
+    """Everything a pointer move may raise, including the person's stop.
+
+    Built as one tuple rather than unpacked into the except clause. The
+    unpacked form is correct and mypy cannot see through it — "Exception type
+    must be derived from BaseException" against a `tuple[type[BaseException],
+    ...]` that is exactly that.
+    """
+    return (
+        ImportError,
+        OSError,
+        RuntimeError,
+        AttributeError,
+        TypeError,
+        ValueError,
+        *_pointer_stops(),
+    )
+
+
 def _what_stopped_it(error: BaseException) -> str:
     """The receipt's reason, saying so plainly when the person said stop."""
     if _pointer_stops() and isinstance(error, _pointer_stops()):
@@ -545,7 +564,9 @@ def resolve_application_name(app_name: str) -> AppNameResolution:
 # only if there is a name here to reach.
 
 
-class HostAutomationProvider(_ReadsTheScreen):
+# The base is Any to mypy because the ratchet runs --follow-imports=skip,
+# so host_automation_screen is never read. The base is a real class there.
+class HostAutomationProvider(_ReadsTheScreen):  # type: ignore[misc]
     """Generalized OS automation through governed primitives.
 
     Every method:
@@ -1451,10 +1472,7 @@ class HostAutomationProvider(_ReadsTheScreen):
                     adapter="pyautogui", success=True,
                     duration_ms=(time.time() - start) * 1000,
                 )
-            except (
-                ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError,
-                *_pointer_stops(),
-            ) as e:
+            except _pointer_faults() as e:
                 receipt = AutomationReceipt(
                     action="click", target=f"{x},{y}",
                     adapter="pyautogui", success=False,
@@ -1505,10 +1523,7 @@ class HostAutomationProvider(_ReadsTheScreen):
                 adapter="pyautogui", success=True,
                 duration_ms=(time.time() - start) * 1000,
             )
-        except (
-            ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError,
-            *_pointer_stops(),
-        ) as e:
+        except _pointer_faults() as e:
             receipt = AutomationReceipt(
                 action="scroll", target=f"dx={dx},dy={dy}",
                 adapter="pyautogui", success=False,

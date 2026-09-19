@@ -19,6 +19,7 @@ from core.runtime.chat_delivery_progress import (
     report_chat_delivery_progress,
 )
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_inference_gate
 from interface.routes.chat_common import (  # noqa: E402
     _CHAT_BLOCKING_PREFLIGHT_TIMEOUT_S,  # noqa: F401
     _CHAT_RECOVERABLE_ERRORS,  # noqa: F401
@@ -1040,7 +1041,7 @@ class _WebInterlocutorCognitiveComposer:
             "suppress_working_memory_user_append": True,
         }
         try:
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             if gate is not None and hasattr(gate, "generate"):
                 messages = [
                     {

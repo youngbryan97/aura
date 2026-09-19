@@ -1,7 +1,7 @@
+
 """Autonomous Self-Modification Engine
 Orchestrates the complete self-improvement system.
 """
-
 import asyncio
 import hashlib
 import json
@@ -14,6 +14,7 @@ from typing import Any
 
 from core.runtime.atomic_writer import async_atomic_write_text
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.service_access import resolve_orchestrator
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.runtime.task_ownership import close_awaitable
 from core.utils.task_tracker import get_task_tracker
@@ -1293,7 +1294,6 @@ class AutonomousSelfModificationEngine:
 
     async def _monitoring_loop(self):
         """Background monitoring loop with circuit breaker (v5.2)"""
-        from core.container import ServiceContainer
         from core.runtime.background_policy import background_activity_reason
 
         # Event-driven: the monitor consumes real error observations instead of
@@ -1306,7 +1306,7 @@ class AutonomousSelfModificationEngine:
         while self.monitoring_enabled:
             try:
                 await self._repair_event.wait()
-                orch = ServiceContainer.get("orchestrator", default=None)
+                orch = resolve_orchestrator()
                 policy_reason = background_activity_reason(
                     orch,
                     min_idle_seconds=float(self.monitor_interval),

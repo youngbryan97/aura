@@ -1637,8 +1637,11 @@ class SubprocessGateway:
         argv: Sequence[str],
         *,
         stdin: Any = None,
-        stdout: IO[str] | None = None,
-        stderr: IO[str] | None = None,
+        # `int` because subprocess.PIPE and DEVNULL are ints, and both are
+        # passed here — `IO[str] | None` described a narrower signature than
+        # the one the module's own callers use.
+        stdout: IO[str] | int | None = None,
+        stderr: IO[str] | int | None = None,
         stdout_path: str | os.PathLike[str] | None = None,
         stderr_path: str | os.PathLike[str] | None = None,
         cwd: str | os.PathLike[str] | None = None,

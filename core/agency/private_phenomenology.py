@@ -12,6 +12,7 @@ from core.config import config
 from core.container import ServiceContainer
 from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.runtime.service_access import resolve_orchestrator
 
 # Make sure we use the standard logger for this project
 logger = logging.getLogger("Aura.Phenomenology")
@@ -90,7 +91,7 @@ class PrivatePhenomenology:
                 background_activity_reason,
             )
 
-            orchestrator = ServiceContainer.get("orchestrator", default=None)
+            orchestrator = resolve_orchestrator()
             reason = background_activity_reason(
                 orchestrator,
                 profile=IDLE_COGNITION_BACKGROUND_POLICY,

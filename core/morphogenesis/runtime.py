@@ -15,6 +15,7 @@ from core.runtime.errors import (
     record_degradation,
 )
 from core.runtime.lockdep import checked_async_lock
+from core.runtime.service_access import resolve_orchestrator
 from core.runtime.task_ownership import create_tracked_task
 
 from .field import MorphogenField
@@ -880,9 +881,8 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
     @staticmethod
     def _foreground_quiet_window_active() -> bool:
         try:
-            from core.container import ServiceContainer
 
-            orch = ServiceContainer.get("orchestrator", default=None)
+            orch = resolve_orchestrator()
             if not orch:
                 return False
             quiet_until = float(getattr(orch, "_foreground_user_quiet_until", 0.0) or 0.0)

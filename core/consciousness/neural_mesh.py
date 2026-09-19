@@ -28,6 +28,7 @@ import numpy as np
 from core.consciousness.mesh_wiring import CorticalTier, MeshWiring
 from core.runtime.desktop_boot_safety import inprocess_mlx_metal_enabled
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.service_access import resolve_inference_gate
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Consciousness.NeuralMesh")
@@ -1483,9 +1484,8 @@ class NeuralMesh(_CarriesModulation, MeshWiring):
     def _foreground_request_active() -> bool:
         """Yield plasticity work to the live conversation lane."""
         try:
-            from core.container import ServiceContainer
 
-            gate = ServiceContainer.get("inference_gate", default=None)
+            gate = resolve_inference_gate()
             mlx = getattr(gate, "_mlx_client", None)
             if mlx is None or not hasattr(mlx, "get_lane_status"):
                 return False

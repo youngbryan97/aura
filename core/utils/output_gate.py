@@ -1,3 +1,4 @@
+
 """Autonomous Output Gate — Communication Triage for Aura.
 
 Standardizes which messages reach the User (Primary) vs. Background (Secondary).
@@ -12,6 +13,7 @@ from typing import Any, cast
 
 from core.runtime.effect_boundary import effect_sink
 from core.runtime.errors import record_degradation
+from core.runtime.service_access import resolve_orchestrator
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.OutputGate")
@@ -528,7 +530,7 @@ class AutonomousOutputGate:
                 action="continued output delivery without conversation-turn metadata",
             )
         accepted_sinks: list[str] = []
-        orch = self.orchestrator or ServiceContainer.get("orchestrator", default=None)
+        orch = self.orchestrator or resolve_orchestrator()
         if orch and hasattr(orch, "reply_queue"):
             is_interim = metadata.get("interim", False)
             

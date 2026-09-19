@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
-import time
 import logging
 import re
+import time
 from typing import TypeVar, get_origin
 
 from pydantic import BaseModel, ValidationError
@@ -13,6 +13,7 @@ from pydantic import BaseModel, ValidationError
 from core.container import ServiceContainer
 from core.health.degraded_events import record_degraded_event
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.service_access import resolve_orchestrator
 
 T = TypeVar("T", bound=BaseModel)
 logger = logging.getLogger("Aura.StructuredLLM")
@@ -363,7 +364,7 @@ class StructuredLLM:
                 background_activity_reason,
             )
 
-            orch = ServiceContainer.get("orchestrator", default=None)
+            orch = resolve_orchestrator()
             return background_activity_reason(
                 orch,
                 profile=THOUGHT_BACKGROUND_POLICY,
