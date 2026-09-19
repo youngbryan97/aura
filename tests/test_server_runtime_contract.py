@@ -96,8 +96,17 @@ def test_desktop_cognitive_turn_carries_generic_execution_planning_contract():
     )
     from interface.routes import chat
 
-    chat_source = inspect.getsource(chat._run_cognitive_engine_chat_turn)
-    response_source = inspect.getsource(ResponseGenerationPhase.execute)
+    from core.phases import response_generation
+    from tests.source_contract import function_with_its_helpers
+
+    # Both methods hand their work to helpers the method-size sweep lifted
+    # out of them, so reading either alone finds a shell that calls names.
+    chat_source = function_with_its_helpers(
+        chat, "_run_cognitive_engine_chat_turn", depth=2
+    )
+    response_source = function_with_its_helpers(
+        response_generation, "ResponseGenerationPhase.execute", depth=2
+    )
 
     assert "desktop_execution_contract" in chat_source
     assert "desktop_task_planning_schema" in chat_source

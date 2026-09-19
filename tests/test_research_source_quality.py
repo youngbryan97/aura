@@ -361,11 +361,13 @@ def test_text_under_the_limit_is_untouched() -> None:
 
 def test_the_fallback_composer_does_not_assert_an_opinion_it_never_formed() -> None:
     """The composer runs BECAUSE authored synthesis was suppressed."""
-    import inspect
-
     from core.skills.desktop_task import DesktopTaskSkill
 
-    source = inspect.getsource(DesktopTaskSkill)
+    from tests.source_contract import class_with_its_bases
+
+    # The class and the mixins it inherits from. The composer moved into
+    # `_ResearchesBeforeItWrites`, which is where the skill still gets it.
+    source = class_with_its_bases(DesktopTaskSkill)
     marker = "On my own opinion, which you asked for: I have not formed one here."
     assert marker in source, "the fallback must say no view was formed"
     assert (
