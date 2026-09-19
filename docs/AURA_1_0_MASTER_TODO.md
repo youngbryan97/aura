@@ -928,6 +928,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   improves training 7/8 to 8/8 but leaves validation at 6/8 with one refusal;
   17 retained comparisons remain wrong or tied. No promotion. Unchanged
   campaign rounds now terminate explicitly instead of repeating mining.
+  [Curved retention](evidence/G03_CURVED_RETENTION_2026-09-18.md) reproduces
+  tangent-step and nearby-face stalls in the actual graph score. Bounded
+  nonlinear correction and competing feasible proposals pass 80 focused
+  tests without relaxing retained floors; the final working-face trial satisfies
+  all 2,504 retained inequalities in 14 updates. Training is 8/8, validation
+  6/8, with no refusals; operation search coverage remains incomplete.
+  [Mathematical design](G_REASONING_MATHEMATICAL_DESIGN.md) separates score
+  feasibility, complete decoding, compositional transfer, and paired selection
+  gain. The existing graph-scale trainer now reports convex representability;
+  neither that measurement nor optimizer convergence closes G03.
   [Background competition](evidence/G03_OPERATION_BACKGROUND_2026-09-18.md)
   tests a learned non-operation class on source spans. The small replay
   regresses from 48/60 to 45/60; no candidate promotion or full-run claim.

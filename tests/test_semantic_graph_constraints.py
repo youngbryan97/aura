@@ -64,6 +64,29 @@ def test_projection_handles_multiple_binding_constraints():
     np.testing.assert_allclose(result, [0., 0., 5.], atol=1e-10)
 
 
+@pytest.mark.parametrize("batched", [False, True])
+def test_curved_binding_face_does_not_trap_a_feasible_tangent_update(batched):
+    from core.learning.semantic_graph_constraints import _fit_graph_parameters
+    from core.learning.semantic_relation_graph_learning import RelationEvidenceBank
+
+    axes = np.eye(2)
+    banks = [[RelationEvidenceBank(axes[i], np.array([axes[j], np.zeros(2)]), np.zeros(2))
+              for j in range(2)] for i in range(2)]
+    # q.d >= 1 is curved. At q=d=(1,0), improving q1*d2-q2*d1
+    # moves tangentially, so every straight trial violates the first floor.
+    retained = RelationGraphContrast(tuple((banks[i][i], 0) for i in range(2)),
+                                    tuple((banks[i][i], 1) for i in range(2)), -.9)
+    wrong = RelationGraphContrast(((banks[0][1], 0), (banks[1][0], 1)),
+                                 ((banks[0][1], 1), (banks[1][0], 0)), -.5)
+    parameters = (np.array([[1.], [0.]]), np.array([[1.], [0.]]))
+    _, receipt = _fit_graph_parameters(parameters, (retained, wrong), steps=8,
+                                      adaptive_step=True, batched=batched)
+    assert receipt["stored_wrong_or_tied"] == 0
+    assert receipt["stored_margins"][0] >= receipt["initial_margins"][0]
+    assert any(row["restoration_steps"] for row in receipt["accepted_steps"])
+    assert not receipt["infeasibility_proven"]
+
+
 @pytest.mark.parametrize("magnitude", [1e-12, 1e-6, 1., 1e6])
 def test_projection_is_homogeneous_even_for_small_training_gradients(magnitude):
     result = _project_direction(magnitude * np.array([-2., -3., 5.]),
@@ -102,6 +125,42 @@ def test_slack_witness_may_decrease_without_crossing_its_retained_floor(batched)
     assert receipt["stored_wrong_or_tied"] == 0
     assert .1 <= receipt["stored_margins"][0] < receipt["initial_margins"][0]
     assert receipt["retained_positive_regressions"] == 0
+
+
+@pytest.mark.parametrize("batched", [False, True])
+def test_nearby_face_does_not_force_repeated_tiny_updates(batched):
+    from core.learning.semantic_argument_graph_learning import ArgumentScoreTerm
+    from core.learning.semantic_graph_constraints import _fit_graph_parameters
+
+    def linear(features, fixed=0.):
+        terms = tuple((sign, ArgumentScoreTerm(2, np.array(value), 1., "conditional_log_odds_v1"))
+                      for sign, value in ((1., features), (-1., [0., 0.])))
+        return RelationGraphContrast((), (), fixed, argument_terms=terms)
+
+    parameters = (np.zeros((1, 1)), np.zeros((1, 1)), np.array([.100001, 0.]), np.array(0.))
+    _, receipt = _fit_graph_parameters(parameters,
+        (linear([1., 0.]), linear([-1., 1.], -.5)), steps=2,
+        adaptive_step=True, batched=batched)
+    assert receipt["stored_wrong_or_tied"] == 0
+    assert receipt["stored_margins"][0] >= .1
+
+
+def test_new_blocking_faces_are_followed_after_a_feasible_proposal():
+    from core.learning.semantic_argument_graph_learning import ArgumentScoreTerm
+    from core.learning.semantic_graph_constraints import _fit_graph_parameters
+
+    def linear(features, fixed=0.):
+        terms = tuple((sign, ArgumentScoreTerm(2, np.array(value), 1., "conditional_log_odds_v1"))
+                      for sign, value in ((1., features), (-1., [0., 0., 0.])))
+        return RelationGraphContrast((), (), fixed, argument_terms=terms)
+
+    parameters = (np.zeros((1, 1)), np.zeros((1, 1)),
+                  np.array([.100001, .200002, 0.]), np.array(0.))
+    _, receipt = _fit_graph_parameters(parameters,
+        (linear([1., 0., 0.]), linear([-1., 1., 0.]), linear([-1., -.5, 1.], -.5)),
+        steps=2, adaptive_step=True)
+    assert receipt["stored_wrong_or_tied"] == 0
+    assert min(receipt["stored_margins"][:2]) >= .1
 
 
 @pytest.mark.parametrize("batched", [False, True])

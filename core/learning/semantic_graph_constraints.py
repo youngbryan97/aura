@@ -81,6 +81,26 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                  else np.maximum(required_margin - values, 0.) ** 2)
         return float(weights @ terms)
 
+    def restore_trial(trial, values):
+        # Tangent motion can leave a curved feasible boundary at second order.
+        # Correct the most violated face locally, then recheck every nonlinear
+        # margin at exported precision. This search never relaxes a floor.
+        for attempt in range(8):
+            violated = np.flatnonzero(values < floors)
+            if not len(violated):
+                return trial, values, attempt
+            index = max(violated, key=lambda i: floors[i] - values[i])
+            _, gradient = graph_margin_gradient(unpack(trial), contrasts[index], scale=scale)
+            normal = np.concatenate([value.ravel() for value in gradient])
+            squared_norm = float(normal @ normal)
+            if squared_norm == 0 or not np.isfinite(squared_norm):
+                break
+            interior = 8 * np.finfo(np.float32).eps * max(1., abs(floors[index]))
+            correction = (floors[index] - values[index] + interior) / squared_norm
+            trial = (trial + correction * normal).astype(np.float32).astype(np.float64)
+            values = evaluate(trial)
+        return trial, values, 8
+
     trace, status = [], "search_budget_exhausted"
     checkpoint, start_step = None, 0
     if checkpoint_path is not None:
@@ -149,7 +169,7 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                 normals[index] = vector
         descent = direction
         loss = loss_at(margins)
-        accepted, cut_rounds = False, 0
+        accepted, cut_rounds, best_trial = False, 0, None
         while True:
             direction = _project_direction(descent, list(normals.values()))
             largest = np.max(np.abs(direction))
@@ -182,23 +202,28 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                 trial_loss = loss_at(trial_margins)
                 violated = np.flatnonzero(trial_margins < floors)
                 blockers.update(int(index) for index in violated if index not in normals)
+                restoration_steps = 0
+                if len(violated) and all(index in normals for index in violated):
+                    trial, trial_margins, restoration_steps = restore_trial(trial, trial_margins)
+                    trial_loss = loss_at(trial_margins)
+                    violated = np.flatnonzero(trial_margins < floors)
+                    blockers.update(int(index) for index in violated if index not in normals)
                 if not len(violated) and trial_loss < loss:
-                    flat, margins = trial, trial_margins
-                    floors = np.maximum(floors, np.where(margins > 0.,
-                        np.minimum(margins, required_margin), -np.inf))
                     accepted = True
-                    trace.append({"step": step + 1, "loss": trial_loss,
-                                  "wrong_or_tied": int(np.count_nonzero(margins <= 0)),
-                                  "minimum_margin": float(margins.min()), "backtracks": backtrack,
+                    entry = {"step": step + 1, "loss": trial_loss,
+                                  "wrong_or_tied": int(np.count_nonzero(trial_margins <= 0)),
+                                  "minimum_margin": float(trial_margins.min()), "backtracks": backtrack,
                                   "step_size": step_size * 2. ** -backtrack,
                                   "constraint_cut_rounds": cut_rounds,
-                                  "projected_constraints": len(normals)})
-                    persist("running")
-                    if progress:
-                        progress({"stage": "constraint_fit_step", "completed": step + 1,
-                                  "total": steps, **trace[-1]})
+                                  "restoration_steps": restoration_steps,
+                                  "projected_constraints": len(normals)}
+                    if best_trial is None or trial_loss < best_trial[2]["loss"]:
+                        best_trial = trial, trial_margins, entry
                     break
-            if accepted:
+            # Keep the feasible proposal while testing blocking-face
+            # alternative. A tiny accepted step must not hide a much better
+            # tangent step; adding a slack face must not discard useful motion.
+            if accepted and not blockers:
                 break
             if not blockers:
                 status = "no_retention_preserving_step_found"
@@ -215,6 +240,15 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                           "projected_constraints": len(normals)})
         if not accepted:
             break
+        flat, margins, entry = best_trial
+        status = "search_budget_exhausted"
+        floors = np.maximum(floors, np.where(margins > 0.,
+            np.minimum(margins, required_margin), -np.inf))
+        trace.append(entry)
+        persist("running")
+        if progress:
+            progress({"stage": "constraint_fit_step", "completed": step + 1,
+                      "total": steps, **entry})
     if objective == "squared_deficit" and np.all(margins >= required_margin):
         status = "retained_constraints_satisfied"
     elif status == "running":
@@ -233,9 +267,9 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         "accepted_steps": trace, "projection_batch_size": max_active,
         "accepted_constraint_cut_rounds": sum(row["constraint_cut_rounds"] for row in trace),
         "peak_accepted_projected_constraints": max((row["projected_constraints"] for row in trace), default=0),
-        "step_policy": (("binding_face_logistic_backtracking_v3" if objective == "pairwise_logistic"
-                         else "binding_face_deficit_backtracking_v3")
-                        if adaptive_step else "binding_face_fixed_step_v3"),
+        "step_policy": (("working_face_logistic_v6" if objective == "pairwise_logistic"
+                         else "working_face_deficit_v6")
+                        if adaptive_step else "working_face_fixed_v6"),
         "all_constraints_checked_at_acceptance": True,
         "infeasibility_proven": False, "latent_choices_frozen_for_update": True,
         "serving_authority": False,
