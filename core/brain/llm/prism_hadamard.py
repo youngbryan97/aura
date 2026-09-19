@@ -82,14 +82,20 @@ class Packed(nn.Module):
         block: int = 0,
         signs: mx.array | None = None,
         embedding: bool = False,
-        dtype: Any = mx.float16,
+        # Resolved in the body, not in the signature. A default evaluated
+        # where the class is DEFINED runs at import, so any mlx that does
+        # not carry `float16` — a stand-in in a test, an older build —
+        # raises AttributeError before the module finishes loading, and the
+        # worker reports it as an initialisation failure rather than as the
+        # missing attribute it is.
+        dtype: Any = None,
     ) -> None:
         super().__init__()
         self.weight, self.scales, self.biases = [mx.array(a) for a in arrays]
         self.block = block
         self.signs = signs
         self.embedding = embedding
-        self.dtype = dtype
+        self.dtype = getattr(mx, "float16", None) if dtype is None else dtype
 
     def __call__(self, x: mx.array) -> mx.array:
         if self.embedding:
