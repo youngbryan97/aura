@@ -87,3 +87,37 @@ grouping, contractions, runs of whitespace, accented text. 0 differences of
 7, and round-trip exact on code, unicode and the chat special tokens. The
 flag is not passed, and the reason is written at the load site because the
 warning fires on every boot and reads like a defect.
+
+## What happened once the floor came down
+
+    [PROMPT CACHE] miss — prefilling all 774 tokens;
+      key=('Ternary-Bonsai-2-27B-mlx-2bit', 'default')
+    [PROMPT CACHE] retained 824 tokens scope=default
+      key=('Ternary-Bonsai-2-27B-mlx-2bit', 'default')
+    [MLX] Soft-cancel requested for job seq=9 (generation_caller_cancelled)
+    Brainstem returned no text. Trying local fallback.
+
+It loaded, it read the prompt, it decoded, and the caller stopped waiting
+after about twenty-nine seconds. So the lane works and does not yet finish
+inside the budget it is given, which is the next thing rather than the same
+thing.
+
+That budget is now priced on the lane's own readings. `thinking_reserve`
+keeps decode rates per model and the two sides of the process boundary were
+not changed with it: the client carried the worker's measured rate across
+under no model at all, and the gate's background budget cut asked for an
+estimate with no model, so every lane wrote to one window and the background
+lane's budget was cut on the blend. Both name the model now, and the store
+shows the split taking:
+
+| checkpoint | readings | median |
+| --- | --- | --- |
+| Aura-Qwen3.8-27B (cortex) | 128 | 3.0 tok/s |
+| Qwen3.5-9B (the old brainstem) | 128 | 9.6 tok/s |
+| Ternary-Bonsai-2-27B (this lane) | 13 | 2.3 tok/s |
+| unnamed, written before the split | 128 | 6.4 tok/s |
+
+Bonsai measures 8.7 tok/s alone and 2.3 beside a resident Cortex. The
+unnamed window says 6.4. A budget cut on 6.4 hands this lane nearly three
+times the tokens it can deliver, and the cut exists to stop a generation
+being promised more than the clock can pay for.
