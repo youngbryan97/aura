@@ -85,27 +85,35 @@ def test_every_site_that_can_select_the_deep_lane_asks_first() -> None:
     to Solver", spent a load admission that could not be granted, and came
     back empty — twice — ending in an apology.
     """
-    from pathlib import Path
-
-    gate = Path("core/brain/inference_gate.py").read_text(encoding="utf-8")
-    assert "if deep_handoff and not local_deep_solver_enabled():" in gate
-
-    decision = gate[gate.index('if requested_tier == "secondary":') :]
-    decision = decision[: decision.index("strict_primary_proof_lane = False")]
-    assert "local_deep_solver_enabled()" in decision
-    assert decision.index("local_deep_solver_enabled()") < decision.index(
-        "if deep_handoff and not explicit_background:"
-    )
+    body, later = _the_decision_and_what_follows()
+    check = "if deep_handoff and not local_deep_solver_enabled():"
+    assert check in body
+    # The check is made before the decision about backgrounding a handoff,
+    # which a size sweep moved into a helper called after it.
+    assert body.index(check) < body.index(f"{later}(")
 
 
 def test_a_refused_deep_handoff_falls_back_to_the_resident_lane() -> None:
-    from pathlib import Path
-
-    gate = Path("core/brain/inference_gate.py").read_text(encoding="utf-8")
-    block = gate[gate.index("if deep_handoff and not local_deep_solver_enabled():") :]
-    block = block[: block.index("if deep_handoff and not explicit_background:")]
+    body, later = _the_decision_and_what_follows()
+    block = body[body.index("if deep_handoff and not local_deep_solver_enabled():") :]
+    block = block[: block.index(f"{later}(")]
     assert "deep_handoff = False" in block
     assert 'requested_tier = "primary"' in block
+
+
+def _the_decision_and_what_follows() -> tuple[str, str]:
+    """The function that checks for the deep lane, and the helper it calls next.
+
+    Found by what they contain, not by where they sit in the file: the method
+    they were both in was split, and the branch that follows the check now
+    lives in a helper called from it.
+    """
+    from core.brain import inference_gate
+    from source_contract import function_containing
+
+    _name, body = function_containing(inference_gate, "if deep_handoff and not local_deep_solver_enabled():")
+    later, _body = function_containing(inference_gate, "if deep_handoff and not explicit_background:")
+    return body, later
 
 
 def test_no_configuration_means_no_specialist_even_on_a_large_host(monkeypatch) -> None:

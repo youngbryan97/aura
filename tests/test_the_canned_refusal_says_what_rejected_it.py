@@ -30,9 +30,20 @@ from core.brain import inference_gate
 
 
 def _exhaustion_site() -> str:
-    source = inspect.getsource(inference_gate)
-    start = source.index("worker_semantic_quality_retries_exhausted")
-    return source[max(0, start - 2200) : start + 500]
+    """The refusal and the check it asks for its reasons, wherever each now lives.
+
+    A size sweep moved the reasons into their own helper, called from the
+    refusal. Read as a window of characters around the refusal, the helper was
+    nine thousand lines away and every assertion about its log failed.
+    """
+    from source_contract import function_containing
+
+    _name, refusing = function_containing(inference_gate, "worker_semantic_quality_retries_exhausted")
+    called = re.search(r"self\.(_[a-z_]+)\(local_label, primary_surface_receipt\)", refusing)
+    asked = ""
+    if called:
+        _name, asked = function_containing(inference_gate, f"def {called.group(1)}(")
+    return f"{refusing}\n{asked}"
 
 
 def test_the_refusal_log_names_the_rejecting_check():

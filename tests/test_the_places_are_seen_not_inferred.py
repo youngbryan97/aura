@@ -365,7 +365,7 @@ def test_a_look_that_resembles_something_read_is_never_what_empty_looks_like(mon
     """
     from core.perception import what_the_pixels_show as pixels
 
-    plain_two, dimmed_four, empty = (218, 228, 238), (212, 224, 238), (180, 193, 205)
+    plain_two, dimmed_four = (218, 228, 238), (212, 224, 238)
     looker = Looker()
     # Both learned, and both within the distance of the plain 2's look.
     first = _a_board({(0, 0): plain_two})
@@ -471,3 +471,41 @@ def test_a_board_with_something_lying_over_it_is_not_a_state():
     observation["grids"][0]["covered"] = True
     seen = what_is_there(observation, None)
     assert len(seen.unknown) == 16
+
+
+def test_one_empty_place_left_is_known_to_be_empty(monkeypatch):
+    """LIVE 2026-09-19: with one gap on the board it was "could not be read" on every look."""
+    from core.perception import what_the_pixels_show as pixels
+
+    colours = [(218, 228, 238), (200, 224, 237), (121, 177, 242), (99, 150, 245)]
+    full = {(row, column): colours[(row + column) % 4] for row in range(4) for column in range(4)}
+    del full[(2, 0)]
+    board = _a_board(full)
+    # A digit in each numbered place, so they are not flat either.
+    for (row, column) in full:
+        x, y = 47 + column * 110 + 40, 117 + row * 110 + 40
+        board[y : y + 16, x : x + 4] = (80, 90, 100)
+    monkeypatch.setattr(pixels, "recognize_text", lambda image: [])
+    # Recognition reads every numbered place and finds nothing in the gap.
+    monkeypatch.setattr(
+        Looker, "_read_as_a_strip",
+        lambda self, image, grid_, spots: {spot: "8" for spot in spots if spot != (2, 0)},
+    )
+    looker = Looker()
+    reading = looker.read(board)
+    unsure = reading["grids"][0]["unsure"]
+    assert [2, 0] not in unsure
+    assert reading["grids"][0]["says"][2 * 4 + 0] == ""
+    # And what empty looks like is learned from it, for the next reading.
+    assert looker.blank.get((4, 4)) is not None
+
+
+def test_a_flat_colour_in_a_grid_with_no_words_is_not_assumed_empty(monkeypatch):
+    """Where no place carries words, a flat colour may be all the content there is."""
+    from core.perception import what_the_pixels_show as pixels
+
+    board = _a_board({(0, 0): (121, 177, 242), (1, 1): (99, 150, 245)})
+    monkeypatch.setattr(pixels, "recognize_text", lambda image: [])
+    monkeypatch.setattr(Looker, "_read_as_a_strip", lambda self, image, grid_, spots: {})
+    reading = Looker().read(board)
+    assert [0, 0] in reading["grids"][0]["unsure"]

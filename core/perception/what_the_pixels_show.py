@@ -77,6 +77,12 @@ _SAME_LOOK = 9.0
 #: both still read as an empty place.
 _PLACE_STILL = 1.0
 
+#: How far a place's samples may sit from its own middle colour and still be a
+#: place with nothing drawn in it. Measured on the 2048 app, 2026-09-19: an
+#: empty place 0.3, the flattest numbered one 7.6 — a number is strokes, and
+#: nothing is flat.
+_NOTHING_DRAWN = 1.0
+
 #: The side of the small picture an appearance is kept as.
 _LOOK_SIDE = 24
 
@@ -681,6 +687,20 @@ class Looker:
                             self.learned(looks.get(spot), text)
             else:
                 says.update(remembered)
+            # A place read beside the others that still says nothing, and has
+            # nothing drawn in it, in a grid whose other places carry words:
+            # an empty place, known without a second empty one to match it.
+            # A board with one gap left had nothing to learn the empty look
+            # from, so the gap was "could not be read" on every look (live,
+            # 2026-09-19). Where no place carries words, a flat colour may be
+            # all the content there is, and nothing is assumed.
+            if says:
+                for spot in [spot for spot in unread if spot not in says]:
+                    look = looks.get(spot)
+                    if self._nothing_drawn_in(look) and not self._resembles_something_read(look):
+                        unread.remove(spot)
+                        if self.blank.get((grid.rows, grid.columns)) is None and learning:
+                            self.blank[(grid.rows, grid.columns)] = look
             unsure = [spot for spot in unread if spot not in says]
             places = []
             for row in range(grid.rows):
@@ -727,6 +747,23 @@ class Looker:
             "grids": read_grids,
             "panels": len(panels),
         }
+
+    @staticmethod
+    def _nothing_drawn_in(look: Any) -> bool:
+        """Whether a place is one flat colour, which is what a place holding nothing is.
+
+        Known without a second empty place to compare it with. The empty look
+        was learned from two or more alike, so a board with one gap left had
+        no way to call it empty: it was "could not be read" on every look,
+        each look waited out its full time for it, and every move beside it
+        taught nothing (live, 2026-09-19).
+        """
+        import numpy as np  # noqa: PLC0415
+
+        if look is None:
+            return False
+        middle = look.reshape(-1, look.shape[-1]).mean(axis=0)
+        return float(np.sqrt(((look - middle) ** 2).sum(axis=-1)).mean()) < _NOTHING_DRAWN
 
     def _resembles_something_read(self, look: Any) -> bool:
         """Whether this look is near one she has read text from."""
