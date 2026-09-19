@@ -1387,7 +1387,9 @@ def _consume_deliberate_no_text_reason(client: Any) -> str:
     return ""
 
 
-def _local_client_failure_reason(client: Any) -> str:
+def _local_client_failure_reason(
+    client: Any, *, cold_is_standby: bool = False
+) -> str:
     def _get_declared_attr(candidate: Any, attr: str) -> Any:
         try:
             inspect.getattr_static(candidate, attr)
@@ -1403,7 +1405,7 @@ def _local_client_failure_reason(client: Any) -> str:
             return None
         return value
 
-    def _extract_lane_failure(candidate: Any) -> str:
+    def _extract_lane_failure(candidate: Any, *, cold_is_standby: bool = False) -> str:
         lane = None
         get_lane_status = _get_declared_attr(candidate, "get_lane_status")
         get_conversation_status = _get_declared_attr(candidate, "get_conversation_status")
@@ -1436,13 +1438,21 @@ def _local_client_failure_reason(client: Any) -> str:
         # load (a busy Aura permanently lost its 32B). The previous
         # error-prefix allowlist missed 'foreground_warmup_timeout' /
         # 'warmup_deferred', so the recycled cortex was never skipped.
-        if not conversation_ready and state in {
-            "recovering",
-            "spawning",
-            "handshaking",
-            "warming",
-            "cold",
-        }:
+        #
+        # `cold` is in that set only for a lane the runtime keeps resident.
+        # For one that loads on demand it is not a transitional state at
+        # all — it is where the lane rests, and sending it work is how it
+        # stops being cold. LIVE 2026-09-19: "Endpoint Brainstem failed
+        # validation: lane_not_ready:cold" followed by "Circuit OPEN for
+        # Brainstem", over and over, so the circuit that opened because the
+        # lane was cold was then what stopped the load that would have
+        # warmed it. The gate's own tier-health sweep already answers this
+        # question the other way, listing spawning/handshaking/warming/
+        # recovering WITHOUT cold and calling a cold brainstem standby.
+        transitional = {"recovering", "spawning", "handshaking", "warming"}
+        if not cold_is_standby:
+            transitional.add("cold")
+        if not conversation_ready and state in transitional:
             return error or f"lane_not_ready:{state}"
         return ""
 
@@ -1451,7 +1461,9 @@ def _local_client_failure_reason(client: Any) -> str:
         candidate = client
         while candidate is not None and id(candidate) not in seen:
             seen.add(id(candidate))
-            failure = _extract_lane_failure(candidate)
+            failure = _extract_lane_failure(
+                candidate, cold_is_standby=cold_is_standby
+            )
             if failure:
                 return failure
 
@@ -4385,7 +4397,19 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
                         availability_reason = availability_reason or "client_unavailable"
                         ep.record_failure(availability_reason)
                         return {"ok": False, "error": availability_reason}
-                    client_failure = _local_client_failure_reason(client) if ep.is_local else ""
+                    # The resident foreground lane is the one that must not be
+                    # handed work while it is coming up. Every other local lane
+                    # loads on demand, and refusing it for being cold is
+                    # refusing it for being at rest.
+                    client_failure = (
+                        _local_client_failure_reason(
+                            client,
+                            cold_is_standby=str(getattr(ep, "name", ""))
+                            != PRIMARY_ENDPOINT,
+                        )
+                        if ep.is_local
+                        else ""
+                    )
                     if client_failure:
                         if ep.is_local and _is_transient_local_runtime_failure(client_failure):
                             ep.trip_temporarily(client_failure)
@@ -4642,7 +4666,19 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
                             }
                         # [BOOT RESILIENCE] Preserve hard local-lane failures so the
                         # UI and router stop reporting an endless warmup loop.
-                        client_failure = _local_client_failure_reason(client) if ep.is_local else ""
+                        # The resident foreground lane is the one that must not
+                        # be handed work while it is coming up. Every other local
+                        # lane loads on demand, and refusing it for being cold is
+                        # refusing it for being at rest.
+                        client_failure = (
+                            _local_client_failure_reason(
+                                client,
+                                cold_is_standby=str(getattr(ep, "name", ""))
+                                != PRIMARY_ENDPOINT,
+                            )
+                            if ep.is_local
+                            else ""
+                        )
                         if client_failure:
                             if ep.is_local and _is_transient_local_runtime_failure(client_failure):
                                 ep.trip_temporarily(client_failure)
