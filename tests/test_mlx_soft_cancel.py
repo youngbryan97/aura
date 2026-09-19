@@ -252,16 +252,25 @@ def test_soft_cancelled_ok_response_bypasses_empty_telemetry_and_retries():
 def test_cooperative_quality_rejection_is_preserved_before_partial_return():
     import inspect
 
-    source = inspect.getsource(mlx_client_mod.MLXLocalClient._generate_inner)
-    idx_rejection = source.find(
-        "if quality_rejection_reasons and (not text or cooperative_stop):"
-    )
-    idx_cancel = source.find("if cooperative_stop:")
+    from tests.source_contract import function_with_its_helpers, in_order
 
-    assert 0 < idx_rejection < idx_cancel
-    rejection_block = source[idx_rejection:idx_cancel]
-    assert "_record_suppressed_draft(" in rejection_block
-    assert "_preserve_lane_after_surface_quality_rejection()" in rejection_block
+    # The rejection branch hands its work to a helper the method-size sweep
+    # lifted out, so the slice between the two markers stopped holding the
+    # draft record while the record was still made.
+    source = function_with_its_helpers(
+        mlx_client_mod, "MLXLocalClient._generate_inner", depth=2
+    )
+    in_order(
+        source,
+        "if quality_rejection_reasons and (not text or cooperative_stop):",
+        "_record_suppressed_draft(",
+    )
+    assert "if cooperative_stop:" in source
+    in_order(
+        source,
+        "if quality_rejection_reasons and (not text or cooperative_stop):",
+        "_preserve_lane_after_surface_quality_rejection()",
+    )
 
 
 def test_suppressed_cooperative_partial_respects_unspeakable_boundary():
@@ -458,10 +467,22 @@ def test_recoverable_abandon_without_ack_reboots_softly():
     assert client._reboots == [("token_progress_stalled", False)]
 
 
-def test_nonrecoverable_abandon_reboots_immediately_marked_failed():
+def test_nonrecoverable_abandon_reboots_immediately_without_marking_the_lane_failed():
+    """It reboots at once, and it does not mark the lane failed.
+
+    This asserted `mark_failed=True`. LIVE 2026-09-15 23:55Z: the reflex
+    worker missed one soft-cancel acknowledgement on a host at load 30, was
+    rebooted as failed, and every route to it for the next four hours was
+    refused with that reason — 359 "Circuit OPEN for Reflex" lines and no
+    reflex lane. The mark says the lane could not be SPAWNED, only a runtime
+    probe clears it, and that probe never fires for a cancel.
+
+    So a cancel reboots the worker and leaves the lane spawnable, which is
+    the distinction the mark exists to carry.
+    """
     client = _resolver_client(cancel_value=99)
     _run(client._resolve_deferred_reboot("token_progress_stalled"))
-    assert client._reboots == [("token_progress_stalled", True)]
+    assert client._reboots == [("token_progress_stalled", False)]
 
 
 def test_recoverable_but_nonpreservable_reason_still_reboots():
