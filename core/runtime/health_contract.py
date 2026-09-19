@@ -2218,15 +2218,25 @@ def _integrity_of_orchestration_verifier_and_learning(block: dict[str, Any]) -> 
         # Registry lookup, never an import; see core/memory/retrieval_outcomes.py.
         ledger = get_runtime_service("retrieval_outcome_ledger", default=None)
         if ledger is None:
-            raise LookupError("retrieval outcome ledger is not registered")
-        outcomes = ledger.status()
-        block["judgement"] = {
-            "retrieval": {
-                "tracked": outcomes["tracked"],
-                "graded": outcomes["graded"],
-                "harmful_memories": outcomes["harmful_memories"][:5],
-            },
-        }
+            # An absence, not a fault — the same answer the ambient governor
+            # below already gives for the same shape of question, in this
+            # same block. This raised instead, so a process that simply had
+            # no ledger (every test process, a tool, a partial boot) put
+            # judgement_error on the integrity surface and took the whole
+            # judgement block with it, including the governor's reading,
+            # which was there and fine. Not measured here is not the same as
+            # measured and bad, and only one of them is worth waking anyone.
+            block["judgement"] = {"retrieval": {"registered": False}}
+        else:
+            outcomes = ledger.status()
+            block["judgement"] = {
+                "retrieval": {
+                    "registered": True,
+                    "tracked": outcomes["tracked"],
+                    "graded": outcomes["graded"],
+                    "harmful_memories": outcomes["harmful_memories"][:5],
+                },
+            }
         # Resolved through the low-level runtime registry, not imported and
         # not fetched from ServiceContainer. Two separate rules point here:
         # core/runtime may not depend on core.agency (the layering gate

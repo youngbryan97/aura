@@ -64,6 +64,52 @@ def test_projection_handles_multiple_binding_constraints():
     np.testing.assert_allclose(result, [0., 0., 5.], atol=1e-10)
 
 
+@pytest.mark.parametrize("magnitude", [1e-12, 1e-6, 1., 1e6])
+def test_projection_is_homogeneous_even_for_small_training_gradients(magnitude):
+    result = _project_direction(magnitude * np.array([-2., -3., 5.]),
+                                [np.array([1., 0., 0.]), np.array([0., 1., 0.])])
+    np.testing.assert_allclose(result / magnitude, [0., 0., 5.], atol=1e-10)
+
+
+def test_projection_handles_dependent_oblique_constraints():
+    rng = np.random.default_rng(917)
+    normals = rng.normal(size=(12, 24))
+    # Choose a point on every face and a displacement in their negative cone.
+    q, _ = np.linalg.qr(normals.T, mode="complete")
+    expected = q[:, 12:] @ rng.normal(size=12)
+    direction = expected - normals.T @ rng.uniform(.1, 2., size=12)
+    duplicated = [*normals, normals[0], 3. * normals[2]]
+    result = _project_direction(direction, duplicated)
+    np.testing.assert_allclose(result, expected, atol=1e-10)
+    assert np.min(normals @ result) >= -1e-10
+
+
+@pytest.mark.parametrize("batched", [False, True])
+def test_omitted_protected_witness_supplies_a_cut_instead_of_stopping_learning(batched):
+    from core.learning.semantic_argument_graph_learning import ArgumentScoreTerm
+    from core.learning.semantic_graph_constraints import _fit_graph_parameters
+
+    def linear(features, fixed=0., weight=1.):
+        terms = tuple((sign, ArgumentScoreTerm(2, np.array(value), 1., "conditional_log_odds_v1"))
+                      for sign, value in ((1., features), (-1., [0., 0., 0.])))
+        return RelationGraphContrast((), (), fixed, weight, argument_terms=terms)
+
+    parameters = (np.zeros((1, 1)), np.zeros((1, 1)),
+                  np.array([.05, .05, 0.], dtype=np.float32), np.array(0.))
+    # Duplicate early constraints must not hide a later, independent face.
+    rows = (linear([1., 0., 0.], weight=.00001),) * 32 + (
+        linear([0., 1., 0.], weight=.00001), linear([0., -1., 1.], fixed=-.05))
+    values, receipt = _fit_graph_parameters(parameters, rows, steps=10,
+        max_active=32, adaptive_step=True, batched=batched)
+    assert receipt["initial_wrong_or_tied"] == 1
+    assert receipt["stored_wrong_or_tied"] == 0
+    assert receipt["retained_positive_regressions"] == 0
+    assert receipt["stored_loss"] < receipt["initial_loss"]
+    assert values[2][1] >= parameters[2][1]
+    assert receipt["accepted_constraint_cut_rounds"] > 0
+    assert receipt["peak_accepted_projected_constraints"] > 32
+
+
 @pytest.mark.parametrize("batched", [False, True])
 def test_likelihood_learns_after_all_training_decisions_are_already_correct(batched):
     head, operation = simple_model()

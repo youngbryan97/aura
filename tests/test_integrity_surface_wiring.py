@@ -61,9 +61,25 @@ def test_chronic_faults_are_read(block):
 
 
 def test_harmful_memories_are_read(block):
+    """Registered and reporting, or plainly absent — the same rule its
+    sibling below already states for the ambient governor.
+
+    An unregistered ledger used to RAISE here, so a process that simply
+    had none — every test process, a tool, a partial boot — put
+    judgement_error on the integrity surface and took the whole judgement
+    block with it, the governor's reading included, which was there and
+    fine. Not measured is not the same as measured and bad.
+    """
+
     retrieval = block["judgement"]["retrieval"]
-    assert "harmful_memories" in retrieval
-    assert "graded" in retrieval
+    assert "registered" in retrieval
+    if retrieval["registered"]:
+        assert "harmful_memories" in retrieval
+        assert "graded" in retrieval
+    else:
+        # Never zeros that would read as a ledger seeing nothing harmful.
+        assert "harmful_memories" not in retrieval
+        assert "graded" not in retrieval
 
 
 def test_ambient_restraint_is_read(block):

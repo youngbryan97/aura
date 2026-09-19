@@ -281,7 +281,7 @@ def apply_relational_memory_command(
 
 #: Erasure asked for in the imperative. Composed rather than enumerated:
 #: a verb that means erase, and an object that means what you hold about
-#: me. That covers phrasings nobody wrote down, which is the whole point —
+#: me. That covers phrasings nobody wrote down;
 #: the exact-match command set below cannot, and the predicate it replaced
 #: was five literal sentences called by nothing, one of them
 #: "delete the movie session", a past test case left in a production check.

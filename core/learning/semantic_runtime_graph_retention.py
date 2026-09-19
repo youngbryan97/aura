@@ -12,7 +12,7 @@ from core.learning.semantic_program_transducer_fitting import _assign_typed_argu
 
 
 def mine_runtime_graph_constraints(model, item, *, weight=1., max_charts=32, max_graphs=32,
-                                  solve_time_limit_s=20., learn_arguments=False):
+                                  solve_time_limit_s=20., learn_arguments=False, learn_operation_pointer=False):
     """Search source-training competitors without supplying operations to the decoder.
 
     Only the offline comparison sees the annotation. Search allowances are
@@ -35,7 +35,8 @@ def mine_runtime_graph_constraints(model, item, *, weight=1., max_charts=32, max
             item.ir.source_token_ids, item.hidden_states, item.public_inputs, step_limit)
         instructions, mapping = align_source_input_registers(item, spans)
         positive = score_annotated_graph(model, item, instructions, spans,
-            solve_time_limit_s=solve_time_limit_s, learn_arguments=learn_arguments)
+            solve_time_limit_s=solve_time_limit_s, learn_arguments=learn_arguments,
+            learn_operation_pointer=learn_operation_pointer)
     except (ValueError, ArgumentOptimizationIncompleteError) as exc:
         return (), {**record, "status": "source_graph_unavailable", "reason": str(exc)}
     if positive is None:
@@ -74,12 +75,14 @@ def mine_runtime_graph_constraints(model, item, *, weight=1., max_charts=32, max
             row.update(result.receipt)
             if result.positive is not None:
                 alternative = scored_graph_evidence(model, item, nodes, result.positive,
-                    result.positive_evidence, learn_arguments=learn_arguments)
+                    result.positive_evidence, learn_arguments=learn_arguments,
+                    learn_operation_pointer=learn_operation_pointer)
                 if alternative["score"] > positive["score"]:
                     positive = alternative
             if result.negative is not None:
                 negative = scored_graph_evidence(model, item, nodes, result.negative,
-                    result.negative_evidence, learn_arguments=learn_arguments)
+                    result.negative_evidence, learn_arguments=learn_arguments,
+                    learn_operation_pointer=learn_operation_pointer)
                 row["negative_index"] = len(negatives)
                 negatives.append(negative)
     except (ArgumentOptimizationIncompleteError, OperationSearchIncompleteError) as exc:
