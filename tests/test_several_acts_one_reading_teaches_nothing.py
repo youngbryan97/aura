@@ -14,11 +14,15 @@ from screen_pursuit_support import pursuit_source
 def test_the_loop_refuses_to_learn_from_a_run_of_several() -> None:
     from core.skills import screen_pursuit
 
-    text = pursuit_source()
-    at = text.index("knows.watched(pending[")
-    near = text[at - 900 : at]
-    assert 'expected["took"] > 1' in near
-    assert "more than one act, one reading" in near
+    from source_contract import in_order
+
+    # The refusal comes before the learning, at whatever distance.
+    in_order(
+        pursuit_source(),
+        'expected["took"] > 1',
+        "more than one act, one reading",
+        "knows.watched(pending[",
+    )
 
 
 def test_it_is_counted_rather_than_dropped_in_silence() -> None:

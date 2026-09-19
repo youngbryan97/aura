@@ -916,9 +916,23 @@ def settled_reading(
         picture = again
         reading_again = looker.read(picture)
         said_again, looks_again = what_a_reading_says(reading_again), looker.last_looks
-        still = said_again == said and looker.places_still(looks, looks_again)
+        still = (
+            said_again == said
+            and looker.places_still(looks, looks_again)
+            and not anything_unread(reading_again)
+        )
         reading, said, looks = reading_again, said_again, looks_again
     return picture, reading, still
+
+
+def anything_unread(reading: dict[str, Any]) -> bool:
+    """Whether a place in any grid held something that could not be read.
+
+    Such a reading is not a settled picture. Live, a 32 just made by a merge
+    was unreadable in two readings running, so the reading was settled with
+    it missing, and the move that made it looked like a 32 vanishing.
+    """
+    return any(grid.get("unsure") for grid in (reading.get("grids") or ()))
 
 
 _SAID: set[str] = set()
@@ -1133,7 +1147,11 @@ async def look_at_window(
             picture = again
             reading_again = await asyncio.to_thread(looker.read, picture)
             said_again, looks_again = what_a_reading_says(reading_again), looker.last_looks
-            still = said_again == said and looker.places_still(looks, looks_again)
+            still = (
+                said_again == said
+                and looker.places_still(looks, looks_again)
+                and not anything_unread(reading_again)
+            )
             reading, said, looks = reading_again, said_again, looks_again
         looked_took = time.monotonic() - began
         picture_shape = (int(picture.shape[1]), int(picture.shape[0]))

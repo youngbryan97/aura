@@ -82,6 +82,10 @@ class Arrangement:
     #: Not part of what the arrangement is, so it never makes two readings of
     #: one state differ.
     places_seen: bool = field(default=False, compare=False)
+    #: Places seen to hold something that could not be read. Not empty, and
+    #: not anything in particular: a reading with one is not a state anything
+    #: can be learned from, because what is there is not known.
+    unknown: tuple[tuple[int, int], ...] = field(default=(), compare=False)
 
     # ── what is where ────────────────────────────────────────────────────
 

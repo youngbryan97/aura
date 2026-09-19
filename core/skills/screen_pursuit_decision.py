@@ -535,6 +535,10 @@ def _decide_the_next_move_part_10(dropped, expected, knows, laid_out, pending, p
         # one right out of sixty four, because every pair she
         # learned from named the wrong act.
         dropped["more than one act, one reading"] += 1
+    elif getattr(pending["arranged"], "unknown", ()) or getattr(laid_out, "unknown", ()):
+        # A place that held something she could not read is not an empty
+        # place, and a pair with one in it is not evidence about the world.
+        dropped["a place she could not read"] += 1
     elif _in_the_same_grid(
         responds["lattice"], pending["arranged"], laid_out
     ):

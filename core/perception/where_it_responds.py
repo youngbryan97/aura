@@ -644,8 +644,25 @@ def _the_grid_in_the_pixels(
         for column in range(columns)
         if row * columns + column < len(says) and str(says[row * columns + column]).strip()
     )
+    # And the places that held something she could not read. Without them an
+    # unread 32 was an empty place, and the move that followed read as a 32
+    # vanishing — a world nothing she knows explains (live, 2026-09-18).
+    unknown: list[tuple[int, int]] = []
+    for spot in best.get("unsure") or ():
+        try:
+            row, column = int(spot[0]), int(spot[1])
+        except (IndexError, TypeError, ValueError):
+            continue
+        if 0 <= row < rows and 0 <= column < columns:
+            unknown.append((row, column))
     return Arrangement(
-        rows=rows, columns=columns, cells=cells, down_at=down_at, across_at=across_at, places_seen=True
+        rows=rows,
+        columns=columns,
+        cells=cells,
+        down_at=down_at,
+        across_at=across_at,
+        places_seen=True,
+        unknown=tuple(unknown),
     )
 
 

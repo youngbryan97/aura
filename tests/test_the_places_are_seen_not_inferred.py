@@ -407,3 +407,58 @@ def test_nothing_is_learned_from_a_grid_with_something_lying_across_it():
     reading = looker.read(dimmed, words=words)
     assert reading["grids"][0]["covered"] is True
     assert looker.seen == []
+
+
+def test_a_place_that_could_not_be_read_is_not_an_empty_place():
+    """LIVE 2026-09-18: an unread 32 was an empty place, and the move read as a 32 vanishing."""
+    says = ["4", "8", "16", ""] + [""] * 12
+    observation = _observation((0.3, 0.42, 0.54, 0.66), (0.2, 0.35, 0.5, 0.65), says)
+    observation["grids"][0]["unsure"] = [[0, 3]]
+    seen = what_is_there(observation, None)
+    assert seen.unknown == ((0, 3),)
+    assert seen.at(0, 3) is None
+    # What it is not is not part of what it is: two readings of one state
+    # still compare equal.
+    observation["grids"][0]["unsure"] = []
+    assert what_is_there(observation, None) == seen
+
+
+def test_a_reading_with_a_place_it_could_not_read_is_not_settled(monkeypatch):
+    """What it says and how it looks can both stop changing with a place unread."""
+    import time
+
+    from core.perception import what_the_pixels_show as pixels
+
+    frames = [_growing(1.0)] * 6
+    showing = {"at": -1}
+
+    def take():
+        showing["at"] = min(showing["at"] + 1, len(frames) - 1)
+        return frames[showing["at"]]
+
+    def strip(self, image, grid_, spots):
+        # Recognition gets it on the fourth picture of the same still thing.
+        if showing["at"] >= 3 and (1, 1) in spots:
+            return {(1, 1): "32"}
+        return {}
+
+    monkeypatch.setattr(pixels, "recognize_text", lambda image: [])
+    monkeypatch.setattr(Looker, "_read_as_a_strip", strip)
+    _picture, reading, still = pixels.settled_reading(
+        take, Looker(), wait=True, within_s=5.0, began=time.monotonic()
+    )
+    assert still
+    assert reading["grids"][0]["says"][1 * 4 + 1] == "32"
+    assert not pixels.anything_unread(reading)
+
+
+def test_a_pair_with_a_place_she_could_not_read_teaches_nothing():
+    from screen_pursuit_support import pursuit_source
+    from source_contract import in_order
+
+    in_order(
+        pursuit_source(),
+        'getattr(pending["arranged"], "unknown", ())',
+        'dropped["a place she could not read"] += 1',
+        'knows.watched(pending["arranged"], previous.chosen.name, laid_out)',
+    )
