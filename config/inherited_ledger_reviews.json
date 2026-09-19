@@ -23,9 +23,9 @@
     },
     {
       "mechanism": "offline_suite_ratchets",
-      "reason": "Open and tracked here rather than elsewhere. Every failure the run surfaced is traced and fixed; what is left is four ratchets whose debt belongs to the whole team \u2014 module size, effect ownership, swallowed excepts and method size \u2014 and none of them can be refreshed, because the module-size tool refuses to grandfather a new God object and the others record every raise. Closing them is extraction work across files another agent is editing, not a decision this review can make.",
+      "reason": "Open and tracked here rather than elsewhere. Every failure the run surfaced is traced and fixed. Three of the four ratchets the block names still carry the whole team's debt and still cannot be refreshed, because they record every raise; the fourth, module size, is closed — twenty-nine refusals to none and 12,477 lines off the total it holds, by lifting twenty-five method clusters out of the God objects into modules beside them. The suite itself is still the open half: nineteen of forty chunks.",
       "source_id": "docs/CONNECTOME_TODO.md:201",
-      "source_sha256": "320cd11fe704468c10f8b07f258214467764fc1ab6f98a9d68ba66e817ba3ef2",
+      "source_sha256": "59a0a5fdc74228f00000a9fff886b25d84e6e1a1947015ccf1ca01fd5ad2c0cf",
       "status": "open"
     },
     {

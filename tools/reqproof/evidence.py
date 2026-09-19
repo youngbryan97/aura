@@ -32,7 +32,7 @@ from tools.reqproof.schema import (  # noqa: E402
     load_registry,
 )
 
-LEDGER_SCHEMA_VERSION = 2
+LEDGER_SCHEMA_VERSION = 3
 COMMAND_RECEIPT_SCHEMA_V1 = "aura.reqproof.command_receipt.v1"
 COMMAND_RECEIPT_SCHEMA_V2 = "aura.reqproof.command_receipt.v2"
 COMMAND_RECEIPT_SCHEMAS = frozenset(
@@ -325,19 +325,19 @@ class EvidenceLedgerEntry:
 @dataclass(frozen=True)
 class EvidenceLedger:
     schema_version: int
-    registry_content_sha256: str
+    registry_declaration_sha256: str
     entries: tuple[EvidenceLedgerEntry, ...]
     content_sha256: str = field(default="", compare=False)
 
     ALLOWED_KEYS = frozenset(
-        {"schema_version", "registry_content_sha256", "entries", "content_sha256"}
+        {"schema_version", "registry_declaration_sha256", "entries", "content_sha256"}
     )
 
     @classmethod
     def empty_for(cls, registry: Registry) -> EvidenceLedger:
         return cls(
             schema_version=LEDGER_SCHEMA_VERSION,
-            registry_content_sha256=registry.compute_content_sha256(),
+            registry_declaration_sha256=registry.declaration_sha256(),
             entries=(),
         )
 
@@ -353,9 +353,9 @@ class EvidenceLedger:
             f"evidence ledger schema_version must be {LEDGER_SCHEMA_VERSION}",
         )
         registry_hash = _check_string(
-            data.get("registry_content_sha256"), "registry_content_sha256"
+            data.get("registry_declaration_sha256"), "registry_declaration_sha256"
         )
-        _require(bool(SHA256_RE.match(registry_hash)), "registry_content_sha256 is not sha256")
+        _require(bool(SHA256_RE.match(registry_hash)), "registry_declaration_sha256 is not sha256")
         raw_entries = data.get("entries")
         _require(isinstance(raw_entries, list), "evidence ledger entries must be a list")
         entries = tuple(
@@ -367,7 +367,7 @@ class EvidenceLedger:
         _require(len(keys) == len(set(keys)), "evidence ledger contains duplicate entries")
         ledger = cls(
             schema_version=LEDGER_SCHEMA_VERSION,
-            registry_content_sha256=registry_hash,
+            registry_declaration_sha256=registry_hash,
             entries=entries,
             content_sha256=str(data.get("content_sha256", "")),
         )
@@ -388,7 +388,7 @@ class EvidenceLedger:
     def body_dict(self) -> dict[str, Any]:
         return {
             "schema_version": self.schema_version,
-            "registry_content_sha256": self.registry_content_sha256,
+            "registry_declaration_sha256": self.registry_declaration_sha256,
             "entries": [entry.to_dict() for entry in self.entries],
         }
 
@@ -444,11 +444,13 @@ def write_evidence_ledger_atomic(ledger: EvidenceLedger, path: Path) -> str:
 
 
 def verify_ledger_binding(ledger: EvidenceLedger, registry: Registry) -> None:
-    expected = registry.compute_content_sha256()
+    expected = registry.declaration_sha256()
     _require(
-        ledger.registry_content_sha256 == expected,
-        "evidence ledger is bound to a different registry: "
-        f"recorded {ledger.registry_content_sha256[:12]}..., expected {expected[:12]}...",
+        ledger.registry_declaration_sha256 == expected,
+        "evidence ledger is bound to a different set of requirements: "
+        f"recorded {ledger.registry_declaration_sha256[:12]}..., expected {expected[:12]}... "
+        "(a requirement, an acceptance cell or an evidence class changed under "
+        "the evidence; re-record the evidence rather than the hash)",
     )
     known = registry.by_id()
     for entry in ledger.entries:
@@ -559,7 +561,7 @@ def add_entry(
     verify_ledger_binding(
         EvidenceLedger(
             schema_version=LEDGER_SCHEMA_VERSION,
-            registry_content_sha256=registry.compute_content_sha256(),
+            registry_declaration_sha256=registry.declaration_sha256(),
             entries=(entry,),
         ),
         registry,
@@ -589,7 +591,7 @@ def add_entry(
     entries = tuple(sorted((*retained, entry), key=lambda item: item.sort_key))
     return EvidenceLedger(
         schema_version=LEDGER_SCHEMA_VERSION,
-        registry_content_sha256=registry.compute_content_sha256(),
+        registry_declaration_sha256=registry.declaration_sha256(),
         entries=entries,
     )
 
@@ -667,7 +669,7 @@ def main() -> int:
                 )
             ledger = EvidenceLedger(
                 schema_version=LEDGER_SCHEMA_VERSION,
-                registry_content_sha256=registry.compute_content_sha256(),
+                registry_declaration_sha256=registry.declaration_sha256(),
                 entries=ledger.entries,
             )
             verify_ledger_binding(ledger, registry)
