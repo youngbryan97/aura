@@ -40,6 +40,7 @@ from core.brain.llm.runtime_wiring import (
     prepare_runtime_payload,
     should_force_tool_handoff,
 )
+from core.conversation.word_markers import names_any
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.service_access import resolve_inference_gate
 from core.runtime.shutdown_coordinator import is_shutdown_requested
@@ -121,6 +122,8 @@ def _looks_like_error_payload(text: str) -> bool:
     if len(stripped) > 400 and len(_SENTENCE_END_RE.findall(stripped)) >= 3:
         return False
     lowered = stripped.lower()
+    # Substring, deliberately: this reads an error PAYLOAD, where the marker
+    # arrives compounded as `RuntimeError` or `TimeoutError`.
     if any(marker in lowered[:160] for marker in _ERROR_PAYLOAD_MARKERS):
         return True
     # Short text with no sentence structure at all reads as raw diagnostics.
@@ -755,21 +758,26 @@ class StaticReflexClient:
         # triggered the fallback).
 
         # 2. Match Heuristics
-        if any(x in p for x in ("identity", "who are you", "what are you")):
+        if names_any(p, ("identity", "who are you", "what are you")):
             text = (
                 "I'm Aura. I'm running in a lighter mode right now, so I might be a bit more concise "
                 "than usual, but I'm still me."
             )
-        elif any(x in p for x in ("status", "health", "stable", "how are you")):
+        # Word-aware from here down: `p` is what the person typed, and every
+        # one of these is a fragment of a word the other branch wants —
+        # "stable" of unstable and testable, "fix" of causal-prefix, "error"
+        # of RuntimeError. A degraded-mode reply chosen by a fragment is the
+        # wrong reply at the worst moment to give one.
+        elif names_any(p, ("status", "health", "stable", "how are you")):
             # Honest: this path only runs when the main model is unavailable,
             # so it must not certify that core functions are all working.
             text = (
                 "I'm running in a simplified mode right now — my main language "
                 "model isn't available, so I'm answering from a limited local pathway."
             )
-        elif any(x in p for x in ("why", "error", "fail")):
+        elif names_any(p, ("why", "error", "fail")):
             text = "My main language model is temporarily unavailable, so I'm using a simpler local pathway. I should be back to full capacity soon."
-        elif any(x in p for x in ("fix", "reboot", "restart")):
+        elif names_any(p, ("fix", "reboot", "restart")):
             text = "I'm working on recovering automatically. If you'd like, you can restart my process for a fresh start."
 
         # 3. Contextual Flavoring
@@ -1569,6 +1577,9 @@ class IntelligentLLMRouter:
             return "The language router received no prompt, so it blocked the empty generation path and logged the fault."
 
         origin = str(kwargs.get("origin", "")).lower()
+        # Substring, deliberately: `origin` is an origin KEY —
+        # `metabolic_background`, `reflex_probe` — where the word is
+        # compounded with underscores.
         is_background = bool(kwargs.get("is_background", False)) or any(
             token in origin for token in ("metabolic", "background", "consolidation", "reflex")
             # NOTE: "system" intentionally REMOVED — it was catching user-facing
@@ -2352,6 +2363,9 @@ class IntelligentLLMRouter:
             max_turns = 5
         tools = self._authorized_tool_map(tools)
         origin = str(kwargs.get("origin", "") or "").lower()
+        # Substring, deliberately: `origin` is an origin KEY —
+        # `metabolic_background`, `reflex_probe` — where the word is
+        # compounded with underscores.
         is_background = bool(kwargs.get("is_background", False)) or any(
             token in origin for token in ("metabolic", "background", "consolidation", "reflex")
         )

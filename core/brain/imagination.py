@@ -20,6 +20,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from core.brain.imagination_basis import Basis, describe_bases, meets
+from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 
 # Requires at least one letter, so "76ers", "401k" and "3d" are subjects
@@ -72,7 +73,6 @@ from core.brain.imagination_text import (  # noqa: E402
     _top_memory_fragments,
     imagination_subject,
 )
-
 
 #: Every quantity this frame emits, and how it was produced. Nothing here is
 #: measured: they are regex hits, keyword counts and fixed coefficients. The
@@ -986,7 +986,7 @@ class ImaginationEngine:
 
     @staticmethod
     def _frame_summary(
-        frame: "ImaginationFrame | None",
+        frame: ImaginationFrame | None,
         subject: str,
         include_content: bool,
         *,
@@ -1776,7 +1776,9 @@ class ImaginationEngine:
             targets.append("governed_tools")
         if ("remember" in lowered or "memory" in lowered) and "memory_continuity" not in targets:
             targets.append("memory_continuity")
-        if any(token in lowered for token in ("verify", "proof", "evidence")) and "verification" not in targets:
+        # Word-aware: "verify" is a fragment of reverify, "proof" of reqproof,
+        # "evidence" of unevidenced, and this runtime writes all three.
+        if names_any(lowered, ("verify", "proof", "evidence")) and "verification" not in targets:
             targets.append("verification")
         return targets[:6]
 

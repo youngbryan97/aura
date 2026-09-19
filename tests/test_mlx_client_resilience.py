@@ -3095,9 +3095,14 @@ def test_probe_does_not_trust_stale_negative_disk_cache(monkeypatch):
         "_load_probe_cache_from_disk",
         lambda: (False, "metal_device_enumeration_crash", 900.0),
     )
+    # The probe spawns through the gateway, which owns
+    # `run_until_its_work_is_done`. It used to call `subprocess.run`
+    # directly, and this double stayed on that name — so the probe ran the
+    # real thing, `calls` stayed empty, and the assertion that a stale
+    # negative is re-probed was reading a list nothing could ever append to.
     monkeypatch.setattr(
-        mlx_module.subprocess,
-        "run",
+        mlx_module,
+        "_run_probe_until_its_work_is_done",
         lambda *args, **kwargs: calls.append((args, kwargs)) or _Completed(),
     )
     monkeypatch.setattr(

@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from core.conversation.word_markers import names_any
+
 _RESEARCH_PREFIXES = (
     "research and learn something new about ",
     "research ",
@@ -310,6 +312,10 @@ def research_query_for_goal(value: Any, *, limit: int = 220) -> str:
     if not text:
         return ""
     lowered = text.casefold()
-    if not any(hint in lowered for hint in _RESEARCHABLE_HINTS) and len(text.split()) > 24:
+    # Word-aware: "learn" is a fragment of livelearner, "explore" of
+    # unexplored, "sources" of resources, "how " of showing — all words this
+    # runtime writes about itself, and a goal admitted for containing one of
+    # them was admitted for nothing.
+    if not names_any(lowered, _RESEARCHABLE_HINTS) and len(text.split()) > 24:
         return ""
     return text

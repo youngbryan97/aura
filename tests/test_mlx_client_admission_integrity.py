@@ -464,9 +464,25 @@ class TestReadyRequiresAValidatedReceipt:
         assert "recurrent_adapter_activation_receipt_mismatch" in mismatched
 
     def test_validation_precedes_the_ready_commit(self):
-        source = inspect.getsource(mlx_client.MLXLocalClient._ensure_worker_alive_inner)
-        block = source.split("READINESS IS EARNED", 1)[1]
-        assert block.index("_init_receipt_errors") < block.index("self._init_done = True")
+        """The receipt is checked before READY is committed.
+
+        The whole block moved into
+        `_ensure_worker_alive_inner_readiness_earned_announced`, so reading
+        `_ensure_worker_alive_inner` alone found no "READINESS IS EARNED" at
+        all and `split` raised IndexError rather than failing an assertion.
+        The order is the property and it holds wherever the block sits.
+        """
+        from tests.source_contract import function_with_its_helpers, in_order
+
+        source = function_with_its_helpers(
+            mlx_client, "MLXLocalClient._ensure_worker_alive_inner"
+        )
+        in_order(
+            source,
+            "READINESS IS EARNED",
+            "_init_receipt_errors",
+            "self._init_done = True",
+        )
 
     def test_an_invalid_receipt_does_not_leave_stale_identity(self):
         source = inspect.getsource(mlx_client)
