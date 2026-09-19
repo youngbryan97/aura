@@ -359,8 +359,8 @@ class EmbeddingEngine:
         the old non-blocking acquire was really trying to ask.
         """
         if not self._initialized and _on_a_running_loop():
-            # The first checkout loads the weights: 3–10s of sentence-
-            # transformers on whichever thread asks. Asked from the loop
+            # The first checkout loads the sentence-transformer weights
+            # on whichever thread asks. Asked from the loop
             # thread at boot (2026-09-16 04:08Z) it stalled the loop long
             # enough for MindTick's memory_retrieval phase to trip its circuit
             # and the runtime lease to miss its renew deadline. The load

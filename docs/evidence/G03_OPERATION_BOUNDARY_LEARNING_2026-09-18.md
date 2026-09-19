@@ -93,3 +93,68 @@ Receipt: `semantic-operation-pointer-targeted-20260918.json`,
 The next step is a complete candidate comparison with the same source-only
 retention and an independently replayed 500-row validation set. G03 remains
 open until the full comparison, fresh transfer and controls are measured.
+
+## Completed full comparison
+
+The full comparison completed all 764 source-training rows and all 500
+validation rows. The incumbent remains selected:
+
+| Arm | Exact / equivalent | Gains vs incumbent | Regressions vs incumbent |
+| --- | --- | --- | --- |
+| Incumbent | 488/500 | 0 | 0 |
+| Joint-scoring fit start | 474/500 | 7 | 21 |
+| Boundary/binding refit | 474/500 | 7 | 21 |
+
+The fit retained 28,143 comparisons, including 14 witnessed runtime errors.
+It accepted zero updates. All 1,363 initially nonpositive margins remained
+nonpositive, and the loss stayed at 0.23122249410128787. The optimizer stopped
+with `no_retention_preserving_step_found`. None of the 764 bounded operation
+searches exhausted its grammar. This candidate is rejected.
+
+The pre-fit control attributes the measured regression to the joint-scoring
+decoder change; this training run did not alter those decisions.
+
+Candidate: `semantic-operation-pointer-full-20260918.json`, receipt
+`2ff90b36652a22f65263ef3112073582dedaccf234e37f1d1e4f267dcd957b68`.
+Selection: `semantic-operation-pointer-full-20260918.validation.json`, report
+`1ee19d2716de215200ac8f44a1d2fbb93664a77a8f34bae72b839dae6ea8b26f`.
+
+The optimizer initially projected against only 32 protected comparisons;
+83 source comparisons already lay on their retention floor. A focused
+counterexample reproduces an avoidable stall when an omitted protected
+comparison blocks the initial direction. The next repair lets failed
+proposals add constraints to direction selection while retaining the full
+float32 acceptance check. The numerical defect is reproduced; its effect on
+this full corpus still needs measurement.
+
+## Protected-direction numerical repair
+
+Two optimizer defects now have reproducing tests. Omitted protected
+comparisons can block a step even when a feasible direction exists; rejected
+proposals now add those comparisons to the projection. Separately, the old
+L-BFGS-B dual solve accepted small violating directions under its absolute
+stopping tolerance. The equivalent nonnegative least-squares solve normalizes
+the direction before projection. Tests cover gradient scales from 1e-12 to
+1e6, dependent constraint normals, and a protected face beyond the initial
+32-comparison batch. Float32 export and all-comparison acceptance stay intact.
+
+The 64-row source-acquisition/retention trial now fixes the selected training
+error: 7/8 to 8/8 equivalent with no training regression. Validation remains
+6/8, with no correct-to-incorrect regression. One already-incorrect validation
+case changes to `typed_argument_chart_empty`; this is still a failure.
+The fit takes all 2,504 retained margins positive (148 were initially
+nonpositive), with zero retained-positive regressions. It reaches a minimum
+margin of 0.09999999485883215 and reports its 64-step budget exhausted,
+not exact satisfaction of the requested 0.1 margin.
+
+Receipt: `semantic-operation-pointer-nnls-20260918.json`,
+`6f8dbc677ce14eb9f1956f4236b6ff520e3defc6756eb9d2637f7b71f9c35dbd`.
+The preceding constraint-discovery-only trial accepted five updates but left
+69 nonpositive margins; its receipt is
+`d577494f8513e5b931b626372d0d2ba76102d6dc3992f7769c2af75e41f499ec`.
+
+Eighty-two focused tests pass. The small trial establishes that the numerical
+repair enables learning of a witnessed error; it does not establish transfer.
+The next full fit must re-mine runtime competitors after coefficient updates
+and compare fresh decoding against the unchanged incumbent. No promotion,
+serving change, or G-ledger closure follows from the retained-margin result.

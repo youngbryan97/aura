@@ -913,6 +913,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   gains one of eight validation cases without regression, but retains an
   incorrect training failure and leaves search/constraint blockers; no
   promotion or full-run claim.
+  2026-09-18 follow-up: the completed full comparison is 474/500 versus
+  incumbent 488/500; zero accepted updates leave the pre-fit regression
+  unchanged. Two reproduced projection defects are repaired and covered by
+  82 focused tests. The numerical replay fixes the selected training error
+  (7/8 to 8/8) while validation remains 6/8, including one decode refusal.
+  Full-cohort refitting and fresh transfer remain required; G03 stays open.
   [Background competition](evidence/G03_OPERATION_BACKGROUND_2026-09-18.md)
   tests a learned non-operation class on source spans. The small replay
   regresses from 48/60 to 45/60; no candidate promotion or full-run claim.
