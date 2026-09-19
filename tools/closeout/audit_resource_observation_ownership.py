@@ -44,6 +44,16 @@ CANONICAL_ADAPTERS = frozenset(
         # This adapter converts observed child identities into termination
         # handles only on the explicitly host-backed watchdog path.
         "core/resilience/memory_watchdog.py",
+        # The MLX allocator adapter. It converts the accelerator's own
+        # accounting into an AllocatorDump and registers it as a provider,
+        # which is the adapter role this list exists for — asking it to read
+        # the accelerator through the observer would be asking the observer
+        # to supply what this file is the supplier of.
+        "core/runtime/memory_providers.py",
+        # The thread CPU-time adapter. It reads /proc for a thread's own
+        # accumulated ticks and divides by SC_CLK_TCK, which is a unit
+        # conversion rather than an observation of the host.
+        "core/runtime/thread_cpu.py",
     }
 )
 REQUIRED_OBSERVATION_SYMBOLS = frozenset(

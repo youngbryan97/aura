@@ -879,17 +879,25 @@ def _require_not_shutting_down(
 
 
 def _child_cpu_seconds(pid: int) -> float | None:
-    """CPU seconds a child has spent so far, or None once it is gone or unreadable."""
+    """CPU seconds a child has spent so far, or None once it is gone or unreadable.
+
+    Through the observer rather than through psutil directly. A run declares
+    its host so it can be reproduced on another one, and a progress bound
+    computed from the real machine ignores that declaration — the same shape
+    as the guards that were reading live host load instead of the
+    observation. `ProcessObservation` already carries the two figures this
+    needs.
+    """
     try:
-        import psutil
-    except ImportError:
+        from core.runtime.resource_observation import get_resource_observer
+
+        observed = get_resource_observer().process(int(pid))
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        return None
+    if observed is None:
         return None
     try:
-        times = psutil.Process(int(pid)).cpu_times()
-    except (psutil.Error, OSError, ValueError):
-        return None
-    try:
-        return float(times.user) + float(times.system)
+        return float(observed.cpu_user_seconds) + float(observed.cpu_system_seconds)
     except (AttributeError, TypeError, ValueError):
         return None
 

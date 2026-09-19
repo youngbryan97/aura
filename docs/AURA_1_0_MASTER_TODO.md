@@ -1714,6 +1714,25 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   the scale of a whole run.
   The register itself is being produced the only way it can be: the 97
   files re-run against one pinned revision in a worktree.
+  2026-09-19, live. A turn nobody got an answer to, diagnosed from the log:
+  a delivery poll for one chat id, then `model_load_headroom:15.1GB <
+  required 24.0GB`, and the reply came back from the fallback with the
+  footer that says the main model could not finish. On the same boot the
+  brainstem lane was refused 222 times on that gate.
+  The 24.0 was wrong twice. The 16GB floor is for a checkpoint whose size
+  cannot be READ and was being applied where it is known, so a model
+  measured at 8.0GB was held to twice its footprint; and where the directory
+  genuinely cannot be measured the requirement falls back to a flat 24.0
+  with a debug line as its only trace. Bonsai now asks 10.6GB and the
+  resident cortex 17.9, and an unmeasurable checkpoint says so as a recorded
+  degradation.
+  Three more of the same shape closed the same day: the brainstem's headroom
+  floor (22.0, unmeetable, so the lane was configured and unloadable), `cold`
+  read as not-ready on a lane that loads on demand — which opened the circuit
+  that then prevented the load — and a refusal spelled as a CODE
+  (`model_load_admission_denied`) charged as failed work because word-aware
+  matching reads an underscore-joined identifier as one word.
+
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
   2026-09-19, 59 of the 130 closed, and the register's own heading was
   wrong. The dominant cause is not order dependence: it is a test reading
