@@ -51,6 +51,10 @@ RUNTIME_SHELL_ASSETS = (
     "interface/static/vendor/fonts/ibm-plex-mono-500-latin.woff2",
     "interface/static/vendor/fonts/ibm-plex-mono-600-latin.woff2",
     "interface/static/voice-processor.js",
+    # index.html loads this with a plain <script src>, so the shell executes
+    # it on every boot. It was outside the signed set, which means the
+    # snapshot attested to a shell that was not the one running.
+    "interface/static/a11y_audit.js",
 )
 # Revision-addressed icons are safe for shared immutable caching. Every other
 # shell byte remains private to the authenticated desktop runtime.
