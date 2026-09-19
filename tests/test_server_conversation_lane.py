@@ -9816,13 +9816,19 @@ async def test_self_condition_prompt_keeps_delivered_history_and_one_fresh_proje
     monkeypatch.setattr(
         ce_module,
         "_desktop_history_messages_from_context",
-        lambda _context: [
-            {"role": "user", "content": "How are you doing?"},
-            {
-                "role": "assistant",
-                "content": "Draft one. This is not accurate. Draft two.",
-            },
-        ],
+        # The messages and a note about what did not fit, as it returns now.
+        # Stubbed as a bare list, the unpacking made the history one message
+        # dict, and its keys were read as messages.
+        lambda _context, **_kw: (
+            [
+                {"role": "user", "content": "How are you doing?"},
+                {
+                    "role": "assistant",
+                    "content": "Draft one. This is not accurate. Draft two.",
+                },
+            ],
+            "",
+        ),
     )
     evidence = (
         "Aura has a fresh self-condition sample. The direct runtime evidence "

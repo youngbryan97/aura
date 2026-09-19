@@ -49,6 +49,7 @@ LANE_MODULES = (
     "interface.routes.chat_quality",
     "interface.routes.chat_reply_assessment",
     "interface.routes.chat_reply_repair",
+    "interface.routes.chat_reply_repair_about_herself",
     "interface.routes.chat_reply_shaping",
     "interface.routes.chat_runtime_proof",
     "interface.routes.chat_served_answers",

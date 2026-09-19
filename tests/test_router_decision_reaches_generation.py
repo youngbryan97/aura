@@ -23,11 +23,14 @@ from __future__ import annotations
 
 import inspect
 
+from source_support import inlined_function_source
+
 from core.phases import response_generation
 
 
 def test_generation_reads_the_routers_matched_skills():
-    source = inspect.getsource(response_generation.ResponseGenerationPhase.execute)
+    # As it runs: its blocks were moved into helpers by the size sweep.
+    source = inlined_function_source(response_generation.__file__, "ResponseGenerationPhase.execute")
     assert 'state.response_modifiers.get("matched_skills")' in source, (
         "the router's own decision must be consumed, not re-derived from text"
     )
@@ -60,5 +63,6 @@ def test_a_desktop_skill_match_is_recognised():
 
 def test_the_text_detector_remains_as_a_fallback():
     """A lane that never reached the router must still plan, not deny."""
-    source = inspect.getsource(response_generation.ResponseGenerationPhase.execute)
+    # As it runs: its blocks were moved into helpers by the size sweep.
+    source = inlined_function_source(response_generation.__file__, "ResponseGenerationPhase.execute")
     assert "looks_like_desktop_objective" in source

@@ -816,8 +816,11 @@ def test_desktop_shell_does_not_treat_socket_liveness_as_runtime_health():
     assert ": laneNotReady\n            ? 'degraded'" in aura_js
     assert "laneNotReady && !laneStandby" not in aura_js
     # The lane-operational verdict must gate on lane health, with active
-    # generation derived from the real lane payload (not socket liveness).
-    assert "const activeGeneration = laneHasActiveGeneration(effectiveLane);" in aura_js
+    # generation derived from the real lane payload (not socket liveness) —
+    # and only generation in the foreground: a background pass is not her
+    # thinking about the conversation (a326cac36).
+    assert "const activeGeneration = laneHasForegroundGeneration(effectiveLane);" in aura_js
+    assert "function laneHasForegroundGeneration(lane) {\n    if (!laneHasActiveGeneration(lane)) return false;" in aura_js
     assert "const laneOperational = (state.conversationReady || activeGeneration) && healthy;" in aura_js
 
 

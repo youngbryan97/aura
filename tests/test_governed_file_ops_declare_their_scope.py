@@ -36,6 +36,9 @@ from pathlib import Path
 import pytest
 
 _HOST_AUTOMATION = Path("core/capabilities/host_automation.py")
+#: The module and the parts split off it: the file operations moved into
+#: host_automation_screen.py and this read only the original, finding nothing.
+_HOST_AUTOMATION_PARTS = tuple(sorted(Path("core/capabilities").glob("host_automation*.py")))
 
 
 def _governed_file_write_calls() -> list[tuple[str, int, bool]]:
@@ -45,7 +48,14 @@ def _governed_file_write_calls() -> list[tuple[str, int, bool]]:
     that merely appears nearby is not the same as one that actually contains
     the call, and the whole defect class is a call sitting outside its scope.
     """
-    tree = ast.parse(_HOST_AUTOMATION.read_text(encoding="utf-8"))
+    found: list[tuple[str, int, bool]] = []
+    for part in _HOST_AUTOMATION_PARTS:
+        found.extend(_calls_in(part))
+    return found
+
+
+def _calls_in(path: Path) -> list[tuple[str, int, bool]]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
 
     scoped_ranges: list[tuple[int, int]] = []
     for node in ast.walk(tree):

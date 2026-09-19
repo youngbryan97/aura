@@ -174,10 +174,12 @@ def test_the_container_gate_allows_legitimate_code(label):
 
 
 def test_record_degradation_does_not_import_service_container():
-    import inspect
     import core.runtime.errors as errors
+    from source_support import inlined_function_source
 
-    source = inspect.getsource(errors.record_degradation)
+    # As it runs: the size sweep moved its body into helpers, and read alone
+    # it no longer named the registry it still uses.
+    source = inlined_function_source(errors.__file__, "record_degradation")
     assert "from core.container import ServiceContainer" not in source
     assert "core.observability.metrics" not in source
     assert "core.runtime.service_registry" in source

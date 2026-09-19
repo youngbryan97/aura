@@ -170,13 +170,17 @@ _STARTED_AT = time.time()
 #: the state root, so a cached lane audit still made six realpath calls and
 #: the runtime made thousands a minute. The environment string is the input;
 #: the path is resolved once per distinct value.
-_HOME_RESOLVED: tuple[tuple[str, str], Path] | None = None
+_HOME_RESOLVED: tuple[tuple[Any, ...], Path] | None = None
 _LIVE_ROOT_RESOLVED: tuple[str, Path] | None = None
 
 
 def _home() -> Path:
     global _HOME_RESOLVED
-    key = (_bootstrap_env("AURA_HOME"), os.environ.get("HOME", ""))
+    # Keyed on how home is found as well as on HOME: a test that repoints
+    # ``Path.home`` is repointing home too, and keyed on HOME alone it got the
+    # cached root — the shared test state, which one backup test copied whole
+    # until it timed out and one restore test would have written into.
+    key = (_bootstrap_env("AURA_HOME"), os.environ.get("HOME", ""), Path.home)
     cached = _HOME_RESOLVED
     if cached is not None and cached[0] == key:
         return cached[1]
