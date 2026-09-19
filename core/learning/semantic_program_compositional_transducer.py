@@ -37,6 +37,7 @@ from core.learning.semantic_input_grounding import (
     semantic_input_grounding_contract_from_dict,
 )
 from core.learning.semantic_operation_view_refit import valid_operation_view_contract
+from core.learning.semantic_relation_tissue import valid_relation_rank_contract
 from core.learning.semantic_program_floor import semantic_primitive_type_signature
 from core.learning.semantic_program_ir import (
     SemanticIRInstruction,
@@ -592,7 +593,7 @@ class CompositionalSemanticProgramTransducer:
             or not isinstance(relation_fit, Mapping)
             or relation_fit.get("algorithm") != "minibatch_adamw_cross_entropy_v1"
             or relation_fit.get("selection_objective") != "minimum_validation_cross_entropy"
-            or relation_fit.get("rank") != self.definition_relation_head.query_projection.shape[1]
+            or not valid_relation_rank_contract(self.definition_relation_head, receipt)
             or relation_fit.get("seed") != _RELATION_TISSUE_SEED
             or receipt.get("relation_score_contract") != "mention_invariant_conditional_tissue_v1"
             or receipt.get("argument_role_contract") != "semantic_and_pointer_proposal_product_v1"
@@ -973,6 +974,20 @@ class CompositionalSemanticProgramTransducer:
         }
         body["relation_score_strategy"] = "categorical_log_margin_v1"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
+    def with_expanded_relation_rank(self, rank: int, *, seed: int = 0) -> CompositionalSemanticProgramTransducer:
+        """Create a wider development candidate, retaining the old bilinear component."""
+        head = self.definition_relation_head.expanded_rank(rank, seed=seed)
+        body = {key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"}
+        body["coefficient_sha256"] = _sha({**self._coefficient_body(), "definition_relation_head": head.to_dict()})
+        body["relation_rank_expansions"] = [*body.get("relation_rank_expansions", []), {
+            "schema": "aura.semantic_relation_rank_expansion.v1",
+            "parent_transducer_receipt_sha256": self.receipt_sha256,
+            "previous_rank": self.definition_relation_head.query_projection.shape[1],
+            "rank": rank, "seed": seed, "initialization": "orthogonal_query_zero_definition_v1",
+            "serving_authority": False, "numerical_replay_required": True,
+        }]
+        return replace(self, definition_relation_head=head, training_receipt={**body, "receipt_sha256": _sha(body)})
 
     def with_source_ordered_definitions(self) -> CompositionalSemanticProgramTransducer:
         """Bound definition clauses by textual neighbors, not register numbering."""

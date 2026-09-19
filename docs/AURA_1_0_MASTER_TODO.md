@@ -950,6 +950,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Background score replay](evidence/G03_BACKGROUND_SCORE_REPLAY_2026-09-18.md)
   aligns graph training with runtime log odds and excludes the unused pointer
   term. Eighty-nine focused tests pass; the negative trial is not relabeled.
+  [Relation capacity expansion](evidence/G03_RELATION_CAPACITY_EXPANSION_2026-09-18.md)
+  adds opt-in trainable dimensions to the existing head with zero initial
+  contribution and explicit lineage. No transfer benefit is measured. The
+  unchanged full run satisfies 28,143 first-round margins and continues mining;
+  this is not autonomous validation or G03 closure.
   [Source-anchored scoring](evidence/G03_SOURCE_ANCHORED_SCORING_2026-09-17.md)
   measures 488/500 for the unchanged incumbent and typed candidate. Sixteen
   historical failures were register-coordinate mismatches; twelve remain

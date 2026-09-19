@@ -104,6 +104,9 @@ def main() -> int:
                         help="retained joint_graphs only: differentiate runtime operation boundary scores")
     parser.add_argument("--compare-fit-start", action="store_true",
                         help="also evaluate the pre-fit candidate to separate decoder changes from learning")
+    parser.add_argument("--relation-rank", type=int,
+                        help="opt-in larger relation rank before a joint-graph fit; does not authorize serving")
+    parser.add_argument("--relation-rank-seed", type=int, default=0)
     args = parser.parse_args()
     configure_refit_environment(args.output)
     if args.evaluate_existing and args.validation_output is None:
@@ -129,6 +132,10 @@ def main() -> int:
         parser.error("argument-head learning requires retained semantic constraints")
     if args.learn_operation_pointer and not args.retain_semantic_constraints:
         parser.error("operation pointer learning requires retained semantic constraints")
+    if args.relation_rank is not None and args.objective != "joint_graphs":
+        parser.error("relation rank expansion requires joint_graphs")
+    if args.evaluate_existing and args.relation_rank is not None and not args.compare_fit_start:
+        parser.error("replaying a rank-expanded start requires compare-fit-start")
     if args.fit_checkpoint_dir is not None and not args.retain_semantic_constraints:
         parser.error("fit checkpoints require a retained-constraint training run")
     if args.evaluate_existing and not args.compare_fit_start and (
@@ -179,6 +186,8 @@ def main() -> int:
             raise ValueError("starting candidate representation differs from incumbent")
     if args.joint_operation_argument_scores:
         starting = starting.with_joint_operation_argument_scores()
+    if args.relation_rank is not None:
+        starting = starting.with_expanded_relation_rank(args.relation_rank, seed=args.relation_rank_seed)
     refit = {
         "binary_proposals": refit_compositional_argument_proposals,
         "pairwise_arguments": refit_compositional_argument_rankings,
