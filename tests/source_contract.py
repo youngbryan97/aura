@@ -31,6 +31,7 @@ import inspect
 from types import ModuleType
 
 __all__ = [
+    "declared_in",
     "function_containing",
     "in_order",
     "module_source",
@@ -84,3 +85,34 @@ def in_order(source: str, *needles: str) -> None:
             raise AssertionError(f"{needle!r} does not appear{after}")
         seen.append((needle, found))
         cursor = found + len(needle)
+
+
+def declared_in(needle: str, *modules: ModuleType) -> tuple[str, str]:
+    """Return ``(module_name, body)`` for whichever module declares ``needle``.
+
+    ``function_containing`` follows a block that moved into a helper. This
+    follows one that moved into another FILE, which is the same refactor
+    one directory up and breaks a test the same way.
+
+    LIVE 2026-09-18: ``purpose="research_document_synthesis"`` was read out
+    of ``core/skills/desktop_task.py`` by three tests. A method-size sweep
+    moved the synthesis call to ``core/skills/desktop_research.py`` with
+    every property it was being checked for intact — the origin, both
+    internal flags — and ``source.index`` raised ValueError. The tests were
+    holding a location, and the location was never the point.
+
+    Search order is the order given, so the caller says which module is the
+    expected home and which are the places it may have gone.
+    """
+
+    if not modules:
+        raise ValueError("a declaration has to be looked for somewhere")
+    for module in modules:
+        source = inspect.getsource(module)
+        if needle in source:
+            return module.__name__, source
+    looked = ", ".join(module.__name__ for module in modules)
+    raise AssertionError(
+        f"{needle!r} is declared in none of {looked}; "
+        "it is gone, not merely moved"
+    )
