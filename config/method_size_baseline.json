@@ -1,46 +1,41 @@
 {
   "threshold_lines": 400,
-  "tracked": 76,
-  "total_lines": 69433,
+  "tracked": 60,
+  "total_lines": 55999,
   "functions": {
-    "core/brain/cognitive_engine.py::CognitiveEngine._direct_desktop_quick_reply": {
-      "lines": 975,
-      "complexity": 190,
-      "returns": 12
+    "core/brain/cognitive_engine_quick_reply.py::_AnswersTheDesktopDirectly._direct_desktop_quick_reply": {
+      "lines": 765,
+      "complexity": 125,
+      "returns": 11
     },
-    "core/brain/cognitive_engine.py::CognitiveEngine._run_thinking_loop": {
-      "lines": 630,
-      "complexity": 83,
-      "returns": 12
+    "core/brain/cognitive_engine_thinking_loop.py::_RunsTheThinkingLoop._run_thinking_loop": {
+      "lines": 502,
+      "complexity": 65,
+      "returns": 14
     },
-    "core/brain/frontier_gap.py::validate_capability_report": {
-      "lines": 400,
-      "complexity": 76,
-      "returns": 1
+    "core/brain/foreground_latent_runtime.py::run_foreground_latent_episode": {
+      "lines": 519,
+      "complexity": 66,
+      "returns": 18
     },
-    "core/brain/inference_gate.py::InferenceGate._build_living_mind_context": {
-      "lines": 630,
-      "complexity": 134,
+    "core/brain/inference_gate.py::InferenceGate._generate_with_metadata_sink": {
+      "lines": 1972,
+      "complexity": 399,
+      "returns": 19
+    },
+    "core/brain/inference_gate_living_context.py::_BuildsTheLivingContext._build_living_mind_context": {
+      "lines": 438,
+      "complexity": 94,
       "returns": 4
     },
-    "core/brain/inference_gate.py::InferenceGate.generate": {
-      "lines": 3203,
-      "complexity": 652,
-      "returns": 33
-    },
-    "core/brain/latent_cortex_service.py::LatentCortexService._receipt_contract_errors": {
-      "lines": 1756,
-      "complexity": 518,
-      "returns": 24
-    },
     "core/brain/latent_cortex_service.py::LatentCortexService.deep_reason": {
-      "lines": 1371,
-      "complexity": 231,
-      "returns": 43
+      "lines": 1189,
+      "complexity": 200,
+      "returns": 45
     },
     "core/brain/llm/context_assembler.py::ContextAssembler.build_system_prompt": {
-      "lines": 905,
-      "complexity": 222,
+      "lines": 555,
+      "complexity": 137,
       "returns": 1
     },
     "core/brain/llm/latent_cortex/action_calibration.py::_verify_action_calibration_candidate": {
@@ -49,14 +44,9 @@
       "returns": 1
     },
     "core/brain/llm/latent_cortex/engine.py::LatentCortexEngine._latent_episode": {
-      "lines": 5056,
-      "complexity": 590,
+      "lines": 4925,
+      "complexity": 555,
       "returns": 15
-    },
-    "core/brain/llm/latent_cortex/engine.py::LatentCortexEngine.reason": {
-      "lines": 548,
-      "complexity": 102,
-      "returns": 3
     },
     "core/brain/llm/latent_cortex/fast_weight_learning.py::validate_fast_weight_learning_receipt": {
       "lines": 502,
@@ -64,8 +54,8 @@
       "returns": 1
     },
     "core/brain/llm/latent_cortex/frontier_certification.py::verify_frontier_gain_bundle": {
-      "lines": 466,
-      "complexity": 105,
+      "lines": 691,
+      "complexity": 128,
       "returns": 1
     },
     "core/brain/llm/latent_cortex/independent_worker_campaign_evidence.py::verify_worker_campaign_evidence": {
@@ -93,60 +83,40 @@
       "complexity": 221,
       "returns": 1
     },
-    "core/brain/llm/latent_cortex/types.py::CortexConfig.validate": {
-      "lines": 595,
-      "complexity": 263,
-      "returns": 3
-    },
     "core/brain/llm/latent_cortex/virtual_quanta.py::validate_virtual_quanta_receipt": {
       "lines": 484,
       "complexity": 208,
       "returns": 3
     },
     "core/brain/llm/latent_cortex/worker_handler.py::handle_latent_reason": {
-      "lines": 833,
-      "complexity": 134,
-      "returns": 24
+      "lines": 636,
+      "complexity": 97,
+      "returns": 25
     },
-    "core/brain/llm/llm_router.py::IntelligentLLMRouter._think_routed": {
-      "lines": 472,
-      "complexity": 127,
-      "returns": 9
+    "core/brain/llm/local_agent_client.py::LocalAgentClient.think_and_act": {
+      "lines": 423,
+      "complexity": 40,
+      "returns": 7
     },
-    "core/brain/llm/mlx_client.py::MLXLocalClient._ensure_worker_alive_inner": {
-      "lines": 590,
-      "complexity": 80,
-      "returns": 17
-    },
-    "core/brain/llm/mlx_client.py::MLXLocalClient._generate_inner": {
-      "lines": 668,
-      "complexity": 105,
-      "returns": 20
-    },
-    "core/brain/llm/mlx_client.py::MLXLocalClient.latent_reason_async": {
-      "lines": 929,
-      "complexity": 207,
-      "returns": 52
+    "core/brain/llm/mlx_latent_reasoning.py::_ReasonsInLatentSpace.latent_reason_async": {
+      "lines": 636,
+      "complexity": 144,
+      "returns": 44
     },
     "core/brain/llm/mlx_worker.py::_mlx_worker_loop": {
-      "lines": 3546,
-      "complexity": 517,
-      "returns": 9
+      "lines": 4041,
+      "complexity": 539,
+      "returns": 10
     },
-    "core/brain/llm_health_router.py::HealthAwareLLMRouter._call_endpoint": {
-      "lines": 515,
-      "complexity": 116,
+    "core/brain/llm_health_router_endpoint_call.py::_CallsTheEndpoint._call_endpoint": {
+      "lines": 498,
+      "complexity": 80,
       "returns": 19
     },
-    "core/brain/llm_health_router.py::HealthAwareLLMRouter._generate_core": {
-      "lines": 816,
-      "complexity": 206,
-      "returns": 8
-    },
-    "core/brain/reasoning_amplifier_v2.py::ReasoningAmplifierV2.amplify": {
-      "lines": 476,
-      "complexity": 94,
-      "returns": 4
+    "core/brain/llm_health_router_endpoint_call.py::_CallsTheEndpoint._generate_core": {
+      "lines": 470,
+      "complexity": 110,
+      "returns": 9
     },
     "core/capability_engine.py::CapabilityEngine._load_default_trigger_patterns": {
       "lines": 429,
@@ -154,13 +124,13 @@
       "returns": 0
     },
     "core/capability_engine.py::CapabilityEngine.execute": {
-      "lines": 1495,
-      "complexity": 225,
-      "returns": 40
+      "lines": 1411,
+      "complexity": 201,
+      "returns": 41
     },
     "core/cognitive/state_machine.py::StateMachine._handle_chat": {
-      "lines": 543,
-      "complexity": 96,
+      "lines": 418,
+      "complexity": 70,
       "returns": 5
     },
     "core/consciousness/system.py::ConsciousnessSystem.start": {
@@ -168,19 +138,9 @@
       "complexity": 31,
       "returns": 1
     },
-    "core/conversation/response_reliability.py::_assess_user_facing_reply": {
-      "lines": 400,
-      "complexity": 52,
-      "returns": 4
-    },
     "core/embodiment/reality_connectors.py::build_configured_reality_connector_catalog": {
       "lines": 413,
       "complexity": 72,
-      "returns": 1
-    },
-    "core/kernel/aura_kernel.py::AuraKernel._tick_body": {
-      "lines": 485,
-      "complexity": 83,
       "returns": 1
     },
     "core/learning/recurrence_native_objective_v2.py::_exact_adjoint_live_path_result": {
@@ -198,6 +158,16 @@
       "complexity": 140,
       "returns": 2
     },
+    "core/learning/unified_intrinsic_recurrence.py::UnifiedRecurrentController.microcode_transition_logits": {
+      "lines": 431,
+      "complexity": 15,
+      "returns": 8
+    },
+    "core/learning/unified_intrinsic_recurrence.py::unified_recurrent_hidden_states": {
+      "lines": 482,
+      "complexity": 119,
+      "returns": 1
+    },
     "core/learning/verified_recurrent_transition_repository.py::finalize_verified_recurrent_transition_campaign": {
       "lines": 447,
       "complexity": 89,
@@ -209,18 +179,18 @@
       "returns": 1
     },
     "core/mind_tick.py::MindTick._run_loop": {
-      "lines": 998,
-      "complexity": 234,
+      "lines": 959,
+      "complexity": 197,
       "returns": 14
     },
     "core/orchestrator/boot.py::OrchestratorBootMixin._async_init_subsystems": {
-      "lines": 905,
-      "complexity": 97,
-      "returns": 5
+      "lines": 889,
+      "complexity": 98,
+      "returns": 6
     },
     "core/orchestrator/initializers/cognitive_sensory.py::init_cognitive_sensory_layer": {
-      "lines": 852,
-      "complexity": 59,
+      "lines": 611,
+      "complexity": 40,
       "returns": 3
     },
     "core/orchestrator/initializers/pathways.py::register_core_pathways": {
@@ -229,24 +199,14 @@
       "returns": 0
     },
     "core/orchestrator/main.py::RobustOrchestrator.start": {
-      "lines": 1055,
-      "complexity": 144,
+      "lines": 847,
+      "complexity": 109,
       "returns": 5
     },
-    "core/orchestrator/mixins/boot/boot_autonomy.py::BootAutonomyMixin._init_salvaged_subsystems": {
-      "lines": 516,
-      "complexity": 55,
-      "returns": 0
-    },
     "core/orchestrator/mixins/incoming_logic.py::IncomingLogicMixin._original_handle_incoming_logic": {
-      "lines": 1546,
-      "complexity": 244,
+      "lines": 1496,
+      "complexity": 234,
       "returns": 22
-    },
-    "core/orchestrator/mixins/message_handling.py::MessageHandlingMixin._process_user_input_core": {
-      "lines": 477,
-      "complexity": 66,
-      "returns": 11
     },
     "core/orchestrator/mixins/response_processing.py::ResponseProcessingMixin._finalize_response": {
       "lines": 419,
@@ -254,84 +214,59 @@
       "returns": 4
     },
     "core/orchestrator/mixins/tool_execution.py::ToolExecutionMixin.execute_tool": {
-      "lines": 917,
+      "lines": 921,
       "complexity": 148,
       "returns": 29
     },
-    "core/organism/model_validation.py::install_runtime_validation": {
-      "lines": 1007,
-      "complexity": 2,
-      "returns": 1
-    },
-    "core/phases/cognitive_routing.py::CognitiveRoutingPhase.execute": {
-      "lines": 492,
-      "complexity": 108,
-      "returns": 13
-    },
     "core/phases/cognitive_routing_unitary.py::CognitiveRoutingPhase.execute": {
-      "lines": 551,
-      "complexity": 82,
-      "returns": 21
-    },
-    "core/phases/conversational_dynamics_phase.py::ConversationalDynamicsPhase.execute": {
-      "lines": 459,
-      "complexity": 98,
-      "returns": 5
+      "lines": 498,
+      "complexity": 83,
+      "returns": 22
     },
     "core/phases/memory_retrieval.py::MemoryRetrievalPhase.execute": {
-      "lines": 493,
-      "complexity": 122,
-      "returns": 23
+      "lines": 687,
+      "complexity": 158,
+      "returns": 30
     },
     "core/phases/response_generation.py::ResponseGenerationPhase.execute": {
-      "lines": 1921,
-      "complexity": 320,
-      "returns": 16
+      "lines": 1429,
+      "complexity": 231,
+      "returns": 18
     },
     "core/phases/response_generation_unitary.py::UnitaryResponsePhase.execute": {
-      "lines": 3035,
-      "complexity": 612,
+      "lines": 2940,
+      "complexity": 614,
       "returns": 47
     },
     "core/runtime/action_executor.py::ActionExecutor.execute": {
-      "lines": 803,
-      "complexity": 77,
-      "returns": 8
-    },
-    "core/runtime/errors.py::record_degradation": {
-      "lines": 442,
-      "complexity": 62,
-      "returns": 2
-    },
-    "core/runtime/health_contract.py::_runtime_integrity_block": {
-      "lines": 513,
-      "complexity": 51,
-      "returns": 1
+      "lines": 634,
+      "complexity": 57,
+      "returns": 9
     },
     "core/self/self_condition.py::build_self_condition_projection": {
       "lines": 446,
       "complexity": 87,
       "returns": 4
     },
-    "core/service_registration.py::_register_all_services_body": {
-      "lines": 599,
-      "complexity": 9,
-      "returns": 47
-    },
     "core/skills/computer_use.py::ComputerUseSkill._execute_action": {
-      "lines": 1512,
-      "complexity": 272,
-      "returns": 78
-    },
-    "core/skills/desktop_task.py::DesktopTaskSkill._derive_single_objective_steps": {
-      "lines": 494,
-      "complexity": 103,
-      "returns": 6
+      "lines": 1500,
+      "complexity": 267,
+      "returns": 79
     },
     "core/skills/desktop_task.py::DesktopTaskSkill.execute": {
-      "lines": 739,
-      "complexity": 151,
-      "returns": 9
+      "lines": 476,
+      "complexity": 115,
+      "returns": 11
+    },
+    "core/skills/screen_pursuit.py::pursue_on_screen": {
+      "lines": 907,
+      "complexity": 110,
+      "returns": 12
+    },
+    "core/skills/screen_pursuit_decision.py::decide_the_next_move": {
+      "lines": 1387,
+      "complexity": 294,
+      "returns": 17
     },
     "core/voice/speech_profile.py::SpeechProfileCompiler.compile": {
       "lines": 499,
@@ -339,49 +274,41 @@
       "returns": 1
     },
     "interface/routes/chat.py::_api_chat_turn": {
-      "lines": 4477,
-      "complexity": 686,
-      "returns": 117
-    },
-    "interface/routes/chat.py::_build_live_turn_contract_payload": {
-      "lines": 799,
-      "complexity": 190,
-      "returns": 3
-    },
-    "interface/routes/chat.py::_paired_chat_response_boundary": {
-      "lines": 445,
-      "complexity": 61,
-      "returns": 12
-    },
-    "interface/routes/chat.py::_repair_final_degraded_reply": {
-      "lines": 409,
-      "complexity": 95,
-      "returns": 18
-    },
-    "interface/routes/chat.py::_run_chat_preflight": {
-      "lines": 445,
-      "complexity": 64,
-      "returns": 2
+      "lines": 4001,
+      "complexity": 605,
+      "returns": 108
     },
     "interface/routes/chat.py::_run_cognitive_engine_chat_turn": {
-      "lines": 2705,
-      "complexity": 418,
-      "returns": 65
+      "lines": 2802,
+      "complexity": 457,
+      "returns": 83
     },
-    "interface/routes/chat.py::_stabilize_user_facing_reply": {
-      "lines": 686,
-      "complexity": 190,
-      "returns": 25
+    "interface/routes/chat_delivery.py::_paired_chat_response_boundary": {
+      "lines": 490,
+      "complexity": 73,
+      "returns": 12
     },
-    "interface/routes/system.py::_collect_api_health_payload": {
-      "lines": 739,
-      "complexity": 187,
-      "returns": 1
+    "interface/routes/chat_reply_repair.py::_stabilize_user_facing_reply": {
+      "lines": 652,
+      "complexity": 166,
+      "returns": 27
+    },
+    "interface/routes/chat_turn_contract.py::_build_live_turn_contract_payload": {
+      "lines": 784,
+      "complexity": 244,
+      "returns": 3
     },
     "interface/routes/system.py::_probe_desktop_access_summary": {
-      "lines": 484,
-      "complexity": 123,
-      "returns": 12
+      "lines": 472,
+      "complexity": 120,
+      "returns": 10
     }
+  },
+  "growth_notes": {
+    "core/brain/llm/latent_cortex/frontier_certification.py::verify_frontier_gain_bundle": "2026-09-20: twenty-five clusters were lifted out of the God objects between 2026-09-18 and 2026-09-20 (a37d08fcc and after); the tracked total fell from 69,433 to 55,999 lines and 76 to 60 functions, and six of the functions those lifts touched grew while their neighbours left. Recorded so the ratchet holds from the shape the tree has now; each may only shrink.",
+    "core/brain/llm/mlx_worker.py::_mlx_worker_loop": "2026-09-20: twenty-five clusters were lifted out of the God objects between 2026-09-18 and 2026-09-20 (a37d08fcc and after); the tracked total fell from 69,433 to 55,999 lines and 76 to 60 functions, and six of the functions those lifts touched grew while their neighbours left. Recorded so the ratchet holds from the shape the tree has now; each may only shrink.",
+    "core/orchestrator/mixins/tool_execution.py::ToolExecutionMixin.execute_tool": "2026-09-20: twenty-five clusters were lifted out of the God objects between 2026-09-18 and 2026-09-20 (a37d08fcc and after); the tracked total fell from 69,433 to 55,999 lines and 76 to 60 functions, and six of the functions those lifts touched grew while their neighbours left. Recorded so the ratchet holds from the shape the tree has now; each may only shrink.",
+    "core/phases/memory_retrieval.py::MemoryRetrievalPhase.execute": "2026-09-20: twenty-five clusters were lifted out of the God objects between 2026-09-18 and 2026-09-20 (a37d08fcc and after); the tracked total fell from 69,433 to 55,999 lines and 76 to 60 functions, and six of the functions those lifts touched grew while their neighbours left. Recorded so the ratchet holds from the shape the tree has now; each may only shrink.",
+    "interface/routes/chat.py::_run_cognitive_engine_chat_turn": "2026-09-20: twenty-five clusters were lifted out of the God objects between 2026-09-18 and 2026-09-20 (a37d08fcc and after); the tracked total fell from 69,433 to 55,999 lines and 76 to 60 functions, and six of the functions those lifts touched grew while their neighbours left. Recorded so the ratchet holds from the shape the tree has now; each may only shrink."
   }
 }
