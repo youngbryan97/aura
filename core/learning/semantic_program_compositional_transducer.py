@@ -944,6 +944,12 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
             raise ValueError("operation_chart_empty")
         return input_spans, input_scores, argument_pointer_scores, charts
 
+    def decode_candidates(self, **kwargs):
+        """Inspect bounded runtime alternatives while preserving ordinary selection."""
+        from core.learning.semantic_candidate_bank import decode_semantic_candidates
+
+        return decode_semantic_candidates(self, **kwargs)
+
     def decode(
         self,
         *,

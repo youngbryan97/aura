@@ -991,6 +991,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Reference review and adoption](evidence/G_LEDGER_REFERENCE_REVIEW_2026-09-20.md)
+  maps all supplied recommendations to existing owners and acceptance evidence.
+  [Policy controls](evidence/G03_POLICY_COEFFICIENT_CONTROLS_2026-09-20.md)
+  separate coefficient learning from selection: incumbent 99/100, joint
+  selection 91/100; restoring the incumbent policy restores 99/100.
+  Iterative source training reaches 32/32 without validation gain. G03 stays open.
+  [Candidate-bank diagnosis](evidence/G03_CANDIDATE_BANK_DIAGNOSIS_2026-09-20.md)
+  finds correct alternatives in all eight additional joint-policy errors.
+  Expanded replay also reaches the shared incumbent error's correct program;
+  all observed failures on this 100-row slice are selection errors. Target-free
+  candidate generation and independent attribution are now tested.
   [Expanded function-coordinate trial](evidence/G03_EXPANDED_FUNCTION_TRIAL_2026-09-19.md)
   reaches 30/32 training programs from 28/32; validation stays 91/100 with zero
   changed outcomes. All 10,124 fixed inequalities pass, but two autonomous
