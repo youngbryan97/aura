@@ -14,6 +14,43 @@ class InterruptedFit(RuntimeError):
     pass
 
 
+def test_rejected_projection_keeps_accepted_checkpoint_separate(tmp_path):
+    import json
+    store = SemanticFitCheckpoint(tmp_path / "fit.npz", "source-fit")
+    state = dict(flat=np.ones(2), margins=np.ones(1), floors=np.array([-np.inf]),
+                 trace=[], next_step=0, status="running")
+    store.save(**state)
+    before = store.path.read_bytes()
+    path = store.save_projection(normals=[[1., 0.], [-1., 0.]], required=[1., 1.],
+        anchor=[0., 0.], receipt={"status": "unverified"}, step=1)
+    with np.load(path, allow_pickle=False) as archive:
+        metadata = json.loads(archive["metadata"].tobytes())
+        arrays = {name: archive[name] for name in ("normals", "required", "anchor")}
+    body = {key: value for key, value in metadata.items() if key != "sha256"}
+    assert metadata["sha256"] == fit_identity((body, arrays))
+    assert metadata["identity"] == "source-fit"
+    assert not metadata["serving_authority"]
+    assert store.path.read_bytes() == before
+    np.testing.assert_array_equal(arrays["normals"], [[1., 0.], [-1., 0.]])
+
+
+def test_unresolved_fit_exports_its_actual_affine_problem(tmp_path):
+    import json
+    from core.learning.semantic_graph_constraints import _fit_graph_parameters
+    from tests.test_semantic_minimum_change import linear
+    path = tmp_path / "fit.npz"
+    parameters = (np.zeros((1, 1)), np.zeros((1, 1)), np.zeros(1), np.array(0.))
+    _, receipt = _fit_graph_parameters(parameters, (linear([1.]), linear([-1.])),
+        steps=1, update_rule="minimum_change", checkpoint_path=path)
+    assert receipt["status"] == "local_margin_projection_unverified"
+    with np.load(path.with_name(path.name + ".projection.npz"), allow_pickle=False) as data:
+        metadata = json.loads(data["metadata"].tobytes())
+        np.testing.assert_array_equal(data["required"], [.1, .1])
+        assert data["normals"].shape == (2, 4)
+        assert not metadata["receipt"]["stored_primal_feasible"]
+    assert receipt["accepted_steps"] == []
+
+
 @pytest.mark.parametrize("objective", ["squared_deficit", "pairwise_logistic"])
 def test_interrupted_fit_resumes_bit_identically_without_repeating_updates(tmp_path, objective):
     head, operation = simple_model()

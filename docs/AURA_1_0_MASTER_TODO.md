@@ -991,6 +991,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Function-coordinate trials](evidence/G03_FUNCTION_COORDINATES_2026-09-19.md)
+  retain two rejected attempts and the repaired active-set result: training
+  13/16 to 16/16, validation 91/100 unchanged with no gains or regressions.
+  All 5,063 retained inequalities pass. Failed projections are independently
+  replayable; no candidate is promoted and broader coverage remains required.
   [Scaled subspace trial](evidence/G03_SCALED_SUBSPACE_TRIAL_2026-09-19.md)
   repairs 13/16 to 16/16 training programs but leaves development validation
   at 91/100: four gains and four regressions. All retained inequalities pass;
@@ -1258,6 +1263,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   turn exposed development cases into fresh or powered replication.
 - [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
+  [Validation source identity](evidence/G08_VALIDATION_SOURCE_IDENTITY_2026-09-19.md)
+  prevents decoder/scorer changes from reusing stale cached scores and rejects
+  source drift during selection. Twenty-five focused tests pass; independent
+  campaign verification remains open.
   [Paired public measurement](evidence/G08_PAIRED_PUBLIC_MEASUREMENT_2026-09-18.md)
   repairs containment false positives, disjoint-task causal attribution, and
   baseline-dependent task filtering in the retrieval/depth diagnostic. The

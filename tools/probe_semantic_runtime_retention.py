@@ -37,6 +37,8 @@ def main():
     parser.add_argument("--learn-operation-pointer", action="store_true")
     parser.add_argument("--freeze-operation-head", action="store_true")
     parser.add_argument("--update-rule", choices=("working_face", "minimum_change"), default="working_face")
+    parser.add_argument("--relation-metric", choices=("coefficient_euclidean", "factor_function"),
+                        default="coefficient_euclidean")
     parser.add_argument("--boundary-policy", choices=("supervised", "retain_existing"), default="supervised")
     parser.add_argument("--objective", choices=("squared_deficit", "pairwise_logistic"), default="squared_deficit")
     args = parser.parse_args()
@@ -57,6 +59,7 @@ def main():
         steps=args.steps, max_charts=args.max_charts,
         objective=args.objective,
         update_rule=args.update_rule,
+        relation_metric=args.relation_metric,
         boundary_policy=args.boundary_policy,
         learn_operation_pointer=args.learn_operation_pointer,
         learn_operations=not args.freeze_operation_head,

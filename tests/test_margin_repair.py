@@ -158,3 +158,13 @@ def test_one_satisfied_correction_does_not_prove_unseen_generalization():
 def test_bad_geometry_is_not_a_measured_result(a, b):
     with pytest.raises(ValueError):
         minimum_margin_repair(a, b)
+
+
+@pytest.mark.parametrize("epsilon", [1e-5, 1e-6, 1e-7])
+def test_ill_conditioned_gram_falls_back_to_unsquared_feature_geometry(epsilon):
+    a, b = [[1., 0.], [-1., epsilon]], [.1, -.1 + epsilon]
+    result = minimum_margin_repair(a, b)
+    np.testing.assert_allclose(result.displacement, [.1, 1.], atol=1e-8)
+    assert result.receipt["status"] == "verified_numerically"
+    assert result.receipt["equality_solver"] == "orthogonal_feature_svd_v1"
+    assert verify_margin_repair(a, b, result.displacement, result.multipliers)["status"] == "verified_numerically"

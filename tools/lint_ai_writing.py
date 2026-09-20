@@ -504,9 +504,13 @@ def scan_file(rel: str) -> list[tuple[int, str, str]]:
 
 
 def _tracked(pattern: str) -> list[str]:
-    return subprocess.run(
-        ["git", "ls-files", pattern], cwd=ROOT, capture_output=True, text=True, check=True
-    ).stdout.split()
+    # This reads index membership, not working-tree changes. A stale filesystem
+    # monitor must not hold the writing gate while it asks for no such changes.
+    output = subprocess.run(
+        ["git", "-c", "core.fsmonitor=false", "ls-files", "-z", "--", pattern],
+        cwd=ROOT, capture_output=True, text=True, check=True, timeout=60,
+    ).stdout
+    return [path for path in output.split("\0") if path]
 
 
 def tracked_guides() -> list[str]:

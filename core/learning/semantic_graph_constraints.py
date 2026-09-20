@@ -41,11 +41,13 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                           required_margin=.1, learning_rate=.001, max_active=32,
                           adaptive_step=False, checkpoint_path=None, progress=None,
                           checkpoint_identity=None, batched=True, objective="squared_deficit",
-                          update_rule="working_face", trainable_parameters=None):
+                          update_rule="working_face", trainable_parameters=None,
+                          relation_metric="coefficient_euclidean"):
     """Search for all retained inequalities; retain every already-positive margin."""
     if (objective not in {"squared_deficit", "pairwise_logistic"}
             or update_rule not in {"working_face", "minimum_change"}
             or (update_rule == "minimum_change" and objective != "squared_deficit")
+            or relation_metric not in {"coefficient_euclidean", "factor_function"}
             or type(batched) is not bool or type(adaptive_step) is not bool or not contrasts or type(steps) is not int or steps < 1 or type(max_active) is not int
             or max_active < 1 or not np.isfinite(required_margin) or required_margin <= 0
             or not np.isfinite(learning_rate) or learning_rate <= 0
@@ -54,6 +56,11 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                    or not np.isfinite(row.fixed_margin) for row in contrasts)):
         raise ValueError("invalid semantic graph constraint fit")
     initial = tuple(np.asarray(value, dtype=np.float64) for value in initial)
+    geometry = None
+    if relation_metric == "factor_function":
+        from core.learning.bilinear_geometry import BilinearFactorGeometry
+
+        geometry = BilinearFactorGeometry.from_factors(*initial[:2], scale=scale)
     if trainable_parameters is None:
         trainable_parameters = (True,) * len(initial)
     trainable_parameters = tuple(trainable_parameters)
@@ -67,23 +74,43 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                               for value, trainable in zip(initial, trainable_parameters, strict=True)])
     batch = GraphConstraintBatch(contrasts, scale) if batched else None
 
-    def unpack(flat):
+    def split(flat):
         return tuple(value.reshape(shape) for value, shape in
                      zip(np.split(flat, ends[:-1]), shapes, strict=True))
 
+    def unpack(flat):
+        parts = split(flat)
+        return parts if geometry is None else geometry.decode(parts)
+
+    def pack(parameters):
+        parts = parameters if geometry is None else geometry.encode(parameters)
+        return np.concatenate([value.ravel() for value in parts])
+
+    def pack_gradient(gradients):
+        parts = gradients if geometry is None else geometry.pullback(gradients)
+        return np.concatenate([value.ravel() for value in parts]) * mutable
+
+    def stored_parameters(flat):
+        parts = unpack(flat)
+        if geometry is None:
+            return parts
+        return tuple(part.astype(np.float32).astype(np.float64) if trainable else original
+                     for part, original, trainable in zip(parts, initial, trainable_parameters, strict=True))
+
     def evaluate(flat):
-        parameters = unpack(flat)
+        parameters = stored_parameters(flat)
         values = (batch.margins(parameters) if batch is not None else
                   np.asarray([graph_margin(parameters, row, scale=scale) for row in contrasts]))
         if not np.all(np.isfinite(values)):
             raise ValueError("nonfinite semantic constraint margin")
         return values
 
-    flat = np.concatenate([value.ravel() for value in initial])
+    flat = pack(initial)
     anchor = flat.copy()
 
     def store_trial(value):
-        stored = value.astype(np.float32).astype(np.float64)
+        stored = (value.astype(np.float32).astype(np.float64) if geometry is None else
+                  pack(tuple(part.astype(np.float32).astype(np.float64) for part in unpack(value))))
         stored[~mutable] = anchor[~mutable]
         return stored
 
@@ -109,8 +136,8 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
             if not len(violated):
                 return trial, values, attempt
             index = max(violated, key=lambda i: floors[i] - values[i])
-            _, gradient = graph_margin_gradient(unpack(trial), contrasts[index], scale=scale)
-            normal = np.concatenate([value.ravel() for value in gradient]) * mutable
+            _, gradient = graph_margin_gradient(stored_parameters(trial), contrasts[index], scale=scale)
+            normal = pack_gradient(gradient)
             squared_norm = float(normal @ normal)
             if squared_norm == 0 or not np.isfinite(squared_norm):
                 break
@@ -127,12 +154,13 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
 
         source_files = ("semantic_graph_constraints.py", "semantic_graph_batch.py", "semantic_relation_graph_learning.py",
                         "semantic_operation_graph_learning.py", "semantic_argument_graph_learning.py",
-                        "semantic_operation_pointer_learning.py", "margin_repair.py")
+                        "semantic_operation_pointer_learning.py", "margin_repair.py", "bilinear_geometry.py",
+                        "affine_margin_polish.py", "semantic_fit_checkpoint.py")
         identity = fit_identity({
             "algorithm": [Path(__file__).with_name(name).read_text() for name in source_files],
             "owner": checkpoint_identity, "initial": initial, "contrasts": tuple(contrasts),
             "options": (scale, steps, required_margin, learning_rate, max_active, adaptive_step, batched, objective,
-                        update_rule, trainable_parameters),
+                        update_rule, trainable_parameters, relation_metric),
         })
         checkpoint = SemanticFitCheckpoint(checkpoint_path, identity)
         saved = checkpoint.load()
@@ -171,10 +199,9 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         if not np.any(deficits):
             status = "retained_constraints_satisfied"
             break
-        parameters = unpack(flat)
-        direction = (np.concatenate([value.ravel() for value in
-                     batch.weighted_gradient(parameters, weights * deficits)])
-                     if batch is not None else np.zeros_like(flat)) * mutable
+        parameters = stored_parameters(flat)
+        direction = (pack_gradient(batch.weighted_gradient(parameters, weights * deficits))
+                     if batch is not None else np.zeros_like(flat))
         normals = {}
         # Only binding faces constrain infinitesimal motion. A witness with
         # slack may decrease while remaining above its retained floor.
@@ -187,7 +214,7 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
             if index not in active and (batch is not None or not deficits[index]):
                 continue
             _margin, gradient = graph_margin_gradient(parameters, row, scale=scale)
-            vector = np.concatenate([value.ravel() for value in gradient]) * mutable
+            vector = pack_gradient(gradient)
             if batch is None:
                 direction += weights[index] * deficits[index] * vector
             if index in active:
@@ -203,11 +230,20 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                 indices = tuple(normals)
                 matrix = np.stack(tuple(normals.values()))
                 required = required_margin - margins[list(indices)] + matrix @ (flat - anchor)
+                def stored_mutable(point):
+                    full = anchor.copy()
+                    full[mutable] = point
+                    return store_trial(full)[mutable]
+
                 proposal = minimum_stored_margin_repair(
-                    matrix[:, mutable], required, anchor[mutable], tolerance=1e-7)
+                    matrix[:, mutable], required, anchor[mutable], tolerance=1e-7,
+                    store_point=None if geometry is None else stored_mutable)
                 projection_receipt = proposal.receipt["continuous_projection"]
                 if not proposal.receipt["stored_primal_feasible"]:
                     status = "local_margin_projection_unverified"
+                    if checkpoint is not None:
+                        checkpoint.save_projection(normals=matrix[:, mutable], required=required,
+                            anchor=anchor[mutable], receipt=proposal.receipt, step=step + 1)
                     if progress:
                         progress({"stage": "constraint_projection_unverified", "step": step + 1,
                                   "projection": proposal.receipt})
@@ -297,7 +333,7 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
             # projection. The batch size limits discovery, not protection.
             for index in sorted(blockers, key=lambda i: (margins[i] - floors[i], i))[:max_active]:
                 _, gradient = graph_margin_gradient(parameters, contrasts[index], scale=scale)
-                normals[index] = np.concatenate([value.ravel() for value in gradient]) * mutable
+                normals[index] = pack_gradient(gradient)
             cut_rounds += 1
             if progress:
                 progress({"stage": "constraint_direction_refined", "step": step + 1,
@@ -319,8 +355,8 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
     elif status == "running":
         status = "search_budget_exhausted"
     persist(status)
-    values = unpack(flat)
-    return values, {
+    values = stored_parameters(flat)
+    receipt = {
         "objective": ("retained_pairwise_likelihood_v1" if objective == "pairwise_logistic"
                       else "retained_semantic_inequalities_v1"), "status": status,
         "initial_loss": loss_at(before), "stored_loss": loss_at(margins),
@@ -343,12 +379,19 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         "frozen_parameters_unchanged": bool(np.array_equal(flat[~mutable], anchor[~mutable])),
         "parameter_displacements": [float(np.linalg.norm(value - original))
                                     for value, original in zip(values, initial, strict=True)],
-        "displacement_from_anchor": float(np.linalg.norm(flat - anchor)),
+        "displacement_from_anchor": (float(np.linalg.norm(flat - anchor)) if geometry is None else
+            float(np.sqrt(sum(np.sum((value - original) ** 2)
+                for value, original in zip(values, initial, strict=True))))),
         "global_minimum_change_proven": False,
         "all_constraints_checked_at_acceptance": True,
         "infeasibility_proven": False, "latent_choices_frozen_for_update": True,
         "serving_authority": False,
     }
+    if geometry is not None:
+        receipt["relation_geometry"] = {**geometry.certificate(),
+            "coordinate_displacement_norm": float(np.linalg.norm(flat - anchor)),
+            "physical_storage_dtype": "float32"}
+    return values, receipt
 
 
 def _model_parameters(head, operation_head):

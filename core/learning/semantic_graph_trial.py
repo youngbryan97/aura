@@ -2,12 +2,19 @@
 
 from collections import defaultdict, deque
 
-from core.learning.semantic_graph_counterexamples import compare_program_meanings, counterfactual_inputs
 from core.learning.semantic_graph_constraints import fit_complete_graph_constraints
+from core.learning.semantic_graph_counterexamples import (
+    compare_program_meanings,
+    counterfactual_inputs,
+)
 from core.learning.semantic_joint_graph_learning import (
-    align_source_input_registers, mine_runtime_graph_contrast, score_annotated_graph,
-    mine_source_binding_constraint, source_operation_constraints,
-    source_operation_pointer_constraints, source_operation_supervision,
+    align_source_input_registers,
+    mine_runtime_graph_contrast,
+    mine_source_binding_constraint,
+    score_annotated_graph,
+    source_operation_constraints,
+    source_operation_pointer_constraints,
+    source_operation_supervision,
 )
 from core.learning.semantic_program_campaign import _sha
 from core.learning.semantic_program_shared_transducer import _geometry
@@ -87,7 +94,8 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
                              training_pool_count=None, steps=20, max_charts=32, progress=None,
                              objective="squared_deficit", operation_retention_count=None,
                              learn_operation_pointer=False, update_rule="working_face",
-                             boundary_policy="supervised", learn_operations=True):
+                             boundary_policy="supervised", learn_operations=True,
+                             relation_metric="coefficient_euclidean"):
     """Fit only selected source rows and independently replay both small cohorts.
 
     This returns no deployable candidate. Validation rows never enter mining
@@ -164,7 +172,7 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
     candidate, fit = fit_complete_graph_constraints(model, tuple(constraints),
         scale=model.definition_relation_scale, steps=steps, adaptive_step=True, progress=progress,
         objective=objective, learn_operation_pointer=learn_operation_pointer, update_rule=update_rule,
-        learn_operations=learn_operations)
+        learn_operations=learn_operations, relation_metric=relation_metric)
     after = []
     for item in (*training, *validation):
         after.append(_observe(candidate, item))
