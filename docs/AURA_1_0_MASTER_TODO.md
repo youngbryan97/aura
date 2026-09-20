@@ -1006,6 +1006,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Iterative policy result](evidence/G03_ITERATIVE_POLICY_RESULT_2026-09-20.md)
+  re-mines the actual decoder after fitting: selected training improves 7/8
+  to 8/8; exposed validation stays 99/100 without regression. The single-fit
+  constraint pass had left the error unchanged. Full-cohort work remains.
   [Policy-aligned learning](evidence/G03_POLICY_ALIGNED_LEARNING_2026-09-20.md)
   removes the trainer's required decoder-policy switch. A completed small
   source trial retains 99/100 on exposed validation with no gains or
@@ -1307,6 +1311,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   baseline-dependent task filtering in the retrieval/depth diagnostic. The
   68-test focused pass does not qualify a model or close campaign verification.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [Closed procedure types](evidence/G09_CLOSED_PROCEDURE_TYPES_2026-09-20.md)
+  preflight every nested structural declaration before backend effects and
+  wire the checked mode into semantic execution. Legacy nominal procedures
+  remain compatible; 97 focused tests pass. This is not broad-gain evidence.
   [Ordinary evaluation path](evidence/G09_ORDINARY_EVALUATION_PATH_2026-09-18.md)
   removes non-safety canned answers selected solely by test/proof/evaluation
   origin. Planning and factual requests reach ordinary reasoning; governance

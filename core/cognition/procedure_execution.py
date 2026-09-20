@@ -57,6 +57,7 @@ class ProcedureExecution:
     resulting_state: dict[str, Any]
     steps: tuple[ProcedureStepResult, ...]
     execution: Execution
+    closed_types_checked: bool = False
 
     @property
     def completed(self) -> bool:
@@ -127,6 +128,7 @@ def execute_procedure(
     context: Mapping[str, Any] | None = None,
     event_graph: EventGraph | None = None,
     parent_events: Sequence[int] = (),
+    closed_types: bool = False,
 ) -> ProcedureExecution:
     """Run a registered composition with caller-supplied backend capabilities.
 
@@ -136,8 +138,13 @@ Execution completion is not a correctness observation for ``record_use``.
 External effects cannot be rolled back by discarding the local state.
 """
 
+    if type(closed_types) is not bool:
+        raise ValueError("closed type mode must be boolean")
     handlers = dict(backends)
     events = _events(registry, procedure_id, handlers)
+    if closed_types:
+        for _, procedure in events:
+            procedure.signature.validate_structural_types()
     current = deepcopy(dict(state))
     request_context = MappingProxyType(dict(context or {}))
     records: list[ProcedureStepResult] = []
@@ -213,7 +220,7 @@ External effects cannot be rolled back by discarding the local state.
     execution = Executor().run(
         plan, tools=tools, permitted=frozenset(tools), bindings={"state": current},
     )
-    return ProcedureExecution(procedure_id, current, tuple(records), execution)
+    return ProcedureExecution(procedure_id, current, tuple(records), execution, closed_types)
 
 
 @invariant(
@@ -236,4 +243,22 @@ def _explicit_typed_outputs_hold() -> tuple:
         except PlanFailed:
             continue
         raise AssertionError("procedure output check accepted a missing or mistyped value")
+    return ()
+
+
+@invariant(
+    "procedure.closed_structural_declarations", scope="procedure",
+    owner="core/cognition/procedure_execution.py", observational=False,
+)
+def _closed_structural_declarations_hold() -> tuple:
+    """Nominal presence labels cannot grant closed structural evidence."""
+    from core.cognition.procedure import Effect, Signature
+
+    Signature(effects=(Effect("result", "integer", 1),)).validate_structural_types()
+    for effect in (Effect("result", "unregistered"), Effect("result", "integer", True)):
+        try:
+            Signature(effects=(effect,)).validate_structural_types()
+        except ValueError:
+            continue
+        raise AssertionError("closed structural evidence accepted an invalid declaration")
     return ()
