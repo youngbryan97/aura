@@ -49,7 +49,10 @@ class _FakeGateway:
 
     def run(self, cmd, **kwargs):
         self.runs.append(list(cmd))
-        if cmd[:3] == ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"]:
+        # Matched on the subcommand: the options between `git` and it are
+        # read settings, and pinning a slice made this silently stop
+        # matching when `-c core.fsmonitor=false` was added.
+        if cmd[0] == "git" and cmd[-2:] == ["rev-parse", "HEAD"]:
             return _FakeResult(0, "deadbeefcafe1234\n", "")
         return self.result
 
