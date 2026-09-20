@@ -427,11 +427,23 @@ class ExecutiveClosureEngine:
             self._last_snapshot,
             warmup=warmup_mode or foreground_chat_active,
         )
+        # A person's task is theirs. The commitment keeps it stable while
+        # they wait; syncing it into her own goal hierarchy made it hers to
+        # pursue afterwards, without them and without their authority. LIVE
+        # 2026-07-25 to 2026-09-20: "Find out who wrote the novel Solaris and
+        # reply with just the author's name" — an endurance probe's turn —
+        # sat in ~/.aura/goals.json for two months, was ranked first of seven
+        # initiatives, and ran as a background tick sixteen times in one
+        # uptime, each web_search refused by the Will for lack of a lease,
+        # each refusal a warning, and nobody there to reply to.
+        theirs = bool(commitment and selected_objective == commitment.objective) or (
+            bool(selected_objective) and self._is_user_task(selected_objective, current_origin)
+        )
         self._maybe_sync_goal_hierarchy(
             selected_objective,
             dominant_need,
             need_pressure,
-            warmup=warmup_mode or foreground_chat_active,
+            warmup=warmup_mode or foreground_chat_active or theirs,
         )
 
         return state

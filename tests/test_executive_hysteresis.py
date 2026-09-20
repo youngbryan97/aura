@@ -124,3 +124,47 @@ def test_user_task_detection():
     assert not engine._is_user_task("internal dialectic prompt", "dream_processor")
     # Intrinsic self-goal should not count
     assert not engine._is_user_task("", "user")
+
+
+def test_a_persons_task_is_not_synced_into_her_goal_hierarchy(monkeypatch):
+    """The commitment keeps their task stable while they wait; it never
+    becomes a standing goal of hers.
+
+    LIVE 2026-07-25 to 2026-09-20: an endurance probe's "Find out who wrote
+    the novel Solaris and reply with just the author's name" was synced into
+    ~/.aura/goals.json, ranked first of seven initiatives two months later,
+    and ran as a background tick sixteen times in one uptime — each
+    web_search refused by the Will, and nobody there to reply to.
+    """
+    engine = ExecutiveClosureEngine()
+    synced: list[str] = []
+    monkeypatch.setattr(
+        engine,
+        "_maybe_sync_goal_hierarchy",
+        lambda objective, need, pressure, *, warmup=False: synced.append(
+            f"{objective}|warmup={warmup}"
+        ),
+    )
+    theirs = "Find out who wrote the novel Solaris and reply with just the author's name."
+    assert engine._is_user_task(theirs, "chat")
+    # the path the integrate step takes, reduced to its decision
+    commitment = type("C", (), {"objective": theirs})()
+    warm = bool(commitment and theirs == commitment.objective) or engine._is_user_task(theirs, "chat")
+    engine._maybe_sync_goal_hierarchy(theirs, "competence", 0.9, warmup=warm)
+    assert synced == [f"{theirs}|warmup=True"]
+
+    hers = "Deconstruct and comprehensively research: liquid time-constant networks"
+    warm = engine._is_user_task(hers, "curiosity_engine")
+    engine._maybe_sync_goal_hierarchy(hers, "competence", 0.9, warmup=warm)
+    assert synced[-1] == f"{hers}|warmup=False"
+
+
+def test_the_integrate_step_makes_that_decision():
+    """The decision above is the one integrate() takes before it syncs."""
+    import core.consciousness.executive_closure as closure
+    from tests.source_contract import function_containing
+
+    name, body = function_containing(closure, "self._maybe_sync_goal_hierarchy(")
+    assert name == "integrate"
+    assert "theirs = bool(commitment and selected_objective == commitment.objective)" in body
+    assert "warmup=warmup_mode or foreground_chat_active or theirs" in body

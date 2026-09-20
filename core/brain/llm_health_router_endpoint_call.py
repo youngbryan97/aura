@@ -334,13 +334,22 @@ class _CallsTheEndpoint:
         else:
             now = time.time()
             if now - self._last_fallback_warning_at > 30.0:
-                # Every lane for this tier warming is a wait, not a fault.
-                warming = [
-                    ep for ep in self.endpoints.values()
-                    if _only_warming(str(getattr(ep, "last_failure_reason", "") or "").removeprefix("transient:"))
-                ]
+                # Every lane for this tier warming is a wait, not a fault —
+                # and so is every lane cooling down from a transient trip: a
+                # background budget that ran out under host load, a worker
+                # mid-handshake. A transient trip leaves the failure streak
+                # alone by design, so the line about it is not a warning
+                # either. LIVE 2026-09-20: fifty of these in one uptime while
+                # the host ran at 80% and both background lanes cooled down
+                # between budget timeouts. Only a circuit opened by counted
+                # failures is a fault worth the level.
                 unavailable = [ep for ep in self.endpoints.values() if not ep.is_available()]
-                log = logger.info if unavailable and len(warming) == len(unavailable) else logger.warning
+                waiting = [
+                    ep for ep in unavailable
+                    if str(getattr(ep, "last_failure_reason", "") or "").startswith("transient:")
+                    or _only_warming(str(getattr(ep, "last_failure_reason", "") or ""))
+                ]
+                log = logger.info if unavailable and len(waiting) == len(unavailable) else logger.warning
                 log(
                     "⚠️ Router: no endpoints matched routing plan for tier '%s'. Failing closed to safe fallback order.",
                     prefer_tier,
