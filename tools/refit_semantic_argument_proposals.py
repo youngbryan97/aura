@@ -103,6 +103,7 @@ def main() -> int:
     parser.add_argument("--learn-operation-pointer", action="store_true",
                         help="retained joint_graphs only: differentiate runtime operation boundary scores")
     parser.add_argument("--graph-update-rule", choices=("working_face", "minimum_change"), default="working_face")
+    parser.add_argument("--freeze-operation-head", action="store_true")
     parser.add_argument("--boundary-policy", choices=("supervised", "retain_existing"), default="supervised")
     parser.add_argument("--compare-fit-start", action="store_true",
                         help="also evaluate the pre-fit candidate to separate decoder changes from learning")
@@ -136,6 +137,8 @@ def main() -> int:
         parser.error("operation pointer learning requires retained semantic constraints")
     if args.graph_update_rule != "working_face" and not args.retain_semantic_constraints:
         parser.error("minimum-change updates require retained semantic constraints")
+    if args.freeze_operation_head and not args.retain_semantic_constraints:
+        parser.error("frozen operation heads require retained semantic constraints")
     if args.boundary_policy != "supervised" and not args.learn_operation_pointer:
         parser.error("boundary policy requires operation pointer learning")
     if args.relation_rank is not None and args.objective != "joint_graphs":
@@ -219,6 +222,7 @@ def main() -> int:
         options["learn_arguments"] = args.learn_argument_heads
         options["learn_operation_pointer"] = args.learn_operation_pointer
         options["update_rule"] = args.graph_update_rule
+        options["learn_operations"] = not args.freeze_operation_head
         options["boundary_policy"] = args.boundary_policy
         if args.retain_semantic_constraints:
             options["checkpoint_dir"] = args.fit_checkpoint_dir or args.output.with_suffix(".fit-checkpoints")

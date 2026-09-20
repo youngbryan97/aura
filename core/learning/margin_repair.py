@@ -77,6 +77,40 @@ def verify_margin_repair(normals, required, displacement, multipliers, *, tolera
     }
 
 
+def _polish_nonnegative_dual(gram, target, initial, *, max_iterations):
+    """Refine a proposed active set, adding and removing complementary faces.
+
+    An optimizer's positive support can contain inactive inequalities. Solving
+    that support once can produce negative multipliers; pivot those out before
+    checking missing faces. The independent verifier remains authoritative.
+    """
+    lam = np.maximum(initial, 0.).copy()
+    active = set(np.flatnonzero(lam > 0.))
+    for iteration in range(max_iterations):
+        if active:
+            indices = sorted(active)
+            values = np.linalg.lstsq(gram[np.ix_(indices, indices)], target[indices], rcond=None)[0]
+            if not np.all(np.isfinite(values)):
+                break
+            proposal = np.zeros_like(lam)
+            proposal[indices] = values
+            negative = [index for index in indices if proposal[index] < 0.]
+            if negative:
+                leaving = min(negative, key=lambda i: lam[i] / (lam[i] - proposal[i]))
+                fraction = lam[leaving] / (lam[leaving] - proposal[leaving])
+                lam = np.maximum(lam + fraction * (proposal - lam), 0.)
+                lam[leaving] = 0.
+                active.remove(leaving)
+                continue
+            lam = proposal
+        gradient = target - gram @ lam
+        missing = [index for index in range(len(lam)) if index not in active and gradient[index] > 0.]
+        if not missing:
+            return lam, iteration + 1
+        active.add(max(missing, key=lambda i: gradient[i]))
+    return lam, iteration + 1
+
+
 def minimum_margin_repair(normals, required, *, max_iterations=1000, tolerance=1e-8):
     """Solve the nonnegative dual; return unresolved when replay does not verify."""
     a, b = np.asarray(normals, dtype=np.float64), np.asarray(required, dtype=np.float64)
@@ -104,21 +138,15 @@ def minimum_margin_repair(normals, required, *, max_iterations=1000, tolerance=1
         displacement, lam = np.zeros(a.shape[1]), np.zeros(len(a))
     receipt = verify_margin_repair(a, b, displacement, lam, tolerance=tolerance)
     polished = False
-    support = np.flatnonzero(result.x > 0.)
-    if len(support):
-        # L-BFGS can stop on objective precision before its binding margins
-        # resolve. Solve its proposed active equalities and independently
-        # verify the whole problem; support is a proposal, not an authority.
-        values = np.linalg.lstsq(gram[np.ix_(support, support)], target[support], rcond=None)[0]
-        if np.all(values >= 0.) and np.all(np.isfinite(values)):
-            candidate = np.zeros(len(a))
-            candidate[support] = values / scales[support]
-            candidate_displacement = a.T @ candidate
-            checked = verify_margin_repair(a, b, candidate_displacement, candidate, tolerance=tolerance)
-            if checked["status"] == "verified_numerically":
-                displacement, lam, receipt, polished = candidate_displacement, candidate, checked, True
+    candidate, pivots = _polish_nonnegative_dual(gram, target, result.x, max_iterations=max_iterations)
+    candidate /= scales
+    candidate_displacement = a.T @ candidate
+    if np.all(np.isfinite(candidate_displacement)) and np.all(np.isfinite(candidate)):
+        checked = verify_margin_repair(a, b, candidate_displacement, candidate, tolerance=tolerance)
+        if checked["status"] == "verified_numerically":
+            displacement, lam, receipt, polished = candidate_displacement, candidate, checked, True
     receipt.update(solver_status=int(result.status), solver_iterations=int(result.nit),
-                   active_equalities_polished=polished)
+                   active_equalities_polished=polished, active_set_pivots=pivots)
     return MarginRepair(displacement, lam, receipt)
 
 
