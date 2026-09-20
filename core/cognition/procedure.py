@@ -90,6 +90,18 @@ _RECENT_DECAY = 0.99
 #: short run, and retiring on a short run is how a system forgets what works.
 _RECENT_WEIGHT_FLOOR = 30.0
 
+STRUCTURAL_KINDS = frozenset({
+    "any", "integer", "integer_sequence", "boolean", "number", "string", "mapping", "sequence",
+})
+
+
+def validate_structural_declaration(kind: str, value: Any = None) -> None:
+    """Check a closed structural declaration without changing nominal matching."""
+    if not isinstance(kind, str) or kind not in STRUCTURAL_KINDS:
+        raise ValueError(f"unknown structural type: {kind}")
+    if value is not None and not _kind_accepts_value(kind, value):
+        raise ValueError(f"declared constant is not a structural value of type {kind}")
+
 
 def _kind_accepts_value(kind: str, value: Any) -> bool:
     """Interpret the structural kinds shared by procedure backends.
@@ -197,6 +209,13 @@ class Signature:
 
     preconditions: tuple[Precondition, ...] = ()
     effects: tuple[Effect, ...] = ()
+
+    def validate_structural_types(self) -> None:
+        """Require every declared port and constant to have checked semantics."""
+        for item in self.preconditions:
+            validate_structural_declaration(item.kind, item.equals)
+        for item in self.effects:
+            validate_structural_declaration(item.kind, item.value)
 
     @property
     def keys(self) -> frozenset[str]:

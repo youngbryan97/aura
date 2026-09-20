@@ -8,6 +8,7 @@ from typing import Any
 from core.runtime.errors import NetworkEffectDenied, record_degradation
 from core.runtime.network_gateway import build_stream_endpoint, get_network_gateway
 from core.runtime.service_registry import get_runtime_service
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Mycelium.Swarm")
@@ -80,11 +81,7 @@ class SwarmProtocol:
                 pass
         task, self._mood_broadcast_task = self._mood_broadcast_task, None
         if task:
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+            await cancel_and_join(task, owner="core.collective.swarm_protocol")
 
     async def _close_listener(self) -> None:
         server, self._server = self._server, None

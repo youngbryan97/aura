@@ -55,9 +55,19 @@ PHASE_MARKER = "ShutdownCoordinator: phase started (phase={phase} "
 READY_MARKER = "Registry Locked. Aura Ready (Desktop)."
 FOREGROUND_MARKER = "Foreground chat reservation acquired"
 PROBE_START_MARKER = "Lifecycle probe hold started (target={target} "
-MODEL_WARMUP_START_MARKER = "Primary 32B cortex is cold. Starting warmup"
-MODEL_WARMUP_COMPLETE_MARKER = "Primary 32B cortex warmup complete."
-MODEL_RECOVERY_START_MARKER = "Primary 32B cortex is dead. Triggering background respawn"
+#: The three cortex lines, matched on the part that does not name the model.
+#:
+#: They were pinned with "32B" in them, and the runtime writes
+#: `"Primary %s cortex is cold. Starting warmup"` with the resident lane's
+#: signed label — which stopped being a 32B when the cortex became
+#: Aura-Qwen3.8-27B. `model_warmup_signal` therefore waited its full ten
+#: minutes for a line that can no longer be printed and reported every check
+#: failed, on 2026-09-20 and on every run since the model changed. The lane
+#: label is exactly the part `_primary_lane_label` exists to keep out of a
+#: reader's way, so the marker does not read it.
+MODEL_WARMUP_START_MARKER = "cortex is cold. Starting warmup"
+MODEL_WARMUP_COMPLETE_MARKER = "cortex warmup complete."
+MODEL_RECOVERY_START_MARKER = "cortex is dead. Triggering background respawn"
 MODEL_OWNER_SCRIPT_MARKERS = (
     "evaluate_unified_intrinsic_decoding.py",
     "mlx_worker.py",

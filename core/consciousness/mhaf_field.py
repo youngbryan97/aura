@@ -27,6 +27,7 @@ from core.runtime.background_policy import constitutive_compute_budget_async
 from core.runtime.errors import record_degradation
 from core.runtime.executors import off_the_loop
 from core.runtime.state_ownership import state_root
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 from .mhaf.hrr import HRREncoder
@@ -221,19 +222,9 @@ class MycelialHypergraphAttractorField:
         self._running = False
         task, self._task = self._task, None
         if task and not task.done():
-            task.cancel()
-            try:
-                await asyncio.wait_for(task, timeout=1.0)
-            except asyncio.CancelledError:
-                pass
-            except TimeoutError as exc:
-                record_degradation(
-                    "mhaf_field",
-                    exc,
-                    severity="warning",
-                    action="checkpointed MHAF after bounded loop cancellation timed out",
-                    enforce_failure_policy=False,
-                )
+            await cancel_and_join(
+                task, owner="core.consciousness.mhaf_field", timeout=1.0
+            )
         await off_the_loop(self._save)
         logger.info("MHAF stopped.")
 

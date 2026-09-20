@@ -325,7 +325,7 @@ class SafeModificationHarness:
             try:
                 result = get_subprocess_gateway().run(
                     [
-                        "git",
+                        "git", "-c", "core.fsmonitor=false",
                         "-C",
                         str(self.codebase_root),
                         "ls-files",

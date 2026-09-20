@@ -13,6 +13,7 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.governance_coverage import note_ungoverned_turn
+from core.utils.concurrency import cancel_and_join
 
 logger = logging.getLogger(__name__)
 
@@ -688,11 +689,7 @@ class MessageHandlingMixin:
                                     "🛑 Cancelling stale %s task for direct user input...",
                                     getattr(self, "_current_origin", "background"),
                                 )
-                                in_flight.cancel()
-                                try:
-                                    await in_flight
-                                except asyncio.CancelledError:
-                                    logger.debug("Autonomous task cancelled successfully.")
+                                await cancel_and_join(in_flight, owner="core.orchestrator.mixins.message_handling")
                         return await self._process_user_input_core(message, origin)
                 except TimeoutError:
                     logger.error("⌛ Priority processing TIMEOUT for: %s...", message[:50])

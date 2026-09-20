@@ -49,6 +49,7 @@ Wire to orchestrator:
 """
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import logging
@@ -202,6 +203,26 @@ class EmbeddingEngine:
         #: guards the lifecycle; this guards the tokenizer and the forward
         #: pass, off the event loop, where a wait costs only the waiter.
         self._encode_lock = checked_lock("vector_memory_engine.encode", rank=LockRank.LEAF)
+        #: How many callers are in the queue for that lock, holder included.
+        #:
+        #: The lock is held for a WHOLE batch, and a background warm of 1,430
+        #: texts therefore holds it for as long as the warm takes. There was
+        #: already a yield between batches, but it asks
+        #: `primary_inference_active()` — whether the model is GENERATING —
+        #: and a foreground recall happens before generation starts. Live on
+        #: 2026-09-20: "embedding one query took 37.5s; 1430 texts, 0 embedded
+        #: now", inside an episodic recall that took 39.2s, inside a
+        #: CognitiveRoutingPhase that took 49.6s, which is the event-loop lag
+        #: that killed state_vault and SensoryGate. RAM was at 37%: nothing
+        #: was short of memory, the turn was queued behind a warm.
+        #:
+        #: A waiter is the fact that matters, and it needs no notion of
+        #: foreground: if anyone is waiting, a background batch stops at the
+        #: next boundary and lets them in.
+        self._encode_queue = 0
+        self._encode_queue_lock = checked_lock(
+            "vector_memory_engine.encode_queue", rank=LockRank.LEAF
+        )
         #: Query vectors already made, newest last, and the ones being made.
         #: One recall asks from several sources at once, in threads, and each
         #: embedded the same question behind the encode lock. The slowest
@@ -429,7 +450,7 @@ class EmbeddingEngine:
             logger.debug("Embedding MPS cache release failed: %s", exc)
 
     @staticmethod
-    def _background_should_defer() -> bool:
+    def _primary_inference_active() -> bool:
         try:
             from core.runtime.backpressure import primary_inference_active
 
@@ -440,6 +461,40 @@ class EmbeddingEngine:
                 exc,
             )
             return True
+
+    def _background_should_defer(self) -> bool:
+        """Whether a background batch should stop at this boundary.
+
+        Two reasons, and the second is the one that was missing. Generation
+        under way is the obvious one. Somebody waiting for the encode lock is
+        the one that costs a turn: the wait is invisible to
+        `primary_inference_active()` because a recall runs BEFORE generation,
+        so a warm held the lock through a whole foreground retrieval.
+        """
+        with self._encode_queue_lock:
+            queued = self._encode_queue
+        # The holder is in the queue too, so somebody ELSE waiting is two.
+        return queued > 1 or self._primary_inference_active()
+
+    @contextlib.contextmanager
+    def _encoding(self) -> Any:
+        """Hold the encode lock, counted, so a background batch can yield.
+
+        The count is everyone in the QUEUE, holder included, and it is taken
+        and given back OUTSIDE the encode lock. Counting only the waiters
+        meant decrementing after acquiring, which nests one LEAF lock inside
+        another: lockdep called it a rank inversion on the first live boot
+        after the change and recorded a splat. One more in the count is
+        cheaper than an order nobody can declare.
+        """
+        with self._encode_queue_lock:
+            self._encode_queue += 1
+        try:
+            with self._encode_lock:
+                yield
+        finally:
+            with self._encode_queue_lock:
+                self._encode_queue -= 1
 
     @staticmethod
     def _normalize_rows(vectors: Any) -> np.ndarray:
@@ -516,7 +571,9 @@ class EmbeddingEngine:
         # The views are cut with the same tokenizer the encode uses, so they
         # are cut under the same lock. Cutting outside it let a warmup cut
         # views while a turn encoded: "Already borrowed" (live, 2026-09-19).
-        with self._encode_lock:
+        # Counted, so a background batch already inside can see that somebody
+        # is waiting and stop at its next boundary.
+        with self._encoding():
             flat_views: list[embedding_model.EmbeddingView] = []
             owners: list[int] = []
             for owner, text in enumerate(texts):

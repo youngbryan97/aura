@@ -98,7 +98,7 @@ def test_record_canonicalizes_commit_to_full_sha(ledger_world):
     entry = json.loads(ledger.read_text(encoding="utf-8"))
     assert len(entry["commit"]) == 40
     assert entry["commit"] == subprocess.run(
-        ["git", "rev-parse", "HEAD"],
+        ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"],
         cwd=ROOT,
         capture_output=True,
         text=True,

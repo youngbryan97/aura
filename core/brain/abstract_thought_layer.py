@@ -16,6 +16,7 @@ from core.container import ServiceContainer
 from core.runtime.background_policy import background_activity_allowed
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.thought_stream import get_emitter
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import task_tracker
 
 logger = logging.getLogger("Aura.Brain.AbstractThoughtLayer")
@@ -79,17 +80,9 @@ class AbstractThoughtLayer:
         """Stops the pondering loop."""
         self.running = False
         if self._ponder_task and not self._ponder_task.done():
-            self._ponder_task.cancel()
-            try:
-                await asyncio.wait_for(self._ponder_task, timeout=3.0)
-            except asyncio.CancelledError as _exc:
-                logger.debug("Suppressed %s in core.brain.abstract_thought_layer: %s", type(_exc).__name__, _exc)
-            except TimeoutError as exc:
-                _record_abstract_thought_degradation(
-                    exc,
-                    action="abandoned abstract thought loop after bounded shutdown timeout",
-                    severity="degraded",
-                )
+            await cancel_and_join(
+                self._ponder_task, owner="core.brain.abstract_thought_layer", timeout=3.0
+            )
         logger.info("AbstractThoughtLayer stopped.")
 
     async def _ponder_loop(self):

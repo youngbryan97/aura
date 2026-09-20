@@ -1,5 +1,5 @@
 {
-  "content_sha256": "0abdac9e85f128ba4bea82978e351a35ccfd6babc5cfa31cda0ad937a36c3db5",
+  "content_sha256": "d3d357009b05cddc5994953fbb22403b15847e52f6f763ddcc5b99459cfb413f",
   "entries": [
     {
       "acceptance_ids": [
@@ -13,12 +13,12 @@
         "A8",
         "A9"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/model-lane-contract-audit/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/model-lane-contract-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "ADDENDUM-21",
-      "sha256": "0ca4690e5c557c2de39b9f231b3514185470197ca5129dc452484faca412ca3c"
+      "sha256": "8e20f93996d95f280cebfc713af71626bd9e7a4b1455c1ba8eb7aac39a9f9502"
     },
     {
       "acceptance_ids": [
@@ -32,12 +32,12 @@
         "A8",
         "A9"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/model-lane-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/model-lane-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "ADDENDUM-21",
-      "sha256": "cb437c64a28b92fcd7e2c9b44f9b2f0eb31f6b61a3a25d4eb4f7b5be321e019f"
+      "sha256": "320c87bcc3e535e51086b40fb7edf23b6e3c56ff2db63cecf1c172e2f32c025d"
     },
     {
       "acceptance_ids": [
@@ -47,12 +47,12 @@
         "A5",
         "A6"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/resource-observation-ownership-audit/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/resource-observation-ownership-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "ADDENDUM-22",
-      "sha256": "217cfc0bb5c959aed71b79ab7b0d58df58c1536234e183f0f1a6765b77e8b7e4"
+      "sha256": "78a0601ebf78ef6501c68f30f5c0d8fcc8fc5c5e6e1062eac54e170e5a120fb4"
     },
     {
       "acceptance_ids": [
@@ -62,23 +62,23 @@
         "A5",
         "A6"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/resource-observation-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/resource-observation-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "ADDENDUM-22",
-      "sha256": "fedad4294b1e5344a6f6e8d01f44bfed22043b02aadfc283414221a3398d9f6a"
+      "sha256": "c889078b71d3fedf5d608d8bf4a2d0e2358721d2c90a2adf933778a0867c66bf"
     },
     {
       "acceptance_ids": [
         "A4"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "gui",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/skill-readiness-gui-audit/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/skill-readiness-gui-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "ADDENDUM-23",
-      "sha256": "1e8e49079bd4f8d11a6256e4ca63bfecfb3a86b1f829a33bed8b5ad064a87dd6"
+      "sha256": "1bbcb2de6f013eb56edbb0bb59b7e33ed2ca0f6b6231449b666ffac1ad00a9db"
     },
     {
       "acceptance_ids": [
@@ -88,12 +88,12 @@
         "A4",
         "A5"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/gate-skill-closure-audit/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/gate-skill-closure-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "ADDENDUM-23",
-      "sha256": "47f9d286280667eff0c0ab36adf98df9d5cbd07bc9bda51d2548c0d5c957e7ed"
+      "sha256": "22894d08f37319113b40f15abfd664b257ff653dbcabed24487642b343e593f6"
     },
     {
       "acceptance_ids": [
@@ -111,12 +111,12 @@
       "acceptance_ids": [
         "A4"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "portability",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/skill-portability-audit/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/skill-portability-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "ADDENDUM-23",
-      "sha256": "8c4e994bb8cd97ebf9ee9056201e846b9a99f3571912dd25dabedfa410a23a3e"
+      "sha256": "acd62c9908a1366027aa22b6a83eaf673d41b963f5f078d074c69544c430c58a"
     },
     {
       "acceptance_ids": [
@@ -124,24 +124,24 @@
         "A2",
         "A3"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/skill-certification-contract-tests/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/skill-certification-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "ADDENDUM-23",
-      "sha256": "8a047358ea73384a27bd60ec126e1ed75ef0dda3bca9e3180de9a47ccde5b364"
+      "sha256": "f35ebeeebfc23c0f7903a7f356887da2ca2873ab5dd92d63b5e80aff0abd5097"
     },
     {
       "acceptance_ids": [
         "A4",
         "A5"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/skill-readiness-live-route-audit/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/skill-readiness-live-route-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "ADDENDUM-23",
-      "sha256": "eab39831ea40d57a434b9cd20b0a853a04726733dfeaaf42e20573f03e76c097"
+      "sha256": "41f7e4e820eb3ca26ae0b0f8e8e73c8c8f0bdaee8c3b1c1aee1eb2ec5e90e0f1"
     },
     {
       "acceptance_ids": [
@@ -150,12 +150,12 @@
         "A3",
         "A4"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/shutdown-contract-audit/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/shutdown-contract-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "ADDENDUM-32",
-      "sha256": "0de4a40801f7696c10112e328f730debb4be5ee34ea391b940330561b2b9b196"
+      "sha256": "308288e7290845fbeb0b15a78ad58cf52793c5d6de2601e923963dba5128423a"
     },
     {
       "acceptance_ids": [
@@ -163,12 +163,12 @@
         "A2",
         "A3"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/shutdown-contract-tests/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/shutdown-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "ADDENDUM-32",
-      "sha256": "dd8a913134354e7d6b578ed86c826520cd88742ab6aea56103d0ec769a0b2d9d"
+      "sha256": "d6bac168b007af41e6655b0e2bceb7d6000ee6e7632fdad6c69c86f72f0368bb"
     },
     {
       "acceptance_ids": [
@@ -207,199 +207,199 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "58593808522588c611dbaa266af71ea5a849eb0d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/cognitive-gate-inventory-audit/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/cognitive-gate-inventory-audit/58593808522588c611dbaa266af71ea5a849eb0d.json",
       "requirement_id": "CTX2-GATE-001",
-      "sha256": "8efdae16710fe4d8dbe298847d461d838e7c8067cb0213b76443a69b73caa47d"
+      "sha256": "43c1328573c6048987ad90bfb8486c4f9cc17c43b0a43f8226b2d545fc4aebf9"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/cognitive-gate-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/cognitive-gate-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-GATE-001",
-      "sha256": "1e20f192456e61cff3caa2ce11be3fe8e94beb5daea94f9efe3fa769b0ce46c5"
+      "sha256": "831c430c0cb50b056568116877e54d647f0e3316a98456c4ff2fce5d442f0a05"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "58593808522588c611dbaa266af71ea5a849eb0d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/cognitive-gate-inventory-audit/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/cognitive-gate-inventory-audit/58593808522588c611dbaa266af71ea5a849eb0d.json",
       "requirement_id": "CTX2-GATE-002",
-      "sha256": "8efdae16710fe4d8dbe298847d461d838e7c8067cb0213b76443a69b73caa47d"
+      "sha256": "43c1328573c6048987ad90bfb8486c4f9cc17c43b0a43f8226b2d545fc4aebf9"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/cognitive-gate-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/cognitive-gate-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-GATE-002",
-      "sha256": "1e20f192456e61cff3caa2ce11be3fe8e94beb5daea94f9efe3fa769b0ce46c5"
+      "sha256": "831c430c0cb50b056568116877e54d647f0e3316a98456c4ff2fce5d442f0a05"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/model-lane-contract-audit/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/model-lane-contract-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-LANE-001",
-      "sha256": "0ca4690e5c557c2de39b9f231b3514185470197ca5129dc452484faca412ca3c"
+      "sha256": "8e20f93996d95f280cebfc713af71626bd9e7a4b1455c1ba8eb7aac39a9f9502"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/model-lane-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/model-lane-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-LANE-001",
-      "sha256": "cb437c64a28b92fcd7e2c9b44f9b2f0eb31f6b61a3a25d4eb4f7b5be321e019f"
+      "sha256": "320c87bcc3e535e51086b40fb7edf23b6e3c56ff2db63cecf1c172e2f32c025d"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/model-lane-contract-audit/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/model-lane-contract-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-LANE-002",
-      "sha256": "0ca4690e5c557c2de39b9f231b3514185470197ca5129dc452484faca412ca3c"
+      "sha256": "8e20f93996d95f280cebfc713af71626bd9e7a4b1455c1ba8eb7aac39a9f9502"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/model-lane-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/model-lane-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-LANE-002",
-      "sha256": "cb437c64a28b92fcd7e2c9b44f9b2f0eb31f6b61a3a25d4eb4f7b5be321e019f"
+      "sha256": "320c87bcc3e535e51086b40fb7edf23b6e3c56ff2db63cecf1c172e2f32c025d"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/model-lane-contract-audit/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/model-lane-contract-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-LANE-003",
-      "sha256": "0ca4690e5c557c2de39b9f231b3514185470197ca5129dc452484faca412ca3c"
+      "sha256": "8e20f93996d95f280cebfc713af71626bd9e7a4b1455c1ba8eb7aac39a9f9502"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/model-lane-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/model-lane-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-LANE-003",
-      "sha256": "cb437c64a28b92fcd7e2c9b44f9b2f0eb31f6b61a3a25d4eb4f7b5be321e019f"
+      "sha256": "320c87bcc3e535e51086b40fb7edf23b6e3c56ff2db63cecf1c172e2f32c025d"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/model-lane-contract-audit/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/model-lane-contract-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-LANE-004",
-      "sha256": "0ca4690e5c557c2de39b9f231b3514185470197ca5129dc452484faca412ca3c"
+      "sha256": "8e20f93996d95f280cebfc713af71626bd9e7a4b1455c1ba8eb7aac39a9f9502"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/model-lane-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/model-lane-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-LANE-004",
-      "sha256": "cb437c64a28b92fcd7e2c9b44f9b2f0eb31f6b61a3a25d4eb4f7b5be321e019f"
+      "sha256": "320c87bcc3e535e51086b40fb7edf23b6e3c56ff2db63cecf1c172e2f32c025d"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/shutdown-contract-audit/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/shutdown-contract-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-SHUTDOWN-001",
-      "sha256": "0de4a40801f7696c10112e328f730debb4be5ee34ea391b940330561b2b9b196"
+      "sha256": "308288e7290845fbeb0b15a78ad58cf52793c5d6de2601e923963dba5128423a"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/shutdown-contract-tests/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/shutdown-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-SHUTDOWN-001",
-      "sha256": "dd8a913134354e7d6b578ed86c826520cd88742ab6aea56103d0ec769a0b2d9d"
+      "sha256": "d6bac168b007af41e6655b0e2bceb7d6000ee6e7632fdad6c69c86f72f0368bb"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/shutdown-contract-audit/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/shutdown-contract-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-SHUTDOWN-002",
-      "sha256": "0de4a40801f7696c10112e328f730debb4be5ee34ea391b940330561b2b9b196"
+      "sha256": "308288e7290845fbeb0b15a78ad58cf52793c5d6de2601e923963dba5128423a"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/shutdown-contract-tests/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/shutdown-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-SHUTDOWN-002",
-      "sha256": "dd8a913134354e7d6b578ed86c826520cd88742ab6aea56103d0ec769a0b2d9d"
+      "sha256": "d6bac168b007af41e6655b0e2bceb7d6000ee6e7632fdad6c69c86f72f0368bb"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/shutdown-contract-audit/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/shutdown-contract-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-SHUTDOWN-003",
-      "sha256": "0de4a40801f7696c10112e328f730debb4be5ee34ea391b940330561b2b9b196"
+      "sha256": "308288e7290845fbeb0b15a78ad58cf52793c5d6de2601e923963dba5128423a"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/shutdown-contract-tests/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/shutdown-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-SHUTDOWN-003",
-      "sha256": "dd8a913134354e7d6b578ed86c826520cd88742ab6aea56103d0ec769a0b2d9d"
+      "sha256": "d6bac168b007af41e6655b0e2bceb7d6000ee6e7632fdad6c69c86f72f0368bb"
     },
     {
       "acceptance_ids": [
@@ -416,23 +416,23 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/skill-certification-contract-tests/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/skill-certification-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-SKILL-001",
-      "sha256": "8a047358ea73384a27bd60ec126e1ed75ef0dda3bca9e3180de9a47ccde5b364"
+      "sha256": "f35ebeeebfc23c0f7903a7f356887da2ca2873ab5dd92d63b5e80aff0abd5097"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "gui",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/skill-readiness-gui-audit/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/skill-readiness-gui-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-SKILL-002",
-      "sha256": "1e8e49079bd4f8d11a6256e4ca63bfecfb3a86b1f829a33bed8b5ad064a87dd6"
+      "sha256": "1bbcb2de6f013eb56edbb0bb59b7e33ed2ca0f6b6231449b666ffac1ad00a9db"
     },
     {
       "acceptance_ids": [
@@ -460,111 +460,111 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "portability",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/skill-portability-audit/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/skill-portability-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-SKILL-002",
-      "sha256": "8c4e994bb8cd97ebf9ee9056201e846b9a99f3571912dd25dabedfa410a23a3e"
+      "sha256": "acd62c9908a1366027aa22b6a83eaf673d41b963f5f078d074c69544c430c58a"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/skill-readiness-live-route-audit/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/skill-readiness-live-route-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-SKILL-002",
-      "sha256": "eab39831ea40d57a434b9cd20b0a853a04726733dfeaaf42e20573f03e76c097"
+      "sha256": "41f7e4e820eb3ca26ae0b0f8e8e73c8c8f0bdaee8c3b1c1aee1eb2ec5e90e0f1"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/resource-observation-ownership-audit/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/resource-observation-ownership-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-TEST-001",
-      "sha256": "217cfc0bb5c959aed71b79ab7b0d58df58c1536234e183f0f1a6765b77e8b7e4"
+      "sha256": "78a0601ebf78ef6501c68f30f5c0d8fcc8fc5c5e6e1062eac54e170e5a120fb4"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/resource-observation-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/resource-observation-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-TEST-001",
-      "sha256": "fedad4294b1e5344a6f6e8d01f44bfed22043b02aadfc283414221a3398d9f6a"
+      "sha256": "c889078b71d3fedf5d608d8bf4a2d0e2358721d2c90a2adf933778a0867c66bf"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/resource-observation-ownership-audit/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/resource-observation-ownership-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-TEST-002",
-      "sha256": "217cfc0bb5c959aed71b79ab7b0d58df58c1536234e183f0f1a6765b77e8b7e4"
+      "sha256": "78a0601ebf78ef6501c68f30f5c0d8fcc8fc5c5e6e1062eac54e170e5a120fb4"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/resource-observation-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/resource-observation-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-TEST-002",
-      "sha256": "fedad4294b1e5344a6f6e8d01f44bfed22043b02aadfc283414221a3398d9f6a"
+      "sha256": "c889078b71d3fedf5d608d8bf4a2d0e2358721d2c90a2adf933778a0867c66bf"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/resource-observation-ownership-audit/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/resource-observation-ownership-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-TEST-003",
-      "sha256": "217cfc0bb5c959aed71b79ab7b0d58df58c1536234e183f0f1a6765b77e8b7e4"
+      "sha256": "78a0601ebf78ef6501c68f30f5c0d8fcc8fc5c5e6e1062eac54e170e5a120fb4"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/resource-observation-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/resource-observation-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "CTX2-TEST-003",
-      "sha256": "fedad4294b1e5344a6f6e8d01f44bfed22043b02aadfc283414221a3398d9f6a"
+      "sha256": "c889078b71d3fedf5d608d8bf4a2d0e2358721d2c90a2adf933778a0867c66bf"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/model-lane-contract-audit/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/model-lane-contract-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "LANE-001",
-      "sha256": "0ca4690e5c557c2de39b9f231b3514185470197ca5129dc452484faca412ca3c"
+      "sha256": "8e20f93996d95f280cebfc713af71626bd9e7a4b1455c1ba8eb7aac39a9f9502"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/model-lane-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/model-lane-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "LANE-001",
-      "sha256": "cb437c64a28b92fcd7e2c9b44f9b2f0eb31f6b61a3a25d4eb4f7b5be321e019f"
+      "sha256": "320c87bcc3e535e51086b40fb7edf23b6e3c56ff2db63cecf1c172e2f32c025d"
     },
     {
       "acceptance_ids": [
@@ -594,12 +594,12 @@
         "A2",
         "A3"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/model-lane-contract-audit/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/model-lane-contract-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "PASSF-03",
-      "sha256": "0ca4690e5c557c2de39b9f231b3514185470197ca5129dc452484faca412ca3c"
+      "sha256": "8e20f93996d95f280cebfc713af71626bd9e7a4b1455c1ba8eb7aac39a9f9502"
     },
     {
       "acceptance_ids": [
@@ -607,12 +607,12 @@
         "A2",
         "A3"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/model-lane-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/model-lane-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "PASSF-03",
-      "sha256": "cb437c64a28b92fcd7e2c9b44f9b2f0eb31f6b61a3a25d4eb4f7b5be321e019f"
+      "sha256": "320c87bcc3e535e51086b40fb7edf23b6e3c56ff2db63cecf1c172e2f32c025d"
     },
     {
       "acceptance_ids": [
@@ -640,23 +640,23 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/resource-observation-ownership-audit/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/resource-observation-ownership-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "RESOURCE-001",
-      "sha256": "217cfc0bb5c959aed71b79ab7b0d58df58c1536234e183f0f1a6765b77e8b7e4"
+      "sha256": "78a0601ebf78ef6501c68f30f5c0d8fcc8fc5c5e6e1062eac54e170e5a120fb4"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/resource-observation-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/resource-observation-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "RESOURCE-001",
-      "sha256": "fedad4294b1e5344a6f6e8d01f44bfed22043b02aadfc283414221a3398d9f6a"
+      "sha256": "c889078b71d3fedf5d608d8bf4a2d0e2358721d2c90a2adf933778a0867c66bf"
     },
     {
       "acceptance_ids": [
@@ -684,45 +684,45 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/shutdown-contract-audit/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/shutdown-contract-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "SHUTDOWN-001",
-      "sha256": "0de4a40801f7696c10112e328f730debb4be5ee34ea391b940330561b2b9b196"
+      "sha256": "308288e7290845fbeb0b15a78ad58cf52793c5d6de2601e923963dba5128423a"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/shutdown-contract-tests/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/shutdown-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "SHUTDOWN-001",
-      "sha256": "dd8a913134354e7d6b578ed86c826520cd88742ab6aea56103d0ec769a0b2d9d"
+      "sha256": "d6bac168b007af41e6655b0e2bceb7d6000ee6e7632fdad6c69c86f72f0368bb"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/gate-skill-closure-audit/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/gate-skill-closure-audit/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "SKILLS-001",
-      "sha256": "47f9d286280667eff0c0ab36adf98df9d5cbd07bc9bda51d2548c0d5c957e7ed"
+      "sha256": "22894d08f37319113b40f15abfd664b257ff653dbcabed24487642b343e593f6"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "543eecfc4b18c6313c59789bf4d1fcec3c70eeb4",
+      "commit": "f1fc80687f7f4764bdea326750e5bddd031ee50d",
       "evidence_class": "test",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/skill-certification-contract-tests/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/skill-certification-contract-tests/f1fc80687f7f4764bdea326750e5bddd031ee50d.json",
       "requirement_id": "SKILLS-001",
-      "sha256": "8a047358ea73384a27bd60ec126e1ed75ef0dda3bca9e3180de9a47ccde5b364"
+      "sha256": "f35ebeeebfc23c0f7903a7f356887da2ca2873ab5dd92d63b5e80aff0abd5097"
     },
     {
       "acceptance_ids": [

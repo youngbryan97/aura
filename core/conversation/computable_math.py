@@ -35,6 +35,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 __all__ = [
+    "operation_outside",
     "COMPUTABLE_FORMS",
     "ComputedNumber",
     "computable_result",
@@ -77,6 +78,15 @@ class ComputableForm:
     examples: tuple[tuple[str, int | float], ...] = ()
     #: Questions it must NOT claim — usually a neighbour form's.
     counter_examples: tuple[str, ...] = field(default=())
+    #: True when the form decides for itself what may follow its match.
+    #:
+    #: The unconsumed-step check below reads the ORIGINAL text around the
+    #: span. ``_ArithmeticPattern`` matches a normalised copy in which the
+    #: word operators have already become symbols, so its offsets do not
+    #: point at the same characters and the check would refuse every
+    #: question written in words. It runs that check itself, against the
+    #: body it actually matched.
+    guards_its_own_remainder: bool = False
 
     def failures(self) -> list[str]:
         found: list[str] = []
@@ -579,6 +589,7 @@ COMPUTABLE_FORMS = COMPUTABLE_FORMS + (
         "arithmetic",
         _ArithmeticPattern(),  # type: ignore[arg-type]
         _arithmetic,
+        guards_its_own_remainder=True,
         examples=(
             ("what is 17 * 4839", 82_263),
             ("what is 2 to the power of 40", 1_099_511_627_776),
@@ -620,6 +631,67 @@ COMPUTABLE_FORMS = COMPUTABLE_FORMS + (
 )
 
 
+#: A step of the question no form consumed.
+#:
+#: LIVE DEFECT, 2026-09-20. "17 x 23 then subtract the letters in the word
+#: probability" was answered "391.". The brainstem had already generated the
+#: whole correct answer — 391, eleven letters, 380 — and the computed value
+#: replaced it, because the first step parses and the second does not. The
+#: same half-reading answers "what is the square root of 16 plus 9" with 4
+#: and "what is 5 factorial minus 20" with 120.
+#:
+#: A form matches a PHRASE, and everything outside that phrase is a step it
+#: did not compute. Answering one step of a two-step question with the
+#: authority of "run as Python, not generated" is worse than declining: the
+#: decline costs a fallback, the answer destroys a correct reply.
+#:
+#: Words rather than symbols. A trailing symbol operator is already caught
+#: where the expression itself is parsed; a step spelled out in English was
+#: what nothing looked for.
+_UNCONSUMED_OPERATION_RE = re.compile(
+    r"\b(?:plus|minus|times|multiplied|multiply|divided|divide|"
+    r"subtract(?:ed|ing)?|add(?:ed|ing)?|squared|cubed|modulo|"
+    r"taken?\s+away)\b",
+    re.IGNORECASE,
+)
+
+
+def operation_outside(text: str, start: int, end: int) -> str | None:
+    """An arithmetic step in the turn that the matched span did not consume.
+
+    The word is returned rather than a flag so a refusal can name what it saw.
+    """
+    for found in _UNCONSUMED_OPERATION_RE.finditer(str(text or "")):
+        if found.end() <= start or found.start() >= end:
+            return found.group(0)
+    return None
+
+
+def _form_answering(text: str) -> "tuple[ComputableForm, int | float] | None":
+    """The first form that answers the question, having read all of it.
+
+    A form whose match leaves a step unread ends the search rather than
+    passing the question along. The leftover step is still there for whatever
+    matched next, and the next form is narrower in shape, not wider in reach:
+    "the gcd of 12 and 18 times 3" is 18, and letting the plain-expression
+    form have it after the gcd form declined answered 54.
+    """
+    for form in COMPUTABLE_FORMS:
+        match = form.pattern.search(text)
+        if match is None:
+            continue
+        if not form.guards_its_own_remainder and (
+            operation_outside(text, *match.span()) is not None
+        ):
+            return None
+        answer = form.compute(match)
+        if answer is None:
+            # Out of bounds for this form; a later one may still be in range.
+            continue
+        return form, answer
+    return None
+
+
 def computable_result(question: str) -> "ComputedNumber | None":
     """The exact answer and the code object that produced it.
 
@@ -629,19 +701,16 @@ def computable_result(question: str) -> "ComputedNumber | None":
     text = str(question or "")
     if not text.strip():
         return None
-    for form in COMPUTABLE_FORMS:
-        match = form.pattern.search(text)
-        if match is None:
-            continue
-        answer = form.compute(match)
-        if answer is not None:
-            return ComputedNumber(
-                value=answer,
-                form=form.name,
-                module=getattr(form.compute, "__module__", __name__),
-                function=getattr(form.compute, "__qualname__", form.name),
-            )
-    return None
+    answered = _form_answering(text)
+    if answered is None:
+        return None
+    form, answer = answered
+    return ComputedNumber(
+        value=answer,
+        form=form.name,
+        module=getattr(form.compute, "__module__", __name__),
+        function=getattr(form.compute, "__qualname__", form.name),
+    )
 
 
 def computable_answer(question: str) -> int | float | None:
@@ -654,14 +723,8 @@ def computable_answer(question: str) -> int | float | None:
     text = str(question or "")
     if not text.strip():
         return None
-    for form in COMPUTABLE_FORMS:
-        match = form.pattern.search(text)
-        if match is None:
-            continue
-        answer = form.compute(match)
-        if answer is not None:
-            return answer
-    return None
+    answered = _form_answering(text)
+    return None if answered is None else answered[1]
 
 
 def form_failures() -> list[str]:

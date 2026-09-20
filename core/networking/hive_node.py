@@ -23,6 +23,7 @@ from core.runtime.errors import (
 )
 from core.runtime.network_gateway import build_stream_endpoint, get_network_gateway
 from core.runtime.task_ownership import create_tracked_task
+from core.utils.concurrency import cancel_and_join
 
 logger = logging.getLogger("Aura.Network.HiveNode")
 
@@ -285,11 +286,7 @@ class HiveNode:
         self.running = False
         await self._close_server()
         if self._gossip_task:
-            self._gossip_task.cancel()
-            try:
-                await self._gossip_task
-            except asyncio.CancelledError as _exc:
-                logger.debug("Suppressed %s in core.networking.hive_node: %s", type(_exc).__name__, _exc)
+            await cancel_and_join(self._gossip_task, owner="core.networking.hive_node")
             self._gossip_task = None
 
     async def _close_server(self) -> None:

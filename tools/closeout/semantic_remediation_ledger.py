@@ -167,7 +167,7 @@ def _resolve_commit(ref: str) -> str:
 
     try:
         proc = subprocess.run(
-            ["git", "rev-parse", "--verify", f"{ref}^{{commit}}"],
+            ["git", "-c", "core.fsmonitor=false", "rev-parse", "--verify", f"{ref}^{{commit}}"],
             cwd=str(ROOT),
             capture_output=True,
             text=True,
@@ -191,7 +191,7 @@ def _git_file_sha256(commit: str, path: str) -> str | None:
 
     try:
         proc = subprocess.run(
-            ["git", "show", f"{commit}:{path}"],
+            ["git", "-c", "core.fsmonitor=false", "show", f"{commit}:{path}"],
             cwd=str(ROOT),
             capture_output=True,
             timeout=30,
@@ -436,7 +436,7 @@ def _cp126_commits_by_file() -> dict[str, list[str]]:
     try:
         proc = subprocess.run(
             [
-                "git", "log", "--name-only", "--no-merges",
+                "git", "-c", "core.fsmonitor=false", "log", "--name-only", "--no-merges",
                 "--format=%x00%h %s",
                 "--grep=CP126", "--grep=semantic findings", "--grep=semantic review",
                 "-i", "--all",
@@ -537,7 +537,7 @@ REVIEW_COMMIT = "b7bc66f2c87e6a24cd7b8280db6912714b5700c1"
 def _file_at_commit(path: str, commit: str) -> list[str] | None:
     try:
         proc = subprocess.run(
-            ["git", "show", f"{commit}:{path}"],
+            ["git", "-c", "core.fsmonitor=false", "show", f"{commit}:{path}"],
             cwd=str(ROOT), capture_output=True, text=True, timeout=30, check=False,
         )
     except (OSError, subprocess.SubprocessError):

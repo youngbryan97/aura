@@ -40,6 +40,7 @@ from core.container import ServiceContainer
 from core.memory.retention_policy import working_history_retention_policy
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.shutdown_coordinator import is_shutdown_requested
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.MotorCortex")
@@ -512,11 +513,7 @@ class MotorCortex:
         """Stop the motor cortex."""
         self._running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass  # no-op: intentional
+            await cancel_and_join(self._task, owner="core.somatic.motor_cortex")
             self._task = None
         logger.info("MotorCortex stopped -- %d total actions executed", self._total_actions)
 

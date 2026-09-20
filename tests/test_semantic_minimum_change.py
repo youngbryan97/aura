@@ -46,6 +46,32 @@ def test_minimum_change_replays_real_multiclass_scores():
 
 
 @pytest.mark.parametrize("batched", [False, True])
+def test_unreachable_constant_target_does_not_block_independent_learning(batched):
+    parameters = (np.zeros((1, 1)), np.zeros((1, 1)), np.zeros(1), np.array(0.))
+    _, receipt = _fit_graph_parameters(parameters,
+        (linear([0.], .05), linear([1.], -.5)), steps=3,
+        update_rule="minimum_change", batched=batched)
+    assert receipt["stored_wrong_or_tied"] == 0
+    assert receipt["stored_margins"][0] == .05
+    assert receipt["stored_loss"] < receipt["initial_loss"]
+    assert receipt["retained_positive_regressions"] == 0
+    assert receipt["status"] != "retained_constraints_satisfied"
+    assert receipt["accepted_steps"][0]["proposal_rule"] == (
+        "retained_loss_descent_after_unverified_projection")
+    assert "local_affine_projection" not in receipt["accepted_steps"][0]
+
+
+def test_descent_cannot_trade_a_retained_floor_for_an_unreachable_target():
+    parameters = (np.zeros((1, 1)), np.zeros((1, 1)), np.array([.2]), np.array(0.))
+    _, receipt = _fit_graph_parameters(parameters,
+        (linear([1.]), linear([-1.], -.5)), steps=3, update_rule="minimum_change")
+    assert receipt["stored_margins"][0] >= .1
+    assert receipt["stored_wrong_or_tied"] == 1
+    assert receipt["retained_positive_regressions"] == 0
+    assert receipt["status"] != "retained_constraints_satisfied"
+
+
+@pytest.mark.parametrize("batched", [False, True])
 def test_many_retained_faces_do_not_discard_a_repair_due_to_storage_rounding(batched):
     rng = np.random.default_rng(912)
     initial = rng.normal(size=128).astype(np.float32).astype(float)

@@ -59,7 +59,7 @@ def ok(msg: str):
 
 def tracked_files(patterns: list[str]) -> list[Path]:
     result = run_read_only_command(
-        ["git", "ls-files", *patterns],
+        ["git", "-c", "core.fsmonitor=false", "ls-files", *patterns],
         source="quality_gate_tracked_files",
     )
     if result is None:
@@ -98,7 +98,7 @@ def check_hardcoded_paths():
     print("\n[2/6] Hardcoded path check...")
     home_pattern = str(Path.home())
     result = run_read_only_command(
-        ["git", "grep", "-l", home_pattern, "--", "*.py", "*.md", "*.sh", "*.plist"],
+        ["git", "-c", "core.fsmonitor=false", "grep", "-l", home_pattern, "--", "*.py", "*.md", "*.sh", "*.plist"],
         source="quality_gate_hardcoded_paths",
     )
     if result is None:
@@ -121,7 +121,7 @@ def check_no_large_files():
     """No files > 1MB tracked in git."""
     print("\n[3/6] Large file check...")
     result = run_read_only_command(
-        ["git", "ls-files"],
+        ["git", "-c", "core.fsmonitor=false", "ls-files"],
         source="quality_gate_large_files",
     )
     if result is None:
@@ -154,7 +154,7 @@ def check_no_logs():
     """No .log files tracked."""
     print("\n[4/6] Log file check...")
     result = run_read_only_command(
-        ["git", "ls-files", "*.log"],
+        ["git", "-c", "core.fsmonitor=false", "ls-files", "*.log"],
         source="quality_gate_logs",
     )
     if result is None:

@@ -458,6 +458,11 @@ class Looker:
     #: How every place of every grid looked in the last reading, for telling
     #: whether anything in it is still on its way somewhere.
     last_looks: list[dict[tuple[int, int], Any]] = field(default_factory=list)
+    #: Places that would not read through a whole look. She does not spend
+    #: another look's window waiting on one of these; the reading carries them
+    #: as unsure, which is what unsure is for. A place leaves this set the
+    #: moment it reads.
+    would_not_read: set[tuple[int, ...]] = field(default_factory=set)
 
     def places_still(
         self,
@@ -945,6 +950,7 @@ def settled_reading(
         return None, None, False
     reading = looker.read(picture)
     said, looks = what_a_reading_says(reading), looker.last_looks
+    unread = _places_unread(reading)
     still = not wait
     while not still and time.monotonic() - began < within_s:
         again = take()
@@ -953,22 +959,59 @@ def settled_reading(
         picture = again
         reading_again = looker.read(picture)
         said_again, looks_again = what_a_reading_says(reading_again), looker.last_looks
-        still = (
-            said_again == said
-            and looker.places_still(looks, looks_again)
-            and not anything_unread(reading_again)
+        unread = _places_unread(reading_again)
+        looker.would_not_read &= set(unread)
+        still = it_has_come_to_rest(
+            said=said,
+            said_again=said_again,
+            still_places=looker.places_still(looks, looks_again),
+            waiting_on=tuple(spot for spot in unread if spot not in looker.would_not_read),
         )
         reading, said, looks = reading_again, said_again, looks_again
     if not still and wait:
-        unread = [
-            tuple(spot) for grid in (reading.get("grids") or ()) for spot in (grid.get("unsure") or ())
-        ]
+        # This look spent its whole window on them; the next one does not.
+        looker.would_not_read |= set(unread)
         logger.info(
             "not still after %.1fs: %s",
             time.monotonic() - began,
-            f"place(s) {unread} could not be read" if unread else "it was still changing",
+            f"place(s) {list(unread)} would not read through a whole look"
+            if unread
+            else "it was still changing",
         )
     return picture, reading, still
+
+
+def _places_unread(reading: dict[str, Any]) -> tuple[tuple[int, ...], ...]:
+    """Which places in a reading held something that could not be read."""
+    return tuple(
+        sorted(
+            tuple(int(part) for part in spot)
+            for grid in (reading.get("grids") or ())
+            for spot in (grid.get("unsure") or ())
+        )
+    )
+
+
+def it_has_come_to_rest(
+    *,
+    said: Any,
+    said_again: Any,
+    still_places: bool,
+    waiting_on: tuple[tuple[int, ...], ...],
+) -> bool:
+    """Whether to stop looking: nothing moved, and nothing is worth waiting for.
+
+    Within one look an unread place is worth waiting out: recognition often
+    gets a freshly merged tile a picture or two later, and a reading settled
+    without it is a tile that vanished (live, 2026-09-18).
+
+    Across looks it is not. LIVE 2026-09-20, mid-game: "not still after 1.6s:
+    place(s) [(0, 1), (0, 2)] could not be read", look after look, and her
+    moves slowed to ten seconds each. A place that would not read through a
+    whole look is one the caller passes as already tried; the reading carries
+    it as unsure and she decides around it.
+    """
+    return said_again == said and still_places and not waiting_on
 
 
 def anything_unread(reading: dict[str, Any]) -> bool:
@@ -1185,6 +1228,7 @@ async def look_at_window(
         looker = looker_for(window.owner)
         reading = await asyncio.to_thread(looker.read, picture)
         said, looks = what_a_reading_says(reading), looker.last_looks
+        unread = _places_unread(reading)
         still = not wait_for_stillness
         while not still and time.monotonic() - began < still_within_s:
             again = await take()
@@ -1193,12 +1237,17 @@ async def look_at_window(
             picture = again
             reading_again = await asyncio.to_thread(looker.read, picture)
             said_again, looks_again = what_a_reading_says(reading_again), looker.last_looks
-            still = (
-                said_again == said
-                and looker.places_still(looks, looks_again)
-                and not anything_unread(reading_again)
+            unread = _places_unread(reading_again)
+            looker.would_not_read &= set(unread)
+            still = it_has_come_to_rest(
+                said=said,
+                said_again=said_again,
+                still_places=looker.places_still(looks, looks_again),
+                waiting_on=tuple(spot for spot in unread if spot not in looker.would_not_read),
             )
             reading, said, looks = reading_again, said_again, looks_again
+        if not still and wait_for_stillness:
+            looker.would_not_read |= set(unread)
         looked_took = time.monotonic() - began
         picture_shape = (int(picture.shape[1]), int(picture.shape[0]))
     front = await asyncio.to_thread(window_server.front_owner)

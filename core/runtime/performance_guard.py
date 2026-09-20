@@ -41,8 +41,9 @@ from pathlib import Path
 from typing import Any, Deque, Dict, List, Optional
 
 from core.runtime.file_write_gateway import get_file_write_gateway
-from core.utils.task_tracker import get_task_tracker
 from core.runtime.state_ownership import state_root
+from core.utils.concurrency import cancel_and_join
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.PerformanceGuard")
 
@@ -194,11 +195,7 @@ class PerformanceGuard:
     async def stop(self) -> None:
         self._running = False
         if self._task is not None:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass  # no-op: intentional
+            await cancel_and_join(self._task, owner="core.runtime.performance_guard")
             self._task = None
 
 

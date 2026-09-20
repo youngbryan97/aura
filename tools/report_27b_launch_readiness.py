@@ -149,7 +149,7 @@ def build() -> dict[str, Any]:
 
     try:
         commit = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+            ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"],
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,

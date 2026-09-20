@@ -34,6 +34,7 @@ import time
 
 from core.container import ServiceContainer
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.ContinuousCognition")
@@ -153,11 +154,7 @@ class ContinuousCognitionLoop:
     async def stop(self) -> None:
         self._running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                logger.debug("ContinuousCognitionLoop task cancellation acknowledged")
+            await cancel_and_join(self._task, owner="core.continuous_cognition")
             self._task = None
         logger.info("ContinuousCognitionLoop OFFLINE")
 

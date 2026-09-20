@@ -128,8 +128,11 @@ def execute_valued_procedure_plan(
     ledger: OutcomeLedger,
     situation: Mapping[str, Any] | str | None = None,
     context: Mapping[str, Any] | None = None,
+    closed_types: bool = False,
 ) -> PendingProcedureOutcome:
     """Open one task receipt at actual execution, not during plan search."""
+    if type(closed_types) is not bool:
+        raise ValueError("closed type mode must be boolean")
     if plan_action_key(registry, selected.plan) != selected.action_key:
         raise ValueError("selected procedure contract changed before execution")
     if ActionValueModel.state_key(situation) != selected.situation_key:
@@ -144,6 +147,7 @@ def execute_valued_procedure_plan(
     try:
         result = execute_procedure_plan(
             registry, selected.plan, state, backends=backends, context=context,
+            closed_types=closed_types,
         )
     except Exception as exc:
         raise ProcedureOutcomeExecutionError(receipt_id) from exc

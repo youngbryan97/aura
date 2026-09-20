@@ -26,7 +26,7 @@ class RollbackManager:
         logger.info("🌳 RollbackManager: creating branch '%s' in '%s'", branch_name, repo_path)
         try:
             # Check current status and checkout new branch via approved gateway
-            get_subprocess_gateway().run(["git", "status"], cwd=repo_path, source="rollback_manager", accelerator_capability="none")
+            get_subprocess_gateway().run(["git", "-c", "core.fsmonitor=false", "status"], cwd=repo_path, source="rollback_manager", accelerator_capability="none")
             get_subprocess_gateway().run(["git", "checkout", "-b", branch_name], cwd=repo_path, source="rollback_manager", accelerator_capability="none")
             return True
         except (OSError, RuntimeError) as e:
@@ -43,7 +43,7 @@ class RollbackManager:
         checkpoint_id = f"checkpoint_{int(time.time())}"
         try:
             res = get_subprocess_gateway().run(
-                ["git", "rev-parse", "HEAD"],
+                ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"],
                 cwd=repo_path,
                 source="rollback_manager",
                 accelerator_capability="none",

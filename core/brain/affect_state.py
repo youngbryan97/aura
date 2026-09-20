@@ -1,11 +1,13 @@
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
+
 from core.runtime.base_module import AuraBaseModule
+from core.runtime.errors import record_degradation
+from core.utils.concurrency import cancel_and_join
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -65,11 +67,7 @@ class AffectStateManager(AuraBaseModule):
     async def stop(self):
         self._running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError as _e:
-                logger.debug('Ignored asyncio.CancelledError in affect_state.py: %s', _e)
+            await cancel_and_join(self._task, owner="core.brain.affect_state")
         self.logger.info("🫀 AffectStateManager stopped.")
 
     def _tick_emotional_decay(self):

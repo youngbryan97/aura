@@ -27,7 +27,7 @@ _OPERATION_MARKERS = (
 def _git(root: Path, *arguments: str) -> tuple[int, str, str]:
     try:
         result = subprocess.run(
-            ["git", "-C", str(root), *arguments],
+            ["git", "-c", "core.fsmonitor=false", "-C", str(root), *arguments],
             check=False,
             capture_output=True,
             text=True,

@@ -214,3 +214,12 @@ artifacts/subject_core/**/runtime/
 artifacts/subject_core/**/logs/
 artifacts/subject_core/logs/
 artifacts/subject_core/**/state/
+
+# Bryan's own source dumps, made for pasting elsewhere. Hundreds of megabytes
+# each, and every one of them made `reqproof capture` refuse a proof for a
+# dirty tree.
+aura_source_and_tests_*.txt
+
+# A generated vector cache that was committed once. `make source-hygiene`
+# fails while a runtime artifact is tracked, and the store rebuilds itself.
+core/data/vector_store/chroma.sqlite3

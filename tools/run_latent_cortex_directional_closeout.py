@@ -134,7 +134,7 @@ def _file_binding(path: Path, *, role: str) -> dict[str, Any]:
 
 def _git(source_root: Path, *args: str) -> str:
     completed = subprocess.run(
-        ["/usr/bin/git", *args],
+        ["/usr/bin/git", "-c", "core.fsmonitor=false", *args],
         cwd=source_root,
         capture_output=True,
         text=True,

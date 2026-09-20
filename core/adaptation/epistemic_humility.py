@@ -23,6 +23,7 @@ from core.runtime.errors import record_degradation
 from core.runtime.executors import off_the_loop
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.service_registry import get_runtime_service, register_runtime_service
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.EpistemicHumility")
@@ -84,24 +85,9 @@ class EpistemicHumility:
         self.running = False
         task, self._task = self._task, None
         if task and not task.done():
-            task.cancel()
-            try:
-                await asyncio.wait_for(task, timeout=1.0)
-            # Not a failure: the line above cancelled it, so this is the
-            # cancellation arriving rather than something going wrong.
-            except asyncio.CancelledError:
-                pass
-            except TimeoutError as exc:
-                record_degradation(
-                    "epistemic_humility",
-                    exc,
-                    severity="warning",
-                    action=(
-                        "checkpointed epistemic humility after bounded critic-loop "
-                        "cancellation timed out"
-                    ),
-                    enforce_failure_policy=False,
-                )
+            await cancel_and_join(
+                task, owner="core.adaptation.epistemic_humility", timeout=1.0
+            )
         await off_the_loop(self._save)
         logger.info("🙇 Epistemic Humility DORMANT.")
 

@@ -47,7 +47,7 @@ DEFAULT_MESSAGE = (
 def _git_head() -> str:
     try:
         completed = get_subprocess_gateway().run(
-            ["git", "rev-parse", "HEAD"],
+            ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"],
             cwd=REPO_ROOT,
             capture_output=True,
             timeout=10,

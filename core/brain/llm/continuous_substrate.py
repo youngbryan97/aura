@@ -43,6 +43,7 @@ from typing import Any
 import numpy as np
 
 from core.runtime.errors import record_degradation
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Substrate")
@@ -133,11 +134,9 @@ class ContinuousSubstrate:
     async def stop(self) -> None:
         self.running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await asyncio.wait_for(self._task, timeout=2.0)
-            except (TimeoutError, asyncio.CancelledError):
-                pass  # no-op: intentional
+            await cancel_and_join(
+                self._task, owner="core.brain.llm.continuous_substrate", timeout=2.0
+            )
         logger.info("🧠 [SUBSTRATE] ODE substrate halted (real-mode).")
 
     def inject_input(self, vector: np.ndarray) -> None:

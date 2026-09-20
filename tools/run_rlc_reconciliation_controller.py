@@ -183,7 +183,7 @@ def _source_paths(root: Path) -> list[Path]:
 
 def _git_bytes(root: Path, *arguments: str) -> bytes:
     observed = subprocess.run(
-        ["git", "-C", str(root), *arguments],
+        ["git", "-c", "core.fsmonitor=false", "-C", str(root), *arguments],
         capture_output=True,
         timeout=15.0,
         check=False,

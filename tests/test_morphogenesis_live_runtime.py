@@ -316,3 +316,133 @@ def test_the_live_policy_only_picks_a_port_both_ends_can_carry():
 
     mismatched = CellManifest(name="c", consumes=["nothing_shared"], capabilities=["z"])
     assert LiveObserverPolicy._port_between(_Cell(source), _Cell(mismatched)) == ""
+
+
+@pytest.mark.asyncio
+async def test_a_cell_the_restore_left_isolated_is_bound(tmp_path):
+    """Attachment ran only for cells that ARRIVE, so an isolated one never got it.
+
+    A cell already isolated when the graph was saved never arrives again:
+    the population matches on every boot, `_populate_sync` returns early,
+    and nothing binds it for the life of the installation. The live graph
+    on 2026-09-20 held 50 nodes, 196 edges and exactly six isolated cells —
+    six organs reported as "population split into 7 pieces: 44,1,1,1,1,1,1"
+    and still split after readiness, with no degree budget reached and
+    nothing refused. The healing simply never ran on them.
+    """
+    runtime = _runtime(tmp_path)
+    for name in ("alpha", "beta", "gamma"):
+        runtime.registry.register_cell(_sensor(name, "weather"))
+    await runtime.tick()
+
+    stranded = runtime.registry.register_cell(_sensor("delta", "weather"))
+    assert stranded is not None
+
+    def orphan(scratch):
+        scratch.add_node(stranded.cell_id)
+
+    runtime.graph.transaction(orphan, cause="test:restore_left_it_isolated")
+    assert not runtime.graph.out_edges(stranded.cell_id)
+    assert not runtime.graph.in_edges(stranded.cell_id)
+    assert set(runtime.graph.nodes()) == {
+        cell.cell_id for cell in runtime.registry.active_cells()
+    }, "the population must MATCH, which is the path that returned early"
+
+    await runtime.tick()
+
+    bound = runtime.graph.out_edges(stranded.cell_id) or runtime.graph.in_edges(
+        stranded.cell_id
+    )
+    assert bound, "the stranded cell is still its own component"
+    assert len(runtime.graph.components()) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_cell_alone_in_its_subsystem_is_still_left_alone(tmp_path):
+    """The null: healing must not invent a binding the rule declines.
+
+    Attaching a lone cell to an arbitrary peer would make the partition
+    channel quiet and the coverage real in neither case, and it would take
+    the decision away from the policy that has to justify it.
+    """
+    runtime = _runtime(tmp_path)
+    for name in ("alpha", "beta"):
+        runtime.registry.register_cell(_sensor(name, "weather"))
+    await runtime.tick()
+
+    alone = runtime.registry.register_cell(_sensor("solo", "its_own_world"))
+    assert alone is not None
+
+    def orphan(scratch):
+        scratch.add_node(alone.cell_id)
+
+    runtime.graph.transaction(orphan, cause="test:alone_in_its_subsystem")
+    await runtime.tick()
+
+    assert not runtime.graph.out_edges(alone.cell_id)
+    assert not runtime.graph.in_edges(alone.cell_id)
+
+
+@pytest.mark.asyncio
+async def test_an_organ_whose_members_are_full_binds_to_its_subsystem(tmp_path):
+    """The fallback ran only when the member list was EMPTY, never when full.
+
+    Measured on the live graph (2026-09-20): six organs isolated, every one
+    of their members at exactly 16/16, and 29 of 29 `global` peers under the
+    cap. Six of fifty nodes were saturated and they were precisely the ones
+    the organs named, so the attachment rule refused every edge and fell
+    through to nothing while room sat beside it.
+    """
+    runtime = _runtime(tmp_path)
+    cap = runtime.graph.max_out_degree
+    members = [
+        runtime.registry.register_cell(_sensor(f"member_{i}", "weather"))
+        for i in range(2)
+    ]
+    fillers = [
+        runtime.registry.register_cell(_sensor(f"filler_{i}", "weather"))
+        for i in range(cap * 2)
+    ]
+    await runtime.tick()
+
+    from core.morphogenesis.graph import EdgeType, MorphEdge
+
+    def saturate(scratch):
+        # Fill each member to exactly the cap, no further: the graph refuses
+        # a transaction that overruns the budget, and the subject here is a
+        # member with no room rather than a graph that rejects the fixture.
+        for member in members:
+            held_out = {e.target for e in runtime.graph.out_edges(member.cell_id)}
+            held_in = {e.source for e in runtime.graph.in_edges(member.cell_id)}
+            spare = [
+                f.cell_id for f in fillers
+                if f.cell_id != member.cell_id
+            ]
+            for target in [c for c in spare if c not in held_out][: cap - len(held_out)]:
+                scratch.add_edge(MorphEdge(
+                    source=member.cell_id, target=target,
+                    edge_type=EdgeType.OBSERVE, weight=0.5,
+                ))
+            for source in [c for c in spare if c not in held_in][: cap - len(held_in)]:
+                scratch.add_edge(MorphEdge(
+                    source=source, target=member.cell_id,
+                    edge_type=EdgeType.OBSERVE, weight=0.5,
+                ))
+
+    runtime.graph.transaction(saturate, cause="test:fill_the_members")
+    for member in members:
+        assert len(runtime.graph.out_edges(member.cell_id)) >= cap
+
+    organ = runtime.registry.register_cell(CellManifest(
+        name="organ:full_members", role=CellRole.ORGAN, subsystem="weather",
+        capabilities=["composite"], consumes=["task"], emits=["task"],
+        metadata={"members": [m.cell_id for m in members]},
+    ))
+    assert organ is not None
+
+    await runtime.tick()
+
+    bound = runtime.graph.out_edges(organ.cell_id) or runtime.graph.in_edges(
+        organ.cell_id
+    )
+    assert bound, "the organ took nothing while its subsystem had room"

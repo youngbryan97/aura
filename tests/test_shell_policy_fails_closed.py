@@ -73,7 +73,7 @@ class TestPathIdentityNotSpelling:
     def test_a_lookalike_in_another_directory_is_refused(self):
         """The exact hole: /tmp/attacker/git for an allowlisted "git"."""
         policy = Shell(cwd="/tmp", allowed_commands=["git"])
-        assert policy._is_allowed(["/tmp/attacker/git", "status"]) is False
+        assert policy._is_allowed(["/tmp/attacker/git", "-c", "core.fsmonitor=false", "status"]) is False
 
     def test_an_absolute_entry_does_not_match_a_different_path(self):
         real = shutil.which("git") or "/bin/echo"

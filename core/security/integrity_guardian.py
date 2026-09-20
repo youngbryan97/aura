@@ -366,7 +366,7 @@ class IntegrityGuardian:
         try:
             with local_internal_governed_scope("security.integrity_guardian.git_status", domain="tool_execution"):
                 status = get_subprocess_gateway().run(
-                    ["git", "status", "--porcelain=v1", "--untracked-files=all", "--ignored=no"],
+                    ["git", "-c", "core.fsmonitor=false", "status", "--porcelain=v1", "--untracked-files=all", "--ignored=no"],
                     cwd=str(_BASE_DIR),
                     capture_output=True,
                     timeout=8.0,
@@ -486,7 +486,7 @@ class IntegrityGuardian:
                 domain="tool_execution",
             ):
                 result = get_subprocess_gateway().run(
-                    ["git", "show", f"HEAD:{normalized}"],
+                    ["git", "-c", "core.fsmonitor=false", "show", f"HEAD:{normalized}"],
                     cwd=str(_BASE_DIR),
                     capture_output=True,
                     timeout=5.0,
@@ -832,7 +832,7 @@ class IntegrityGuardian:
     def _git_active_paths(self) -> set[str]:
         with local_internal_governed_scope("security.integrity_guardian.git_status", domain="tool_execution"):
             status = get_subprocess_gateway().run(
-                ["git", "status", "--porcelain=v1", "--untracked-files=all", "--ignored=no"],
+                ["git", "-c", "core.fsmonitor=false", "status", "--porcelain=v1", "--untracked-files=all", "--ignored=no"],
                 cwd=str(_BASE_DIR),
                 capture_output=True,
                 timeout=8.0,

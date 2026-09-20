@@ -51,6 +51,7 @@ from core.brain.ontology_discovery import (
 from core.runtime.errors import record_degradation
 from core.runtime.numeric_safety import validated_unit
 from core.runtime.service_registry import get_runtime_service, register_runtime_service
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.OntologyGenesis")
@@ -329,11 +330,7 @@ class OntologyGenesisEngine:
         self._active = False
         task, self._genesis_task = self._genesis_task, None
         if task is not None and not task.done():
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError as _exc:
-                logger.debug("Suppressed asyncio.CancelledError: %s", _exc)
+            await cancel_and_join(task, owner="core.brain.ontology_genesis")
         logger.info("OntologyGenesis: Returning to hibernation.")
 
     def running_threshold(self, volition: int) -> float:

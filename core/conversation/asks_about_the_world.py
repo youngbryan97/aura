@@ -40,8 +40,10 @@ _WANTS_SOURCES = re.compile(
 )
 
 #: Asking for facts rather than an opinion or a feeling.
+# A question word opens a question: something follows it. "what" alone was
+# read as a request for facts (formed constraint: a token is not a decision).
 _ASKS_FOR_FACTS = re.compile(
-    r"\b(?:who|what|when|where|which|how many|how much|how big|how old|"
+    r"\b(?:(?:who|what|when|where|which)(?=\s+\w)|how many|how much|how big|how old|"
     r"tell me about|what do you know about|what can you tell me about|"
     r"give me (?:a )?(?:rundown|summary|overview|background)|"
     r"look (?:up|into)|research|find out|background on|"
@@ -124,8 +126,10 @@ _NOT_A_SUBJECT = {
 }
 
 #: Openings that are about her rather than about the world.
+# "your" precedes the thing that is hers; the pronoun alone decided this ten
+# times (formed constraint: a token is not a decision).
 _ABOUT_HER = re.compile(
-    r"\b(?:your(?:self)?|you'?re|you are|you have|you feel|you think|"
+    r"\b(?:your(?=\s+\w)|yourself|you'?re|you are|you have|you feel|you think|"
     r"how are you|who are you|what are you)\b",
     re.IGNORECASE,
 )

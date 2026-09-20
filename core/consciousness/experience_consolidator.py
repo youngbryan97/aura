@@ -42,6 +42,7 @@ from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.service_access import resolve_inference_gate
 from core.runtime.state_ownership import state_root
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.ExperienceConsolidator")
@@ -164,17 +165,9 @@ class ExperienceConsolidator:
         task = self._task
         self._task = None
         if task:
-            task.cancel()
-            try:
-                await asyncio.wait_for(task, timeout=5.0)
-            except asyncio.CancelledError:
-                logger.debug("ExperienceConsolidator: background loop cancelled cleanly.")
-            except TimeoutError as exc:
-                _record_experience_consolidator_degradation(
-                    exc,
-                    action="bounded shutdown timeout so consolidation loop cannot stall stop",
-                    severity="warning",
-                )
+            await cancel_and_join(
+                task, owner="core.consciousness.experience_consolidator", timeout=5.0
+            )
 
     async def run_now(self) -> IdentityNarrative | None:
         """Force a consolidation cycle immediately."""

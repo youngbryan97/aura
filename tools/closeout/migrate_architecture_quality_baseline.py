@@ -338,7 +338,7 @@ def _historical_claim_reproduction(
 
 def _snapshot(root: Path, commit: str, report: ArchitectureQualityReport) -> dict[str, Any]:
     metadata = subprocess.run(
-        ["git", "show", "-s", "--format=%aI%x00%s", commit],
+        ["git", "-c", "core.fsmonitor=false", "show", "-s", "--format=%aI%x00%s", commit],
         cwd=root,
         check=True,
         capture_output=True,
@@ -417,7 +417,7 @@ def _path_last_changes(
 ) -> dict[str, str]:
     output = subprocess.run(
         [
-            "git",
+            "git", "-c", "core.fsmonitor=false",
             "log",
             "--format=@@%H",
             "--name-only",
@@ -443,7 +443,7 @@ def _path_last_changes(
 
 def _commit_identity(root: Path, revision: str) -> str:
     return subprocess.run(
-        ["git", "rev-parse", f"{revision}^{{commit}}"],
+        ["git", "-c", "core.fsmonitor=false", "rev-parse", f"{revision}^{{commit}}"],
         cwd=root,
         check=True,
         capture_output=True,
@@ -464,7 +464,7 @@ def _load_legacy_baseline(
         raise ValueError("legacy baseline path must be inside the repository") from exc
     try:
         encoded = subprocess.run(
-            ["git", "show", f"{commit}:{relative}"],
+            ["git", "-c", "core.fsmonitor=false", "show", f"{commit}:{relative}"],
             cwd=root,
             check=True,
             capture_output=True,
@@ -482,7 +482,7 @@ def _load_legacy_baseline(
 
 def _require_ancestor(root: Path, ancestor: str, descendant: str) -> None:
     result = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+        ["git", "-c", "core.fsmonitor=false", "merge-base", "--is-ancestor", ancestor, descendant],
         cwd=root,
         check=False,
     )

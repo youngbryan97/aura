@@ -66,7 +66,7 @@ def _sha256_bytes(payload: bytes) -> str:
 
 def _git(repo: Path, *args: str) -> str:
     return subprocess.run(
-        ["git", *args],
+        ["git", "-c", "core.fsmonitor=false", *args],
         cwd=repo,
         check=True,
         capture_output=True,

@@ -140,7 +140,7 @@ def markdown_headings(path: Path, *, limit: int = 8) -> list[str]:
 def git_value(args: Iterable[str]) -> str:
     try:
         result = get_subprocess_gateway().run(
-            ["git", *args],
+            ["git", "-c", "core.fsmonitor=false", *args],
             cwd=PROJECT_ROOT,
             timeout=10,
             read_only=True,

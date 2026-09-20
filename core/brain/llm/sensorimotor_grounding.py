@@ -22,6 +22,7 @@ import numpy as np
 
 from core.runtime.errors import record_degradation
 from core.runtime.task_ownership import create_tracked_task
+from core.utils.concurrency import cancel_and_join
 
 logger = logging.getLogger("Aura.SensorimotorGrounding")
 
@@ -142,11 +143,7 @@ class SensorimotorGroundingBridge:
     async def stop(self) -> None:
         self.running = False
         if self._task and not self._task.done():
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError as _exc:
-                logger.debug("Suppressed %s in core.brain.llm.sensorimotor_grounding: %s", type(_exc).__name__, _exc)
+            await cancel_and_join(self._task, owner="core.brain.llm.sensorimotor_grounding")
 
     async def _loop(self) -> None:
         while self.running:

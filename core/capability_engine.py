@@ -25,6 +25,11 @@ from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.utils.task_tracker import get_task_tracker
 
 from .capabilities.user_advocate import _AsksWhetherThePersonWouldWantThis
+from .capability_engine_skill_scope import (  # noqa: F401  (re-exported: they were defined here)
+    _is_forged_skill,
+    _name_what_is_still_available,
+    _skill_reaches_beyond_its_scope,
+)
 
 logger = logging.getLogger("core.capability_engine")
 
@@ -1334,6 +1339,145 @@ class WebClient:
             return False, str(e)
 
 
+async def _execute_part_a(
+    *,
+    constitution: Any,
+    result: Any,
+    self: Any,
+    skill_name: Any,
+    tool_handle: Any,
+) -> None:
+    """One block of capability execution, lifted whole.
+
+    Moved out of ``CapabilityEngine.execute`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 5 name(s) from the turn and hands back
+    0.
+    """
+    try:
+        if (
+            constitution is not None
+            and tool_handle is not None
+            and bool(getattr(tool_handle, "approved", False))
+        ):
+            closure_receipt = await constitution.finish_tool_execution(
+                tool_handle,
+                result=result or {"ok": False, "error": "execution_not_completed"},
+                success=bool(isinstance(result, dict) and result.get("ok", False)),
+                duration_ms=0.0,
+                error=""
+                if bool(isinstance(result, dict) and result.get("ok", False))
+                else str((result or {}).get("error", "")),
+            )
+            # CP126 (critical): "finish_tool_execution runs for every
+            # approved tool, but a false or exceptional closure receipt
+            # downgrades only os_automation. File writes, shell
+            # actions, email, browser work, and other external effects
+            # can return ok after their tool authority failed to
+            # close."
+            #
+            # The os_automation branch had the right shape and the
+            # wrong scope: one skill name, hardcoded. Every effectful
+            # skill now gets the same treatment, keyed on the declared
+            # effect scope rather than a name — and `unknown` counts as
+            # effectful, because an unclassified skill is not a safe
+            # one. Non-effectful skills still carry the receipt so the
+            # failure is visible, but their result is not invalidated:
+            # a read-only call did not leave anything to reconcile.
+            if isinstance(result, dict):
+                # A MISSING receipt and a receipt that REPORTS FAILURE
+                # are different facts. os_automation has always
+                # treated "no receipt" as a failed closure and that
+                # contract is preserved; for every other skill, a
+                # constitution that returned nothing has told us
+                # nothing, so it is recorded rather than used to
+                # invalidate the caller's result.
+                if not isinstance(closure_receipt, dict):
+                    closure_receipt = {
+                        "closed": skill_name != "os_automation",
+                        "mode": "constitutional_closure",
+                        "receipt_present": False,
+                        "errors": ["constitutional core returned no closure receipt"],
+                    }
+                result["authority_closure"] = closure_receipt
+                if not bool(closure_receipt.get("closed")):
+                    closure_scope = _declared_effect_scope(skill_name)
+                    _record_unreconciled_authority(
+                        tool_handle,
+                        reason=f"closure_receipt_not_closed:{skill_name}",
+                    )
+                    if closure_scope in _PRE_RUNTIME_UNGATED_EFFECT_SCOPES:
+                        result["authority_closure_effect_scope"] = closure_scope
+                    else:
+                        original_status = str(result.get("status") or "")
+                        attempt_rows = result.get("attempts")
+                        if not isinstance(attempt_rows, list):
+                            attempt_rows = []
+                        action_may_have_occurred = bool(
+                            result.get("effect_verified")
+                        ) or any(
+                            bool(attempt.get("transport_success"))
+                            for attempt in attempt_rows
+                            if isinstance(attempt, dict)
+                        )
+                        result["ok"] = False
+                        result["status"] = "authority_closure_failed"
+                        result["authority_closure_original_status"] = original_status
+                        result["authority_closure_effect_scope"] = closure_scope
+                        result["manual_reconciliation_required"] = (
+                            action_may_have_occurred
+                        )
+                        result["error"] = (
+                            f"{skill_name} authority did not close cleanly after "
+                            "execution. Do not retry automatically until "
+                            "capability-token state is reconciled."
+                        )
+    except (
+        OSError,
+        ConnectionError,
+        TimeoutError,
+        RuntimeError,
+        AttributeError,
+        TypeError,
+        ValueError,
+    ) as _exc:
+        _record_capability_degradation(
+            _exc,
+            action="returned skill result after constitutional finish receipt failed",
+            severity="degraded",
+        )
+        self.logger.debug("Suppressed Exception: %s", _exc)
+        # Same generalisation on the raise path: a closure that threw
+        # closed nothing, whichever skill it was for.
+        if isinstance(result, dict):
+            # A raise is a real closure failure — unlike a missing
+            # receipt, it is positive evidence that closure did not
+            # complete — so this path does invalidate effectful
+            # results.
+            closure_scope = _declared_effect_scope(skill_name)
+            result["authority_closure"] = {
+                "closed": False,
+                "mode": "constitutional_closure",
+                "receipt_present": False,
+                "errors": [f"{type(_exc).__name__}:{_exc}"],
+            }
+            result["authority_closure_effect_scope"] = closure_scope
+            _record_unreconciled_authority(
+                tool_handle,
+                reason=f"closure_receipt_raised:{type(_exc).__name__}",
+            )
+            if closure_scope not in _PRE_RUNTIME_UNGATED_EFFECT_SCOPES:
+                result["ok"] = False
+                result["status"] = "authority_closure_failed"
+                result["manual_reconciliation_required"] = bool(
+                    result.get("effect_verified")
+                )
+                result["error"] = (
+                    f"{skill_name} authority closure raised an error; "
+                    "capability-token state requires reconciliation."
+                )
+
+
 class Sandbox2:
     """Kernel-boundary sandbox for executing untrusted/forged code.
 
@@ -1484,56 +1628,6 @@ _REALTIME_SENSOR_SKILLS = frozenset(
 )
 
 
-def _skill_reaches_beyond_its_scope(skill_class: Any, declared: str) -> str:
-    """"" when the declaration covers the module, the refusal otherwise.
-
-    Measured from the module's source, so it costs one AST parse per skill at
-    registration and nothing afterwards. Mismatches that predate this check
-    are grandfathered in config/skill_effect_scope_baseline.json, which only
-    shrinks; a skill added after it must declare what it reaches for.
-    """
-    try:
-        from core.skills.effect_reach import measure_file, measure_source, violation
-
-        module_file = inspect.getsourcefile(skill_class)
-        if not module_file:
-            return ""
-        # A skill's helpers usually sit beside it at module level, so the
-        # module is the right unit — but only when the module IS a skill
-        # module. A class defined inside a test file or a fixture would
-        # otherwise inherit that file's imports, which is how a test double
-        # named `runtime_instance_skill` came to "reach" the file-write
-        # gateway that the test itself imports.
-        resolved = Path(module_file).resolve()
-        in_skill_tree = any(
-            part in {"skills"} for part in resolved.parts
-        ) and "tests" not in resolved.parts
-        if in_skill_tree:
-            reach = measure_file(resolved)
-        else:
-            try:
-                reach = measure_source(inspect.getsource(skill_class))
-            except (OSError, TypeError):
-                return ""
-        problem: str = violation(declared, reach)
-        if not problem:
-            return ""
-        key = f"{getattr(skill_class, 'name', '')}:{declared}"
-        if any(entry.startswith(key + "->") for entry in _grandfathered_overreach()):
-            return ""
-        return problem
-    except (ImportError, OSError, TypeError, ValueError) as exc:
-        # A check that cannot run has not cleared anything, but refusing every
-        # skill because the analyser broke would take the whole catalog down.
-        record_degradation(
-            "capability_engine.effect_scope",
-            exc,
-            severity="warning",
-            action="registered the skill without comparing its scope with its reach",
-        )
-        return ""
-
-
 @lru_cache(maxsize=1)
 def _grandfathered_overreach() -> frozenset[str]:
     path = Path(__file__).resolve().parent.parent / "config" / "skill_effect_scope_baseline.json"
@@ -1543,37 +1637,6 @@ def _grandfathered_overreach() -> frozenset[str]:
         return frozenset()
     return frozenset(str(entry) for entry in payload.get("grandfathered", ()))
 
-
-
-def _name_what_is_still_available(
-    denial: dict[str, Any], refused: Any, context: dict[str, Any] | None
-) -> dict[str, Any]:
-    """Add the other tools this turn was offered to a refusal.
-
-    LIVE, 2026-08-27: file_operation was leased read_only for the turn, and the
-    model asked it to WRITE a script so it could exercise a library — twice.
-    Both calls came back "denied_by_default: tool_execution requires validated
-    scoped authority", which says what went wrong and nothing about what would
-    work, while code_repl sat offered on the same turn, able to import that
-    library and run it.
-
-    Naming what remains is not a hint about the task. It is the part of a
-    refusal the caller can act on, and the complement of not offering a tool
-    that will be refused.
-    """
-    offered = (context or {}).get("required_skills") or (context or {}).get("offered_skills")
-    if not isinstance(offered, (list, tuple, set)):
-        return denial
-    name = str(refused or "")
-    instead = sorted({str(item) for item in offered if str(item) and str(item) != name})[:4]
-    if not instead:
-        return denial
-    told = dict(denial)
-    told["available_instead"] = instead
-    told["error"] = f"{told.get('error', 'refused')}. Still available on this turn: " + ", ".join(
-        instead
-    ) + "."
-    return told
 
 
 
@@ -6748,128 +6811,13 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
             result = wrapped_result
             return result
         finally:
-            try:
-                if (
-                    constitution is not None
-                    and tool_handle is not None
-                    and bool(getattr(tool_handle, "approved", False))
-                ):
-                    closure_receipt = await constitution.finish_tool_execution(
-                        tool_handle,
-                        result=result or {"ok": False, "error": "execution_not_completed"},
-                        success=bool(isinstance(result, dict) and result.get("ok", False)),
-                        duration_ms=0.0,
-                        error=""
-                        if bool(isinstance(result, dict) and result.get("ok", False))
-                        else str((result or {}).get("error", "")),
-                    )
-                    # CP126 (critical): "finish_tool_execution runs for every
-                    # approved tool, but a false or exceptional closure receipt
-                    # downgrades only os_automation. File writes, shell
-                    # actions, email, browser work, and other external effects
-                    # can return ok after their tool authority failed to
-                    # close."
-                    #
-                    # The os_automation branch had the right shape and the
-                    # wrong scope: one skill name, hardcoded. Every effectful
-                    # skill now gets the same treatment, keyed on the declared
-                    # effect scope rather than a name — and `unknown` counts as
-                    # effectful, because an unclassified skill is not a safe
-                    # one. Non-effectful skills still carry the receipt so the
-                    # failure is visible, but their result is not invalidated:
-                    # a read-only call did not leave anything to reconcile.
-                    if isinstance(result, dict):
-                        # A MISSING receipt and a receipt that REPORTS FAILURE
-                        # are different facts. os_automation has always
-                        # treated "no receipt" as a failed closure and that
-                        # contract is preserved; for every other skill, a
-                        # constitution that returned nothing has told us
-                        # nothing, so it is recorded rather than used to
-                        # invalidate the caller's result.
-                        if not isinstance(closure_receipt, dict):
-                            closure_receipt = {
-                                "closed": skill_name != "os_automation",
-                                "mode": "constitutional_closure",
-                                "receipt_present": False,
-                                "errors": ["constitutional core returned no closure receipt"],
-                            }
-                        result["authority_closure"] = closure_receipt
-                        if not bool(closure_receipt.get("closed")):
-                            closure_scope = _declared_effect_scope(skill_name)
-                            _record_unreconciled_authority(
-                                tool_handle,
-                                reason=f"closure_receipt_not_closed:{skill_name}",
-                            )
-                            if closure_scope in _PRE_RUNTIME_UNGATED_EFFECT_SCOPES:
-                                result["authority_closure_effect_scope"] = closure_scope
-                            else:
-                                original_status = str(result.get("status") or "")
-                                attempt_rows = result.get("attempts")
-                                if not isinstance(attempt_rows, list):
-                                    attempt_rows = []
-                                action_may_have_occurred = bool(
-                                    result.get("effect_verified")
-                                ) or any(
-                                    bool(attempt.get("transport_success"))
-                                    for attempt in attempt_rows
-                                    if isinstance(attempt, dict)
-                                )
-                                result["ok"] = False
-                                result["status"] = "authority_closure_failed"
-                                result["authority_closure_original_status"] = original_status
-                                result["authority_closure_effect_scope"] = closure_scope
-                                result["manual_reconciliation_required"] = (
-                                    action_may_have_occurred
-                                )
-                                result["error"] = (
-                                    f"{skill_name} authority did not close cleanly after "
-                                    "execution. Do not retry automatically until "
-                                    "capability-token state is reconciled."
-                                )
-            except (
-                OSError,
-                ConnectionError,
-                TimeoutError,
-                RuntimeError,
-                AttributeError,
-                TypeError,
-                ValueError,
-            ) as _exc:
-                _record_capability_degradation(
-                    _exc,
-                    action="returned skill result after constitutional finish receipt failed",
-                    severity="degraded",
-                )
-                self.logger.debug("Suppressed Exception: %s", _exc)
-                # Same generalisation on the raise path: a closure that threw
-                # closed nothing, whichever skill it was for.
-                if isinstance(result, dict):
-                    # A raise is a real closure failure — unlike a missing
-                    # receipt, it is positive evidence that closure did not
-                    # complete — so this path does invalidate effectful
-                    # results.
-                    closure_scope = _declared_effect_scope(skill_name)
-                    result["authority_closure"] = {
-                        "closed": False,
-                        "mode": "constitutional_closure",
-                        "receipt_present": False,
-                        "errors": [f"{type(_exc).__name__}:{_exc}"],
-                    }
-                    result["authority_closure_effect_scope"] = closure_scope
-                    _record_unreconciled_authority(
-                        tool_handle,
-                        reason=f"closure_receipt_raised:{type(_exc).__name__}",
-                    )
-                    if closure_scope not in _PRE_RUNTIME_UNGATED_EFFECT_SCOPES:
-                        result["ok"] = False
-                        result["status"] = "authority_closure_failed"
-                        result["manual_reconciliation_required"] = bool(
-                            result.get("effect_verified")
-                        )
-                        result["error"] = (
-                            f"{skill_name} authority closure raised an error; "
-                            "capability-token state requires reconciliation."
-                        )
+            await _execute_part_a(
+                constitution=constitution,
+                result=result,
+                self=self,
+                skill_name=skill_name,
+                tool_handle=tool_handle,
+            )
 
     def _apply_security(
         self, skill_name: str, params: dict[str, Any]
@@ -7620,31 +7568,6 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
             and metadata.dependency_ready
             for name, metadata in skills.items()
         )
-
-
-def _is_forged_skill(meta: Any) -> bool:
-    """Whether this skill is code Aura wrote for herself.
-
-    The predicate used to be ``"skills/" in meta.module_path``. Module paths are
-    dotted — ``skills.word_count`` — so the substring never matched and the
-    answer was always no. Everything downstream of it was therefore dead: the
-    Sandbox 2.0 branch never ran, and model-authored code executed in-process
-    like any hand-written skill, under a log line announcing that it was
-    confined.
-
-    ``source_kind`` is the catalog's own answer to the same question, set by
-    :func:`core.skills.discovery.default_skill_roots` when it walks the writable
-    ``skills/`` tree rather than ``core/skills``. It is a fact about where the
-    file came from instead of a guess from how a string is spelled.
-    """
-    if str(getattr(meta, "source_kind", "") or "").strip().lower() == "project":
-        return True
-    # A skill registered at runtime carries no catalog provenance. Fall back to
-    # the module's real file, which is a path and can be compared as one.
-    module_path = str(getattr(meta, "source_path", "") or "")
-    if not module_path:
-        return False
-    return Path(module_path).as_posix().startswith("skills/")
 
 
 def _gates_required_for(effect_scope: Any, *, is_forged: bool) -> bool:

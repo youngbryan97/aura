@@ -39,6 +39,7 @@ from typing import Any
 import numpy as np
 
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Consciousness.Interoception")
@@ -273,17 +274,9 @@ class EmbodiedInteroception:
         task = self._task
         self._task = None
         if task:
-            task.cancel()
-            try:
-                await asyncio.wait_for(task, timeout=3.0)
-            except asyncio.CancelledError:
-                logger.debug("EmbodiedInteroception loop cancelled cleanly")
-            except TimeoutError as exc:
-                _record_embodied_interoception_degradation(
-                    exc,
-                    action="bounded stop timeout so shutdown cannot hang on interoception",
-                    severity="warning",
-                )
+            await cancel_and_join(
+                task, owner="core.consciousness.embodied_interoception", timeout=3.0
+            )
         logger.info("EmbodiedInteroception STOPPED")
 
     async def _run_loop(self):

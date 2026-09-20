@@ -270,7 +270,7 @@ class GitIntegration:
 
             # Get commit hash
             hash_result = await self._git(
-                ["git", "rev-parse", "HEAD"],
+                ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"],
                 timeout=5,
                 read_only=True,
                 source="core.self_modification.safe_modification.rev_parse_head",
@@ -327,7 +327,7 @@ class GitIntegration:
         try:
             branch_name = self._validate_branch_name(branch_name)
             await self._git(
-                ["git", "branch", "-D", branch_name],
+                ["git", "-c", "core.fsmonitor=false", "branch", "-D", branch_name],
                 check=True,
                 timeout=5,
                 source="core.self_modification.safe_modification.delete_branch",
@@ -362,7 +362,7 @@ class GitIntegration:
 
         try:
             result = await self._git(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                ["git", "-c", "core.fsmonitor=false", "rev-parse", "--abbrev-ref", "HEAD"],
                 timeout=5,
                 read_only=True,
                 source="core.self_modification.safe_modification.current_branch",

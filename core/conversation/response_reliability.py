@@ -1860,8 +1860,11 @@ _FABRICATED_SUBSTRATE_RE = re.compile(
 )
 #: The same words are fine when the reply is ABOUT such systems rather than
 #: claiming to be one.
+# "I" as the subject of a claim has a predicate after it; "me" and "my" have
+# something before them. A bare pronoun decided this fourteen times
+# (formed constraint: a token is not a decision).
 _SUBSTRATE_SELF_CLAIM_RE = re.compile(
-    r"\b(?:i|my|me|mine|aura(?:'s)?)\b",
+    r"\b(?:i(?=\s+\w)|(?<=\w\s)(?:my|me|mine)|aura(?:'s)?)\b",
     re.IGNORECASE,
 )
 
@@ -3001,7 +3004,10 @@ _NUMERIC_OPERATOR_RE = re.compile(
     re.IGNORECASE,
 )
 # Spelled-out results count as answers: "twenty-seven" is a number.
+# A number word that counts: not the "five" of "high five" or "take five",
+# and not the "one" of "the one" (formed constraint: a token is not a decision).
 _NUMBER_WORD_RE = re.compile(
+    r"(?<!\bhigh\s)(?<!\btake\s)(?<!\bthe\s)(?<!\bthis\s)(?<!\bthat\s)"
     r"\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
     r"thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|"
     r"thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|"

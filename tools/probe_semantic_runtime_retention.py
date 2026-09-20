@@ -34,6 +34,7 @@ def main():
     parser.add_argument("--validation-count", type=int, default=8)
     parser.add_argument("--steps", type=int, default=20)
     parser.add_argument("--max-charts", type=int, default=32)
+    parser.add_argument("--decoder-policy", choices=("preserve", "joint_factor_score_v2"), default="preserve")
     parser.add_argument("--learn-operation-pointer", action="store_true")
     parser.add_argument("--freeze-operation-head", action="store_true")
     parser.add_argument("--update-rule", choices=("working_face", "minimum_change"), default="working_face")
@@ -52,7 +53,9 @@ def main():
     model = compositional_semantic_program_transducer_from_dict(json.loads(args.transducer.read_text("ascii")))
     report = json.loads(args.source_report.read_text("ascii"))
     examples = load_source_examples(model, report, args.bundle)
-    result = run_semantic_graph_trial(model.with_joint_operation_argument_scores(), examples,
+    if args.decoder_policy == "joint_factor_score_v2":
+        model = model.with_joint_operation_argument_scores()
+    result = run_semantic_graph_trial(model, examples,
         training_count=args.training_count, validation_count=args.validation_count,
         training_pool_count=args.training_pool_count,
         operation_retention_count=args.operation_retention_count,

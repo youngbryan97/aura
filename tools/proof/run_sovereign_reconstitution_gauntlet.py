@@ -165,7 +165,7 @@ def _sha256_file(path: Path) -> str:
 
 def _git_commit() -> str:
     proc = _SUBPROCESS_GATEWAY.run(
-        ["git", "rev-parse", "HEAD"],
+        ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"],
         cwd=PROJECT_ROOT,
         timeout=60,
         read_only=True,
@@ -177,7 +177,7 @@ def _git_commit() -> str:
 
 def _git_diff() -> str:
     proc = _SUBPROCESS_GATEWAY.run(
-        ["git", "diff", "--no-ext-diff"],
+        ["git", "-c", "core.fsmonitor=false", "diff", "--no-ext-diff"],
         cwd=PROJECT_ROOT,
         timeout=60,
         read_only=True,

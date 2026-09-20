@@ -16,14 +16,26 @@ def test_the_event_names_the_cells_outside_the_largest_piece(monkeypatch):
         "core.morphogenesis.telemetry.publish", lambda status: published.append(dict(status))
     )
     monkeypatch.setattr("core.morphogenesis.telemetry.publish_motifs", lambda _status: None)
+    def cell(cell_id, name, subsystem):
+        return SimpleNamespace(
+            cell_id=cell_id, manifest=SimpleNamespace(name=name, subsystem=subsystem)
+        )
+
     fake = SimpleNamespace(
         governor=SimpleNamespace(status=lambda: {}),
         graph=SimpleNamespace(
             components=lambda: [{"lonely"}, {"a", "b", "c"}, {"stray"}]
         ),
         motifs=SimpleNamespace(status=lambda: {}),
+        registry=SimpleNamespace(
+            active_cells=lambda: [
+                cell("lonely", "curiosity", "drives"),
+                cell("a", "recall", "memory"),
+            ]
+        ),
     )
     morph_runtime.MorphogeneticRuntime._publish_telemetry(fake)
     sizes = published[0]["component_sizes"]
     assert sizes.startswith("3,1,1")
-    assert "cut off from the rest: lonely, stray" in sizes
+    # Named where she declared them, and by id where nothing declares them.
+    assert "cut off from the rest: curiosity (drives), stray" in sizes

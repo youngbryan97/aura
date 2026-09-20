@@ -260,7 +260,7 @@ def _is_git_tracked(entry: Path) -> bool:
         from core.runtime.subprocess_gateway import get_subprocess_gateway
 
         result = get_subprocess_gateway().run(
-            ["git", "ls-files", "--error-unmatch", str(entry)],
+            ["git", "-c", "core.fsmonitor=false", "ls-files", "--error-unmatch", str(entry)],
             cwd=str(entry.parent),
             capture_output=True,
             timeout=10,

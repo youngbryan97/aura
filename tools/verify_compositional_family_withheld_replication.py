@@ -61,7 +61,7 @@ def _verify_commit(commit: str) -> None:
     if not _COMMIT.fullmatch(commit):
         raise ValueError("evaluation source commit is invalid")
     completed = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", commit, "HEAD"],
+        ["git", "-c", "core.fsmonitor=false", "merge-base", "--is-ancestor", commit, "HEAD"],
         cwd=_REPO_ROOT,
         check=False,
         capture_output=True,

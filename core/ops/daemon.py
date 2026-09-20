@@ -24,6 +24,7 @@ from core.runtime.shutdown_coordinator import (
     request_shutdown,
 )
 from core.runtime.state_ownership import state_root
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Daemon")
@@ -279,11 +280,7 @@ class WorldFeed:
         self._running = False
         task, self._task = self._task, None
         if task:
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+            await cancel_and_join(task, owner="core.ops.daemon")
 
     async def _feed_loop(self) -> None:
         while self._running and not is_shutdown_requested():

@@ -38,7 +38,7 @@ def test_git_export_probe_declares_no_accelerator(
     assert _run_git(tmp_path, "ls-files") == "tracked.py\n"
     assert calls == [
         (
-            ["git", "ls-files"],
+            ["git", "-c", "core.fsmonitor=false", "ls-files"],
             {
                 "cwd": tmp_path,
                 "timeout": 30.0,

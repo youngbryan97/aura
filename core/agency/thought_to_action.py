@@ -23,6 +23,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger(__name__)
@@ -118,11 +119,7 @@ class ThoughtRouter:
         task, self._task = self._task, None
         if task is None:
             return
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            logger.debug("thought router stopped")
+        await cancel_and_join(task, owner="core.agency.thought_to_action")
 
     def as_dict(self) -> dict[str, Any]:
         return {"routed": self.routed, "ignored": self.ignored, "failed": self.failed}

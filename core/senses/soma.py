@@ -115,7 +115,7 @@ class Soma:
                 # Genetic Evolution Generation (Git commits)
                 try:
                     res = get_subprocess_gateway().run(
-                        ["git", "rev-list", "--count", "HEAD"],
+                        ["git", "-c", "core.fsmonitor=false", "rev-list", "--count", "HEAD"],
                         cwd=str(self._repo_dir),
                         timeout=3.0,
                         read_only=True,

@@ -476,7 +476,15 @@ def extract_target_paths(
 
 
 
-_CLIPBOARD_GOAL_RE = re.compile(r"\b(?:clip\s?board|pasteboard)\b", re.IGNORECASE)
+# The clipboard as a place ("on my clipboard", "to the clipboard") or a thing
+# with contents; the word alone decided this three times (formed constraint:
+# a token is not a decision).
+_CLIPBOARD_GOAL_RE = re.compile(
+    r"(?:(?<=\bon\s)|(?<=\bto\s)|(?<=\bmy\s)|(?<=\bthe\s)|(?<=\bfrom\s)|(?<=\byour\s)"
+    r"|(?<=\binto\s)|(?<=\bonto\s)|(?<=\bin\s))\b(?:clip\s?board|pasteboard)\b"
+    r"|\b(?:clip\s?board|pasteboard)\b(?=\s*(?:contents?|history|text|now)\b)",
+    re.IGNORECASE,
+)
 #: The literal a person put in quotes, or an unquoted token that reads like an
 #: identifier — "put ORION-7 on my clipboard" names its own acceptance test.
 _CLIPBOARD_LITERAL_RE = re.compile(

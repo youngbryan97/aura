@@ -595,6 +595,7 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
                 # was never told about. Returning here left the two
                 # disagreeing on 82 bindings after a restart, which is the
                 # signature of a partial failure nobody cleaned up.
+                self._attach_the_stranded(live)
                 self._reconcile_substrate()
                 return
             for cell_id in live - known:
@@ -640,6 +641,46 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
                 severity="warning",
                 extra={"tick": self._tick},
             )
+
+    def _attach_the_stranded(self, live: set[str]) -> None:
+        """Bind a live cell the graph holds with no edges at all.
+
+        Attachments were computed only for cells that ARRIVE, and a cell
+        already isolated when the graph was saved never arrives again: the
+        population matches on every boot, this method returns early, and
+        nothing binds it for the life of the installation.
+
+        The persisted graph on 2026-09-20 held 50 nodes, 196 edges and
+        exactly six isolated cells — six organs the stabilizer formalised,
+        reported live as "population split into 7 pieces: 44,1,1,1,1,1,1"
+        and still split after readiness. No degree budget was reached and
+        nothing was refused; the healing simply never ran on them.
+
+        Isolation is the condition, not arrival. Anything the attachment
+        rule declines — a cell alone in its subsystem, a budget already
+        spent — is declined here too, and stays visible in the partition
+        count where a policy can decide about it.
+        """
+        stranded = {
+            cell_id for cell_id in live
+            if not self.graph.out_edges(cell_id) and not self.graph.in_edges(cell_id)
+        }
+        if not stranded:
+            return
+        edges = self._attachments_for(stranded, live)
+        if not edges:
+            return
+
+        def heal(scratch: Any) -> None:
+            for edge in edges:
+                scratch.add_edge(edge)
+
+        self.graph.transaction(heal, cause=f"attach_stranded@tick{self._tick}")
+        logger.info(
+            "Morphogenesis bound %d stranded cell(s) the restore left isolated: %s",
+            len(stranded),
+            ", ".join(sorted(stranded)[:6]),
+        )
 
     def _reconcile_substrate(self) -> None:
         """Make the substrate hold exactly the bindings the graph declares.
@@ -726,15 +767,17 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
             cell = self.registry.get(cell_id)
             if cell is None:
                 continue
+            peers = [
+                peer for peer in by_subsystem.get(cell.manifest.subsystem, ())
+                if peer != cell_id and peer in live
+            ]
             members = [
                 str(m) for m in (cell.manifest.metadata.get("members") or ())
                 if str(m) in live and str(m) != cell_id
             ]
             if not members:
-                members = [
-                    peer for peer in by_subsystem.get(cell.manifest.subsystem, ())
-                    if peer != cell_id and peer in live
-                ]
+                members = peers
+                peers = []
             # Attach to the peers with the most room, not the first four by
             # name. Twenty cells arriving into one subsystem all chose the
             # same alphabetically-first peers, saturated them, and left the
@@ -758,6 +801,30 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
                 admit(member, cell_id)
                 if forward:
                     taken += 1
+            if not taken and peers:
+                # Its members are full. The fallback to subsystem peers ran
+                # only when the member list was EMPTY, so an organ whose
+                # members are all at the degree cap got nothing at all and
+                # stayed its own component — while peers with room sat beside
+                # it. Measured on the live graph (2026-09-20): six organs,
+                # every one of their members at exactly 16/16, and 29 of 29
+                # `global` peers under the cap. Six of fifty nodes were
+                # saturated and they were precisely the ones named.
+                #
+                # Binding to the subsystem is what the rule already says to do
+                # when the members cannot be reached; "cannot be reached" now
+                # includes "has no room left" as well as "is not there".
+                for peer in sorted(
+                    peers,
+                    key=lambda name: (
+                        out_degree.get(name, 0) + in_degree.get(name, 0), name
+                    ),
+                ):
+                    if taken >= 4:
+                        break
+                    if admit(cell_id, peer):
+                        taken += 1
+                    admit(peer, cell_id)
         if clipped:
             logger.debug(
                 "Morphogenesis population sync left %d attachment(s) unbound at the "
@@ -809,8 +876,14 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
             cut_off = sorted(cell for piece in pieces[1:] for cell in piece)
             if cut_off:
                 # Sizes alone said "44,1,1,1,1,1,1" live (2026-09-19) and no
-                # surface could say which six cells nothing binds to.
-                shown = ", ".join(cut_off[:12])
+                # surface could say which six cells nothing binds to. Their
+                # ids are digests, so they are named as they were declared.
+                named = {
+                    cell.cell_id: f"{cell.manifest.name} ({cell.manifest.subsystem})"
+                    for cell in self.registry.active_cells()
+                    if getattr(cell, "manifest", None) is not None
+                }
+                shown = ", ".join(named.get(cell, cell) for cell in cut_off[:12])
                 more = f" and {len(cut_off) - 12} more" if len(cut_off) > 12 else ""
                 status["component_sizes"] += f"; cut off from the rest: {shown}{more}"
             telemetry.publish(status)

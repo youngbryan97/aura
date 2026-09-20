@@ -29,6 +29,7 @@ from core.consciousness.mesh_wiring import CorticalTier, MeshWiring
 from core.runtime.desktop_boot_safety import inprocess_mlx_metal_enabled
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.service_access import resolve_inference_gate
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Consciousness.NeuralMesh")
@@ -1021,11 +1022,7 @@ class NeuralMesh(_CarriesModulation, MeshWiring):
     async def stop(self):
         self._running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                logger.debug("NeuralMesh task cancellation acknowledged")
+            await cancel_and_join(self._task, owner="core.consciousness.neural_mesh")
             self._task = None
         logger.info("NeuralMesh STOPPED (ticks=%d)", self._tick_count)
 

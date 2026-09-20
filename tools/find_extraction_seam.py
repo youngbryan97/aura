@@ -42,6 +42,7 @@ import sys
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = ROOT / "config" / "method_size_baseline.json"
@@ -535,19 +536,40 @@ def _walk_bodies(
             )
 
 
+def function_named(tree: ast.Module, qualified: str) -> Any:
+    """The function `qualified` names, honouring the class it names.
+
+    `Class.method` used to be matched on `method` alone, so the first
+    function of that name in the file won. `core/capability_engine.py` has
+    `Sandbox2.execute` above `CapabilityEngine.execute`, and every seam
+    reported for the second was measured inside the first — a tool that
+    points a behaviour-preserving move at the wrong code.
+    """
+    owner, _, name = qualified.rpartition(".")
+    if owner:
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ClassDef) or node.name != owner:
+                continue
+            for child in node.body:
+                if (
+                    isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and child.name == name
+                ):
+                    return child
+        return None
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
+            # A bare name means a module-level function, so a method of the
+            # same name in a class above it is not the answer.
+            return node
+    return None
+
+
 def analyse(
     path: Path, function: str, *, min_lines: int = 60, nested: bool = True
 ) -> list[Seam]:
     tree = ast.parse(path.read_text(encoding="utf-8"))
-    fn = next(
-        (
-            n
-            for n in ast.walk(tree)
-            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and n.name == function.split(".")[-1]
-        ),
-        None,
-    )
+    fn = function_named(tree, function)
     if fn is None:
         raise SystemExit(f"no function named {function!r} in {path}")
 

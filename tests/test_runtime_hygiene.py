@@ -509,7 +509,7 @@ def test_runtime_hygiene_drops_completed_children_from_cached_process_table(
 
     _observe_children(resource_observer, [{
         "pid": 62004,
-        "cmdline": ["git", "--no-optional-locks", "status", "--porcelain=v1"],
+        "cmdline": ["git", "-c", "core.fsmonitor=false", "--no-optional-locks", "status", "--porcelain=v1"],
         "name": "git",
     }])
     monkeypatch.setattr(

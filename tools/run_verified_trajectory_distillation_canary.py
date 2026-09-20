@@ -165,7 +165,7 @@ class ProgressLedger:
 
 def _git(*args: str) -> str:
     return subprocess.run(
-        ["git", *args],
+        ["git", "-c", "core.fsmonitor=false", *args],
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,
@@ -183,7 +183,7 @@ def _source_state() -> tuple[str, dict[str, dict[str, Any]]]:
     for relative in SOURCE_PATHS:
         payload = (REPO_ROOT / relative).read_bytes()
         committed = subprocess.run(
-            ["git", "show", f"{head}:{relative}"],
+            ["git", "-c", "core.fsmonitor=false", "show", f"{head}:{relative}"],
             cwd=REPO_ROOT,
             check=True,
             capture_output=True,

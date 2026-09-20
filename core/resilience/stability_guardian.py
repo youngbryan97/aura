@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from .stability_checks import _ChecksEachSubsystem
 import asyncio
 import gc  # noqa: F401  (read at call time by the lifted module)
 import inspect  # noqa: F401  (read at call time by the lifted module)
@@ -19,6 +18,9 @@ from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.service_access import resolve_inference_gate
 from core.runtime.state_ownership import state_root
+from core.utils.concurrency import cancel_and_join
+
+from .stability_checks import _ChecksEachSubsystem
 
 try:
     from core.runtime import resource_psutil as psutil
@@ -251,11 +253,7 @@ class StabilityGuardian(_ChecksEachSubsystem):
     async def stop(self) -> None:
         self._running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError as _e:
-                logger.debug('Ignored asyncio.CancelledError in stability_guardian.py: %s', _e)
+            await cancel_and_join(self._task, owner="core.resilience.stability_guardian")
 
     # ── Called from kernel tick observer ─────────────────────────────────────
 

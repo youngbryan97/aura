@@ -61,7 +61,7 @@ class ReleaseTrain:
     # ── git plumbing ─────────────────────────────────────────────────────────
 
     def _git(self, *args: str, timeout_s: float = 120.0) -> Any:
-        return self._run(("git", "-C", str(self.root), *args), timeout_s)
+        return self._run(("git", "-c", "core.fsmonitor=false", "-C", str(self.root), *args), timeout_s)
 
     def head(self) -> str:
         result = self._git("rev-parse", "HEAD")

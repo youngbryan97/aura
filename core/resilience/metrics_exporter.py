@@ -9,6 +9,7 @@ from prometheus_client import Counter, Gauge, start_http_server
 from core.runtime import resource_psutil as psutil
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.shutdown_execution import run_sync_shutdown_callable
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Metrics")
@@ -130,11 +131,7 @@ class MetricsExporter:
     async def stop(self):
         self.running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError as _e:
-                logger.debug('Ignored asyncio.CancelledError in metrics_exporter.py: %s', _e)
+            await cancel_and_join(self._task, owner="core.resilience.metrics_exporter")
             self._task = None
         server = self._http_server
         if server is not None:

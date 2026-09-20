@@ -155,7 +155,9 @@ class AuditExportError(RuntimeError):
 
 def _run_git(root: Path, *args: str) -> str:
     completed = get_subprocess_gateway().run(
-        ["git", *args],
+        # Every call through here reads, and the fsmonitor daemon turns a
+        # listing of this tree from 0.06s into 19.6s against a 30s bound.
+        ["git", "-c", "core.fsmonitor=false", *args],
         cwd=root,
         timeout=30.0,
         read_only=True,

@@ -49,6 +49,7 @@ from core.reality_reach.trust_custody import (
 from core.runtime.audit_chain import canonical_json, sha256_hex
 from core.runtime.errors import record_degradation
 from core.runtime.lockdep import checked_async_lock, checked_lock, checked_semaphore
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 _IDENTIFIER = re.compile(r"^[a-z0-9][a-z0-9_.:-]{0,127}$")
@@ -1031,11 +1032,7 @@ class DeviceAttachmentBroker:
         self._running = False
         self._wake.set()
         if self._task is not None:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass
+            await cancel_and_join(self._task, owner="core.reality_reach.attachments")
             self._task = None
         with self._lock:
             attached_request_ids = list(self._attached)

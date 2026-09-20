@@ -92,7 +92,7 @@ def test_headless_and_disabled_are_distinguishable():
 def test_no_module_reads_the_raw_flag_behind_the_policy():
     """The ratchet. A fifth reader re-opens the divergence this closed."""
     tracked = subprocess.run(
-        ["git", "ls-files", "core/*.py", "interface/*.py", "skills/*.py"],
+        ["git", "-c", "core.fsmonitor=false", "ls-files", "core/*.py", "interface/*.py", "skills/*.py"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,

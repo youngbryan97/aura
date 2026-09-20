@@ -12,8 +12,9 @@ import logging
 import time
 from typing import Any
 
-from core.runtime.errors import FallbackClassification, record_degradation
 from core.conversation.tagged_reply_queue import reply_delivery_scope
+from core.runtime.errors import FallbackClassification, record_degradation
+from core.utils.concurrency import cancel_and_join
 from core.utils.queues import unpack_priority_message
 from core.utils.task_tracker import get_task_tracker, task_tracker
 
@@ -343,11 +344,7 @@ class MessageCoordinator:
             if orch._current_thought_task is not None and not orch._current_thought_task.done():
                 if origin == "user":
                     logger.info("🛑 Interrupting previous task for user...")
-                    orch._current_thought_task.cancel()
-                    try:
-                        await orch._current_thought_task
-                    except asyncio.CancelledError:
-                        logger.debug("Previous task cancelled successfully.")
+                    await cancel_and_join(orch._current_thought_task, owner="core.coordinators.message_coordinator")
 
             async def _execute_and_reply():
                 try:

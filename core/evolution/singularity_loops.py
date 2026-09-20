@@ -29,6 +29,7 @@ from typing import Any
 from core.container import ServiceContainer
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.service_access import resolve_orchestrator
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.SingularityLoops")
@@ -89,11 +90,7 @@ class SingularityLoops:
     async def stop(self) -> None:
         self._stop.set()
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError as _exc:
-                logger.debug("Suppressed asyncio.CancelledError: %s", _exc)
+            await cancel_and_join(self._task, owner="core.evolution.singularity_loops")
 
     async def _run(self) -> None:
         # Give boot time to finish registering services

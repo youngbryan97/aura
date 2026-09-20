@@ -196,7 +196,32 @@ _MIN_USABLE_ENTRIES = 32
 #: neighbours are actually near the query. At 1,689 keys over a 5120-wide
 #: space the nearest neighbour of "octopus cognition" is whatever coding token
 #: happens to be least far away, which is noise wearing the shape of grammar.
-#: This floor is what that costs; it is a density requirement, not a taste.
+#:
+#: WHAT THIS NUMBER IS, MEASURED 2026-09-20 AND LEFT WHERE IT STANDS.
+#:
+#: It is a proxy for query COVERAGE, and `core/verify/one_way_decisions.py`
+#: is right that nothing on this host reaches it: the store was at 520 entries
+#: and the faculty refused on every turn of every session. Three store-only
+#: statistics were tried as replacements and each one fails, so the proxy
+#: stays until somebody has the query distribution to test against:
+#:
+#:   * nearest-neighbour cosine against the p99 of unrelated pairs admits
+#:     pure iid noise, because the maximum over n-1 draws beats a percentile
+#:     of the same distribution by construction;
+#:   * the same in the mean-centred space recall actually uses (LIVE median
+#:     NN +0.8620 against p99 +0.9000) still admits noise at +0.0756;
+#:   * against a column-shuffled null, which does remove that bias (noise
+#:     -0.0020, a tight synthetic store +0.6328), the LIVE store scores
+#:     +0.7787. It is strongly structured and it is still wrong for the job,
+#:     because its structure is a narrow domain — 30 usable entries, all of
+#:     them arithmetic like "516 * 300 = 154800".
+#:
+#: Structure is not the condition; coverage of the queries is, and no
+#: statistic over the store alone can see the queries. The per-query gate
+#: below it (`min_similarity`, 0.60 centred against ≤0.36 for unrelated
+#: prompts) is NOT a substitute either: it was already in place on
+#: 2026-07-29 when the repaired store steered two live turns into garbled
+#: words and a fabricated premise.
 _MIN_ENTRIES_TO_STEER_GENERATION = 50_000
 
 

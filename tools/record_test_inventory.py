@@ -73,7 +73,7 @@ def main() -> int:
         "marker": MARKER,
         "recorded_on": date.today().isoformat(),
         "commit": subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
+            ["git", "-c", "core.fsmonitor=false", "rev-parse", "--short", "HEAD"],
             cwd=ROOT, capture_output=True, text=True,
         ).stdout.strip(),
     }

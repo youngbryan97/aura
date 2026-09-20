@@ -46,6 +46,7 @@ from enum import StrEnum
 from typing import Any
 
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Autopoiesis")
@@ -366,11 +367,7 @@ class AutopoiesisEngine:
             return
         self._running = False
         if self._task is not None:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass  # no-op: intentional
+            await cancel_and_join(self._task, owner="core.cognitive.autopoiesis")
             self._task = None
         logger.info("Autopoiesis background loop STOPPED")
 

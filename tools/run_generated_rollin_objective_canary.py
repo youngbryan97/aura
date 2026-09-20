@@ -188,7 +188,7 @@ def _append_terminal_failure(out_dir: Path, exc: BaseException) -> None:
 
 def _git(*args: str) -> str:
     result = subprocess.run(
-        ["git", *args],
+        ["git", "-c", "core.fsmonitor=false", *args],
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,
@@ -210,7 +210,7 @@ def _source_state() -> tuple[str, dict[str, dict[str, Any]]]:
         path = REPO_ROOT / relative
         payload = path.read_bytes()
         committed = subprocess.run(
-            ["git", "show", f"{head}:{relative}"],
+            ["git", "-c", "core.fsmonitor=false", "show", f"{head}:{relative}"],
             cwd=REPO_ROOT,
             check=True,
             capture_output=True,

@@ -129,21 +129,38 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
 
     def restore_trial(trial, values):
         # Tangent motion can leave a curved feasible boundary at second order.
-        # Correct the most violated face locally, then recheck every nonlinear
-        # margin at exported precision. This search never relaxes a floor.
+        # Correct violated faces together, then recheck every nonlinear margin
+        # at exported precision. Iterations bound curvature refinement, not how
+        # many independent retained witnesses can be restored.
+        from core.learning.margin_repair import minimum_stored_margin_repair
+
         for attempt in range(8):
             violated = np.flatnonzero(values < floors)
             if not len(violated):
                 return trial, values, attempt
-            index = max(violated, key=lambda i: floors[i] - values[i])
-            _, gradient = graph_margin_gradient(stored_parameters(trial), contrasts[index], scale=scale)
-            normal = pack_gradient(gradient)
-            squared_norm = float(normal @ normal)
-            if squared_norm == 0 or not np.isfinite(squared_norm):
+            parameters = stored_parameters(trial)
+            normals = []
+            for index in violated:
+                _, gradient = graph_margin_gradient(parameters, contrasts[index], scale=scale)
+                normals.append(pack_gradient(gradient)[mutable])
+            matrix = np.stack(normals)
+            interior = 8 * np.finfo(np.float32).eps * np.maximum(1., np.abs(floors[violated]))
+            required = floors[violated] - values[violated] + interior
+
+            def stored_correction(point):
+                full = trial.copy()
+                full[mutable] = point
+                return store_trial(full)[mutable]
+
+            correction = minimum_stored_margin_repair(
+                matrix, required, trial[mutable], tolerance=1e-7,
+                store_point=stored_correction,
+            )
+            if not correction.receipt["stored_primal_feasible"]:
                 break
-            interior = 8 * np.finfo(np.float32).eps * max(1., abs(floors[index]))
-            correction = (floors[index] - values[index] + interior) / squared_norm
-            trial = store_trial(trial + correction * normal)
+            updated = trial.copy()
+            updated[mutable] += correction.displacement
+            trial = store_trial(updated)
             values = evaluate(trial)
         return trial, values, 8
 
@@ -224,6 +241,7 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         accepted, cut_rounds, best_trial = False, 0, None
         while True:
             projection_receipt = None
+            restoration_descent = False
             if update_rule == "minimum_change":
                 from core.learning.margin_repair import minimum_stored_margin_repair
 
@@ -247,19 +265,27 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                     if progress:
                         progress({"stage": "constraint_projection_unverified", "step": step + 1,
                                   "projection": proposal.receipt})
-                    break
-                direction = np.zeros_like(flat)
-                direction[mutable] = anchor[mutable] + proposal.displacement - flat[mutable]
+                    # An unreachable target margin does not rule out a useful
+                    # loss decrease. Preserve existing floors while searching
+                    # the same objective; never certify the failed projection.
+                    direction = _project_direction(descent, [normal for index, normal in normals.items()
+                        if np.isfinite(floors[index])])
+                    restoration_descent = True
+                    projection_receipt = None
+                else:
+                    direction = np.zeros_like(flat)
+                    direction[mutable] = anchor[mutable] + proposal.displacement - flat[mutable]
             else:
                 direction = _project_direction(descent, list(normals.values()))
             largest = np.max(np.abs(direction))
             if largest == 0 or not np.isfinite(largest):
-                status = "no_feasible_direction_found"
+                if not restoration_descent:
+                    status = "no_feasible_direction_found"
                 break
             step_size = 1. if update_rule == "minimum_change" else learning_rate
-            if update_rule == "working_face":
+            if update_rule == "working_face" or restoration_descent:
                 direction /= largest
-            if adaptive_step and update_rule == "working_face":
+            if (adaptive_step and update_rule == "working_face") or restoration_descent:
                 # Use the local loss curvature along the protected direction.
                 slopes = (batch.directional_derivative(parameters, unpack(direction))
                           if batch is not None else np.zeros_like(margins))
@@ -282,16 +308,16 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                 trial_margins = evaluate(trial)
                 trial_loss = loss_at(trial_margins)
                 violated = np.flatnonzero(trial_margins < floors)
+                restoration_steps = 0
+                if len(violated) and ((update_rule == "minimum_change" and backtrack == 0)
+                                     or all(index in normals for index in violated)):
+                    trial, trial_margins, restoration_steps = restore_trial(trial, trial_margins)
+                    trial_loss = loss_at(trial_margins)
+                    violated = np.flatnonzero(trial_margins < floors)
                 blockers.update(int(index) for index in violated if index not in normals)
                 if update_rule == "minimum_change":
                     worsening = np.flatnonzero((trial_margins < required_margin) & (trial_margins < margins))
                     blockers.update(int(index) for index in worsening if index not in normals)
-                restoration_steps = 0
-                if len(violated) and all(index in normals for index in violated):
-                    trial, trial_margins, restoration_steps = restore_trial(trial, trial_margins)
-                    trial_loss = loss_at(trial_margins)
-                    violated = np.flatnonzero(trial_margins < floors)
-                    blockers.update(int(index) for index in violated if index not in normals)
                 if not len(violated) and trial_loss < loss:
                     accepted = True
                     entry = {"step": step + 1, "loss": trial_loss,
@@ -301,6 +327,8 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                                   "constraint_cut_rounds": cut_rounds,
                                   "restoration_steps": restoration_steps,
                                   "projected_constraints": len(normals)}
+                    if restoration_descent:
+                        entry["proposal_rule"] = "retained_loss_descent_after_unverified_projection"
                     if projection_receipt is not None:
                         entry.update(local_affine_projection=projection_receipt,
                                      stored_affine_projection=proposal.receipt,

@@ -74,7 +74,7 @@ class SafetyLimits:
 def _git_commit() -> str:
     try:
         completed = get_subprocess_gateway().run(
-            ["git", "rev-parse", "HEAD"],
+            ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"],
             cwd=ROOT,
             capture_output=True,
             timeout=5.0,

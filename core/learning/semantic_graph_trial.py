@@ -74,6 +74,56 @@ def _observe(model, item):
             "target_program_sha256": target["program"].sha()}
 
 
+def acquire_semantic_training_errors(model, examples, *, control_count, progress=None):
+    """Mine all unresolved training rows, retaining source-selected controls.
+
+    Validation and test rows are never decoded here. Unknown semantics remain
+    in the mining cohort; absence of a counterexample is not a passing score.
+    The full training pool remains available for separate source retention.
+    """
+    from core.learning.semantic_validation_checkpoint import (
+        validation_identity,
+        validation_implementation_identity,
+    )
+
+    if type(control_count) is not int or control_count < 1:
+        raise ValueError("training acquisition needs a positive control count")
+    examples = tuple(examples)
+    identities = [item.ir.source_text_sha256 for item in examples]
+    if len(identities) != len(set(identities)):
+        raise ValueError("training acquisition source identities overlap")
+    pool = select_trial_examples(examples, split="train", count=len(examples))
+    controls = select_trial_examples(pool, split="train", count=control_count)
+    implementation = validation_implementation_identity()
+    observation_identity = validation_identity({"parent": model}, pool,
+        scoring="source_anchors_v2", implementation=implementation)
+    observations = []
+    selected = {item.ir.source_text_sha256 for item in controls}
+    for item in pool:
+        row = _observe(model, item)
+        observations.append(row)
+        if row["semantic_status"] != "equivalent":
+            selected.add(item.ir.source_text_sha256)
+        if progress:
+            progress({"stage": "training_error_acquisition", "completed": len(observations),
+                      "total": len(pool), "row": row})
+    training = tuple(item for item in pool if item.ir.source_text_sha256 in selected)
+    if validation_implementation_identity() != implementation:
+        raise ValueError("training acquisition implementation changed during observation")
+    body = {"schema": "aura.semantic_training_acquisition.v1",
+            "parent_transducer_receipt_sha256": model.receipt_sha256,
+            "implementation": implementation, "observation_identity": observation_identity,
+            "selection_policy": "all_training_non_equivalent_plus_geometry_source_controls_v1",
+            "training_pool_sources": [item.ir.source_text_sha256 for item in pool],
+            "control_sources": [item.ir.source_text_sha256 for item in controls],
+            "training_sources": [item.ir.source_text_sha256 for item in training],
+            "training_example_ids_sha256": _sha(sorted(selected)),
+            "observations": observations, "requested_control_count": control_count,
+            "validation_examples_used": 0, "test_examples_used": 0,
+            "serving_authority": False, "fresh_transfer_claim": False}
+    return training, {**body, "receipt_sha256": _sha(body)}
+
+
 def _constraint_group_summary(groups, fit):
     """Attribute measured fitting deficits without interpreting missing data as zero."""
     before, after = fit.get("initial_margins"), fit.get("stored_margins")
@@ -110,8 +160,9 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
         raise ValueError("training pool must cover the requested training cohort")
     training_pool = select_trial_examples(examples, split="train", count=training_pool_count)
     validation = select_trial_examples(examples, split="validation", count=validation_count)
-    if model.training_receipt.get("operation_assignment_policy") != "joint_factor_score_v2":
-        raise ValueError("runtime graph trial requires joint operation-argument scoring")
+    decoder_policy = model.training_receipt.get("operation_assignment_policy", "first_feasible_v1")
+    if decoder_policy not in {"first_feasible_v1", "joint_factor_score_v2"}:
+        raise ValueError("runtime graph trial requires a supported selection policy")
     pool_observations = []
     for item in training_pool:
         pool_observations.append(_observe(model, item))
@@ -186,7 +237,7 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
             "after_equivalent": sum(b["semantic_status"] == "equivalent" for _, b in pairs),
             "gains": sum(a["semantic_status"] != "equivalent" and b["semantic_status"] == "equivalent" for a, b in pairs),
             "regressions": sum(a["semantic_status"] == "equivalent" and b["semantic_status"] != "equivalent" for a, b in pairs),
-            "unmeasured_after": sum(b["semantic_status"] == "unmeasured" for _, b in pairs),
+            "unmeasured_after": sum(b["semantic_status"] in {"unmeasured", "unknown"} for _, b in pairs),
             "decode_refusals_before": sum(a["semantic_status"] == "decode_refused" for a, _ in pairs),
             "decode_refusals_after": sum(b["semantic_status"] == "decode_refused" for _, b in pairs)}
     blockers = []
@@ -195,7 +246,7 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
     if any(row["accepted"] and (not row["source_grounding_aligned"] or
                                not row["annotated_graph_feasible"]) for row in (*before, *after)):
         blockers.append("grounding_or_annotated_graph_feasibility")
-    if any(row["semantic_status"] == "unmeasured" for row in (*before, *after)):
+    if any(row["semantic_status"] in {"unmeasured", "unknown"} for row in (*before, *after)):
         blockers.append("semantic_verification_unmeasured")
     if any(row.get("status") not in {"counterexamples", "no_witnessed_competitor"} for row in records):
         blockers.append("runtime_constraint_mining_unavailable")
@@ -215,6 +266,8 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
     body = {"schema": "aura.semantic_graph_trial.v3", "parent": model.receipt_sha256,
             "serving_authority": False, "promotion_allowed": False, "fresh_transfer_claim": False,
             "selection_policy": "source_hash_geometry_round_robin_v1",
+            "decoder_selection_policy": decoder_policy,
+            "selection_objective": "runtime_policy_aligned_v1",
             "training_acquisition_policy": "witnessed_training_failures_then_retention_v1",
             "training_pool_observations": pool_observations,
             "training_sources": [item.ir.source_text_sha256 for item in training],

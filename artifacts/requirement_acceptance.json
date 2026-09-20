@@ -218,9 +218,28 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "make",
+          "name": "layering",
+          "why": "The requirement is typed dependency boundaries. Every package carries a DEPS file saying what it may reach; this gate refuses a cross-package edge outside it and its grandfathered baseline only shrinks. If it fails, the boundaries are not typed, they are described."
+        },
+        {
+          "from": "map",
+          "kind": "make",
+          "name": "state-ownership",
+          "why": "The other half named in the text: duplicate runtime owners. This counts the subsystems keeping a private copy of canonical state and fails when the count rises, which is what 'one canonical owner' means operationally."
+        },
+        {
+          "from": "map",
+          "kind": "make",
+          "name": "module-size",
+          "why": "And the monolith debt the requirement names. The total oversize is one number that may only shrink; a God object growing fails it."
+        }
+      ],
       "id": "ARCH-001",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "in_progress"
     },
@@ -241,9 +260,16 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "test",
+          "name": "tests/test_task_ownership_strict_contract.py",
+          "why": "The requirement names one cancellation-drain primitive carrying owner and task identity, surviving repeated cancellation and reporting a structured terminal outcome. That is what this suite drives through `drain_owned_awaitable`; if it fails, an async failure can go unobserved again."
+        }
+      ],
       "id": "ASYNC-TASK-001",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "in_progress"
     },
@@ -1186,9 +1212,22 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "make",
+          "name": "swallowed",
+          "why": "The requirement is to root-fix broad catches and swallowed failures at their originating layer. This gate is what finds them, and its count may only fall."
+        },
+        {
+          "from": "map",
+          "kind": "test",
+          "name": "tests/test_a_silent_swallow_says_why.py",
+          "why": "The behavioural half: a handler that catches and continues has to say why. If this fails, 'log and limp on' is back."
+        }
+      ],
       "id": "FAULT-001",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "in_progress"
     },
@@ -1565,17 +1604,43 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "make",
+          "name": "layering",
+          "why": "Its fourth acceptance says to generate and gate a dependency graph across the runtime boundaries. This is that gate: the DEPS include rules, checked against the real import graph."
+        },
+        {
+          "from": "map",
+          "kind": "make",
+          "name": "deps-check",
+          "why": "The generated half of the same acceptance. A DEPS file that no longer matches the import graph fails here, so the gated graph cannot drift away from the code it describes."
+        },
+        {
+          "from": "map",
+          "kind": "make",
+          "name": "state-ownership",
+          "why": "The bypass ratchet the second acceptance asks for: private copies of canonical state are counted and the count may only fall."
+        }
+      ],
       "id": "MATRIX-11",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "in_progress"
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "make",
+          "name": "swallowed",
+          "why": "Its fourth acceptance is exactly this ratchet \u2014 broad catches and silent fallback counted downward without removing containment. A handler that throws its reason away fails the gate."
+        }
+      ],
       "id": "MATRIX-12",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "in_progress"
     },
@@ -2083,9 +2148,22 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "make",
+          "name": "typed-surface",
+          "why": "The type debt the requirement names first. The annotated surface is a ratchet that only grows, so a new untyped module fails it."
+        },
+        {
+          "from": "map",
+          "kind": "make",
+          "name": "deps-check",
+          "why": "The dependency debt in the same list. A package whose declared dependencies no longer match what it imports fails here."
+        }
+      ],
       "id": "REPO-001",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "open"
     },
@@ -2790,18 +2868,18 @@
   "schema_version": 1,
   "summary": {
     "by_kind": {
-      "make": 4,
+      "make": 14,
       "receipt": 30,
-      "test": 7,
+      "test": 9,
       "tool": 5
     },
     "by_source": {
       "ledger": 30,
-      "map": 8,
+      "map": 20,
       "registry": 8
     },
     "complete": false,
-    "linked": 39,
+    "linked": 45,
     "requirements": 313,
     "unlinked": [
       "ACCESSIBILITY-I18N-001",
@@ -2821,8 +2899,6 @@
       "ADDENDUM-33",
       "AGENCY-001",
       "AMPLIFY-001",
-      "ARCH-001",
-      "ASYNC-TASK-001",
       "AUDIT-001",
       "AUTONOMY-001",
       "AUTONOMY-AUTHORITY-001",
@@ -2906,7 +2982,6 @@
       "ENTERPRISE-CONTROL-001",
       "EXPECT-001",
       "EXTREME-001",
-      "FAULT-001",
       "FND-01-INVENTORY",
       "FND-02-HYGIENE",
       "FND-03-CONTRACTS",
@@ -2948,8 +3023,6 @@
       "MATRIX-08",
       "MATRIX-09",
       "MATRIX-10",
-      "MATRIX-11",
-      "MATRIX-12",
       "MATRIX-13",
       "MATRIX-14",
       "MATRIX-15",
@@ -3005,7 +3078,6 @@
       "RELEASE-001",
       "RELEASE-CONTRACT-001",
       "REPLICATION-001",
-      "REPO-001",
       "RESOURCE-OWNERSHIP-001",
       "RLC-ANTI-INTERFERENCE-001",
       "RLC-BASELINES-001",

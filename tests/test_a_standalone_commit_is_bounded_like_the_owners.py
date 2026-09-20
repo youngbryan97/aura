@@ -14,6 +14,7 @@ import sqlite3
 
 import pytest
 
+from core.runtime.sqlite_support import connecting
 from core.state.aura_state import AuraState
 from core.state.state_repository import StateRepository
 
@@ -32,7 +33,7 @@ async def test_a_standalone_commit_never_writes_more_than_the_payload_cap(tmp_pa
 
     try:
         await repo.commit(state, cause="test_standalone")
-        with sqlite3.connect(db) as conn:
+        with connecting(sqlite3.connect(db)) as conn:
             rows = conn.execute("SELECT LENGTH(state_json) FROM state_log").fetchall()
     finally:
         # The aiosqlite worker is a non-daemon thread; a repository left open

@@ -859,11 +859,6 @@
       "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
       "sha256": "8b918dedec0b65cea20ef02e34ebed9de443a063188168587bb39493fb98b9d0"
     },
-    "docs/CONNECTOME_TODO.md:346": {
-      "carries_obligation": false,
-      "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
-      "sha256": "dae47bc8f54c68263faa20f8ede6ffbf82326a9ef2d900204d53f51bc61c5982"
-    },
     "docs/CONNECTOME_TODO.md:5": {
       "carries_obligation": false,
       "reason": "Re-audited after the block was rewritten. A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
@@ -1863,11 +1858,184 @@
       "reason": "A table's column-name row. It states no obligation.",
       "sha256": "606bfca2965ea1b1cc2da80f2e6f04c0eafb2d53e9a06459c1136505180f2429",
       "stratum": "rule:table_header"
+    },
+    "docs/CONNECTOME_TODO.md:370": {
+      "carries_obligation": false,
+      "reason": "Checked item recording a measured mechanism (alpha 0.0 before, 0.2 after) and a reason now on the record. Nothing forward-looking.",
+      "sha256": "9d436c288575238e64957c002d430efa3139b888285be895886ec1fc5580bac0",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/CONNECTOME_TODO.md:488": {
+      "carries_obligation": false,
+      "reason": "Checked item recording a measured result: pruning beat random in 5 of 5 seeds. Nothing forward-looking.",
+      "sha256": "05ae482adbd1419dd6491c40a70a6bfb8e66695a5a7f93760ed0a9a9ccc11d09",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/GENERALITY_TODO.md:48": {
+      "carries_obligation": false,
+      "reason": "Checked item recording a measured reachability result. Nothing forward-looking.",
+      "sha256": "015093602a2e78dd406f11f909b420897e11e2a2e294bfb16ed647cd40769b15",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:121": {
+      "carries_obligation": false,
+      "reason": "Checked numbered item of the expansion plan, closed with the rest of its section; the body names what was decided, not what remains.",
+      "sha256": "72ffcddc5476c3e04f3e2fefaaf977c4c9066e05f8ff8c17bfe48006cd7cdf3b",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:197": {
+      "carries_obligation": false,
+      "reason": "Checked numbered item of the expansion plan, closed with the rest of its section; the body names what was decided, not what remains.",
+      "sha256": "132b51dd0a17868850935c61b1b69f3814cece9597d0b5f527f29cf131bc84ff",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:211": {
+      "carries_obligation": false,
+      "reason": "Checked numbered item of the expansion plan, closed with the rest of its section; the body names what was decided, not what remains.",
+      "sha256": "5c67dc089b3c98b28a19c9056e01b32f8a5084be937a7d31c8723b3bf5afe0ae",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:248": {
+      "carries_obligation": false,
+      "reason": "Checked numbered item of the expansion plan, closed with the rest of its section; the body names what was decided, not what remains.",
+      "sha256": "9c8f82f387a6f300966de36cf9059315499247c3cec02afb3ab9403e5932e42e",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:26": {
+      "carries_obligation": false,
+      "reason": "Checked numbered item of the expansion plan, closed with the rest of its section; the body names what was decided, not what remains.",
+      "sha256": "1f21454e5355ef39eb647bfdc24bf81a7ceee7643d583b8bb77fe2aaebbb8cb6",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:290": {
+      "carries_obligation": false,
+      "reason": "Checked numbered item of the expansion plan, closed with the rest of its section; the body names what was decided, not what remains.",
+      "sha256": "746bc1d94b1bbd9c1be9832c2ca1c7a0af87565d819070331a69fdbcf0048ae5",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:329": {
+      "carries_obligation": false,
+      "reason": "Checked numbered item of the expansion plan, closed with the rest of its section; the body names what was decided, not what remains.",
+      "sha256": "c80005ffe4de722b776ed5764d71df33a25d38a282d5b9bc0a87dfc85d2f8b6d",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:333": {
+      "carries_obligation": false,
+      "reason": "Checked numbered item of the expansion plan, closed with the rest of its section; the body names what was decided, not what remains.",
+      "sha256": "89f4b2299174a263e4e4fd6e1e6063a46261c7ddad9e10c2f7fb0563aeb71d34",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:334": {
+      "carries_obligation": false,
+      "reason": "Checked numbered item of the expansion plan, closed with the rest of its section; the body names what was decided, not what remains.",
+      "sha256": "f5f40a652bdb1dc25c9ac4d08f4d89d3923a252e7e43eccf74aa581e6f385e06",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:390": {
+      "carries_obligation": false,
+      "reason": "Checked numbered item of the expansion plan, closed with the rest of its section; the body names what was decided, not what remains.",
+      "sha256": "0a07ada173e489f976ad1cf2dd999060cb1ba0c388e356246652da88e60a7549",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:404": {
+      "carries_obligation": false,
+      "reason": "Checked numbered item of the expansion plan, closed with the rest of its section; the body names what was decided, not what remains.",
+      "sha256": "c56817886881116e0a5c55e7a229144fcdc6debb41cab6c306438414cc70b7f6",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:490": {
+      "carries_obligation": false,
+      "reason": "Checked numbered item of the expansion plan, closed with the rest of its section; the body names what was decided, not what remains.",
+      "sha256": "bf56a4fe44bccf963e1fdc2d5cd8198cf19eeee85d5c9155489a7e5b3c97af1b",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:492": {
+      "carries_obligation": false,
+      "reason": "Checked numbered item of the expansion plan, closed with the rest of its section; the body names what was decided, not what remains.",
+      "sha256": "2436e270966d0e653781fa3268f086a76c874abc9d4d21e7803c11bb5dc62f8a",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:82": {
+      "carries_obligation": false,
+      "reason": "Checked numbered item of the expansion plan, closed with the rest of its section; the body names what was decided, not what remains.",
+      "sha256": "f89c30e8c2212d9ee88f0a7cf0552a34f91117887f7f7a62972b4e8bbd5393e2",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/gap_atlas/TODO.md:1013": {
+      "carries_obligation": false,
+      "reason": "Checked atlas card naming what closed it and what wires it; the card's status is the record. Nothing forward-looking.",
+      "sha256": "3768b4da08195d379592f3826ca2a36bb86979dde67524d93cf4803cdce8eab3",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/gap_atlas/TODO.md:1113": {
+      "carries_obligation": false,
+      "reason": "Checked atlas card naming what closed it and what wires it; the card's status is the record. Nothing forward-looking.",
+      "sha256": "06c6ae801b4866ecea672daac9ad9d8177c177888eee5273ba1d271ddb66ed84",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/gap_atlas/TODO.md:1139": {
+      "carries_obligation": false,
+      "reason": "Checked atlas card naming what closed it and what wires it; the card's status is the record. Nothing forward-looking.",
+      "sha256": "cf0d6e8ff2fe273d4479e65fd6125fcd4364c00f30d0370abc32b45d32da4214",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/gap_atlas/TODO.md:1300": {
+      "carries_obligation": false,
+      "reason": "Checked atlas card naming what closed it and what wires it; the card's status is the record. Nothing forward-looking.",
+      "sha256": "b1d4f4076038af55a25c82ece0210581c9b7b73e8ba4e6b795584448e86ba446",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/gap_atlas/TODO.md:1488": {
+      "carries_obligation": false,
+      "reason": "Checked atlas card naming what closed it and what wires it; the card's status is the record. Nothing forward-looking.",
+      "sha256": "8bc549804e426a6809cc24be92d47946df20360f5f838494ba7727122315b534",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/gap_atlas/TODO.md:1641": {
+      "carries_obligation": false,
+      "reason": "Checked atlas card naming what closed it and what wires it; the card's status is the record. Nothing forward-looking.",
+      "sha256": "01a40f86966e2a3364583277ba205c19ca4e4858d1599b46e72a3d85f7332aef",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/gap_atlas/TODO.md:2469": {
+      "carries_obligation": false,
+      "reason": "Checked atlas card with a stated bar and the board that refuses a claim; the card's own status is the record.",
+      "sha256": "ee822f56b9e1a79e03f15cdf231e1574f4aa23b88afdf7a5c46edf52489fc07e",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/gap_atlas/TODO.md:349": {
+      "carries_obligation": false,
+      "reason": "Checked atlas card naming what closed it and what wires it; the card's status is the record. Nothing forward-looking.",
+      "sha256": "538c36e288412299c4bcb7d4beed11ccee532574201a9205e64f688b5245c400",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/gap_atlas/TODO.md:53": {
+      "carries_obligation": false,
+      "reason": "Checked atlas card naming what closed it and what wires it; the card's status is the record. Nothing forward-looking.",
+      "sha256": "224180d9f6d9cd45ca1f5a15cc17da61493b32a82dd9c0b29d0d3111e3452d52",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/gap_atlas/TODO.md:653": {
+      "carries_obligation": false,
+      "reason": "Checked atlas card naming what closed it and what wires it; the card's status is the record. Nothing forward-looking.",
+      "sha256": "4e98fdb04c210152ddd21eef38cd100236067b1b2c2394dd8ed83900d0b92c59",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/gap_atlas/TODO.md:744": {
+      "carries_obligation": false,
+      "reason": "Checked atlas card naming what closed it and what wires it; the card's status is the record. Nothing forward-looking.",
+      "sha256": "5418e4a88bb56760b25b9127981677e40dff57948ca2675901e955511ad82cd1",
+      "stratum": "rule:all_boxes_checked"
+    },
+    "docs/CONNECTOME_TODO.md:470": {
+      "carries_obligation": false,
+      "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+      "sha256": "dae47bc8f54c68263faa20f8ede6ffbf82326a9ef2d900204d53f51bc61c5982"
     }
   },
   "note": "Hand labels for the audit of every dismissed population. Each sampled block was read. carries_obligation true means the partition missed a live obligation and the detector must be repaired, not the label changed.",
   "per_stratum": 40,
-  "reviewer": "Claude, 2026-09-12",
+  "reviewer": "Claude, 2026-09-12; 28 blocks added 2026-09-20 after the sampled population changed",
   "schema_version": 1,
   "seed": "aura-1.0-inventory"
 }

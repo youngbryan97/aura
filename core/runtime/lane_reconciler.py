@@ -44,6 +44,7 @@ from typing import Any, Awaitable, Callable
 from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind, declare
 from core.runtime.shutdown_coordinator import is_shutdown_requested
+from core.utils.concurrency import cancel_and_join
 
 logger = logging.getLogger("Aura.LaneReconciler")
 
@@ -510,11 +511,7 @@ class LaneReconciler:
         self._running = False
         task, self._loop_task = self._loop_task, None
         if task is not None:
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass  # no-op: intentional
+            await cancel_and_join(task, owner="core.runtime.lane_reconciler")
 
     async def _run_loop(self) -> None:
         while self._running:

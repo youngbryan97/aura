@@ -34,7 +34,7 @@ SIDECAR = "persistence_v2_rescored.json"
 def _commit() -> str:
     try:
         return subprocess.run(
-            ["git", "-C", str(REPO), "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+            ["git", "-c", "core.fsmonitor=false", "-C", str(REPO), "rev-parse", "HEAD"], capture_output=True, text=True, check=True
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         return "unknown"

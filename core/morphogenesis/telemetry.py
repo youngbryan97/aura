@@ -89,7 +89,13 @@ def declare() -> list[str]:
         dict(
             identifier=0x0804, name=CHANNEL_COMPONENTS, type=ChannelType.INT, unit="count",
             description="connected pieces of the population; above one is a partition",
-            owner=owner, group="morphogenesis", yellow_high=1, red_high=2, stale_after_s=600.0,
+            # The limit is read as `value >= yellow_high`, and this said 1 —
+            # the value the description calls healthy. A whole population in
+            # one piece reported yellow on every boot, so the channel that
+            # exists to name a partition said the same thing partitioned or
+            # not. Two is the first partition; three or more is the shape
+            # coming apart.
+            owner=owner, group="morphogenesis", yellow_high=2, red_high=3, stale_after_s=600.0,
         ),
         dict(
             identifier=0x0805, name=CHANNEL_APPLIED, type=ChannelType.INT, unit="count",

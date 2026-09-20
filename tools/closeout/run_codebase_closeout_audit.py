@@ -133,7 +133,9 @@ def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
 
 def _run_git(args: list[str]):
     return _SUBPROCESS_GATEWAY.run(
-        ["git", *args],
+        # Every call through here reads. The daemon turns a listing of a
+        # tree this size from 0.06s into 19.6s, against a 60s bound.
+        ["git", "-c", "core.fsmonitor=false", *args],
         cwd=ROOT,
         timeout=60,
         read_only=True,
@@ -529,7 +531,7 @@ def build_closeout_audit(
     if run_gates:
         gates.extend(
             [
-                run_command_gate("git_diff_check", ["git", "diff", "--check"]),
+                run_command_gate("git_diff_check", ["git", "-c", "core.fsmonitor=false", "diff", "--check"]),
                 run_command_gate(
                     "make_lint",
                     _make_gate_command("lint"),

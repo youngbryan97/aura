@@ -371,7 +371,7 @@ class ASASafetyGate:
     def _check_git_clean(self) -> tuple[bool, str]:
         try:
             result = self._git(
-                ["git", "status", "--porcelain"],
+                ["git", "-c", "core.fsmonitor=false", "status", "--porcelain"],
                 timeout=10,
                 read_only=True,
                 source="architect.safety_gate.git_status",
@@ -465,19 +465,19 @@ class ASASafetyGate:
         snap: dict[str, Any] = {}
         try:
             snap["head"] = self._git(
-                ["git", "rev-parse", "HEAD"],
+                ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"],
                 timeout=5,
                 read_only=True,
                 source="architect.safety_gate.git_rev_parse",
             ).stdout.strip()
             snap["status"] = self._git(
-                ["git", "status", "--porcelain"],
+                ["git", "-c", "core.fsmonitor=false", "status", "--porcelain"],
                 timeout=5,
                 read_only=True,
                 source="architect.safety_gate.git_snapshot_status",
             ).stdout.strip()[:500]
             snap["diff_stat"] = self._git(
-                ["git", "diff", "--stat", "HEAD"],
+                ["git", "-c", "core.fsmonitor=false", "diff", "--stat", "HEAD"],
                 timeout=5,
                 read_only=True,
                 source="architect.safety_gate.git_diff_stat",

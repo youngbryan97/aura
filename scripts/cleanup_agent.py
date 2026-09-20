@@ -36,7 +36,7 @@ CORE = ROOT / "core"
 
 def get_tracked_files() -> list[str]:
     result = get_subprocess_gateway().run(
-        ["git", "ls-files"],
+        ["git", "-c", "core.fsmonitor=false", "ls-files"],
         cwd=ROOT,
         timeout=30,
         read_only=True,
@@ -91,7 +91,7 @@ def check_hardcoded_paths() -> list[dict]:
     """Find author-specific paths in tracked files."""
     home_pattern = str(Path.home())
     result = get_subprocess_gateway().run(
-        ["git", "grep", "-n", home_pattern, "--", "*.py", "*.sh", "*.md"],
+        ["git", "-c", "core.fsmonitor=false", "grep", "-n", home_pattern, "--", "*.py", "*.sh", "*.md"],
         cwd=ROOT,
         timeout=30,
         read_only=True,

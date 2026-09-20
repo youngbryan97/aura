@@ -46,6 +46,10 @@ from core.runtime.service_access import resolve_inference_gate
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.utils.task_tracker import get_task_tracker
 
+#: Returned by an extracted block that did NOT return early. A unique
+#: object, so no value a block legitimately returns can be mistaken for it.
+_SEAM_FELL_THROUGH = object()
+
 logger = logging.getLogger("Brain.Router")
 
 ROUTER_RECOVERABLE_ERRORS = (
@@ -826,6 +830,237 @@ def _record_unpresentable_substrate_once() -> None:
     )
 
 
+async def _think_routed_try_each_endpoint(
+    *,
+    cache_key: Any,
+    deadline: Any,
+    endpoints_to_try: Any,
+    is_background: Any,
+    kwargs: Any,
+    last_error_str: Any,
+    prompt: Any,
+    self: Any,
+    start_time: Any,
+) -> tuple[Any, Any]:
+    """Each endpoint in turn, until one answers or the deadline goes.
+
+    Moved out of ``IntelligentLLMRouter._think_routed`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 9 name(s) and hands back
+    1.
+    """
+    async def _block() -> Any:
+        nonlocal last_error_str
+        for endpoint_name in endpoints_to_try:
+            endpoint = self.endpoints[endpoint_name]
+
+            if not self.health_monitor.is_healthy(endpoint_name):
+                continue
+            remaining = deadline - time.monotonic()
+            if remaining < 5.0 and endpoint.tier != LLMTier.EMERGENCY:
+                # Not enough budget for a real attempt; skip straight toward
+                # the emergency lane instead of starting doomed work.
+                last_error_str = "request_deadline_exhausted"
+                continue
+
+            adapter = self.adapters[endpoint_name]
+            endpoint_error: str = ""
+            endpoint_error_kind: str | None = None
+            success = False
+            final_text_str = ""
+
+            # Phase 46: up to 2 attempts per endpoint — but only for
+            # TRANSIENT failures. Programming errors (TypeError, ValueError…)
+            # are deterministic; replaying them just burns the deadline.
+            for attempt in range(2):
+                attempt_slice = min(
+                    max(1.0, float(endpoint.timeout)),
+                    max(1.0, deadline - time.monotonic()),
+                )
+                try:
+                    response: Any = ""
+                    metadata: dict[str, Any] = {}
+
+                    # 1. Core Dispatch - find the right generation method
+                    if hasattr(adapter, "think"):
+                        success, response, metadata = await asyncio.wait_for(
+                            adapter.think(prompt, **kwargs), timeout=attempt_slice
+                        )
+                    elif hasattr(adapter, "call"):
+                        success, response, metadata = await asyncio.wait_for(
+                            adapter.call(prompt, **kwargs), timeout=attempt_slice
+                        )
+                    elif hasattr(adapter, "generate"):
+                        res = await asyncio.wait_for(
+                            adapter.generate(prompt, **kwargs), timeout=attempt_slice
+                        )
+                        if isinstance(res, tuple):
+                            success, response, metadata = res[0], res[1], res[2] if len(res) > 2 else {}
+                        else:
+                            # generate() returns Optional[str] — None means failure
+                            success = res is not None and str(res).strip() != ""
+                            response, metadata = res, {"model": endpoint.model_name}
+                    elif hasattr(adapter, "generate_text_async"):
+                        res = await asyncio.wait_for(
+                            adapter.generate_text_async(prompt, **kwargs), timeout=attempt_slice
+                        )
+                        if isinstance(res, tuple):
+                            success, response, metadata = res[0], res[1], res[2] if len(res) > 2 else {}
+                        else:
+                            success = res is not None and str(res).strip() != ""
+                            response, metadata = res, {"model": endpoint.model_name}
+
+                    if success and response is None:
+                        # An adapter claiming success with no payload is a
+                        # contract violation, not a success.
+                        success = False
+                        metadata.setdefault("error", "success_with_none_response")
+
+                    # Provenance: when the adapter names the endpoint it
+                    # served from, it must match the endpoint we selected.
+                    if success and isinstance(metadata, dict):
+                        reported_endpoint = str(metadata.get("endpoint") or "").strip()
+                        if reported_endpoint and reported_endpoint != endpoint_name:
+                            success = False
+                            metadata["error"] = (
+                                f"endpoint_identity_mismatch:{reported_endpoint}"
+                            )
+
+                    if not success:
+                        err = metadata.get("error", "Generation failed")
+                        logger.warning("❌ %s (Attempt %d) failure: %s", endpoint_name, attempt + 1, err)
+                        endpoint_error = str(err)
+                        endpoint_error_kind = (
+                            str(metadata.get("error_kind")) if metadata.get("error_kind") else None
+                        )
+                        last_error_str = endpoint_error
+                        backend_reason = self._backend_failure_reason(err)
+                        if backend_reason:
+                            endpoint_error_kind = "backend"
+                            await self._trigger_adapter_recovery(
+                                endpoint_name=endpoint_name,
+                                adapter=adapter,
+                                reason=backend_reason,
+                            )
+                            break
+                        if attempt == 0 and deadline - time.monotonic() > 10.0:
+                            await asyncio.sleep(0.5)
+                        continue
+
+                    # 2. Extract text and check for fatal errors hidden in strings
+                    final_text_str = str(response)
+                    if hasattr(response, "content") and not isinstance(response, str):
+                        final_text_str = str(response.content)
+
+                    # [STABILITY v53] Catch empty/whitespace-only responses as failures.
+                    # These silently poison conversations — the user sees nothing or gibberish.
+                    stripped_text = final_text_str.strip()
+                    if not stripped_text or len(stripped_text) < 2:
+                        logger.warning(
+                            "❌ %s (Attempt %d) returned empty/trivial response (%d chars). Treating as failure.",
+                            endpoint_name, attempt + 1, len(stripped_text),
+                        )
+                        success = False
+                        endpoint_error = "empty_response"
+                        endpoint_error_kind = "empty"
+                        last_error_str = "empty_response"
+                        if attempt == 0 and deadline - time.monotonic() > 10.0:
+                            await asyncio.sleep(0.5)
+                        continue
+
+                    # [STABILITY v53] Expanded fatal patterns — catch more MLX/Metal/GPU crashes.
+                    # Only scan text that plausibly IS an error payload: a real
+                    # crash string is short technical output, while an answer
+                    # that merely DISCUSSES "OOM" or "segmentation fault" must
+                    # not trigger failover and a worker reboot.
+                    fatal_reason = (
+                        self._backend_failure_reason(final_text_str)
+                        if _looks_like_error_payload(final_text_str)
+                        else None
+                    )
+                    if fatal_reason:
+                        logger.warning("❌ %s returned FATAL ERROR string. Failing over.", endpoint_name)
+                        success = False
+                        endpoint_error = f"MLX/Metal Backend Failure: {fatal_reason}"
+                        endpoint_error_kind = "backend"
+                        last_error_str = endpoint_error
+                        await self._trigger_adapter_recovery(
+                            endpoint_name=endpoint_name,
+                            adapter=adapter,
+                            reason=fatal_reason,
+                        )
+                        break  # Don't bother retrying this endpoint
+
+                    # 3. Commit Success
+                    self.health_monitor.record_success(endpoint_name)
+                    with self._stats_lock:
+                        self.stats["calls_by_tier"][endpoint.tier.value] += 1
+                        self.stats["calls_by_endpoint"][endpoint_name] += 1
+                    if is_background:
+                        self.cache.set(cache_key, final_text_str)
+                    self.last_tier = endpoint.tier.value
+                    if not is_background:
+                        self.last_user_tier = endpoint.tier.value
+
+                    dur = time.monotonic() - start_time
+                    logger.info("✅ Brain: Response from %s in %.2fs (Tier: %s)", endpoint_name, dur, endpoint.tier.value)
+                    return final_text_str
+
+                except TimeoutError as e:
+                    _record_router_degradation(
+                        e,
+                        action="marked endpoint timeout and continued LLM tier failover",
+                        severity="degraded",
+                        extra={"endpoint": endpoint_name, "attempt": attempt + 1},
+                    )
+                    logger.error("⏱️ %s (Attempt %d) TIMED OUT", endpoint_name, attempt + 1)
+                    endpoint_error = f"timeout:{endpoint_name}"
+                    endpoint_error_kind = "timeout"
+                    last_error_str = endpoint_error
+                    break  # Don't retry timeouts — fail over to next endpoint
+                except ROUTER_RECOVERABLE_ERRORS as e:
+                    _record_router_degradation(
+                        e,
+                        action="recorded endpoint failure and continued LLM tier failover",
+                        severity="degraded",
+                        extra={"endpoint": endpoint_name, "attempt": attempt + 1},
+                    )
+                    logger.error("🚨 Error calling %s (Attempt %d): %s", endpoint_name, attempt + 1, e)
+                    endpoint_error = str(e)
+                    last_error_str = endpoint_error
+                    backend_reason = self._backend_failure_reason(e)
+                    if backend_reason:
+                        endpoint_error_kind = "backend"
+                        await self._trigger_adapter_recovery(
+                            endpoint_name=endpoint_name,
+                            adapter=adapter,
+                            reason=backend_reason,
+                        )
+                        break
+                    if isinstance(e, _NON_TRANSIENT_ROUTER_ERRORS):
+                        break  # Deterministic failure — retrying cannot help
+                    if attempt == 0 and deadline - time.monotonic() > 10.0:
+                        await asyncio.sleep(0.5)
+
+            # One endpoint = at most ONE recorded failure per request. The
+            # old per-attempt recording let a single request with two empty
+            # attempts plus the post-loop record open a threshold-3 circuit
+            # on its own.
+            if not success:
+                self.health_monitor.record_failure(
+                    endpoint_name,
+                    endpoint_error or last_error_str,
+                    error_kind=endpoint_error_kind,
+                )
+                with self._stats_lock:
+                    self.stats["failovers"] += 1
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = await _block()
+    return _seam_early_response, last_error_str
+
+
 class IntelligentLLMRouter:
     """Intelligent LLM router with automatic failover.
     
@@ -1353,6 +1588,27 @@ class IntelligentLLMRouter:
             return None
         if kwargs.get("deep_handoff") or kwargs.get("allow_deep_handoff") or kwargs.get("force_transformer"):
             return None
+        # A caller that named a machine-readable shape is not asking for text.
+        #
+        # The shape is held by the DECODER, in the MLX worker, and this path
+        # never reaches it: the readout head is an untrained random projection
+        # onto a 32-word proto vocabulary, so a JSON array is not something it
+        # can fail to produce well — it is something it cannot produce. The
+        # autonomous planner asked for a json_array, got "world action hold
+        # grounded choose loop result repair", parsed nothing, and fell back to
+        # the deterministic plan on every background decomposition.
+        #
+        # Background is where this bit, because the presentability gate below
+        # deliberately does not apply there, and background is also where
+        # almost every shaped call is made.
+        # Routing, not a degradation: nothing went wrong, the request simply
+        # names a lane this one is not.
+        if str(kwargs.get("output_shape") or "").strip():
+            logger.debug(
+                "Substrate primary declined: the turn names an output shape "
+                "only the decoder can hold."
+            )
+            return None
 
         try:
             from core.brain.llm.substrate_token_generator import (
@@ -1771,209 +2027,19 @@ class IntelligentLLMRouter:
         deadline = start_time + request_budget
         last_error_str: str = "Unknown error"
 
-        for endpoint_name in endpoints_to_try:
-            endpoint = self.endpoints[endpoint_name]
-
-            if not self.health_monitor.is_healthy(endpoint_name):
-                continue
-            remaining = deadline - time.monotonic()
-            if remaining < 5.0 and endpoint.tier != LLMTier.EMERGENCY:
-                # Not enough budget for a real attempt; skip straight toward
-                # the emergency lane instead of starting doomed work.
-                last_error_str = "request_deadline_exhausted"
-                continue
-
-            adapter = self.adapters[endpoint_name]
-            endpoint_error: str = ""
-            endpoint_error_kind: str | None = None
-            success = False
-            final_text_str = ""
-
-            # Phase 46: up to 2 attempts per endpoint — but only for
-            # TRANSIENT failures. Programming errors (TypeError, ValueError…)
-            # are deterministic; replaying them just burns the deadline.
-            for attempt in range(2):
-                attempt_slice = min(
-                    max(1.0, float(endpoint.timeout)),
-                    max(1.0, deadline - time.monotonic()),
-                )
-                try:
-                    response: Any = ""
-                    metadata: dict[str, Any] = {}
-
-                    # 1. Core Dispatch - find the right generation method
-                    if hasattr(adapter, "think"):
-                        success, response, metadata = await asyncio.wait_for(
-                            adapter.think(prompt, **kwargs), timeout=attempt_slice
-                        )
-                    elif hasattr(adapter, "call"):
-                        success, response, metadata = await asyncio.wait_for(
-                            adapter.call(prompt, **kwargs), timeout=attempt_slice
-                        )
-                    elif hasattr(adapter, "generate"):
-                        res = await asyncio.wait_for(
-                            adapter.generate(prompt, **kwargs), timeout=attempt_slice
-                        )
-                        if isinstance(res, tuple):
-                            success, response, metadata = res[0], res[1], res[2] if len(res) > 2 else {}
-                        else:
-                            # generate() returns Optional[str] — None means failure
-                            success = res is not None and str(res).strip() != ""
-                            response, metadata = res, {"model": endpoint.model_name}
-                    elif hasattr(adapter, "generate_text_async"):
-                        res = await asyncio.wait_for(
-                            adapter.generate_text_async(prompt, **kwargs), timeout=attempt_slice
-                        )
-                        if isinstance(res, tuple):
-                            success, response, metadata = res[0], res[1], res[2] if len(res) > 2 else {}
-                        else:
-                            success = res is not None and str(res).strip() != ""
-                            response, metadata = res, {"model": endpoint.model_name}
-
-                    if success and response is None:
-                        # An adapter claiming success with no payload is a
-                        # contract violation, not a success.
-                        success = False
-                        metadata.setdefault("error", "success_with_none_response")
-
-                    # Provenance: when the adapter names the endpoint it
-                    # served from, it must match the endpoint we selected.
-                    if success and isinstance(metadata, dict):
-                        reported_endpoint = str(metadata.get("endpoint") or "").strip()
-                        if reported_endpoint and reported_endpoint != endpoint_name:
-                            success = False
-                            metadata["error"] = (
-                                f"endpoint_identity_mismatch:{reported_endpoint}"
-                            )
-
-                    if not success:
-                        err = metadata.get("error", "Generation failed")
-                        logger.warning("❌ %s (Attempt %d) failure: %s", endpoint_name, attempt + 1, err)
-                        endpoint_error = str(err)
-                        endpoint_error_kind = (
-                            str(metadata.get("error_kind")) if metadata.get("error_kind") else None
-                        )
-                        last_error_str = endpoint_error
-                        backend_reason = self._backend_failure_reason(err)
-                        if backend_reason:
-                            endpoint_error_kind = "backend"
-                            await self._trigger_adapter_recovery(
-                                endpoint_name=endpoint_name,
-                                adapter=adapter,
-                                reason=backend_reason,
-                            )
-                            break
-                        if attempt == 0 and deadline - time.monotonic() > 10.0:
-                            await asyncio.sleep(0.5)
-                        continue
-
-                    # 2. Extract text and check for fatal errors hidden in strings
-                    final_text_str = str(response)
-                    if hasattr(response, "content") and not isinstance(response, str):
-                        final_text_str = str(response.content)
-
-                    # [STABILITY v53] Catch empty/whitespace-only responses as failures.
-                    # These silently poison conversations — the user sees nothing or gibberish.
-                    stripped_text = final_text_str.strip()
-                    if not stripped_text or len(stripped_text) < 2:
-                        logger.warning(
-                            "❌ %s (Attempt %d) returned empty/trivial response (%d chars). Treating as failure.",
-                            endpoint_name, attempt + 1, len(stripped_text),
-                        )
-                        success = False
-                        endpoint_error = "empty_response"
-                        endpoint_error_kind = "empty"
-                        last_error_str = "empty_response"
-                        if attempt == 0 and deadline - time.monotonic() > 10.0:
-                            await asyncio.sleep(0.5)
-                        continue
-
-                    # [STABILITY v53] Expanded fatal patterns — catch more MLX/Metal/GPU crashes.
-                    # Only scan text that plausibly IS an error payload: a real
-                    # crash string is short technical output, while an answer
-                    # that merely DISCUSSES "OOM" or "segmentation fault" must
-                    # not trigger failover and a worker reboot.
-                    fatal_reason = (
-                        self._backend_failure_reason(final_text_str)
-                        if _looks_like_error_payload(final_text_str)
-                        else None
-                    )
-                    if fatal_reason:
-                        logger.warning("❌ %s returned FATAL ERROR string. Failing over.", endpoint_name)
-                        success = False
-                        endpoint_error = f"MLX/Metal Backend Failure: {fatal_reason}"
-                        endpoint_error_kind = "backend"
-                        last_error_str = endpoint_error
-                        await self._trigger_adapter_recovery(
-                            endpoint_name=endpoint_name,
-                            adapter=adapter,
-                            reason=fatal_reason,
-                        )
-                        break  # Don't bother retrying this endpoint
-
-                    # 3. Commit Success
-                    self.health_monitor.record_success(endpoint_name)
-                    with self._stats_lock:
-                        self.stats["calls_by_tier"][endpoint.tier.value] += 1
-                        self.stats["calls_by_endpoint"][endpoint_name] += 1
-                    if is_background:
-                        self.cache.set(cache_key, final_text_str)
-                    self.last_tier = endpoint.tier.value
-                    if not is_background:
-                        self.last_user_tier = endpoint.tier.value
-
-                    dur = time.monotonic() - start_time
-                    logger.info("✅ Brain: Response from %s in %.2fs (Tier: %s)", endpoint_name, dur, endpoint.tier.value)
-                    return final_text_str
-
-                except TimeoutError as e:
-                    _record_router_degradation(
-                        e,
-                        action="marked endpoint timeout and continued LLM tier failover",
-                        severity="degraded",
-                        extra={"endpoint": endpoint_name, "attempt": attempt + 1},
-                    )
-                    logger.error("⏱️ %s (Attempt %d) TIMED OUT", endpoint_name, attempt + 1)
-                    endpoint_error = f"timeout:{endpoint_name}"
-                    endpoint_error_kind = "timeout"
-                    last_error_str = endpoint_error
-                    break  # Don't retry timeouts — fail over to next endpoint
-                except ROUTER_RECOVERABLE_ERRORS as e:
-                    _record_router_degradation(
-                        e,
-                        action="recorded endpoint failure and continued LLM tier failover",
-                        severity="degraded",
-                        extra={"endpoint": endpoint_name, "attempt": attempt + 1},
-                    )
-                    logger.error("🚨 Error calling %s (Attempt %d): %s", endpoint_name, attempt + 1, e)
-                    endpoint_error = str(e)
-                    last_error_str = endpoint_error
-                    backend_reason = self._backend_failure_reason(e)
-                    if backend_reason:
-                        endpoint_error_kind = "backend"
-                        await self._trigger_adapter_recovery(
-                            endpoint_name=endpoint_name,
-                            adapter=adapter,
-                            reason=backend_reason,
-                        )
-                        break
-                    if isinstance(e, _NON_TRANSIENT_ROUTER_ERRORS):
-                        break  # Deterministic failure — retrying cannot help
-                    if attempt == 0 and deadline - time.monotonic() > 10.0:
-                        await asyncio.sleep(0.5)
-
-            # One endpoint = at most ONE recorded failure per request. The
-            # old per-attempt recording let a single request with two empty
-            # attempts plus the post-loop record open a threshold-3 circuit
-            # on its own.
-            if not success:
-                self.health_monitor.record_failure(
-                    endpoint_name,
-                    endpoint_error or last_error_str,
-                    error_kind=endpoint_error_kind,
-                )
-                with self._stats_lock:
-                    self.stats["failovers"] += 1
+        _seam_early_response, last_error_str = await _think_routed_try_each_endpoint(
+            cache_key=cache_key,
+            deadline=deadline,
+            endpoints_to_try=endpoints_to_try,
+            is_background=is_background,
+            kwargs=kwargs,
+            last_error_str=last_error_str,
+            prompt=prompt,
+            self=self,
+            start_time=start_time,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
 
         return self._emergency_fallback(prompt, last_error_str)
 
