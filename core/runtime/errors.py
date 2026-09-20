@@ -775,7 +775,14 @@ def _record_degradation_backpressure_decision(_is_timeout, _shutting_down, actio
                 cause=f"degradation:{subsystem}",
                 extra_data=extra or {},
             )
-            store.emit(receipt)
+            # Durable means an atomic write, an fsync and a chain append.
+            # Called from an exception handler in async code, that ran on
+            # the loop (LIVE 2026-09-20: named by the loop report from the
+            # code generator). Off the loop it runs here; on the loop it is
+            # queued behind it, one run per receipt.
+            from core.runtime.executors import behind_the_loop
+
+            behind_the_loop(f"degradation_receipt:{subsystem}:{id(receipt)}", lambda: store.emit(receipt))
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError) as receipt_exc:
             # If receipt emission itself fails, at least the in-memory
             # record and log are already captured. record_degradation is

@@ -301,3 +301,31 @@ def test_the_named_shutdown_saves_are_off_the_loop():
     }
     for rel, call in sites.items():
         assert call in (ROOT / rel).read_text(encoding="utf-8"), rel
+
+
+def test_a_degradation_receipt_is_written_behind_the_loop() -> None:
+    """record_degradation(receipt_required=True) writes a durable receipt — an
+    atomic write, an fsync and a chain append. From an exception handler in
+    async code that ran on the loop (LIVE 2026-09-20, named by the loop report
+    from the code generator). On the loop it is queued behind it."""
+    import asyncio
+
+    import core.runtime.errors as errors
+
+    handed: list[str] = []
+
+    def fake_behind(key: str, fn):
+        handed.append(key)
+        return False
+
+    async def on_the_loop() -> None:
+        with pytest.MonkeyPatch.context() as mp:
+            import core.runtime.executors as executors
+
+            mp.setattr(executors, "behind_the_loop", fake_behind)
+            errors.record_degradation(
+                "a_subsystem", RuntimeError("x"), action="tested", receipt_required=True
+            )
+
+    asyncio.run(on_the_loop())
+    assert handed and handed[0].startswith("degradation_receipt:a_subsystem:")
