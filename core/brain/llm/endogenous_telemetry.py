@@ -77,7 +77,11 @@ def declare() -> list[str]:
             description="refusals that mean a fault rather than an absent artifact",
             owner="core/brain/llm/endogenous_decode.py",
             group="endogenous_language",
-            yellow_high=0,
+            # `value >= yellow_high`, and this said 0: no faults at all read
+            # as yellow, so the channel was the same colour whether the
+            # pathway was clean or breaking. One genuine fault is the first
+            # thing worth a look.
+            yellow_high=1,
             red_high=5,
             stale_after_s=600.0,
         ),

@@ -2026,6 +2026,32 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   inside the first. I cut one there before noticing. Both honour the class
   now, with a test that fails when the qualifier is ignored.
 
+  2026-09-20, live, and the runtime found it the moment it was asked to.
+  Booted on this build it reported "population split into 7 pieces:
+  44,1,1,1,1,1,1" and was still split after readiness, so not boot ordering.
+  Two causes, both measured rather than reasoned about.
+  The persisted graph carried 50 nodes, 196 edges and exactly six with no
+  edge at either end: attachments were computed only for cells that ARRIVE,
+  and a cell already isolated when the graph was saved never arrives again —
+  the population matches on every boot, the sync reconciles the substrate
+  and returns, and nothing binds it for the life of the installation.
+  Healing that was necessary and not sufficient. Every member of every
+  isolated organ sat at exactly 16/16, the degree cap, while 29 of 29
+  `global` peers and 9 of 11 `resilience` peers had room; six of fifty
+  nodes were saturated and they were precisely the ones those organs name.
+  The fallback to subsystem peers ran only when the member list was EMPTY,
+  never when every member was full. "Cannot be reached" includes "has no
+  room left" now.
+  Live after both: `bound 6 stranded cell(s)`, no partition warning,
+  bindings 196 to 244, `components: 1, partitioned: false`.
+  And the third thing, which is why nobody had seen it: the topology had
+  exactly one reader and it was an HTTP route, so the integrity report
+  carried no shape at all. Asked live which of her cells were cut off — with
+  `/api/health` carrying `components: 7, partitioned: true` at that moment —
+  the answer was "I don't have any operational information regarding a
+  system called 'morphogenic cell'". The report carries it now, read through
+  the service registry, and reads back `components: 1` on the live instance.
+
   Ratchets tightened rather than refreshed while the register was worked:
   raw AURA_* env reads 578 to 571 (EventLoopMonitor's seven knobs declared),
   raw `ServiceContainer.get` 1760 to 1639 (the two most-resolved services
