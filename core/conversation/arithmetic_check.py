@@ -39,7 +39,10 @@ import math
 import re
 from decimal import Decimal, InvalidOperation
 
-from core.conversation.computable_math import computable_result
+from core.conversation.computable_math import (
+    computable_result,
+    operation_outside as _operation_outside,
+)
 from typing import Any
 
 ArithmeticResult = int | float
@@ -151,9 +154,19 @@ def _arithmetic_expression_in(text: str) -> str | None:
         return None
     # A message that is nothing but an expression is a computation request even
     # with no verb in front of it: people type "2+2".
+    normalized = raw
+    for pattern, symbol in _WORD_OPERATOR_SUBS:
+        normalized = pattern.sub(symbol, normalized)
+    # Thousands separators only, never the decimal comma: "1,000 * 2".
+    normalized = re.sub(r"(?<=\d),(?=\d{3}\b)", "", normalized)
+
+    # A message that is nothing but an expression is a computation request
+    # even with no verb in front of it. Read on the symbol form, because
+    # "17 times 23" is the same message as "17*23" and only one of them
+    # looks like one.
     bare_only = bool(
-        re.fullmatch(r"[\d\s.,+\-*/x×÷()]+[?=.]*", raw.strip())
-        and re.search(r"\d", raw)
+        re.fullmatch(r"[\d\s.,+\-*/x×÷()]+[?=.]*", normalized.strip())
+        and re.search(r"\d", normalized)
     )
     asked_to_compute = _ARITHMETIC_INTENT_RE.search(raw)
     if not bare_only and not asked_to_compute:
@@ -183,6 +196,9 @@ def _arithmetic_expression_in(text: str) -> str | None:
     for pattern, operator in _PREFIX_OPERATION_RES:
         match = pattern.search(raw)
         if match:
+            if _operation_outside(raw, *match.span()) is not None:
+                # "multiply 47 by 89 and add 12" is not 4183.
+                return None
             left = match.group(1).replace(",", "")
             right = match.group(2).replace(",", "")
             if operator == "rsub":
@@ -190,13 +206,7 @@ def _arithmetic_expression_in(text: str) -> str | None:
                 return f"{right}-{left}"
             return f"{left}{operator}{right}"
 
-    normalized = raw
-    for pattern, symbol in _WORD_OPERATOR_SUBS:
-        normalized = pattern.sub(symbol, normalized)
-    # Thousands separators only, never the decimal comma: "1,000 * 2".
-    normalized = re.sub(r"(?<=\d),(?=\d{3}\b)", "", normalized)
-
-    candidates: list[str] = []
+    candidates: list[tuple[int, int, str]] = []
     for match in _BARE_EXPRESSION_RE.finditer(normalized):
         # Never compute only a valid prefix of an invalid expression.
         remainder = normalized[match.end() :]
@@ -219,10 +229,32 @@ def _arithmetic_expression_in(text: str) -> str | None:
             continue
         if re.search(r"[\d.)]\s*$", preceding):
             continue
-        candidates.append(match.group(0))
+        candidates.append((match.start(), match.end(), match.group(0)))
     if not candidates:
         return None
-    return max(candidates, key=len)
+    start, end, expression = max(candidates, key=lambda found: len(found[2]))
+    # The two guards above read the ORIGINAL text, where a question written in
+    # words carries no operator symbol for _BARE_EXPRESSION_RE to find — so
+    # neither of them ever ran on one, and "what is the square root of 16 plus
+    # 9" came back 25. Run them again on the symbol form.
+    asked_in_symbols = _ARITHMETIC_INTENT_RE.search(normalized)
+    if not bare_only:
+        if asked_in_symbols is None:
+            # Every word that asked for a computation WAS an operator, so the
+            # expression is the whole request and nothing may come before it.
+            # "the gcd of 12 and 18 times 3" is 18, and reading its tail as
+            # the question answered 54.
+            if normalized[:start].strip(" \t:?.,"):
+                return None
+        elif start > asked_in_symbols.end():
+            between = normalized[asked_in_symbols.end() : start]
+            if len(between.split()) > _MAX_WORDS_BEFORE_EXPRESSION:
+                return None
+    # Word operators inside the span became symbols above, so a step still
+    # spelled out is one this expression does not contain.
+    if _operation_outside(normalized, start, end) is not None:
+        return None
+    return expression
 
 
 def _evaluate_arithmetic(expression: str) -> ArithmeticResult | None:
@@ -319,7 +351,7 @@ def _resolve(text: str) -> tuple[ArithmeticResult, str] | None:
         return named.value, named.source
 
     match = _PERCENT_OF_RE.search(text)
-    if match:
+    if match and _operation_outside(text, *match.span()) is None:
         try:
             return (
                 float(match.group(1)) / 100.0 * float(match.group(2)),
@@ -329,7 +361,7 @@ def _resolve(text: str) -> tuple[ArithmeticResult, str] | None:
             return None
 
     match = _POWER_RE.search(text)
-    if match:
+    if match and _operation_outside(text, *match.span()) is None:
         try:
             base, exponent = int(match.group(1)), int(match.group(2))
         except ValueError:
@@ -349,7 +381,9 @@ def _resolve(text: str) -> tuple[ArithmeticResult, str] | None:
         # "what is 2 + 2 ^ 3" captures "2 + 2 " and evaluates to 4. Whatever
         # follows the capture decides whether it was the whole expression.
         _tail = text[match.end() :]
-        if not re.match(r"\s*[-+*/%!0-9]", _tail):
+        if not re.match(r"\s*[-+*/%!0-9]", _tail) and _operation_outside(
+            text, *match.span()
+        ) is None:
             result = _evaluate_arithmetic(match.group(1))
             if result is not None:
                 return result, f"{__name__}._evaluate_arithmetic"
