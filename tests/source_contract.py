@@ -52,6 +52,32 @@ def module_source(module: ModuleType) -> str:
     return inspect.getsource(module)
 
 
+def lifted_siblings(own: "os.PathLike[str] | str") -> list:
+    """The modules lifted out of the one at ``own``, on disk.
+
+    Two spellings of a lift: ``<stem>_<part>.py`` beside the module, and a
+    module of any name beside it whose first lines say it was lifted whole
+    out of ``<stem>`` (the lift tool writes that sentence; the other
+    session's ``subprocess_privilege`` beside ``subprocess_gateway`` is one).
+    """
+
+    from pathlib import Path
+
+    own = Path(own)
+    found: list = sorted(own.parent.glob(f"{own.stem}_*.py"))
+    said = f"out of `{own.stem}`"
+    for other in sorted(own.parent.glob("*.py")):
+        if other == own or other in found:
+            continue
+        try:
+            head = other.read_text(encoding="utf-8")[:600]
+        except OSError:  # pragma: no cover - a file that vanished mid-read
+            continue
+        if said in head:
+            found.append(other)
+    return found
+
+
 def module_family_sources(module: ModuleType) -> list[tuple[str, str]]:
     """``(name, text)`` for the module and every module lifted out of it.
 
@@ -70,7 +96,8 @@ def module_family_sources(module: ModuleType) -> list[tuple[str, str]]:
     family = [(module.__name__, inspect.getsource(module))]
     if own.suffix != ".py":
         return family
-    for sibling in sorted(own.parent.glob(f"{own.stem}_*.py")):
+    siblings = lifted_siblings(own)
+    for sibling in siblings:
         try:
             family.append((f"{module.__name__}:{sibling.stem}", sibling.read_text(encoding="utf-8")))
         except OSError:  # pragma: no cover - a file that vanished mid-read
@@ -78,9 +105,7 @@ def module_family_sources(module: ModuleType) -> list[tuple[str, str]]:
     # A sibling read from disk and the same module reached through a mixin
     # base are one text; naming both put every call site in it twice.
     package = module.__name__.rsplit(".", 1)[0]
-    seen = {module.__name__} | {
-        f"{package}.{sibling.stem}" for sibling in own.parent.glob(f"{own.stem}_*.py")
-    }
+    seen = {module.__name__} | {f"{package}.{sibling.stem}" for sibling in siblings}
     for base_home in _mixin_homes(module):
         if base_home.__name__ in seen:
             continue
@@ -129,7 +154,7 @@ def family_text_at(path: str | os.PathLike[str]) -> str:
 
     own = Path(path)
     parts = [own.read_text(encoding="utf-8")]
-    for sibling in sorted(own.parent.glob(f"{own.stem}_*.py")):
+    for sibling in lifted_siblings(own):
         try:
             parts.append(sibling.read_text(encoding="utf-8"))
         except OSError:  # pragma: no cover - a file that vanished mid-read
@@ -149,7 +174,7 @@ def family_tree(path: str | os.PathLike[str]) -> ast.Module:
 
     own = Path(path)
     bodies: list[ast.stmt] = []
-    for member in (own, *sorted(own.parent.glob(f"{own.stem}_*.py"))):
+    for member in (own, *lifted_siblings(own)):
         try:
             bodies.extend(ast.parse(member.read_text(encoding="utf-8")).body)
         except OSError:  # pragma: no cover - a file that vanished mid-read

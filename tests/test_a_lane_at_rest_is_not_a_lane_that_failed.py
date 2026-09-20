@@ -78,9 +78,10 @@ def test_a_failed_lane_is_failed_whatever_it_rests_at():
 def test_only_the_resident_lane_is_held_to_the_resident_rule():
     """The call sites decide by the one constant that names the resident lane,
     rather than by a list of the lanes that are not it."""
-    from tests.source_contract import module_source
+    from tests.source_contract import family_text
 
-    source = module_source(router)
+    # the call sites are in the endpoint-call mixin now
+    source = family_text(router)
     assert 'cold_is_standby=str(getattr(ep, "name", ""))' in source
     assert "!= PRIMARY_ENDPOINT" in source
     assert PRIMARY_ENDPOINT != BRAINSTEM_ENDPOINT

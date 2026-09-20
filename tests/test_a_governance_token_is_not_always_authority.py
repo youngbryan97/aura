@@ -102,7 +102,10 @@ def test_the_subprocess_gateway_catches_both_non_authority_tokens():
 
     Both record the absence of the boundary; only one was caught.
     """
-    source = (ROOT / "core" / "runtime" / "subprocess_gateway.py").read_text("utf-8")
+    from tests.source_contract import family_text_at
+
+    # the privilege check was lifted into `subprocess_privilege`
+    source = family_text_at(ROOT / "core" / "runtime" / "subprocess_gateway.py")
 
     assert 'getattr(token, "domain", "") == "degraded"' not in source, (
         "the gateway hand-rolls a degraded-only check again, which lets an "

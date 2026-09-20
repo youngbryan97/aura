@@ -134,8 +134,10 @@ def _module_helpers(tree: ast.Module) -> dict[str, ast.AST]:
 
 
 def _family_files(path: pathlib.Path) -> list[pathlib.Path]:
-    """The modules lifted out of ``path``: ``<stem>_<part>.py`` beside it."""
-    return sorted(path.parent.glob(f"{path.stem}_*.py"))
+    """The modules lifted out of ``path``, by name or by their own first lines."""
+    from source_contract import lifted_siblings
+
+    return [pathlib.Path(one) for one in lifted_siblings(path)]
 
 
 def _add_helpers_from(helpers: dict[str, ast.AST], other: pathlib.Path) -> None:
