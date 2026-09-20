@@ -1995,6 +1995,22 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   reasons at 2,291 against 2,175, method size with nine tracked functions
   grown and eight new ones over the line, and the effect-ownership count.
 
+  2026-09-20, second finding, and it was holding twelve proofs hostage.
+  `reqproof capture` bounds its git probes at thirty seconds and wedged on
+  `git status --porcelain --untracked-files=all`, so every one of the twenty
+  stale receipts was refused by the clock rather than by anything it
+  measured. The cause was already in this repository's notes — `git ls-files
+  --cached` takes 0.06s here and 19.6s through the fsmonitor daemon, of which
+  three copies are running — and two call sites had been given the flag the
+  night before. It was a class: 157 read-only git calls across production,
+  tests and scripts had none, and thirty-six more hid their subcommand behind
+  `["git", *args]`, where a scan over literal argv is blind and where the
+  capture's own helper lives. All of them carry it now, with
+  `tests/test_a_read_only_git_call_does_not_wait_for_fsmonitor.py` holding
+  the line — reads only, because a write wants the daemon's index cache —
+  and four argv comparisons the sweep itself broke by inserting the flag into
+  a pinned slice now match on the subcommand instead.
+
   Ratchets tightened rather than refreshed while the register was worked:
   raw AURA_* env reads 578 to 571 (EventLoopMonitor's seven knobs declared),
   raw `ServiceContainer.get` 1760 to 1639 (the two most-resolved services
