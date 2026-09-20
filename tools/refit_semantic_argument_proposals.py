@@ -81,7 +81,7 @@ def main() -> int:
     parser.add_argument("--validation-output", type=Path)
     parser.add_argument("--validation-checkpoint", type=Path)
     parser.add_argument("--validation-scoring", choices=("register_indices_v1", "source_anchors_v2"),
-                        default="register_indices_v1")
+                        default="source_anchors_v2")
     parser.add_argument("--fit-checkpoint-dir", type=Path,
                         help="retained-constraint optimizer state; defaults beside the output candidate")
     parser.add_argument("--evaluate-existing", action="store_true",
@@ -98,6 +98,8 @@ def main() -> int:
                         help="source-label retention in joint_graphs; zero reproduces contrast-only fitting")
     parser.add_argument("--retain-semantic-constraints", action="store_true",
                         help="joint_graphs only: retain satisfied witnesses and source bindings during fitting")
+    parser.add_argument("--acquire-training-errors", type=int, metavar="CONTROLS",
+                        help="scan every training row, mine unresolved rows plus this many source-selected controls")
     parser.add_argument("--retention-operation-charts", type=int, default=32,
                         help="runtime operation charts searched per source-training example for retention")
     parser.add_argument("--learn-argument-heads", action="store_true",
@@ -135,6 +137,10 @@ def main() -> int:
         parser.error("joint operation-argument scoring requires joint_graphs")
     if args.retain_semantic_constraints and (args.objective != "joint_graphs" or args.evaluate_existing):
         parser.error("semantic constraints require a fresh joint_graphs fit")
+    if args.acquire_training_errors is not None and (
+        args.acquire_training_errors < 1 or not args.retain_semantic_constraints
+    ):
+        parser.error("training-error acquisition requires retained joint graphs and a positive control count")
     if args.learn_argument_heads and not args.retain_semantic_constraints:
         parser.error("argument-head learning requires retained semantic constraints")
     if args.learn_operation_pointer and not args.retain_semantic_constraints:
@@ -253,7 +259,27 @@ def main() -> int:
         if args.compare_fit_start:
             verify_fit_start(candidate, starting)
     else:
-        candidate = refit(starting, bound, **options)
+        mining = bound
+        acquisition = None
+        if args.acquire_training_errors is not None:
+            from core.learning.semantic_graph_trial import acquire_semantic_training_errors
+
+            selected, acquisition = acquire_semantic_training_errors(
+                starting, bound, control_count=args.acquire_training_errors,
+                progress=options["progress"],
+            )
+            mining = (*selected, *(item for item in bound if item.split == "validation"))
+            options["source_retention_examples"] = tuple(item for item in bound if item.split == "train")
+        candidate = refit(starting, mining, **options)
+        if acquisition is not None:
+            from dataclasses import replace
+            from core.learning.semantic_program_campaign import _sha
+
+            if candidate.training_receipt["joint_graph_refit"]["training_example_ids_sha256"] != acquisition["training_example_ids_sha256"]:
+                raise ValueError("fit source identities differ from acquired training errors")
+            receipt = {key: value for key, value in candidate.training_receipt.items() if key != "receipt_sha256"}
+            receipt["training_error_acquisition"] = acquisition
+            candidate = replace(candidate, training_receipt={**receipt, "receipt_sha256": _sha(receipt)})
         payload = (json.dumps(candidate.to_dict(), sort_keys=True, separators=(",", ":")) + "\n")
         if not atomic_write_bytes_if_absent(args.output, payload.encode("ascii"), mode=0o400):
             raise FileExistsError(args.output)
