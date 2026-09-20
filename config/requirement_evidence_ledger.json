@@ -1,5 +1,5 @@
 {
-  "content_sha256": "0abdac9e85f128ba4bea82978e351a35ccfd6babc5cfa31cda0ad937a36c3db5",
+  "content_sha256": "c753471d719b0b64f95545e720b45b5689e1fd7482d9816b9734dda7b0d7c0d8",
   "entries": [
     {
       "acceptance_ids": [
@@ -207,12 +207,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "58593808522588c611dbaa266af71ea5a849eb0d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/cognitive-gate-inventory-audit/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/cognitive-gate-inventory-audit/58593808522588c611dbaa266af71ea5a849eb0d.json",
       "requirement_id": "CTX2-GATE-001",
-      "sha256": "8efdae16710fe4d8dbe298847d461d838e7c8067cb0213b76443a69b73caa47d"
+      "sha256": "43c1328573c6048987ad90bfb8486c4f9cc17c43b0a43f8226b2d545fc4aebf9"
     },
     {
       "acceptance_ids": [
@@ -229,12 +229,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "58593808522588c611dbaa266af71ea5a849eb0d",
       "evidence_class": "implementation",
-      "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/cognitive-gate-inventory-audit/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "recorded_at": "2026-09-20",
+      "ref": "artifacts/reqproof/evidence/cognitive-gate-inventory-audit/58593808522588c611dbaa266af71ea5a849eb0d.json",
       "requirement_id": "CTX2-GATE-002",
-      "sha256": "8efdae16710fe4d8dbe298847d461d838e7c8067cb0213b76443a69b73caa47d"
+      "sha256": "43c1328573c6048987ad90bfb8486c4f9cc17c43b0a43f8226b2d545fc4aebf9"
     },
     {
       "acceptance_ids": [
