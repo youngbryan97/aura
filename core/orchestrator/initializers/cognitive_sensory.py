@@ -141,92 +141,18 @@ def _init_cognitive_sensory_layer_learned_cognitive_systems():
     registered_count = 0
     return all_services, registered_count
 
-async def init_cognitive_sensory_layer(orchestrator: Any) -> dict[str, Any]:
-    """Initialize the higher-order cognitive and sensory services."""
-    report = _boot_report(orchestrator)
+async def _init_cognitive_sensory_first_wave(
+    *,
+    orchestrator: Any,
+    report: Any,
+) -> Any:
+    """The first wave of sensory and cognitive organs, built in order.
 
-    async def _identity_and_personality() -> None:
-        from core.brain.identity import IdentityService
-        from core.brain.llm.semantic_neural_serving import prepare_semantic_neural_serving
-        from core.brain.personality_engine import PersonalityEngine
-        from core.fictional_ai_synthesis import register_all_fictional_engines
-        from core.orchestrator.initializers.derived_engines import (
-            register_derived_engines,
-        )
-        from core.self_model import SelfModel
-        from core.soul import Soul
-
-        orchestrator.self_model = await SelfModel.load()
-        _register(report, "self_model", orchestrator.self_model)
-        _register(report, "identity", orchestrator.self_model)
-
-        identity_service = ServiceContainer.get("identity_service", default=None)
-        if identity_service is None:
-            identity_service = IdentityService()
-            _register(report, "identity_service", identity_service)
-        orchestrator.identity_service = identity_service
-
-        orchestrator.soul = ServiceContainer.get("soul", default=None)
-        if orchestrator.soul is None:
-            orchestrator.soul = Soul(orchestrator)
-        _register(report, "soul", orchestrator.soul)
-
-        orchestrator.fictional_engines = register_all_fictional_engines(orchestrator)
-        await prepare_semantic_neural_serving()
-        orchestrator.derived_engines = register_derived_engines(orchestrator)
-
-        orchestrator.personality_engine = PersonalityEngine()
-        orchestrator.personality_engine.setup_hooks(orchestrator)
-        _register(report, "personality_engine", orchestrator.personality_engine)
-        _register(report, "personality", orchestrator.personality_engine)
-        logger.info("🆔 Identity, Soul, Personality, and Fictional Engines registered.")
-
-    await _run_phase(
-        orchestrator,
-        "identity_personality",
-        "Skipped identity/personality services and left boot report degraded for health contract review",
-        _identity_and_personality,
-        severity="critical",
-    )
-
-    async def _drive_engine() -> None:
-        from core.managers.drive_controller import DriveController
-
-        if hasattr(orchestrator, "affect") and orchestrator.affect:
-            controller = getattr(orchestrator.affect, "_drive_controller", None)
-            if controller is None:
-                controller = getattr(orchestrator, "drive_controller", None)
-            if controller is None or not callable(getattr(controller, "is_alive", None)):
-                controller = DriveController(orchestrator)
-            orchestrator.affect.drive_controller = controller
-            orchestrator.drive_controller = controller
-            _register(report, "drive_engine", controller)
-            _register(report, "drives", controller)
-            logger.info("🚗 Drive Engine registered via AffectCoordinator")
-            return
-        raise RuntimeError("affect system unavailable; drive controller deferred")
-
-    await _run_phase(
-        orchestrator,
-        "drive_engine",
-        "Deferred drive engine registration; motivation restoration remains unavailable until affect is online",
-        _drive_engine,
-        severity="warning",
-    )
-
-    async def _voice_engine() -> None:
-        from core.senses.voice_engine import get_voice_engine
-
-        _register(report, "voice_engine", get_voice_engine())
-
-    await _run_phase(
-        orchestrator,
-        "voice_engine",
-        "Skipped voice engine registration; chat continues without voice I/O",
-        _voice_engine,
-        severity="warning",
-    )
-
+    Moved out of ``init_cognitive_sensory_layer`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 2 name(s) from the turn and hands back
+    1.
+    """
     async def _reality_reach() -> None:
         from core.environment.runtime_workspace import environment_runtime_file
         from core.reality_reach.acceptance_mandate import AcceptanceMandateStore
@@ -508,6 +434,99 @@ async def init_cognitive_sensory_layer(orchestrator: Any) -> dict[str, Any]:
             report["registered"]["reality_historian"] = historian.__class__.__name__
         if digital_twin is not None:
             report["registered"]["reality_digital_twin"] = digital_twin.__class__.__name__
+    return _reality_reach
+
+
+async def init_cognitive_sensory_layer(orchestrator: Any) -> dict[str, Any]:
+    """Initialize the higher-order cognitive and sensory services."""
+    report = _boot_report(orchestrator)
+
+    async def _identity_and_personality() -> None:
+        from core.brain.identity import IdentityService
+        from core.brain.llm.semantic_neural_serving import prepare_semantic_neural_serving
+        from core.brain.personality_engine import PersonalityEngine
+        from core.fictional_ai_synthesis import register_all_fictional_engines
+        from core.orchestrator.initializers.derived_engines import (
+            register_derived_engines,
+        )
+        from core.self_model import SelfModel
+        from core.soul import Soul
+
+        orchestrator.self_model = await SelfModel.load()
+        _register(report, "self_model", orchestrator.self_model)
+        _register(report, "identity", orchestrator.self_model)
+
+        identity_service = ServiceContainer.get("identity_service", default=None)
+        if identity_service is None:
+            identity_service = IdentityService()
+            _register(report, "identity_service", identity_service)
+        orchestrator.identity_service = identity_service
+
+        orchestrator.soul = ServiceContainer.get("soul", default=None)
+        if orchestrator.soul is None:
+            orchestrator.soul = Soul(orchestrator)
+        _register(report, "soul", orchestrator.soul)
+
+        orchestrator.fictional_engines = register_all_fictional_engines(orchestrator)
+        await prepare_semantic_neural_serving()
+        orchestrator.derived_engines = register_derived_engines(orchestrator)
+
+        orchestrator.personality_engine = PersonalityEngine()
+        orchestrator.personality_engine.setup_hooks(orchestrator)
+        _register(report, "personality_engine", orchestrator.personality_engine)
+        _register(report, "personality", orchestrator.personality_engine)
+        logger.info("🆔 Identity, Soul, Personality, and Fictional Engines registered.")
+
+    await _run_phase(
+        orchestrator,
+        "identity_personality",
+        "Skipped identity/personality services and left boot report degraded for health contract review",
+        _identity_and_personality,
+        severity="critical",
+    )
+
+    async def _drive_engine() -> None:
+        from core.managers.drive_controller import DriveController
+
+        if hasattr(orchestrator, "affect") and orchestrator.affect:
+            controller = getattr(orchestrator.affect, "_drive_controller", None)
+            if controller is None:
+                controller = getattr(orchestrator, "drive_controller", None)
+            if controller is None or not callable(getattr(controller, "is_alive", None)):
+                controller = DriveController(orchestrator)
+            orchestrator.affect.drive_controller = controller
+            orchestrator.drive_controller = controller
+            _register(report, "drive_engine", controller)
+            _register(report, "drives", controller)
+            logger.info("🚗 Drive Engine registered via AffectCoordinator")
+            return
+        raise RuntimeError("affect system unavailable; drive controller deferred")
+
+    await _run_phase(
+        orchestrator,
+        "drive_engine",
+        "Deferred drive engine registration; motivation restoration remains unavailable until affect is online",
+        _drive_engine,
+        severity="warning",
+    )
+
+    async def _voice_engine() -> None:
+        from core.senses.voice_engine import get_voice_engine
+
+        _register(report, "voice_engine", get_voice_engine())
+
+    await _run_phase(
+        orchestrator,
+        "voice_engine",
+        "Skipped voice engine registration; chat continues without voice I/O",
+        _voice_engine,
+        severity="warning",
+    )
+
+    _reality_reach = await _init_cognitive_sensory_first_wave(
+        orchestrator=orchestrator,
+        report=report,
+    )
 
     await _run_phase(
         orchestrator,

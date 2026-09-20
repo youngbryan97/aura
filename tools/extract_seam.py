@@ -48,6 +48,9 @@ import tokenize
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from find_extraction_seam import function_named  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -293,15 +296,7 @@ def extract(
     lines = source.splitlines(keepends=True)
     tree = ast.parse(source)
 
-    fn = next(
-        (
-            n
-            for n in ast.walk(tree)
-            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and n.name == function.split(".")[-1]
-        ),
-        None,
-    )
+    fn = function_named(tree, function)
     if fn is None:
         print(f"error: no function named {function!r} in {path}", file=sys.stderr)
         return 2
