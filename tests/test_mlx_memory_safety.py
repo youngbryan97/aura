@@ -1107,7 +1107,11 @@ def test_mlx_worker_accepts_zeroed_shared_substrate_for_affective_sync():
 
 
 def test_mlx_client_records_worker_steering_liveness_receipt():
-    source = open("core/brain/llm/mlx_client.py", encoding="utf-8").read()
+    from source_contract import family_text
+
+    from core.brain.llm import mlx_client
+
+    source = family_text(mlx_client)  # the client and what was lifted out of it
 
     assert 'raw_steering = res.get("steering_active")' in source
     # Strict receipt typing: only an actual bool may activate the shared
@@ -1703,11 +1707,11 @@ def test_volatile_state_context_is_appended_so_the_kv_prefix_stays_cacheable():
 
     31,697 tokens re-prefilled because 21 were reusable.
     """
-    import inspect
+    from source_contract import family_text
 
     from core.brain import llm_health_router
 
-    source = inspect.getsource(llm_health_router)
+    source = family_text(llm_health_router)  # the router and what was lifted out of it
     assert 'f"{system_prompt}\\n\\n{context_header}"' in source, (
         "the volatile state block must be appended after the stable prompt"
     )

@@ -48,3 +48,30 @@ def test_a_name_that_is_nowhere_is_still_reported_missing(tree: Path) -> None:
     read = fc.requested_file_read("read the file nowhere_at_all.py please")
 
     assert read is not None and not read.exists
+
+
+@pytest.mark.asyncio
+async def test_the_index_is_never_built_on_the_loop_thread(tree: Path, monkeypatch) -> None:
+    """LIVE 2026-09-19: a 5.9s loop stall inside the routing phase, the walk
+    of the tree running on the loop. On the loop the first look serves an
+    empty index and queues the walk; the walk, once done, serves the file."""
+    import asyncio
+
+    walked: list[str] = []
+    real_walk = fc._walk_names
+
+    def spy(root):
+        walked.append(__import__("threading").current_thread().name)
+        return real_walk(root)
+
+    monkeypatch.setattr(fc, "_walk_names", spy)
+    loop_thread = __import__("threading").current_thread().name
+
+    first = fc._found_by_name("phi_core.py")
+    assert first == (), "the loop thread was served a walk"
+    for _ in range(50):
+        await asyncio.sleep(0.05)
+        if fc._found_by_name("phi_core.py"):
+            break
+    assert fc._found_by_name("phi_core.py") == (str(tree / "core" / "consciousness" / "phi_core.py"),)
+    assert walked and all(name != loop_thread for name in walked)

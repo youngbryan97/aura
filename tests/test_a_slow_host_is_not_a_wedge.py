@@ -128,6 +128,7 @@ def test_the_provenance_git_queries_are_bounded_by_their_work():
     assert "timeout=3.0" not in git
 
 
+@pytest.mark.host_observation  # real children, read through the host observer
 def test_the_gateway_runner_stops_a_wedged_child_and_a_busy_one():
     import os
     import sys
@@ -231,8 +232,14 @@ def test_every_probe_on_a_thread_is_bounded_by_its_work():
         "core/brain/llm_health_router.py": "run_on_a_thread_while_it_works(",
         "core/kernel/organs.py": "run_on_a_thread_while_it_works(",
     }
+    from pathlib import Path as _Path
+
     for rel, call in bounded.items():
-        source = (ROOT / rel).read_text(encoding="utf-8")
+        # the module and every module lifted out of it (mind_tick's loop
+        # steps live in mind_tick_loop_steps now)
+        own = ROOT / rel
+        family = [own, *sorted(_Path(own.parent).glob(f"{own.stem}_*.py"))]
+        source = "\n".join(path.read_text(encoding="utf-8") for path in family)
         assert call in source, rel
     for rel in ("core/fictional/skynet.py", "core/runtime/control_plane.py", "core/kernel/organs.py"):
         source = (ROOT / rel).read_text(encoding="utf-8")

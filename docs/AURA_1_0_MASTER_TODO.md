@@ -458,6 +458,47 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     gate's lifts: `source_contract.function_containing` follows a helper into
     the sibling module it was lifted to (`<module>_<part>.py`) and
     `function_with_its_helpers` into the mixin a class inherits it from.
+  Same evening, on the rebuilt instance, three turns replayed and read from
+  the feed:
+  - `Cortex produced repairable user-facing draft (unanswered_question_part,
+    reply_abandons_thread, len=76)` on "**240 minutes (4 hours).** Net drain
+    is 8 − 3 = 5 L/min, so 1,200 ÷ 5 = 240." — the right answer, twice
+    rejected. Three word-matching gates, one shape each: a "how long" is
+    answered by a number whatever words it shares (`asks_for_a_quantity`,
+    `states_a_quantity` in core.language.asking_clauses); "Give the number
+    and one line of working" is a form of the answer, not a second ask
+    (layout units join `_ANSWER_FORM_NOUNS`); and "drain" shares its subject
+    with "drains" (`thread_continuity._overlap` reads word forms). The
+    coverage gate now says in the feed which part it missed and what it
+    read as the question. tests/test_a_question_answered_by_a_number_is_answered.py.
+  - The same turn went out as two answers: the continuation restated the
+    head in other words and the merge knew only byte-identical overlap. A
+    restatement — the head's subject words, no new number — replaces a head
+    that is unfinished and is dropped after one that is complete
+    (`_continuation_restates`).
+  - `EVENT LOOP STALL DETECTED! 5.9s ... on-loop work`, twenty minutes
+    after the by-name file lookup shipped: the walk of the tree ran inside
+    the routing phase. The index is never built on the loop thread — a
+    stale or empty one is served and the walk queued behind the loop — and
+    under the state root it stays two levels deep and out of the stores.
+  - `append_text:live_learner.append_example is never on the loop and ran
+    on the loop thread`, and four fsyncs the loop report named on the
+    first boot (the existence witness and ark from `_main_loop`, the
+    activation report from `_boot_runtime_orchestrator`, the action
+    receipt from `_execute_initiative`): each moved behind the loop, the
+    learner with one writer per buffer that drains what has accrued.
+  - `[LOOP DETECTED] Assistant repeated content: 'I would handle this as a
+    bound...'` x4 and `MemoryRetrievalPhase duration_ms=5179.8 budget_ms=
+    1500` on "You are the Master Synthesizer…": the swarm's synthesis
+    prompt went through the cognitive engine as an objective, the seam the
+    shards were moved off on 2026-09-15. It asks the router now, as they
+    do. tests/test_a_shard_is_a_request_not_an_objective.py.
+  - `runtime_hygiene:3 unregistered child process(es) detected;
+    unregistered process sample pid=… name=Python`, a DEGRADED card a
+    minute: the phi pool's spawn workers, read in their first moments
+    before their command line could be. A direct child younger than one
+    hygiene cycle with no readable command line is not yet known, and not
+    yet rogue (`young_child_processes`). tests/test_runtime_hygiene.py.
   UPDATE 2026-09-18. Two more taken by cause from one evening's live feed,
   and both were the gate rather than the model.
   - `surface_controls_unavailable:steering_unavailable`, classified
@@ -1457,6 +1498,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   the attribution needs a run with the shell closed before a cause is claimed.
 - [ ] U07 Research, coding, mathematical execution, planning, and multi-step
   tasks through the same unified runtime users invoke.
+  2026-09-19, live. "Write a Python function that takes a list of file paths
+  and returns them grouped by extension" was dispatched to the desktop task
+  lane — the external-effect reader saw "write … file" — which spent 50s
+  authoring a file nobody asked for, hit its own wall clock, and answered
+  "I could not write the words you asked for, so I have not made the file."
+  Two fixes: code asked for as words (a function, a regex, a query, a
+  one-liner, with no file target in the message) is an inline answer
+  (`asks_for_code_in_the_reply`), and the artifact authoring's own wait is
+  bounded by the generation's progress, as the reply lane's is, rather than
+  by a fixed 50s. The tank word problem (240 minutes) and a recall of the
+  previous turn's answer both replay correctly on the rebuilt instance;
+  the arithmetic reply had gone out twice-answered and is one answer now.
   PARTIAL 2026-09-07. Web research, file reading and code execution all run
   end to end through the ordinary chat route: `code_repl` dispatched and
   completed in 344ms, `web_search` in 2,212ms with a correct answer, and the
@@ -1741,6 +1794,24 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   in every run), largest _mlx_worker_loop at 5,141 and
   _generate_with_metadata_sink at 3,525. Full chunked suite running on the
   sweep at 20:39.
+  2026-09-19. The module-size ratchet: green, for the first time since it
+  was measured. The lifts of 543b2d210 and a37d08fcc took the total from
+  143,448 to 130,971; the last +6 over went with a 508-line cluster out of
+  `response_reliability` — what the person asked for, by count and by
+  phrase — into `response_reliability_requests`, by
+  tools/refactor/lift_functions.py: the parent imports the definitions
+  straight back, and what they take from it is imported at call time, so
+  every caller and every patch still lands. Budget now 130,450, written at
+  the measured total. The method-size ratchet reads a method lifted into a
+  mixin as the same method (`CognitiveEngine._run_thinking_loop` and
+  `_RunsTheThinkingLoop._run_thinking_loop`, matched by method name when
+  it names exactly one vanished entry): sixteen NEW became eight, all
+  functions that were never baselined under any name, plus two that grew
+  on a move. tools/refactor/demote_helper_methods.py moves a helper method
+  the block sweep left on a class to module level with `self` as its first
+  parameter (static and class methods too, `Class.m` receivers, a
+  --limit); it was the mechanism behind the per-class ceiling before the
+  lifts made it moot.
 - [ ] Q07 Refresh semantic ledger near code freeze; reconcile changed or
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,

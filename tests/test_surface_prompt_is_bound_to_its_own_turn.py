@@ -50,11 +50,12 @@ def test_rebinding_replaces_the_previous_turns_question():
 
 def test_the_gate_rebinds_when_the_bound_prompt_is_not_this_turns():
     """The guard itself, read from the source it protects."""
-    import inspect
+
+    from source_contract import family_text
 
     from core.brain import inference_gate
 
-    source = inspect.getsource(inference_gate)
+    source = family_text(inference_gate)  # the gate and the modules lifted out of it
     assert "stale_binding" in source
     assert "explicit_visible_user_prompt" in source
 

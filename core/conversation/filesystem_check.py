@@ -27,7 +27,6 @@ Deliberately narrow:
 from __future__ import annotations
 
 import contextvars
-
 import os
 import re
 from collections import Counter
@@ -828,30 +827,62 @@ def files_already_read() -> tuple[str, ...]:
 _NAME_INDEX: dict[str, tuple[float, dict[str, tuple[str, ...]]]] = {}
 _NAME_INDEX_TTL_S = 120.0
 _NAME_INDEX_LIMIT = 250_000
+#: Under the state root, only what a person might name by hand: the runtime's
+#: own stores (receipts, memory, models, run, exports) are not it.
+_STATE_ROOT_DEPTH = 2
+_STATE_ROOT_SKIP = frozenset({"receipts", "memory", "models", "run", "exports", "cache", "checkpoints", "state", "logs", "data"})
+
+
+def _walk_names(root: Path) -> dict[str, tuple[str, ...]]:
+    from core.self.source_excerpt import _SKIP_DIRS
+
+    shallow = root != Path(__file__).resolve().parents[2]
+    found: dict[str, list[str]] = {}
+    seen = 0
+    base_depth = len(root.parts)
+    for dirpath, dirnames, filenames in os.walk(root):
+        depth = len(Path(dirpath).parts) - base_depth
+        keep = [d for d in dirnames if d not in _SKIP_DIRS and not d.startswith(".")]
+        if shallow:
+            keep = [d for d in keep if d not in _STATE_ROOT_SKIP] if depth < _STATE_ROOT_DEPTH else []
+        dirnames[:] = sorted(keep)
+        for filename in filenames:
+            found.setdefault(filename, []).append(os.path.join(dirpath, filename))
+            seen += 1
+        if seen >= _NAME_INDEX_LIMIT:
+            break
+    return {name: tuple(sorted(paths)) for name, paths in found.items()}
 
 
 def _name_index(root: Path) -> dict[str, tuple[str, ...]]:
-    import time
+    """The index for ``root``: fresh when it can be, never built on the loop.
 
-    from core.self.source_excerpt import _SKIP_DIRS
+    LIVE 2026-09-19, twenty minutes after this lookup shipped: a 5.9s loop
+    stall, the walk of the tree running inside the routing phase. On the
+    loop thread a stale or empty index is served and a rebuild is queued
+    behind the loop; off it, the walk runs here.
+    """
+    import asyncio
+    import time
 
     key = str(root)
     cached = _NAME_INDEX.get(key)
     now = time.monotonic()
     if cached is not None and now - cached[0] < _NAME_INDEX_TTL_S:
         return cached[1]
-    found: dict[str, list[str]] = {}
-    seen = 0
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = sorted(d for d in dirnames if d not in _SKIP_DIRS and not d.startswith("."))
-        for filename in filenames:
-            found.setdefault(filename, []).append(os.path.join(dirpath, filename))
-            seen += 1
-        if seen >= _NAME_INDEX_LIMIT:
-            break
-    index = {name: tuple(sorted(paths)) for name, paths in found.items()}
-    _NAME_INDEX[key] = (now, index)
-    return index
+
+    def rebuild() -> None:
+        _NAME_INDEX[key] = (time.monotonic(), _walk_names(root))
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        rebuild()
+        return _NAME_INDEX[key][1]
+    from core.runtime.executors import behind_the_loop
+
+    behind_the_loop(f"filesystem_check.name_index:{key}", rebuild)
+    return cached[1] if cached is not None else {}
 
 
 def _found_by_name(candidate: str) -> tuple[str, ...]:

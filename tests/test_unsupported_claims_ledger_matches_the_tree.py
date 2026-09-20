@@ -258,7 +258,12 @@ def test_the_friction_graph_still_has_the_reader_entry_15_credits():
     assert graph.friction_for("stuck") > 0.0
     assert graph.pressure_report()["top"]
 
-    engine = (ROOT / "core" / "brain" / "cognitive_engine.py").read_text("utf-8")
+    # the engine and the modules lifted out of it: the reader moved to
+    # cognitive_engine_thinking_loop with the loop it belongs to
+    engine = "\n".join(
+        path.read_text("utf-8")
+        for path in sorted((ROOT / "core" / "brain").glob("cognitive_engine*.py"))
+    )
     assert "is_under_pressure(" in engine, (
         "cognitive_engine writes to the graph without reading it again"
     )

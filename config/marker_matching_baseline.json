@@ -31,7 +31,7 @@
     "core/capabilities/conversation_revision.py": 2,
     "core/cognition/cognitive_kernel.py": 2,
     "core/cognition/pre_linguistic.py": 1,
-    "core/cognitive/spiking_active_inference.py": 4,
+    "core/cognitive/spiking_active_inference.py": 0,
     "core/consciousness/executive_authority.py": 2,
     "core/consciousness/global_workspace.py": 8,
     "core/consciousness/recursive_self_knowing.py": 3,
@@ -93,7 +93,8 @@
     "core/sim/outcome_simulator.py": 4,
     "core/sim/scenario_forge.py": 3,
     "core/simulation/internal_simulator.py": 8,
-    "core/skills/desktop_task.py": 45,
+    "core/skills/desktop_task.py": 29,
+    "core/skills/desktop_task_reading.py": 16,
     "core/skills/environment_info.py": 1,
     "core/skills/plugin_loader.py": 1,
     "core/social/relational_intelligence.py": 2,
@@ -112,5 +113,5 @@
     "interface/routes/chat_preflight.py": 5,
     "interface/routes/subsystems.py": 2
   },
-  "total": 418
+  "total": 414
 }

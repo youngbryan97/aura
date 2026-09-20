@@ -46,6 +46,10 @@ from .chat_lane_bookkeeping import (
     _is_current_request_recap_request,
     _requested_visible_required_phrases,
 )
+from .chat_reply_continuation import (  # noqa: F401  (re-exported: they were defined here)
+    _continuation_restates,
+    _merge_reply_continuation,
+)
 
 
 async def _preserve_large_user_paste(user_msg: str) -> None:
@@ -776,54 +780,6 @@ def _ground_runtime_fact_status_reply(
         if sentence_count is not None and repair_instruction_shape is not None:
             reply = repair_instruction_shape(user_message, reply)
     return _append_requested_phrases_for_quality_gate(user_message, reply)
-
-
-def _merge_reply_continuation(partial: object, continuation: object) -> str:
-    """Join a same-model continuation without repeating its overlap.
-
-    The continuation model may resume at the exact next token, repeat a short
-    suffix for coherence, or ignore the contract and regenerate the complete
-    answer. All three are valid model outputs; this deterministic merge only
-    removes byte-identical overlap and never invents prose.
-    """
-    head = str(partial or "").rstrip()
-    tail = str(continuation or "").lstrip()
-    if not head:
-        return tail
-    if not tail:
-        return head
-    if tail.startswith(head):
-        return tail
-
-    common_prefix = 0
-    for left, right in zip(head, tail, strict=False):
-        if left != right:
-            break
-        common_prefix += 1
-    if common_prefix >= 24:
-        # A model that regenerated despite the continuation contract may have
-        # produced a complete replacement, or it may have hit an earlier
-        # deadline. Never let the latter erase already-authored progress.
-        tail_complete = tail.rstrip().endswith(
-            (".", "!", "?", '"', "'", "”", "’", ")", "]")
-        )
-        if tail_complete or len(tail) >= len(head):
-            return tail
-        return head
-
-    max_overlap = min(len(head), len(tail), 1200)
-    overlap = 0
-    for size in range(max_overlap, 2, -1):
-        if head[-size:] == tail[:size]:
-            overlap = size
-            break
-    if overlap:
-        return head + tail[overlap:]
-
-    separator = ""
-    if not head[-1].isspace() and not tail[0].isspace():
-        separator = "" if tail[0] in ".,;:!?)]}" else " "
-    return f"{head}{separator}{tail}"
 
 
 def _bind_qualified_recurrent_public_answer(

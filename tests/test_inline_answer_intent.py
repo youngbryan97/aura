@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 from core.runtime.skill_task_bridge import (
+    asks_for_code_in_the_reply,
     looks_like_inline_answer_request,
     looks_like_multi_step_skill_request,
 )
@@ -140,3 +141,37 @@ async def test_dispatch_gate_demotes_inline_answer_task(monkeypatch):
 
     assert dispatched == [], "inline-answer turn must not reach the TaskEngine"
     assert new_state.response_modifiers["intent_type"] == "CHAT"
+
+
+# ── code asked for as words is words ────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Write a Python function that takes a list of file paths and returns them grouped by extension, as a dict of lists.",
+        "Write a regex that matches ISO dates.",
+        "Can you write me a SQL query for the ten latest orders?",
+        "Show me a one-liner that sums a column.",
+    ],
+)
+def test_code_asked_for_as_words_is_an_inline_answer(text: str) -> None:
+    """LIVE 2026-09-19: "Write a Python function that takes a list of file
+    paths…" read as write-a-file, went to the desktop task lane, and came
+    back "I could not write the words you asked for, so I have not made the
+    file." A function is text in the reply."""
+    assert asks_for_code_in_the_reply(text)
+    assert looks_like_inline_answer_request(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Write a Python script that renames photos by EXIF date and save it as rename.py in my Downloads folder.",
+        "Write a function to parse the config and create a file called out.json with the result.",
+        "Write a note to my desktop with today's date.",
+    ],
+)
+def test_code_with_a_file_target_is_still_an_artifact(text: str) -> None:
+    assert not asks_for_code_in_the_reply(text)
+    assert not looks_like_inline_answer_request(text)

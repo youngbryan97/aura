@@ -57,3 +57,41 @@ async def test_the_shard_reaches_the_router_with_its_perspective_as_data(monkeyp
     assert "You are" not in call["prompt"]
     assert "SWARM PROTOCOL" not in call["prompt"]
     ServiceContainer.clear()
+
+
+@pytest.mark.asyncio
+async def test_the_synthesis_reaches_the_router_and_never_the_engine(monkeypatch):
+    """LIVE 2026-09-19: "Unitary Tick Initiated: 'You are the Master
+    Synthesizer…'" — the synthesis prompt went through the cognitive engine
+    as an objective; memory retrieval searched for the phrase (5.2s, over
+    its budget) and the loop detector fired on the kernel's conversational
+    answers, four times in an hour. A synthesis is one request for words."""
+    ServiceContainer.clear()
+    router = _Router()
+    ServiceContainer.register_instance("llm_router", router, required=False)
+
+    class _Engine:
+        async def think(self, *args, **kwargs):
+            raise AssertionError("the synthesis reached the cognitive engine")
+
+    delegator = AgentDelegator(orchestrator=SimpleNamespace(cognitive_engine=_Engine()))
+    result = await delegator.synthesize_consensus(
+        "Design a cache for the resident model.", ["Claim: shard one.", "Claim: shard two."]
+    )
+
+    assert result == "one perspective"
+    assert len(router.calls) == 1
+    call = router.calls[0]
+    assert call["origin"] == "swarm:synthesis" and call["is_background"] is True
+    assert "Design a cache for the resident model." in call["prompt"]
+    assert "shard two" in call["prompt"]
+    ServiceContainer.clear()
+
+
+@pytest.mark.asyncio
+async def test_without_a_router_the_synthesis_is_the_deterministic_one():
+    ServiceContainer.clear()
+    delegator = AgentDelegator(orchestrator=SimpleNamespace(cognitive_engine=None))
+    result = await delegator.synthesize_consensus("topic", ["Claim: a.", "Claim: b."])
+    assert result == delegator._deterministic_consensus("topic", ["Claim: a.", "Claim: b."])
+    ServiceContainer.clear()

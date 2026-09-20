@@ -29,6 +29,8 @@ import re
 from dataclasses import dataclass
 from typing import Iterable, Sequence
 
+from core.language.word_forms import matching_word_forms
+
 _WORD = re.compile(r"[a-z0-9][a-z0-9'’-]*", re.IGNORECASE)
 
 # Function words carry no topical signal; counting them makes any two English
@@ -101,7 +103,10 @@ class ThreadContinuityVerdict:
 def _overlap(reply_terms: set[str], other: set[str]) -> tuple[float, set[str]]:
     if not other or not reply_terms:
         return 0.0, set()
-    shared = reply_terms & other
+    # "drains" and "drain", "minute" and "minutes" are one word: a reply that
+    # answers a word problem in the singular shares its subject with a
+    # question put in the plural (LIVE 2026-09-19, read as abandoning it).
+    shared = (reply_terms & other) | matching_word_forms(other, reply_terms)
     return len(shared) / float(len(other)), shared
 
 

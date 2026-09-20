@@ -1471,7 +1471,14 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
             "not restate the instruction. Output only the document text."
         )
         async def _ask() -> str:
-            return await asyncio.wait_for(
+            # Bounded by the generation's own progress, as the reply lane is:
+            # the endpoint renews from tokens produced, and a fixed wall here
+            # cut a 27B mid-answer at 50s while the router was waiting for its
+            # owned terminal state (LIVE 2026-09-19, a function asked for in
+            # chat, dispatched here and lost).
+            from core.brain.llm_health_router import _await_while_it_is_working
+
+            return await _await_while_it_is_working(
                 generate(
                     prompt=prompt,
                     timeout=45.0,
@@ -1522,7 +1529,9 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
                     # are true here.
                     foreground_request=True,
                 ),
-                timeout=50.0,
+                budget_s=50.0,
+                user_facing=True,
+                person_is_waiting=True,
             )
 
         try:

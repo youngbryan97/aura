@@ -12,6 +12,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+
 from tests.chat_lane_support import chat_lane_source
 
 pytestmark = pytest.mark.unit
@@ -108,7 +109,12 @@ class TestTurnPathWiring:
         assert "wait_for" in helper, "a slow vault must never stall a live turn"
 
     def test_cognitive_engine_renders_the_block(self):
-        source = (REPO_ROOT / "core" / "brain" / "cognitive_engine.py").read_text(encoding="utf-8")
+        from source_contract import family_text
+
+        from core.brain import cognitive_engine
+
+        # the engine and the modules lifted out of it
+        source = family_text(cognitive_engine)
         assert "[DEEP MEMORY RECALL]" in source
         assert 'context.get("deep_memory_context")' in source
 

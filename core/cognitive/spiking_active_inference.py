@@ -125,6 +125,12 @@ _SOCIAL_RE = re.compile(
 )
 
 
+#: Matched as words. As substrings, "now" was found in "acknowledged", "fix"
+#: in "prefix", "new" in "renew" and "idea" in "euclidean".
+_URGENCY_WORDS_RE = re.compile(r"\b(?:now|urgent|immediately|top priority|fix)\b")
+_NOVELTY_WORDS_RE = re.compile(r"\b(?:new|novel|unknown|idea|explore)\b")
+
+
 def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
     if not math.isfinite(float(value)):
         return low
@@ -970,7 +976,7 @@ class SpikingActiveInferenceAdvisor:
         error_pressure = 0.70 if _ERROR_RE.search(text) else 0.0
         memory_pressure = 0.62 if _MEMORY_RE.search(text) else 0.0
         social_pressure = 0.55 if _SOCIAL_RE.search(text) else 0.0
-        urgency = 0.72 if any(token in lowered for token in ("now", "urgent", "immediately", "top priority", "fix")) else 0.30
+        urgency = 0.72 if _URGENCY_WORDS_RE.search(lowered) else 0.30
         memory_features = _unified_memory_pressure_features()
         affect_features = _affective_driver_features()
 
@@ -1017,7 +1023,7 @@ class SpikingActiveInferenceAdvisor:
         error_pressure = max(error_pressure, _clamp(anomaly), _clamp(free_energy))
         novelty = _clamp(
             research_pressure
-            + (0.28 if any(word in lowered for word in ("new", "novel", "unknown", "idea", "explore")) else 0.0)
+            + (0.28 if _NOVELTY_WORDS_RE.search(lowered) else 0.0)
             + 0.24 * affect_curiosity
             + 0.20 * uncertainty
         )

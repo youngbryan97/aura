@@ -77,6 +77,22 @@ def _body_loads(fn: ast.AST) -> set[str]:
     return out
 
 
+def _import_line(text: str, stmt: ast.stmt, name: str) -> str:
+    """One import for ``name``: the statement as written for ``import x``,
+    just this name for ``from m import a, b, c`` (a parent's import-back
+    of a sibling carries every name and a comment that is not this file's)."""
+    if isinstance(stmt, ast.ImportFrom):
+        for alias in stmt.names:
+            bound = (alias.asname or alias.name).split(".")[0]
+            if bound == name:
+                dots = "." * (stmt.level or 0)
+                target = f"{dots}{stmt.module or ''}"
+                spelled = alias.name if alias.asname is None else f"{alias.name} as {alias.asname}"
+                return f"from {target} import {spelled}"
+        return ""
+    return ast.get_source_segment(text, stmt) or ""
+
+
 def lift(path: Path, into: str, doc: str, names: list[str]) -> tuple[int, int]:
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines(keepends=True)
@@ -121,17 +137,17 @@ def lift(path: Path, into: str, doc: str, names: list[str]) -> tuple[int, int]:
             call_time: list[str] = []
             for name in sorted(free):
                 if name in import_of:
-                    stmt = import_of[name]
-                    rendered = ast.get_source_segment(text, stmt) or ""
+                    rendered = _import_line(text, import_of[name], name)
                     if rendered and rendered not in seen_import_lines:
                         seen_import_lines.add(rendered)
                         header_imports.append(rendered)
                 elif name in top:
                     call_time.append(name)
-            for name in sorted(ann - free):
+            for name in sorted(ann):
+                if name in free and name not in top:
+                    continue  # a library name the body imports at the top
                 if name in import_of:
-                    stmt = import_of[name]
-                    rendered = ast.get_source_segment(text, stmt) or ""
+                    rendered = _import_line(text, import_of[name], name)
                     if rendered and rendered not in seen_import_lines:
                         seen_import_lines.add(rendered)
                         header_imports.append(rendered)
@@ -158,8 +174,7 @@ def lift(path: Path, into: str, doc: str, names: list[str]) -> tuple[int, int]:
         else:
             for name in sorted(_loads(node) - _BUILTINS - moved):
                 if name in import_of:
-                    stmt = import_of[name]
-                    rendered = ast.get_source_segment(text, stmt) or ""
+                    rendered = _import_line(text, import_of[name], name)
                     if rendered and rendered not in seen_import_lines:
                         seen_import_lines.add(rendered)
                         header_imports.append(rendered)

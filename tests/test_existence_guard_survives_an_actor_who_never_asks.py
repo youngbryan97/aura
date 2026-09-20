@@ -329,7 +329,9 @@ def test_both_desktop_boot_paths_record_the_witness():
     source = (Path(__file__).resolve().parents[1] / "aura_main.py").read_text("utf-8")
 
     definitions = source.count("def _record_existence_witness(")
-    calls = source.count("_record_existence_witness()") - definitions
+    # handed to the blocking lane rather than called on the loop: the tree
+    # hash and the ark's fsyncs are its, and the loop report named both
+    calls = source.count('behind_the_loop("aura_main.existence_witness", _record_existence_witness)')
 
     assert definitions == 1
     assert calls >= 2, (

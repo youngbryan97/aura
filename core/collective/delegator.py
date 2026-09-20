@@ -636,8 +636,17 @@ class AgentDelegator(AuraBaseModule):
     ) -> str:
         """Synthesize swarm outputs into a single conclusion."""
         deterministic = self._deterministic_consensus(original_topic, agent_outputs)
-        engine = getattr(self.orchestrator, "cognitive_engine", None)
-        if not engine:
+        # The router, not the cognitive engine: a synthesis prompt is one
+        # request for words, and through the engine it became a cognitive
+        # turn with "You are the Master Synthesizer…" as its objective —
+        # memory retrieval searched for that phrase (5.2s, over budget) and
+        # the kernel answered it as conversation until the loop detector
+        # fired, four times in an hour (LIVE 2026-09-19). Same seam the
+        # shards use.
+        from core.container import ServiceContainer
+
+        router = ServiceContainer.get("llm_router", default=None)
+        if router is None or not hasattr(router, "think"):
             return deterministic
 
         combined_outputs = "\n\n---\n\n".join(agent_outputs)
@@ -653,16 +662,20 @@ SWARM ANALYSES:
 FINAL SYNTHESIS:"""
 
         try:
-            from core.brain.cognitive_engine import ThinkingMode
-
-            result = await asyncio.wait_for(
-                engine.think(prompt, mode=ThinkingMode.DEEP, block_user=True, **kwargs),
-                timeout=60.0,
-            )
+            request = {
+                "prefer_tier": "local",
+                "purpose": "swarm_synthesis",
+                "origin": "swarm:synthesis",
+                "allow_cloud_fallback": False,
+                "is_background": True,
+            }
+            request.update({k: v for k, v in kwargs.items() if k not in ("block_user", "mode")})
+            request["prompt"] = prompt
+            result = await asyncio.wait_for(router.think(**request), timeout=60.0)
             content = result.content if hasattr(result, "content") else str(result)
             return str(content or "").strip() or deterministic
         except TimeoutError:
-            self.logger.error("Synthesis failed: cognitive engine timed out (>60s).")
+            self.logger.error("Synthesis failed: the router timed out (>60s).")
             return deterministic
         except DELEGATOR_RECOVERABLE_ERRORS as exc:
             self._emit_delegator_fault(

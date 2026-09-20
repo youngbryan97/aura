@@ -1100,3 +1100,35 @@ async def test_finetune_pipe_flush_writes_inside_a_governed_scope(tmp_path, monk
     assert observed.get("governed") is True, (
         "the dataset append must run inside local_internal_governed_scope"
     )
+
+
+def test_a_direct_child_too_young_to_read_is_not_yet_rogue(resource_observer, monkeypatch):
+    """LIVE 2026-09-19: the phi pool's spawn workers read as "Python" with
+    no arguments in their first moments and were reported as unregistered
+    children — a DEGRADED card a minute. One cycle of grace; after it, a
+    child with no readable command line is what it looks like."""
+    import time as _time
+
+    from core.runtime.resource_observation import ProcessObservation
+
+    def child(pid, age_s):
+        return ProcessObservation(
+            provenance=resource_observer.provenance,
+            pid=pid,
+            ppid=os.getpid(),
+            create_time=_time.time() - age_s,
+            status="running",
+            name="Python",
+            cmdline=(),
+            rss_bytes=1024,
+            ancestor_pids=(),
+        )
+
+    resource_observer.configure_processes([child(62010, 0.5), child(62011, 60.0)])
+    hygiene = RuntimeHygieneManager()
+
+    summary = hygiene._process_summary()
+
+    assert summary["young_child_processes"] == 1
+    assert summary["rogue_child_processes"] == 1
+    assert summary["rogue_samples"][0]["pid"] == 62011

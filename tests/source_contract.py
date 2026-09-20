@@ -34,6 +34,7 @@ from types import ModuleType
 __all__ = [
     "class_with_its_bases",
     "module_and_the_mixins_it_builds_with",
+    "family_text",
     "module_family_sources",
     "declared_in",
     "function_containing",
@@ -74,6 +75,16 @@ def module_family_sources(module: ModuleType) -> list[tuple[str, str]]:
         except OSError:  # pragma: no cover - a file that vanished mid-read
             continue
     return family
+
+
+def family_text(module: ModuleType) -> str:
+    """The module and every module lifted out of it, as one text.
+
+    For a test that pins a line's PRESENCE somewhere in what a module does,
+    rather than an order inside one function.
+    """
+
+    return "\n".join(text for _name, text in module_family_sources(module))
 
 
 def function_containing(module: ModuleType, needle: str) -> tuple[str, str]:

@@ -100,11 +100,12 @@ def test_a_stated_fact_beats_parsing_a_name() -> None:
 def test_the_tool_loop_states_it() -> None:
     """The wiring, which is what was missing."""
 
-    from pathlib import Path
+    from source_contract import function_containing
 
-    source = Path("core/brain/inference_gate.py").read_text()
-    start = source.index('"required_skills": list(required),')
-    block = source[start : start + 1800]
+    from core.brain import inference_gate
+
+    # wherever the tool loop's job is built now
+    _name, block = function_containing(inference_gate, '"required_skills": list(required),')
     assert '"origin": origin or "user"' in block, block[:400]
     assert '"message": text,' in block, block[:400]
     assert '"a_person_is_waiting": True,' in block, block[:400]
