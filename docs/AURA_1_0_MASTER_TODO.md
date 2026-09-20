@@ -950,6 +950,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Scaled subspace trial](evidence/G03_SCALED_SUBSPACE_TRIAL_2026-09-19.md)
+  repairs 13/16 to 16/16 training programs but leaves development validation
+  at 91/100: four gains and four regressions. All retained inequalities pass;
+  the candidate is not promoted. Component attribution follows.
+  [Parameter-subspace repair](evidence/G03_PARAMETER_SUBSPACE_2026-09-19.md)
+  fixes the selected training error (7/8 to 8/8) while preserving all 60
+  validation outcomes (52/60 correct), with the operation classifier fixed.
+  This source-only development diagnostic does not close G03.
+  [Symbolic abstraction](G_SYMBOLIC_ABSTRACTION_DESIGN.md) extends the existing
+  floor verifier to unknown typed computations while retaining partial
+  domains. It adds no new serving authority or benchmark success claim.
   [Operation boundary learning](evidence/G03_OPERATION_BOUNDARY_LEARNING_2026-09-18.md)
   connects the runtime pointer to the retained graph objective. The latest
   boundary/binding subset passes 56 focused tests. A targeted development trial
@@ -1159,6 +1170,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   51/60. The candidate is not promoted; component attribution continues.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
+  [Bound source inventory](evidence/G04_BOUND_SOURCE_INVENTORY_2026-09-19.md)
+  reconstructs 1,764 archived examples and 656 schemas across eight families
+  from the exact manifests. Twenty-seven tests pass. Default family settings
+  no longer qualify a structural preflight; fresh transfer remains unmeasured.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
   [Public-channel diagnostic](evidence/G06_PUBLIC_CHANNEL_DIAGNOSTIC_2026-09-14.md)
   found 18 token-capped and 42 stopped/unparsed ordinary CP1003 outputs.

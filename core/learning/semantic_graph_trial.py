@@ -87,7 +87,7 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
                              training_pool_count=None, steps=20, max_charts=32, progress=None,
                              objective="squared_deficit", operation_retention_count=None,
                              learn_operation_pointer=False, update_rule="working_face",
-                             boundary_policy="supervised"):
+                             boundary_policy="supervised", learn_operations=True):
     """Fit only selected source rows and independently replay both small cohorts.
 
     This returns no deployable candidate. Validation rows never enter mining
@@ -163,7 +163,8 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
             progress({"stage": "trial_mining", "completed": len(records), "pairs": len(constraints), "row": record})
     candidate, fit = fit_complete_graph_constraints(model, tuple(constraints),
         scale=model.definition_relation_scale, steps=steps, adaptive_step=True, progress=progress,
-        objective=objective, learn_operation_pointer=learn_operation_pointer, update_rule=update_rule)
+        objective=objective, learn_operation_pointer=learn_operation_pointer, update_rule=update_rule,
+        learn_operations=learn_operations)
     after = []
     for item in (*training, *validation):
         after.append(_observe(candidate, item))

@@ -95,6 +95,20 @@ def test_active_equalities_are_polished_before_accepting_a_numerical_certificate
     assert np.min(a @ result.displacement - b) >= -1e-10
 
 
+@pytest.mark.parametrize("target,initial,expected", [
+    ([1., -1.], [.001, .00000001], [1., 0.]),
+    ([1., 1.], [1., 0.], [2. / 3., 2. / 3.]),
+])
+def test_active_support_can_remove_spurious_faces_and_add_missing_ones(target, initial, expected):
+    from core.learning.margin_repair import _polish_nonnegative_dual
+
+    gram = np.array([[1., .5], [.5, 1.]])
+    lam, pivots = _polish_nonnegative_dual(gram, np.array(target), np.array(initial), max_iterations=20)
+    np.testing.assert_allclose(lam, expected, atol=1e-12)
+    assert pivots > 1
+    assert np.min(gram @ lam - target) >= -1e-12
+
+
 def test_exactly_representable_equalities_need_no_artificial_interior():
     result = minimum_stored_margin_repair([[1., 0.], [-1., 0.], [0., 1.]],
                                          [0., 0., .5], [1., 0.])
