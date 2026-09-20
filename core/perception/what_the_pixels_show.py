@@ -951,12 +951,14 @@ def settled_reading(
     reading = looker.read(picture)
     said, looks = what_a_reading_says(reading), looker.last_looks
     unread = _places_unread(reading)
+    pictures = 1
     still = not wait
     while not still and time.monotonic() - began < within_s:
         again = take()
         if again is None:
             break
         picture = again
+        pictures += 1
         reading_again = looker.read(picture)
         said_again, looks_again = what_a_reading_says(reading_again), looker.last_looks
         unread = _places_unread(reading_again)
@@ -968,6 +970,11 @@ def settled_reading(
             waiting_on=tuple(spot for spot in unread if spot not in looker.would_not_read),
         )
         reading, said, looks = reading_again, said_again, looks_again
+    # How many pictures it took to agree with the one before: two is a world
+    # already at rest, more is one still moving. The caller's wait is set
+    # from this rather than from the clock.
+    if isinstance(reading, dict):
+        reading["_pictures"] = pictures
     if not still and wait:
         # This look spent its whole window on them; the next one does not.
         looker.would_not_read |= set(unread)
@@ -1214,6 +1221,7 @@ async def look_at_window(
         still = bool(elsewhere.pop("_settled", True))
         reading = elsewhere
         looked_took = float(reading.pop("_looked_took", 0.0) or 0.0)
+        pictures = int(reading.pop("_pictures", 0) or 0)
     else:
         async def take() -> Any:
             return _crop(await _the_pixels_of(window), over)
@@ -1229,12 +1237,14 @@ async def look_at_window(
         reading = await asyncio.to_thread(looker.read, picture)
         said, looks = what_a_reading_says(reading), looker.last_looks
         unread = _places_unread(reading)
+        pictures = 1
         still = not wait_for_stillness
         while not still and time.monotonic() - began < still_within_s:
             again = await take()
             if again is None:
                 break
             picture = again
+            pictures += 1
             reading_again = await asyncio.to_thread(looker.read, picture)
             said_again, looks_again = what_a_reading_says(reading_again), looker.last_looks
             unread = _places_unread(reading_again)
@@ -1280,6 +1290,11 @@ async def look_at_window(
             "owner": window.owner,
             "pid": window.pid,
             "seconds_to_still": round(looked_took, 3),
+            # How many pictures it took to agree with the one before it. Two
+            # is a world that was already at rest when she looked; more is a
+            # world still moving. The clock cannot tell those apart, because
+            # a look's cost varies for its own reasons.
+            "pictures_to_still": pictures,
             "seconds_reading": round(time.monotonic() - began - looked_took, 3),
         }
     )

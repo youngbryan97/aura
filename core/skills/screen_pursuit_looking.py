@@ -849,13 +849,28 @@ def _before_looking_again() -> float:
 
 
 def _it_was_ready(waited: float, first_look: bool, reading: dict[str, Any]) -> None:
-    """What one answer says about the wait: halve it, or add what it was short by."""
+    """What one answer says about the wait: halve it, or add what it was short by.
+
+    Whether the world was still moving is counted, not timed. It was timed:
+    a look longer than the shortest look ever taken counted as the world
+    still moving, and once a look's own cost began to vary — recognition
+    getting a tile on the second picture rather than the first — every look
+    read as late and the wait grew by that difference every move. LIVE
+    2026-09-20: eleven seconds a move by the end of a game that answers in
+    a fifth of one.
+
+    Two pictures is a world that was already at rest when she looked. More
+    than two is a world that was still moving, and the time past the first
+    comparison is what the wait was short by.
+    """
     took = float(reading.get("seconds_to_still") or 0.0)
     if took > 0.0:
         _STILL_FLOOR["seconds"] = min(_STILL_FLOOR["seconds"], took)
     floor = _STILL_FLOOR["seconds"] if math.isfinite(_STILL_FLOOR["seconds"]) else took
-    short_by = max(0.0, took - floor)
-    if first_look and short_by <= 0.0:
+    pictures = int(reading.get("pictures_to_still") or 0)
+    was_moving = pictures > 2 if pictures else took > floor
+    short_by = max(0.0, took - floor) if was_moving else 0.0
+    if first_look and not was_moving:
         _WAIT["seconds"] = waited / 2.0
     else:
         _WAIT["seconds"] = waited + short_by
