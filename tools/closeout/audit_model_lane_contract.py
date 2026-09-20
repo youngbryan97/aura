@@ -146,15 +146,49 @@ def _referenced_symbols(node: ast.AST) -> set[str]:
     return symbols
 
 
-def _qualified_functions(tree: ast.Module) -> dict[str, ast.AST]:
+def _inherited_methods(node: ast.ClassDef, home: Path) -> dict[str, ast.AST]:
+    """A class's methods that live in a mixin module beside its own file.
+
+    `MLXLocalClient._ensure_worker_alive` is what this audit means, and it was
+    read as "a def of that name in mlx_client.py". When the worker lifecycle
+    was lifted into `mlx_client_worker_lifecycle.py` the method did not move
+    away from the class — the class inherits it — but the audit reported the
+    lane contract as missing. A contract on a class is a contract on what the
+    class DOES, so the bases count, and a lift names its module after the one
+    it came from.
+    """
+    bases = {base.id for base in node.bases if isinstance(base, ast.Name)}
+    if not bases or home.suffix != ".py":
+        return {}
+    found: dict[str, ast.AST] = {}
+    for sibling in sorted(home.parent.glob(f"{home.stem}_*.py")):
+        try:
+            tree = ast.parse(sibling.read_text(encoding="utf-8"), filename=str(sibling))
+        except (OSError, SyntaxError, UnicodeError):  # pragma: no cover - unreadable sibling
+            continue
+        for item in tree.body:
+            if not isinstance(item, ast.ClassDef) or item.name not in bases:
+                continue
+            for child in item.body:
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    found.setdefault(child.name, child)
+    return found
+
+
+def _qualified_functions(tree: ast.Module, home: Path | None = None) -> dict[str, ast.AST]:
     functions: dict[str, ast.AST] = {}
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             functions[node.name] = node
         elif isinstance(node, ast.ClassDef):
-            for child in node.body:
-                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    functions[f"{node.name}.{child.name}"] = child
+            own = {
+                child.name: child
+                for child in node.body
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+            }
+            inherited = _inherited_methods(node, home) if home is not None else {}
+            for name, child in {**inherited, **own}.items():
+                functions[f"{node.name}.{name}"] = child
     return functions
 
 
@@ -204,7 +238,7 @@ def audit(
         except (OSError, SyntaxError, UnicodeError) as exc:
             issues.append(f"cannot parse {relative}: {type(exc).__name__}: {exc}")
             continue
-        functions = _qualified_functions(tree)
+        functions = _qualified_functions(tree, path)
         parsed[relative] = functions
         for qualified_name, required_calls in contracts.items():
             function = functions.get(qualified_name)
