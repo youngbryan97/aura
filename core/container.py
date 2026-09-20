@@ -1,13 +1,12 @@
 import asyncio
 import contextvars
 import functools
-import hashlib
-import hmac
+import hashlib  # noqa: F401  (read at call time by the lifted module)
+import hmac  # noqa: F401  (read at call time by the lifted module)
 import importlib
 import inspect
 import json
 import logging
-import os
 import sys
 import threading
 import time
@@ -23,14 +22,24 @@ from core.exceptions import (
     LifecycleError,
     ServiceNotFoundError,
 )
-from core.governance_context import local_internal_governed_scope
+from core.governance_context import (
+    local_internal_governed_scope,  # noqa: F401  (read at call time by the lifted module)
+)
 from core.health.degraded_events import record_degraded_event
 from core.runtime.atomic_writer import atomic_write_text
-from core.runtime.errors import record_degradation
-from core.runtime.file_write_gateway import get_file_write_gateway
+from core.runtime.errors import (
+    record_degradation,  # noqa: F401  (read at call time by the lifted module)
+)
+from core.runtime.file_write_gateway import (
+    get_file_write_gateway,  # noqa: F401  (read at call time by the lifted module)
+)
 from core.runtime.shutdown_execution import run_sync_shutdown_callable
-from core.runtime.state_ownership import state_root
+from core.runtime.state_ownership import (
+    state_root,  # noqa: F401  (read at call time by the lifted module)
+)
 from core.utils.concurrency import RobustLock
+
+from .container_seal import _SealsItsKeys
 
 logger = logging.getLogger("Aura.Container")
 
@@ -275,7 +284,7 @@ def _offer_to_the_shed_order(name: str, instance: Any) -> None:
         logger.debug("shed-order offer skipped for %r", name, exc_info=True)
 
 
-class ServiceContainer:
+class ServiceContainer(_SealsItsKeys):
     """Aura 3.0 Static ServiceContainer.
     
     Zenith Protocol: 
@@ -1458,17 +1467,6 @@ class ServiceContainer:
         return report
 
     @classmethod
-    def _seal_path(cls) -> Path:
-        try:
-            from core.config import config
-
-            return Path(config.paths.data_dir) / "sovereignty_seal.json"
-        except (ImportError, AttributeError, RuntimeError, OSError) as exc:
-            record_degradation("container", exc)
-            logger.debug("Falling back to default sovereignty seal path after config lookup failed: %s", exc)
-            return Path(state_root()) / "data" / "sovereignty_seal.json"
-
-    @classmethod
     def _manifest_snapshot(cls) -> dict[str, str]:
         with cls._lock:
             descriptors = dict(cls._services)
@@ -1480,44 +1478,6 @@ class ServiceContainer:
             else:
                 manifest[name] = getattr(desc.factory, "__qualname__", repr(desc.factory))
         return manifest
-
-    @classmethod
-    def _seal_key(cls) -> bytes | None:
-        """Local HMAC key for the sovereignty seal, created on first use.
-
-        None when unavailable, which the verifier treats as unsigned rather
-        than valid.
-        """
-        path = cls._seal_path().with_name(".sovereignty_seal.key")
-        try:
-            if path.exists():
-                key: bytes | None = path.read_bytes()
-                return key if key is not None and len(key) == 32 else None
-            candidate = os.urandom(32)
-            with local_internal_governed_scope(
-                "service_container.sovereignty_seal_key",
-                domain="file_write",
-            ):
-                # Annotated above because the gateway is not followed by the
-                # ratchet's mypy, so its return reads as Any here.
-                key = get_file_write_gateway().provision_private_bytes(
-                    path,
-                    candidate,
-                    expected_size=32,
-                    mode=0o600,
-                    source="service_container.sovereignty_seal_key",
-                )
-            return key
-        except (OSError, ValueError):
-            return None
-
-    @classmethod
-    def _seal_signature(cls, digest: str, service_count: int) -> str:
-        key = cls._seal_key()
-        if key is None:
-            return ""
-        body = f"{digest}:{service_count}".encode()
-        return hmac.new(key, body, hashlib.sha256).hexdigest()
 
     @classmethod
     def write_sovereignty_seal(cls) -> dict[str, Any]:

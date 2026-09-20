@@ -77,6 +77,40 @@ def verify_margin_repair(normals, required, displacement, multipliers, *, tolera
     }
 
 
+def _polish_nonnegative_dual(gram, target, initial, *, max_iterations):
+    """Refine a proposed active set, adding and removing complementary faces.
+
+    An optimizer's positive support can contain inactive inequalities. Solving
+    that support once can produce negative multipliers; pivot those out before
+    checking missing faces. The independent verifier remains authoritative.
+    """
+    lam = np.maximum(initial, 0.).copy()
+    active = set(np.flatnonzero(lam > 0.))
+    for iteration in range(max_iterations):
+        if active:
+            indices = sorted(active)
+            values = np.linalg.lstsq(gram[np.ix_(indices, indices)], target[indices], rcond=None)[0]
+            if not np.all(np.isfinite(values)):
+                break
+            proposal = np.zeros_like(lam)
+            proposal[indices] = values
+            negative = [index for index in indices if proposal[index] < 0.]
+            if negative:
+                leaving = min(negative, key=lambda i: lam[i] / (lam[i] - proposal[i]))
+                fraction = lam[leaving] / (lam[leaving] - proposal[leaving])
+                lam = np.maximum(lam + fraction * (proposal - lam), 0.)
+                lam[leaving] = 0.
+                active.remove(leaving)
+                continue
+            lam = proposal
+        gradient = target - gram @ lam
+        missing = [index for index in range(len(lam)) if index not in active and gradient[index] > 0.]
+        if not missing:
+            return lam, iteration + 1
+        active.add(max(missing, key=lambda i: gradient[i]))
+    return lam, iteration + 1
+
+
 def minimum_margin_repair(normals, required, *, max_iterations=1000, tolerance=1e-8):
     """Solve the nonnegative dual; return unresolved when replay does not verify."""
     a, b = np.asarray(normals, dtype=np.float64), np.asarray(required, dtype=np.float64)
@@ -103,8 +137,95 @@ def minimum_margin_repair(normals, required, *, max_iterations=1000, tolerance=1
     if not np.all(np.isfinite(displacement)) or not np.all(np.isfinite(lam)):
         displacement, lam = np.zeros(a.shape[1]), np.zeros(len(a))
     receipt = verify_margin_repair(a, b, displacement, lam, tolerance=tolerance)
-    receipt.update(solver_status=int(result.status), solver_iterations=int(result.nit))
+    polished = False
+    candidate, pivots = _polish_nonnegative_dual(gram, target, result.x, max_iterations=max_iterations)
+    candidate /= scales
+    candidate_displacement = a.T @ candidate
+    if np.all(np.isfinite(candidate_displacement)) and np.all(np.isfinite(candidate)):
+        checked = verify_margin_repair(a, b, candidate_displacement, candidate, tolerance=tolerance)
+        if checked["status"] == "verified_numerically":
+            displacement, lam, receipt, polished = candidate_displacement, candidate, checked, True
+    receipt.update(solver_status=int(result.status), solver_iterations=int(result.nit),
+                   active_equalities_polished=polished, active_set_pivots=pivots)
+    if receipt["status"] != "verified_numerically":
+        from core.learning.affine_margin_polish import polish_feature_dual
+
+        # A dual optimizer can put weight on dependent rows whose targets no
+        # longer share an equality after storage reserves. Rebuild the active
+        # set from the feasible zero dual instead of inheriting that support.
+        point, dual, feature_pivots = polish_feature_dual(
+            normalized, target, np.zeros(len(a)), max_iterations=max_iterations)
+        dual /= scales
+        checked = verify_margin_repair(a, b, point, dual, tolerance=tolerance)
+        if checked["status"] == "verified_numerically":
+            displacement, lam = point, dual
+            receipt = {**checked, "solver_status": int(result.status),
+                "solver_iterations": int(result.nit), "active_equalities_polished": True,
+                "active_set_pivots": feature_pivots,
+                "equality_solver": "orthogonal_feature_svd_v1"}
     return MarginRepair(displacement, lam, receipt)
+
+
+def minimum_stored_margin_repair(normals, required, anchor, *, max_rounding_rounds=8,
+                                 max_iterations=1000, tolerance=1e-7, store_point=None):
+    """Repair affine margins in the precision that the model actually stores.
+
+    For rounding error e, a_i*(d+e) >= a_i*d - |a_i|*|e|. Add
+    a reserve only to violated rows, solve again, and check stored values
+    against the original requirements. Tight equalities can still succeed
+    without an artificial interior. Exhaustion does not prove infeasibility.
+
+    A coordinate chart may supply its physical-storage roundtrip as store_point.
+    Its observed rounding error guides the next reserve, but only a fresh replay
+    of every original inequality establishes stored feasibility.
+    """
+    a, b, origin = (np.asarray(value, dtype=np.float64)
+                    for value in (normals, required, anchor))
+    if (a.ndim != 2 or origin.shape != (a.shape[1],)
+            or not np.all(np.isfinite(origin))
+            or type(max_rounding_rounds) is not int or max_rounding_rounds < 1):
+        raise ValueError("invalid stored margin repair geometry")
+    reserves = np.zeros_like(b)
+    stored = np.zeros_like(origin)
+    minimum_slack = None
+    feasible = False
+    for _iteration in range(max_rounding_rounds):
+        proposal = minimum_margin_repair(a, b + reserves,
+            max_iterations=max_iterations, tolerance=tolerance)
+        if proposal.receipt["status"] != "verified_numerically":
+            break
+        point = origin + proposal.displacement
+        with np.errstate(over="ignore"):
+            rounded = (point.astype(np.float32).astype(np.float64) if store_point is None
+                       else np.asarray(store_point(point.copy()), dtype=np.float64))
+        if rounded.shape != point.shape or not np.all(np.isfinite(rounded)):
+            break
+        stored = rounded - origin
+        slack = a @ stored - b
+        minimum_slack = float(slack.min())
+        violated = slack < 0.
+        if not np.any(violated):
+            feasible = True
+            break
+        # Nearest float32 rounding has relative error <= 2^-24, plus
+        # half a subnormal quantum. The original constraints stay unchanged.
+        error_bound = np.abs(a[violated]) @ (
+            np.finfo(np.float32).eps * .5 * np.abs(point) + 2. ** -150
+            if store_point is None else np.abs(rounded - point))
+        reserves[violated] += np.maximum(2. * tolerance, 2. * error_bound)
+    receipt = {
+        "schema": "aura.stored_affine_margin_repair.v1",
+        "status": "stored_feasible" if feasible else "stored_unresolved",
+        "stored_primal_feasible": feasible, "stored_minimum_slack": minimum_slack,
+        "storage_dtype": "float32" if store_point is None else "caller_defined",
+        "rounding_rounds": _iteration,
+        "maximum_margin_reserve": float(reserves.max()),
+        "continuous_projection": proposal.receipt,
+        "stored_displacement_norm": float(np.linalg.norm(stored)),
+        "global_minimum_change_proven": False, "infeasibility_proven": False,
+        "scope": "supplied_affine_comparisons", "serving_authority": False,
+    }
+    return MarginRepair(stored, proposal.multipliers, receipt)
 
 
 def margin_neighborhood_bound(parameters, feature_difference, *, radius, offset=0.):

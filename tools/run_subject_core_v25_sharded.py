@@ -37,6 +37,23 @@ REPO = Path(__file__).resolve().parents[1]
 SHARED = ("rounds", "anchors", "history_turns", "turns", "cut_rounds", "seed", "domains", "conditions")
 
 
+def _cores_this_run_has() -> int:
+    """How many cores this RUN has, which is not always what the host has.
+
+    `os.cpu_count()` reads the machine. A campaign declares its host so a
+    run can be reproduced on another one, and a shard count taken from the
+    real core count ignores that declaration — the same shape as the guards
+    that were reading live host load instead of the observer.
+    """
+    try:
+        from core.runtime.resource_observation import get_resource_observer
+
+        count = int(get_resource_observer().compute().cpu_count)
+    except (ImportError, AttributeError, OSError, TypeError, ValueError):
+        return 1
+    return max(1, count)
+
+
 def thread_budget(processes: int, cores: int | None = None) -> dict[str, str]:
     """The numeric-library thread caps for each process, so the processes share the cores.
 
@@ -46,7 +63,7 @@ def thread_budget(processes: int, cores: int | None = None) -> dict[str, str]:
     between threads rather than computing. Each process gets its share of the
     cores, and never less than one thread.
     """
-    share = max(1, (cores or os.cpu_count() or 1) // max(1, processes))
+    share = max(1, (cores or _cores_this_run_has()) // max(1, processes))
     value = str(share)
     return {
         "OMP_NUM_THREADS": value,
@@ -90,7 +107,7 @@ def commands(args: argparse.Namespace, base: Path) -> list[tuple[str, list[str]]
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 2),
+    parser.add_argument("--workers", type=int, default=max(1, _cores_this_run_has() - 2),
                         help="shard workers; one core each, less one for the coordinator and one for the host")
     parser.add_argument("--rounds", type=int, default=24)
     parser.add_argument("--anchors", type=int, default=16)

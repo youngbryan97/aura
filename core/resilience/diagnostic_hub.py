@@ -64,15 +64,21 @@ class DiagnosticHub:
         return results
 
     async def _run_ruff(self, target: Path) -> Dict[str, Any]:
-        """Run Ruff linter and return issues."""
+        """Run Ruff linter and return issues.
+
+        A read-only probe of one file, bounded by the work ruff does. It used
+        to ask for the offline-tooling bypass, which the gateway refuses while
+        live governance is active — so every repair the runtime attempted
+        (LIVE 2026-09-16, seventeen in an hour) failed at its own linter.
+        """
         try:
-            cmd = ["ruff", "check", str(target), "--format", "json"]
+            cmd = ["ruff", "check", str(target), "--output-format", "json"]
             result = await asyncio.to_thread(
-                get_subprocess_gateway().run,
+                get_subprocess_gateway().run_until_its_work_is_done,
                 cmd,
-                capture_output=True,
-                source="maintenance_tooling:diagnostic_hub",
-                offline_tooling=True,
+                cpu_budget_s=30.0,
+                read_only=True,
+                source="diagnostic_hub.ruff",
                 accelerator_capability="none",
             )
             if result.stdout:
@@ -83,22 +89,22 @@ class DiagnosticHub:
             return {"ok": False, "error": str(e)}
 
     async def _run_pyright(self, target: Path) -> Dict[str, Any]:
-        """Run Pyright type checker and return issues."""
+        """Run Pyright type checker and return issues; a read-only probe, as above."""
         try:
             cmd = ["pyright", str(target), "--outputjson"]
             result = await asyncio.to_thread(
-                get_subprocess_gateway().run,
+                get_subprocess_gateway().run_until_its_work_is_done,
                 cmd,
-                capture_output=True,
-                source="maintenance_tooling:diagnostic_hub",
-                offline_tooling=True,
+                cpu_budget_s=120.0,
+                read_only=True,
+                source="diagnostic_hub.pyright",
                 accelerator_capability="none",
             )
             if result.stdout:
                 data = json.loads(result.stdout)
                 return {"ok": False, "issues": data.get("generalDiagnostics", [])}
             return {"ok": True, "issues": []}
-        except (OSError, ConnectionError, TimeoutError) as e:
+        except (subprocess.SubprocessError, OSError, ValueError) as e:
             record_degradation('diagnostic_hub', e)
             return {"ok": False, "error": str(e)}
 

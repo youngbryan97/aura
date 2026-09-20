@@ -8,7 +8,6 @@ draft; nothing supplied the evidence a truthful draft needed.
 """
 from __future__ import annotations
 
-import inspect
 import json
 import time
 
@@ -126,9 +125,11 @@ class TestEvidenceBlock:
 
 class TestEngineWiring:
     def test_grounding_block_is_wired_into_think(self):
+        from source_contract import family_text
+
         from core.brain import cognitive_engine
 
-        src = inspect.getsource(cognitive_engine)
+        src = family_text(cognitive_engine)  # the engine and the modules lifted out of it
         assert "SELF-FORENSICS EVIDENCE" in src
         assert "is_self_forensics_question" in src
 
@@ -152,11 +153,12 @@ class TestCapabilityMap:
             assert token in block
 
     def test_engine_wiring(self):
-        import inspect
+
+        from source_contract import family_text
 
         from core.brain import cognitive_engine
 
-        assert "CAPABILITY MAP" in inspect.getsource(cognitive_engine)
+        assert "CAPABILITY MAP" in family_text(cognitive_engine)
 
 
 class TestUngroundedSelfCauseGate:

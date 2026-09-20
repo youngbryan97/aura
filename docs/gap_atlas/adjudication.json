@@ -406,7 +406,7 @@
         "core/governance/"
       ],
       "note": "",
-      "plan": "preference_semantics.py exists; check its coverage. Separate cognitive Preference from Will/governance AUTHORITY \u2014 conflating them is why a veto currently looks like a tie.",
+      "plan": "preference_semantics.py exists; check its coverage. Separate cognitive Preference from Will/governance AUTHORITY — conflating them is why a veto currently looks like a tie.",
       "status": "closed",
       "verdict": "PARTIAL",
       "wave": "W4",
@@ -1874,7 +1874,7 @@
         "core/skills/"
       ],
       "note": "",
-      "plan": "Procedures as graph-addressable atoms with source, evidence and utility links \u2014 follows W5 plus W1.",
+      "plan": "Procedures as graph-addressable atoms with source, evidence and utility links — follows W5 plus W1.",
       "status": "closed",
       "verdict": "PARTIAL",
       "wave": "W10",
@@ -2098,7 +2098,7 @@
         "core/persistence/"
       ],
       "note": "Distribution is a rival's goal, not Aura's; sovereignty is the constraint that defines her.",
-      "plan": "Aura is local-first by design and that is a stated value, not a deficit. The transferable half is bounded read-only compute workers with signed snapshots \u2014 build only if 098's scaling curve shows a real wall.",
+      "plan": "Aura is local-first by design and that is a stated value, not a deficit. The transferable half is bounded read-only compute workers with signed snapshots — build only if 098's scaling curve shows a real wall.",
       "status": "closed",
       "verdict": "OVERSTATED",
       "wave": "W10",
@@ -5914,8 +5914,8 @@
         "tests/test_agent_surface.py"
       ],
       "evidence": [
-        "core/security/approval_required.py",
-        "core/security/action_risk_classifier.py"
+        "core/runtime/authorization_receipt.py",
+        "core/self_modification/mutation_constitution.py"
       ],
       "note": "",
       "plan": "Risk classification exists. Permission fatigue falls when the OS enforces, because more can be allowed by default.",
@@ -6208,7 +6208,7 @@
         "tests/test_agent_surface.py"
       ],
       "evidence": [
-        "core/security/egress_monitor.py",
+        "core/runtime/network_gateway.py",
         "core/security/egress_privacy.py"
       ],
       "note": "",

@@ -84,9 +84,13 @@ def test_a_broken_accessor_never_excuses_the_failure() -> None:
 
 def test_mlx_client_publishes_the_reason_where_the_router_reads_it() -> None:
     """The producing side and the reading side agree on the seam."""
-    from pathlib import Path
+    from source_contract import module_family_sources
 
-    source = Path("core/brain/llm/mlx_client.py").read_text(encoding="utf-8")
+    from core.brain.llm import mlx_client
+
+    # the client and the modules lifted out of it: the cancel moved into
+    # ``mlx_client_waiting`` and the seam is one seam across both files
+    source = "\n".join(text for _name, text in module_family_sources(mlx_client))
     assert "def consume_deliberate_no_text_reason" in source
     # Set at the healthy-worker cancellation, which is the only place we choose
     # to end a generation that the worker could still have completed.
@@ -107,10 +111,15 @@ def test_mlx_client_publishes_the_reason_where_the_router_reads_it() -> None:
 
 def test_router_does_not_trip_the_circuit_on_a_deliberate_cancel() -> None:
     """The no-text branch consults the deferral before scoring damage."""
-    from pathlib import Path
+    from source_contract import function_containing
 
-    source = Path("core/brain/llm_health_router.py").read_text(encoding="utf-8")
-    tail = source[source.index("deliberate = _consume_deliberate_no_text_reason(client)") :]
+    from core.brain import llm_health_router
+
+    # wherever the endpoint call lives now (``llm_health_router_endpoint_call``)
+    _name, body = function_containing(
+        llm_health_router, "deliberate = _consume_deliberate_no_text_reason(client)"
+    )
+    tail = body[body.index("deliberate = _consume_deliberate_no_text_reason(client)") :]
     # The deferral is consulted BEFORE the damage path.
     assert tail.index("if deliberate:") < tail.index("ep.trip_temporarily")
     # …and the block it guards returns without ever reaching the trip.

@@ -81,6 +81,11 @@ def test_the_watchdog_tells_a_starved_loop_from_a_stuck_one(monkeypatch, caplog)
     watchdog = sw.StallWatchdog.__new__(sw.StallWatchdog)
     watchdog._loop_thread_id = 12345
     watchdog._loop_cpu_at_heartbeat = 100.0
+    watchdog._loop_cpu_sampled_at = 1000.0
+    watchdog._loop_cpu_at_last_look = None
+    # each look is ten seconds after the last, on a scripted clock
+    clock = {"wall": 1010.0}
+    monkeypatch.setattr(sw.time, "time", lambda: clock["wall"])
     watchdog._starved_stalls = 0
     watchdog._last_starvation_log_at = 0.0
     watchdog._last_stall_dump_at = 0.0
@@ -103,12 +108,14 @@ def test_the_watchdog_tells_a_starved_loop_from_a_stuck_one(monkeypatch, caplog)
     assert any("starved, not stuck" in r.getMessage() for r in caplog.records)
     assert reported == []
 
-    # Blocked: no CPU at all.
-    monkeypatch.setattr(sw, "thread_cpu_seconds", lambda ident: 100.0)
+    # Blocked: no CPU at all since the last look.
+    clock["wall"] = 1020.0
+    monkeypatch.setattr(sw, "thread_cpu_seconds", lambda ident: 100.8)
     assert watchdog._loop_cpu_share_since_heartbeat(10.0) == 0.0
 
-    # Busy: most of a core.
-    monkeypatch.setattr(sw, "thread_cpu_seconds", lambda ident: 109.0)
+    # Busy: most of a core since the last look.
+    clock["wall"] = 1030.0
+    monkeypatch.setattr(sw, "thread_cpu_seconds", lambda ident: 109.8)
     assert watchdog._loop_cpu_share_since_heartbeat(10.0) == pytest.approx(0.9)
 
     # Unreadable: the wall clock alone, as before.
@@ -207,3 +214,29 @@ async def test_the_hypervisor_opens_no_freeze_for_a_starved_sample(monkeypatch, 
         assert any("starved, not frozen" in r.getMessage() for r in caplog.records)
     finally:
         ServiceContainer.clear()
+
+
+def test_a_stall_that_outlives_one_check_is_measured_per_look(monkeypatch):
+    """LIVE 2026-09-16: one 22s stall read 76%, 165%, 255% then 403% of a
+    core, because the CPU since the heartbeat was divided by the wall since
+    the previous look. A thread cannot have four cores."""
+    from core.resilience import stall_watchdog as sw
+
+    dog = sw.StallWatchdog.__new__(sw.StallWatchdog)
+    dog._loop_thread_id = 1
+    dog._loop_cpu_at_heartbeat = 0.0
+    dog._loop_cpu_sampled_at = 100.0
+    dog._loop_cpu_at_last_look = None
+    clock = {"wall": 105.0, "cpu": 4.0}
+    monkeypatch.setattr(sw.time, "time", lambda: clock["wall"])
+    monkeypatch.setattr(sw, "thread_cpu_seconds", lambda ident: clock["cpu"])
+
+    first = dog._loop_cpu_share_since_heartbeat(5.0)
+    clock["wall"], clock["cpu"] = 110.0, 8.0
+    second = dog._loop_cpu_share_since_heartbeat(5.0)
+    clock["wall"], clock["cpu"] = 115.0, 12.0
+    third = dog._loop_cpu_share_since_heartbeat(5.0)
+
+    assert first is not None and second is not None and third is not None
+    assert abs(first - 0.8) < 1e-6 and abs(second - 0.8) < 1e-6 and abs(third - 0.8) < 1e-6
+    assert max(first, second, third) <= 1.0

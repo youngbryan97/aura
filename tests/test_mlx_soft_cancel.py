@@ -20,6 +20,21 @@ from core.brain.llm.mlx_worker import (
 )
 
 
+def _mlx_client_source() -> str:
+    """mlx_client's own text plus the mixins its class is built from.
+
+    The worker lifecycle — spawn, the readiness handshake, the durable lane
+    lease, reboot — moved into `mlx_client_worker_lifecycle` and
+    `MLXLocalClient` inherits it. Reading the module alone finds neither
+    those methods nor the lines inside them, while the class still has every
+    one.
+    """
+    from core.brain.llm import mlx_client as _module
+    from tests.source_contract import module_and_the_mixins_it_builds_with
+
+    return module_and_the_mixins_it_builds_with(_module, _module.MLXLocalClient)
+
+
 class _Value:
     """Duck-typed stand-in for multiprocessing.Value(lock=False)."""
 
@@ -172,7 +187,7 @@ def test_worker_spawn_args_include_cancel_channel():
     assert "cancel_seq" in params
     # Spawn site passes it positionally after steering_active_flag.
     assert params.index("cancel_seq") == params.index("steering_active_flag") + 1
-    assert "self._cancel_seq," in inspect.getsource(mlx_client_mod)
+    assert "self._cancel_seq," in _mlx_client_source()
 
 
 def test_worker_spawn_carries_only_the_public_capture_launch_challenge():
@@ -235,9 +250,8 @@ def test_soft_cancelled_ok_response_bypasses_empty_telemetry_and_retries():
     telemetry block must be gated on the response NOT being soft-cancelled,
     and the soft-cancel branch must return before the user-facing completion
     mark (single shared _consecutive_empty reset per the runtime contract)."""
-    import inspect
 
-    source = inspect.getsource(mlx_client_mod)
+    source = _mlx_client_source()
     assert "if not text and not cooperative_stop:" in source, (
         "empty-generation telemetry must skip cooperative terminal responses"
     )

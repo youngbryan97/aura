@@ -46,6 +46,26 @@ __all__ = [
 ]
 
 
+def _record_unmeasured_requirement(model_path: Any, required_gb: float) -> None:
+    """Say when a load requirement is a default rather than a measurement."""
+
+    try:
+        from core.runtime.errors import record_degradation
+
+        record_degradation(
+            "mlx_client",
+            RuntimeError(
+                f"model footprint unreadable at {model_path!s}; load headroom "
+                f"requirement is the flat default {required_gb:.1f}GB rather "
+                "than a measurement of this checkpoint"
+            ),
+            action="required the conservative default because the checkpoint could not be measured",
+            severity="warning",
+        )
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Unmeasured load requirement not recorded: %s", exc)
+
+
 def _model_load_min_available_gb(model_path: str) -> float:
     from core.brain.llm.mlx_client import (
         _finite_env_float,
@@ -79,8 +99,23 @@ def _model_load_min_available_gb(model_path: str) -> float:
         default = 24.0 if total_gb >= 60.0 else 22.0
         measured = _measured_model_footprint_gb(model_path)
         if measured is not None:
-            derived = measured * 1.20 + 1.0
-            default = max(16.0, min(default, derived))
+            # The 16GB floor is for a model whose size could not be read. It
+            # was applied here too, where the size IS known, so a checkpoint
+            # measured at 8.0GB was held to twice its footprint — and the
+            # brainstem lane was refused 222 times on one boot for want of
+            # room it did not need.
+            #
+            # The 20% and the spare gigabyte are the margin. Capped by the
+            # flat default so this can only relax toward the real footprint,
+            # and never past a deliberate operator setting.
+            default = min(default, measured * 1.20 + 1.0)
+        else:
+            # A requirement this size, derived from nothing, is worth saying
+            # out loud. LIVE 2026-09-19: "model_load_headroom:15.1GB <
+            # required 24.0GB" refused the spawn a waiting turn needed, and
+            # the only record of WHY it was 24.0 was a debug line about an
+            # unreadable directory.
+            _record_unmeasured_requirement(model_path, default)
         return _env_float("AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB", default)
     return _env_float("AURA_MLX_LOAD_MIN_AVAILABLE_GB", 8.0)
 

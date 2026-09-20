@@ -415,6 +415,90 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   wait budget" recurs.
 - [ ] R08 Resolve neural-feed warnings individually by cause; distinguish
   unrun evidence, missing telemetry, real failure, and historical observations.
+  UPDATE 2026-09-19. Seven taken by cause from the feed of 2026-09-16/17
+  (load 23-120 on 18 cores), each with the test that holds it:
+  - `objective repeatedly unresolved: You are writing Aura`, a degradation,
+    a fault, and `frustration=1.00 depletion=1.00` in the resilience engine
+    every five minutes, followed by `TaskEngine: Execution suppressed due to
+    depletion`. The journal's turn was held back for a foreground turn
+    (`foreground_generation_active`) and the thinking loop charged it with
+    friction as if it had run and failed. The response phase now marks the
+    state `background_suppression` and the loop returns `background_deferred`
+    without friction. tests/test_a_deferred_objective_is_not_a_failed_one.py.
+  - `EVENT LOOP STALL DETECTED (5.1s on 403% of a core: on-loop work)`: one
+    22s stall read 76%, 165%, 255% then 403% because the CPU since the
+    heartbeat was divided by the wall since the previous look. Each look now
+    measures its own interval. tests/test_a_starved_thread_is_not_a_stuck_one.py.
+  - `Fix generation or sandbox testing failed` x14 and `Failed to generate fix
+    proposal` x17 in an hour: every repair the runtime proposed died at its
+    own linter — `offline subprocess tooling bypass denied while live
+    governance is active: maintenance_tooling:diagnostic_hub`. Ruff and
+    pyright over one file are read-only probes and run on that lane now,
+    bounded by their work; the self-repair engine had been proposing a fix to
+    the gateway's own refusal. tests/test_the_diagnostic_hub_probes_read_only.py.
+  - `Health snapshot refresh incident ... exceeded 8s; serving
+    stale_while_revalidate` x20 in forty minutes: an integrity audit still
+    running its lines past 8s of wall. The budget bounds a stall in the
+    refresh thread's own CPU, and the audit's age only where that clock is
+    unreadable. tests/test_health_read_model.py.
+  - `[DEGRADATION] source_body: TimeoutExpired: git status` each pulse under
+    load, which the self-repair engine then chased as a bug. One lost probe
+    is backpressure at info; three running is the degradation. And the
+    gateway's `TimeoutExpired` now says which bound it hit (`WorkBoundExpired`:
+    "wedged: no CPU progress for 10.0s" rather than "timed out after 10.0
+    seconds"). tests/test_backpressure_in_the_repair_loop_is_not_a_failure.py.
+  - A repair turn (`origin=api_stabilizer`) read its observables off the
+    DRAFT it was repairing: a draft that named `phi_core.py` had the file
+    looked up by bare name, "No file exists at phi_core.py" went into the
+    turn, and the reply told the person the file was gone. The stabilizer
+    passes the person's question as `visible_user_message`; and a bare name
+    that occurs once under her roots is that file, several times is a
+    question back. tests/test_a_short_name_is_looked_up_before_it_is_called_missing.py.
+  - Fourteen source-reading tests red across four chunks after the size
+    gate's lifts: `source_contract.function_containing` follows a helper into
+    the sibling module it was lifted to (`<module>_<part>.py`) and
+    `function_with_its_helpers` into the mixin a class inherits it from.
+  Same evening, on the rebuilt instance, three turns replayed and read from
+  the feed:
+  - `Cortex produced repairable user-facing draft (unanswered_question_part,
+    reply_abandons_thread, len=76)` on "**240 minutes (4 hours).** Net drain
+    is 8 − 3 = 5 L/min, so 1,200 ÷ 5 = 240." — the right answer, twice
+    rejected. Three word-matching gates, one shape each: a "how long" is
+    answered by a number whatever words it shares (`asks_for_a_quantity`,
+    `states_a_quantity` in core.language.asking_clauses); "Give the number
+    and one line of working" is a form of the answer, not a second ask
+    (layout units join `_ANSWER_FORM_NOUNS`); and "drain" shares its subject
+    with "drains" (`thread_continuity._overlap` reads word forms). The
+    coverage gate now says in the feed which part it missed and what it
+    read as the question. tests/test_a_question_answered_by_a_number_is_answered.py.
+  - The same turn went out as two answers: the continuation restated the
+    head in other words and the merge knew only byte-identical overlap. A
+    restatement — the head's subject words, no new number — replaces a head
+    that is unfinished and is dropped after one that is complete
+    (`_continuation_restates`).
+  - `EVENT LOOP STALL DETECTED! 5.9s ... on-loop work`, twenty minutes
+    after the by-name file lookup shipped: the walk of the tree ran inside
+    the routing phase. The index is never built on the loop thread — a
+    stale or empty one is served and the walk queued behind the loop — and
+    under the state root it stays two levels deep and out of the stores.
+  - `append_text:live_learner.append_example is never on the loop and ran
+    on the loop thread`, and four fsyncs the loop report named on the
+    first boot (the existence witness and ark from `_main_loop`, the
+    activation report from `_boot_runtime_orchestrator`, the action
+    receipt from `_execute_initiative`): each moved behind the loop, the
+    learner with one writer per buffer that drains what has accrued.
+  - `[LOOP DETECTED] Assistant repeated content: 'I would handle this as a
+    bound...'` x4 and `MemoryRetrievalPhase duration_ms=5179.8 budget_ms=
+    1500` on "You are the Master Synthesizer…": the swarm's synthesis
+    prompt went through the cognitive engine as an objective, the seam the
+    shards were moved off on 2026-09-15. It asks the router now, as they
+    do. tests/test_a_shard_is_a_request_not_an_objective.py.
+  - `runtime_hygiene:3 unregistered child process(es) detected;
+    unregistered process sample pid=… name=Python`, a DEGRADED card a
+    minute: the phi pool's spawn workers, read in their first moments
+    before their command line could be. A direct child younger than one
+    hygiene cycle with no readable command line is not yet known, and not
+    yet rogue (`young_child_processes`). tests/test_runtime_hygiene.py.
   UPDATE 2026-09-18. Two more taken by cause from one evening's live feed,
   and both were the gate rather than the model.
   - `surface_controls_unavailable:steering_unavailable`, classified
@@ -907,6 +991,42 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Policy-aligned learning](evidence/G03_POLICY_ALIGNED_LEARNING_2026-09-20.md)
+  removes the trainer's required decoder-policy switch. A completed small
+  source trial retains 99/100 on exposed validation with no gains or
+  regressions; source-error acquisition and full evaluation remain open.
+  [Reference review and adoption](evidence/G_LEDGER_REFERENCE_REVIEW_2026-09-20.md)
+  maps all supplied recommendations to existing owners and acceptance evidence.
+  [Policy controls](evidence/G03_POLICY_COEFFICIENT_CONTROLS_2026-09-20.md)
+  separate coefficient learning from selection: incumbent 99/100, joint
+  selection 91/100; restoring the incumbent policy restores 99/100.
+  Iterative source training reaches 32/32 without validation gain. G03 stays open.
+  [Candidate-bank diagnosis](evidence/G03_CANDIDATE_BANK_DIAGNOSIS_2026-09-20.md)
+  finds correct alternatives in all eight additional joint-policy errors.
+  Expanded replay also reaches the shared incumbent error's correct program;
+  all observed failures on this 100-row slice are selection errors. Target-free
+  candidate generation and independent attribution are now tested.
+  [Expanded function-coordinate trial](evidence/G03_EXPANDED_FUNCTION_TRIAL_2026-09-19.md)
+  reaches 30/32 training programs from 28/32; validation stays 91/100 with zero
+  changed outcomes. All 10,124 fixed inequalities pass, but two autonomous
+  training decodes still fail. Iterative mining now preserves a separate broad
+  source-retention cohort; G03 is not closed.
+  [Function-coordinate trials](evidence/G03_FUNCTION_COORDINATES_2026-09-19.md)
+  retain two rejected attempts and the repaired active-set result: training
+  13/16 to 16/16, validation 91/100 unchanged with no gains or regressions.
+  All 5,063 retained inequalities pass. Failed projections are independently
+  replayable; no candidate is promoted and broader coverage remains required.
+  [Scaled subspace trial](evidence/G03_SCALED_SUBSPACE_TRIAL_2026-09-19.md)
+  repairs 13/16 to 16/16 training programs but leaves development validation
+  at 91/100: four gains and four regressions. All retained inequalities pass;
+  the candidate is not promoted. Component attribution follows.
+  [Parameter-subspace repair](evidence/G03_PARAMETER_SUBSPACE_2026-09-19.md)
+  fixes the selected training error (7/8 to 8/8) while preserving all 60
+  validation outcomes (52/60 correct), with the operation classifier fixed.
+  This source-only development diagnostic does not close G03.
+  [Symbolic abstraction](G_SYMBOLIC_ABSTRACTION_DESIGN.md) extends the existing
+  floor verifier to unknown typed computations while retaining partial
+  domains. It adds no new serving authority or benchmark success claim.
   [Operation boundary learning](evidence/G03_OPERATION_BOUNDARY_LEARNING_2026-09-18.md)
   connects the runtime pointer to the retained graph objective. The latest
   boundary/binding subset passes 56 focused tests. A targeted development trial
@@ -1110,8 +1230,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   design](G_GENERALIZATION_REPAIR_DESIGN.md) derives and implements a
   minimum-change graph update with explicit proof limits and falsification.
   These implementation changes do not close G03 or establish fresh transfer.
+  [Minimum-change trials](evidence/G03_MINIMUM_CHANGE_TRIAL_2026-09-19.md)
+  isolate and repair a float32 boundary-rejection defect. All 2,504 retained
+  inequalities pass after one update, but validation falls from 52/60 to
+  51/60. The candidate is not promoted; component attribution continues.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
+  [Bound source inventory](evidence/G04_BOUND_SOURCE_INVENTORY_2026-09-19.md)
+  reconstructs 1,764 archived examples and 656 schemas across eight families
+  from the exact manifests. Twenty-seven tests pass. Default family settings
+  no longer qualify a structural preflight; fresh transfer remains unmeasured.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
   [Public-channel diagnostic](evidence/G06_PUBLIC_CHANNEL_DIAGNOSTIC_2026-09-14.md)
   found 18 token-capped and 42 stopped/unparsed ordinary CP1003 outputs.
@@ -1155,6 +1283,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   turn exposed development cases into fresh or powered replication.
 - [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
+  [Validation source identity](evidence/G08_VALIDATION_SOURCE_IDENTITY_2026-09-19.md)
+  prevents decoder/scorer changes from reusing stale cached scores and rejects
+  source drift during selection. Twenty-five focused tests pass; independent
+  campaign verification remains open.
   [Paired public measurement](evidence/G08_PAIRED_PUBLIC_MEASUREMENT_2026-09-18.md)
   repairs containment false positives, disjoint-task causal attribution, and
   baseline-dependent task filtering in the retrieval/depth diagnostic. The
@@ -1395,6 +1527,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   the attribution needs a run with the shell closed before a cause is claimed.
 - [ ] U07 Research, coding, mathematical execution, planning, and multi-step
   tasks through the same unified runtime users invoke.
+  2026-09-19, live. "Write a Python function that takes a list of file paths
+  and returns them grouped by extension" was dispatched to the desktop task
+  lane — the external-effect reader saw "write … file" — which spent 50s
+  authoring a file nobody asked for, hit its own wall clock, and answered
+  "I could not write the words you asked for, so I have not made the file."
+  Two fixes: code asked for as words (a function, a regex, a query, a
+  one-liner, with no file target in the message) is an inline answer
+  (`asks_for_code_in_the_reply`), and the artifact authoring's own wait is
+  bounded by the generation's progress, as the reply lane's is, rather than
+  by a fixed 50s. The tank word problem (240 minutes) and a recall of the
+  previous turn's answer both replay correctly on the rebuilt instance;
+  the arithmetic reply had gone out twice-answered and is one answer now.
   PARTIAL 2026-09-07. Web research, file reading and code execution all run
   end to end through the ordinary chat route: `code_repl` dispatched and
   completed in 344ms, `web_search` in 2,212ms with a correct answer, and the
@@ -1679,6 +1823,24 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   in every run), largest _mlx_worker_loop at 5,141 and
   _generate_with_metadata_sink at 3,525. Full chunked suite running on the
   sweep at 20:39.
+  2026-09-19. The module-size ratchet: green, for the first time since it
+  was measured. The lifts of 543b2d210 and a37d08fcc took the total from
+  143,448 to 130,971; the last +6 over went with a 508-line cluster out of
+  `response_reliability` — what the person asked for, by count and by
+  phrase — into `response_reliability_requests`, by
+  tools/refactor/lift_functions.py: the parent imports the definitions
+  straight back, and what they take from it is imported at call time, so
+  every caller and every patch still lands. Budget now 130,450, written at
+  the measured total. The method-size ratchet reads a method lifted into a
+  mixin as the same method (`CognitiveEngine._run_thinking_loop` and
+  `_RunsTheThinkingLoop._run_thinking_loop`, matched by method name when
+  it names exactly one vanished entry): sixteen NEW became eight, all
+  functions that were never baselined under any name, plus two that grew
+  on a move. tools/refactor/demote_helper_methods.py moves a helper method
+  the block sweep left on a class to module level with `self` as its first
+  parameter (static and class methods too, `Class.m` receivers, a
+  --limit); it was the mechanism behind the per-class ceiling before the
+  lifts made it moot.
 - [ ] Q07 Refresh semantic ledger near code freeze; reconcile changed or
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,
@@ -1714,6 +1876,25 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   the scale of a whole run.
   The register itself is being produced the only way it can be: the 97
   files re-run against one pinned revision in a worktree.
+  2026-09-19, live. A turn nobody got an answer to, diagnosed from the log:
+  a delivery poll for one chat id, then `model_load_headroom:15.1GB <
+  required 24.0GB`, and the reply came back from the fallback with the
+  footer that says the main model could not finish. On the same boot the
+  brainstem lane was refused 222 times on that gate.
+  The 24.0 was wrong twice. The 16GB floor is for a checkpoint whose size
+  cannot be READ and was being applied where it is known, so a model
+  measured at 8.0GB was held to twice its footprint; and where the directory
+  genuinely cannot be measured the requirement falls back to a flat 24.0
+  with a debug line as its only trace. Bonsai now asks 10.6GB and the
+  resident cortex 17.9, and an unmeasurable checkpoint says so as a recorded
+  degradation.
+  Three more of the same shape closed the same day: the brainstem's headroom
+  floor (22.0, unmeetable, so the lane was configured and unloadable), `cold`
+  read as not-ready on a lane that loads on demand — which opened the circuit
+  that then prevented the load — and a refusal spelled as a CODE
+  (`model_load_admission_denied`) charged as failed work because word-aware
+  matching reads an underscore-joined identifier as one word.
+
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
   2026-09-19, 59 of the 130 closed, and the register's own heading was
   wrong. The dominant cause is not order dependence: it is a test reading
@@ -1859,6 +2040,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   and the test read the queue's current occupants as permanent truths. Split,
   with a new assertion that survives the migration finishing: a disposition
   is never invented beside its authority. 7d4f5caca, 9c20b5e1b.
+  2026-09-19, later. Fourteen more red on main, all one shape one step
+  further on: the lifts of 543b2d210 and a37d08fcc moved the helpers the
+  readers had learned to follow into SIBLING MODULES, and both readers
+  stopped at the file. `function_with_its_helpers` follows a helper into
+  the mixin the class inherits it from (nine `test_mind_tick_runtime_contract`
+  tests: `_run_loop`'s steps in `_RunsTheTickLoopSteps`);
+  `function_containing` follows one into `<module>_<part>.py`
+  (`test_deep_lane_not_built_where_it_cannot_load` x2 into
+  `inference_gate_turn_setup`, `test_deliberate_cancel_is_not_endpoint_damage`
+  x2 into `mlx_client_waiting` and `llm_health_router_endpoint_call`); the
+  salvage-step test reads each step through the class
+  (`boot_autonomy_salvage`); and the cold-cortex branch is searched for in
+  the module and its lifted sibling. The reader is `module_family_sources`,
+  written once.
 - [ ] Q10 Run source-matched multi-hour soak only after short gates pass;
   inspect latency, growth, errors, capability retention, and recovery.
 - [ ] Q11 Validate installation/update/uninstall and ordinary desktop launch.

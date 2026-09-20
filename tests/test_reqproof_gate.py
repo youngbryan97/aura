@@ -24,7 +24,7 @@ from tools.reqproof.gate import (
 )
 from tools.reqproof.migrate import migrate
 from tools.reqproof.progress import ScopeBaseline, write_scope_baseline_atomic
-from tools.reqproof.schema import load_registry
+from tools.reqproof.schema import Registry, load_registry
 
 MINI_CORPUS = """Build alpha end to end.
 Prove beta with evidence.
@@ -128,7 +128,7 @@ def rebind_ledger(paths: dict[str, Path]) -> None:
     write_evidence_ledger_atomic(
         EvidenceLedger(
             schema_version=current.schema_version,
-            registry_content_sha256=registry.compute_content_sha256(),
+            registry_declaration_sha256=registry.declaration_sha256(),
             entries=current.entries,
         ),
         paths["evidence_ledger"],
@@ -161,15 +161,37 @@ class TestBaselinePass:
         assert code == 1
         assert any("evidence ledger not found" in failure for failure in report["failures"])
 
-    def test_ledger_bound_to_old_registry_fails_structurally(self, tmp_path):
+    def test_ledger_bound_to_other_requirements_fails_structurally(self, tmp_path):
         paths = build_mini_repo(tmp_path)
         data = json.loads(paths["evidence_ledger"].read_text(encoding="utf-8"))
-        data["registry_content_sha256"] = "f" * 64
+        data["registry_declaration_sha256"] = "f" * 64
         unhashed = EvidenceLedger.from_dict(data, verify_hash=False)
         write_evidence_ledger_atomic(unhashed, paths["evidence_ledger"])
         code, report = gate(tmp_path, paths)
         assert code == 1
-        assert any("different registry" in failure for failure in report["failures"])
+        assert any(
+            "different set of requirements" in failure for failure in report["failures"]
+        )
+
+    def test_a_registry_regenerated_from_reworded_prose_still_binds(self, tmp_path):
+        """The tracker moves often and declares nothing by moving."""
+        paths = build_mini_repo(tmp_path)
+        registry_data = json.loads(paths["registry"].read_text(encoding="utf-8"))
+        registry_data["registry_revision"] += 1
+        registry_data["generated_from"]["tracker_extraction_sha256"] = "c" * 64
+        registry_data.pop("content_sha256")
+        regenerated = Registry.from_dict(registry_data, verify_hash=False)
+        paths["registry"].write_text(regenerated.to_canonical_json(), encoding="utf-8")
+
+        code, report = gate(tmp_path, paths)
+        assert not any(
+            "different set of requirements" in failure for failure in report["failures"]
+        ), report["failures"]
+        # The extraction hash is fabricated here, so the gate must still say the
+        # registry was generated from a tracker this one is not. That refusal is
+        # the one that belongs to a reworded tracker; the binding is not.
+        assert any("stale-migration" in failure for failure in report["failures"])
+        assert code == 1
 
     def test_scope_denominator_growth_or_shrink_fails_structurally(self, tmp_path):
         paths = build_mini_repo(tmp_path)

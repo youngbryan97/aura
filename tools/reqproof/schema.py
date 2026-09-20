@@ -604,6 +604,29 @@ class Registry:
         canonical = json.dumps(self.body_dict(), sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
+    def declaration_sha256(self) -> str:
+        """A digest over what the registry DECLARES, not over the file.
+
+        ``content_sha256`` also covers ``registry_revision`` and the tracker
+        extraction hash, which move whenever the tracker's prose moves. The
+        evidence ledger binds to the registry so that a requirement cannot
+        change under its evidence, and binding it to the file meant a reworded
+        sentence in the tracker broke the ledger — repairable only by copying
+        the new hash across, which checks nothing. This covers the
+        requirements and the schema they are written in, so a reword leaves it
+        alone and a changed obligation, acceptance cell or evidence class does
+        not.
+        """
+        canonical = json.dumps(
+            {
+                "schema_version": self.schema_version,
+                "requirements": [req.to_dict() for req in self.requirements],
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
     def to_dict(self) -> dict[str, Any]:
         body = self.body_dict()
         body["content_sha256"] = self.compute_content_sha256()

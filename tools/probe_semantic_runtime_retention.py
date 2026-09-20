@@ -34,8 +34,12 @@ def main():
     parser.add_argument("--validation-count", type=int, default=8)
     parser.add_argument("--steps", type=int, default=20)
     parser.add_argument("--max-charts", type=int, default=32)
+    parser.add_argument("--decoder-policy", choices=("preserve", "joint_factor_score_v2"), default="preserve")
     parser.add_argument("--learn-operation-pointer", action="store_true")
+    parser.add_argument("--freeze-operation-head", action="store_true")
     parser.add_argument("--update-rule", choices=("working_face", "minimum_change"), default="working_face")
+    parser.add_argument("--relation-metric", choices=("coefficient_euclidean", "factor_function"),
+                        default="coefficient_euclidean")
     parser.add_argument("--boundary-policy", choices=("supervised", "retain_existing"), default="supervised")
     parser.add_argument("--objective", choices=("squared_deficit", "pairwise_logistic"), default="squared_deficit")
     args = parser.parse_args()
@@ -49,15 +53,19 @@ def main():
     model = compositional_semantic_program_transducer_from_dict(json.loads(args.transducer.read_text("ascii")))
     report = json.loads(args.source_report.read_text("ascii"))
     examples = load_source_examples(model, report, args.bundle)
-    result = run_semantic_graph_trial(model.with_joint_operation_argument_scores(), examples,
+    if args.decoder_policy == "joint_factor_score_v2":
+        model = model.with_joint_operation_argument_scores()
+    result = run_semantic_graph_trial(model, examples,
         training_count=args.training_count, validation_count=args.validation_count,
         training_pool_count=args.training_pool_count,
         operation_retention_count=args.operation_retention_count,
         steps=args.steps, max_charts=args.max_charts,
         objective=args.objective,
         update_rule=args.update_rule,
+        relation_metric=args.relation_metric,
         boundary_policy=args.boundary_policy,
         learn_operation_pointer=args.learn_operation_pointer,
+        learn_operations=not args.freeze_operation_head,
         progress=report_progress)
     if not atomic_write_bytes_if_absent(args.output,
             (json.dumps(result, sort_keys=True, separators=(",", ":")) + "\n").encode("ascii"), mode=0o400):

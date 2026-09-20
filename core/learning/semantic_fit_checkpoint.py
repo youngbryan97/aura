@@ -82,3 +82,17 @@ class SemanticFitCheckpoint:
         output = BytesIO()
         np.savez_compressed(output, metadata=np.frombuffer(metadata, dtype=np.uint8), **arrays)
         get_file_write_gateway().write_bytes(self.path, output.getvalue(), source="semantic_fit_checkpoint")
+
+    def save_projection(self, *, normals, required, anchor, receipt, step):
+        """Retain a rejected affine problem independently of accepted model state."""
+        arrays = {name: np.asarray(value, dtype=np.float64) for name, value in
+                  (("normals", normals), ("required", required), ("anchor", anchor))}
+        body = {"schema": "aura.semantic_projection_diagnostic.v1", "identity": self.identity,
+                "step": step, "receipt": receipt, "serving_authority": False}
+        metadata = json.dumps({**body, "sha256": fit_identity((body, arrays))},
+                              sort_keys=True, allow_nan=False).encode("utf-8")
+        output = BytesIO()
+        np.savez_compressed(output, metadata=np.frombuffer(metadata, dtype=np.uint8), **arrays)
+        path = self.path.with_name(self.path.name + ".projection.npz")
+        get_file_write_gateway().write_bytes(path, output.getvalue(), source="semantic_fit_checkpoint")
+        return path

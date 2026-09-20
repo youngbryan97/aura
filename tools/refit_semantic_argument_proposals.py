@@ -41,7 +41,9 @@ def load_source_examples(model, report, bundles):
     """Share the exact parent-bound source admission across refits and diagnostics."""
     from core.learning.semantic_program_basis import bind_training_examples_to_shared_representation
     from core.learning.semantic_program_campaign import training_examples_from_feature_bundle
-    from core.learning.semantic_program_feature_materialization import load_standard_semantic_feature_bundle
+    from core.learning.semantic_program_feature_materialization import (
+        load_standard_semantic_feature_bundle,
+    )
 
     compatibility = report["representation_compatibility"]
     expected = compatibility["source_feature_manifest_sha256s"]
@@ -103,6 +105,9 @@ def main() -> int:
     parser.add_argument("--learn-operation-pointer", action="store_true",
                         help="retained joint_graphs only: differentiate runtime operation boundary scores")
     parser.add_argument("--graph-update-rule", choices=("working_face", "minimum_change"), default="working_face")
+    parser.add_argument("--freeze-operation-head", action="store_true")
+    parser.add_argument("--relation-metric", choices=("coefficient_euclidean", "factor_function"),
+                        default="coefficient_euclidean")
     parser.add_argument("--boundary-policy", choices=("supervised", "retain_existing"), default="supervised")
     parser.add_argument("--compare-fit-start", action="store_true",
                         help="also evaluate the pre-fit candidate to separate decoder changes from learning")
@@ -136,6 +141,10 @@ def main() -> int:
         parser.error("operation pointer learning requires retained semantic constraints")
     if args.graph_update_rule != "working_face" and not args.retain_semantic_constraints:
         parser.error("minimum-change updates require retained semantic constraints")
+    if args.freeze_operation_head and not args.retain_semantic_constraints:
+        parser.error("frozen operation heads require retained semantic constraints")
+    if args.relation_metric != "coefficient_euclidean" and not args.retain_semantic_constraints:
+        parser.error("functional relation geometry requires retained semantic constraints")
     if args.boundary_policy != "supervised" and not args.learn_operation_pointer:
         parser.error("boundary policy requires operation pointer learning")
     if args.relation_rank is not None and args.objective != "joint_graphs":
@@ -148,11 +157,10 @@ def main() -> int:
         args.starting_candidate or args.joint_operation_argument_scores
     ):
         parser.error("evaluate-existing starting options require compare-fit-start")
-    from core.learning.semantic_operation_view_refit import refit_compositional_operation_views
-    from core.learning.semantic_operation_background import refit_compositional_operation_background
     from core.learning.semantic_graph_margin import refit_compositional_graph_scales
-    from core.learning.semantic_relation_graph_learning import refit_compositional_graph_relations
     from core.learning.semantic_joint_graph_learning import refit_compositional_joint_graphs
+    from core.learning.semantic_operation_background import refit_compositional_operation_background
+    from core.learning.semantic_operation_view_refit import refit_compositional_operation_views
     from core.learning.semantic_paired_pointer_refit import (
         refit_compositional_paired_operation_pointer,
     )
@@ -166,6 +174,7 @@ def main() -> int:
         refit_compositional_definition_pointer,
         refit_compositional_operation_pointer,
     )
+    from core.learning.semantic_relation_graph_learning import refit_compositional_graph_relations
     from core.runtime.atomic_writer import atomic_write_bytes_if_absent
 
     if args.output.exists() and not args.evaluate_existing:
@@ -219,6 +228,8 @@ def main() -> int:
         options["learn_arguments"] = args.learn_argument_heads
         options["learn_operation_pointer"] = args.learn_operation_pointer
         options["update_rule"] = args.graph_update_rule
+        options["learn_operations"] = not args.freeze_operation_head
+        options["relation_metric"] = args.relation_metric
         options["boundary_policy"] = args.boundary_policy
         if args.retain_semantic_constraints:
             options["checkpoint_dir"] = args.fit_checkpoint_dir or args.output.with_suffix(".fit-checkpoints")

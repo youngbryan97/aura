@@ -199,10 +199,10 @@ Working list. Deleted when every line is done and green.
       and neither of those axes has been swept, so they stay as they are
 
 - [ ] the full offline suite green. Nineteen of forty chunks have run in this
-      pass and every failure they surfaced is traced. The ones left are four
-      ratchets carrying the whole team's accumulated debt, and they cannot be
-      refreshed: the module-size tool refuses to grandfather a new God object
-      at all.
+      pass and every failure they surfaced is traced. What is left is three
+      ratchets carrying the whole team's accumulated debt. The fourth, module
+      size, is closed: twenty-nine refusals to none, and 12,477 lines off the
+      total it holds.
 
       Fixed here: a common noun claiming an application, a browser run with no
       anchor, an ambient percept that lost its provenance, a silent handler
@@ -229,7 +229,7 @@ Working list. Deleted when every line is done and green.
 
       Closed since: the module-size ratchet and the effect-ownership one. The
       nine new God objects are gone and the tree is inside its budget at
-      145,693 lines, which is also the new budget — it only shrinks. The last
+      130,971 lines, which is also the new budget — it only shrinks. The last
       one to move was `adaptive_immunity`, which grew four methods the same day
       serializing the ecology off the lock; its five write-side methods live
       beside the writer they hand their payload to, and the class is 63

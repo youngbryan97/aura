@@ -3921,27 +3921,6 @@ def _detach_expert_adapter(model: Any, wrapped: list[tuple[str, Any]]) -> int:
     return len(restorable)
 
 
-def _process_message_content(messages: list[dict[str, Any]]) -> None:
-    """Normalize content for tokenizer.apply_chat_template()."""
-    for message in messages:
-        if not isinstance(message, dict):
-            continue
-        content = message.get("content")
-        if isinstance(content, list):
-            text_fragments = [
-                fragment.get("text", "")
-                for fragment in content
-                if isinstance(fragment, dict) and fragment.get("type") == "text"
-            ]
-            if len(text_fragments) != len(content):
-                raise ValueError(
-                    "Only text content fragments are supported in MLX worker chat templates."
-                )
-            message["content"] = "".join(text_fragments)
-        elif content is None:
-            message["content"] = ""
-
-
 # The fallback used when a checkpoint declares no window anywhere. It is a
 # guess, and a guess that decides how much prompt the worker will accept has
 # to say so — every path that reaches it records a degradation naming the

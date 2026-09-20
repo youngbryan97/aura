@@ -421,7 +421,7 @@ class OvertActionLoop:
             if engine is None or not hasattr(engine, "execute"):
                 result.status = "failed"
                 result.error = "capability_engine_unavailable"
-                return self._finish(result, raw_result={})
+                return await self._finish(result, raw_result={})
 
             try:
                 raw = await engine.execute(
@@ -450,7 +450,7 @@ class OvertActionLoop:
             result.error = ""
             result.result_summary = self._summarize_result(raw)
             result.next_step_hint = "retry_after_idle_and_resource_window"
-            return self._finish(result, raw_result=raw)
+            return await self._finish(result, raw_result=raw)
 
         if isinstance(raw, dict) and expectation is not None:
             from core.runtime.skill_contract import apply_action_expectation_payload
@@ -498,7 +498,7 @@ class OvertActionLoop:
                 action="preserved action result after closed-loop feedback failed",
                 extra={"action_id": action_id, "skill": skill},
             )
-        return self._finish(result, raw_result=raw)
+        return await self._finish(result, raw_result=raw)
 
     async def _execute_planned_goal(
         self,
@@ -1018,7 +1018,7 @@ class OvertActionLoop:
             return _short_text(raw, 400)
         return _short_text(raw, 400)
 
-    def _finish(self, result: OvertActionResult, *, raw_result: Any) -> OvertActionResult:
+    async def _finish(self, result: OvertActionResult, *, raw_result: Any) -> OvertActionResult:
         result.finished_at = time.time()
         result.duration_ms = round((result.finished_at - result.started_at) * 1000.0, 3)
         self._last_finished_at = result.finished_at
@@ -1032,7 +1032,10 @@ class OvertActionLoop:
             self._consecutive_failures += 1
             self._annotate_failure_learning(result, raw_result)
 
-        self._emit_receipts(result, raw_result)
+        # The receipt store fsyncs each receipt; LIVE 2026-09-19 the loop
+        # report named it from this coroutine. The ids it writes back on the
+        # result are read by the traces below, so it is awaited, off the loop.
+        await asyncio.to_thread(self._emit_receipts, result, raw_result)
         self._record_life_trace(result, raw_result)
         self._update_goal(result)
         self._emit_visible_trace(result)

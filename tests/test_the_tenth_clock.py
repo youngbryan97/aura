@@ -20,14 +20,23 @@ pytestmark = pytest.mark.unit
 PHASE = Path("core/phases/response_generation.py")
 
 
+def _phase_source() -> str:
+    """The phase and the steps lifted out of it (``response_generation_steps``)."""
+    from source_contract import family_text
+
+    from core.phases import response_generation
+
+    return family_text(response_generation)
+
+
 def test_the_generation_wait_is_not_a_stopwatch() -> None:
-    source = PHASE.read_text(encoding="utf-8")
+    source = _phase_source()
     assert "_await_while_it_is_working(" in source
     assert "asyncio.wait_for(\n                        think_coro," not in source
 
 
 def test_it_asks_whether_a_person_is_waiting() -> None:
-    source = PHASE.read_text(encoding="utf-8")
+    source = _phase_source()
     assert "person_is_waiting=(" in source
     assert "not is_background and a_person_is_waiting(origin)" in source
 
@@ -35,19 +44,24 @@ def test_it_asks_whether_a_person_is_waiting() -> None:
 def test_background_generation_has_nobody_waiting_whatever_its_origin() -> None:
     """Otherwise a background pass takes the turn ceiling for itself."""
 
-    tree = ast.parse(PHASE.read_text(encoding="utf-8"))
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        for keyword in node.keywords:
-            if keyword.arg != "person_is_waiting":
+    from source_contract import module_family_sources
+
+    from core.phases import response_generation
+
+    for _name, text in module_family_sources(response_generation):
+        tree = ast.parse(text)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
                 continue
-            said = ast.unparse(keyword.value)
-            assert "not is_background" in said
-            return
+            for keyword in node.keywords:
+                if keyword.arg != "person_is_waiting":
+                    continue
+                said = ast.unparse(keyword.value)
+                assert "not is_background" in said
+                return
     raise AssertionError("nothing passes person_is_waiting here any more")
 
 
 def test_the_budget_is_still_bounded() -> None:
-    source = PHASE.read_text(encoding="utf-8")
+    source = _phase_source()
     assert "budget_s=ordinary_timeout + 2.0" in source

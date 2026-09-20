@@ -15,6 +15,7 @@ from tools.reqproof.evidence import (
     add_entry,
     load_evidence_ledger,
     resolve_evidence_target,
+    verify_ledger_binding,
     write_evidence_ledger_atomic,
 )
 from tools.reqproof.schema import EvidenceRef, Registry
@@ -65,7 +66,7 @@ class TestLedgerSchema:
         second = evidence_entry("ALPHA-001")
         unsorted = EvidenceLedger(
             schema_version=LEDGER_SCHEMA_VERSION,
-            registry_content_sha256=current.registry_content_sha256,
+            registry_declaration_sha256=current.registry_declaration_sha256,
             entries=(first, second),
         ).to_dict()
         with pytest.raises(EvidenceLedgerError, match="canonically sorted"):
@@ -73,7 +74,7 @@ class TestLedgerSchema:
 
         duplicate = EvidenceLedger(
             schema_version=LEDGER_SCHEMA_VERSION,
-            registry_content_sha256=current.registry_content_sha256,
+            registry_declaration_sha256=current.registry_declaration_sha256,
             entries=(first, first),
         ).to_dict()
         with pytest.raises(EvidenceLedgerError, match="duplicate"):
@@ -83,7 +84,7 @@ class TestLedgerSchema:
         current = EvidenceLedger.empty_for(registry(make_requirement()))
         data = EvidenceLedger(
             schema_version=LEDGER_SCHEMA_VERSION,
-            registry_content_sha256=current.registry_content_sha256,
+            registry_declaration_sha256=current.registry_declaration_sha256,
             entries=(evidence_entry("not-an-id"),),
         ).to_dict()
         with pytest.raises(EvidenceLedgerError, match="requirement ID pattern"):
@@ -416,7 +417,7 @@ class TestLedgerOperations:
 
         second = EvidenceLedger(
             schema_version=LEDGER_SCHEMA_VERSION,
-            registry_content_sha256=first.registry_content_sha256,
+            registry_declaration_sha256=first.registry_declaration_sha256,
             entries=(evidence_entry(),),
         )
         original_replace = Path.replace
@@ -430,3 +431,58 @@ class TestLedgerOperations:
         monkeypatch.setattr(Path, "replace", original_replace)
         assert path.read_bytes() == before
         assert load_evidence_ledger(path).entries == ()
+
+
+class TestLedgerBinding:
+    """What the ledger is bound to, and what it is not bound to.
+
+    The binding used to be the registry FILE's digest, which also covers
+    `registry_revision` and the tracker extraction hash. Rewording a sentence
+    in the tracker regenerated the registry, moved that digest, and broke the
+    ledger — and the only repair was copying the new hash across, which proves
+    nothing about the evidence. It binds to what the registry declares now.
+    """
+
+    def test_a_provenance_bump_leaves_the_binding_alone(self):
+        current_registry = registry(make_requirement())
+        ledger = EvidenceLedger.empty_for(current_registry)
+
+        data = current_registry.to_dict()
+        data["registry_revision"] += 1
+        data["generated_from"]["tracker_extraction_sha256"] = "c" * 64
+        data.pop("content_sha256")
+        regenerated = Registry.from_dict(data, verify_hash=False)
+
+        assert regenerated.compute_content_sha256() != current_registry.compute_content_sha256()
+        verify_ledger_binding(ledger, regenerated)
+
+    def test_a_changed_acceptance_cell_breaks_the_binding(self):
+        before = make_requirement()
+        current_registry = registry(before)
+        ledger = EvidenceLedger.empty_for(current_registry)
+
+        after = json.loads(json.dumps(before))
+        after["acceptance"] = ["Do a different thing and prove that instead."]
+        with pytest.raises(EvidenceLedgerError, match="different set of requirements"):
+            verify_ledger_binding(ledger, registry(after))
+
+    def test_a_changed_evidence_class_breaks_the_binding(self):
+        before = make_requirement()
+        current_registry = registry(before)
+        ledger = EvidenceLedger.empty_for(current_registry)
+
+        after = json.loads(json.dumps(before))
+        after["evidence_required"] = ["implementation"]
+        after["acceptance_evidence_required"] = [["implementation"]]
+        with pytest.raises(EvidenceLedgerError, match="different set of requirements"):
+            verify_ledger_binding(ledger, registry(after))
+
+    def test_the_shipped_ledger_is_bound_to_the_shipped_registry(self):
+        """The one that was stale: a tracker reword, and nothing else."""
+        from tools.reqproof.schema import load_registry
+
+        root = Path(__file__).resolve().parents[1]
+        shipped = load_registry(root / "config/requirement_registry.json")
+        verify_ledger_binding(
+            load_evidence_ledger(root / "config/requirement_evidence_ledger.json"), shipped
+        )

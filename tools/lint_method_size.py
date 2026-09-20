@@ -347,12 +347,23 @@ def compare_with_baseline(
         for name, stats in previous.items()
         if name not in functions
     }
+    # A method lifted into a mixin keeps its name and changes its class:
+    # `CognitiveEngine._run_thinking_loop` becomes
+    # `_RunsTheThinkingLoop._run_thinking_loop`. Matched by the method name
+    # when that names exactly one vanished entry; two would be a guess.
+    by_method: dict[str, list[tuple[str, dict]]] = {}
+    for bare, origin in vanished.items():
+        by_method.setdefault(bare.rsplit(".", 1)[-1], []).append(origin)
     moved_from: dict[str, str] = {}
     for name, stats in functions.items():
         was = previous.get(name)
         if was is None:
             bare = name.rsplit("::", 1)[-1]
             origin = vanished.get(bare)
+            if origin is None and "." in bare:
+                candidates = by_method.get(bare.rsplit(".", 1)[-1], [])
+                if len(candidates) == 1 and "." in candidates[0][0].rsplit("::", 1)[-1]:
+                    origin = candidates[0]
             if origin is not None:
                 old_name, was = origin
                 moved_from[old_name] = name

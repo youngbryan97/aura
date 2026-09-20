@@ -111,6 +111,24 @@ def _declared_float(name: str, default: float, description: str) -> float:
         return default
 
 
+#: How long a direct child may go without a readable command line before it
+#: counts as unregistered: one hygiene cycle, which is how long a spawn takes
+#: to become the thing it was started as.
+_YOUNG_CHILD_GRACE_S = 5.0
+
+
+def _process_age_s(proc: Any) -> float:
+    """Seconds since the process started, or a large number if unreadable."""
+    try:
+        value = getattr(proc, "create_time", None)
+        raw = value() if callable(value) else value
+        if raw is None:
+            return float("inf")
+        return max(0.0, time.time() - float(raw))
+    except (_PROCESS_INTROSPECTION_ERRORS, TypeError, ValueError):
+        return float("inf")
+
+
 def _process_cmdline(proc: Any) -> list[str]:
     try:
         value = getattr(proc, "cmdline", ())
@@ -1589,6 +1607,7 @@ class RuntimeHygieneManager(_WatchesWhatTheRuntimeCreates):
             elif record.kind == "multiprocessing":
                 active_multiprocessing += 1
         rogue_children = 0
+        young_children = 0
         owned_descendants = 0
         rogue_samples: list[dict[str, Any]] = []
         live_process_ids: set[int] | None = None
@@ -1718,6 +1737,19 @@ class RuntimeHygieneManager(_WatchesWhatTheRuntimeCreates):
                 ):
                     owned_descendants += 1
                     continue
+                # A direct child too young to have a readable command line is
+                # not yet known, and not yet rogue: a spawn worker in its
+                # first moments reads as "Python" with no arguments, and one
+                # cycle later adopts by its cmdline. LIVE 2026-09-19, three
+                # such rows made a DEGRADED card a minute while the phi pool
+                # cycled its two workers.
+                if (
+                    _process_ppid(child) == int(os.getpid())
+                    and not _process_cmdline(child)
+                    and _process_age_s(child) < _YOUNG_CHILD_GRACE_S
+                ):
+                    young_children += 1
+                    continue
                 rogue_children += 1
                 if len(rogue_samples) < 5:
                     rogue_samples.append(
@@ -1734,6 +1766,7 @@ class RuntimeHygieneManager(_WatchesWhatTheRuntimeCreates):
             "active_multiprocessing": max(0, active_multiprocessing),
             "owned_descendant_processes": max(0, owned_descendants),
             "rogue_child_processes": max(0, rogue_children),
+            "young_child_processes": max(0, young_children),
             "active_samples": active_samples,
             "rogue_samples": rogue_samples,
         }

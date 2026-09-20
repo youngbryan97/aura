@@ -32,6 +32,18 @@ import pytest
 #: transitive import is not something a hand-kept list can track. Skipping is
 #: honest here in a way it usually is not — the same tests run on the machine
 #: that has the runtime.
+def _family(root, rel: str) -> str:
+    """A module's text and every module lifted out of it (``<module>_<part>.py``).
+
+    The size gate's lifts moved clusters of the kernel, the router and the
+    gate into siblings; a pin on the parent file alone reports a line as
+    gone that runs on every turn.
+    """
+    own = root / rel
+    family = [own, *sorted(own.parent.glob(f"{own.stem}_*.py"))]
+    return "\n".join(path.read_text(encoding="utf-8") for path in family)
+
+
 def _mlx_present() -> bool:
     try:
         return importlib.util.find_spec("mlx") is not None
@@ -1276,7 +1288,7 @@ def test_agency_runner_activates_canonical_proof_task_mode():
     response_source = (
         root / "core" / "phases" / "response_generation_unitary.py"
     ).read_text(encoding="utf-8")
-    kernel_source = (root / "core" / "kernel" / "aura_kernel.py").read_text(encoding="utf-8")
+    kernel_source = _family(root, "core/kernel/aura_kernel.py")
 
     assert 'os.environ.setdefault("AURA_PROOF_RUN", "1")' in agency_source
     assert 'PROOF_LIVE_MESSAGE_ORIGIN = "user"' in agency_source
@@ -1922,8 +1934,8 @@ def test_health_router_preserves_inference_gate_context_for_direct_generate():
     # class went back under the size gate's method ceiling. Both halves are
     # the router; which file holds a line is not what this checks.
     source = "\n".join(
-        (root / "core" / "brain" / name).read_text(encoding="utf-8")
-        for name in ("llm_health_router.py", "llm_background_deferral.py")
+        (_family(root, "core/brain/llm_health_router.py"),
+         (root / "core" / "brain" / "llm_background_deferral.py").read_text(encoding="utf-8"))
     )
 
     assert "is_strict_proof_answer_prompt," in source
@@ -1965,7 +1977,7 @@ def test_health_router_preserves_inference_gate_context_for_direct_generate():
 
 def test_strict_answer_contract_is_deterministic_and_cache_isolated():
     root = Path(__file__).resolve().parents[1]
-    gate_source = (root / "core" / "brain" / "inference_gate.py").read_text(encoding="utf-8")
+    gate_source = _family(root, "core/brain/inference_gate.py")
     client_source = (root / "core" / "brain" / "llm" / "mlx_client.py").read_text(encoding="utf-8")
     worker_source = (root / "core" / "brain" / "llm" / "mlx_worker.py").read_text(encoding="utf-8")
 
@@ -2254,13 +2266,9 @@ def test_agency_baselines_are_bounded_and_marked_as_benchmark_calls():
 
 def test_primary_benchmark_lane_does_not_become_user_facing_chat():
     root = Path(__file__).resolve().parents[1]
-    router_source = (root / "core" / "brain" / "llm_health_router.py").read_text(
-        encoding="utf-8"
-    )
-    gate_source = (root / "core" / "brain" / "inference_gate.py").read_text(encoding="utf-8")
-    mlx_source = (root / "core" / "brain" / "llm" / "mlx_client.py").read_text(
-        encoding="utf-8"
-    )
+    router_source = _family(root, "core/brain/llm_health_router.py")
+    gate_source = _family(root, "core/brain/inference_gate.py")
+    mlx_source = _family(root, "core/brain/llm/mlx_client.py")
     response_source = (
         root / "core" / "phases" / "response_generation_unitary.py"
     ).read_text(encoding="utf-8")
@@ -2926,7 +2934,7 @@ async def test_cognitive_engine_does_not_fast_floor_live_api_planning(
 def test_mlx_baseline_cancellation_and_loop_sentinel_are_classified_as_recoverable():
     root = Path(__file__).resolve().parents[1]
     client_source = (root / "core" / "brain" / "llm" / "mlx_client.py").read_text(encoding="utf-8")
-    gate_source = (root / "core" / "brain" / "inference_gate.py").read_text(encoding="utf-8")
+    gate_source = _family(root, "core/brain/inference_gate.py")
     sentinel_source = (root / "core" / "brain" / "llm" / "token_sentinel.py").read_text(encoding="utf-8")
 
     assert "benchmark_baseline_cancel" in client_source
@@ -2945,7 +2953,7 @@ def test_mlx_baseline_cancellation_and_loop_sentinel_are_classified_as_recoverab
 def test_strict_proof_live_lane_stays_exact_and_prompt_derived():
     root = Path(__file__).resolve().parents[1]
     unitary_source = (root / "core" / "phases" / "response_generation_unitary.py").read_text(encoding="utf-8")
-    inference_gate_source = (root / "core" / "brain" / "inference_gate.py").read_text(encoding="utf-8")
+    inference_gate_source = _family(root, "core/brain/inference_gate.py")
     solver_source = (root / "core" / "reasoning" / "proof_answer_solver.py").read_text(encoding="utf-8")
     dnu_runner_source = (root / "tools" / "agi" / "run_dnu_agi_proof_battery.py").read_text(encoding="utf-8")
     dnu_validator_source = (root / "tools" / "agi" / "validate_dnu_final_bundle.py").read_text(encoding="utf-8")
@@ -3103,7 +3111,7 @@ def test_long_boot_locks_are_named_and_not_force_released():
     watchdog_source = (root / "core" / "resilience" / "lock_watchdog.py").read_text(encoding="utf-8")
     boot_source = (root / "core" / "orchestrator" / "boot.py").read_text(encoding="utf-8")
     resilient_boot_source = (root / "core" / "ops" / "resilient_boot.py").read_text(encoding="utf-8")
-    router_source = (root / "core" / "brain" / "llm_health_router.py").read_text(encoding="utf-8")
+    router_source = _family(root, "core/brain/llm_health_router.py")
 
     assert "watchdog_threshold_s" in concurrency_source
     assert "force_release_on_stall" in concurrency_source

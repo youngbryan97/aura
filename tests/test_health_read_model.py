@@ -1930,3 +1930,39 @@ def test_legacy_shell_handoff_preserves_draft_active_and_queued_turns():
         accelerator_capability="none",
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_a_collection_that_is_still_working_is_not_a_timeout():
+    """LIVE 2026-09-16, load 23 on 18 cores: twenty refresh incidents in
+    forty minutes, each an integrity audit still running its lines past 8s
+    of wall. The budget bounds a stall in the refresh thread's own work."""
+    import threading
+
+    from core.runtime.thread_cpu import thread_cpu_seconds
+
+    def collect():
+        ident = threading.get_ident()
+        start = thread_cpu_seconds(ident)
+        if start is None:  # no per-thread clock here: nothing to prove
+            return {"status": "ok", "healthy": True, "blockers": []}
+        while thread_cpu_seconds(ident) - start < 0.3:
+            sum(range(2000))
+        return {"status": "ok", "healthy": True, "blockers": []}
+
+    model = HealthSnapshotReadModel(
+        collect,
+        _fallback,
+        config=HealthReadModelConfig(
+            refresh_interval_s=0.05,
+            max_stale_s=5.0,
+            collection_timeout_s=0.1,
+            retry_base_s=0.01,
+            retry_max_s=0.05,
+        ),
+    )
+    model.read()
+    _wait_until(lambda: model.read()["health_read_model"]["refresh_in_flight"] is False, timeout_s=5.0)
+    after = model.read()["health_read_model"]
+    assert after["total_timeouts"] == 0, after
+    assert after["consecutive_failures"] == 0
+    assert after["last_duration_s"] >= 0.3 or after["total_refreshes"] >= 1

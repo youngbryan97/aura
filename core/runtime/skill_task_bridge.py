@@ -239,6 +239,39 @@ _INLINE_REPLY_CONTRACT_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: Code asked for as words. "Write a Python function that takes a list of
+#: file paths" names a function, and a function is text in the reply; the
+#: external-effect reader saw "write … file" and dispatched a desktop task,
+#: which timed out authoring a file nobody asked for (LIVE 2026-09-19). A
+#: file target in the same message — "save it as", "to a file", "create a
+#: file called" — makes it an artifact again.
+_CODE_IN_REPLY_RE = re.compile(
+    r"^\s*(?:please\s+|can\s+you\s+|could\s+you\s+|would\s+you\s+)?"
+    r"(?:write|give\s+me|show\s+me|produce|draft|implement|sketch)\s+(?:me\s+)?"
+    r"(?:a|an|the|some|one)?\s*(?:\w[\w-]*\s+){0,3}?"
+    r"(?:function|method|class|snippet|regex|regular\s+expression|query|"
+    r"one-liner|lambda|decorator|generator|comprehension|unit\s+test|test\s+case|"
+    r"sql|shell\s+command|command\s+line)\b",
+    re.IGNORECASE,
+)
+_FILE_TARGET_RE = re.compile(
+    r"\b(?:save|write|put|store)\s+(?:it|this|that|them)?\s*(?:as|to|into|in)\s+(?:a\s+)?"
+    r"(?:file|files|disk|folder|directory|path)\b"
+    r"|\b(?:create|make|add)\s+(?:a\s+)?(?:new\s+)?file\b"
+    r"|\b(?:called|named)\s+\S+\.[a-z]{1,5}\b"
+    r"|(?:^|\s)[~./]?[\w./-]+/[\w.-]+\.[a-z]{1,5}\b",
+    re.IGNORECASE,
+)
+
+
+def asks_for_code_in_the_reply(text: str) -> bool:
+    """Whether the deliverable is code as words here, not a file somewhere."""
+    normalized = str(text or "")
+    if not _CODE_IN_REPLY_RE.search(normalized):
+        return False
+    return not _FILE_TARGET_RE.search(normalized)
+
+
 # First-person state check-ins — these want Aura's live voice, never a ticket.
 _INTROSPECTIVE_STATE_RE = re.compile(
     r"\bvalence\b|\barousal\b|"
@@ -486,6 +519,8 @@ def looks_like_inline_answer_request(text: str) -> bool:
         return False
     lowered = normalized.lower()
     if _INLINE_REPLY_CONTRACT_RE.search(lowered):
+        return True
+    if asks_for_code_in_the_reply(normalized):
         return True
     sanitized = strip_negated_action_spans(normalized).lower()
     if (

@@ -426,6 +426,7 @@ class LiveLearner:
         self._buffer_retention_policy = training_buffer_retention_policy()
 
         self._buffer:         deque   = deque(maxlen=self._buffer_retention_policy.max_items)
+        self._unwritten:      list[str] = []  # scored, not yet appended to the buffer file
         self._lock:           threading.Lock = threading.Lock()
         self._training_lock:  threading.Lock = threading.Lock()
         self._last_train_time: float  = 0.0
@@ -481,6 +482,37 @@ class LiveLearner:
 
     # ── Public interface ──────────────────────────────────────────────────────
 
+    def _write_unwritten(self) -> None:
+        """Append every example scored since the last write, in one write."""
+        with self._lock:
+            lines, self._unwritten = self._unwritten, []
+        if not lines:
+            return
+        try:
+            from core.governance_context import local_internal_governed_scope
+            from core.runtime.file_write_gateway import get_file_write_gateway
+
+            with local_internal_governed_scope(
+                "live_learner.append_example",
+                domain="memory_write",
+                constraints={"artifact": "experience_buffer"},
+            ):
+                get_file_write_gateway().append_text(
+                    self._buffer_path,
+                    "".join(lines),
+                    encoding="utf-8",
+                    source="live_learner.append_example",
+                )
+        except _LIVE_LEARNER_RECOVERABLE_ERRORS as exc:
+            with self._lock:
+                self._unwritten = lines + self._unwritten  # kept for the next write
+            _record_live_learning_degradation(
+                "live_learner",
+                exc,
+                action="kept scored interaction in memory after buffer append failed",
+                extra={"buffer_path": str(self._buffer_path)},
+            )
+
     def record_tick(
         self,
         state: Any,
@@ -526,29 +558,15 @@ class LiveLearner:
             example = self._format_example(state, user_input, response, score)
             with self._lock:
                 self._buffer.append(example)
-                # Persist immediately (survive crashes)
-                try:
-                    from core.governance_context import local_internal_governed_scope
-                    from core.runtime.file_write_gateway import get_file_write_gateway
+                self._unwritten.append(json.dumps(example) + "\n")
+            # Persisted promptly (to survive a crash) but never on the loop:
+            # the append fsyncs, and the loop report named it from the
+            # learning phase (LIVE 2026-09-19). One writer per buffer drains
+            # whatever has accrued when it runs, so no example is lost to
+            # coalescing.
+            from core.runtime.executors import behind_the_loop
 
-                    with local_internal_governed_scope(
-                        "live_learner.append_example",
-                        domain="memory_write",
-                        constraints={"artifact": "experience_buffer"},
-                    ):
-                        get_file_write_gateway().append_text(
-                            self._buffer_path,
-                            json.dumps(example) + "\n",
-                            encoding="utf-8",
-                            source="live_learner.append_example",
-                        )
-                except _LIVE_LEARNER_RECOVERABLE_ERRORS as exc:
-                    _record_live_learning_degradation(
-                        "live_learner",
-                        exc,
-                        action="kept scored interaction in memory after buffer append failed",
-                        extra={"buffer_path": str(self._buffer_path)},
-                    )
+            behind_the_loop(f"live_learner.append_example:{self._buffer_path}", self._write_unwritten)
 
         logger.debug(
             "Learning: score=%.2f (affect_w=%.2f) training=%s",

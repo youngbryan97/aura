@@ -4862,7 +4862,7 @@
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/learning/live_learner.py",
-      "scope": "<module>.LiveLearner.record_tick"
+      "scope": "<module>.LiveLearner._write_unwritten"
     },
     {
       "callee": "<file_write_gateway>.ensure_directory",
@@ -4911,6 +4911,14 @@
       "count": 1,
       "path": "core/learning/semantic_fit_checkpoint.py",
       "scope": "<module>.SemanticFitCheckpoint.save"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_bytes",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/learning/semantic_fit_checkpoint.py",
+      "scope": "<module>.SemanticFitCheckpoint.save_projection"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -7241,12 +7249,12 @@
       "scope": "<module>.ContentFetcher._web_html"
     },
     {
-      "callee": "core.runtime.network_gateway.get_network_gateway().request",
+      "callee": "llm_health_router.get_network_gateway().request",
       "canonical_owner": false,
       "category": "network_gateway",
       "count": 1,
-      "path": "core/brain/llm_health_router.py",
-      "scope": "<module>.HealthAwareLLMRouter._call_endpoint_fallback_http_api"
+      "path": "core/brain/llm_health_router_endpoint_call.py",
+      "scope": "<module>._CallsTheEndpoint._call_endpoint_fallback_http_api"
     },
     {
       "callee": "core.runtime.network_gateway.get_network_gateway().request",
@@ -9197,8 +9205,8 @@
       "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
-      "path": "core/brain/llm/mlx_client.py",
-      "scope": "<module>.MLXLocalClient._spawn_worker_blocking"
+      "path": "core/brain/llm/mlx_client_worker_lifecycle.py",
+      "scope": "<module>._KeepsTheWorkerAlive._spawn_worker_blocking"
     },
     {
       "callee": "pathlib.Path().mkdir",
@@ -14841,20 +14849,20 @@
       "scope": "<module>.EvidenceProvider._ripgrep"
     },
     {
-      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_python_process",
-      "canonical_owner": false,
-      "category": "subprocess_gateway",
-      "count": 1,
-      "path": "core/brain/llm/mlx_client.py",
-      "scope": "<module>.MLXLocalClient._spawn_worker_blocking"
-    },
-    {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run_until_its_work_is_done",
       "canonical_owner": false,
       "category": "subprocess_gateway",
       "count": 1,
       "path": "core/brain/llm/mlx_client.py",
       "scope": "<module>._run_probe_until_its_work_is_done"
+    },
+    {
+      "callee": "mlx_client.get_subprocess_gateway().spawn_python_process",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "core/brain/llm/mlx_client_worker_lifecycle.py",
+      "scope": "<module>._KeepsTheWorkerAlive._spawn_worker_blocking"
     },
     {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_python_process",
@@ -15425,7 +15433,7 @@
       "scope": "<module>.VoiceProvider.speak"
     },
     {
-      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run_until_its_work_is_done",
       "canonical_owner": false,
       "category": "subprocess_gateway",
       "count": 1,
@@ -15433,7 +15441,7 @@
       "scope": "<module>.DiagnosticHub._run_pyright"
     },
     {
-      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run_until_its_work_is_done",
       "canonical_owner": false,
       "category": "subprocess_gateway",
       "count": 1,
@@ -16570,6 +16578,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "ba4372947b4c6f05bef802c7503eb450f383b6a16bf00927e10710401cfbc005",
+  "inventory_sha256": "9440167abd1916b6defb57fed49c85d8d2c266909fe6f8c59385bf3c6d599914",
   "schema_version": 1
 }

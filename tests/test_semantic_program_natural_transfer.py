@@ -37,6 +37,9 @@ def test_frozen_tissue_never_saw_the_natural_request_schemas() -> None:
     assert report["fit_or_refit_calls"] == 0
     assert report["expected_answers_available_to_decode"] is False
     assert report["unsupported_operations"] == []
+    assert report["source_inventory_verified"] is False
+    assert report["structural_preflight_verified"] is False
+    assert report["blockers"] == ["bound_source_manifests_missing"]
 
 
 def test_schema_identity_ignores_values_and_words_but_not_computation() -> None:

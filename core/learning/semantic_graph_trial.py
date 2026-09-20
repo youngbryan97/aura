@@ -2,12 +2,19 @@
 
 from collections import defaultdict, deque
 
-from core.learning.semantic_graph_counterexamples import compare_program_meanings, counterfactual_inputs
 from core.learning.semantic_graph_constraints import fit_complete_graph_constraints
+from core.learning.semantic_graph_counterexamples import (
+    compare_program_meanings,
+    counterfactual_inputs,
+)
 from core.learning.semantic_joint_graph_learning import (
-    align_source_input_registers, mine_runtime_graph_contrast, score_annotated_graph,
-    mine_source_binding_constraint, source_operation_constraints,
-    source_operation_pointer_constraints, source_operation_supervision,
+    align_source_input_registers,
+    mine_runtime_graph_contrast,
+    mine_source_binding_constraint,
+    score_annotated_graph,
+    source_operation_constraints,
+    source_operation_pointer_constraints,
+    source_operation_supervision,
 )
 from core.learning.semantic_program_campaign import _sha
 from core.learning.semantic_program_shared_transducer import _geometry
@@ -87,7 +94,8 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
                              training_pool_count=None, steps=20, max_charts=32, progress=None,
                              objective="squared_deficit", operation_retention_count=None,
                              learn_operation_pointer=False, update_rule="working_face",
-                             boundary_policy="supervised"):
+                             boundary_policy="supervised", learn_operations=True,
+                             relation_metric="coefficient_euclidean"):
     """Fit only selected source rows and independently replay both small cohorts.
 
     This returns no deployable candidate. Validation rows never enter mining
@@ -102,8 +110,9 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
         raise ValueError("training pool must cover the requested training cohort")
     training_pool = select_trial_examples(examples, split="train", count=training_pool_count)
     validation = select_trial_examples(examples, split="validation", count=validation_count)
-    if model.training_receipt.get("operation_assignment_policy") != "joint_factor_score_v2":
-        raise ValueError("runtime graph trial requires joint operation-argument scoring")
+    decoder_policy = model.training_receipt.get("operation_assignment_policy", "first_feasible_v1")
+    if decoder_policy not in {"first_feasible_v1", "joint_factor_score_v2"}:
+        raise ValueError("runtime graph trial requires a supported selection policy")
     pool_observations = []
     for item in training_pool:
         pool_observations.append(_observe(model, item))
@@ -163,7 +172,8 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
             progress({"stage": "trial_mining", "completed": len(records), "pairs": len(constraints), "row": record})
     candidate, fit = fit_complete_graph_constraints(model, tuple(constraints),
         scale=model.definition_relation_scale, steps=steps, adaptive_step=True, progress=progress,
-        objective=objective, learn_operation_pointer=learn_operation_pointer, update_rule=update_rule)
+        objective=objective, learn_operation_pointer=learn_operation_pointer, update_rule=update_rule,
+        learn_operations=learn_operations, relation_metric=relation_metric)
     after = []
     for item in (*training, *validation):
         after.append(_observe(candidate, item))
@@ -177,7 +187,7 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
             "after_equivalent": sum(b["semantic_status"] == "equivalent" for _, b in pairs),
             "gains": sum(a["semantic_status"] != "equivalent" and b["semantic_status"] == "equivalent" for a, b in pairs),
             "regressions": sum(a["semantic_status"] == "equivalent" and b["semantic_status"] != "equivalent" for a, b in pairs),
-            "unmeasured_after": sum(b["semantic_status"] == "unmeasured" for _, b in pairs),
+            "unmeasured_after": sum(b["semantic_status"] in {"unmeasured", "unknown"} for _, b in pairs),
             "decode_refusals_before": sum(a["semantic_status"] == "decode_refused" for a, _ in pairs),
             "decode_refusals_after": sum(b["semantic_status"] == "decode_refused" for _, b in pairs)}
     blockers = []
@@ -186,7 +196,7 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
     if any(row["accepted"] and (not row["source_grounding_aligned"] or
                                not row["annotated_graph_feasible"]) for row in (*before, *after)):
         blockers.append("grounding_or_annotated_graph_feasibility")
-    if any(row["semantic_status"] == "unmeasured" for row in (*before, *after)):
+    if any(row["semantic_status"] in {"unmeasured", "unknown"} for row in (*before, *after)):
         blockers.append("semantic_verification_unmeasured")
     if any(row.get("status") not in {"counterexamples", "no_witnessed_competitor"} for row in records):
         blockers.append("runtime_constraint_mining_unavailable")
@@ -206,6 +216,8 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
     body = {"schema": "aura.semantic_graph_trial.v3", "parent": model.receipt_sha256,
             "serving_authority": False, "promotion_allowed": False, "fresh_transfer_claim": False,
             "selection_policy": "source_hash_geometry_round_robin_v1",
+            "decoder_selection_policy": decoder_policy,
+            "selection_objective": "runtime_policy_aligned_v1",
             "training_acquisition_policy": "witnessed_training_failures_then_retention_v1",
             "training_pool_observations": pool_observations,
             "training_sources": [item.ir.source_text_sha256 for item in training],

@@ -781,28 +781,30 @@ def test_a_cold_cortex_no_longer_abandons_the_tick():
     import inspect as _inspect
 
     from core import mind_tick as mind_tick_mod
+    from core import mind_tick_loop_steps as loop_steps_mod
 
-    # The whole module, not the method. The escalation branch moved into a
-    # helper beside the loop and walking _run_loop's tree stopped finding
-    # it — the branch intact, the `continue` still absent, the test red
-    # with "the deferred-cortex branch was not found", which reads exactly
-    # like the branch having been deleted.
-    source = _inspect.getsource(mind_tick_mod)
-    tree = ast.parse(source)
-
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.If):
-            continue
-        rendered = ast.get_source_segment(source, node) or ""
-        if "_dead_tiers_are_policy_deferred_cortex" not in rendered:
-            continue
-        # The word appears in the comment explaining the fix; what matters is
-        # that no Continue statement remains in the branch.
-        assert not any(
-            isinstance(child, ast.Continue) for child in ast.walk(node)
-        ), "the tick is still abandoned"
-        assert "LLM health: dead tiers" in rendered, "the escalation was lost"
-        return
+    # The whole module and the mixin its loop steps were lifted into, not
+    # the method. The escalation branch moved into a helper beside the loop,
+    # then into ``_RunsTheTickLoopSteps``; walking _run_loop's tree stopped
+    # finding it — the branch intact, the `continue` still absent, the test
+    # red with "the deferred-cortex branch was not found", which reads
+    # exactly like the branch having been deleted.
+    for module in (mind_tick_mod, loop_steps_mod):
+        source = _inspect.getsource(module)
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.If):
+                continue
+            rendered = ast.get_source_segment(source, node) or ""
+            if "_dead_tiers_are_policy_deferred_cortex" not in rendered:
+                continue
+            # The word appears in the comment explaining the fix; what matters
+            # is that no Continue statement remains in the branch.
+            assert not any(
+                isinstance(child, ast.Continue) for child in ast.walk(node)
+            ), "the tick is still abandoned"
+            assert "LLM health: dead tiers" in rendered, "the escalation was lost"
+            return
     raise AssertionError("the deferred-cortex branch was not found")
 
 

@@ -162,6 +162,7 @@ _ANSWER_FORM_NOUNS = frozenset(
     calculations math arithmetic answer result fraction number figure value
     total sum probability conclusion final
     exact precise simplified reduced decimal integer percentage
+    line lines paragraph paragraphs bullet bullets item items list points
     """.split()
 )
 

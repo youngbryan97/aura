@@ -3,7 +3,7 @@
   "description": "Modules already above the size thresholds, and the total oversize budget. Individual entries may move; the total may only shrink. A file that has shrunk must be re-recorded, because a stale entry is headroom nobody earned.",
   "max_new_module_lines": 2000,
   "max_new_class_methods": 30,
-  "oversize_budget_lines": 143448,
+  "oversize_budget_lines": 130450,
   "modules": {
     "core/adaptation/adaptive_immunity.py": {
       "lines": 3750,
@@ -30,7 +30,7 @@
       "max_class_methods": 35
     },
     "core/autonomic/allostasis.py": {
-      "lines": 2274,
+      "lines": 2273,
       "max_class_methods": 43
     },
     "core/autonomy/autonomous_initiative_loop.py": {
@@ -38,8 +38,8 @@
       "max_class_methods": 35
     },
     "core/brain/cognitive_engine.py": {
-      "lines": 5702,
-      "max_class_methods": 57
+      "lines": 4081,
+      "max_class_methods": 54
     },
     "core/brain/frontier_evidence_v5.py": {
       "lines": 2102,
@@ -50,16 +50,16 @@
       "max_class_methods": 5
     },
     "core/brain/inference_gate.py": {
-      "lines": 12965,
-      "max_class_methods": 151
+      "lines": 11659,
+      "max_class_methods": 149
     },
     "core/brain/latent_cortex_service.py": {
-      "lines": 4161,
+      "lines": 3672,
       "max_class_methods": 24
     },
     "core/brain/llm/context_assembler.py": {
-      "lines": 2837,
-      "max_class_methods": 32
+      "lines": 2273,
+      "max_class_methods": 29
     },
     "core/brain/llm/latent_cortex/action_calibration.py": {
       "lines": 2903,
@@ -79,7 +79,7 @@
     },
     "core/brain/llm/latent_cortex/engine.py": {
       "lines": 10366,
-      "max_class_methods": 83
+      "max_class_methods": 82
     },
     "core/brain/llm/latent_cortex/epistemic_state.py": {
       "lines": 2674,
@@ -98,7 +98,7 @@
       "max_class_methods": 14
     },
     "core/brain/llm/latent_cortex/types.py": {
-      "lines": 2134,
+      "lines": 2070,
       "max_class_methods": 15
     },
     "core/brain/llm/llm_router.py": {
@@ -106,16 +106,16 @@
       "max_class_methods": 32
     },
     "core/brain/llm/mlx_client.py": {
-      "lines": 15207,
-      "max_class_methods": 158
+      "lines": 13263,
+      "max_class_methods": 157
     },
     "core/brain/llm/mlx_worker.py": {
       "lines": 8783,
       "max_class_methods": 8
     },
     "core/brain/llm_health_router.py": {
-      "lines": 4684,
-      "max_class_methods": 42
+      "lines": 3618,
+      "max_class_methods": 40
     },
     "core/brain/personality_engine.py": {
       "lines": 1605,
@@ -175,7 +175,7 @@
     },
     "core/container.py": {
       "lines": 1666,
-      "max_class_methods": 42
+      "max_class_methods": 41
     },
     "core/conversation/chat_preflight.py": {
       "lines": 2041,
@@ -186,8 +186,8 @@
       "max_class_methods": 3
     },
     "core/coordinators/metabolic_coordinator.py": {
-      "lines": 1761,
-      "max_class_methods": 39
+      "lines": 1695,
+      "max_class_methods": 36
     },
     "core/executive/authority_gateway.py": {
       "lines": 2171,
@@ -195,7 +195,7 @@
     },
     "core/executive/executive_core.py": {
       "lines": 1636,
-      "max_class_methods": 42
+      "max_class_methods": 38
     },
     "core/goals/goal_engine.py": {
       "lines": 1915,
@@ -203,11 +203,11 @@
     },
     "core/governance/will.py": {
       "lines": 2652,
-      "max_class_methods": 45
+      "max_class_methods": 43
     },
     "core/kernel/aura_kernel.py": {
-      "lines": 2103,
-      "max_class_methods": 41
+      "lines": 1565,
+      "max_class_methods": 38
     },
     "core/learning/recurrence_native_objective_v2.py": {
       "lines": 3861,
@@ -222,7 +222,7 @@
       "max_class_methods": 3
     },
     "core/learning/unified_intrinsic_recurrence.py": {
-      "lines": 5700,
+      "lines": 4961,
       "max_class_methods": 51
     },
     "core/learning/verified_recurrent_transition_repository.py": {
@@ -238,8 +238,8 @@
       "max_class_methods": 13
     },
     "core/memory/episodic_memory.py": {
-      "lines": 2117,
-      "max_class_methods": 51
+      "lines": 2049,
+      "max_class_methods": 46
     },
     "core/memory/knowledge_graph.py": {
       "lines": 871,
@@ -247,15 +247,11 @@
     },
     "core/memory/memory_facade.py": {
       "lines": 1802,
-      "max_class_methods": 61
-    },
-    "core/mind_tick.py": {
-      "lines": 2070,
-      "max_class_methods": 21
+      "max_class_methods": 59
     },
     "core/mycelium.py": {
-      "lines": 4697,
-      "max_class_methods": 93
+      "lines": 4644,
+      "max_class_methods": 90
     },
     "core/ontogeny/service.py": {
       "lines": 1027,
@@ -274,7 +270,7 @@
       "max_class_methods": 8
     },
     "core/phases/response_generation.py": {
-      "lines": 3217,
+      "lines": 2860,
       "max_class_methods": 20
     },
     "core/phases/response_generation_unitary.py": {
@@ -304,10 +300,6 @@
     "core/reality_reach/observation_router.py": {
       "lines": 2217,
       "max_class_methods": 38
-    },
-    "core/resilience/stability_guardian.py": {
-      "lines": 1387,
-      "max_class_methods": 34
     },
     "core/runtime/action_executor.py": {
       "lines": 2331,
@@ -350,8 +342,8 @@
       "max_class_methods": 74
     },
     "core/skills/desktop_task.py": {
-      "lines": 6119,
-      "max_class_methods": 116
+      "lines": 5617,
+      "max_class_methods": 111
     },
     "core/skills/os_automation.py": {
       "lines": 1648,

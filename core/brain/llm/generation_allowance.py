@@ -31,8 +31,10 @@ def resident_generation_seconds(
     if decode_seconds <= 0.0:
         return 0.0
     prompt_chars = sum(len(str(message.get("content") or "")) for message in messages)
-    read_seconds = max(
-        seconds_to_read(prompt_chars), client.least_time_to_read(prompt_chars),
-    )
+    # A client that measures its own read rate says the least it will take; one
+    # that cannot (an injected test double, an older adapter) says nothing.
+    least = getattr(client, "least_time_to_read", None)
+    least_read = float(least(prompt_chars) or 0.0) if callable(least) else 0.0
+    read_seconds = max(seconds_to_read(prompt_chars), least_read)
     # Bridge and service each reserve eight seconds for delivery.
     return read_seconds + decode_seconds + 16.0

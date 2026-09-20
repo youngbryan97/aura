@@ -140,6 +140,13 @@ def compare_program_meanings(target: Program, alternative: Program, probes: Sequ
     if key is not None and key == semantic_program_polynomial_key(alternative):
         return {"status": "equivalent", "method": "floor_integer_polynomial_v1",
                 "normal_form_sha256": _sha(key)}
+    from core.learning.semantic_program_symbolic import semantic_program_symbolic_key
+
+    key = semantic_program_symbolic_key(target)
+    if key is not None and key == semantic_program_symbolic_key(alternative):
+        return {"status": "equivalent", "method": "floor_typed_partial_ring_v1",
+                "normal_form_sha256": _sha(key), "defined_domain_preserved": True,
+                "claim": "output_and_domain_equality_not_cost_or_source_meaning"}
     observations = []
     for values in probes:
         observe = observation_cache.observe if observation_cache is not None else _observe_program_domain

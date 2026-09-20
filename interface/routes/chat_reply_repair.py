@@ -370,6 +370,13 @@ async def _stabilize_user_facing_reply_part_3(correction_prompt, desktop_cogniti
             messages=rewrite_messages,
             prefer_tier="primary",
             origin="api_stabilizer",
+            # The person's question, not the draft under repair. Without it
+            # the gate took the correction prompt as the question and read
+            # its observables off the DRAFT: LIVE 2026-09-16 a draft that
+            # named phi_core.py had the file looked up by its bare name,
+            # "No file exists at phi_core.py" went into the repair turn, and
+            # the repaired reply told the person the file was gone.
+            visible_user_message=user_message,
             foreground_request=True,
             is_background=False,
             protected_foreground_lane=bool(

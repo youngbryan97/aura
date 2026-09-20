@@ -40,6 +40,7 @@ import httpx
 
 from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import record_degradation
+from core.runtime.executors import behind_the_loop
 from core.runtime.launch_provenance import bind_runtime_source_snapshot
 from core.runtime.resource_observation import get_resource_observer
 from core.runtime.root_signal_owner import RootShutdownSignalOwner
@@ -1398,7 +1399,9 @@ async def _boot_runtime_orchestrator(
 
             auditor = get_activation_auditor()
             report = await auditor.audit(orchestrator, reconcile=True)
-            auditor.write_report(report, config.paths.data_dir / "runtime" / "activation_report.json")
+            await asyncio.to_thread(
+                auditor.write_report, report, config.paths.data_dir / "runtime" / "activation_report.json"
+            )
             ServiceContainer.register_instance("activation_auditor", auditor, required=False)
             if report.missing_required:
                 logger.warning(
@@ -3431,7 +3434,9 @@ async def run_desktop(
             # has no desktop session, so an observation loop there would be
             # reading a screen nobody is sitting at. The asymmetry is a
             # decision, not an oversight, which is why it is written down.
-            _record_existence_witness()
+            # Hashes the tree and fsyncs the ark: off the loop. LIVE
+            # 2026-09-19, the loop report named both fsyncs on the first boot.
+            behind_the_loop("aura_main.existence_witness", _record_existence_witness)
             _start_ambient_presence()
 
             # 2. Verify API Server (v21: Server now runs in Kernel)
@@ -4566,7 +4571,7 @@ def main():
                             orchestrator.run(),
                             name="OrchestratorMainLoop",
                         )
-                        _record_existence_witness()
+                        behind_the_loop("aura_main.existence_witness", _record_existence_witness)
                         _start_ambient_presence()
                         await run_server_async(
                             host,
