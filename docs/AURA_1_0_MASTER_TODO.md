@@ -1006,6 +1006,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Joint curvature restoration](evidence/G03_JOINT_CURVATURE_RESTORATION_2026-09-20.md)
+  replaces single-face corrections with a jointly checked stored update.
+  Twelve independent errors become positive without a retained regression;
+  77 focused tests pass. Full-source candidate evaluation remains required.
   [Margin accumulation](evidence/G03_MARGIN_ACCUMULATION_2026-09-20.md)
   fixes disagreement between scalar, gradient and batched retained margins
   when shared scores cancel. Seventy-five focused tests pass; acceptance
