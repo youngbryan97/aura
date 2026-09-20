@@ -595,6 +595,7 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
                 # was never told about. Returning here left the two
                 # disagreeing on 82 bindings after a restart, which is the
                 # signature of a partial failure nobody cleaned up.
+                self._attach_the_stranded(live)
                 self._reconcile_substrate()
                 return
             for cell_id in live - known:
@@ -640,6 +641,46 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
                 severity="warning",
                 extra={"tick": self._tick},
             )
+
+    def _attach_the_stranded(self, live: set[str]) -> None:
+        """Bind a live cell the graph holds with no edges at all.
+
+        Attachments were computed only for cells that ARRIVE, and a cell
+        already isolated when the graph was saved never arrives again: the
+        population matches on every boot, this method returns early, and
+        nothing binds it for the life of the installation.
+
+        The persisted graph on 2026-09-20 held 50 nodes, 196 edges and
+        exactly six isolated cells — six organs the stabilizer formalised,
+        reported live as "population split into 7 pieces: 44,1,1,1,1,1,1"
+        and still split after readiness. No degree budget was reached and
+        nothing was refused; the healing simply never ran on them.
+
+        Isolation is the condition, not arrival. Anything the attachment
+        rule declines — a cell alone in its subsystem, a budget already
+        spent — is declined here too, and stays visible in the partition
+        count where a policy can decide about it.
+        """
+        stranded = {
+            cell_id for cell_id in live
+            if not self.graph.out_edges(cell_id) and not self.graph.in_edges(cell_id)
+        }
+        if not stranded:
+            return
+        edges = self._attachments_for(stranded, live)
+        if not edges:
+            return
+
+        def heal(scratch: Any) -> None:
+            for edge in edges:
+                scratch.add_edge(edge)
+
+        self.graph.transaction(heal, cause=f"attach_stranded@tick{self._tick}")
+        logger.info(
+            "Morphogenesis bound %d stranded cell(s) the restore left isolated: %s",
+            len(stranded),
+            ", ".join(sorted(stranded)[:6]),
+        )
 
     def _reconcile_substrate(self) -> None:
         """Make the substrate hold exactly the bindings the graph declares.
