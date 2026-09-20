@@ -1588,6 +1588,27 @@ class IntelligentLLMRouter:
             return None
         if kwargs.get("deep_handoff") or kwargs.get("allow_deep_handoff") or kwargs.get("force_transformer"):
             return None
+        # A caller that named a machine-readable shape is not asking for text.
+        #
+        # The shape is held by the DECODER, in the MLX worker, and this path
+        # never reaches it: the readout head is an untrained random projection
+        # onto a 32-word proto vocabulary, so a JSON array is not something it
+        # can fail to produce well — it is something it cannot produce. The
+        # autonomous planner asked for a json_array, got "world action hold
+        # grounded choose loop result repair", parsed nothing, and fell back to
+        # the deterministic plan on every background decomposition.
+        #
+        # Background is where this bit, because the presentability gate below
+        # deliberately does not apply there, and background is also where
+        # almost every shaped call is made.
+        # Routing, not a degradation: nothing went wrong, the request simply
+        # names a lane this one is not.
+        if str(kwargs.get("output_shape") or "").strip():
+            logger.debug(
+                "Substrate primary declined: the turn names an output shape "
+                "only the decoder can hold."
+            )
+            return None
 
         try:
             from core.brain.llm.substrate_token_generator import (

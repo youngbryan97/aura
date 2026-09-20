@@ -1483,7 +1483,7 @@ def _record_the_capability_inventory_miss(
                 # system prompt, which invalidated the KV prefix for
                 # everything behind it. Measured live: 1,648 of 1,834
                 # tokens re-prefilled every turn (10% reuse) and a simple
-                # reply taking 13-16s, almost all of it prefill.
+                # reply taking up to 16s, almost all of it prefill.
                 pass
                 # Grounding that cannot be seen cannot be verified. Two
                 # prompt builders and one of them ungrounded cost an hour
@@ -1761,6 +1761,17 @@ def _note_the_quick_reply_contract(
 _DESKTOP_AUTHORITY_HEAD = "You are Aura speaking through the live desktop CognitiveEngine."
 
 
+
+
+
+def shape_for_response_format(requested: Any) -> str:
+    """The decoder shape a ``response_format`` asks for.
+
+    Its own function so the claim can be run. Asserting the mapping by
+    grepping ``think`` for a string proved that a line existed, which is not
+    the same as proving what it does, and it went red when the line moved.
+    """
+    return "json_array" if requested in ("json_array", list) else "json_object"
 
 
 class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsItsAugmentors):
@@ -2374,8 +2385,7 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
         if requested_format is not None:
             context = dict(context or {})
             context.setdefault(
-                "output_shape",
-                "json_array" if requested_format in ("json_array", list) else "json_object",
+                "output_shape", shape_for_response_format(requested_format)
             )
 
         # Restore the antecedent for a message that cannot stand alone. Live

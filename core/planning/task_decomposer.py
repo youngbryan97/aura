@@ -317,7 +317,25 @@ class TaskDecomposer:
             )
             if not text:
                 return []
-            return self._parse_llm_response(str(text))
+            parsed = self._parse_llm_response(str(text))
+            if not parsed:
+                # The shape was declared on the request; text that holds no
+                # steps means it was not held, and the plan the model made is
+                # being thrown away. Silent, this reads as "the model had no
+                # plan" — the 2026-09-19 run fell back deterministically on
+                # every decomposition and nothing said why.
+                record_degradation(
+                    "task_decomposer.llm",
+                    ValueError("model answer carried no steps"),
+                    severity="warning",
+                    action="planned from the heuristic decomposition instead",
+                    extra={
+                        "objective": objective[:120],
+                        "answer_head": str(text)[:200],
+                        "answer_length": len(str(text)),
+                    },
+                )
+            return parsed
 
         except (ImportError, AttributeError, RuntimeError, TypeError) as e:
             record_degradation("task_decomposer.llm", e)
