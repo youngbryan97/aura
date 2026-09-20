@@ -809,8 +809,14 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
             cut_off = sorted(cell for piece in pieces[1:] for cell in piece)
             if cut_off:
                 # Sizes alone said "44,1,1,1,1,1,1" live (2026-09-19) and no
-                # surface could say which six cells nothing binds to.
-                shown = ", ".join(cut_off[:12])
+                # surface could say which six cells nothing binds to. Their
+                # ids are digests, so they are named as they were declared.
+                named = {
+                    cell.cell_id: f"{cell.manifest.name} ({cell.manifest.subsystem})"
+                    for cell in self.registry.active_cells()
+                    if getattr(cell, "manifest", None) is not None
+                }
+                shown = ", ".join(named.get(cell, cell) for cell in cut_off[:12])
                 more = f" and {len(cut_off) - 12} more" if len(cut_off) > 12 else ""
                 status["component_sizes"] += f"; cut off from the rest: {shown}{more}"
             telemetry.publish(status)
