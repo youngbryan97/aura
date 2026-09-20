@@ -19,6 +19,7 @@ from core.container import ServiceContainer
 from core.event_bus import get_event_bus
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import task_tracker
 
 logger = logging.getLogger("Aura.Beliefs")
@@ -241,17 +242,9 @@ class BeliefRevisionEngine:
         async with self._lifecycle_lock:
             self.running = False
             if self._revision_task and not self._revision_task.done():
-                self._revision_task.cancel()
-                try:
-                    await asyncio.wait_for(self._revision_task, timeout=_STOP_TIMEOUT_S)
-                except asyncio.CancelledError:
-                    logger.debug("BeliefRevisionEngine: Shutdown requested.")
-                except TimeoutError as exc:
-                    _record_belief_revision_degradation(
-                        exc,
-                        action="stop completed with timed-out belief revision task cancellation",
-                        severity="warning",
-                    )
+                await cancel_and_join(
+                    self._revision_task, owner="core.epistemics.belief_revision", timeout=_STOP_TIMEOUT_S
+                )
             await self._async_save()
             logger.info("🛑 Belief System STOPPED.")
 

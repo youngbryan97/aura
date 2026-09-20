@@ -37,6 +37,7 @@ from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.utils.concurrency import cancel_and_join
 
 logger = logging.getLogger("Aura.CompoundingScheduler")
 
@@ -93,11 +94,9 @@ class CompoundingScheduler:
     async def stop(self) -> None:
         self._active = False
         if self._task is not None:
-            self._task.cancel()
-            try:
-                await asyncio.wait_for(self._task, timeout=5.0)
-            except (asyncio.CancelledError, TimeoutError):
-                pass
+            await cancel_and_join(
+                self._task, owner="core.learning.compounding_scheduler", timeout=5.0
+            )
             self._task = None
 
     # ── main loop ────────────────────────────────────────────────────────────

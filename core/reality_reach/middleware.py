@@ -70,6 +70,7 @@ from core.runtime.lockdep import (
     checked_semaphore,
 )
 from core.runtime.state_ownership import state_root
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 _STATE_SCHEMA = "aura.reality_reach.middleware_state.v1"
@@ -733,13 +734,9 @@ class RealityMiddlewareRuntime(RealityServiceLane):
             await self._persist()
             return record.to_dict()
         if task is not None and not task.done():
-            task.cancel()
-            try:
-                await asyncio.wait_for(task, timeout=endpoint.cancel_timeout_s)
-            except asyncio.CancelledError:
-                pass
-            except TimeoutError:
-                acknowledged = False
+            await cancel_and_join(
+                task, owner="core.reality_reach.middleware", timeout=endpoint.cancel_timeout_s
+            )
         if not acknowledged and record.state not in {
             ActionState.CANCELLED,
             ActionState.PREEMPTED,
