@@ -64,16 +64,24 @@ def score_annotated_graph(model, item, instructions, input_spans, *, solve_time_
 
 def scored_graph_evidence(model, item, nodes, result, relations, *, learn_arguments=False, learn_operation_pointer=False):
     """Retain differentiable terms for the same latent graph the solver selected."""
-    score = result[0][0] + sum(node.score for node in nodes) - model.operation_length_penalty * len(nodes)
+    operation_score = sum(node.score for node in nodes) - model.operation_length_penalty * len(nodes)
+    score = result[0][0] + operation_score
     from core.learning.semantic_argument_graph_learning import argument_graph_evidence
     terms = argument_graph_evidence(model, item.hidden_states, nodes, result[0][2]) if learn_arguments else ()
+    binding_terms = terms
+    pointer_terms = ()
     if learn_operation_pointer and model.training_receipt.get("operation_background_fit", {}).get("score") \
             != "joint_operation_background_log_odds_v2":
         from core.learning.semantic_operation_pointer_learning import (
             operation_pointer_graph_evidence,
         )
-        terms += operation_pointer_graph_evidence(model, item.hidden_states, nodes)
-    return {"score": score, "argument_score": result[0][0], "relations": relations, "argument_terms": terms,
+        pointer_terms = operation_pointer_graph_evidence(model, item.hidden_states, nodes)
+        terms += pointer_terms
+    return {"score": score, "operation_score": operation_score,
+            "argument_score": result[0][0], "relations": relations, "argument_terms": terms,
+            "operation_pointer_terms": pointer_terms,
+            "binding_terms": binding_terms,
+            "operation_signature": tuple((node.operation, node.span.start, node.span.end) for node in nodes),
             "operations": operation_graph_evidence(model, item.hidden_states, nodes),
             "program": argument_graph_program(nodes, result[0][1], n_inputs=len(item.public_inputs))}
 
@@ -98,6 +106,56 @@ def joint_graph_contrast(model, positive, negative, *, weight=1.):
     return RelationGraphContrast(positive["relations"], negative["relations"],
         positive["score"] - negative["score"] - variable, weight,
         positive["operations"], negative["operations"], terms)
+
+
+def graph_selection_key(model, graph):
+    """Keep offline comparisons in the ordering the decoder actually uses."""
+    policy = model.training_receipt.get("operation_assignment_policy", "first_feasible_v1")
+    if policy == "joint_factor_score_v2":
+        return (graph["score"],)
+    if policy != "first_feasible_v1":
+        raise ValueError("unknown graph selection policy")
+    signature = graph["operation_signature"]
+    return (graph["operation_score"], -len(signature),
+            tuple((-start, -end) for _op, start, end in signature))
+
+
+def preferred_semantic_graph(model, candidate, incumbent):
+    """Compare bindings only within the same first-feasible operation chart."""
+    if (model.training_receipt.get("operation_assignment_policy", "first_feasible_v1") == "first_feasible_v1"
+            and candidate["operation_signature"] == incumbent["operation_signature"]):
+        return candidate["argument_score"] > incumbent["argument_score"]
+    return graph_selection_key(model, candidate) > graph_selection_key(model, incumbent)
+
+
+def selection_score_margin(model, positive, negative):
+    if len(graph_selection_key(model, positive)) == 1:
+        return positive["score"] - negative["score"]
+    if positive["operation_signature"] == negative["operation_signature"]:
+        return positive["argument_score"] - negative["argument_score"]
+    return graph_selection_key(model, positive)[0] - graph_selection_key(model, negative)[0]
+
+
+def selection_graph_contrast(model, positive, negative, *, weight=1.):
+    """Train the deciding component, not a sum the incumbent never compares.
+
+    First-feasible decoding sorts feasible operation charts by operation
+    score, then optimizes arguments within the chosen chart. Raising a
+    secondary argument score cannot repair an earlier wrong operation chart.
+    Joint decoding continues to use the existing summed-score objective.
+    """
+    if len(graph_selection_key(model, positive)) == 1:
+        return joint_graph_contrast(model, positive, negative, weight=weight)
+    same_chart = positive["operation_signature"] == negative["operation_signature"]
+
+    def component(graph):
+        if not same_chart:
+            return {**graph, "score": graph["operation_score"],
+                    "relations": (), "argument_terms": graph["operation_pointer_terms"]}
+        return {**graph, "score": graph["argument_score"], "operations": (),
+                "argument_terms": graph["binding_terms"]}
+
+    return joint_graph_contrast(model, component(positive), component(negative), weight=weight)
 
 
 def align_source_input_registers(item, input_spans):
@@ -166,9 +224,12 @@ def mine_runtime_graph_contrast(model, item, *, weight=1., solve_time_limit_s=20
         return None, {**record, "status": "runtime_score_replay_differs",
                       "runtime_score": outcome.pointer_scores["argument_graph_total"],
                       "replayed_score": negative["argument_score"]}
-    record.update(status="counterexample", initial_margin=positive["score"] - negative["score"],
+    record.update(status="counterexample", initial_margin=selection_score_margin(model, positive, negative),
+                  selection_policy=model.training_receipt.get("operation_assignment_policy", "first_feasible_v1"),
+                  positive_selection_key=graph_selection_key(model, positive),
+                  negative_selection_key=graph_selection_key(model, negative),
                   positive_program_sha256=positive["program"].sha(), negative_program_sha256=negative["program"].sha())
-    return joint_graph_contrast(model, positive, negative, weight=weight), record
+    return selection_graph_contrast(model, positive, negative, weight=weight), record
 
 
 def source_operation_supervision(model, training):
@@ -357,8 +418,9 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         raise ValueError('invalid source operation retention weight')
     if (model.training_receipt.get("definition_selection_policy") != "joint_graph_v1"
             or model.training_receipt.get("relation_score_strategy") != "categorical_log_margin_v1"
-            or model.training_receipt.get("operation_assignment_policy") != "joint_factor_score_v2"):
-        raise ValueError("joint training requires the joint categorical runtime decoder")
+            or model.training_receipt.get("operation_assignment_policy", "first_feasible_v1")
+            not in {"first_feasible_v1", "joint_factor_score_v2"}):
+        raise ValueError("graph training requires a supported categorical runtime decoder")
     weights = Counter(_geometry(item) for item in training)
     supervision = source_operation_supervision(model, retention) if source_weight else None
     candidate, retained, history = model, [], []
@@ -457,6 +519,8 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         "stop_reason": stop_reason,
         "negative_origin": "runtime_decode", "positive_origin": "source_annotations",
         "negative_admission": "universal_floor_distinguishing_execution", "test_examples_used": 0,
+        "selection_policy": model.training_receipt.get("operation_assignment_policy", "first_feasible_v1"),
+        "selection_objective": "runtime_policy_aligned_v1",
         "validation_used_for_fit": False, "serving_authority": False,
         "source_operation_weight": source_weight,
         "source_operations": sum(model.operation_head.labels[index] != OPERATION_BACKGROUND_LABEL

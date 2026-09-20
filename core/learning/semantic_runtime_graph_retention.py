@@ -5,7 +5,8 @@ from core.learning.semantic_graph_counterexamples import (
     ProgramObservationCache, counterfactual_inputs, find_program_counterexample,
 )
 from core.learning.semantic_joint_graph_learning import (
-    align_source_input_registers, joint_graph_contrast, score_annotated_graph, scored_graph_evidence,
+    align_source_input_registers, graph_selection_key, preferred_semantic_graph, selection_graph_contrast, selection_score_margin,
+    score_annotated_graph, scored_graph_evidence,
 )
 from core.learning.semantic_operation_search import OperationChartSearch, OperationSearchIncompleteError
 from core.learning.semantic_program_transducer_fitting import _assign_typed_arguments
@@ -80,7 +81,7 @@ def mine_runtime_graph_constraints(model, item, *, weight=1., max_charts=32, max
                 alternative = scored_graph_evidence(model, item, nodes, result.positive,
                     result.positive_evidence, learn_arguments=learn_arguments,
                     learn_operation_pointer=learn_operation_pointer)
-                if alternative["score"] > positive["score"]:
+                if preferred_semantic_graph(model, alternative, positive):
                     positive = alternative
             if result.negative is not None:
                 negative = scored_graph_evidence(model, item, nodes, result.negative,
@@ -97,6 +98,9 @@ def mine_runtime_graph_constraints(model, item, *, weight=1., max_charts=32, max
                   floor_observation_reuse=observation_cache.statistics(),
                   positive_program_sha256=positive["program"].sha(),
                   negative_program_sha256s=[row["program"].sha() for row in negatives],
-                  initial_margins=[positive["score"] - row["score"] for row in negatives])
-    return tuple(joint_graph_contrast(model, positive, negative, weight=weight)
+                  initial_margins=[selection_score_margin(model, positive, row) for row in negatives],
+                  selection_policy=model.training_receipt.get("operation_assignment_policy", "first_feasible_v1"),
+                  positive_selection_key=graph_selection_key(model, positive),
+                  negative_selection_keys=[graph_selection_key(model, row) for row in negatives])
+    return tuple(selection_graph_contrast(model, positive, negative, weight=weight)
                  for negative in negatives), record

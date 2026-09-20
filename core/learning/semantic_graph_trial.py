@@ -110,8 +110,9 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
         raise ValueError("training pool must cover the requested training cohort")
     training_pool = select_trial_examples(examples, split="train", count=training_pool_count)
     validation = select_trial_examples(examples, split="validation", count=validation_count)
-    if model.training_receipt.get("operation_assignment_policy") != "joint_factor_score_v2":
-        raise ValueError("runtime graph trial requires joint operation-argument scoring")
+    decoder_policy = model.training_receipt.get("operation_assignment_policy", "first_feasible_v1")
+    if decoder_policy not in {"first_feasible_v1", "joint_factor_score_v2"}:
+        raise ValueError("runtime graph trial requires a supported selection policy")
     pool_observations = []
     for item in training_pool:
         pool_observations.append(_observe(model, item))
@@ -215,6 +216,8 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
     body = {"schema": "aura.semantic_graph_trial.v3", "parent": model.receipt_sha256,
             "serving_authority": False, "promotion_allowed": False, "fresh_transfer_claim": False,
             "selection_policy": "source_hash_geometry_round_robin_v1",
+            "decoder_selection_policy": decoder_policy,
+            "selection_objective": "runtime_policy_aligned_v1",
             "training_acquisition_policy": "witnessed_training_failures_then_retention_v1",
             "training_pool_observations": pool_observations,
             "training_sources": [item.ir.source_text_sha256 for item in training],

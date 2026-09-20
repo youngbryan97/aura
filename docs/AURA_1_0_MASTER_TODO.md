@@ -991,6 +991,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Policy-aligned learning](evidence/G03_POLICY_ALIGNED_LEARNING_2026-09-20.md)
+  removes the trainer's required decoder-policy switch. A completed small
+  source trial retains 99/100 on exposed validation with no gains or
+  regressions; source-error acquisition and full evaluation remain open.
   [Reference review and adoption](evidence/G_LEDGER_REFERENCE_REVIEW_2026-09-20.md)
   maps all supplied recommendations to existing owners and acceptance evidence.
   [Policy controls](evidence/G03_POLICY_COEFFICIENT_CONTROLS_2026-09-20.md)
