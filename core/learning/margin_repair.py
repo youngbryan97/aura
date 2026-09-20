@@ -147,17 +147,37 @@ def minimum_margin_repair(normals, required, *, max_iterations=1000, tolerance=1
             displacement, lam, receipt, polished = candidate_displacement, candidate, checked, True
     receipt.update(solver_status=int(result.status), solver_iterations=int(result.nit),
                    active_equalities_polished=polished, active_set_pivots=pivots)
+    if receipt["status"] != "verified_numerically":
+        from core.learning.affine_margin_polish import polish_feature_dual
+
+        # A dual optimizer can put weight on dependent rows whose targets no
+        # longer share an equality after storage reserves. Rebuild the active
+        # set from the feasible zero dual instead of inheriting that support.
+        point, dual, feature_pivots = polish_feature_dual(
+            normalized, target, np.zeros(len(a)), max_iterations=max_iterations)
+        dual /= scales
+        checked = verify_margin_repair(a, b, point, dual, tolerance=tolerance)
+        if checked["status"] == "verified_numerically":
+            displacement, lam = point, dual
+            receipt = {**checked, "solver_status": int(result.status),
+                "solver_iterations": int(result.nit), "active_equalities_polished": True,
+                "active_set_pivots": feature_pivots,
+                "equality_solver": "orthogonal_feature_svd_v1"}
     return MarginRepair(displacement, lam, receipt)
 
 
 def minimum_stored_margin_repair(normals, required, anchor, *, max_rounding_rounds=8,
-                                 max_iterations=1000, tolerance=1e-7):
+                                 max_iterations=1000, tolerance=1e-7, store_point=None):
     """Repair affine margins in the precision that the model actually stores.
 
     For rounding error e, a_i*(d+e) >= a_i*d - |a_i|*|e|. Add
     a reserve only to violated rows, solve again, and check stored values
     against the original requirements. Tight equalities can still succeed
     without an artificial interior. Exhaustion does not prove infeasibility.
+
+    A coordinate chart may supply its physical-storage roundtrip as store_point.
+    Its observed rounding error guides the next reserve, but only a fresh replay
+    of every original inequality establishes stored feasibility.
     """
     a, b, origin = (np.asarray(value, dtype=np.float64)
                     for value in (normals, required, anchor))
@@ -176,8 +196,9 @@ def minimum_stored_margin_repair(normals, required, anchor, *, max_rounding_roun
             break
         point = origin + proposal.displacement
         with np.errstate(over="ignore"):
-            rounded = point.astype(np.float32).astype(np.float64)
-        if not np.all(np.isfinite(rounded)):
+            rounded = (point.astype(np.float32).astype(np.float64) if store_point is None
+                       else np.asarray(store_point(point.copy()), dtype=np.float64))
+        if rounded.shape != point.shape or not np.all(np.isfinite(rounded)):
             break
         stored = rounded - origin
         slack = a @ stored - b
@@ -189,13 +210,15 @@ def minimum_stored_margin_repair(normals, required, anchor, *, max_rounding_roun
         # Nearest float32 rounding has relative error <= 2^-24, plus
         # half a subnormal quantum. The original constraints stay unchanged.
         error_bound = np.abs(a[violated]) @ (
-            np.finfo(np.float32).eps * .5 * np.abs(point) + 2. ** -150)
+            np.finfo(np.float32).eps * .5 * np.abs(point) + 2. ** -150
+            if store_point is None else np.abs(rounded - point))
         reserves[violated] += np.maximum(2. * tolerance, 2. * error_bound)
     receipt = {
         "schema": "aura.stored_affine_margin_repair.v1",
         "status": "stored_feasible" if feasible else "stored_unresolved",
         "stored_primal_feasible": feasible, "stored_minimum_slack": minimum_slack,
-        "storage_dtype": "float32", "rounding_rounds": _iteration,
+        "storage_dtype": "float32" if store_point is None else "caller_defined",
+        "rounding_rounds": _iteration,
         "maximum_margin_reserve": float(reserves.max()),
         "continuous_projection": proposal.receipt,
         "stored_displacement_norm": float(np.linalg.norm(stored)),

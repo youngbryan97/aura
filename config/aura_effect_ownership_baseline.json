@@ -4913,6 +4913,14 @@
       "scope": "<module>.SemanticFitCheckpoint.save"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_bytes",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/learning/semantic_fit_checkpoint.py",
+      "scope": "<module>.SemanticFitCheckpoint.save_projection"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -16570,6 +16578,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "a8245b327d5c7b07c7521a750b41b35b7ef50ef37bcc36b23d2356f6baeb78db",
+  "inventory_sha256": "376addb447b38c6b66829f4f38c46980d7f06cae91ed827bd74209bb7735dfdc",
   "schema_version": 1
 }

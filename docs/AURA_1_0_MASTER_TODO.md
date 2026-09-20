@@ -950,6 +950,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Function-coordinate trials](evidence/G03_FUNCTION_COORDINATES_2026-09-19.md)
+  retain two rejected attempts and the repaired active-set result: training
+  13/16 to 16/16, validation 91/100 unchanged with no gains or regressions.
+  All 5,063 retained inequalities pass. Failed projections are independently
+  replayable; no candidate is promoted and broader coverage remains required.
   [Scaled subspace trial](evidence/G03_SCALED_SUBSPACE_TRIAL_2026-09-19.md)
   repairs 13/16 to 16/16 training programs but leaves development validation
   at 91/100: four gains and four regressions. All retained inequalities pass;
