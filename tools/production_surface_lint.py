@@ -12,6 +12,7 @@ import ast
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 from collections.abc import Iterable
@@ -127,7 +128,41 @@ def hardcoded_local_path_findings(tree: ast.AST, rel: str) -> list[LintFinding]:
     return findings
 
 
+def _tracked_files() -> set[Path] | None:
+    """Every path git carries, or None when git cannot say.
+
+    This audit is about ownership of AURA's production surface, and it walked
+    into `models/`, which is a downloaded checkpoint holding a vendored
+    `runtime/artifact.py` from the Ternary-Bonsai package. It reported three
+    "unapproved direct file write" findings against third-party code the
+    repository does not carry and nobody here can change — the proof could
+    not be captured because of a file that is not ours.
+
+    A file the repository does not track is not its production surface. When
+    git cannot answer (a tarball, no checkout) the walk falls back to the
+    directory list below, which is what it always did.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "-c", "core.fsmonitor=false", "-C", str(ROOT), "ls-files", "-z"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    return {
+        (ROOT / name).resolve()
+        for name in result.stdout.split("\0")
+        if name.endswith(".py")
+    }
+
+
 def iter_files(scope: str) -> Iterable[Path]:
+    tracked = _tracked_files()
     root_prune_dirs = set(ROOT_EXCLUDED_DIRS)
     if scope == "repo":
         root_prune_dirs.discard("tests")
@@ -143,8 +178,12 @@ def iter_files(scope: str) -> Iterable[Path]:
             kept_dirs.append(dirname)
         dirs[:] = kept_dirs
         for f in files:
-            if f.endswith(".py"):
-                yield Path(root) / f
+            if not f.endswith(".py"):
+                continue
+            candidate = Path(root) / f
+            if tracked is not None and candidate.resolve() not in tracked:
+                continue
+            yield candidate
 
 
 

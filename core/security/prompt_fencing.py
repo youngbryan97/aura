@@ -29,6 +29,8 @@ from __future__ import annotations
 import re
 import secrets
 
+from core.runtime.errors import record_degradation
+
 __all__ = ["fence", "fence_id_pattern"]
 
 #: Long enough that content cannot guess it, short enough to stay readable in
@@ -62,8 +64,18 @@ def fence(text: object, *, label: str, limit: int | None = None) -> str:
         from core.security.injection_canary import plant_if_lane_is_canaried
 
         body = plant_if_lane_is_canaried(body)
-    except Exception:  # noqa: BLE001 — a fence never fails over its canary
-        pass
+    except Exception as exc:  # noqa: BLE001 — a fence never fails over its canary
+        # The policy is right and the silence was not: a fence that stops
+        # planting canaries goes on fencing, and nobody learns the detector
+        # went quiet. The reason is carried at debug, where the detective
+        # control's own coverage count is read from.
+        record_degradation(
+            "security.prompt_fencing",
+            exc,
+            severity="debug",
+            action="fenced without planting a canary on this call",
+            enforce_failure_policy=False,
+        )
     truncated = False
     if limit is not None and limit >= 0 and len(body) > limit:
         body = body[:limit]
