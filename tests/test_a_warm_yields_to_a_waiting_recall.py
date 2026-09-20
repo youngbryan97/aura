@@ -137,3 +137,17 @@ def test_the_two_locks_are_never_nested() -> None:
         assert not [name for name in inner if "_encode_queue_lock" in name], (
             "the queue lock is taken inside the encode lock again"
         )
+
+
+def test_asking_whether_to_yield_takes_no_lock_inside_the_encode_lock() -> None:
+    """LIVE 2026-09-20, first boot after the encoder change: lockdep named a
+    rank inversion — `encode_queue` (LEAF) acquired while holding `encode`
+    (LEAF) — and tainted the runtime. The question is asked from inside the
+    encode lock, so it reads the count and takes nothing."""
+    import inspect
+
+    from core.memory.vector_memory_engine import EmbeddingEngine
+
+    body = inspect.getsource(EmbeddingEngine._background_should_defer)
+    assert "with self._encode_queue_lock" not in body
+    assert "queued = self._encode_queue" in body
