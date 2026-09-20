@@ -214,7 +214,7 @@ def _file_sha256(path: Path) -> str:
 
 def _git(root: Path, *arguments: str, timeout: float = 120.0) -> str:
     result = subprocess.run(
-        ["git", "-C", str(root), *arguments],
+        ["git", "-c", "core.fsmonitor=false", "-C", str(root), *arguments],
         capture_output=True,
         check=False,
         text=True,

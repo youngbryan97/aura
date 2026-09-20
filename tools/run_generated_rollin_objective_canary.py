@@ -188,7 +188,7 @@ def _append_terminal_failure(out_dir: Path, exc: BaseException) -> None:
 
 def _git(*args: str) -> str:
     result = subprocess.run(
-        ["git", *args],
+        ["git", "-c", "core.fsmonitor=false", *args],
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,

@@ -456,7 +456,7 @@ def _protected_source_changes(
 def _verify_source_lineage(expected: Mapping[str, Any]) -> dict[str, str]:
     def run(*args: str) -> subprocess.CompletedProcess[str]:
         result = subprocess.run(
-            ["git", *args],
+            ["git", "-c", "core.fsmonitor=false", *args],
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,

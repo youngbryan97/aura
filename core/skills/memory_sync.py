@@ -170,7 +170,7 @@ class MemorySyncSkill(BaseSkill):
             # Python because subprocess execution is shell-free by design.
             allowed_files = self._allowed_memory_artifacts()
             if allowed_files:
-                self._run_git(["git", "add", *allowed_files], cwd=cwd)
+                self._run_git(["git", "-c", "core.fsmonitor=false", "add", *allowed_files], cwd=cwd)
             
             self._run_git(["git", "commit", "-m", "Aura Memory Update [SK-02 Hardened]"], cwd=cwd)
             res = self._run_git(["git", "push", "origin", "main"], cwd=cwd)

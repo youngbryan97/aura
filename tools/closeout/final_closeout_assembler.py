@@ -111,7 +111,7 @@ def _run(command: list[str], *, timeout: float = 300.0) -> dict[str, Any]:
 def _git_state() -> dict[str, Any]:
     def _git(args: list[str]) -> str:
         completed = get_subprocess_gateway().run(
-            ["git", *args],
+            ["git", "-c", "core.fsmonitor=false", *args],
             cwd=ROOT,
             timeout=30,
             read_only=True,

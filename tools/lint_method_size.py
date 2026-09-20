@@ -248,7 +248,7 @@ def _measure_source(source: str, relative: str) -> dict[str, dict[str, int]]:
 def _changed_files(base: str) -> list[str]:
     def git(*args: str) -> str:
         result = subprocess.run(  # noqa: S603 - fixed argv, no shell
-            ["git", *args], capture_output=True, text=True, cwd=ROOT, check=False
+            ["git", "-c", "core.fsmonitor=false", *args], capture_output=True, text=True, cwd=ROOT, check=False
         )
         return result.stdout if result.returncode == 0 else ""
 

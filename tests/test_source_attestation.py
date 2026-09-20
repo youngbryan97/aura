@@ -140,5 +140,5 @@ def _git_available() -> bool:
 
 def _run(cwd, *args: str) -> None:
     subprocess.run(
-        ["git", *args], cwd=str(cwd), capture_output=True, timeout=30, check=False
+        ["git", "-c", "core.fsmonitor=false", *args], cwd=str(cwd), capture_output=True, timeout=30, check=False
     )

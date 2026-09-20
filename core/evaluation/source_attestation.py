@@ -98,7 +98,7 @@ def _git(root: Path, *args: str) -> tuple[int, str]:
         from core.runtime.subprocess_gateway import get_subprocess_gateway
 
         proc = get_subprocess_gateway().run(
-            ["/usr/bin/git", *args],
+            ["/usr/bin/git", "-c", "core.fsmonitor=false", *args],
             cwd=str(root),
             capture_output=True,
             text=True,

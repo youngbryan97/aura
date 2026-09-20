@@ -95,7 +95,7 @@ def _stdlib_exec(
 
 def _stdlib_git(root: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     completed = _stdlib_exec(
-        ["git", *args],
+        ["git", "-c", "core.fsmonitor=false", *args],
         cwd=root,
         timeout_s=60.0,
     )
@@ -413,7 +413,7 @@ class SolverSelection:
 
 def _git(*args: str) -> str:
     completed = get_subprocess_gateway().run(
-        ["git", *args],
+        ["git", "-c", "core.fsmonitor=false", *args],
         capture_output=True,
         read_only=True,
         source="proof_tooling:frontier_gap_git",

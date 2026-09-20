@@ -147,7 +147,7 @@ class AirlockProtocol:
         cwd: Path | None = None,
         action: str = "git command",
     ) -> str:
-        result = await self._command_runner(("git", *cmd_args), cwd or self.repo_root, 60.0)
+        result = await self._command_runner(("git", "-c", "core.fsmonitor=false", *cmd_args), cwd or self.repo_root, 60.0)
         if not result.ok:
             raise AirlockCommandError(action, result)
         return result.stdout

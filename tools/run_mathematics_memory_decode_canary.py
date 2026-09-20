@@ -83,7 +83,7 @@ def _file_sha(path: Path) -> str:
 
 def _git(*args: str) -> str:
     return subprocess.run(
-        ("git", *args),
+        ("git", "-c", "core.fsmonitor=false", *args),
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,

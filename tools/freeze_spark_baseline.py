@@ -119,7 +119,7 @@ def _fail(message: str) -> int:
 
 def _git(repo: Path, *arguments: str) -> str:
     completed = subprocess.run(
-        ["git", "-C", str(repo), *arguments],
+        ["git", "-c", "core.fsmonitor=false", "-C", str(repo), *arguments],
         capture_output=True,
         text=True,
         timeout=60,

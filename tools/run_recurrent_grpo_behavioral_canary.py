@@ -189,7 +189,7 @@ def _sampling_rejection_diagnostics(receipt: dict[str, Any]) -> dict[str, Any]:
 
 def _git(*args: str) -> str:
     result = subprocess.run(
-        ["git", *args],
+        ["git", "-c", "core.fsmonitor=false", *args],
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,

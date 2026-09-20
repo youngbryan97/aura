@@ -84,7 +84,7 @@ def _text_sha(value: str) -> str:
 
 def _git(repo: Path, *args: str) -> str:
     return subprocess.check_output(
-        ["git", *args],
+        ["git", "-c", "core.fsmonitor=false", *args],
         cwd=repo,
         text=True,
         stderr=subprocess.STDOUT,

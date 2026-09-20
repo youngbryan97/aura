@@ -327,7 +327,7 @@ def _existing_intent_committed_at(
 def _git_source_state() -> dict[str, str]:
     def run(*args: str) -> str:
         result = subprocess.run(
-            ["git", *args],
+            ["git", "-c", "core.fsmonitor=false", *args],
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,

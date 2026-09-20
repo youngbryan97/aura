@@ -62,6 +62,21 @@ def _subcommand(argv: list[str | None]) -> str | None:
     return None
 
 
+def _is_a_wrapper(node: ast.AST) -> bool:
+    """Whether the argv hides its subcommand behind a starred name.
+
+    `["git", *args]` is a helper somebody wrote so every call in the file
+    goes through one place. It is also where this check is blindest: the
+    subcommand is not in the source. Every such wrapper in this tree reads,
+    the flag costs nothing on a write, and the wrapper is exactly the site
+    worth fixing because it covers the whole file — `reqproof capture` has
+    one, and it timed out twelve proofs.
+    """
+    return isinstance(node, (ast.List, ast.Tuple)) and any(
+        isinstance(item, ast.Starred) for item in node.elts
+    )
+
+
 def _read_only_git_calls(path: Path) -> list[tuple[int, str]]:
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -72,9 +87,13 @@ def _read_only_git_calls(path: Path) -> list[tuple[int, str]]:
         argv = _argv(node)
         if not argv or not argv[0] or argv[0].rsplit("/", 1)[-1] != "git":
             continue
+        if "core.fsmonitor=false" in argv:
+            continue
         subcommand = _subcommand(argv)
-        if subcommand in READ_ONLY and "core.fsmonitor=false" not in argv:
+        if subcommand in READ_ONLY:
             found.append((node.lineno, subcommand))
+        elif subcommand is None and _is_a_wrapper(node):
+            found.append((node.lineno, "*args"))
     return found
 
 
@@ -116,6 +135,22 @@ def test_a_write_is_left_alone() -> None:
     with tempfile.TemporaryDirectory() as folder:
         sample = Path(folder) / "sample.py"
         sample.write_text('run(["git", "commit", "-m", "x"])\n')
+        assert _read_only_git_calls(sample) == []
+
+
+def test_a_wrapper_that_hides_its_subcommand_is_caught() -> None:
+    """The blind spot that timed out twelve proofs."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as folder:
+        sample = Path(folder) / "sample.py"
+        sample.write_text('def _git(*args):\n    return run(["git", *args])\n')
+        assert _read_only_git_calls(sample) == [(2, "*args")]
+
+        sample.write_text(
+            'def _git(*args):\n'
+            '    return run(["git", "-c", "core.fsmonitor=false", *args])\n'
+        )
         assert _read_only_git_calls(sample) == []
 
 

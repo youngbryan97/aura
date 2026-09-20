@@ -10,7 +10,7 @@ _SUBPROCESS_GATEWAY = get_subprocess_gateway()
 
 def _run_git(root, *args):
     return _SUBPROCESS_GATEWAY.run(
-        ["git", *args],
+        ["git", "-c", "core.fsmonitor=false", *args],
         cwd=root,
         timeout=30,
         check=True,

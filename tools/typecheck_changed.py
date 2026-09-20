@@ -51,7 +51,7 @@ MYPY_FLAGS = ("--follow-imports=skip", "--explicit-package-bases")
 
 def _git(*args: str) -> str:
     result = subprocess.run(  # noqa: S603 - fixed argv, no shell
-        ["git", *args], capture_output=True, text=True, cwd=ROOT, check=False
+        ["git", "-c", "core.fsmonitor=false", *args], capture_output=True, text=True, cwd=ROOT, check=False
     )
     return result.stdout.strip() if result.returncode == 0 else ""
 

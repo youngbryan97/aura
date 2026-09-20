@@ -54,7 +54,7 @@ def _git(repo: Path, *args: str, author: str | None = None) -> str:
         env["GIT_COMMITTER_NAME"] = author
         env["GIT_COMMITTER_EMAIL"] = f"{author.lower()}@test.local"
     proc = _SUBPROCESS_GATEWAY.run(
-        ["git", *args],
+        ["git", "-c", "core.fsmonitor=false", *args],
         cwd=str(repo),
         env=env,
         timeout=30,
