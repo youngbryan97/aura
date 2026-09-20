@@ -12,6 +12,7 @@ had done.
 from __future__ import annotations
 
 import pytest
+from tests.source_contract import family_text_at
 
 pytestmark = pytest.mark.unit
 
@@ -22,7 +23,7 @@ def test_the_receipt_travels_with_the_tool_loop_record() -> None:
     import ast
     from pathlib import Path
 
-    source = Path("core/brain/inference_gate.py").read_text(encoding="utf-8")
+    source = family_text_at(Path('core/brain/inference_gate.py'))
     tree = ast.parse(source)
     found = False
     for node in ast.walk(tree):

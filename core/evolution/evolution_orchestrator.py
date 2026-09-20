@@ -39,6 +39,7 @@ from core.runtime.background_policy import (
     background_loop_start_reason,
 )
 from core.runtime.errors import record_degradation
+from core.runtime.executors import off_the_loop
 from core.runtime.service_access import optional_service
 from core.runtime.state_ownership import state_root
 from core.utils.task_tracker import get_task_tracker
@@ -189,7 +190,7 @@ class EvolutionOrchestrator:
                 await self._task
             except asyncio.CancelledError as _exc:
                 logger.debug("Suppressed asyncio.CancelledError: %s", _exc)
-        self._save()
+        await off_the_loop(self._save)
 
     async def tick(self) -> EvolutionSnapshot:
         """Run one evaluation cycle across all axes."""

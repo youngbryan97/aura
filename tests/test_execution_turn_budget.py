@@ -27,6 +27,7 @@ import inspect
 from types import SimpleNamespace
 
 from core.brain.llm.mlx_client import _apply_memory_pressure_generation_controls
+from tests.source_contract import family_text
 
 
 def test_pressure_still_clamps_an_ordinary_reply():
@@ -89,7 +90,7 @@ def test_the_gate_forwards_the_execution_flag_to_the_client():
     """The floor is unreachable unless the flag survives the call boundary."""
     from core.brain import inference_gate
 
-    source = inspect.getsource(inference_gate)
+    source = family_text(inference_gate)
     assert 'morpho_kwargs["desktop_execution_contract"] = True' in source, (
         "the clamp runs client-side; without the flag it cannot know a plan is "
         "at stake"
@@ -99,7 +100,7 @@ def test_the_gate_forwards_the_execution_flag_to_the_client():
 def test_artifact_shape_does_not_cap_the_reply_on_an_execution_turn():
     from core.brain import inference_gate
 
-    source = inspect.getsource(inference_gate)
+    source = family_text(inference_gate)
     marker = 'if bool(context.get("desktop_execution_contract", False)):'
     assert marker in source
 

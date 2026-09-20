@@ -175,3 +175,29 @@ def test_code_asked_for_as_words_is_an_inline_answer(text: str) -> None:
 def test_code_with_a_file_target_is_still_an_artifact(text: str) -> None:
     assert not asks_for_code_in_the_reply(text)
     assert not looks_like_inline_answer_request(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Write a Python function that takes a list of file paths and returns them grouped by extension.",
+        "Write a regex that matches ISO dates.",
+    ],
+)
+def test_a_unit_of_code_is_software_not_a_screen_to_drive(text: str) -> None:
+    """The desktop surface asks this reader first; it drove the code request
+    to the screen lane twice on 2026-09-19."""
+    from core.runtime.desktop_objective_intent import (
+        asks_to_build_software,
+        looks_like_desktop_objective,
+    )
+
+    assert asks_to_build_software(text)
+    assert not looks_like_desktop_objective(text)
+
+
+def test_a_note_to_the_desktop_is_still_the_screens() -> None:
+    from core.runtime.desktop_objective_intent import looks_like_desktop_objective
+
+    assert looks_like_desktop_objective("Write a note to my desktop with today's date.")
+    assert looks_like_desktop_objective("Open Notes and write a note with today's date.")

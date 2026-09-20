@@ -12,6 +12,7 @@ import inspect
 
 from core.brain.llm.mlx_client import MLXLocalClient, _tool_loop_evidence_messages
 from core.utils.injected_blocks import is_stamped_grounding
+from tests.source_contract import family_text_at
 
 
 def test_only_what_a_skill_produced_is_carried() -> None:
@@ -71,7 +72,7 @@ def test_the_loop_accepts_evidence() -> None:
 def test_the_gate_hands_the_turn_messages_over() -> None:
     from pathlib import Path
 
-    gate = Path("core/brain/inference_gate.py").read_text(encoding="utf-8")
+    gate = family_text_at(Path('core/brain/inference_gate.py'))
     assert "evidence=messages," in gate
     handoff = gate[gate.index("async def _tool_grounded_answer") :]
     handoff = handoff[: handoff.index("\n    async def ", 10)]

@@ -17,6 +17,7 @@ from __future__ import annotations
 import pytest
 
 from core.brain.llm import mlx_client
+from tests.source_contract import family_text_at
 
 pytestmark = pytest.mark.unit
 
@@ -89,7 +90,7 @@ def test_the_sla_consults_it_too_not_only_the_livelock_ceiling() -> None:
 
     from pathlib import Path
 
-    source = Path("core/brain/llm/mlx_client.py").read_text(encoding="utf-8")
+    source = family_text_at(Path('core/brain/llm/mlx_client.py'))
     assert source.count("self._cold_lane_first_token_allowance()") >= 2
     assert "elapsed_without_token > max(" in source
 

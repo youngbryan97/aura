@@ -21,18 +21,20 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from tests.source_contract import family_text_at
+
 SOURCE = Path("core/brain/llm/mlx_client.py")
 
 
 def _reclaim_block() -> str:
     """Just the reclaim — it ends where the pre-existing reclaim *wait* begins."""
-    src = SOURCE.read_text(encoding="utf-8")
+    src = family_text_at(SOURCE)
     start = src.index("# The orphan scan above only reaps workers from PREVIOUS")
     return src[start : src.index("# A worker we just killed", start)]
 
 
 def test_the_reclaim_runs_before_refusing_for_headroom() -> None:
-    src = SOURCE.read_text(encoding="utf-8")
+    src = family_text_at(SOURCE)
     reclaim_at = src.index("Reclaiming our own never-initialized worker")
     # CP126 5ce89b9e made the refusal a TYPED exception rather than a
     # RuntimeError carrying a magic substring, because the substring could be

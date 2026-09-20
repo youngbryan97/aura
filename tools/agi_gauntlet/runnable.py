@@ -1194,7 +1194,18 @@ THE_BENCHMARK_NAMES: tuple[str, ...] = (
 
 #: Where a benchmark name is allowed to appear: this harness, the documents
 #: that describe it, and the tests that check it.
-_ALLOWED = ("tools/agi_gauntlet", "docs/", "tests/", "config/")
+_ALLOWED = (
+    "tools/agi_gauntlet",
+    "docs/",
+    "tests/",
+    "config/",
+    # The record of what somebody else's benchmark measured and what this
+    # runtime substitutes for it (2026-09-06). It names ARC-AGI, OSWorld and
+    # SWE-bench as the keys of that record, which the health report and the
+    # system route read out; there is no branch on any of them, and
+    # tests/test_what_was_measured_outside.py holds that it stays a record.
+    "core/verify/what_was_measured_outside.py",
+)
 
 
 def generality_not_a_bag_of_solvers(

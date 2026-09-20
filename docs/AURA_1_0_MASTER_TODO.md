@@ -1516,7 +1516,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   one-liner, with no file target in the message) is an inline answer
   (`asks_for_code_in_the_reply`), and the artifact authoring's own wait is
   bounded by the generation's progress, as the reply lane's is, rather than
-  by a fixed 50s. The tank word problem (240 minutes) and a recall of the
+  by a fixed 50s. Replayed on the rebuilt instance it went to the screen
+  lane a second time: the desktop surface asks
+  `looks_like_desktop_objective` first, whose "building software is not
+  driving the screen" rule named apps, pages, scripts and tools and not a
+  function. A unit of code is software at any size now
+  (`asks_to_build_software`). The tank word problem (240 minutes) and a recall of the
   previous turn's answer both replay correctly on the rebuilt instance;
   the arithmetic reply had gone out twice-answered and is one answer now.
   PARTIAL 2026-09-07. Web research, file reading and code execution all run

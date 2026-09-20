@@ -21,6 +21,7 @@ from core.conversation.turn_evidence_custody import (
     record_turn_model_generation,
     turn_model_generations,
 )
+from tests.source_contract import family_text_at
 
 pytestmark = pytest.mark.unit
 
@@ -76,7 +77,7 @@ def test_the_metadata_path_still_proves_it_on_its_own() -> None:
 def test_the_tool_loop_records_it_where_the_tokens_are_counted() -> None:
     from pathlib import Path
 
-    gate = Path("core/brain/inference_gate.py").read_text(encoding="utf-8")
+    gate = family_text_at(Path('core/brain/inference_gate.py'))
     assert "record_turn_model_generation(" in gate
     assert 'path="tool_loop"' in gate
     # Only when something was actually counted — by the worker's receipt, or
@@ -122,7 +123,7 @@ class TestTheCountComesFromWhereTheTokensArrive:
     def test_the_gate_falls_back_to_it_only_when_the_receipt_has_nothing(self) -> None:
         from pathlib import Path
 
-        gate = Path("core/brain/inference_gate.py").read_text(encoding="utf-8")
+        gate = family_text_at(Path('core/brain/inference_gate.py'))
         assert "tokens_generated_for_this_request" in gate
         assert "if _tokens <= 0:" in gate
         # The receipt is still preferred: it is the worker's own accounting.

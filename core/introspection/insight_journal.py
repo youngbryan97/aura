@@ -29,6 +29,7 @@ from typing import Any
 from core.config import config
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.executors import off_the_loop
 
 logger = logging.getLogger("Aura.InsightJournal")
 
@@ -109,7 +110,7 @@ class InsightJournal:
         logger.info("✅ InsightJournal ONLINE — chronicling the journey.")
 
     async def stop(self):
-        self._save()
+        await off_the_loop(self._save)
 
     async def record_insight(self, title: str, content: str, domain: str,
                              confidence: float, source: str, tags: list[str] | None = None,

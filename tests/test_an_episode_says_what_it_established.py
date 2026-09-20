@@ -46,6 +46,7 @@ from core.brain.llm.latent_cortex.recurrence_support import (
     classify_recurrence_support,
     load_certified_architectures,
 )
+from tests.source_contract import family_text
 
 
 # ─────────────────────────── ok is not a quality claim
@@ -65,7 +66,7 @@ def test_the_receipt_separates_ran_from_checked_from_improved():
 
 
 def test_an_episode_without_a_verifier_is_not_quality_verified():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -87,7 +88,7 @@ def test_an_episode_without_a_verifier_is_not_quality_verified():
 
 
 def test_gain_needs_the_verifier_to_have_accepted_something():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -265,7 +266,7 @@ def test_the_stage_is_cleared_so_it_cannot_be_written_twice():
 
 
 def test_finalization_only_stages_and_never_writes():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -283,7 +284,7 @@ def test_finalization_only_stages_and_never_writes():
 def test_the_write_happens_after_the_checkpoint_invariant():
     """Inside the episode, not merely somewhere in the module: ast.walk is
     not source order, so the comparison has to be scoped."""
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     episode = next(
@@ -395,7 +396,7 @@ def test_an_episode_that_touched_nothing_is_not_structurally_restored():
 
 
 def test_the_teacher_trajectory_forward_is_causal():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -442,7 +443,7 @@ def test_the_mask_the_teacher_forward_builds_is_actually_causal():
 def test_the_identity_probe_stays_deliberately_mask_free():
     """It is only ever compared against itself, so sameness is the property
     that matters — but the reason has to be written down."""
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -476,7 +477,7 @@ def test_both_supported_targets_attest_a_base_weight_prefix(target):
 
 
 def test_the_episode_flags_the_mixture_when_it_attaches():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "receipt.fast_weight_cache_attestation = target_cache_attestation(" in source
     assert 'receipt.flag("fast_weight_prefix_kv_under_base_weights")' in source
@@ -575,7 +576,7 @@ def test_a_registry_row_without_evidence_is_a_claim_and_is_dropped(tmp_path):
 
 
 def test_the_engine_publishes_the_verdict_on_every_episode():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "self.recurrence_support = classify_recurrence_support(" in source
     assert "receipt.recurrence_support = dict(self.recurrence_support)" in source
@@ -599,7 +600,7 @@ def test_an_unknown_verifier_mode_is_rejected():
 
 
 def test_required_mode_fails_rather_than_substituting_the_internal_score():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -616,14 +617,14 @@ def test_required_mode_fails_rather_than_substituting_the_internal_score():
 
 
 def test_advisory_mode_still_records_the_skip():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert 'receipt.flag("branch_verifier_skipped_budget")' in source
 
 
 def test_required_mode_reserves_the_gate_at_admission():
     """A gate admission never priced could only ever be skipped for budget."""
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "required_branch_verification_cost" in source
     assert "+ required_branch_verification_cost" in source

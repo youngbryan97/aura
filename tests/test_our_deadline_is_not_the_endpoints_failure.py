@@ -17,6 +17,7 @@ import inspect
 import time
 
 from core.brain.llm_health_router import _worker_still_healthy
+from tests.source_contract import family_text
 
 
 class _Client:
@@ -74,7 +75,7 @@ def test_an_endpoint_that_cannot_answer_for_itself_is_not_assumed_healthy():
 def test_the_timeout_path_asks_before_tripping():
     from core.brain import llm_health_router
 
-    source = inspect.getsource(llm_health_router)
+    source = family_text(llm_health_router)
     where = source.index("_worker_still_healthy(ep)")
     block = source[where - 200 : where + 500]
     assert "ep.is_local and _worker_still_healthy(ep)" in block
@@ -92,7 +93,7 @@ def test_empty_text_from_a_healthy_worker_does_not_open_the_circuit():
     """
     from core.brain import llm_health_router
 
-    source = inspect.getsource(llm_health_router)
+    source = family_text(llm_health_router)
     where = source.index('ep.trip_temporarily("client_returned_no_text")')
     block = source[where - 1600 : where + 200]
     assert "ep.is_local and _worker_still_healthy(ep)" in block
@@ -109,7 +110,7 @@ def test_our_budget_on_a_healthy_worker_is_not_logged_as_an_error():
 
     from core.brain import llm_health_router
 
-    source = inspect.getsource(llm_health_router)
+    source = family_text(llm_health_router)
     block = source[source.index("our_budget_only = bool(ep.is_local and _worker_still_healthy(ep))") :]
     block = block[: block.index("if is_bg:")]
     assert re.search(r"if our_budget_only:\s*\n\s*logger\.info\(", block)

@@ -357,8 +357,12 @@ class BootCognitiveMixin:
         """Initialize the LiveLearner subsystem for weight-level evolution."""
         try:
             from core.learning.live_learner import get_live_learner
+            from core.runtime.executors import off_the_loop
 
-            ll = get_live_learner()
+            # The learner's constructor restores its buffer from disk and
+            # rewrites it to its retention policy — an fsync the loop report
+            # named from this coroutine (LIVE 2026-09-19). Built off the loop.
+            ll = await off_the_loop(get_live_learner)
 
             # Hot-swap is a native MLX client capability now
             # (reload_model_artifact / set_expert_adapter) — no patch step.

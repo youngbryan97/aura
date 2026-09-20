@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+import os
 import sys
 from types import ModuleType
 
@@ -74,7 +75,81 @@ def module_family_sources(module: ModuleType) -> list[tuple[str, str]]:
             family.append((f"{module.__name__}:{sibling.stem}", sibling.read_text(encoding="utf-8")))
         except OSError:  # pragma: no cover - a file that vanished mid-read
             continue
+    seen = {name for name, _text in family}
+    for base_home in _mixin_homes(module):
+        if base_home.__name__ in seen:
+            continue
+        seen.add(base_home.__name__)
+        try:
+            family.append((base_home.__name__, inspect.getsource(base_home)))
+        except (OSError, TypeError):  # pragma: no cover - C or dynamic base
+            continue
     return family
+
+
+def _mixin_homes(module: ModuleType) -> list[ModuleType]:
+    """The modules the classes of ``module`` inherit their behaviour from.
+
+    The split a class-level lift produces does not always take the module's
+    name: ``MLXLocalClient`` builds on ``mlx_unified_recurrent`` and
+    ``mlx_latent_reasoning``, beside ``mlx_client``. The class carries the
+    pointer; follow it.
+    """
+
+    homes: list[ModuleType] = []
+    for _name, obj in vars(module).items():
+        if not inspect.isclass(obj) or obj.__module__ != module.__name__:
+            continue
+        for base in obj.__mro__[1:]:
+            if base is object:
+                continue
+            home = sys.modules.get(base.__module__)
+            if home is None or home is module or home in homes:
+                continue
+            path = str(getattr(home, "__file__", "") or "")
+            if "site-packages" in path or not path:
+                continue
+            homes.append(home)
+    return homes
+
+
+def family_text_at(path: str | os.PathLike[str]) -> str:
+    """``family_text`` for a module named by its file, unimported.
+
+    For a test that reads a module as text from the start and pins a line
+    that a lift has since moved into a sibling.
+    """
+
+    from pathlib import Path
+
+    own = Path(path)
+    parts = [own.read_text(encoding="utf-8")]
+    for sibling in sorted(own.parent.glob(f"{own.stem}_*.py")):
+        try:
+            parts.append(sibling.read_text(encoding="utf-8"))
+        except OSError:  # pragma: no cover - a file that vanished mid-read
+            continue
+    return "\n".join(parts)
+
+
+def family_tree(path: str | os.PathLike[str]) -> ast.Module:
+    """The module and every module lifted out of it, parsed as one tree.
+
+    For a test that walks the AST for a function by name and finds the
+    function now defined in a sibling. The families' bodies are joined;
+    nothing is imported.
+    """
+
+    from pathlib import Path
+
+    own = Path(path)
+    bodies: list[ast.stmt] = []
+    for member in (own, *sorted(own.parent.glob(f"{own.stem}_*.py"))):
+        try:
+            bodies.extend(ast.parse(member.read_text(encoding="utf-8")).body)
+        except OSError:  # pragma: no cover - a file that vanished mid-read
+            continue
+    return ast.Module(body=bodies, type_ignores=[])
 
 
 def family_text(module: ModuleType) -> str:

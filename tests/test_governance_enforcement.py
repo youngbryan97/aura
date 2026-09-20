@@ -29,6 +29,7 @@ from core.governance_context import (
     require_governance,
 )
 from core.will import ActionDomain, WillDecision, WillOutcome, get_will
+from tests.source_contract import class_with_its_bases
 
 
 # ---------------------------------------------------------------------------
@@ -391,7 +392,7 @@ class TestWorldStateIntegration:
         """MindTick must update WorldState every tick."""
         import inspect
         from core.mind_tick import MindTick
-        source = inspect.getsource(MindTick)
+        source = class_with_its_bases(MindTick)
         assert "world_state" in source.lower()
 
 

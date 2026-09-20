@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 from core.bus.actor_bus import BusDegraded
 from core.runtime.errors import record_degradation
+from core.runtime.executors import off_the_loop
 from core.runtime.shutdown_coordinator import request_shutdown
 from core.runtime.shutdown_execution import run_sync_shutdown_callable
 from core.utils.exceptions import capture_and_log
@@ -268,7 +269,7 @@ async def _orchestrator_shutdown_impl(orch: RobustOrchestrator) -> None:
         from core.resilience.snapshot_manager import SnapshotManager
 
         snapshot_mgr = SnapshotManager(orch)
-        snapshot_mgr.freeze()
+        await off_the_loop(snapshot_mgr.freeze)
     except (ImportError, AttributeError, RuntimeError) as exc:
         _record_shutdown_degradation(
             exc,
@@ -278,7 +279,9 @@ async def _orchestrator_shutdown_impl(orch: RobustOrchestrator) -> None:
         logger.error("Failed to freeze cognitive snapshot: %s", exc)
 
     try:
-        orch._save_state("shutdown")
+        # The state snapshot and the eternal record each fsync; the loop
+        # report named both from here (LIVE 2026-09-19).
+        await off_the_loop(orch._save_state, "shutdown")
     except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
         _record_shutdown_degradation(
             exc,

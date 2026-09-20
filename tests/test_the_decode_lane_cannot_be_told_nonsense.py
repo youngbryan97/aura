@@ -29,7 +29,6 @@ receipted as applied with no rejection flag anywhere.
 from __future__ import annotations
 
 import ast
-import inspect
 import math
 
 import pytest
@@ -39,6 +38,7 @@ from core.brain.llm.latent_cortex.engine import (
     LatentCortexEngine,
     _validated_verifier_result,
 )
+from tests.source_contract import family_text
 
 # ─────────────────────────────── token ids are indices, or they are refused
 
@@ -176,7 +176,7 @@ def test_the_model_window_outranks_the_tokenizer_value():
 
 
 def test_the_admission_check_runs_before_the_commitment_payload():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     admit_line = None
@@ -234,7 +234,7 @@ def test_a_structured_verdict_is_left_alone():
 
 
 def test_every_verifier_result_crosses_the_same_boundary():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -260,7 +260,7 @@ def test_nan_cannot_win_by_losing_every_comparison():
 
 
 def test_the_sampler_checks_finiteness_before_it_samples():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -291,7 +291,7 @@ def test_token_suppression_cannot_overflow_float16_into_infinity():
 
 
 def test_a_non_finite_forward_pass_cannot_be_fingerprinted():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -317,7 +317,7 @@ def test_the_non_finite_error_fails_the_episode_rather_than_escaping():
 
 
 def test_the_whole_newline_family_is_masked_not_one_token():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -332,7 +332,7 @@ def test_the_whole_newline_family_is_masked_not_one_token():
 
 def test_the_resample_attempt_budget_is_gone():
     """Four tries then emit it anyway is not a maximum."""
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "_NEWLINE_RESAMPLE_ATTEMPTS" not in source
 
@@ -369,7 +369,7 @@ def test_the_newline_family_is_scanned_once():
 
 
 def test_an_exhausted_newline_discipline_terminates_the_decode():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert '"newline_discipline_exhausted"' in source
     assert '"newline_discipline_exhausted_before_decode"' in source
@@ -379,7 +379,7 @@ def test_an_exhausted_newline_discipline_terminates_the_decode():
 
 
 def test_a_decode_that_produced_nothing_is_not_a_success():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -396,7 +396,7 @@ def test_a_decode_that_produced_nothing_is_not_a_success():
 
 def test_the_empty_answer_reason_is_not_in_the_accepted_terminations():
     """If it were, the classification would undo itself."""
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert '"no_tokens_generated",' not in source
 
@@ -421,7 +421,7 @@ def _flag_guard(source: str, tree: ast.AST, flag: str) -> str:
 
 
 def test_the_no_accepted_step_flag_reads_accepted_steps():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     guard = _flag_guard(source, ast.parse(source), "latent_opt_no_accepted_step")
 
     assert "accepted" in guard, f"the rejection flag is still keyed off {guard!r}"
@@ -429,14 +429,14 @@ def test_the_no_accepted_step_flag_reads_accepted_steps():
 
 
 def test_the_not_attempted_flag_reads_attempts():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     guard = _flag_guard(source, ast.parse(source), "latent_opt_not_attempted")
 
     assert "attempts" in guard
 
 
 def test_a_run_that_never_started_gets_its_own_flag():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert 'receipt.flag("latent_opt_not_attempted")' in source
 
@@ -444,7 +444,7 @@ def test_a_run_that_never_started_gets_its_own_flag():
 def test_forty_proposals_and_no_acceptances_is_not_applied_silently():
     """The two flags are distinct, so a consumer can tell 'the verifier
     rejected everything' from 'the optimizer never ran'."""
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert source.count('"latent_opt_no_accepted_step"') == 1
     assert source.count('"latent_opt_not_attempted"') == 1
@@ -498,7 +498,7 @@ def test_the_workspace_uses_the_carried_index_not_the_row_count():
 def test_a_skipped_item_no_longer_shifts_its_neighbours_provenance():
     """The embedder skips an item that encodes to nothing. With the position
     inferred from the row count, every later slot recorded the wrong text."""
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -516,7 +516,7 @@ def test_a_skipped_item_no_longer_shifts_its_neighbours_provenance():
 
 def test_finiteness_is_no_longer_rechecked_where_it_is_guaranteed():
     """A dead condition reads as a live guard to the next person."""
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "elif math.isfinite(probe_score):" not in source
     assert math.isfinite(1.0)

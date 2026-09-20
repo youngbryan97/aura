@@ -5803,8 +5803,15 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                         "status": "blocked_by_missing_capability_token",
                     }
 
-                denial = self._capability_chain_denial(
-                    ctx, skill_name, params, constitutional_runtime_live
+                # Verifying the grant burns its nonce in a durable ledger —
+                # an fsync the loop report named from this coroutine (LIVE
+                # 2026-09-19). Awaited off the loop; the ledger has its own
+                # lock, and the verdict is needed before the skill runs.
+                from core.runtime.executors import off_the_loop
+
+                denial = await off_the_loop(
+                    self._capability_chain_denial,
+                    ctx, skill_name, params, constitutional_runtime_live,
                 )
                 if denial is not None:
                     return denial

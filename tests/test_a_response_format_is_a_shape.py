@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import inspect
 from pathlib import Path
+from tests.source_contract import family_text_at
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -24,17 +25,17 @@ def test_the_engine_turns_a_response_format_into_an_output_shape() -> None:
 
 
 def test_the_gate_forwards_the_shape_to_the_client() -> None:
-    body = (ROOT / "core/brain/inference_gate.py").read_text(encoding="utf-8")
+    body = family_text_at(ROOT / 'core/brain/inference_gate.py')
     assert '"output_shape",' in body
 
 
 def test_the_client_puts_the_shape_on_the_job() -> None:
-    body = (ROOT / "core/brain/llm/mlx_client.py").read_text(encoding="utf-8")
+    body = family_text_at(ROOT / 'core/brain/llm/mlx_client.py')
     assert '"output_shape": str(kwargs.get("output_shape") or "").strip().lower()' in body
 
 
 def test_the_worker_holds_the_shape_the_job_names() -> None:
-    body = (ROOT / "core/brain/llm/mlx_worker.py").read_text(encoding="utf-8")
+    body = family_text_at(ROOT / 'core/brain/llm/mlx_worker.py')
     assert 'job.get("output_shape")' in body
     assert "enforce_json(" in body
 

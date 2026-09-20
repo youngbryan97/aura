@@ -102,3 +102,22 @@ def test_the_reasons_read_as_reasons():
     for one in what_cannot_be_run_here():
         assert ": " in one
         assert len(one.split(": ", 1)[1].split()) >= 5, one
+
+
+def test_the_record_holds_no_path_keyed_on_a_benchmark():
+    """The names are keys of a record, never a branch.
+
+    The solver scan in tools/agi_gauntlet exempts this one file for that
+    reason; this is what makes the exemption checkable. A benchmark name may
+    appear as a dictionary key or inside a string, and nowhere else.
+    """
+    import ast
+    from pathlib import Path
+
+    path = Path("core/verify/what_was_measured_outside.py")
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.If, ast.IfExp, ast.Match)):
+            said = ast.unparse(node.test if not isinstance(node, ast.Match) else node.subject).lower()
+            for name in ("arc", "osworld", "swe-bench", "mmlu", "gsm8k"):
+                assert name not in said, f"a branch keyed on {name}: {said[:80]}"

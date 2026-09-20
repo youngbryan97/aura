@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from core.brain.llm import thinking_reserve
+from tests.source_contract import family_text_at
 
 _GATE = Path("core/brain/inference_gate.py")
 
@@ -84,22 +85,22 @@ def test_forgetting_drops_the_rates() -> None:
 
 
 def test_the_gate_extends_for_any_user_facing_budget() -> None:
-    body = _GATE.read_text()
+    body = family_text_at(_GATE)
     assert "if _is_user_facing or 0 < _answer_floor_final or _generations > 1:" in body
-    assert "_decode_s = _seconds_to_decode(_tokens_to_pay_for)" in body
+    assert "_decode_s = _seconds_to_decode(_tokens_to_pay_for, model)" in body
     assert "if _decode_s > 0.0:" in body
 
 
 def test_the_extension_is_bounded_by_what_was_measured() -> None:
-    body = _GATE.read_text()
+    body = family_text_at(_GATE)
     assert "(_decode_s + _read_s) * _generations" in body
     assert "timeout_val = min(_cap, _needed)" in body
     assert "if _needed > float(timeout_val):" in body
 
 
 def test_the_rate_crosses_the_process_boundary() -> None:
-    client = Path("core/brain/llm/mlx_client.py").read_text()
-    worker = Path("core/brain/llm/mlx_worker.py").read_text()
+    client = family_text_at(Path('core/brain/llm/mlx_client.py'))
+    worker = family_text_at(Path('core/brain/llm/mlx_worker.py'))
     assert '"decode_tokens_per_second"' in worker
     assert '"decode_tokens_per_second",' in client
     assert "_carry_decode_rate_across(receipt)" in client
@@ -114,7 +115,7 @@ def test_a_turn_that_must_fetch_is_given_two_generations() -> None:
     covered one generation and the turn needed two.
     """
 
-    body = _GATE.read_text()
+    body = family_text_at(_GATE)
     start = body.index("A turn that has to go and fetch something")
     window = body[start : start + 1200]
     assert "points_at_something_real(initial_visible_user_prompt)" in window
@@ -123,7 +124,7 @@ def test_a_turn_that_must_fetch_is_given_two_generations() -> None:
 
 
 def test_the_generation_count_falls_back_to_one() -> None:
-    body = _GATE.read_text()
+    body = family_text_at(_GATE)
     start = body.index("A turn that has to go and fetch something")
     window = body[start : start + 1200]
     assert window.count("_generations = 1") >= 2
@@ -206,7 +207,7 @@ def test_the_extension_reaches_the_clock_it_is_extending() -> None:
     request was admitted and never rebuilt.
     """
 
-    body = _GATE.read_text()
+    body = family_text_at(_GATE)
     assert "timeout_val = min(_cap, _needed)" in body
     assert "request_deadline.with_timeout(" in body
     assert 'context["request_deadline_s"] = float(timeout_val)' in body

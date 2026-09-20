@@ -4345,7 +4345,12 @@ class InferenceGate(_ServesTheTurn, _SetsTheTurnUp, _BuildsTheLivingContext, _Wa
             if not callable(close):
                 continue
             try:
-                result = close()
+                # A synchronous close saves the lane state with an fsync
+                # (model_lane_control._save_locked, named by the loop report
+                # from here, LIVE 2026-09-19): off the loop, awaited.
+                from core.runtime.executors import off_the_loop
+
+                result = close() if inspect.iscoroutinefunction(close) else await off_the_loop(close)
                 if inspect.isawaitable(result):
                     await asyncio.wait_for(result, timeout=10.0)
             except (TimeoutError, *_INFERENCE_RECOVERABLE_ERRORS) as exc:

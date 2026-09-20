@@ -65,7 +65,7 @@ if this list grows an entry nobody wired:
   - core/consciousness/liquid_substrate.py — substrate-driven action
   - core/orchestrator/mixins/message_pipeline.py — the message pipeline
   - core/senses/sensory_instincts.py — instinctive sensory response
-  - interface/routes/chat.py — the chat turn
+  - interface/routes/chat_foreground_lane.py — the chat turn
 
 Not integrated, listed here because their absence is the interesting part:
 memory writes and tool execution. Both were claimed above for a long time.

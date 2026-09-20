@@ -18,6 +18,7 @@ import inspect
 from pathlib import Path
 
 from core.brain.inference_gate import InferenceGate
+from tests.source_contract import family_text_at
 
 
 def test_the_loop_is_offered_the_turns_budget() -> None:
@@ -28,7 +29,7 @@ def test_the_loop_is_offered_the_turns_budget() -> None:
 def test_the_budget_travels_from_the_clock_to_the_call() -> None:
     """Both halves, because either alone leaves the default in place."""
 
-    body = Path("core/brain/inference_gate.py").read_text()
+    body = family_text_at(Path('core/brain/inference_gate.py'))
     # Handed down from the caller, which is where the clock's figure lives.
     assert "decode_budget=int(max_tokens or 0)" in body
     # And forwarded into the loop rather than dropped.
@@ -42,7 +43,7 @@ def test_nothing_is_passed_when_there_is_nothing_to_pass() -> None:
     request for no output at all.
     """
 
-    body = Path("core/brain/inference_gate.py").read_text()
+    body = family_text_at(Path('core/brain/inference_gate.py'))
     start = body.index('{"max_tokens": int(decode_budget)}')
     window = body[start : start + 160]
     assert "if int(decode_budget or 0) > 0" in window

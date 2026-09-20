@@ -15,6 +15,7 @@ from __future__ import annotations
 import pytest
 
 from interface.routes.chat import _what_the_tools_found
+from tests.source_contract import family_text, family_text_at
 
 
 def test_nothing_ran_says_nothing() -> None:
@@ -88,7 +89,7 @@ def test_the_receipt_records_what_came_back_not_only_that_it_ran() -> None:
 
     from core.brain import inference_gate
 
-    source = inspect.getsource(inference_gate)
+    source = family_text(inference_gate)
     assert "observed_content=observed[:2000]" in source, (
         "the tool-loop receipt stopped carrying what the tool returned"
     )
@@ -109,7 +110,7 @@ def test_both_giving_up_paths_ask_what_the_tools_found() -> None:
     """
     from pathlib import Path
 
-    source = Path("interface/routes/chat.py").read_text()
+    source = family_text_at(Path('interface/routes/chat.py'))
     builds = source.count("failure_reply = THE_HONEST_FAILURE")
     asks = source.count("evidenced_reply = _what_the_tools_found()")
     assert builds >= 2, "the refusal is built somewhere this no longer counts"

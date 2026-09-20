@@ -24,6 +24,7 @@ import pytest
 
 from core.verify import influence_channels
 from core.verify.lesion_registry import apply_channel, get_lesion_registry
+from tests.source_contract import family_text
 
 CHANNEL = influence_channels.AFFECT_CIRCUMPLEX_SAMPLING
 
@@ -72,11 +73,10 @@ def test_none_is_the_correct_neutral_for_the_gate():
     novel state — otherwise the counterfactual arm measures a code path that
     never runs in production.
     """
-    import inspect
 
     from core.brain import inference_gate
 
-    source = inspect.getsource(inference_gate)
+    source = family_text(inference_gate)
     assert "somatic_temperature: float | None = None" in source
     assert "somatic_temperature if somatic_temperature is not None else 0.72" in source
 

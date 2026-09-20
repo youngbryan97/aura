@@ -22,6 +22,7 @@ import time
 import pytest
 
 from core.epistemics.belief_revision import Belief, BeliefRevisionEngine
+from tests.source_contract import family_text_at
 
 pytestmark = pytest.mark.unit
 
@@ -158,9 +159,7 @@ def test_the_system_prompt_claim_about_beliefs_has_a_live_producer():
     """
     from pathlib import Path
 
-    prompt = Path("core/brain/llm/context_assembler.py").read_text(encoding="utf-8")
+    prompt = family_text_at(Path('core/brain/llm/context_assembler.py'))
     assert "carry a confidence" in prompt
-    boot = Path("core/orchestrator/mixins/boot/boot_autonomy.py").read_text(
-        encoding="utf-8"
-    )
+    boot = family_text_at(Path('core/orchestrator/mixins/boot/boot_autonomy.py'))
     assert "from core.epistemics.belief_revision import" in boot

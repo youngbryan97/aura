@@ -41,6 +41,7 @@ from typing import Any
 from core.learning.heldout_battery import BatterySpec, generate_battery, grade_response
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.runtime.executors import off_the_loop
 
 logger = logging.getLogger("Aura.SelfPlayFlywheel")
 
@@ -228,7 +229,7 @@ class SelfPlayFlywheel:
             rate = burst_stats["correct"] / burst_stats["attempts"]
             prior = float(state.get("correct_rate_ema", rate))
             state["correct_rate_ema"] = round(0.8 * prior + 0.2 * rate, 4)
-        self._save_state(state)
+        await off_the_loop(self._save_state, state)
 
         # Feed the Practice Director: every verified outcome, per domain,
         # becomes curriculum evidence with this burst's state file + seed as

@@ -26,6 +26,7 @@ def _bare_learner(tmp_path: Path, *, policy: TrainingPolicy | None = None) -> Li
     learner = LiveLearner.__new__(LiveLearner)
     learner._policy = policy or TrainingPolicy(max_examples_per_run=40, replay_fraction=0.35)
     learner._buffer = deque(maxlen=5000)
+    learner._unwritten = []
     learner._lock = threading.Lock()
     learner._session_scores = []
     learner._active = False

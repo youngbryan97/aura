@@ -17,11 +17,11 @@ nothing where it was needed:
 from __future__ import annotations
 
 import asyncio
-import inspect
 
 import pytest
 
 from core.pipeline.pass_manager import get_instrumentation
+from tests.source_contract import family_text
 
 
 @pytest.fixture
@@ -110,7 +110,7 @@ class TestTheLivePathConsultsTheSeam:
     def test_the_legacy_phase_loop_calls_should_run(self):
         from core.brain import cognitive_engine
 
-        source = inspect.getsource(cognitive_engine)
+        source = family_text(cognitive_engine)
         assert "_pass_instrumentation().should_run(" in source, (
             "the loop that serves chat does not consult the pass seam; "
             "AURA_PASS_BISECT_LIMIT does nothing on the live path"
@@ -119,13 +119,13 @@ class TestTheLivePathConsultsTheSeam:
     def test_the_legacy_phase_loop_restarts_numbering_each_turn(self):
         from core.brain import cognitive_engine
 
-        source = inspect.getsource(cognitive_engine)
+        source = family_text(cognitive_engine)
         assert '_begin_pass_run("legacy_pipeline")' in source
 
     def test_the_kernel_tick_restarts_numbering_each_tick(self):
         from core.kernel import aura_kernel
 
-        source = inspect.getsource(aura_kernel)
+        source = family_text(aura_kernel)
         assert "_begin_pass_run(" in source
 
     def test_both_pipelines_record_into_the_same_ledger(self, instrumentation):

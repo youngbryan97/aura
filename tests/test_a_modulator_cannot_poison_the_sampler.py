@@ -28,6 +28,7 @@ import inspect
 import pytest
 
 from core.brain.inference_gate import InferenceGate
+from tests.source_contract import family_text, function_containing
 
 
 # ─────────────────────────────── one contract, six modulators
@@ -85,7 +86,7 @@ def test_a_nan_cannot_reach_the_sampler_through_the_chain():
 def test_every_modulator_goes_through_the_contract(source):
     import core.brain.inference_gate as gate_mod
 
-    assert f'source="{source}"' in inspect.getsource(gate_mod), (
+    assert f'source="{source}"' in family_text(gate_mod), (
         f"{source} composes into the sampler without the finite contract"
     )
 
@@ -96,7 +97,7 @@ def test_every_modulator_goes_through_the_contract(source):
 def test_no_true_embodiment_claim_survives():
     import core.brain.inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
 
     assert "True Embodied Cognition" not in source
     assert "Curing Mind-Body Dualism" not in source
@@ -107,7 +108,7 @@ def test_no_raw_felt_perturbation_claim_survives():
     went stays, quoted, so the next reader does not put it back."""
     import core.brain.inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
 
     assert "── Somatic Qualia: Raw felt perturbation of sampling ──" not in source
     assert '"Raw felt perturbation" was the previous label' in source
@@ -118,7 +119,7 @@ def test_the_surrogate_budget_signal_says_it_is_a_surrogate():
     integrated-information measurement in the record that was never taken."""
     import core.brain.inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
 
     assert '"kind": "phi_measured" if phi_is_measured else "phi_surrogate"' in source
     assert '"scales": "background_token_budget"' in source
@@ -128,7 +129,7 @@ def test_the_mechanisms_are_still_there():
     """Removing an overclaim must not remove the thing it overclaimed about."""
     import core.brain.inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
 
     assert "morphogenetic_runtime" in source
     assert "somatic_qualia" in source
@@ -143,7 +144,7 @@ def test_a_unity_report_with_no_causes_still_supplies_its_verdict():
     report that listed no causes left the default True standing."""
     import core.brain.inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    _name, source = function_containing(gate_mod, "safe_to_self_report = bool(")
 
     assert "if unity_report is not None:" in source
     index_verdict = source.index('safe_to_self_report = bool(')
@@ -158,6 +159,6 @@ def test_a_failed_unity_probe_suppresses_the_self_report():
     Leaving the default True is the absence of a check counted as a pass."""
     import core.brain.inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
 
     assert "suppressed the grounded self-report because unity could not be assessed" in source

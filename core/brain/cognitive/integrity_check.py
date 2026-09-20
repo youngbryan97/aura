@@ -7,14 +7,16 @@ Audits the belief graph for:
 
 Logs audit results to integrity_audit.log and emits to thought stream.
 """
-from core.runtime.errors import record_degradation
+import asyncio
 import logging
 import sqlite3
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-import asyncio
 from typing import Any, Dict, List, Optional
+
+from core.runtime.errors import record_degradation
+from core.runtime.executors import off_the_loop
 
 logger = logging.getLogger("Kernel.IntegrityGuard")
 
@@ -125,7 +127,7 @@ class IntegrityGuard:
             report.errors.append(msg)
 
         report.duration_s = time.monotonic() - t0
-        self._write_audit_log(report)
+        await off_the_loop(self._write_audit_log, report)
         logger.info("🛡️  %s", report)
 
         try:

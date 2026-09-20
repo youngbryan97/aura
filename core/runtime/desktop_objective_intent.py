@@ -755,7 +755,13 @@ _BUILDS_SOFTWARE_RE = re.compile(
     r"\b(?:build|make|write|create|code|implement|generate|scaffold|knock\s+up|"
     r"put\s+together)\b[^.?!]{0,80}?"
     r"\b(?:web\s*app|webapp|app|site|website|web\s*page|html|page|game|tool|"
-    r"script|program|widget|dashboard|prototype|demo|utility)\b",
+    r"script|program|widget|dashboard|prototype|demo|utility|"
+    # A unit of code is software at any size. LIVE 2026-09-19: "Write a
+    # Python function that takes a list of file paths…" was driven to the
+    # screen lane as a file to author, twice, and came back "I could not
+    # write the words you asked for".
+    r"function|method|class|module|snippet|regex|regular\s+expression|query|"
+    r"one-liner|lambda|decorator|generator|unit\s+test|test\s+case|sql)\b",
     re.IGNORECASE,
 )
 

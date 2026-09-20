@@ -27,6 +27,7 @@ from core.conversation.capability_condition import (
     needed_capabilities,
 )
 from tests.chat_lane_support import chat_lane_source
+from tests.source_contract import family_text
 
 pytestmark = pytest.mark.unit
 
@@ -105,7 +106,6 @@ class TestTheEvidenceReachesHerAsFacts:
 
 class TestItReachesTheModel:
     def test_chat_publishes_it_and_the_engine_reads_it(self):
-        import inspect
 
         from core.brain import cognitive_engine
 
@@ -113,7 +113,7 @@ class TestItReachesTheModel:
             chat_lane_source()
         )
         assert 'context.get("live_capability_condition")' in (
-            inspect.getsource(cognitive_engine)
+            family_text(cognitive_engine)
         )
 
 

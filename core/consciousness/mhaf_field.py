@@ -25,6 +25,7 @@ import numpy as np
 
 from core.runtime.background_policy import constitutive_compute_budget_async
 from core.runtime.errors import record_degradation
+from core.runtime.executors import off_the_loop
 from core.runtime.state_ownership import state_root
 from core.utils.task_tracker import get_task_tracker
 
@@ -233,7 +234,7 @@ class MycelialHypergraphAttractorField:
                     action="checkpointed MHAF after bounded loop cancellation timed out",
                     enforce_failure_policy=False,
                 )
-        self._save()
+        await off_the_loop(self._save)
         logger.info("MHAF stopped.")
 
     async def _loop(self):

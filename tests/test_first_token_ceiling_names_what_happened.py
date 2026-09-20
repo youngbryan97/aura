@@ -21,17 +21,17 @@ never happened.
 """
 from __future__ import annotations
 
-import inspect
 import re
 
 import pytest
 
 from core.brain.llm.mlx_client import MLXLocalClient
+from tests.source_contract import class_with_its_bases
 
 
 @pytest.fixture(scope="module")
 def source() -> str:
-    return inspect.getsource(MLXLocalClient)
+    return class_with_its_bases(MLXLocalClient)
 
 
 @pytest.fixture(scope="module")
