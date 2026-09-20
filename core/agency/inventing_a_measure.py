@@ -252,6 +252,17 @@ def _how_far_from_an_edge(seen: tuple[float, float, int, int], state: Any) -> fl
     return (down + across) / 2.0
 
 
+#: How each thing she looks AT reads in the middle of a sentence. Without
+#: these the composed name was "how big it is neighbours, on average", which
+#: she then said out loud.
+ACROSS: dict[str, str] = {
+    "everything": "across everything",
+    "neighbours": "between neighbours",
+    "along a line": "along a line",
+    "at an edge": "at an edge",
+}
+
+
 #: What to take of what she looked at.
 OF: dict[str, Callable[[tuple[float, float, int, int], Any], float]] = {
     "how big it is": _its_size,
@@ -263,6 +274,18 @@ OF: dict[str, Callable[[tuple[float, float, int, int], Any], float]] = {
 
 
 # ── how to combine what was taken ────────────────────────────────────────
+
+#: The same property read upside down, said as its own opposite rather than
+#: as "how little — " in front of "how big": both are in the space, and she
+#: says whichever one she is judging by.
+OTHER_WAY_UP: dict[str, str] = {
+    "how big it is": "how small it is",
+    "its size in doublings": "how few doublings it is",
+    "the gap between them": "how small the gap is",
+    "whether it is in order": "whether it is out of order",
+    "how far from an edge": "how close to an edge",
+}
+
 
 SUMMED: dict[str, Callable[[Sequence[float]], float]] = {
     "on average": lambda taken: sum(taken) / len(taken),
@@ -289,8 +312,11 @@ class Measure:
 
     @property
     def name(self) -> str:
-        said = f"{self.of} {self.at}, {self.summed}"
-        return f"how little — {said}" if self.the_other_way_up else said
+        """What she calls this property when she says what she judged by."""
+        of = self.of
+        if self.the_other_way_up:
+            of = OTHER_WAY_UP.get(of) or f"how little {of}"
+        return f"{of} {ACROSS.get(self.at, self.at)}, {self.summed}"
 
     def read(self, state: Any) -> float:
         """This property of that situation, between nought and one."""
