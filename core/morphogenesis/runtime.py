@@ -767,15 +767,17 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
             cell = self.registry.get(cell_id)
             if cell is None:
                 continue
+            peers = [
+                peer for peer in by_subsystem.get(cell.manifest.subsystem, ())
+                if peer != cell_id and peer in live
+            ]
             members = [
                 str(m) for m in (cell.manifest.metadata.get("members") or ())
                 if str(m) in live and str(m) != cell_id
             ]
             if not members:
-                members = [
-                    peer for peer in by_subsystem.get(cell.manifest.subsystem, ())
-                    if peer != cell_id and peer in live
-                ]
+                members = peers
+                peers = []
             # Attach to the peers with the most room, not the first four by
             # name. Twenty cells arriving into one subsystem all chose the
             # same alphabetically-first peers, saturated them, and left the
@@ -799,6 +801,30 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
                 admit(member, cell_id)
                 if forward:
                     taken += 1
+            if not taken and peers:
+                # Its members are full. The fallback to subsystem peers ran
+                # only when the member list was EMPTY, so an organ whose
+                # members are all at the degree cap got nothing at all and
+                # stayed its own component — while peers with room sat beside
+                # it. Measured on the live graph (2026-09-20): six organs,
+                # every one of their members at exactly 16/16, and 29 of 29
+                # `global` peers under the cap. Six of fifty nodes were
+                # saturated and they were precisely the ones named.
+                #
+                # Binding to the subsystem is what the rule already says to do
+                # when the members cannot be reached; "cannot be reached" now
+                # includes "has no room left" as well as "is not there".
+                for peer in sorted(
+                    peers,
+                    key=lambda name: (
+                        out_degree.get(name, 0) + in_degree.get(name, 0), name
+                    ),
+                ):
+                    if taken >= 4:
+                        break
+                    if admit(cell_id, peer):
+                        taken += 1
+                    admit(peer, cell_id)
         if clipped:
             logger.debug(
                 "Morphogenesis population sync left %d attachment(s) unbound at the "
