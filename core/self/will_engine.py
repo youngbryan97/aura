@@ -9,6 +9,7 @@ from core.event_bus import EventPriority, get_event_bus
 from core.runtime.errors import record_degradation
 from core.runtime.task_ownership import create_tracked_task
 from core.state.aura_state import AuraState, CognitiveMode
+from core.utils.concurrency import cancel_and_join
 
 logger = logging.getLogger("Aura.WillEngine")
 
@@ -56,11 +57,7 @@ class WillEngine:
         """Cleanly terminate the loop."""
         self._is_active = False
         if self._tick_task:
-            self._tick_task.cancel()
-            try:
-                await self._tick_task
-            except asyncio.CancelledError as _exc:
-                logger.debug("Suppressed asyncio.CancelledError: %s", _exc)
+            await cancel_and_join(self._tick_task, owner="core.self.will_engine")
         logger.info("☘️ [WILL] Metabolic Loop offline.")
             
     async def _metabolic_loop(self) -> None:

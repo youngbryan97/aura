@@ -18,8 +18,9 @@ import numpy as np
 
 from core.brain.causal_world_model import CausalWorldModel
 from core.perception.affordance_schema import AffordanceKnowledgeBase
-from core.runtime.task_ownership import create_tracked_task, fire_and_forget
 from core.runtime.service_registry import get_runtime_service
+from core.runtime.task_ownership import create_tracked_task, fire_and_forget
+from core.utils.concurrency import cancel_and_join
 
 logger = logging.getLogger("Aura.EmbodiedSimulator")
 
@@ -89,11 +90,7 @@ class ContinuousSimulatorLoop:
     async def stop(self):
         self.is_running = False
         if self._loop_task:
-            self._loop_task.cancel()
-            try:
-                await self._loop_task
-            except asyncio.CancelledError as _exc:
-                logger.debug("Suppressed %s in core.environment.embodied_simulator: %s", type(_exc).__name__, _exc)
+            await cancel_and_join(self._loop_task, owner="core.environment.embodied_simulator")
         logger.info("Embodied Simulator: Continuous physics loop STOPPED.")
 
     async def _physics_loop(self):

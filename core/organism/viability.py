@@ -45,6 +45,7 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.service_access import resolve_orchestrator
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Viability")
@@ -329,11 +330,7 @@ class ViabilityEngine:
     async def stop(self) -> None:
         self._running = False
         if self._task is not None:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass  # no-op: intentional
+            await cancel_and_join(self._task, owner="core.organism.viability")
             self._task = None
 
     # -------- introspection -----------------------------------------------

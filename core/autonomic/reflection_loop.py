@@ -26,6 +26,7 @@ from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.state_ownership import state_root
 from core.runtime.task_ownership import create_tracked_task
+from core.utils.concurrency import cancel_and_join
 
 logger = logging.getLogger("Aura.AutonomicReflectionLoop")
 
@@ -119,11 +120,7 @@ class AutonomicReflectionLoop:
     async def stop(self) -> None:
         self.running = False
         if self._task and not self._task.done():
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass
+            await cancel_and_join(self._task, owner="core.autonomic.reflection_loop")
 
     async def _run_loop(self) -> None:
         while self.running:

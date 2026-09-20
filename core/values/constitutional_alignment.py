@@ -17,6 +17,7 @@ from typing import Any
 from core.container import ServiceContainer
 from core.event_bus import get_event_bus
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import task_tracker
 
 logger = logging.getLogger("Aura.Constitution")
@@ -160,11 +161,7 @@ class ConstitutionalAlignmentLayer:
     async def stop(self):
         self.running = False
         if self._alignment_task:
-            self._alignment_task.cancel()
-            try:
-                await self._alignment_task
-            except asyncio.CancelledError:
-                logger.debug("ConstitutionalAlignment task cancellation acknowledged")
+            await cancel_and_join(self._alignment_task, owner="core.values.constitutional_alignment")
             self._alignment_task = None
 
     def _resolve_service(self, name: str) -> Any | None:

@@ -1,10 +1,12 @@
-from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import sqlite3
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Tuple
+
+from core.runtime.errors import record_degradation
+from core.utils.concurrency import cancel_and_join
 
 logger = logging.getLogger("Aura.DatabaseCoordinator")
 
@@ -42,11 +44,7 @@ class DatabaseCoordinator:
         """Stop the background worker gracefully."""
         self._running = False
         if self._worker_task:
-            self._worker_task.cancel()
-            try:
-                await self._worker_task
-            except asyncio.CancelledError as _e:
-                logger.debug('Ignored asyncio.CancelledError in database_coordinator.py: %s', _e)
+            await cancel_and_join(self._worker_task, owner="core.resilience.database_coordinator")
         
         for conn in self._connections.values():
             conn.close()

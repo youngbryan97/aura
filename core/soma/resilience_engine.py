@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 
 from core.runtime.shutdown_coordinator import is_shutdown_requested
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.ResilienceEngine")
@@ -143,11 +144,7 @@ class ResilienceEngine:
     async def stop(self) -> None:
         task = self._update_task
         if task is not None:
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError as _e:
-                logger.debug("Ignored asyncio.CancelledError in resilience_engine.py: %s", _e)
+            await cancel_and_join(task, owner="core.soma.resilience_engine")
 
     # ── Event Ingestion ───────────────────────────────────────────────────
 

@@ -24,6 +24,8 @@ from typing import Any
 
 import httpx
 
+from core.skills.discovery import PARITY_STATES_THAT_AGREE
+
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -110,7 +112,14 @@ def evaluate_skill_surfaces(
         "catalogs_identical": tool_names == skill_names == bootstrap_names,
         "health_identical": all(item == canonical_health for item in health.values()),
         "catalog_ready": canonical_health.get("ready") is True,
-        "catalog_parity_ready": canonical_health.get("parity_status") == "ready",
+        # Against the vocabulary the catalog actually reports. This asked
+        # for "ready", which `core.skills.discovery` has never produced, so
+        # the check was False on every boot whatever the two
+        # implementations said — and its unit test passed because the
+        # fixture wrote "ready" into a health dict by hand.
+        "catalog_parity_ready": (
+            canonical_health.get("parity_status") in PARITY_STATES_THAT_AGREE
+        ),
         "no_missing_live": not canonical_health.get("missing_live"),
         "no_quarantined": (
             not canonical_health.get("quarantined")

@@ -13,6 +13,7 @@ from typing import Any, Dict
 from core.container import ServiceContainer
 from core.memory.semantic_defrag import SemanticDefragmenter
 from core.runtime.errors import record_degradation
+from core.utils.concurrency import cancel_and_join
 
 logger = logging.getLogger("Aura.KnowledgeCurator")
 
@@ -42,11 +43,7 @@ class KnowledgeCurator:
     async def stop(self) -> bool:
         self.running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError as _exc:
-                logger.debug("Suppressed %s in core.memory.knowledge_curator: %s", type(_exc).__name__, _exc)
+            await cancel_and_join(self._task, owner="core.memory.knowledge_curator")
             self._task = None
         logger.info("KnowledgeCurator service SHUTDOWN.")
         return True

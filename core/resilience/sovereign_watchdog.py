@@ -13,6 +13,7 @@ from typing import Any
 
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.service_access import resolve_inference_gate, resolve_orchestrator
+from core.utils.concurrency import cancel_and_join
 from core.utils.exceptions import capture_and_log
 from core.utils.task_tracker import get_task_tracker
 
@@ -73,11 +74,7 @@ class SovereignWatchdog:
         """Stop the watchdog."""
         self._running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError as _e:
-                logger.debug('Ignored asyncio.CancelledError in sovereign_watchdog.py: %s', _e)
+            await cancel_and_join(self._task, owner="core.resilience.sovereign_watchdog")
 
     def heartbeat(self, component: str = "orchestrator"):
         """Called by the Orchestrator to signal life."""

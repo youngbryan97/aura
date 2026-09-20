@@ -21,6 +21,56 @@ except ImportError:
 LOCK_SENTINEL = "LOCK_ACQUIRED"
 
 
+async def cancel_and_join(
+    task: asyncio.Task[Any] | None,
+    *,
+    owner: str,
+    timeout: float | None = None,  # noqa: ASYNC109 - a teardown budget, not a wait
+) -> None:
+    """Cancel a task and wait for it, without eating our own cancellation.
+
+    `task.cancel()` then `await task` is how every teardown in this tree
+    stops a background loop, and a hundred and fifty of them catch
+    `asyncio.CancelledError` and carry on. That is right for the CHILD's
+    cancellation and wrong for ours: while we are awaiting, this task can be
+    cancelled too, the same `except` catches that as well, and the caller
+    keeps running after it was told to stop. It is the swallowed
+    cancellation FAULT-001 names, and it is invisible — the teardown looks
+    like it worked and reports success.
+
+    `Task.cancelling()` counts the cancellations aimed at THIS task, so the
+    two are separated by asking rather than by guessing. The child's own
+    exception is carried to a degradation instead of dropped, because a
+    background loop that died of something real is a fact somebody wants.
+    """
+    if task is None or (task.done() and task.cancelled()):
+        return
+    task.cancel()
+    mine = asyncio.current_task()
+    try:
+        if timeout is None:
+            await task
+        else:
+            await asyncio.wait_for(asyncio.shield(task), timeout)
+    except asyncio.CancelledError:
+        if mine is not None and mine.cancelling() > 0:
+            raise
+    except TimeoutError:
+        record_degradation(
+            owner,
+            TimeoutError(f"{owner}: a cancelled task did not finish in {timeout}s"),
+            severity="warning",
+            action="left the task cancelled and carried on with teardown",
+        )
+    except Exception as exc:  # noqa: BLE001 - the child's death, carried not dropped
+        record_degradation(
+            owner,
+            exc,
+            severity="warning",
+            action="teardown continued after the cancelled task raised",
+        )
+
+
 async def run_io_bound(func, *args, **kwargs):
     """
     Runs a blocking I/O bound function in a separate thread to avoid blocking the event loop.

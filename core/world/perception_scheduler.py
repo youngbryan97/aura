@@ -7,6 +7,7 @@ import logging
 
 from core.runtime.errors import record_degradation
 from core.runtime.task_ownership import create_tracked_task
+from core.utils.concurrency import cancel_and_join
 from core.world.perception_hub import PerceptionHub
 
 logger = logging.getLogger("Aura.PerceptionScheduler")
@@ -43,11 +44,7 @@ class PerceptionScheduler:
     async def stop(self) -> None:
         self._running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass
+            await cancel_and_join(self._task, owner="core.world.perception_scheduler")
         logger.info("⏱️  Perception Scheduler stopped.")
 
     async def _loop(self) -> None:

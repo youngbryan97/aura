@@ -15,6 +15,7 @@ from typing import Any
 from core.epistemics.epistemic_tracker import EpistemicTracker, get_epistemic_tracker
 from core.runtime.errors import record_degradation
 from core.runtime.service_access import resolve_orchestrator
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.AGI.CuriosityDaemon")
@@ -50,11 +51,7 @@ class AutonomousCuriosityDaemon:
         """Stop the background exploration loop."""
         self._is_running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError as _exc:
-                logger.debug("Suppressed %s in core.agi.curiosity_daemon: %s", type(_exc).__name__, _exc)
+            await cancel_and_join(self._task, owner="core.agi.curiosity_daemon")
             self._task = None
         logger.info("AutonomousCuriosityDaemon background task stopped.")
 
