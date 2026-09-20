@@ -421,7 +421,7 @@ class AmbientDeveloperStream:
             from core.runtime.subprocess_gateway import get_subprocess_gateway
 
             result = get_subprocess_gateway().run(
-                ["git", "status", "--porcelain=v1", "-uno"],
+                ["git", "-c", "core.fsmonitor=false", "status", "--porcelain=v1", "-uno"],
                 cwd=str(self.project_root),
                 capture_output=True,
                 timeout=2.0,

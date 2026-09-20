@@ -90,7 +90,7 @@ def get_source_identity(root: Path = PROJECT_ROOT) -> dict[str, Any]:
     """Return a replayable identity for a clean git tree or isolated snapshot."""
     try:
         inside = _SUBPROCESS_GATEWAY.run(
-            ["git", "rev-parse", "--is-inside-work-tree"],
+            ["git", "-c", "core.fsmonitor=false", "rev-parse", "--is-inside-work-tree"],
             cwd=root,
             timeout=10,
             check=False,
@@ -103,7 +103,7 @@ def get_source_identity(root: Path = PROJECT_ROOT) -> dict[str, Any]:
     if inside is not None and inside.returncode == 0 and inside.stdout.strip() == "true":
         try:
             commit = _SUBPROCESS_GATEWAY.run(
-                ["git", "rev-parse", "HEAD"],
+                ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"],
                 cwd=root,
                 timeout=10,
                 check=True,
@@ -112,7 +112,7 @@ def get_source_identity(root: Path = PROJECT_ROOT) -> dict[str, Any]:
                 accelerator_capability="none",
             ).stdout.strip()
             status_text = _SUBPROCESS_GATEWAY.run(
-                ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+                ["git", "-c", "core.fsmonitor=false", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
                 cwd=root,
                 timeout=30,
                 check=True,
@@ -121,7 +121,7 @@ def get_source_identity(root: Path = PROJECT_ROOT) -> dict[str, Any]:
                 accelerator_capability="none",
             ).stdout
             diff_text = _SUBPROCESS_GATEWAY.run(
-                ["git", "diff", "--binary", "HEAD"],
+                ["git", "-c", "core.fsmonitor=false", "diff", "--binary", "HEAD"],
                 cwd=root,
                 timeout=30,
                 check=True,

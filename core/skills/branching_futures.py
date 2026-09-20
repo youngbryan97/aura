@@ -138,7 +138,7 @@ if __name__ == "__main__":
                     src = os.path.join(source_dir, f)
                     dst = os.path.join(sandbox_dir, f)
                     if os.path.exists(src) and os.path.exists(dst):
-                        diff_cmd = ["git", "--no-pager", "diff", "--no-index", src, dst]
+                        diff_cmd = ["git", "-c", "core.fsmonitor=false", "--no-pager", "diff", "--no-index", src, dst]
                         diff_process = await asyncio.to_thread(
                             get_subprocess_gateway().run,
                             diff_cmd,

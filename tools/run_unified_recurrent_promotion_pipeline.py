@@ -110,7 +110,7 @@ def _read_canonical(path: Path) -> dict[str, Any]:
 def _source_identity(root: Path = REPO_ROOT) -> dict[str, Any]:
     root = root.resolve(strict=True)
     result = subprocess.run(
-        ["git", "-C", str(root), "rev-parse", "HEAD"],
+        ["git", "-c", "core.fsmonitor=false", "-C", str(root), "rev-parse", "HEAD"],
         capture_output=True,
         text=True,
         timeout=30.0,
@@ -329,7 +329,7 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
 
 def _published_commit(root: Path) -> str:
     result = subprocess.run(
-        ["git", "-C", str(root), "rev-parse", "HEAD"],
+        ["git", "-c", "core.fsmonitor=false", "-C", str(root), "rev-parse", "HEAD"],
         capture_output=True,
         text=True,
         timeout=30.0,
@@ -343,7 +343,7 @@ def _published_commit(root: Path) -> str:
     ):
         _fail("promotion source commit is invalid")
     published = subprocess.run(
-        ["git", "-C", str(root), "merge-base", "--is-ancestor", commit, "origin/main"],
+        ["git", "-c", "core.fsmonitor=false", "-C", str(root), "merge-base", "--is-ancestor", commit, "origin/main"],
         capture_output=True,
         text=True,
         timeout=30.0,

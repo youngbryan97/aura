@@ -300,7 +300,7 @@ def build_report(root: Path, reviews: dict) -> dict:
     return {
         "schema_version": 2,
         "source_commit": subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
+            ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
         "scope": list(SOURCES),
         "summary": {
             "source_lines": sum(source["line_count"] for source in sources),

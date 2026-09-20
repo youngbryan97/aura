@@ -62,7 +62,10 @@ def _run_git(*args: str, text: bool = True, timeout: float = 30.0) -> Any | None
 
     try:
         out = get_subprocess_gateway().run(
-            ["git", *args],
+            # Read-only, so the fsmonitor daemon is not consulted: it turns
+            # a 0.06s listing into a 19.6s one on this checkout, and this
+            # call is bounded.
+            ["git", "-c", "core.fsmonitor=false", *args],
             cwd=REPO,
             capture_output=True,
             text=text,

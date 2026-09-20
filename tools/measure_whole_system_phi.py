@@ -55,7 +55,7 @@ from core.runtime.subprocess_gateway import get_subprocess_gateway  # noqa: E402
 def _git_commit() -> str:
     try:
         out = get_subprocess_gateway().run(
-            ["git", "rev-parse", "--short", "HEAD"],
+            ["git", "-c", "core.fsmonitor=false", "rev-parse", "--short", "HEAD"],
             capture_output=True,
             read_only=True,
             source="proof_tooling:whole_system_phi_git_commit",

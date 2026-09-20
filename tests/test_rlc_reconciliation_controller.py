@@ -44,7 +44,7 @@ def _commit_source(root: Path, message: str) -> str:
     subprocess.run(["git", "-C", str(root), "commit", "-q", "-m", message], check=True)
     return (
         subprocess.run(
-            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            ["git", "-c", "core.fsmonitor=false", "-C", str(root), "rev-parse", "HEAD"],
             check=True,
             capture_output=True,
             text=True,
@@ -56,7 +56,7 @@ def _commit_source(root: Path, message: str) -> str:
 def _source_commit(root: Path) -> str:
     return (
         subprocess.run(
-            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            ["git", "-c", "core.fsmonitor=false", "-C", str(root), "rev-parse", "HEAD"],
             check=True,
             capture_output=True,
             text=True,
@@ -132,7 +132,7 @@ def test_prepare_rejects_dirty_or_branch_attached_source(tmp_path: Path):
     branch = (
         subprocess.run(
             [
-                "git",
+                "git", "-c", "core.fsmonitor=false",
                 "-C",
                 str(source),
                 "for-each-ref",

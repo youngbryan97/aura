@@ -411,7 +411,7 @@ def load_checkpoint_records(root: Path, tracker_path: Path) -> tuple[CheckpointR
     )
     _require(blame.returncode == 0, f"checkpoint blame failed: {blame.stderr.strip()}")
     remote = gateway.run(
-        ["git", "rev-list", "origin/main"],
+        ["git", "-c", "core.fsmonitor=false", "rev-list", "origin/main"],
         cwd=root,
         timeout=90,
         read_only=True,

@@ -29,7 +29,7 @@ def _assert_measured_commit_sources(certificate: dict[str, object]) -> None:
     )
     for relative, expected in certificate["source_sha256s"].items():
         payload = subprocess.run(
-            ["git", "show", f"{commit}:{relative}"],
+            ["git", "-c", "core.fsmonitor=false", "show", f"{commit}:{relative}"],
             cwd=ROOT,
             check=True,
             capture_output=True,

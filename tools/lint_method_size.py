@@ -291,7 +291,7 @@ def _check_changed(argv: list[str]) -> int:
     for relative in changed:
         after = _measure_source((ROOT / relative).read_text("utf-8", errors="ignore"), relative)
         before_source = subprocess.run(  # noqa: S603 - fixed argv, no shell
-            ["git", "show", f"{merge_base}:{relative}"],
+            ["git", "-c", "core.fsmonitor=false", "show", f"{merge_base}:{relative}"],
             capture_output=True,
             text=True,
             cwd=ROOT,

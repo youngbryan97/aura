@@ -153,7 +153,7 @@ def _file_sha(path: Path) -> str:
 
 def _git_blob_sha(commit: str, path: str) -> str:
     completed = subprocess.run(
-        ("git", "show", f"{commit}:{path}"),
+        ("git", "-c", "core.fsmonitor=false", "show", f"{commit}:{path}"),
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,

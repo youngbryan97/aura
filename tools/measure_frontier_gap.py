@@ -682,7 +682,7 @@ def collect_source_identity(
         tree = _git("rev-parse", "HEAD^{tree}").strip().lower()
         release_commit = _git("rev-parse", "--verify", release_ref).strip().lower()
         ancestry = get_subprocess_gateway().run(
-            ["git", "merge-base", "--is-ancestor", release_commit, commit],
+            ["git", "-c", "core.fsmonitor=false", "merge-base", "--is-ancestor", release_commit, commit],
             capture_output=True,
             read_only=True,
             source="proof_tooling:frontier_gap_release_ancestry",

@@ -673,7 +673,7 @@ def _historical_semantic_sources_hold_at_binding(
             # these bytes, so a decode between git and the digest would launder
             # what the certificate claims.
             payload = get_subprocess_gateway().run(
-                ["git", "show", f"{commit}:{relative}"],
+                ["git", "-c", "core.fsmonitor=false", "show", f"{commit}:{relative}"],
                 cwd=root,
                 check=True,
                 capture_output=True,

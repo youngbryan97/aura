@@ -329,7 +329,7 @@ def _unpublished(paths: list[str]) -> list[str]:
         if not (ROOT / relative).exists():
             continue
         tracked = subprocess.run(  # noqa: S603 - fixed argv, no shell
-            ["git", "ls-files", "--error-unmatch", relative],
+            ["git", "-c", "core.fsmonitor=false", "ls-files", "--error-unmatch", relative],
             capture_output=True,
             cwd=ROOT,
             check=False,

@@ -88,7 +88,7 @@ def test_git_probe_declares_read_only_nonaccelerator_owner(monkeypatch):
     monkeypatch.setattr(get_subprocess_gateway(), "run", run)
     assert provenance._git("rev-parse", "HEAD") == "revision"
     argv, options = calls[0]
-    assert argv == ["git", "rev-parse", "HEAD"]
+    assert argv == ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"]
     assert options["cwd"] == provenance.REPO
     assert options["read_only"] is True
     assert options["accelerator_capability"] == "none"

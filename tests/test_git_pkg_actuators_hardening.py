@@ -49,7 +49,7 @@ class _FakeGateway:
 
     def run(self, cmd, **kwargs):
         self.runs.append(list(cmd))
-        if cmd[:3] == ["git", "rev-parse", "HEAD"]:
+        if cmd[:3] == ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"]:
             return _FakeResult(0, "deadbeefcafe1234\n", "")
         return self.result
 

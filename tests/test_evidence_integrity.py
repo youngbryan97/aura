@@ -243,7 +243,7 @@ def test_every_retraction_is_tracked_beside_the_evidence_it_retracts():
     import subprocess
 
     tracked = subprocess.run(
-        ["git", "ls-files", "artifacts"],
+        ["git", "-c", "core.fsmonitor=false", "ls-files", "artifacts"],
         cwd=ROOT,
         capture_output=True,
         text=True,

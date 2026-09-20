@@ -294,7 +294,7 @@ def _validated_migration_receipt(
     target_commit = target.get("commit")
     try:
         current_commit = subprocess.run(
-            ["git", "rev-parse", "HEAD^{commit}"],
+            ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD^{commit}"],
             cwd=root,
             check=True,
             capture_output=True,

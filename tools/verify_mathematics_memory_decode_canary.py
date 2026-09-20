@@ -77,7 +77,7 @@ def _file_sha(path: Path) -> str:
 
 def _git_bytes(commit: str, relative: str) -> bytes:
     result = subprocess.run(
-        ("git", "show", f"{commit}:{relative}"),
+        ("git", "-c", "core.fsmonitor=false", "show", f"{commit}:{relative}"),
         cwd=REPO_ROOT,
         check=False,
         capture_output=True,

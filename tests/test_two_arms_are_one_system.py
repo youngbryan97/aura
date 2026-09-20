@@ -30,7 +30,7 @@ def test_arm_commit_probe_uses_the_process_owner(monkeypatch):
         return SimpleNamespace(returncode=0, stdout='a' * 40 + '\n')
     monkeypatch.setattr(arm_identity, 'get_subprocess_gateway', lambda: SimpleNamespace(run=run))
     assert arm_identity._commit() == 'a' * 40
-    assert calls[0][0] == ['git', 'rev-parse', 'HEAD']
+    assert calls[0][0] == ['git', "-c", "core.fsmonitor=false", 'rev-parse', 'HEAD']
     assert calls[0][1]['read_only'] is True
     assert calls[0][1]['accelerator_capability'] == 'none'
     assert calls[0][1]['cwd'] == Path(arm_identity.__file__).resolve().parents[2]

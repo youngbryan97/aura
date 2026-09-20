@@ -1969,6 +1969,32 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   outright that it had "drifted from the code and is no longer checking
   anything" — its own guard on itself, and it was right.
 
+  2026-09-20. **The God-object ratchet is closed**, and it was the one the
+  register said could not be: twenty-nine refusals to none, with the total
+  oversize going 143,448 to 130,971 lines. It could not be done one file at a
+  time, so it was done once as a mechanism — a cluster of methods moves to a
+  module beside its class, the class inherits it, and every name the moved
+  code takes from its old module is imported at CALL time from that module.
+  A module-level import would bind the origin, and then a test that patches
+  the name on the parent patches something the moved code never reads. The
+  parent keeps those imports, marked, for the same reason: a name read back
+  at call time is not an unused import. Twenty-five clusters, three of them
+  module-level functions in files with no class to split.
+  Two things the move found, both the same shape as the register's:
+  `audit_model_lane_contract` requires `MLXLocalClient._ensure_worker_alive`
+  and read that as "a def of that name in mlx_client.py", so a contract on a
+  class went missing when the class started inheriting the method — it
+  follows the bases into the lifted modules now. And a test read the 900
+  characters after a call site in `pursue_on_screen`; the call had moved to
+  another module, and the defect it guarded was live: four readers of the
+  objective derive one when the request names none and the fifth passed the
+  request straight through, so `recognise` saw an empty string on exactly the
+  runs where naming the shape is the point. Asked as an argument now, over
+  the whole module family.
+  Three ratchets are still red and none of them is this one: swallowed
+  reasons at 2,291 against 2,175, method size with nine tracked functions
+  grown and eight new ones over the line, and the effect-ownership count.
+
   Ratchets tightened rather than refreshed while the register was worked:
   raw AURA_* env reads 578 to 571 (EventLoopMonitor's seven knobs declared),
   raw `ServiceContainer.get` 1760 to 1639 (the two most-resolved services

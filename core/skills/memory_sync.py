@@ -127,7 +127,7 @@ class MemorySyncSkill(BaseSkill):
             init_res = self._run_git(["git", "init"], cwd=cwd)
             if init_res.returncode != 0:
                 return {"ok": False, "error": init_res.stderr}
-            remote_res = self._run_git(["git", "remote", "add", "origin", self.repo_url], cwd=cwd)
+            remote_res = self._run_git(["git", "-c", "core.fsmonitor=false", "remote", "add", "origin", self.repo_url], cwd=cwd)
             if remote_res.returncode != 0:
                 return {"ok": False, "error": remote_res.stderr}
             # Initial pull

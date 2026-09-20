@@ -210,7 +210,7 @@ def _source_state() -> tuple[str, dict[str, dict[str, Any]]]:
         path = REPO_ROOT / relative
         payload = path.read_bytes()
         committed = subprocess.run(
-            ["git", "show", f"{head}:{relative}"],
+            ["git", "-c", "core.fsmonitor=false", "show", f"{head}:{relative}"],
             cwd=REPO_ROOT,
             check=True,
             capture_output=True,

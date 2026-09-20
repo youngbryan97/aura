@@ -93,7 +93,7 @@ class Missing:
 def tracked_shell_scripts() -> list[Path]:
     """Every tracked *.sh, from git so untracked scratch files are ignored."""
     out = subprocess.run(
-        ["git", "ls-files", "*.sh"],
+        ["git", "-c", "core.fsmonitor=false", "ls-files", "*.sh"],
         cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,

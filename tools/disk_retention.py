@@ -130,11 +130,11 @@ def worktrees() -> list[dict[str, Any]]:
         size = _du(tree)
         try:
             head = subprocess.run(
-                ["git", "-C", str(tree), "log", "-1", "--format=%ci"],
+                ["git", "-c", "core.fsmonitor=false", "-C", str(tree), "log", "-1", "--format=%ci"],
                 capture_output=True, text=True, timeout=30,
             ).stdout.strip()
             untracked = subprocess.run(
-                ["git", "-C", str(tree), "status", "--porcelain", "--untracked-files=normal"],
+                ["git", "-c", "core.fsmonitor=false", "-C", str(tree), "status", "--porcelain", "--untracked-files=normal"],
                 capture_output=True, text=True, timeout=120,
             ).stdout
             untracked_dirs = [

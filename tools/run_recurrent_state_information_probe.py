@@ -67,16 +67,16 @@ def _sha256(value: bytes) -> str:
 
 def _source_state() -> tuple[str, dict[str, Any]]:
     if subprocess.run(
-        ["git", "diff", "--quiet"], cwd=REPO_ROOT, check=False
+        ["git", "-c", "core.fsmonitor=false", "diff", "--quiet"], cwd=REPO_ROOT, check=False
     ).returncode != 0 or subprocess.run(
-        ["git", "diff", "--cached", "--quiet"], cwd=REPO_ROOT, check=False
+        ["git", "-c", "core.fsmonitor=false", "diff", "--cached", "--quiet"], cwd=REPO_ROOT, check=False
     ).returncode != 0:
         raise RuntimeError("state probe requires a clean source checkout")
     commit = subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True
+        ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True
     ).strip()
     origin = subprocess.check_output(
-        ["git", "rev-parse", "origin/main"], cwd=REPO_ROOT, text=True
+        ["git", "-c", "core.fsmonitor=false", "rev-parse", "origin/main"], cwd=REPO_ROOT, text=True
     ).strip()
     if commit != origin:
         raise RuntimeError("state probe source must equal published origin/main")
@@ -281,7 +281,7 @@ def run_probe(
         "base_checkpoint_immutable": model_before == model_after,
         "source_published": source_commit
         == subprocess.check_output(
-            ["git", "rev-parse", "origin/main"], cwd=REPO_ROOT, text=True
+            ["git", "-c", "core.fsmonitor=false", "rev-parse", "origin/main"], cwd=REPO_ROOT, text=True
         ).strip(),
         "task_ids_disjoint": task_ids_disjoint,
         "probe_task_ids_disjoint": report["task_ids_disjoint"] is True,

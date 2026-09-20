@@ -529,7 +529,7 @@ def _undeniable_rsi() -> dict[str, Any]:
         passing = [item for item in evaluated if item.get("passed") is True]
         selected = dict(passing[-1] if passing else evaluated[-1])
         commit_result = get_subprocess_gateway().run(
-            ["git", "rev-parse", "HEAD"],
+            ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"],
             cwd=ROOT,
             timeout=10,
             read_only=True,

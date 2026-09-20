@@ -25,7 +25,7 @@ def test_git_head_uses_bounded_read_only_subprocess_gateway(monkeypatch) -> None
     assert certificate._git_head() == "abc123"
     assert gateway.calls == [
         (
-            ["git", "rev-parse", "HEAD"],
+            ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"],
             {
                 "cwd": certificate.REPO_ROOT,
                 "capture_output": True,

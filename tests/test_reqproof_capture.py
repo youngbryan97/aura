@@ -106,7 +106,7 @@ class CaptureGateway(FakeGateway):
     def run(
         self, argv: Sequence[str], **kwargs: Any
     ) -> subprocess.CompletedProcess[str]:
-        if tuple(argv[:2]) == ("git", "rev-parse") or "status" in argv:
+        if tuple(argv[:2]) == ("git", "-c", "core.fsmonitor=false", "rev-parse") or "status" in argv:
             return super().run(argv, **kwargs)
         self.command_kwargs = kwargs
         if self.timeout:

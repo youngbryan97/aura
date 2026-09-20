@@ -91,7 +91,7 @@ def test_worktree_apply_merges_logs_and_removes_worktree_path(tmp_path: Path):
 
     async def runner(command: tuple[str, ...], cwd: Path, timeout_s: float) -> ManagedCommandResult:
         calls.append((command, cwd, timeout_s))
-        if command[:3] == ("git", "rev-parse", "--short"):
+        if command[:3] == ("git", "-c", "core.fsmonitor=false", "rev-parse", "--short"):
             return _ok(command, "abc123\n")
         return _ok(command)
 
@@ -135,4 +135,4 @@ def test_worktree_commit_failure_is_reported_without_merge(tmp_path: Path):
     assert not result.success
     assert "Commit failed" in result.reason
     assert not any(command[:2] == ("git", "merge") for command in calls)
-    assert any(command[:3] == ("git", "branch", "-D") for command in calls)
+    assert any(command[:3] == ("git", "-c", "core.fsmonitor=false", "branch", "-D") for command in calls)

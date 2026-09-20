@@ -515,14 +515,14 @@ def _source_bindings() -> dict[str, dict[str, Any]]:
     bindings: dict[str, dict[str, Any]] = {}
     for role, path in sorted(SOURCE_PATHS.items()):
         tracked = subprocess.run(
-            ["git", "ls-files", "--error-unmatch", "--", path],
+            ["git", "-c", "core.fsmonitor=false", "ls-files", "--error-unmatch", "--", path],
             cwd=REPO_ROOT,
             capture_output=True,
             timeout=30.0,
             check=False,
         )
         committed = subprocess.run(
-            ["git", "show", f"HEAD:{path}"],
+            ["git", "-c", "core.fsmonitor=false", "show", f"HEAD:{path}"],
             cwd=REPO_ROOT,
             capture_output=True,
             timeout=30.0,

@@ -41,7 +41,7 @@ def test_the_baseline_remembers_where_it_was_written():
 def test_the_commit_it_names_is_one_this_repository_has():
     commit = json.loads(BASELINE.read_text())["at_commit"]
     found = subprocess.run(
-        ["git", "-C", str(ROOT), "cat-file", "-t", commit],
+        ["git", "-c", "core.fsmonitor=false", "-C", str(ROOT), "cat-file", "-t", commit],
         capture_output=True, text=True, timeout=30, check=False,
     )
     if found.returncode != 0:
@@ -66,7 +66,7 @@ def test_an_unreadable_commit_reports_nothing_rather_than_raising():
 def _a_commit_far_enough_back() -> str:
     """A commit with kernel changes after it, so there is a window to measure."""
     walked = subprocess.run(
-        ["git", "-C", str(ROOT), "log", "--format=%H", "-n", "400", "--", "core/"],
+        ["git", "-c", "core.fsmonitor=false", "-C", str(ROOT), "log", "--format=%H", "-n", "400", "--", "core/"],
         capture_output=True, text=True, timeout=60, check=False,
     )
     commits = walked.stdout.split()
