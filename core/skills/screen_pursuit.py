@@ -1184,6 +1184,15 @@ async def pursue_on_screen(
         if found is not None:
             promote(found, float(worth))
             logger.info("she judges situations here by %r, worth %.2f", name, float(worth))
+    # A finished game is a whole game played by what she judges by, so it is
+    # the moment to play those out in her model — not only the end of a run.
+    # LIVE 2026-09-20: a run asked to reach 2048 carried two invented
+    # measures that had been measured to cost three games in four, because
+    # the run had not ended yet and would not for hours.
+    pending["when_a_game_ends"] = lambda: _judge_what_she_judges_by_in_her_model(
+        knows, world, pending, matters, move_keys,
+        success_when or pending.get("aiming_at") or "", narrate,
+    )
     try:
         furthest["here"] = float(knew.get("furthest") or 0.0)
     except (TypeError, ValueError):
@@ -1634,6 +1643,7 @@ async def pursue_on_screen(
     _judge_what_she_judges_by_in_her_model(
         knows, world, pending, matters, move_keys, success_when or pending.get("aiming_at") or "", narrate
     )
+    pending.pop("when_a_game_ends", None)
     return result
 
 

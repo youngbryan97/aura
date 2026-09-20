@@ -1536,6 +1536,13 @@ async def decide_the_next_move(
                 restarts["count"] += 1
                 responds["state"].began_again()
                 logger.info("began again: %s", label or "restart")
+                # One game, played through by what she judges by. Rehearsing
+                # them here rather than only at the end of the run is the
+                # difference between carrying a measure for one game and
+                # carrying it for hours.
+                judge = pending.get("when_a_game_ends")
+                if callable(judge):
+                    judge()
                 return True
 
             return Step(name=f"begin again with {label!r}", action=begin_again)
