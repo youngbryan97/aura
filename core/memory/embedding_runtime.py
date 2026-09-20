@@ -49,6 +49,28 @@ class SharedEmbeddingLease:
         self._runtime.release(self._token)
 
 
+_SHORTEST_HOLD_S: float | None = None
+
+
+def _shortest_hold_s() -> float:
+    """How long a timer takes to fire on this host, measured once.
+
+    A hold shorter than that cannot be a hold: the timer would fire after
+    the caller has already moved on, on another thread. Measured rather
+    than chosen, so the threshold is the mechanism's own resolution.
+    """
+    global _SHORTEST_HOLD_S
+    if _SHORTEST_HOLD_S is None:
+        fired = threading.Event()
+        began = time.monotonic()
+        timer = threading.Timer(0.0, fired.set)
+        timer.daemon = True
+        timer.start()
+        fired.wait(timeout=1.0)
+        _SHORTEST_HOLD_S = max(0.0, time.monotonic() - began)
+    return _SHORTEST_HOLD_S
+
+
 class SharedEmbeddingRuntime:
     """Reference-counted owner of one lazily loaded embedding engine."""
 
@@ -76,21 +98,49 @@ class SharedEmbeddingRuntime:
         #: gives the memory back.
         self._build_seconds = 0.0
         self._closing_timer: threading.Timer | None = None
+        #: Set while one acquirer builds the engine OUTSIDE the lock. Loading
+        #: the embedding model reads and fsyncs its cache, and lockdep named
+        #: the fsync under this lock (2026-09-20); a build under the lock
+        #: also held every release and snapshot for the whole load.
+        self._building = threading.Event()
+        self._building.set()  # nobody is building
 
     def acquire(self, owner: str) -> SharedEmbeddingLease:
         owner_name = str(owner or "unknown").strip() or "unknown"
+        while True:
+            with self._lock:
+                timer, self._closing_timer = self._closing_timer, None
+                if timer is not None:
+                    timer.cancel()
+                if self._engine is not None:
+                    token = uuid.uuid4().hex
+                    self._owners[token] = owner_name
+                    return SharedEmbeddingLease(self, token)
+                if self._building.is_set():
+                    self._building.clear()  # this caller builds
+                    break
+            # Another caller is building: wait for it off the lock, then
+            # look again. Bounded so a builder that died cannot hold the
+            # rest for ever; the next look sees no engine and builds.
+            self._building.wait(timeout=120.0)
+        began = time.monotonic()
+        try:
+            engine = self._engine_factory()
+        finally:
+            self._building.set()
         with self._lock:
-            timer, self._closing_timer = self._closing_timer, None
-            if timer is not None:
-                timer.cancel()
             if self._engine is None:
-                began = time.monotonic()
-                self._engine = self._engine_factory()
+                self._engine = engine
                 self._build_seconds = max(0.0, time.monotonic() - began)
                 logger.info(
                     "Embedding runtime created shared engine in %.2fs",
                     self._build_seconds,
                 )
+            else:
+                # Lost a race to a second builder; this one is surplus.
+                close = getattr(engine, "close", None)
+                if callable(close):
+                    close()
             token = uuid.uuid4().hex
             self._owners[token] = owner_name
         return SharedEmbeddingLease(self, token)
@@ -107,32 +157,39 @@ class SharedEmbeddingRuntime:
                 return
             if self._owners or self._engine is None:
                 return
-            # One path, always the timer. A build that took no measurable
-            # time schedules a zero delay and closes at once, which is the
-            # same answer a special case would give and one fewer branch to
-            # be wrong about.
-            timer = threading.Timer(self._build_seconds, self._close_if_still_idle)
-            timer.daemon = True
-            self._closing_timer = timer
-            timer.start()
+            if self._build_seconds <= _shortest_hold_s():
+                # Nothing to hold for: an engine that cost less to build
+                # than a timer takes to fire is closed now, on this thread.
+                # A zero-delay timer is not "at once" — it is another
+                # thread, later — and a caller that releases the last lease
+                # and then reads the engine's state saw it still open.
+                engine, self._engine = self._engine, None
+            else:
+                engine = None
+                timer = threading.Timer(self._build_seconds, self._close_if_still_idle)
+                timer.daemon = True
+                self._closing_timer = timer
+                timer.start()
+        if engine is not None:
+            close = getattr(engine, "close", None)
+            if callable(close):
+                close()
+            logger.info("Embedding runtime closed engine after final owner release")
 
     def _close_if_still_idle(self) -> None:
         with self._lock:
             self._closing_timer = None
             if self._owners or self._engine is None:
                 return
-            self._close_engine_locked(
-                f"after {self._build_seconds:.2f}s idle, which is what building it cost"
-            )
-
-    def _close_engine_locked(self, because: str) -> None:
-        engine, self._engine = self._engine, None
-        if engine is None:
-            return
+            engine, self._engine = self._engine, None
+        # Closing may persist a cache; outside the lock, as `close` does.
         close = getattr(engine, "close", None)
         if callable(close):
             close()
-        logger.info("Embedding runtime closed engine %s", because)
+        logger.info(
+            "Embedding runtime closed engine after %.2fs idle, which is what building it cost",
+            self._build_seconds,
+        )
 
     def close(self) -> None:
         """Invalidate every lease and close the engine exactly once."""

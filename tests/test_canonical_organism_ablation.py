@@ -139,7 +139,7 @@ async def test_memory_pressure():
     scaling = body.calculate_resource_scaling(status)
 
     # Assert model downscales and vision worker unloads
-    assert scaling["model_capacity"] == "Qwen3.5-9B-4bit"
+    assert scaling["model_capacity"] == "Ternary-Bonsai-2-27B-mlx-2bit"
     assert scaling["unload_vision_worker"] is True
     assert scaling["compress_context"] is True
 

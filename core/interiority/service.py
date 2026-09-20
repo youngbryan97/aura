@@ -408,7 +408,13 @@ class InteriorityService:
             state, channels=tuple(sorted(event.present_channels()))
         )
         if self._ticks % self._census_every == 0:
-            self.census.persist()
+            # The census is a periodic snapshot; the write fsyncs, and this
+            # tick runs on the loop from an affect reaction (LIVE 2026-09-20:
+            # named by the loop report from damasio_v2.react). Coalesced
+            # write-behind: one writer per path, the latest report wins.
+            from core.runtime.executors import behind_the_loop
+
+            behind_the_loop("interiority.census.persist", self.census.persist)
 
         # The interior reports itself on declared channels. A state that
         # ran and left no trace cannot be understood afterwards, and this

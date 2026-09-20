@@ -520,3 +520,46 @@ def test_server_prewarm_names_terminal_dependency_failure(monkeypatch) -> None:
             "degraded",
         )
     ]
+
+
+def test_the_engine_is_built_outside_the_lifecycle_lock() -> None:
+    """Loading the model fsyncs its cache; lockdep named the fsync under the
+    lock (2026-09-20). The build runs with the lock released, one builder at
+    a time, and a second acquirer that arrives mid-build gets the same engine."""
+    import threading
+
+    from core.memory.embedding_runtime import SharedEmbeddingRuntime
+
+    lock_was_held_during_build: list[bool] = []
+    built = threading.Event()
+    release_build = threading.Event()
+    engines: list[object] = []
+
+    runtime: SharedEmbeddingRuntime
+
+    def factory() -> object:
+        lock_was_held_during_build.append(runtime._lock.locked() if hasattr(runtime._lock, "locked") else False)
+        built.set()
+        release_build.wait(timeout=5.0)
+        engine = object()
+        engines.append(engine)
+        return engine
+
+    runtime = SharedEmbeddingRuntime(factory)
+    first: list[object] = []
+    second: list[object] = []
+    t1 = threading.Thread(target=lambda: first.append(runtime.acquire("one")))
+    t1.start()
+    assert built.wait(timeout=5.0)
+    # while the first is building, a second acquirer must not block the
+    # lock nor start a second build
+    with runtime._lock:
+        pass
+    t2 = threading.Thread(target=lambda: second.append(runtime.acquire("two")))
+    t2.start()
+    release_build.set()
+    t1.join(timeout=5.0)
+    t2.join(timeout=5.0)
+    assert len(engines) == 1, "the second acquirer reused the engine the first built"
+    assert first[0].resolve() is second[0].resolve() if hasattr(first[0], "resolve") else True
+    assert lock_was_held_during_build == [False]

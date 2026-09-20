@@ -692,6 +692,26 @@ class HermeticResourceSandbox:
                 print(f"\n[sqlite-sweeper] closed leaked stores: {'; '.join(holders)}")
                 leaks = self.leaks()
 
+        # The other durable store that keeps a descriptor by design: an audit
+        # chain holds its append fd and its lock fd between writes and reopens
+        # them when they are None, so closing every live chain here is safe
+        # for a component that outlives the test and is the fix for one that
+        # does not. LIVE 2026-09-20: a gate test left
+        # ~/.aura-test/receipts/_chain.jsonl and .chain.lock open.
+        if leaks.get("open_files") and any(
+            str(one).endswith(("_chain.jsonl", ".chain.lock")) for one in leaks["open_files"]
+        ):
+            try:
+                from core.runtime.audit_chain import close_all_chains
+
+                report = close_all_chains()
+            except (ImportError, RuntimeError, OSError):
+                report = None
+            if report and report.get("closed"):
+                print(f"\n[chain-sweeper] closed {report['closed']} live audit chain(s)")
+                gc.collect()
+                leaks = self.leaks()
+
         # Last look, after the sqlite sweeper has dropped its references.
         # Closing a store releases the connection object but the file handle
         # behind it can still be reachable from the cycle the sweeper just
