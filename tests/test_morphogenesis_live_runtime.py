@@ -381,3 +381,68 @@ async def test_a_cell_alone_in_its_subsystem_is_still_left_alone(tmp_path):
 
     assert not runtime.graph.out_edges(alone.cell_id)
     assert not runtime.graph.in_edges(alone.cell_id)
+
+
+@pytest.mark.asyncio
+async def test_an_organ_whose_members_are_full_binds_to_its_subsystem(tmp_path):
+    """The fallback ran only when the member list was EMPTY, never when full.
+
+    Measured on the live graph (2026-09-20): six organs isolated, every one
+    of their members at exactly 16/16, and 29 of 29 `global` peers under the
+    cap. Six of fifty nodes were saturated and they were precisely the ones
+    the organs named, so the attachment rule refused every edge and fell
+    through to nothing while room sat beside it.
+    """
+    runtime = _runtime(tmp_path)
+    cap = runtime.graph.max_out_degree
+    members = [
+        runtime.registry.register_cell(_sensor(f"member_{i}", "weather"))
+        for i in range(2)
+    ]
+    fillers = [
+        runtime.registry.register_cell(_sensor(f"filler_{i}", "weather"))
+        for i in range(cap * 2)
+    ]
+    await runtime.tick()
+
+    from core.morphogenesis.graph import EdgeType, MorphEdge
+
+    def saturate(scratch):
+        # Fill each member to exactly the cap, no further: the graph refuses
+        # a transaction that overruns the budget, and the subject here is a
+        # member with no room rather than a graph that rejects the fixture.
+        for member in members:
+            held_out = {e.target for e in runtime.graph.out_edges(member.cell_id)}
+            held_in = {e.source for e in runtime.graph.in_edges(member.cell_id)}
+            spare = [
+                f.cell_id for f in fillers
+                if f.cell_id != member.cell_id
+            ]
+            for target in [c for c in spare if c not in held_out][: cap - len(held_out)]:
+                scratch.add_edge(MorphEdge(
+                    source=member.cell_id, target=target,
+                    edge_type=EdgeType.OBSERVE, weight=0.5,
+                ))
+            for source in [c for c in spare if c not in held_in][: cap - len(held_in)]:
+                scratch.add_edge(MorphEdge(
+                    source=source, target=member.cell_id,
+                    edge_type=EdgeType.OBSERVE, weight=0.5,
+                ))
+
+    runtime.graph.transaction(saturate, cause="test:fill_the_members")
+    for member in members:
+        assert len(runtime.graph.out_edges(member.cell_id)) >= cap
+
+    organ = runtime.registry.register_cell(CellManifest(
+        name="organ:full_members", role=CellRole.ORGAN, subsystem="weather",
+        capabilities=["composite"], consumes=["task"], emits=["task"],
+        metadata={"members": [m.cell_id for m in members]},
+    ))
+    assert organ is not None
+
+    await runtime.tick()
+
+    bound = runtime.graph.out_edges(organ.cell_id) or runtime.graph.in_edges(
+        organ.cell_id
+    )
+    assert bound, "the organ took nothing while its subsystem had room"
