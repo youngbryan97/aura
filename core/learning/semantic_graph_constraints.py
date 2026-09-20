@@ -241,6 +241,7 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         accepted, cut_rounds, best_trial = False, 0, None
         while True:
             projection_receipt = None
+            restoration_descent = False
             if update_rule == "minimum_change":
                 from core.learning.margin_repair import minimum_stored_margin_repair
 
@@ -264,19 +265,27 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                     if progress:
                         progress({"stage": "constraint_projection_unverified", "step": step + 1,
                                   "projection": proposal.receipt})
-                    break
-                direction = np.zeros_like(flat)
-                direction[mutable] = anchor[mutable] + proposal.displacement - flat[mutable]
+                    # An unreachable target margin does not rule out a useful
+                    # loss decrease. Preserve existing floors while searching
+                    # the same objective; never certify the failed projection.
+                    direction = _project_direction(descent, [normal for index, normal in normals.items()
+                        if np.isfinite(floors[index])])
+                    restoration_descent = True
+                    projection_receipt = None
+                else:
+                    direction = np.zeros_like(flat)
+                    direction[mutable] = anchor[mutable] + proposal.displacement - flat[mutable]
             else:
                 direction = _project_direction(descent, list(normals.values()))
             largest = np.max(np.abs(direction))
             if largest == 0 or not np.isfinite(largest):
-                status = "no_feasible_direction_found"
+                if not restoration_descent:
+                    status = "no_feasible_direction_found"
                 break
             step_size = 1. if update_rule == "minimum_change" else learning_rate
-            if update_rule == "working_face":
+            if update_rule == "working_face" or restoration_descent:
                 direction /= largest
-            if adaptive_step and update_rule == "working_face":
+            if (adaptive_step and update_rule == "working_face") or restoration_descent:
                 # Use the local loss curvature along the protected direction.
                 slopes = (batch.directional_derivative(parameters, unpack(direction))
                           if batch is not None else np.zeros_like(margins))
@@ -318,6 +327,8 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                                   "constraint_cut_rounds": cut_rounds,
                                   "restoration_steps": restoration_steps,
                                   "projected_constraints": len(normals)}
+                    if restoration_descent:
+                        entry["proposal_rule"] = "retained_loss_descent_after_unverified_projection"
                     if projection_receipt is not None:
                         entry.update(local_affine_projection=projection_receipt,
                                      stored_affine_projection=proposal.receipt,
