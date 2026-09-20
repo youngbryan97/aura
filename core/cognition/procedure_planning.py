@@ -22,6 +22,7 @@ from core.cognition.procedure import (
     _kind_accepts_value,
     _kinds_compose,
     compose,
+    validate_structural_declaration,
 )
 from core.cognition.procedure_execution import (
     BackendExecutor,
@@ -265,6 +266,7 @@ def execute_procedure_plan(
     *,
     backends: Mapping[Backend, BackendExecutor],
     context: Mapping[str, Any] | None = None,
+    closed_types: bool = False,
 ) -> ProcedureGoalExecution:
     """Run through the shared executor and check the task's actual final state.
 
@@ -272,6 +274,11 @@ def execute_procedure_plan(
     does not update the registry's learned success rate.
     """
 
+    if type(closed_types) is not bool:
+        raise ValueError("closed type mode must be boolean")
+    if closed_types:
+        for item in plan.requirements:
+            validate_structural_declaration(item.kind, item.equals)
     if not plan.found:
         return ProcedureGoalExecution(plan, None, False)
     if not plan.procedure_ids:
@@ -284,6 +291,7 @@ def execute_procedure_plan(
     procedure = parts[0] if len(parts) == 1 else compose(registry, parts, intern=True)
     execution = execute_procedure(
         registry, procedure.procedure_id, state, backends=backends, context=context,
+        closed_types=closed_types,
     )
     return ProcedureGoalExecution(
         plan, execution,

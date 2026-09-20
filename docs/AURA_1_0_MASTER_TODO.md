@@ -1292,6 +1292,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   baseline-dependent task filtering in the retrieval/depth diagnostic. The
   68-test focused pass does not qualify a model or close campaign verification.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [Closed procedure types](evidence/G09_CLOSED_PROCEDURE_TYPES_2026-09-20.md)
+  preflight every nested structural declaration before backend effects and
+  wire the checked mode into semantic execution. Legacy nominal procedures
+  remain compatible; 97 focused tests pass. This is not broad-gain evidence.
   [Ordinary evaluation path](evidence/G09_ORDINARY_EVALUATION_PATH_2026-09-18.md)
   removes non-safety canned answers selected solely by test/proof/evaluation
   origin. Planning and factual requests reach ordinary reasoning; governance

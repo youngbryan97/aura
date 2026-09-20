@@ -160,6 +160,7 @@ def execute_compositional_semantic_observation(
             goal_execution = execute_procedure_plan(
                 procedure_registry, plan, initial_state,
                 backends={Backend.RLC: semantic_procedure_backend},
+                closed_types=True,
             )
             procedure_execution = goal_execution.execution
             if procedure_execution is None:
@@ -211,6 +212,7 @@ def execute_compositional_semantic_observation(
         "procedure_execution": (
             {
                 "completed": procedure_execution.completed,
+                "closed_types_checked": procedure_execution.closed_types_checked,
                 "backend_calls": procedure_execution.execution.tool_calls,
                 "procedure_ids": [step.procedure_id for step in procedure_execution.steps],
                 "selection_basis": "learned_ir_procedure_identity",
