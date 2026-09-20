@@ -203,7 +203,7 @@ class EmbeddingEngine:
         #: guards the lifecycle; this guards the tokenizer and the forward
         #: pass, off the event loop, where a wait costs only the waiter.
         self._encode_lock = checked_lock("vector_memory_engine.encode", rank=LockRank.LEAF)
-        #: How many callers are waiting for that lock right now.
+        #: How many callers are in the queue for that lock, holder included.
         #:
         #: The lock is held for a WHOLE batch, and a background warm of 1,430
         #: texts therefore holds it for as long as the warm takes. There was
@@ -219,9 +219,9 @@ class EmbeddingEngine:
         #: A waiter is the fact that matters, and it needs no notion of
         #: foreground: if anyone is waiting, a background batch stops at the
         #: next boundary and lets them in.
-        self._encode_waiting = 0
-        self._encode_waiting_lock = checked_lock(
-            "vector_memory_engine.encode_waiting", rank=LockRank.LEAF
+        self._encode_queue = 0
+        self._encode_queue_lock = checked_lock(
+            "vector_memory_engine.encode_queue", rank=LockRank.LEAF
         )
         #: Query vectors already made, newest last, and the ones being made.
         #: One recall asks from several sources at once, in threads, and each
@@ -471,30 +471,30 @@ class EmbeddingEngine:
         `primary_inference_active()` because a recall runs BEFORE generation,
         so a warm held the lock through a whole foreground retrieval.
         """
-        with self._encode_waiting_lock:
-            waiting = self._encode_waiting
-        return waiting > 0 or self._primary_inference_active()
+        with self._encode_queue_lock:
+            queued = self._encode_queue
+        # The holder is in the queue too, so somebody ELSE waiting is two.
+        return queued > 1 or self._primary_inference_active()
 
     @contextlib.contextmanager
     def _encoding(self) -> Any:
         """Hold the encode lock, counted, so a background batch can yield.
 
-        The count is the number of callers WAITING, so it drops the moment
-        this one gets in — a holder is not a reason for the holder to yield.
+        The count is everyone in the QUEUE, holder included, and it is taken
+        and given back OUTSIDE the encode lock. Counting only the waiters
+        meant decrementing after acquiring, which nests one LEAF lock inside
+        another: lockdep called it a rank inversion on the first live boot
+        after the change and recorded a splat. One more in the count is
+        cheaper than an order nobody can declare.
         """
-        with self._encode_waiting_lock:
-            self._encode_waiting += 1
-        still_waiting = True
+        with self._encode_queue_lock:
+            self._encode_queue += 1
         try:
             with self._encode_lock:
-                with self._encode_waiting_lock:
-                    self._encode_waiting -= 1
-                still_waiting = False
                 yield
         finally:
-            if still_waiting:
-                with self._encode_waiting_lock:
-                    self._encode_waiting -= 1
+            with self._encode_queue_lock:
+                self._encode_queue -= 1
 
     @staticmethod
     def _normalize_rows(vectors: Any) -> np.ndarray:
