@@ -22,6 +22,9 @@ SCANNED = (
     # run for twenty minutes against no CPU, which is the same cost as the
     # production one and lands on whoever runs the suite.
     "tests",
+    # And the standalone scripts: the audit-bundle export wraps its argv in
+    # a helper, which is how it was missed the first time.
+    "scripts", "training", "aura_bench", "research",
 )
 
 #: Subcommands that only read. A write is left alone deliberately.
