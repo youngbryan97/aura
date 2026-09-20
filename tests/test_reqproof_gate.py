@@ -562,7 +562,7 @@ class TestRealRepositoryGate:
         from core.runtime.subprocess_gateway import get_subprocess_gateway
 
         result = get_subprocess_gateway().run(
-            ["git", "show", "HEAD:docs/AURA_EXECUTION_TRACKER.md"],
+            ["git", "-c", "core.fsmonitor=false", "show", "HEAD:docs/AURA_EXECUTION_TRACKER.md"],
             cwd=self.ROOT,
             timeout=60,
             read_only=True,

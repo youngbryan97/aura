@@ -13,6 +13,7 @@ from typing import Any
 
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.task_ownership import create_tracked_task
+from core.utils.concurrency import cancel_and_join
 
 logger = logging.getLogger("Aura.NarrativeThread")
 
@@ -141,11 +142,7 @@ class NarrativeThread:
         """Stop the autonomous refresh loop."""
         self._is_running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError as _e:
-                logger.debug("NarrativeThread refresh task cancelled: %s", _e)
+            await cancel_and_join(self._task, owner="core.identity.narrative_thread")
             self._task = None
         logger.info("NarrativeThread auto-refresh loop stopped.")
 

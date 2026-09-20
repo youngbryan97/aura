@@ -32,7 +32,7 @@ def _repo(tmp_path: Path) -> tuple[Path, str]:
     subprocess.run(["git", "add", "source.py"], cwd=tmp_path, check=True)
     subprocess.run(["git", "commit", "-qm", "source"], cwd=tmp_path, check=True)
     head = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
+        ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"],
         cwd=tmp_path,
         check=True,
         capture_output=True,

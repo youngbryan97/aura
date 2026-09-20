@@ -1717,6 +1717,38 @@ def _integrity_of_control_and_measured_effect(block: dict[str, Any]) -> None:
             block["endogenous_language"] = provider()
     except Exception as exc:  # noqa: BLE001 — integrity reporting is additive
         block["endogenous_language_error"] = repr(exc)
+    # The shape morphogenesis is holding: how many cells, how many bindings,
+    # and whether any of them can reach each other.
+    #
+    # The topology had exactly one reader and it was an HTTP route —
+    # `_collect_morphogenesis_status` in interface/routes/system.py — so
+    # nothing that reads this report could see it, including the mind's own
+    # self-knowledge. Asked live on 2026-09-20 which of its cells were cut
+    # off, with `/api/health` carrying `components: 7, partitioned: true` at
+    # that moment, the answer was "I don't have any operational information
+    # regarding a system called 'morphogenic cell'". A population reported as
+    # fifty healthy cells says nothing about whether any of them can reach
+    # each other, which is the thing this layer is for.
+    try:
+        from core.runtime.service_registry import get_runtime_service
+
+        runtime = get_runtime_service("morphogenetic_runtime", default=None)
+        status = getattr(runtime, "status", None)
+        if callable(status):
+            shape = status()
+            topology = dict(shape.get("topology") or {})
+            registry = dict(shape.get("registry") or {})
+            components = int(topology.get("components", 1) or 1)
+            block["the_shape_it_is_holding"] = {
+                "cells": int(registry.get("cells", 0) or 0),
+                "organs": int(registry.get("organs", 0) or 0),
+                "bindings": int(topology.get("edges", 0) or 0),
+                "topology_version": int(topology.get("version", 0) or 0),
+                "components": components,
+                "partitioned": components > 1,
+            }
+    except Exception as exc:  # noqa: BLE001 — integrity reporting is additive
+        block["the_shape_it_is_holding_error"] = repr(exc)
     # Who this runtime is, and where its state lives. Every persistent record
     # is stamped with this, so a store found in the wrong place can be traced
     # to the process that wrote it.

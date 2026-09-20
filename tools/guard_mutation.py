@@ -128,7 +128,7 @@ def run_tests(selector: str, timeout: int) -> tuple[bool, list[str], str]:
 
 def _git_dirty(module: str) -> str:
     proc = subprocess.run(
-        ["git", "status", "--porcelain", "--", module],
+        ["git", "-c", "core.fsmonitor=false", "status", "--porcelain", "--", module],
         cwd=REPO, capture_output=True, text=True,
     )
     return proc.stdout.strip()

@@ -73,7 +73,7 @@ PROOF_ARTIFACT_GLOBS = (
 def _git(*args: str) -> str:
     try:
         return subprocess.run(
-            ["git", *args], cwd=ROOT, capture_output=True, text=True, timeout=30
+            ["git", "-c", "core.fsmonitor=false", *args], cwd=ROOT, capture_output=True, text=True, timeout=30
         ).stdout.strip()
     except (OSError, subprocess.SubprocessError):
         return ""

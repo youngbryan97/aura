@@ -95,7 +95,7 @@ def _replication_specs(values: list[str]) -> list[dict[str, Any]]:
 
 def _verify_commit(commit: str) -> None:
     completed = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", commit, "HEAD"],
+        ["git", "-c", "core.fsmonitor=false", "merge-base", "--is-ancestor", commit, "HEAD"],
         cwd=_REPO_ROOT,
         check=False,
         capture_output=True,

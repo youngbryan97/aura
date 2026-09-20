@@ -72,7 +72,7 @@ def _commit() -> str:
         from core.runtime.subprocess_gateway import get_subprocess_gateway
 
         out = get_subprocess_gateway().run(
-            ["git", "rev-parse", "HEAD"],
+            ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"],
             cwd=ROOT, timeout=5.0, read_only=True, source="experiment_registry",
             accelerator_capability="none",
         )

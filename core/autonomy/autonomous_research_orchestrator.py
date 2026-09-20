@@ -36,7 +36,6 @@ from pathlib import Path
 from typing import Any
 
 from core.autonomy.comprehension_loop import ComprehensionLoop, ComprehensionRecord
-from core.runtime.state_ownership import state_root
 from core.autonomy.content_fetcher import ContentFetcher
 from core.autonomy.content_method_router import MethodRouter
 from core.autonomy.content_progress_tracker import (
@@ -56,8 +55,10 @@ from core.autonomy.memory_persister import (
 from core.autonomy.reflection_loop import ReflectionLoop, ReflectionRecord
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import Severity, record_degradation
-from core.runtime.task_ownership import create_tracked_task
 from core.runtime.lockdep import checked_async_lock
+from core.runtime.state_ownership import state_root
+from core.runtime.task_ownership import create_tracked_task
+from core.utils.concurrency import cancel_and_join
 
 logger = logging.getLogger("Aura.AutonomousResearchOrchestrator")
 
@@ -234,11 +235,9 @@ class AutonomousResearchOrchestrator:
     async def stop_loop(self) -> None:
         self._running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await asyncio.wait_for(self._task, timeout=5.0)
-            except (TimeoutError, asyncio.CancelledError):
-                pass  # no-op: intentional
+            await cancel_and_join(
+                self._task, owner="core.autonomy.autonomous_research_orchestrator", timeout=5.0
+            )
 
     # ── Internal loop ─────────────────────────────────────────────────────
 

@@ -685,3 +685,83 @@ def test_health_verdict_status_code_uses_required_probe_groups(monkeypatch):
     assert verdict.level == HealthLevel.HEALTHY
     assert verdict.is_operational is True
     assert verdict.status_code == 503
+
+
+class TestTheShapeItIsHolding:
+    """The topology had one reader and it was an HTTP route.
+
+    `_collect_morphogenesis_status` in interface/routes/system.py was the
+    only thing that looked at it, so nothing reading this report could see
+    the shape — including the mind's own self-knowledge. Asked live on
+    2026-09-20 which of its cells were cut off, with `/api/health` carrying
+    `components: 7, partitioned: true` at that moment, the answer was "I
+    don't have any operational information regarding a system called
+    'morphogenic cell'".
+    """
+
+    def _block(self, runtime):
+        from core.runtime import service_registry
+        from core.runtime.health_contract import (
+            _integrity_of_control_and_measured_effect,
+        )
+
+        previous = service_registry._service_resolver
+        service_registry.install_service_resolver(
+            lambda name, default=None: runtime
+            if name == "morphogenetic_runtime"
+            else default
+        )
+        try:
+            block: dict[str, object] = {}
+            _integrity_of_control_and_measured_effect(block)
+            return block
+        finally:
+            service_registry.install_service_resolver(previous)
+
+    def test_the_partition_reaches_the_integrity_report(self) -> None:
+        runtime = SimpleNamespace(
+            status=lambda: {
+                "topology": {"version": 2, "edges": 196, "components": 7},
+                "registry": {"cells": 50, "organs": 45},
+            }
+        )
+
+        shape = self._block(runtime)["the_shape_it_is_holding"]
+
+        assert shape == {
+            "cells": 50,
+            "organs": 45,
+            "bindings": 196,
+            "topology_version": 2,
+            "components": 7,
+            "partitioned": True,
+        }
+
+    def test_one_component_is_not_partitioned(self) -> None:
+        runtime = SimpleNamespace(
+            status=lambda: {
+                "topology": {"version": 3, "edges": 12, "components": 1},
+                "registry": {"cells": 6, "organs": 0},
+            }
+        )
+
+        shape = self._block(runtime)["the_shape_it_is_holding"]
+
+        assert shape["partitioned"] is False
+        assert shape["components"] == 1
+
+    def test_no_runtime_is_silence_not_an_error(self) -> None:
+        """Health must never raise at its caller, and must not invent a shape."""
+        block = self._block(None)
+
+        assert "the_shape_it_is_holding" not in block
+        assert "the_shape_it_is_holding_error" not in block
+
+    def test_a_runtime_that_raises_is_reported_not_swallowed(self) -> None:
+        def _angry():
+            raise RuntimeError("the governor is mid-transaction")
+
+        block = self._block(SimpleNamespace(status=_angry))
+
+        assert "the_shape_it_is_holding" not in block
+        assert "the governor is mid-transaction" in block["the_shape_it_is_holding_error"]

@@ -20,6 +20,10 @@ from core.governance_context import local_internal_governed_scope
 
 logger = logging.getLogger("WorldModel.BeliefGraph")
 
+#: What a caller writes to ask for a graph with no disk behind it. It is
+#: sqlite's word for the same thing, which is why callers reach for it.
+_IN_MEMORY = ":memory:"
+
 
 @dataclass
 class BeliefEdge:
@@ -89,6 +93,13 @@ class BeliefGraph:
 
         self._persist_path = persist_path or str(config.paths.home_dir / "world_model.json")
         self._causal_path = causal_path or str(config.paths.home_dir / "causal_graph.json")
+        # ":memory:" is sqlite's word for "keep nothing", and callers who want
+        # a graph with no disk behind it write it here too. This store is JSON
+        # over a path, so it took the sentinel literally and wrote a file named
+        # `:memory:` into whatever directory the process started in — one has
+        # been sitting in the repository root since 2026-09-18, holding a real
+        # belief graph. The sentinel means what it says now, on both paths.
+        self._ephemeral = _IN_MEMORY in (self._persist_path, self._causal_path)
 
         self.causal_links: List[Dict[str, Any]] = [] # Renamed from self.causal_links to self.links in the instruction, but keeping original name for consistency with other methods.
         self._last_save = 0.0 # For main graph
@@ -591,6 +602,8 @@ class BeliefGraph:
             self._state_writer.flush()
 
     def _write_graph_payload(self, payload: str) -> None:
+        if self._ephemeral:
+            return
         from core.runtime.file_write_gateway import get_file_write_gateway
 
         gateway = get_file_write_gateway()
@@ -612,6 +625,8 @@ class BeliefGraph:
         return self._state_writer.flush(timeout)
 
     def _load(self):
+        if self._ephemeral:
+            return
         with self._graph_lock:
             try:
                 if os.path.exists(self._persist_path):
@@ -703,6 +718,11 @@ class BeliefGraph:
             self._causal_dirty = True
             return
 
+        if self._ephemeral:
+            self._causal_last_save = now
+            self._causal_dirty = False
+            return
+
         try:
             self._causal_last_save = now
             self._causal_dirty = False
@@ -723,6 +743,8 @@ class BeliefGraph:
             logger.error("Failed to save ACG: %s", e)
 
     def _load_causal(self):
+        if self._ephemeral:
+            return
         try:
             if os.path.exists(self._causal_path):
                 with open(self._causal_path, "r") as f:

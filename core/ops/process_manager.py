@@ -42,6 +42,7 @@ from core.runtime.subprocess_gateway import (
     PythonProcessSpec,
     get_subprocess_gateway,
 )
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Kernel.ProcessManager")
@@ -645,11 +646,7 @@ class ManagedProcess:
                     "Health monitoring task for %s did not stop gracefully, cancelling.",
                     self.config.name,
                 )
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    logger.debug("Exception caught during execution", exc_info=True)
+                await cancel_and_join(task, owner="core.ops.process_manager")
             except asyncio.CancelledError:
                 logger.debug("Exception caught during execution", exc_info=True)
         self._health_check_task = None

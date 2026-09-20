@@ -1,9 +1,11 @@
-from core.runtime.errors import record_degradation
-import logging
 import asyncio
+import logging
 from typing import Any
+
 from core.memory.context_pruner import ContextPruner
 from core.memory.governor import MemoryGovernor
+from core.runtime.errors import record_degradation
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.MemorySubsystem")
@@ -32,11 +34,7 @@ class MemorySubsystem:
     async def stop(self):
         self._running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError as _exc:
-                logger.debug("Suppressed asyncio.CancelledError: %s", _exc)
+            await cancel_and_join(self._task, owner="core.memory.memory_subsystem")
         logger.info("🧠 MemorySubsystem stopped.")
 
     async def maintenance_loop(self):

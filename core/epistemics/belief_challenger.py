@@ -24,6 +24,7 @@ import time
 from typing import Any
 
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.BeliefChallenger")
@@ -140,17 +141,9 @@ class BeliefChallenger:
         async with self._lifecycle_lock:
             self.running = False
             if self._challenge_task and not self._challenge_task.done():
-                self._challenge_task.cancel()
-                try:
-                    await asyncio.wait_for(self._challenge_task, timeout=_STOP_TIMEOUT_S)
-                except asyncio.CancelledError:
-                    pass  # Normal during stop
-                except TimeoutError as exc:
-                    _record_belief_challenger_degradation(
-                        exc,
-                        action="stop completed with timed-out belief challenger task cancellation",
-                        severity="warning",
-                    )
+                await cancel_and_join(
+                    self._challenge_task, owner="core.epistemics.belief_challenger", timeout=_STOP_TIMEOUT_S
+                )
 
     def _resolve_dependencies(self) -> None:
         try:

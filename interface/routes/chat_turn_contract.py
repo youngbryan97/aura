@@ -561,6 +561,76 @@ def _build_live_turn_contract_payload_part_5(architecture_context_bound, authore
     if not architecture_context_bound:
         missing_proofs.append("architecture_context_unbound")
 
+def _turn_contract_payload_part_a(
+    *,
+    completion_retry_count: Any,
+    continuation_evidence_valid: Any,
+    foreground_model_generation_consumed: Any,
+    foreground_model_generation_count: Any,
+    foreground_model_generation_segment_count: Any,
+    foreground_model_generation_transaction_count: Any,
+    foreground_model_generation_transaction_id: Any,
+    live_mind_generation_required: Any,
+    repair_retry_attempt_count: Any,
+    response_path: Any,
+) -> Any:
+    """One block of the live turn contract, lifted whole.
+
+    Moved out of ``_build_live_turn_contract_payload`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 10 name(s) from the turn and hands back
+    1.
+    """
+    single_owner_model_generation_proven = bool(
+        (
+            live_mind_generation_required
+            and foreground_model_generation_consumed
+            and continuation_evidence_valid
+            and bool(foreground_model_generation_transaction_id)
+            and foreground_model_generation_transaction_count == 1
+            and foreground_model_generation_segment_count == 1
+            and foreground_model_generation_count == 1
+        )
+        or (
+            not live_mind_generation_required
+            and not foreground_model_generation_consumed
+            and foreground_model_generation_count == 0
+        )
+        or (
+            live_mind_generation_required
+            # Keeping the incumbent is the same OWNERSHIP story as adopting the
+            # retry: one owner generated once, then continued up to
+            # _MAX_USER_SURFACE_CONTINUATIONS times. Which of those answers won
+            # the comparison changes nothing about who authored them, and
+            # naming only the adopt-the-retry outcome meant the better outcome
+            # could not be served.
+            and response_path
+            in {
+                "cognitive_engine_completion_retry",
+                "cognitive_engine_completion_incumbent",
+            }
+            and foreground_model_generation_consumed
+            and continuation_evidence_valid
+            and bool(foreground_model_generation_transaction_id)
+            and foreground_model_generation_transaction_count == 1
+            and 1 <= completion_retry_count <= _MAX_USER_SURFACE_CONTINUATIONS
+            and foreground_model_generation_segment_count == 1 + completion_retry_count
+            and foreground_model_generation_count == 1 + completion_retry_count
+        )
+        or (
+            live_mind_generation_required
+            and response_path == "cognitive_engine_repair_retry"
+            and foreground_model_generation_consumed
+            and bool(foreground_model_generation_transaction_id)
+            and foreground_model_generation_transaction_count == 2
+            and repair_retry_attempt_count == 1
+            and foreground_model_generation_segment_count == 2
+            and foreground_model_generation_count == 2
+        )
+    )
+    return single_owner_model_generation_proven
+
+
 def _build_live_turn_contract_payload(
     *,
     desktop_required: bool,
@@ -992,52 +1062,17 @@ def _build_live_turn_contract_payload(
     completion_retry_count = int(trace.get("completion_retry_count") or 0)
     repair_retry_attempt_count = int(trace.get("repair_retry_attempt_count") or 0)
     continuation_evidence_valid = bool(trace.get("continuation_evidence_valid", True))
-    single_owner_model_generation_proven = bool(
-        (
-            live_mind_generation_required
-            and foreground_model_generation_consumed
-            and continuation_evidence_valid
-            and bool(foreground_model_generation_transaction_id)
-            and foreground_model_generation_transaction_count == 1
-            and foreground_model_generation_segment_count == 1
-            and foreground_model_generation_count == 1
-        )
-        or (
-            not live_mind_generation_required
-            and not foreground_model_generation_consumed
-            and foreground_model_generation_count == 0
-        )
-        or (
-            live_mind_generation_required
-            # Keeping the incumbent is the same OWNERSHIP story as adopting the
-            # retry: one owner generated once, then continued up to
-            # _MAX_USER_SURFACE_CONTINUATIONS times. Which of those answers won
-            # the comparison changes nothing about who authored them, and
-            # naming only the adopt-the-retry outcome meant the better outcome
-            # could not be served.
-            and response_path
-            in {
-                "cognitive_engine_completion_retry",
-                "cognitive_engine_completion_incumbent",
-            }
-            and foreground_model_generation_consumed
-            and continuation_evidence_valid
-            and bool(foreground_model_generation_transaction_id)
-            and foreground_model_generation_transaction_count == 1
-            and 1 <= completion_retry_count <= _MAX_USER_SURFACE_CONTINUATIONS
-            and foreground_model_generation_segment_count == 1 + completion_retry_count
-            and foreground_model_generation_count == 1 + completion_retry_count
-        )
-        or (
-            live_mind_generation_required
-            and response_path == "cognitive_engine_repair_retry"
-            and foreground_model_generation_consumed
-            and bool(foreground_model_generation_transaction_id)
-            and foreground_model_generation_transaction_count == 2
-            and repair_retry_attempt_count == 1
-            and foreground_model_generation_segment_count == 2
-            and foreground_model_generation_count == 2
-        )
+    single_owner_model_generation_proven = _turn_contract_payload_part_a(
+        completion_retry_count=completion_retry_count,
+        continuation_evidence_valid=continuation_evidence_valid,
+        foreground_model_generation_consumed=foreground_model_generation_consumed,
+        foreground_model_generation_count=foreground_model_generation_count,
+        foreground_model_generation_segment_count=foreground_model_generation_segment_count,
+        foreground_model_generation_transaction_count=foreground_model_generation_transaction_count,
+        foreground_model_generation_transaction_id=foreground_model_generation_transaction_id,
+        live_mind_generation_required=live_mind_generation_required,
+        repair_retry_attempt_count=repair_retry_attempt_count,
+        response_path=response_path,
     )
     # SPEAKER-IDENTITY proofs: did Aura's real cognitive engine author this
     # text (vs repair machinery / legacy fallback speaking in her voice)?

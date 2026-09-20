@@ -289,7 +289,7 @@ class SandboxedModifier:
                 if merge.ok:
                     # Get commit hash
                     h = await self._run_command(
-                        ("git", "rev-parse", "--short", "HEAD"),
+                        ("git", "-c", "core.fsmonitor=false", "rev-parse", "--short", "HEAD"),
                         self._repo_root,
                         5.0,
                     )
@@ -322,7 +322,7 @@ class SandboxedModifier:
                         self._repo_root,
                         10.0,
                     )
-                await self._run_command(("git", "branch", "-D", branch_name), self._repo_root, 10.0)
+                await self._run_command(("git", "-c", "core.fsmonitor=false", "branch", "-D", branch_name), self._repo_root, 10.0)
             except _RECOVERABLE_MODIFIER_ERRORS as _exc:
                 record_degradation('sandboxed_modifier', _exc)
                 logger.debug("Worktree cleanup failed: %s", _exc)

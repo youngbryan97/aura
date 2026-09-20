@@ -366,7 +366,7 @@ def _resource_stakes() -> dict[str, object]:
 def _git_commit() -> str:
     try:
         result = get_subprocess_gateway().run(
-            ["git", "rev-parse", "HEAD"],
+            ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"],
             cwd=ROOT,
             timeout=30,
             read_only=True,

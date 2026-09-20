@@ -133,7 +133,7 @@ def default_commit_exists(root: Path) -> Callable[[str], bool]:
         if commit in cache:
             return cache[commit]
         result = gateway.run(
-            ["git", "cat-file", "-e", f"{commit}^{{commit}}"],
+            ["git", "-c", "core.fsmonitor=false", "cat-file", "-e", f"{commit}^{{commit}}"],
             cwd=root,
             timeout=30,
             read_only=True,
@@ -148,7 +148,7 @@ def default_commit_exists(root: Path) -> Callable[[str], bool]:
             ("origin/main", "reqproof_evidence_main_ancestry"),
         ):
             ancestry = gateway.run(
-                ["git", "merge-base", "--is-ancestor", commit, ref],
+                ["git", "-c", "core.fsmonitor=false", "merge-base", "--is-ancestor", commit, ref],
                 cwd=root,
                 timeout=30,
                 read_only=True,

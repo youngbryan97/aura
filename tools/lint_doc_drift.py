@@ -195,7 +195,7 @@ def is_output_path(rel: str) -> bool:
     """True when .gitignore claims this path — it names where output goes."""
     if rel not in _ignored_cache:
         hit = subprocess.run(
-            ["git", "check-ignore", "-q", "--no-index", rel],
+            ["git", "-c", "core.fsmonitor=false", "check-ignore", "-q", "--no-index", rel],
             cwd=ROOT, capture_output=True,
         )
         _ignored_cache[rel] = hit.returncode == 0
@@ -213,7 +213,7 @@ def is_published(rel: str) -> bool:
     """True when git tracks this file, or any file beneath this directory."""
     if rel not in _published_cache:
         listed = subprocess.run(
-            ["git", "ls-files", "--", rel],
+            ["git", "-c", "core.fsmonitor=false", "ls-files", "--", rel],
             cwd=ROOT, capture_output=True, text=True,
         ).stdout.strip()
         _published_cache[rel] = bool(listed)
@@ -229,7 +229,7 @@ def slug(text: str) -> str:
 
 def tracked_docs() -> list[str]:
     out = subprocess.run(
-        ["git", "ls-files", "*.md"], cwd=ROOT, capture_output=True, text=True, check=True
+        ["git", "-c", "core.fsmonitor=false", "ls-files", "*.md"], cwd=ROOT, capture_output=True, text=True, check=True
     ).stdout.split()
     return [
         p
@@ -363,7 +363,7 @@ def declared_routes() -> set[str]:
 def defined_symbols() -> set[str]:
     """Every class and function name bound at module or class level."""
     out = subprocess.run(
-        ["git", "grep", "-hoE",
+        ["git", "-c", "core.fsmonitor=false", "grep", "-hoE",
          r"^[[:space:]]*(class|def|async def)[[:space:]]+[A-Za-z_][A-Za-z0-9_]*",
          "--", "*.py"],
         cwd=ROOT, capture_output=True, text=True,
@@ -372,7 +372,7 @@ def defined_symbols() -> set[str]:
     # A name bound by assignment is still a name a document may cite —
     # type aliases, enum members, module-level singletons.
     bound = subprocess.run(
-        ["git", "grep", "-hoE", r"^[A-Za-z_][A-Za-z0-9_]*[[:space:]]*[:=]", "--", "*.py"],
+        ["git", "-c", "core.fsmonitor=false", "grep", "-hoE", r"^[A-Za-z_][A-Za-z0-9_]*[[:space:]]*[:=]", "--", "*.py"],
         cwd=ROOT, capture_output=True, text=True,
     ).stdout
     names |= set(re.findall(r"^([A-Za-z_][A-Za-z0-9_]*)", bound, re.M))
@@ -382,13 +382,13 @@ def defined_symbols() -> set[str]:
 def readable_env_names() -> tuple[set[str], tuple[str, ...]]:
     """Literal AURA_* names in tracked source, and the prefixes built at runtime."""
     literal = set(subprocess.run(
-        ["git", "grep", "-hoE", r"AURA_[A-Z0-9_]{2,}", "--", *SOURCE_GLOBS],
+        ["git", "-c", "core.fsmonitor=false", "grep", "-hoE", r"AURA_[A-Z0-9_]{2,}", "--", *SOURCE_GLOBS],
         cwd=ROOT, capture_output=True, text=True,
     ).stdout.split())
     built = tuple(sorted({
         prefix
         for prefix in subprocess.run(
-            ["git", "grep", "-hoE", r"AURA_[A-Z0-9_]*\{", "--", *SOURCE_GLOBS],
+            ["git", "-c", "core.fsmonitor=false", "grep", "-hoE", r"AURA_[A-Z0-9_]*\{", "--", *SOURCE_GLOBS],
             cwd=ROOT, capture_output=True, text=True,
         ).stdout.replace("{", "").split()
         # `f"AURA_{service.upper()}_..."` yields the bare namespace, which

@@ -306,7 +306,11 @@ def validate_spec_targets(specs: ProofSpecRegistry, registry: Registry) -> None:
 
 def _git(gateway: Gateway, root: Path, *args: str) -> str:
     result = gateway.run(
-        ["git", *args],
+        # Read-only, and bounded at thirty seconds below. The fsmonitor
+        # daemon turns `status --untracked-files=all` on this checkout from
+        # under a second into more than that, and a capture that times out
+        # here refuses a proof for the clock rather than for the evidence.
+        ["git", "-c", "core.fsmonitor=false", *args],
         cwd=root,
         timeout=30,
         read_only=True,

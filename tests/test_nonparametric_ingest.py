@@ -405,3 +405,59 @@ def test_oversized_trusted_store_is_skipped_before_loading(tmp_path, monkeypatch
     monkeypatch.setattr(ingest_module, "_MAX_TRUSTED_STORE_BYTES", 4)
 
     assert collect_trusted_pairs(sources=[(store, "entries")]) == []
+
+
+class TestBothPathsStoreTheTokenTheKeyPredicts:
+    """The fix went to the branch production does not take.
+
+    `_decode_token` was written because the live 5120-wide store held keys
+    with no token text, and its docstring says so in capitals. It was wired
+    into the compatibility branch only. The real MLXEncoder has
+    `encode_hidden_sequence_ids`, so production has always taken the batch
+    branch, which went on storing `answer if position == start else ""` — the
+    whole answer at the first position and nothing at every other one. On
+    2026-09-20 the live store held 520 keys of which 490 carried no token and
+    the other 30 carried a whole arithmetic answer as one "token", and the
+    worker refused to let it steer generation on every turn of every session.
+    """
+
+    def _entries(self, tmp_path, encoder):
+        mem = NonParametricMemory(dim=8, path=tmp_path / "npm")
+        ing = NonParametricIngestor(
+            mem, dedup_path=tmp_path / "seen.json", provenance=entry_provenance()
+        )
+        added = ing.ingest_sequence("the keeper is named", "Tessaly the great", encoder)
+        assert added == 3
+        return [
+            (neighbour_id, text)
+            for neighbour_id, text in zip(mem._token_ids, mem._tokens, strict=True)
+        ]
+
+    def test_the_batch_path_decodes_every_position(self, tmp_path):
+        encoder = FakeBatchSeqEncoder()
+
+        entries = self._entries(tmp_path, encoder)
+
+        assert encoder.batch_calls == 1, "this is the branch production takes"
+        assert [text for _id, text in entries] == ["the", "great", "Tessaly"] or sorted(
+            text for _id, text in entries
+        ) == ["Tessaly", "great", "the"]
+        assert all(text.strip() for _id, text in entries)
+        assert all(
+            text == encoder.decode_token(token_id) for token_id, text in entries
+        )
+
+    def test_neither_path_stores_the_whole_answer_as_one_token(self, tmp_path):
+        """What the defect looked like, stated so it cannot come back."""
+        for encoder in (FakeBatchSeqEncoder(), FakeSeqEncoder()):
+            entries = self._entries(tmp_path / type(encoder).__name__, encoder)
+
+            assert "Tessaly the great" not in [text for _id, text in entries]
+            assert "" not in [text for _id, text in entries]
+
+    def test_the_two_paths_agree(self, tmp_path):
+        """The compatibility branch is the one that was already right."""
+        batch = dict(self._entries(tmp_path / "batch", FakeBatchSeqEncoder()))
+        prefix = dict(self._entries(tmp_path / "prefix", FakeSeqEncoder()))
+
+        assert batch == prefix

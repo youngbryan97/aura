@@ -22,7 +22,17 @@ import time
 import weakref
 from collections.abc import Awaitable, Callable
 
+from core.runtime.task_ownership import create_owned_asyncio_task
 from core.runtime.thread_cpu import thread_cpu_seconds
+
+
+async def _as_coroutine[T](awaitable: Awaitable[T]) -> T:
+    """A coroutine around any awaitable.
+
+    `ensure_future` took a future or a coroutine alike; the owned
+    creator takes a coroutine, and a caller here may hand either.
+    """
+    return await awaitable
 
 __all__ = [
     "await_while_it_progresses",
@@ -46,7 +56,12 @@ async def await_while_it_progresses[T](
     step and the last progress seen once no change has been observed for
     ``stall_s`` seconds. The awaitable is cancelled on that path.
     """
-    task = asyncio.ensure_future(awaitable)
+    # Owned, not raw: an unowned task whose failure nobody observes is
+    # the thing ASYNC-TASK-001 exists to stop, and the production
+    # surface audit blocks `ensure_future` for that reason.
+    task = create_owned_asyncio_task(
+        _as_coroutine(awaitable), name="progress_bound.await_while_it_progresses"
+    )
     stall_s = max(0.0, float(stall_s))
     last = progress()
     last_at = time.monotonic()
@@ -135,7 +150,9 @@ async def await_while_the_task_moves[T](
     run, and a single late wake is one look, not a verdict about everything
     that happened while it could not look.
     """
-    task = asyncio.ensure_future(awaitable)
+    task = create_owned_asyncio_task(
+        _as_coroutine(awaitable), name="progress_bound.await_while_the_task_moves"
+    )
     stall_s = max(0.0, float(stall_s))
     period = max(0.05, min(1.0, stall_s / 10.0)) if stall_s else 1.0
     last, innermost = _position(task)

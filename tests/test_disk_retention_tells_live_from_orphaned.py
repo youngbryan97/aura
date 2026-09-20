@@ -15,6 +15,8 @@ from pathlib import Path
 
 import pytest
 
+from core.runtime.sqlite_support import connecting
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "tools") not in sys.path:
     sys.path.insert(0, str(ROOT / "tools"))
@@ -24,7 +26,7 @@ import disk_retention  # noqa: E402
 
 def _state_log(path: Path, *, rows: int, written_at: float) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(path) as conn:
+    with connecting(sqlite3.connect(path)) as conn:
         conn.execute(
             "CREATE TABLE state_log (state_id TEXT PRIMARY KEY, version INTEGER, "
             "parent_state_id TEXT, transition_cause TEXT, state_json TEXT, timestamp REAL)"

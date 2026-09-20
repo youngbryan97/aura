@@ -8,7 +8,7 @@ from tools.closeout.audit_checkpoint_hygiene import audit
 
 def _git(root: Path, *arguments: str) -> str:
     result = subprocess.run(
-        ["git", "-C", str(root), *arguments],
+        ["git", "-c", "core.fsmonitor=false", "-C", str(root), *arguments],
         check=True,
         capture_output=True,
         text=True,

@@ -35,6 +35,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from core.runtime.errors import record_degradation
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Consciousness.Evolution")
@@ -163,11 +164,7 @@ class SubstrateEvolution:
     async def stop(self):
         self._running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                logger.debug("SubstrateEvolution task cancelled during shutdown")
+            await cancel_and_join(self._task, owner="core.consciousness.substrate_evolution")
             self._task = None
         logger.info("SubstrateEvolution STOPPED (generations=%d)", self._generation)
 

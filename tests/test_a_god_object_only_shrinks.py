@@ -408,3 +408,35 @@ def test_a_first_run_with_no_baseline_still_records_everything(tmp_path):
     measurements = {"a.py": _measure("a.py", MAX_NEW_MODULE_LINES + 100, 40)}
     write_baseline(path, measurements)
     assert "a.py" in json.loads(path.read_text())["modules"]
+
+
+def test_a_seam_is_found_in_the_function_its_name_picks_out():
+    """`Class.method` used to be matched on `method` alone.
+
+    `core/capability_engine.py` holds `Sandbox2.execute` above
+    `CapabilityEngine.execute`, so every seam reported for the second was
+    measured inside the first, and `extract_seam.py` would have cut there —
+    a tool that points a behaviour-preserving move at the wrong code.
+    """
+    import ast
+
+    from tools.find_extraction_seam import function_named
+
+    tree = ast.parse(
+        "class First:\n"
+        "    def run(self):\n"
+        "        return 1\n"
+        "\n"
+        "class Second:\n"
+        "    def run(self):\n"
+        "        return 2\n"
+        "\n"
+        "def run():\n"
+        "    return 3\n"
+    )
+
+    assert function_named(tree, "First.run").body[0].value.value == 1
+    assert function_named(tree, "Second.run").body[0].value.value == 2
+    # A bare name is the module-level function, not the first method above it.
+    assert function_named(tree, "run").body[0].value.value == 3
+    assert function_named(tree, "Third.run") is None

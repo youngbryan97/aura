@@ -21,7 +21,6 @@ ZENITH Protocol compliance:
   - All container interactions are read-only during the hot path.
 """
 
-from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import re
@@ -29,6 +28,9 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple
+
+from core.runtime.errors import record_degradation
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.IntentGate")
@@ -373,11 +375,7 @@ class IntentClassifierQueue:
     async def stop(self) -> None:
         self._running = False
         if self._worker_task:
-            self._worker_task.cancel()
-            try:
-                await self._worker_task
-            except asyncio.CancelledError as _exc:
-                logger.debug("Suppressed asyncio.CancelledError: %s", _exc)
+            await cancel_and_join(self._worker_task, owner="core.intent.intent_gate")
         logger.info("IntentClassifierQueue stopped.")
 
     async def classify(self, message: str, context: Optional[Dict] = None) -> RouteResult:

@@ -313,7 +313,7 @@ def check_logs_writable(log_dir: Path) -> Check:
 
 def check_git(root: Path) -> Check:
     head, head_error = _run_read_only_command(
-        ["git", "rev-parse", "--short", "HEAD"],
+        ["git", "-c", "core.fsmonitor=false", "rev-parse", "--short", "HEAD"],
         root=root,
         source="maintenance_tooling:runtime_preflight.git_head",
     )
@@ -323,7 +323,7 @@ def check_git(root: Path) -> Check:
         return Check("git", INFO, "not a git checkout — source provenance unavailable")
 
     dirty, dirty_error = _run_read_only_command(
-        ["git", "status", "--porcelain"],
+        ["git", "-c", "core.fsmonitor=false", "status", "--porcelain"],
         root=root,
         source="maintenance_tooling:runtime_preflight.git_status",
     )

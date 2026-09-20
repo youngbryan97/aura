@@ -59,7 +59,7 @@ DEFINING_TESTS: tuple[str, ...] = (
 def _git(*args: str) -> str:
     try:
         return subprocess.run(
-            ["git", "-C", str(REPO), *args],
+            ["git", "-c", "core.fsmonitor=false", "-C", str(REPO), *args],
             capture_output=True, text=True, check=False, timeout=60,
         ).stdout.strip()
     except (OSError, subprocess.SubprocessError):

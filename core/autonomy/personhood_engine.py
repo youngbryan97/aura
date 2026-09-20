@@ -7,9 +7,6 @@ its output is a decision about whether to speak spontaneously. The name is
 historical and asserts a conclusion the module does not reach.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging
@@ -20,6 +17,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.runtime import service_access
+from core.runtime.errors import record_degradation
+from core.utils.concurrency import cancel_and_join
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Personhood")
 
@@ -65,11 +65,7 @@ class PersonhoodEngine:
         self._running = False
         if self._task is None:
             return
-        self._task.cancel()
-        try:
-            await self._task
-        except asyncio.CancelledError:
-            logger.debug("Ignored CancelledError during Personhood engine shutdown")
+        await cancel_and_join(self._task, owner="core.autonomy.personhood_engine")
 
     async def _daemon(self) -> None:
         while self._running:

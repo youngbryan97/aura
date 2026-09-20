@@ -600,7 +600,7 @@ def _resolve_commit(root: Path, revision: str) -> str:
     from core.runtime.subprocess_gateway import get_subprocess_gateway
 
     result = get_subprocess_gateway().run(
-        ["git", "rev-parse", "--verify", f"{revision}^{{commit}}"],
+        ["git", "-c", "core.fsmonitor=false", "rev-parse", "--verify", f"{revision}^{{commit}}"],
         cwd=root,
         timeout=30,
         read_only=True,

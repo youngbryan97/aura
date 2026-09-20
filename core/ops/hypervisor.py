@@ -15,6 +15,7 @@ from core.runtime.lockdep import LOOP_BLOCKED_CEILING_FRACTION, LOOP_HOLD_STARVE
 from core.runtime.resource_observation import get_resource_observer
 from core.runtime.service_access import resolve_inference_gate
 from core.runtime.shutdown_coordinator import is_shutdown_requested
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker, mark_task_protected
 
 logger = logging.getLogger("Aura.Hypervisor")
@@ -88,11 +89,7 @@ class Hypervisor:
     async def stop(self):
         self._running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError as _e:
-                logger.debug("Ignored asyncio.CancelledError in hypervisor.py: %s", _e)
+            await cancel_and_join(self._task, owner="core.ops.hypervisor")
         logger.info("👁️ Hypervisor Watchdog shutdown.")
 
     def is_running(self) -> bool:

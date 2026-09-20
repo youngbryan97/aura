@@ -33,6 +33,7 @@ from core.runtime import resource_psutil as psutil
 from core.runtime.base_module import AuraBaseModule
 from core.runtime.errors import record_degradation
 from core.runtime.shutdown_coordinator import is_shutdown_requested
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Somatic.CapabilityDiscovery")
@@ -111,11 +112,7 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
         """Gracefully stop the daemon."""
         self._running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass  # no-op: intentional
+            await cancel_and_join(self._task, owner="core.somatic.capability_discovery")
             self._task = None
         logger.info("Capability Discovery Daemon stopped.")
 

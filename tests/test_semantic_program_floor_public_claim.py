@@ -49,7 +49,7 @@ def test_floor_claim_matches_immutable_source_and_public_numbers() -> None:
     )
     for relative, expected in certificate["source_sha256s"].items():
         payload = subprocess.run(
-            ["git", "show", f"{binding['source_commit']}:{relative}"],
+            ["git", "-c", "core.fsmonitor=false", "show", f"{binding['source_commit']}:{relative}"],
             cwd=ROOT,
             check=True,
             capture_output=True,

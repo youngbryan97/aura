@@ -484,3 +484,32 @@ def test_a_raw_task_that_says_why_is_not_reported():
         "    return await asyncio.create_task(work())\n"
     )
     assert _lint_kinds(ordinary) == ["raw_async_task"]
+
+
+class TestTheSurfaceIsWhatTheRepositoryCarries:
+    """A file the repository does not track is not its production surface.
+
+    The walk went into `models/`, a downloaded checkpoint holding a vendored
+    `runtime/artifact.py` from the Ternary-Bonsai package, and reported three
+    "unapproved direct file write" findings against third-party code nobody
+    here can change. The proof could not be captured because of a file that
+    is not ours and is not in git.
+    """
+
+    def test_an_untracked_file_is_not_audited(self) -> None:
+        from tools.production_surface_lint import ROOT, iter_files
+
+        walked = {path.resolve() for path in iter_files("production")}
+
+        assert walked, "the audit stopped seeing anything at all"
+        assert not [p for p in walked if "models" in p.relative_to(ROOT).parts]
+        assert (ROOT / "core/brain/inference_gate.py").resolve() in walked
+
+    def test_it_still_walks_when_git_cannot_answer(self, monkeypatch) -> None:
+        """A tarball with no checkout must still be auditable."""
+        import tools.production_surface_lint as lint
+
+        monkeypatch.setattr(lint, "_tracked_files", lambda: None)
+        walked = {path.resolve() for path in lint.iter_files("production")}
+
+        assert (lint.ROOT / "core/brain/inference_gate.py").resolve() in walked

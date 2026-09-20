@@ -51,7 +51,7 @@ MYPY_FLAGS = ("--follow-imports=skip", "--explicit-package-bases")
 
 def _git(*args: str) -> str:
     result = subprocess.run(  # noqa: S603 - fixed argv, no shell
-        ["git", *args], capture_output=True, text=True, cwd=ROOT, check=False
+        ["git", "-c", "core.fsmonitor=false", *args], capture_output=True, text=True, cwd=ROOT, check=False
     )
     return result.stdout.strip() if result.returncode == 0 else ""
 
@@ -108,7 +108,7 @@ def errors_at(revision: str, relative: str) -> int | None:
     and, with it, the errors.
     """
     shown = subprocess.run(  # noqa: S603 - fixed argv, no shell
-        ["git", "show", f"{revision}:{relative}"],
+        ["git", "-c", "core.fsmonitor=false", "show", f"{revision}:{relative}"],
         capture_output=True,
         text=True,
         cwd=ROOT,

@@ -270,7 +270,7 @@ def build_safe_boot_env(
 def current_git_commit() -> str:
     try:
         proc = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+            ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"],
             cwd=ROOT,
             capture_output=True,
             text=True,
@@ -286,7 +286,7 @@ def current_git_commit() -> str:
 def current_git_dirty() -> bool | None:
     try:
         proc = subprocess.run(
-            ["git", "status", "--porcelain", "--untracked-files=no"],
+            ["git", "-c", "core.fsmonitor=false", "status", "--porcelain", "--untracked-files=no"],
             cwd=ROOT,
             capture_output=True,
             text=True,

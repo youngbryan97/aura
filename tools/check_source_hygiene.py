@@ -44,7 +44,7 @@ def collect_violations(paths: Iterable[str]) -> list[tuple[str, str]]:
 
 def tracked_paths() -> list[str]:
     completed = subprocess.run(
-        ["git", "ls-files", "-z"],
+        ["git", "-c", "core.fsmonitor=false", "ls-files", "-z"],
         check=True,
         capture_output=True,
         text=True,

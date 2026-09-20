@@ -13,6 +13,7 @@ from core.conversation.word_markers import names_any
 from core.event_bus import get_event_bus
 from core.runtime.atomic_writer import atomic_write_text_behind
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.utils.concurrency import cancel_and_join
 from core.utils.paths import aura_data_dir
 from core.utils.task_tracker import task_tracker
 
@@ -199,18 +200,9 @@ class DynamicRouter:
     async def stop(self):
         self.running = False
         if self._learning_task and not self._learning_task.done():
-            self._learning_task.cancel()
-            try:
-                await asyncio.wait_for(self._learning_task, timeout=STOP_TIMEOUT_S)
-            except asyncio.CancelledError as _exc:
-                logger.debug("Suppressed %s in core.control.dynamic_router: %s", type(_exc).__name__, _exc)
-            except TimeoutError as exc:
-                _emit_router_fault(
-                    exc,
-                    action="continued shutdown after learner cancellation timeout",
-                    severity="warning",
-                    stage="stop.learning_task",
-                )
+            await cancel_and_join(
+                self._learning_task, owner="core.control.dynamic_router", timeout=STOP_TIMEOUT_S
+            )
         self._learning_task = None
         self._save_history()
 

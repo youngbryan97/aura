@@ -262,7 +262,7 @@ def verify_source(config: Mapping[str, Any]) -> None:
     _verify_executables(config)
     source_root = str(config["source_root"])
     head = subprocess.run(
-        ["/usr/bin/git", "rev-parse", "HEAD"],
+        ["/usr/bin/git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"],
         cwd=source_root,
         capture_output=True,
         text=True,
@@ -270,7 +270,7 @@ def verify_source(config: Mapping[str, Any]) -> None:
         check=False,
     )
     tracked = subprocess.run(
-        ["/usr/bin/git", "status", "--porcelain", "--untracked-files=no"],
+        ["/usr/bin/git", "-c", "core.fsmonitor=false", "status", "--porcelain", "--untracked-files=no"],
         cwd=source_root,
         capture_output=True,
         text=True,

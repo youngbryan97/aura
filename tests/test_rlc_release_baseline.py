@@ -36,7 +36,7 @@ def test_baseline_names_the_source_snapshot_without_licensing_current_code():
     assert BASELINE["current_live_activation"] == "not_measured_by_this_baseline"
     for path, digest in BASELINE["source_sha256s"].items():
         payload = subprocess.run(
-            ["git", "show", f"{BASELINE['source_commit']}:{path}"],
+            ["git", "-c", "core.fsmonitor=false", "show", f"{BASELINE['source_commit']}:{path}"],
             cwd=ROOT,
             capture_output=True,
             check=True,

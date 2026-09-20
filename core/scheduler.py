@@ -15,6 +15,7 @@ from core.runtime.numeric_safety import is_usable
 from core.runtime.progress_bound import await_while_the_task_moves
 from core.runtime.service_registry import get_runtime_service, register_runtime_service
 from core.runtime.shutdown_coordinator import is_shutdown_requested
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker, mark_task_protected
 
 logger = logging.getLogger("Aura.Scheduler")
@@ -242,11 +243,7 @@ class Scheduler:
                     spec.running_task.cancel()
         
         if self._main_loop_task:
-            self._main_loop_task.cancel()
-            try:
-                await self._main_loop_task
-            except asyncio.CancelledError as _e:
-                logger.debug('Ignored asyncio.CancelledError in scheduler.py: %s', _e)
+            await cancel_and_join(self._main_loop_task, owner="core.scheduler")
         
         logger.info("Scheduler disengaged.")
 

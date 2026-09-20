@@ -392,7 +392,19 @@ class NonParametricIngestor:
                     (
                         keys[position],
                         int(full_ids[position + 1]),
-                        answer if position == start else "",
+                        # The token this key predicts, decoded. This path
+                        # stored `answer if position == start else ""` — the
+                        # whole answer at the first position and nothing at
+                        # every other one — which is the defect
+                        # `_decode_token` was written for, fixed in the
+                        # compatibility branch below and not here. The real
+                        # encoder has `encode_hidden_sequence_ids`, so
+                        # production has always taken THIS branch: the live
+                        # 5120-wide store holds 520 keys of which 490 carry no
+                        # token text and the other 30 carry a whole arithmetic
+                        # answer as one "token", and the worker's usability
+                        # guard refuses to let it steer generation every turn.
+                        _decode_token(encoder, int(full_ids[position + 1])),
                     )
                     for position in positions
                 ]

@@ -6,6 +6,7 @@ import time
 from core.memory.episodic_memory import get_episodic_memory
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 #: Sequences that would let stored episode/journal/goal text stop being data
@@ -122,11 +123,7 @@ class NarrativeEngine:
         """Stop the narrative maintenance loop."""
         self.running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError as _e:
-                logger.debug('Ignored asyncio.CancelledError in narrative_memory.py: %s', _e)
+            await cancel_and_join(self._task, owner="core.brain.narrative_memory")
 
     async def _narrative_loop(self):
         """Background loop that occasionally synthesizes the day's events."""

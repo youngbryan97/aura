@@ -129,7 +129,7 @@ def _file_digests(root: Path) -> dict[str, str]:
 def _commit() -> str:
     try:
         result = get_subprocess_gateway().run(
-            ["git", "rev-parse", "HEAD"],
+            ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"],
             capture_output=True,
             text=True,
             timeout=10,

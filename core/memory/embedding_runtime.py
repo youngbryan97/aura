@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import atexit
 import logging
+import threading
+import time
 import uuid
 from collections.abc import Callable
 from typing import Any
@@ -55,13 +57,40 @@ class SharedEmbeddingRuntime:
         self._lock = checked_lock("embedding_runtime.lifecycle", reentrant=True)
         self._engine: Any | None = None
         self._owners: dict[str, str] = {}
+        #: How long the last build took, and the timer that will close the
+        #: engine that long after the final release.
+        #:
+        #: The main runtime holds a process-owned lease from
+        #: `prewarm_shared_embedding_runtime`, so its engine stays resident.
+        #: The MLX worker has no such lease and every consumer there acquires
+        #: and releases around one call, so the engine was built and torn
+        #: down per use: live on 2026-09-20 the worker loaded
+        #: Qwen3-Embedding-0.6B five times in six seconds, 03:55:27 to
+        #: 03:55:33, each load followed within a second by "closed engine
+        #: after final owner release".
+        #:
+        #: Holding it for exactly as long as building it took is the trade
+        #: stated in its own terms: at worst the memory is held for the time
+        #: it would have cost to get it back, and at best a burst of acquires
+        #: reuses one engine. A process that genuinely stops embedding still
+        #: gives the memory back.
+        self._build_seconds = 0.0
+        self._closing_timer: threading.Timer | None = None
 
     def acquire(self, owner: str) -> SharedEmbeddingLease:
         owner_name = str(owner or "unknown").strip() or "unknown"
         with self._lock:
+            timer, self._closing_timer = self._closing_timer, None
+            if timer is not None:
+                timer.cancel()
             if self._engine is None:
+                began = time.monotonic()
                 self._engine = self._engine_factory()
-                logger.info("Embedding runtime created shared engine")
+                self._build_seconds = max(0.0, time.monotonic() - began)
+                logger.info(
+                    "Embedding runtime created shared engine in %.2fs",
+                    self._build_seconds,
+                )
             token = uuid.uuid4().hex
             self._owners[token] = owner_name
         return SharedEmbeddingLease(self, token)
@@ -73,21 +102,44 @@ class SharedEmbeddingRuntime:
             return self._engine
 
     def release(self, token: str) -> None:
-        engine: Any | None = None
         with self._lock:
             if self._owners.pop(token, None) is None:
                 return
-            if not self._owners:
-                engine, self._engine = self._engine, None
-        if engine is not None:
-            close = getattr(engine, "close", None)
-            if callable(close):
-                close()
-            logger.info("Embedding runtime closed engine after final owner release")
+            if self._owners or self._engine is None:
+                return
+            # One path, always the timer. A build that took no measurable
+            # time schedules a zero delay and closes at once, which is the
+            # same answer a special case would give and one fewer branch to
+            # be wrong about.
+            timer = threading.Timer(self._build_seconds, self._close_if_still_idle)
+            timer.daemon = True
+            self._closing_timer = timer
+            timer.start()
+
+    def _close_if_still_idle(self) -> None:
+        with self._lock:
+            self._closing_timer = None
+            if self._owners or self._engine is None:
+                return
+            self._close_engine_locked(
+                f"after {self._build_seconds:.2f}s idle, which is what building it cost"
+            )
+
+    def _close_engine_locked(self, because: str) -> None:
+        engine, self._engine = self._engine, None
+        if engine is None:
+            return
+        close = getattr(engine, "close", None)
+        if callable(close):
+            close()
+        logger.info("Embedding runtime closed engine %s", because)
 
     def close(self) -> None:
         """Invalidate every lease and close the engine exactly once."""
         with self._lock:
+            timer, self._closing_timer = self._closing_timer, None
+            if timer is not None:
+                timer.cancel()
             self._owners.clear()
             engine, self._engine = self._engine, None
         if engine is not None:

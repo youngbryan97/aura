@@ -53,6 +53,34 @@ _METADATA_FIELDS = frozenset(
 )
 _MISSING = object()
 
+#: Every value `build_catalog` can report for parity between the Rust and
+#: Python implementations, and the ones that mean they agree.
+#:
+#: `prove_clean_live_skill_boot` asked `parity_status == "ready"`, which this
+#: module has never produced, so `catalog_parity_ready` was False on every
+#: boot whatever the catalogs actually said — and its unit test passed
+#: because the fixture hand-wrote "ready" into a health dict. A vocabulary
+#: nobody can read from one place is a vocabulary two files will disagree
+#: about, so it is named here, beside the code that assigns it.
+#:
+#: `python_only` agrees by construction: Rust was never asked, which is the
+#: Rust-absent install `skill-portability-audit` exists to support.
+#: `unavailable` does NOT agree — Rust was asked for and could not be loaded,
+#: so nothing checked the Python catalog.
+PARITY_STATES = frozenset({
+    "unavailable",
+    "python_only",
+    "diverged",
+    "failed",
+    "matched",
+    "canonicalizer_matched",
+})
+PARITY_STATES_THAT_AGREE = frozenset({
+    "python_only",
+    "matched",
+    "canonicalizer_matched",
+})
+
 
 @dataclass(frozen=True, slots=True)
 class SkillSourceRoot:

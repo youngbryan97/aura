@@ -122,6 +122,12 @@ INTROSPECTION_TOOLS = frozenset(
         "environment_info",
         "evolution_status",
         "get_time",
+        # The encyclopedia she carries is hers to read, and reading it is
+        # bounded disk reads with no network and nothing written. LIVE
+        # 2026-09-20, mid-game: "Tool execution 'local_reference_search'
+        # blocked by Constitution: denied_by_default", so the one lookup
+        # that cannot lose the network was the one she could not make.
+        "local_reference_search",
         "query_beliefs",
         "self_diagnosis",
         "status",
@@ -425,7 +431,10 @@ def _builtin_grants() -> tuple[StandingAuthorityGrant, ...]:
         StandingAuthorityGrant(
             grant_id="aura.autonomous-introspection",
             issuer="owner_policy",
-            description="Aura may observe her own health, beliefs, environment, and runtime state.",
+            description=(
+                "Aura may observe her own health, beliefs, environment, runtime "
+                "state, and the offline reference she carries."
+            ),
             allowed_origins=autonomous_origins,
             allowed_tools=tuple(sorted(INTROSPECTION_TOOLS)),
             allowed_effect_scopes=("read_only", "status"),

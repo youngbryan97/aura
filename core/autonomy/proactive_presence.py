@@ -23,6 +23,7 @@ from typing import Any
 from core.brain.aura_persona import AURA_IDENTITY
 from core.container import ServiceContainer
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.utils.concurrency import cancel_and_join
 from core.utils.queues import USER_FACING_ORIGINS
 from core.utils.task_tracker import get_task_tracker
 
@@ -176,11 +177,7 @@ class ProactivePresence:
     async def stop(self):
         self._running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError as _e:
-                logger.debug('Ignored asyncio.CancelledError in proactive_presence.py: %s', _e)
+            await cancel_and_join(self._task, owner="core.autonomy.proactive_presence")
 
     def mark_user_spoke(self):
         """Call this every time the user sends a message."""

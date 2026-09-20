@@ -197,15 +197,15 @@ class GitActuator(BaseActuator):
     def _build_command(self, action: str, params: dict[str, Any], root: str) -> tuple[list[str] | None, str]:
         """Assemble a git argv with option-injection guards and `--` separators."""
         if action == "status":
-            return ["git", "status"], ""
+            return ["git", "-c", "core.fsmonitor=false", "status"], ""
         if action == "log":
             try:
                 n = max(1, min(1000, int(params.get("n", 5))))
             except (TypeError, ValueError):
                 return None, "log count must be an integer"
-            return ["git", "log", "-n", str(n)], ""
+            return ["git", "-c", "core.fsmonitor=false", "log", "-n", str(n)], ""
         if action == "diff":
-            cmd = ["git", "diff"]
+            cmd = ["git", "-c", "core.fsmonitor=false", "diff"]
             if "target" in params:
                 target, err = _safe_positional(params["target"], kind="diff target")
                 if target is None:
@@ -213,7 +213,7 @@ class GitActuator(BaseActuator):
                 cmd += ["--", target]
             return cmd, ""
         if action == "branch":
-            cmd = ["git", "branch"]
+            cmd = ["git", "-c", "core.fsmonitor=false", "branch"]
             if "name" in params:
                 name, err = _validate_ref(params["name"], kind="branch name")
                 if name is None:
@@ -247,7 +247,7 @@ class GitActuator(BaseActuator):
     def _current_head(cwd: str) -> str:
         try:
             res = get_subprocess_gateway().run(
-                ["git", "rev-parse", "HEAD"], cwd=cwd, timeout=10.0, source="git_actuator_precondition",
+                ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"], cwd=cwd, timeout=10.0, source="git_actuator_precondition",
                 accelerator_capability="none",
             )
             if res.returncode == 0:

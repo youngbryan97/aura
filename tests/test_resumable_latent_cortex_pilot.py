@@ -20,7 +20,7 @@ def _git_repo(path: Path) -> str:
     subprocess.run(["git", "add", "tracked.txt"], cwd=path, check=True)
     subprocess.run(["git", "commit", "-qm", "fixture"], cwd=path, check=True)
     return subprocess.run(
-        ["git", "rev-parse", "HEAD"],
+        ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"],
         cwd=path,
         capture_output=True,
         text=True,

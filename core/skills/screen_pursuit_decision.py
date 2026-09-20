@@ -919,7 +919,17 @@ async def decide_the_next_move(
                         _tell(f"Where this stands: {going.where_it_stands(len(moves))}.")
             _say_what_she_worked_out(knows, foreseen)
             _say_what_kind_of_problem(
-                knows, screen_options(move_keys), laid_out, success_when, foreseen
+                knows,
+                screen_options(move_keys),
+                laid_out,
+                # What she is actually playing for, not what the request said.
+                # The four other readers of this objective already derive it
+                # when nothing was named; this one passed the request through,
+                # so on an unnamed goal `recognise` was handed "" and reported
+                # no countable goal — the shape went unnamed on exactly the
+                # runs where naming it is the whole demonstration.
+                success_when or _what_there_is_to_aim_at(laid_out),
+                foreseen,
             )
             if len(moves) % 6 == 0 and knows.rules is not None:
                 logger.info(

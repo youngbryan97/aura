@@ -316,3 +316,68 @@ def test_the_live_policy_only_picks_a_port_both_ends_can_carry():
 
     mismatched = CellManifest(name="c", consumes=["nothing_shared"], capabilities=["z"])
     assert LiveObserverPolicy._port_between(_Cell(source), _Cell(mismatched)) == ""
+
+
+@pytest.mark.asyncio
+async def test_a_cell_the_restore_left_isolated_is_bound(tmp_path):
+    """Attachment ran only for cells that ARRIVE, so an isolated one never got it.
+
+    A cell already isolated when the graph was saved never arrives again:
+    the population matches on every boot, `_populate_sync` returns early,
+    and nothing binds it for the life of the installation. The live graph
+    on 2026-09-20 held 50 nodes, 196 edges and exactly six isolated cells —
+    six organs reported as "population split into 7 pieces: 44,1,1,1,1,1,1"
+    and still split after readiness, with no degree budget reached and
+    nothing refused. The healing simply never ran on them.
+    """
+    runtime = _runtime(tmp_path)
+    for name in ("alpha", "beta", "gamma"):
+        runtime.registry.register_cell(_sensor(name, "weather"))
+    await runtime.tick()
+
+    stranded = runtime.registry.register_cell(_sensor("delta", "weather"))
+    assert stranded is not None
+
+    def orphan(scratch):
+        scratch.add_node(stranded.cell_id)
+
+    runtime.graph.transaction(orphan, cause="test:restore_left_it_isolated")
+    assert not runtime.graph.out_edges(stranded.cell_id)
+    assert not runtime.graph.in_edges(stranded.cell_id)
+    assert set(runtime.graph.nodes()) == {
+        cell.cell_id for cell in runtime.registry.active_cells()
+    }, "the population must MATCH, which is the path that returned early"
+
+    await runtime.tick()
+
+    bound = runtime.graph.out_edges(stranded.cell_id) or runtime.graph.in_edges(
+        stranded.cell_id
+    )
+    assert bound, "the stranded cell is still its own component"
+    assert len(runtime.graph.components()) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_cell_alone_in_its_subsystem_is_still_left_alone(tmp_path):
+    """The null: healing must not invent a binding the rule declines.
+
+    Attaching a lone cell to an arbitrary peer would make the partition
+    channel quiet and the coverage real in neither case, and it would take
+    the decision away from the policy that has to justify it.
+    """
+    runtime = _runtime(tmp_path)
+    for name in ("alpha", "beta"):
+        runtime.registry.register_cell(_sensor(name, "weather"))
+    await runtime.tick()
+
+    alone = runtime.registry.register_cell(_sensor("solo", "its_own_world"))
+    assert alone is not None
+
+    def orphan(scratch):
+        scratch.add_node(alone.cell_id)
+
+    runtime.graph.transaction(orphan, cause="test:alone_in_its_subsystem")
+    await runtime.tick()
+
+    assert not runtime.graph.out_edges(alone.cell_id)
+    assert not runtime.graph.in_edges(alone.cell_id)

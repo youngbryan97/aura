@@ -23,6 +23,7 @@ from core.runtime.service_access import (
     resolve_memory_facade,
     resolve_state_repository,
 )
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Cognition")
@@ -616,11 +617,7 @@ class CognitiveIntegrationLayer:
             if inference_data:
                 _inject_live_modifiers(inference_data)
         except TimeoutError:
-            inference_task.cancel()
-            try:
-                await inference_task
-            except asyncio.CancelledError:
-                logger.debug("Inline inference task acknowledged cancellation.")
+            await cancel_and_join(inference_task, owner="core.cognition.cognitive_integration_layer")
             logger.debug("Inline inference still running; continuing without blocking.")
         except _CIL_RECOVERABLE_ERRORS as exc:
             _record_cil_degradation(

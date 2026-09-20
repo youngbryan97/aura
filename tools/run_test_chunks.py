@@ -96,7 +96,7 @@ def working_tree_revision() -> str:
 
     try:
         head = subprocess.run(
-            ["git", "-C", str(ROOT), "rev-parse", "--short", "HEAD"],
+            ["git", "-c", "core.fsmonitor=false", "-C", str(ROOT), "rev-parse", "--short", "HEAD"],
             capture_output=True,
             text=True,
             timeout=10,
@@ -105,7 +105,7 @@ def working_tree_revision() -> str:
             return ""
         revision = head.stdout.strip()
         dirty = subprocess.run(
-            ["git", "-C", str(ROOT), "status", "--porcelain", "--untracked-files=no"],
+            ["git", "-c", "core.fsmonitor=false", "-C", str(ROOT), "status", "--porcelain", "--untracked-files=no"],
             capture_output=True,
             text=True,
             timeout=20,

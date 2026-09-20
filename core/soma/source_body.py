@@ -520,7 +520,7 @@ class SourceBodyAwareness:
         """
         try:
             proc = self._subprocess_gateway.run(
-                ["git", "--no-optional-locks", *args],
+                ["git", "-c", "core.fsmonitor=false", "--no-optional-locks", *args],
                 cwd=str(self.source_root),
                 timeout=_GIT_TIMEOUT_S,
                 read_only=True,

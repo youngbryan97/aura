@@ -168,7 +168,7 @@ def _git(*args: str) -> str:
     """Read something from git, or an empty string if git cannot answer."""
     try:
         done = subprocess.run(
-            ["git", "-C", str(ROOT), *args],
+            ["git", "-c", "core.fsmonitor=false", "-C", str(ROOT), *args],
             capture_output=True, text=True, timeout=60, check=False,
         )
     except (OSError, subprocess.SubprocessError):

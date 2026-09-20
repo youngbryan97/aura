@@ -84,7 +84,7 @@ def _sha256(payload: bytes) -> str:
 
 def _source_state() -> tuple[str, dict[str, Any]]:
     dirty = subprocess.run(
-        ["git", "status", "--porcelain"],
+        ["git", "-c", "core.fsmonitor=false", "status", "--porcelain"],
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,
@@ -92,9 +92,9 @@ def _source_state() -> tuple[str, dict[str, Any]]:
     ).stdout
     if dirty:
         raise RuntimeError("native discriminator requires a clean source checkout")
-    commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True).strip()
+    commit = subprocess.check_output(["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True).strip()
     origin = subprocess.check_output(
-        ["git", "rev-parse", "origin/main"], cwd=REPO_ROOT, text=True
+        ["git", "-c", "core.fsmonitor=false", "rev-parse", "origin/main"], cwd=REPO_ROOT, text=True
     ).strip()
     if commit != origin:
         raise RuntimeError("native discriminator source must equal published origin/main")
@@ -561,7 +561,7 @@ def run_discriminator(
     source_published = (
         source_commit
         == subprocess.check_output(
-            ["git", "rev-parse", "origin/main"], cwd=REPO_ROOT, text=True
+            ["git", "-c", "core.fsmonitor=false", "rev-parse", "origin/main"], cwd=REPO_ROOT, text=True
         ).strip()
     )
     development_before = development_baseline["aggregate"]

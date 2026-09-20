@@ -113,7 +113,9 @@ def _stable_file(path: Path, *, root: Path | None = None) -> dict[str, Any]:
 
 def _git(root: Path, *arguments: str) -> bytes:
     result = subprocess.run(
-        ["git", "-C", str(root), *arguments],
+        # Identity reads only, and the daemon makes a read take twenty
+        # seconds on this checkout against a thirty-second bound.
+        ["git", "-C", str(root), "-c", "core.fsmonitor=false", *arguments],
         capture_output=True,
         check=False,
         timeout=30.0,

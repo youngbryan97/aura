@@ -20,14 +20,14 @@ import os
 import re
 import time
 from enum import StrEnum
-from typing import Any
-
 from pathlib import Path
+from typing import Any
 
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
-from core.voice.audio_provenance import attribute_wake_audio
 from core.runtime.task_ownership import create_tracked_task
+from core.utils.concurrency import cancel_and_join
+from core.voice.audio_provenance import attribute_wake_audio
 
 # The demo-injection sidecar. Resolved once: a live stall dump (2026-09-15,
 # 5.2s) caught the poll in ``Path(__file__).resolve()`` — a realpath walk
@@ -142,11 +142,7 @@ class WakeWordDetector:
         self._started = False
         for task in (self._dispatch_task, self._task):
             if task and not task.done():
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
+                await cancel_and_join(task, owner="core.voice.wake_word")
         logger.info("WakeWordDetector OFFLINE (detected %d wake events)", self._wake_count)
 
     async def _detection_loop(self) -> None:

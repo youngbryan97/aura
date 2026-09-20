@@ -13,6 +13,7 @@ from core.actuators.actuator_registry import get_actuator_registry
 from core.container import ServiceContainer
 from core.memory import embedding_model
 from core.runtime.errors import record_degradation
+from core.utils.concurrency import cancel_and_join
 
 logger = logging.getLogger("Aura.IngestionLoop")
 
@@ -42,11 +43,7 @@ class IngestionLoop:
     async def stop(self) -> bool:
         self.running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError as _exc:
-                logger.debug("Suppressed %s in core.memory.ingestion_loop: %s", type(_exc).__name__, _exc)
+            await cancel_and_join(self._task, owner="core.memory.ingestion_loop")
             self._task = None
         logger.info("IngestionLoop background service SHUTDOWN.")
         return True

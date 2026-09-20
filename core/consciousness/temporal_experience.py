@@ -54,6 +54,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from core.runtime.errors import record_degradation
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Consciousness.TemporalExperience")
@@ -145,11 +146,7 @@ class TemporalExperienceEngine:
         """Stop the temporal experience cycle."""
         self._running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError as _exc:
-                logger.debug("Suppressed %s in core.consciousness.temporal_experience: %s", type(_exc).__name__, _exc)
+            await cancel_and_join(self._task, owner="core.consciousness.temporal_experience")
         logger.info("🕐 TemporalExperienceEngine stopped")
 
     async def _autonomic_cycle(self):

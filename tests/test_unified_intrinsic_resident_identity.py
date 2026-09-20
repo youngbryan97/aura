@@ -23,7 +23,7 @@ from tools.unified_intrinsic_resident_identity import (
 
 def _git(root: Path, *args: str) -> str:
     result = subprocess.run(
-        ["git", "-C", str(root), *args],
+        ["git", "-c", "core.fsmonitor=false", "-C", str(root), *args],
         capture_output=True,
         check=True,
         text=True,

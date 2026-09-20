@@ -49,6 +49,7 @@ from core.reality_reach.live import (
 from core.runtime.audit_chain import canonical_json, sha256_hex
 from core.runtime.errors import record_degradation
 from core.runtime.lockdep import checked_lock, checked_semaphore
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 _IDENTIFIER = re.compile(r"^[a-z0-9][a-z0-9_.:-]{0,127}$")
@@ -1504,21 +1505,13 @@ class RealityObservationRouter:
         self._wake.set()
         poll_task = self._poll_task
         if poll_task is not None:
-            poll_task.cancel()
-            try:
-                await poll_task
-            except asyncio.CancelledError:
-                pass
+            await cancel_and_join(poll_task, owner="core.reality_reach.observation_router")
         worker_task = self._worker_task
         if worker_task is not None:
             try:
                 await asyncio.wait_for(asyncio.shield(worker_task), timeout=2.0)
             except TimeoutError:
-                worker_task.cancel()
-                try:
-                    await worker_task
-                except asyncio.CancelledError:
-                    pass
+                await cancel_and_join(worker_task, owner="core.reality_reach.observation_router")
         self._poll_task = None
         self._worker_task = None
 

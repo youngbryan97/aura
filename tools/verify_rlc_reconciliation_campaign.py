@@ -316,21 +316,21 @@ def _verify_controller(config_path: Path) -> dict[str, Any]:
         _fail("controller_source_identity_mismatch")
     try:
         observed_commit = subprocess.run(
-            ["git", "-C", str(source_root), "rev-parse", "HEAD"],
+            ["git", "-c", "core.fsmonitor=false", "-C", str(source_root), "rev-parse", "HEAD"],
             check=True,
             capture_output=True,
             text=True,
             timeout=10,
         ).stdout.strip()
         observed_branch = subprocess.run(
-            ["git", "-C", str(source_root), "rev-parse", "--abbrev-ref", "HEAD"],
+            ["git", "-c", "core.fsmonitor=false", "-C", str(source_root), "rev-parse", "--abbrev-ref", "HEAD"],
             check=True,
             capture_output=True,
             text=True,
             timeout=10,
         ).stdout.strip()
         observed_status = subprocess.run(
-            ["git", "-C", str(source_root), "status", "--porcelain", "--untracked-files=all"],
+            ["git", "-c", "core.fsmonitor=false", "-C", str(source_root), "status", "--porcelain", "--untracked-files=all"],
             check=True,
             capture_output=True,
             timeout=20,

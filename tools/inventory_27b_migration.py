@@ -54,7 +54,7 @@ def installation_root() -> Path:
 
     try:
         common = subprocess.run(
-            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            ["git", "-c", "core.fsmonitor=false", "rev-parse", "--path-format=absolute", "--git-common-dir"],
             cwd=ROOT,
             capture_output=True,
             text=True,

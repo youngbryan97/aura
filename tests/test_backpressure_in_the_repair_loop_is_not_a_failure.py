@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_a_killed_child_says_which_bound_it_hit() -> None:
     from core.runtime.subprocess_gateway import WorkBoundExpired
 
-    exc = WorkBoundExpired(["git", "status"], 10.0, reason="wedged: no CPU progress for 10.0s at 0.1s of CPU")
+    exc = WorkBoundExpired(["git", "-c", "core.fsmonitor=false", "status"], 10.0, reason="wedged: no CPU progress for 10.0s at 0.1s of CPU")
 
     assert isinstance(exc, subprocess.TimeoutExpired)
     assert "timed out after 10.0 seconds" in str(exc)

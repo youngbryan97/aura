@@ -345,7 +345,7 @@ def test_migration_reloads_legacy_baseline_from_its_commit(tmp_path: Path):
     subprocess.run(["git", "add", "config/aura_architecture_quality_baseline.json"], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-qm", "legacy"], cwd=repo, check=True)
     legacy_commit = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
+        ["git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"],
         cwd=repo,
         check=True,
         capture_output=True,

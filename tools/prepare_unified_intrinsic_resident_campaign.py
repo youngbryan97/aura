@@ -214,7 +214,7 @@ def _file_sha256(path: Path) -> str:
 
 def _git(root: Path, *arguments: str, timeout: float = 120.0) -> str:
     result = subprocess.run(
-        ["git", "-C", str(root), *arguments],
+        ["git", "-c", "core.fsmonitor=false", "-C", str(root), *arguments],
         capture_output=True,
         check=False,
         text=True,
@@ -235,7 +235,7 @@ def _full_commit(root: Path, value: str) -> str:
 
 def _require_published(root: Path, commit: str) -> None:
     result = subprocess.run(
-        ["git", "-C", str(root), "merge-base", "--is-ancestor", commit, "origin/main"],
+        ["git", "-c", "core.fsmonitor=false", "-C", str(root), "merge-base", "--is-ancestor", commit, "origin/main"],
         capture_output=True,
         check=False,
         timeout=30.0,

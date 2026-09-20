@@ -187,3 +187,62 @@ def test_owner_class_coverage_requires_observed_and_clean_terminal_owners() -> N
     verdict["pre_signal_evidence"]["model_worker_observed"] = False
     witnesses = aggregate_owner_class_witnesses([verdict])
     assert witnesses["model_worker"] is False
+
+
+class TestEveryTriggerMarkerCanStillBePrinted:
+    """A case waits for a log line; a line the runtime cannot write is a case
+    that cannot run.
+
+    `model_warmup_signal` waited ten minutes for "Primary 32B cortex is cold.
+    Starting warmup" and then reported all twenty-four of its checks failed.
+    The runtime writes that line with the resident lane's signed label, which
+    stopped being a 32B when the cortex became Aura-Qwen3.8-27B, so the case
+    had been dead since the model changed and said so only as a timeout.
+    """
+
+    def test_no_marker_names_a_model(self) -> None:
+        import tools.shutdown_signal_matrix as matrix
+
+        named = [
+            f"{name} = {value!r}"
+            for name, value in vars(matrix).items()
+            if name.endswith("_MARKER")
+            and isinstance(value, str)
+            and any(
+                tag in value
+                for tag in ("32B", "27B", "8B", "1.5B", "Qwen", "Bonsai", "Ternary")
+            )
+        ]
+        assert named == [], (
+            "a marker naming a checkpoint dies the day the checkpoint does:\n"
+            + "\n".join(named)
+        )
+
+    def test_the_cortex_markers_match_what_the_gate_writes(self) -> None:
+        """Against the format strings, not the file's text.
+
+        The recovery line is written as two adjacent literals and reads as
+        one only after the parser joins them, so a substring search over the
+        source says it is not there. The subject is what the runtime EMITS.
+        """
+        import ast
+        import inspect
+        from pathlib import Path
+
+        import core.brain.inference_gate as gate
+        import tools.shutdown_signal_matrix as matrix
+
+        tree = ast.parse(Path(inspect.getsourcefile(gate)).read_text(encoding="utf-8"))
+        written = [
+            node.value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        ]
+        for marker in (
+            matrix.MODEL_WARMUP_START_MARKER,
+            matrix.MODEL_WARMUP_COMPLETE_MARKER,
+            matrix.MODEL_RECOVERY_START_MARKER,
+        ):
+            assert any(marker in text for text in written), (
+                f"nothing the gate can print contains {marker!r}"
+            )

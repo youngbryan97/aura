@@ -41,6 +41,7 @@ from core.runtime.background_policy import (
 from core.runtime.errors import record_degradation
 from core.runtime.service_access import optional_service
 from core.runtime.state_ownership import state_root
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Evolution")
@@ -184,11 +185,7 @@ class EvolutionOrchestrator:
     async def stop(self) -> None:
         self._stop.set()
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError as _exc:
-                logger.debug("Suppressed asyncio.CancelledError: %s", _exc)
+            await cancel_and_join(self._task, owner="core.evolution.evolution_orchestrator")
         self._save()
 
     async def tick(self) -> EvolutionSnapshot:

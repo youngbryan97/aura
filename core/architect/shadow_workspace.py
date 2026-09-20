@@ -201,7 +201,7 @@ class ShadowWorkspaceManager:
     def _git_worktree_files(self, source: Path) -> list[str]:
         try:
             proc = get_subprocess_gateway().run(
-                ["git", "-C", str(source), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+                ["git", "-c", "core.fsmonitor=false", "-C", str(source), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
                 capture_output=True,
                 timeout=15.0,
                 read_only=True,

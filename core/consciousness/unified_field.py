@@ -64,6 +64,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from core.utils.concurrency import cancel_and_join
+
 from .unified_field_prediction import _PredictsTheNextField
 
 try:  # scipy is an acceleration path here; dense numpy remains correct.
@@ -466,11 +468,7 @@ class UnifiedField(_PredictsTheNextField):
     async def stop(self):
         self._running = False
         if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                logger.debug("UnifiedField background task acknowledged cancellation.")
+            await cancel_and_join(self._task, owner="core.consciousness.unified_field")
             self._task = None
         logger.info("UnifiedField STOPPED (ticks=%d)", self._tick_count)
 

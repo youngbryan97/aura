@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.utils.concurrency import cancel_and_join
 from core.utils.singleton import singleton
 
 logger = logging.getLogger("Aura.LockWatchdog")
@@ -87,11 +88,7 @@ class LockWatchdog:
         """Stops the monitoring task."""
         self._running = False
         if self._task and not self._task.done():
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError as _exc:
-                logger.debug("Suppressed asyncio.CancelledError: %s", _exc)
+            await cancel_and_join(self._task, owner="core.resilience.lock_watchdog")
         self._task = None
 
     def report_acquire_start(

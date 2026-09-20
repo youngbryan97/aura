@@ -3827,9 +3827,18 @@ def test_integrity_guardian_restores_from_head_blob_with_forensic_backup(monkeyp
     guardian = ig_mod.IntegrityGuardian()
     assert guardian._restore_file_via_git("core/security/emergency_protocol.py") is True
 
-    git_commands = [command for command in commands if command[0][:2] == ["git", "show"]]
+    git_commands = [
+        command for command in commands
+        if command[0][0] == "git" and "show" in command[0]
+    ]
     assert git_commands
-    assert git_commands[0][0] == ["git", "show", "HEAD:core/security/emergency_protocol.py"]
+    argv = git_commands[0][0]
+    # The blob it reads, and nothing else on the command line that could
+    # change WHICH blob. The options between `git` and `show` are read
+    # settings — `-c core.fsmonitor=false` keeps the read from blocking on
+    # the daemon — so the assertion is about the subcommand and its target.
+    assert argv[argv.index("show") :] == ["show", "HEAD:core/security/emergency_protocol.py"]
+    assert "core.fsmonitor=false" in argv
     assert git_commands[0][1]["read_only"] is True
     assert all("checkout" not in " ".join(cmd) for cmd, _kwargs in commands)
     assert source.read_text(encoding="utf-8") == "restored"

@@ -23,6 +23,7 @@ from core.runtime.subprocess_gateway import (
     PythonProcessSpec,
     get_subprocess_gateway,
 )
+from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Supervisor")
@@ -506,11 +507,9 @@ class SupervisionTree:
         self._shutting_down = True
         task, self._monitor_task = self._monitor_task, None
         if task is not None:
-            task.cancel()
-            try:
-                await asyncio.wait_for(task, timeout=2.0)
-            except (asyncio.CancelledError, TimeoutError):
-                pass
+            await cancel_and_join(
+                task, owner="core.supervisor.tree", timeout=2.0
+            )
         try:
             await asyncio.to_thread(self.stop_all, preserve_desired=True)
             self._publish_conditions()

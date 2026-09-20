@@ -9,6 +9,24 @@ that decides when a session id starts a new conversation.
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
+import json
+import re
+import time
+import uuid
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+from functools import lru_cache, wraps
+from typing import TYPE_CHECKING, Any
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
+from starlette.background import BackgroundTask
+
+from core.conversation.session_scope import (
+    conversation_turn_var as _CHAT_DELIVERY_TURN_ID,  # noqa: N812
+)
 from core.runtime.chat_delivery_journal import (
     AdmissionKind,
     ChatDeliveryFenceLost,
@@ -22,43 +40,20 @@ from core.runtime.chat_delivery_journal import (
     canonical_request_hash,
     get_chat_delivery_journal,
 )
-from typing import TYPE_CHECKING, Any
-from starlette.background import BackgroundTask
-from collections.abc import Callable, Mapping, Sequence
-from core.runtime.flags import FlagKind, declare
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse
-from interface.routes.chat_common import (  # noqa: E402
-    _CHAT_DELIVERY_IDEMPOTENCY_KEY,  # noqa: F401
-    _CHAT_PENDING_DELIVERY_CLAIM,  # noqa: F401
-    _CHAT_SESSION_ID_MAX_CHARS,  # noqa: F401
-    _INTERNAL_SURFACE_CONTEXT,  # noqa: F401
-    _UNSET,  # noqa: F401
-)
-from core.conversation.session_scope import (
-    conversation_turn_var as _CHAT_DELIVERY_TURN_ID,  # noqa: N812
-)
-from interface.routes.chat_common import (  # noqa: E402
-    _CHAT_BLOCKING_PREFLIGHT_TIMEOUT_S,  # noqa: F401
-    _CHAT_RECOVERABLE_ERRORS,  # noqa: F401
-    _CHAT_REQUEST_PRINCIPAL,  # noqa: F401
-    _CHAT_REQUEST_SURFACE,  # noqa: F401
-    _MAX_CONVERSATION_LOG_EXCHANGES,  # noqa: F401
-    _conversation_log,  # noqa: F401
-    _locks,  # noqa: F401
-    logger,  # noqa: F401
-)
-from interface.routes import chat_preflight as _chat_preflight
-import asyncio
 from core.runtime.chat_delivery_progress import (
     bind_chat_delivery_progress,
     report_chat_delivery_progress,
 )
+from core.runtime.errors import describe_error, record_degradation
+from core.runtime.flags import FlagKind, declare
+from core.runtime.principal_context import (
+    relational_principal_scope,
+)
 from core.runtime.receipts import digest_output_content, digest_principal_binding
-from core.utils.task_tracker import get_task_tracker
-import hashlib
-import json
 from core.runtime.service_access import optional_service
+from core.runtime.what_stops_it import Stopping, stopping_with
+from core.utils.concurrency import cancel_and_join
+from core.utils.task_tracker import get_task_tracker
 from interface.auth import (
     CHEAT_CODE_COOKIE_NAME,
     CHEAT_CODE_COOKIE_TTL_SECS,
@@ -72,21 +67,23 @@ from interface.auth import (
     request_access_profile,
     validate_runtime_security_request,
 )
-import re
-from core.runtime.errors import describe_error, record_degradation
-from core.runtime.principal_context import (
-    relational_principal_scope,
-)
-import time
-import uuid
-from functools import lru_cache, wraps
-from dataclasses import dataclass
-from core.runtime.what_stops_it import Stopping, stopping_with
-
-from interface.routes.chat_common import (
+from interface.routes import chat_preflight as _chat_preflight
+from interface.routes.chat_common import (  # noqa: E402  # noqa: E402
+    _CHAT_BLOCKING_PREFLIGHT_TIMEOUT_S,  # noqa: F401
+    _CHAT_DELIVERY_IDEMPOTENCY_KEY,  # noqa: F401
+    _CHAT_PENDING_DELIVERY_CLAIM,  # noqa: F401
+    _CHAT_RECOVERABLE_ERRORS,  # noqa: F401
+    _CHAT_REQUEST_PRINCIPAL,  # noqa: F401
+    _CHAT_REQUEST_SURFACE,  # noqa: F401
+    _CHAT_SESSION_ID_MAX_CHARS,  # noqa: F401
+    _INTERNAL_SURFACE_CONTEXT,  # noqa: F401
+    _MAX_CONVERSATION_LOG_EXCHANGES,  # noqa: F401
+    _UNSET,  # noqa: F401
     MAX_CHAT_MESSAGE_BYTES,
+    _conversation_log,  # noqa: F401
+    _locks,  # noqa: F401
+    logger,  # noqa: F401
 )
-
 
 _CHAT_DELIVERY_WAIT_TIMEOUT_FLAG = declare(
     "AURA_CHAT_DELIVERY_WAIT_TIMEOUT_S",
@@ -437,11 +434,7 @@ async def _chat_delivery_heartbeat(
 async def _stop_chat_delivery_heartbeat(task: asyncio.Task[Any] | None) -> None:
     if task is None:
         return
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    await cancel_and_join(task, owner="interface.routes.chat_delivery")
 
 
 async def _finalize_chat_delivery(
