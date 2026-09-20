@@ -518,7 +518,7 @@ def analyse(src, target):
                     continue
                 candidates.append(dict(lines=lines, start=start_line, end=end_line, params=sorted(params),
                                        returns=sorted(returns), awaits=any(fact(st)[3] for st in block),
-                                       first=block[0], leaves=block_returns))
+                                       first=block[0], last=block[-1], leaves=block_returns))
     # a name bound by a function-local import (and by nothing else) is
     # re-imported in the helper rather than passed: the same lookup at the
     # same time, and no class or constant travels as an argument
@@ -655,7 +655,13 @@ def apply(path: Path, target: str, dry=False):
         sig = ", ".join(sig_parts)
         ret = c["returns"]
         leaves = c.get("leaves", False)
-        if leaves:
+        # a block whose last statement always leaves never falls through:
+        # no sentinel return after it (dead code), and the caller returns
+        # what the helper returns
+        always_leaves = leaves and isinstance(c["last"], (ast.Return, ast.Raise))
+        if always_leaves:
+            ret_line = ""
+        elif leaves:
             ret_line = f"{body_indent}return _FALL_THROUGH\n"
         else:
             ret_line = f"{body_indent}return {', '.join(ret)}\n" if ret else ""
@@ -667,7 +673,9 @@ def apply(path: Path, target: str, dry=False):
         if c["awaits"]:
             call = f"await {call}"
         pad = " " * block_indent
-        if leaves:
+        if always_leaves:
+            call_lines = [f"{pad}return {call}\n"]
+        elif leaves:
             needs_sentinel = True
             left = "_left"
             while left in src:

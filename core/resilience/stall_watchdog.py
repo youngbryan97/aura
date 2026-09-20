@@ -228,6 +228,10 @@ class StallWatchdog(threading.Thread):
         #: stuck. Read with the loop thread's clock from this thread; see
         #: core/runtime/thread_cpu.py.
         self._loop_cpu_at_heartbeat: float | None = None
+        # The wall clock at that sample, and the last look this thread took
+        # during a stall, so each share is over the interval it names.
+        self._loop_cpu_sampled_at: float | None = None
+        self._loop_cpu_at_last_look: tuple[float, float] | None = None
         self._starved_stalls: int = 0
         self._last_starvation_log_at: float = 0.0
 
@@ -406,6 +410,8 @@ class StallWatchdog(threading.Thread):
         self._last_loop_run = now
         self._loop_thread_id = threading.get_ident()
         self._loop_cpu_at_heartbeat = time.thread_time()
+        self._loop_cpu_sampled_at = now
+        self._loop_cpu_at_last_look = None
         # Track task ages so a future stall can pick out which ones look hung.
         # This runs on the loop thread — cheap and safe.
         try:
@@ -793,9 +799,21 @@ class StallWatchdog(threading.Thread):
         """
         thread_id = self._loop_thread_id
         before = self._loop_cpu_at_heartbeat
-        if thread_id is None or before is None:
+        since = self._loop_cpu_sampled_at
+        if thread_id is None or before is None or since is None:
             return None
-        return thread_cpu_share(before, thread_cpu_seconds(thread_id), elapsed)
+        # A stall that outlives one check is measured again each period.
+        # The CPU delta must span the same interval as the wall it is
+        # divided by: LIVE 2026-09-16 one 22s stall read 76%, 165%, 255%
+        # then 403% of a core as the CPU since the heartbeat was divided by
+        # the wall since the previous look.
+        if self._loop_cpu_at_last_look is not None:
+            before, since = self._loop_cpu_at_last_look
+        now_cpu = thread_cpu_seconds(thread_id)
+        now_wall = time.time()
+        if now_cpu is not None:
+            self._loop_cpu_at_last_look = (now_cpu, now_wall)
+        return thread_cpu_share(before, now_cpu, max(now_wall - since, 1e-6))
 
     def _report_starvation(self, elapsed: float, share: float) -> None:
         """A stall that is the host's, said once a minute rather than dumped.

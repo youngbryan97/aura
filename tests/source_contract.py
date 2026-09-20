@@ -34,6 +34,7 @@ from types import ModuleType
 __all__ = [
     "class_with_its_bases",
     "module_and_the_mixins_it_builds_with",
+    "module_family_sources",
     "declared_in",
     "function_containing",
     "function_with_its_helpers",
@@ -49,26 +50,53 @@ def module_source(module: ModuleType) -> str:
     return inspect.getsource(module)
 
 
+def module_family_sources(module: ModuleType) -> list[tuple[str, str]]:
+    """``(name, text)`` for the module and every module lifted out of it.
+
+    A lift names its new module after the one it came from:
+    ``inference_gate_turn_setup`` beside ``inference_gate``,
+    ``mlx_client_waiting`` beside ``mlx_client``, ``mind_tick_loop_steps``
+    beside ``mind_tick``. What the original module DOES is now spread over
+    that family, and a reader that stops at the first file reports a line
+    as gone that runs on every turn. Read from disk, so an unimported
+    sibling counts too.
+    """
+
+    from pathlib import Path
+
+    own = Path(getattr(module, "__file__", "") or "")
+    family = [(module.__name__, inspect.getsource(module))]
+    if own.suffix != ".py":
+        return family
+    for sibling in sorted(own.parent.glob(f"{own.stem}_*.py")):
+        try:
+            family.append((f"{module.__name__}:{sibling.stem}", sibling.read_text(encoding="utf-8")))
+        except OSError:  # pragma: no cover - a file that vanished mid-read
+            continue
+    return family
+
+
 def function_containing(module: ModuleType, needle: str) -> tuple[str, str]:
     """Return ``(name, body)`` of whichever function contains ``needle``.
 
     Survives extraction: when a sweep moves a block into a helper, this
-    follows it. Raises with the needle in the message when nothing in the
-    module contains it, which is the case worth failing on — the call site
-    really is gone.
+    follows it, and when a lift moves the helper into a sibling module
+    (``<module>_<part>.py``) it follows it there. Raises with the needle in
+    the message when nothing in the family contains it, which is the case
+    worth failing on — the call site really is gone.
     """
 
-    source = inspect.getsource(module)
-    lines = source.splitlines()
-    for node in ast.walk(ast.parse(source)):
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            continue
-        body = "\n".join(lines[node.lineno - 1 : (node.end_lineno or node.lineno)])
-        if needle in body:
-            return node.name, body
+    for _name, source in module_family_sources(module):
+        lines = source.splitlines()
+        for node in ast.walk(ast.parse(source)):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            body = "\n".join(lines[node.lineno - 1 : (node.end_lineno or node.lineno)])
+            if needle in body:
+                return node.name, body
     raise AssertionError(
-        f"no function in {module.__name__} contains {needle!r}; "
-        "the call site is gone, not merely moved"
+        f"no function in {module.__name__} or the modules lifted out of it contains "
+        f"{needle!r}; the call site is gone, not merely moved"
     )
 
 
@@ -210,7 +238,29 @@ def function_with_its_helpers(
             )
 
     wanted = qualified_name.rsplit(".", 1)[-1]
-    if wanted not in bodies:
+    # A helper the sweep then lifted into a mixin lives in another module.
+    # The class knows where: its MRO reaches every base, and inspect reads
+    # the method from the module that defines it. LIVE 2026-09-19:
+    # ``MindTick._run_loop``'s steps moved to ``_RunsTheTickLoopSteps`` in
+    # ``mind_tick_loop_steps`` and nine tests here went red a second time.
+    owner: type | None = None
+    if "." in qualified_name:
+        owner = getattr(module, qualified_name.rsplit(".", 1)[0], None)
+        if not isinstance(owner, type):
+            owner = None
+
+    def _inherited(name: str) -> str | None:
+        if owner is None:
+            return None
+        member = getattr(owner, name, None)
+        if member is None:
+            return None
+        try:
+            return inspect.getsource(member)
+        except (OSError, TypeError):
+            return None
+
+    if wanted not in bodies and _inherited(wanted) is None:
         raise AssertionError(
             f"{module.__name__} has no function named {wanted!r}; "
             "it was renamed or removed, not merely moved"
@@ -220,10 +270,12 @@ def function_with_its_helpers(
     seen: set[str] = set()
 
     def _pull(name: str, remaining: int) -> None:
-        if name in seen or name not in bodies:
+        if name in seen:
+            return
+        body = bodies.get(name) or _inherited(name)
+        if body is None:
             return
         seen.add(name)
-        body = bodies[name]
         collected.append(body)
         if remaining <= 0:
             return

@@ -54,15 +54,25 @@ def _sweep_named(cls: ast.ClassDef) -> set[str]:
 
 
 def _referenced_elsewhere(name: str, path: Path) -> list[str]:
-    """Files other than ``path`` that mention ``name`` as a word."""
+    """Files other than ``path`` that reach for ``name`` as a member or by string.
+
+    A module function of the same name elsewhere (another sweep's
+    `_execute_part_4`) is a different function; only an attribute access or
+    a quoted name can be this method.
+    """
     try:
+        rel = str(path.resolve().relative_to(ROOT))
+    except ValueError:  # a file outside the repository: nothing in it can reach it
+        return []
+    try:
+        # read-only: the file-system monitor makes a plain grep wait seconds
         out = subprocess.run(
-            ["git", "grep", "-l", "-w", name, "--", "core", "interface", "tests", "tools", "skills", "executors"],
-            cwd=ROOT, capture_output=True, text=True, timeout=60,
+            ["git", "-c", "core.fsmonitor=false", "grep", "-l", "-E", rf"(\.|['\"]){name}\b",
+             "--", "core", "interface", "tests", "tools", "skills", "executors"],
+            cwd=ROOT, capture_output=True, text=True, timeout=120,
         ).stdout.split()
     except (OSError, subprocess.SubprocessError):
         return ["<grep failed>"]
-    rel = str(path.resolve().relative_to(ROOT))
     return [f for f in out if f != rel]
 
 
@@ -85,8 +95,8 @@ def _docstrings(tree: ast.Module) -> set[int]:
     return out
 
 
-def _references_in_file(tree: ast.Module, name: str) -> tuple[list[ast.Call], int]:
-    """Calls ``self.name(...)`` / ``cls.name(...)``, and how many other mentions there are.
+def _references_in_file(tree: ast.Module, name: str, receivers: tuple[str, ...]) -> tuple[list[ast.Call], int]:
+    """Calls ``self.name(...)`` / ``cls.name(...)`` / ``Class.name(...)``, and how many other mentions there are.
 
     Another mention — an attribute read without a call, a string that could
     feed ``getattr`` — means the name is used as a member, and the method
@@ -96,7 +106,7 @@ def _references_in_file(tree: ast.Module, name: str) -> tuple[list[ast.Call], in
     call_funcs: set[int] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == name \
-                and isinstance(node.func.value, ast.Name) and node.func.value.id in ("self", "cls"):
+                and isinstance(node.func.value, ast.Name) and node.func.value.id in receivers:
             calls.append(node)
             call_funcs.add(id(node.func))
     docstrings = _docstrings(tree)
@@ -110,7 +120,7 @@ def _references_in_file(tree: ast.Module, name: str) -> tuple[list[ast.Call], in
     return calls, others
 
 
-def demote(path: Path, class_name: str, pattern: str | None, dry_run: bool) -> int:
+def demote(path: Path, class_name: str, pattern: str | None, dry_run: bool, limit: int | None = None) -> int:
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines(keepends=True)
     tree = ast.parse(text)
@@ -124,19 +134,21 @@ def demote(path: Path, class_name: str, pattern: str | None, dry_run: bool) -> i
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) or node.name not in wanted:
             continue
         why = None
-        static = (
-            len(node.decorator_list) == 1
-            and isinstance(node.decorator_list[0], ast.Name)
-            and node.decorator_list[0].id == "staticmethod"
+        marker = (
+            node.decorator_list[0].id
+            if len(node.decorator_list) == 1 and isinstance(node.decorator_list[0], ast.Name)
+            else ""
         )
-        if node.decorator_list and not static:
+        static = marker == "staticmethod"
+        class_method = marker == "classmethod"
+        if node.decorator_list and not (static or class_method):
             why = "decorated"
         elif _uses_class_cell(node):
             why = "uses super() or __class__"
         elif not static and (not node.args.args or node.args.args[0].arg not in ("self", "cls")):
             why = "no self"
         else:
-            calls, others = _references_in_file(tree, node.name)
+            calls, others = _references_in_file(tree, node.name, ("self", "cls", class_name))
             if others:
                 why = f"{others} mention(s) in this file that are not self.{node.name}(...) calls"
             else:
@@ -147,17 +159,20 @@ def demote(path: Path, class_name: str, pattern: str | None, dry_run: bool) -> i
             print(f"  keep {class_name}.{node.name}: {why}")
             continue
         chosen.append(node)
+        if limit is not None and len(chosen) >= limit:
+            break
     if not chosen:
         print(f"{path}::{class_name}: nothing to demote")
         return 0
     names = {n.name for n in chosen}
-    static_names = {n.name for n in chosen if n.decorator_list}
+    static_names = {n.name for n in chosen if n.decorator_list and n.decorator_list[0].id == "staticmethod"}
+    class_method_names = {n.name for n in chosen if n.decorator_list and n.decorator_list[0].id == "classmethod"}
 
     # call sites, edited from the end of the file backwards
     calls = [
         n for n in ast.walk(tree)
         if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr in names
-        and isinstance(n.func.value, ast.Name) and n.func.value.id in ("self", "cls")
+        and isinstance(n.func.value, ast.Name) and n.func.value.id in ("self", "cls", class_name)
     ]
     edits: list[tuple[int, int, int, int, str]] = []  # (line, col, end_line, end_col, text)
     for call in calls:
@@ -174,8 +189,15 @@ def demote(path: Path, class_name: str, pattern: str | None, dry_run: bool) -> i
             j += 1
         if func.attr in static_names:
             continue  # a static helper takes no receiver
+        if receiver == class_name and func.attr not in class_method_names:
+            continue  # `Class.m(x, ...)` already passes its first argument
+        # a class method gets a class: `Class` as written, `cls` as passed,
+        # and `type(self)` where an instance method called it through self
+        passed = receiver
+        if func.attr in class_method_names and receiver == "self":
+            passed = "type(self)"
         has_args = bool(call.args or call.keywords)
-        edits.append((paren_line, j + 1, paren_line, j + 1, f"{receiver}, " if has_args else receiver))
+        edits.append((paren_line, j + 1, paren_line, j + 1, f"{passed}, " if has_args else passed))
 
     def apply_point_edits(src_lines: list[str], point_edits):
         for line, col, end_line, end_col, new in sorted(point_edits, key=lambda e: (e[0], e[1]), reverse=True):
@@ -197,8 +219,8 @@ def demote(path: Path, class_name: str, pattern: str | None, dry_run: bool) -> i
             start -= 1
         end = node.end_lineno
         block = lines[start - 1:end]
-        if node.decorator_list:  # @staticmethod: a module function needs no marker
-            block = [row for row in block if row.strip() != "@staticmethod"]
+        if node.decorator_list:  # @staticmethod / @classmethod: a module function needs no marker
+            block = [row for row in block if row.strip() not in ("@staticmethod", "@classmethod")]
         indent = len(lines[node.lineno - 1]) - len(lines[node.lineno - 1].lstrip())
         dedented = [(row[indent:] if row[:indent].strip() == "" else row.lstrip()) if row.strip() else row for row in block]
         lifted.append("".join(dedented))
@@ -230,11 +252,12 @@ def main(argv: list[str]) -> int:
     parser.add_argument("specs", nargs="+", help="FILE::Class")
     parser.add_argument("--pattern", default=None)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--limit", type=int, default=None, help="demote at most this many, in class order")
     args = parser.parse_args(argv)
     total = 0
     for spec in args.specs:
         file_part, _, class_name = spec.partition("::")
-        total += demote(ROOT / file_part, class_name, args.pattern, args.dry_run)
+        total += demote(ROOT / file_part, class_name, args.pattern, args.dry_run, args.limit)
     return 0 if total else 1
 
 

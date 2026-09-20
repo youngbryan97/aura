@@ -1030,6 +1030,15 @@ class _RunsTheThinkingLoop:
             self.thoughts.append(thought)
             return thought
 
+        deferred = str(state.response_modifiers.get("background_suppression") or "")
+        if deferred:
+            # Held back for admission, not unresolved: no friction, no alarm.
+            logger.info(
+                "CognitiveEngine: background objective deferred for origin=%s (%s).",
+                origin,
+                deferred,
+            )
+            return self._empty_thought(mode, "background_deferred")
         self._run_thinking_loop_record_pressure_read(context, objective)
 
         # ── ACTION IMPERATIVE FALLBACK ──

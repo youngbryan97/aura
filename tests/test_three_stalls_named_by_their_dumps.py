@@ -277,11 +277,16 @@ def test_the_salvaged_module_list_matches_the_initialiser():
 
     from core.orchestrator.mixins.boot.boot_autonomy import BootAutonomyMixin
 
+    import inspect
+
     source = (ROOT / "core/orchestrator/mixins/boot/boot_autonomy.py").read_text(encoding="utf-8")
     start = source.index("    async def _init_salvaged_subsystems(self):")
     end = source.index("    async def _init_motivation_engine(self):", start)
     body = source[start:end]
     steps = re.findall(r"await self\.(_salvage_[a-z_]+)\(\)", body)
-    assert steps and all(f"    async def {step}(self)" in body for step in steps)
-    imported = set(re.findall(r"^\s*from (core\.[a-z_.]+) import", body, re.M))
+    # each step is a method the class inherits from its salvage mixin; the
+    # class reads it from wherever it is defined
+    salvaged = "".join(inspect.getsource(getattr(BootAutonomyMixin, step)) for step in steps)
+    assert steps and salvaged
+    imported = set(re.findall(r"^\s*from (core\.[a-z_.]+) import", salvaged, re.M))
     assert imported == set(BootAutonomyMixin._SALVAGED_SUBSYSTEM_MODULES)

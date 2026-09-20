@@ -680,6 +680,23 @@ def _child_cpu_seconds(pid: int) -> float | None:
         return None
 
 
+class WorkBoundExpired(subprocess.TimeoutExpired):
+    """A ``TimeoutExpired`` that says which bound was hit.
+
+    The base class prints "timed out after 10.0 seconds" whatever happened;
+    the log then read as a wall-clock timeout for a child that was killed
+    for making no CPU progress, or for exhausting its budget.
+    """
+
+    def __init__(self, cmd, timeout, output=None, stderr=None, *, reason: str = ""):
+        super().__init__(cmd, timeout, output=output, stderr=stderr)
+        self.reason = reason
+
+    def __str__(self) -> str:
+        base = super().__str__()
+        return f"{base} ({self.reason})" if self.reason else base
+
+
 def _run_bounded_by_its_work(
     command: list[str],
     *,
@@ -761,8 +778,8 @@ def _run_bounded_by_its_work(
             if stopped_for:
                 proc.kill()
                 out, err = proc.communicate()
-                raise subprocess.TimeoutExpired(
-                    command, budget, output=out, stderr=err
+                raise WorkBoundExpired(
+                    command, budget, output=out, stderr=err, reason=stopped_for
                 ) from None
     except BaseException:
         if proc.poll() is None:

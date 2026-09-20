@@ -58,6 +58,8 @@ logger = logging.getLogger("Aura.SourceBody")
 
 _SCHEMA = "aura.source_body.v1"
 _GIT_TIMEOUT_S = 10.0
+#: Probes lost in a row before the body sense is called degraded.
+_GIT_PROBE_FAILURES_BEFORE_DEGRADED = 3
 _MAX_DIRTY_FILES_RECORDED = 100
 _MAX_COMMITS_IN_DELTA = 40
 _MAX_ORGANS_IN_NARRATIVE = 6
@@ -529,15 +531,23 @@ class SourceBodyAwareness:
             self._git_available = False
             return 127, ""
         except (SubprocessError, OSError, RuntimeError, ValueError) as exc:
-            record_degradation(
-                "source_body",
-                exc,
-                severity="warning",
-                action="git probe failed; body sense degraded for this pulse",
-            )
+            # One probe lost to a loaded disk is backpressure; a run of them
+            # is a degradation. LIVE 2026-09-16 each lost probe was a warning
+            # the self-repair engine then went looking for a bug behind.
+            self._git_probe_failures = getattr(self, "_git_probe_failures", 0) + 1
+            if self._git_probe_failures >= _GIT_PROBE_FAILURES_BEFORE_DEGRADED:
+                record_degradation(
+                    "source_body",
+                    exc,
+                    severity="warning",
+                    action=f"git probe failed {self._git_probe_failures} pulses running; body sense degraded",
+                )
+            else:
+                logger.info("source_body git probe lost this pulse (%s); trying again next pulse", exc)
             return 1, ""
         if self._git_available is None:
             self._git_available = True
+        self._git_probe_failures = 0
         return proc.returncode, proc.stdout
 
     def _dirty_state(self) -> tuple[str, list[str]]:

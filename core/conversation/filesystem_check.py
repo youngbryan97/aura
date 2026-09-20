@@ -818,6 +818,56 @@ def files_already_read() -> tuple[str, ...]:
     return tuple(_READ_HISTORY.get())
 
 
+#: A bare name is looked up in her tree before it is called missing.
+#:
+#: LIVE 2026-09-16: "phi_core.py", named by its short name two turns after a
+#: directory count had listed it, resolved against neither root and was
+#: reported as "No file exists at phi_core.py" — to a person looking at it in
+#: core/consciousness. A name that occurs exactly once under her roots is that
+#: file; one that occurs several times is a question back, not an absence.
+_NAME_INDEX: dict[str, tuple[float, dict[str, tuple[str, ...]]]] = {}
+_NAME_INDEX_TTL_S = 120.0
+_NAME_INDEX_LIMIT = 250_000
+
+
+def _name_index(root: Path) -> dict[str, tuple[str, ...]]:
+    import time
+
+    from core.self.source_excerpt import _SKIP_DIRS
+
+    key = str(root)
+    cached = _NAME_INDEX.get(key)
+    now = time.monotonic()
+    if cached is not None and now - cached[0] < _NAME_INDEX_TTL_S:
+        return cached[1]
+    found: dict[str, list[str]] = {}
+    seen = 0
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames if d not in _SKIP_DIRS and not d.startswith("."))
+        for filename in filenames:
+            found.setdefault(filename, []).append(os.path.join(dirpath, filename))
+            seen += 1
+        if seen >= _NAME_INDEX_LIMIT:
+            break
+    index = {name: tuple(sorted(paths)) for name, paths in found.items()}
+    _NAME_INDEX[key] = (now, index)
+    return index
+
+
+def _found_by_name(candidate: str) -> tuple[str, ...]:
+    """Every file under her roots with this short name."""
+    name = str(candidate or "").strip().strip("'\"").lstrip("./")
+    if not name or "/" in name or "\\" in name:
+        return ()
+    hits: list[str] = []
+    for root in _allowed_roots():
+        try:
+            hits.extend(_name_index(root).get(name, ()))
+        except OSError:
+            continue
+    return tuple(dict.fromkeys(hits))
+
+
 def _remembered_match(candidate: str) -> str | None:
     """A previously read file this name refers to, or None."""
     name = str(candidate or "").strip().strip("'\"").lstrip("./")
@@ -939,6 +989,34 @@ def requested_file_read(user_message: Any) -> FileRead | None:
                 truncated=len(body) > READ_CHAR_BUDGET,
                 topic=topic,
                 topic_mentions=mentions,
+            )
+        # A short name that is somewhere in her tree, once: that file.
+        # Several times: say which, rather than "no file exists".
+        by_name = _found_by_name(candidate) if "/" not in candidate else ()
+        if len(by_name) == 1:
+            target = Path(by_name[0])
+            try:
+                body = target.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                body = ""
+            if body:
+                topic, mentions = _topic_coverage(body, text, filename=candidate)
+                remember_file_read(str(target))
+                return FileRead(
+                    path=str(target),
+                    text=_relevant_span(body, text, filename=candidate),
+                    exists=True,
+                    truncated=len(body) > READ_CHAR_BUDGET,
+                    topic=topic,
+                    topic_mentions=mentions,
+                )
+        elif len(by_name) > 1:
+            listed = ", ".join(by_name[:6]) + ("" if len(by_name) <= 6 else f", and {len(by_name) - 6} more")
+            return FileRead(
+                path=candidate,
+                text="",
+                exists=True,
+                refusal=f"that name matches {len(by_name)} files ({listed}); which one",
             )
         # Named something file-shaped that is not there. Remember the first
         # one so a missing file is REPORTED rather than silently ignored,

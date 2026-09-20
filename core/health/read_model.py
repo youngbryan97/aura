@@ -81,6 +81,11 @@ class HealthSnapshotReadModel:
         self._active_generation = 0
         self._active_started_at = 0.0
         self._active_thread: threading.Thread | None = None
+        # The refresh thread's CPU time when it last advanced, and when: a
+        # collection is stalled when its thread stops working, not when it
+        # has been working for longer than the budget.
+        self._active_cpu_seen: float | None = None
+        self._active_cpu_advanced_at = 0.0
         self._timed_out_generation = 0
         self._next_refresh_not_before = 0.0
 
@@ -288,13 +293,39 @@ class HealthSnapshotReadModel:
         self._active_generation = 0
         self._active_started_at = 0.0
         self._active_thread = None
+        self._active_cpu_seen = None
+        self._active_cpu_advanced_at = 0.0
         self._timed_out_generation = 0
+
+    def _refresh_stalled_for_locked(self, now: float) -> float:
+        """How long the running collection has gone without working.
+
+        The budget used to bound the collection's age. LIVE 2026-09-16, load
+        23 on 18 cores: twenty "refresh incidents" in forty minutes, each an
+        integrity audit that was still running its lines past 8s of wall.
+        The refresh thread's own CPU time is its progress; the budget bounds
+        how long that may stand still. A thread whose CPU cannot be read is
+        bounded by its age, as before.
+        """
+        age = max(0.0, now - self._active_started_at)
+        thread = self._active_thread
+        if thread is None or thread.ident is None:
+            return age
+        from core.runtime.thread_cpu import thread_cpu_seconds
+
+        cpu = thread_cpu_seconds(thread.ident)
+        if cpu is None:
+            return age
+        if self._active_cpu_seen is None or cpu > self._active_cpu_seen:
+            self._active_cpu_seen = cpu
+            self._active_cpu_advanced_at = now
+            return 0.0
+        return max(0.0, now - self._active_cpu_advanced_at)
 
     def _record_timeout_if_needed_locked(self, now: float) -> bool:
         if self._active_generation <= 0 or self._active_started_at <= 0.0:
             return False
-        age = max(0.0, now - self._active_started_at)
-        if age < self._config.collection_timeout_s:
+        if self._refresh_stalled_for_locked(now) < self._config.collection_timeout_s:
             return False
         if self._timed_out_generation == self._active_generation:
             return False

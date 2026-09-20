@@ -415,6 +415,49 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   wait budget" recurs.
 - [ ] R08 Resolve neural-feed warnings individually by cause; distinguish
   unrun evidence, missing telemetry, real failure, and historical observations.
+  UPDATE 2026-09-19. Seven taken by cause from the feed of 2026-09-16/17
+  (load 23-120 on 18 cores), each with the test that holds it:
+  - `objective repeatedly unresolved: You are writing Aura`, a degradation,
+    a fault, and `frustration=1.00 depletion=1.00` in the resilience engine
+    every five minutes, followed by `TaskEngine: Execution suppressed due to
+    depletion`. The journal's turn was held back for a foreground turn
+    (`foreground_generation_active`) and the thinking loop charged it with
+    friction as if it had run and failed. The response phase now marks the
+    state `background_suppression` and the loop returns `background_deferred`
+    without friction. tests/test_a_deferred_objective_is_not_a_failed_one.py.
+  - `EVENT LOOP STALL DETECTED (5.1s on 403% of a core: on-loop work)`: one
+    22s stall read 76%, 165%, 255% then 403% because the CPU since the
+    heartbeat was divided by the wall since the previous look. Each look now
+    measures its own interval. tests/test_a_starved_thread_is_not_a_stuck_one.py.
+  - `Fix generation or sandbox testing failed` x14 and `Failed to generate fix
+    proposal` x17 in an hour: every repair the runtime proposed died at its
+    own linter — `offline subprocess tooling bypass denied while live
+    governance is active: maintenance_tooling:diagnostic_hub`. Ruff and
+    pyright over one file are read-only probes and run on that lane now,
+    bounded by their work; the self-repair engine had been proposing a fix to
+    the gateway's own refusal. tests/test_the_diagnostic_hub_probes_read_only.py.
+  - `Health snapshot refresh incident ... exceeded 8s; serving
+    stale_while_revalidate` x20 in forty minutes: an integrity audit still
+    running its lines past 8s of wall. The budget bounds a stall in the
+    refresh thread's own CPU, and the audit's age only where that clock is
+    unreadable. tests/test_health_read_model.py.
+  - `[DEGRADATION] source_body: TimeoutExpired: git status` each pulse under
+    load, which the self-repair engine then chased as a bug. One lost probe
+    is backpressure at info; three running is the degradation. And the
+    gateway's `TimeoutExpired` now says which bound it hit (`WorkBoundExpired`:
+    "wedged: no CPU progress for 10.0s" rather than "timed out after 10.0
+    seconds"). tests/test_backpressure_in_the_repair_loop_is_not_a_failure.py.
+  - A repair turn (`origin=api_stabilizer`) read its observables off the
+    DRAFT it was repairing: a draft that named `phi_core.py` had the file
+    looked up by bare name, "No file exists at phi_core.py" went into the
+    turn, and the reply told the person the file was gone. The stabilizer
+    passes the person's question as `visible_user_message`; and a bare name
+    that occurs once under her roots is that file, several times is a
+    question back. tests/test_a_short_name_is_looked_up_before_it_is_called_missing.py.
+  - Fourteen source-reading tests red across four chunks after the size
+    gate's lifts: `source_contract.function_containing` follows a helper into
+    the sibling module it was lifted to (`<module>_<part>.py`) and
+    `function_with_its_helpers` into the mixin a class inherits it from.
   UPDATE 2026-09-18. Two more taken by cause from one evening's live feed,
   and both were the gate rather than the model.
   - `surface_controls_unavailable:steering_unavailable`, classified
@@ -1882,6 +1925,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   and the test read the queue's current occupants as permanent truths. Split,
   with a new assertion that survives the migration finishing: a disposition
   is never invented beside its authority. 7d4f5caca, 9c20b5e1b.
+  2026-09-19, later. Fourteen more red on main, all one shape one step
+  further on: the lifts of 543b2d210 and a37d08fcc moved the helpers the
+  readers had learned to follow into SIBLING MODULES, and both readers
+  stopped at the file. `function_with_its_helpers` follows a helper into
+  the mixin the class inherits it from (nine `test_mind_tick_runtime_contract`
+  tests: `_run_loop`'s steps in `_RunsTheTickLoopSteps`);
+  `function_containing` follows one into `<module>_<part>.py`
+  (`test_deep_lane_not_built_where_it_cannot_load` x2 into
+  `inference_gate_turn_setup`, `test_deliberate_cancel_is_not_endpoint_damage`
+  x2 into `mlx_client_waiting` and `llm_health_router_endpoint_call`); the
+  salvage-step test reads each step through the class
+  (`boot_autonomy_salvage`); and the cold-cortex branch is searched for in
+  the module and its lifted sibling. The reader is `module_family_sources`,
+  written once.
 - [ ] Q10 Run source-matched multi-hour soak only after short gates pass;
   inspect latency, growth, errors, capability retention, and recovery.
 - [ ] Q11 Validate installation/update/uninstall and ordinary desktop launch.

@@ -28,7 +28,14 @@ from __future__ import annotations
 import logging
 import re
 
-__all__ = ["DELIVERABLE_NOUNS", "asking_clauses", "asking_part", "asks_more_than_one_thing"]
+__all__ = [
+    "DELIVERABLE_NOUNS",
+    "asking_clauses",
+    "asking_part",
+    "asks_for_a_quantity",
+    "asks_more_than_one_thing",
+    "states_a_quantity",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -214,3 +221,43 @@ def asking_part(text: str) -> str:
 
 def asks_more_than_one_thing(text: str) -> bool:
     return len(asking_clauses(text)) > 1
+
+
+#: A clause whose answer is a measurement: the interrogatives of amount,
+#: length, distance, speed, age and time, and the nouns that name a quantity.
+_ASKS_A_QUANTITY = re.compile(
+    r"\bhow\s+(?:long|many|much|far|fast|often|old|big|tall|heavy|wide|deep|soon|late|high|large|small|quickly|slowly)\b"
+    r"|\bwhat\s+(?:time|percentage|percent|fraction|proportion|share|ratio|rate|speed|distance|"
+    r"temperature|cost|price|total|sum|difference|probability|odds|average|mean|median)\b"
+    r"|\b(?:at\s+what|in\s+what)\s+(?:rate|speed|time|year|month|hour)\b"
+    r"|\bwhen\s+(?:will|would|does|do|did|is|are|was|were|should)\b",
+    re.IGNORECASE,
+)
+
+#: A number as people write one, with or without a unit after it. "240
+#: minutes", "4 h", "3,600", "12.5%", "twice" is not one and "1st" is not.
+_STATES_A_QUANTITY = re.compile(
+    r"(?<![\w.])(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?!(?:st|nd|rd|th)\b)(?:\s*(?:%|°[CF]?|[A-Za-z]{1,12}\b))?"
+    r"|\b(?:zero|none|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
+    r"thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|"
+    r"fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|dozen|half|"
+    r"quarter|third|twice|once)\b",
+    re.IGNORECASE,
+)
+
+
+def asks_for_a_quantity(clause: str) -> bool:
+    """Whether this clause is answered by a number.
+
+    "How long until it is empty?" has no non-numeric right answer. A reply
+    that says "240 minutes" has engaged it whether or not it repeats "long",
+    "empty" or "full" — LIVE 2026-09-19, a correct four-word answer to a
+    word problem was rejected as an unanswered part and destroyed, because
+    coverage was measured as shared words.
+    """
+    return bool(_ASKS_A_QUANTITY.search(str(clause or "")))
+
+
+def states_a_quantity(text: str) -> bool:
+    """Whether the text carries a number, with or without its unit."""
+    return bool(_STATES_A_QUANTITY.search(str(text or "")))

@@ -1451,6 +1451,12 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                             origin,
                             reason,
                         )
+                        # Deferred, not failed: the loop reads this before it
+                        # charges the objective with friction. LIVE 2026-09-16:
+                        # the journal, held back every five minutes while chat
+                        # turns ran, was booked as "repeatedly unresolved" until
+                        # the resilience engine read depletion=1.00 off it.
+                        state.response_modifiers["background_suppression"] = str(reason)
                         return state
                 except (OSError, ConnectionError, TimeoutError) as exc:
                     _record_response_generation_degradation(

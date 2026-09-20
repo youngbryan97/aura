@@ -17,6 +17,7 @@ from core.conversation.requested_reply_shape import (
     without_reply_shape_prefix,
 )
 from core.language import relational_request
+from core.language.asking_clauses import asks_for_a_quantity, states_a_quantity
 from core.language.word_forms import matching_word_forms
 
 _COVERAGE_STOPWORDS = frozenset(
@@ -1108,6 +1109,12 @@ def unanswered_question_parts(body: Any, contract: object | None) -> list[str]:
             missed.append(str(segment))
             continue
         if relation_covered is True:
+            continue
+        # A question answered by a number is engaged by a number. "How long
+        # until it is empty?" shares no word with "240 minutes", and a
+        # correct answer to a word problem was rejected as an unanswered
+        # part for that (LIVE 2026-09-19).
+        if asks_for_a_quantity(segment) and states_a_quantity(local_body):
             continue
         # Measured on what was ASKED, not on how the answer was to be
         # presented. A segment that is a delivery instruction wearing a
