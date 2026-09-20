@@ -991,6 +991,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Expanded function-coordinate trial](evidence/G03_EXPANDED_FUNCTION_TRIAL_2026-09-19.md)
+  reaches 30/32 training programs from 28/32; validation stays 91/100 with zero
+  changed outcomes. All 10,124 fixed inequalities pass, but two autonomous
+  training decodes still fail. Iterative mining now preserves a separate broad
+  source-retention cohort; G03 is not closed.
   [Function-coordinate trials](evidence/G03_FUNCTION_COORDINATES_2026-09-19.md)
   retain two rejected attempts and the repaired active-set result: training
   13/16 to 16/16, validation 91/100 unchanged with no gains or regressions.

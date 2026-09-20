@@ -133,3 +133,21 @@ def test_unreplayed_selected_error_prevents_readiness(source, monkeypatch):
                                             steps=1, max_charts=1)
     assert "selected_decode_constraint_unavailable" in result["blockers"]
     assert not result["larger_development_run_ready"]
+
+
+@pytest.mark.parametrize("status", ["unknown", "unmeasured"])
+def test_unresolved_validation_semantics_remain_unmeasured(source, monkeypatch, status):
+    import core.learning.semantic_graph_trial as trial
+
+    def observe(model, item):
+        return {"source_text_sha256": item.ir.source_text_sha256, "split": item.split,
+                "accepted": True, "source_grounding_aligned": True,
+                "annotated_graph_feasible": True,
+                "semantic_status": status if item.split == "validation" else "equivalent"}
+
+    monkeypatch.setattr(trial, "_observe", observe)
+    result = trial.run_semantic_graph_trial(*source, training_count=1, validation_count=1,
+                                          steps=1, max_charts=1)
+    assert result["summaries"]["validation"]["unmeasured_after"] == 1
+    assert "semantic_verification_unmeasured" in result["blockers"]
+    assert not result["larger_development_run_ready"]

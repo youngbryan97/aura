@@ -307,7 +307,8 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
                                     checkpoint_dir=None, retention_operation_charts=32,
                                     learn_operation_pointer=False, update_rule="working_face",
                                     boundary_policy="supervised", learn_operations=True,
-                                    relation_metric="coefficient_euclidean"):
+                                    relation_metric="coefficient_euclidean",
+                                    source_retention_examples=None):
     """Remine source-training predictions after each joint operation/relation update."""
     from core.learning.semantic_graph_margin import graph_refit_source_splits
     from core.learning.semantic_program_campaign import _sha
@@ -335,6 +336,23 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
     if type(retention_operation_charts) is not int or retention_operation_charts < 1:
         raise ValueError("runtime retention chart allowance must be positive")
     training, validation = graph_refit_source_splits(model, examples)
+    retention = training
+    if source_retention_examples is not None:
+        from core.learning.semantic_validation_checkpoint import validation_identity
+
+        retention = tuple(source_retention_examples)
+        if not retention or any(item.split != "train" for item in retention):
+            raise ValueError("source retention requires training examples only")
+        retention, _ = graph_refit_source_splits(model, (*retention, *validation))
+        by_source = {item.ir.source_text_sha256: item for item in retention}
+        if not all(item.ir.source_text_sha256 in by_source for item in training):
+            raise ValueError("source retention must include the mining cohort")
+        bound = tuple(by_source[item.ir.source_text_sha256] for item in training)
+        def identity(rows):
+            return validation_identity({"parent": model}, rows,
+                scoring="source_anchors_v2", implementation="source-retention-input-v1")
+        if identity(training) != identity(bound):
+            raise ValueError("source retention changed a mining observation")
     if not np.isfinite(source_weight) or source_weight < 0:
         raise ValueError('invalid source operation retention weight')
     if (model.training_receipt.get("definition_selection_policy") != "joint_graph_v1"
@@ -342,13 +360,13 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
             or model.training_receipt.get("operation_assignment_policy") != "joint_factor_score_v2"):
         raise ValueError("joint training requires the joint categorical runtime decoder")
     weights = Counter(_geometry(item) for item in training)
-    supervision = source_operation_supervision(model, training) if source_weight else None
+    supervision = source_operation_supervision(model, retention) if source_weight else None
     candidate, retained, history = model, [], []
     if constraint_learning and supervision is not None:
         retained.extend(source_operation_constraints(model, supervision, weight=source_weight))
         if learn_operation_pointer:
             retained.extend(source_operation_pointer_constraints(
-                model, training, weight=source_weight, policy=boundary_policy,
+                model, retention, weight=source_weight, policy=boundary_policy,
             ))
     stop_reason = "round_budget_exhausted"
     for round_index in range(rounds):
@@ -431,6 +449,8 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
     body["joint_graph_refit"] = {
         "schema": "aura.semantic_joint_graph_refit.v1", "parent_transducer_receipt_sha256": model.receipt_sha256,
         "training_examples": len(training), "validation_examples": len(validation),
+        "source_retention_examples": len(retention),
+        "source_retention_ids_sha256": _sha(sorted(item.ir.source_text_sha256 for item in retention)),
         "training_example_ids_sha256": _sha(sorted(item.ir.source_text_sha256 for item in training)),
         "validation_example_ids_sha256": _sha(sorted(item.ir.source_text_sha256 for item in validation)),
         "rounds": history, "requested_rounds": rounds, "completed_rounds": len(history),

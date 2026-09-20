@@ -186,7 +186,7 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
             "after_equivalent": sum(b["semantic_status"] == "equivalent" for _, b in pairs),
             "gains": sum(a["semantic_status"] != "equivalent" and b["semantic_status"] == "equivalent" for a, b in pairs),
             "regressions": sum(a["semantic_status"] == "equivalent" and b["semantic_status"] != "equivalent" for a, b in pairs),
-            "unmeasured_after": sum(b["semantic_status"] == "unmeasured" for _, b in pairs),
+            "unmeasured_after": sum(b["semantic_status"] in {"unmeasured", "unknown"} for _, b in pairs),
             "decode_refusals_before": sum(a["semantic_status"] == "decode_refused" for a, _ in pairs),
             "decode_refusals_after": sum(b["semantic_status"] == "decode_refused" for _, b in pairs)}
     blockers = []
@@ -195,7 +195,7 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
     if any(row["accepted"] and (not row["source_grounding_aligned"] or
                                not row["annotated_graph_feasible"]) for row in (*before, *after)):
         blockers.append("grounding_or_annotated_graph_feasibility")
-    if any(row["semantic_status"] == "unmeasured" for row in (*before, *after)):
+    if any(row["semantic_status"] in {"unmeasured", "unknown"} for row in (*before, *after)):
         blockers.append("semantic_verification_unmeasured")
     if any(row.get("status") not in {"counterexamples", "no_witnessed_competitor"} for row in records):
         blockers.append("runtime_constraint_mining_unavailable")
