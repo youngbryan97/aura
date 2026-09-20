@@ -18,6 +18,8 @@ from pathlib import Path
 
 import pytest
 
+from core.runtime.sqlite_support import connecting
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "tools") not in sys.path:
     sys.path.insert(0, str(ROOT / "tools"))
@@ -27,7 +29,7 @@ import state_backup  # noqa: E402
 
 def _store(path: Path, rows: int = 200) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(path) as conn:
+    with connecting(sqlite3.connect(path)) as conn:
         conn.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, body TEXT)")
         conn.execute("CREATE INDEX idx_body ON t(body)")
         conn.executemany("INSERT INTO t (body) VALUES (?)", [(f"row {i} " * 40,) for i in range(rows)])
@@ -43,8 +45,6 @@ def a_small_world(tmp_path, monkeypatch):
     _store(live / "conversations.db")
     (live / ".continuity_hmac.key").write_bytes(b"k" * 64)
     _store(live / "memory" / "quarantine" / "ledger.db.corrupt.1", rows=10)
-    with sqlite3.connect(live / "memory" / "quarantine" / "ledger.db.corrupt.1") as conn:
-        pass
     # Damage the quarantined one for real, the way the runtime found it.
     q = live / "memory" / "quarantine" / "ledger.db.corrupt.1"
     with q.open("r+b") as fh:

@@ -31,6 +31,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from core.runtime.sqlite_support import connecting
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -97,7 +99,9 @@ def state_stores() -> list[dict[str, Any]]:
         size = candidate.stat().st_size
         row: dict[str, Any] = {"class": "state_store", "path": str(candidate), "gb": _gb(size)}
         try:
-            with sqlite3.connect(f"file:{candidate}?mode=ro", uri=True, timeout=2.0) as conn:
+            with connecting(
+                sqlite3.connect(f"file:{candidate}?mode=ro", uri=True, timeout=2.0)
+            ) as conn:
                 count, newest = conn.execute(
                     "SELECT COUNT(*), MAX(timestamp) FROM state_log"
                 ).fetchone()
