@@ -1864,7 +1864,7 @@ _FABRICATED_SUBSTRATE_RE = re.compile(
 # something before them. A bare pronoun decided this fourteen times
 # (formed constraint: a token is not a decision).
 _SUBSTRATE_SELF_CLAIM_RE = re.compile(
-    r"\b(?:i(?=\s+\w)|(?<=\w\s)(?:my|me|mine)|aura(?:'s)?)\b",
+    r"\b(?:i(?=\s+\w)|my(?=\s+\w)|mine|(?<=\w\s)me|aura(?:'s)?)\b",
     re.IGNORECASE,
 )
 

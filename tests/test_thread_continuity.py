@@ -244,3 +244,20 @@ def test_the_gate_uses_the_wider_thread_not_just_the_last_line():
         recent_user_messages=["you felt that because you were emergent you didnt have autonomy"],
     )
     assert "reply_abandons_thread" not in (assessment.reasons or ())
+
+
+def test_an_inflection_is_shared_and_a_derivation_is_not():
+    """"drains"/"drain" is one word; "partly"/"part" is two.
+
+    LIVE 2026-09-20: a stemmer folded "partly managed by their skin" onto
+    "the amazing part", and "that's" in both passages counted as a topic, so
+    the octopus reply read as staying with the thread.
+    """
+    from core.conversation.thread_continuity import content_terms
+    from core.language.word_forms import matching_inflections
+
+    assert matching_inflections({"drain", "minute"}, {"drains", "minutes"}) == {"drain", "minute"}
+    assert matching_inflections({"part", "amaze"}, {"partly", "amazing"}) == {"amaze"}
+    assert "that" not in content_terms("that's the amazing part") and "that's" not in content_terms(
+        "that's the amazing part"
+    )

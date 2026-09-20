@@ -3,8 +3,8 @@
   "signature": "decided from one token, more than once",
   "formed_from_failures": 113,
   "patterns_covered": 121,
-  "patterns_not_honouring": 14,
+  "patterns_not_honouring": 0,
   "measured_at": "the decision, by asking the pattern whether it fires on the token alone",
-  "recorded": "2026-08-28",
-  "note": "Only shrinks. A decision taken from one of these tokens alone asks for the role instead."
+  "recorded": "2026-09-20",
+  "note": "Only shrinks. A decision taken from one of these tokens alone asks for the role instead. Reached 0 on 2026-09-20: the ten patterns that decided from a cluster token ask for it in a role."
 }

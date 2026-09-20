@@ -165,7 +165,8 @@ def test_the_violations_only_go_down(formed) -> None:
 
     concept = formed[0]
     found = len(concept.violations())
-    assert found > 0, "a constraint nothing violates is not being enforced"
+    # A count of zero is the goal, not a broken detector: the detector is
+    # exercised on a synthetic pattern in the test above this one.
     try:
         recorded = int(json.loads(_BASELINE.read_text())["patterns_not_honouring"])
     except (OSError, KeyError, TypeError, ValueError):
@@ -214,4 +215,13 @@ def test_a_decision_with_nothing_beside_it_is_what_counts(formed) -> None:
 
     alone = _consulted_alone(Path("core/conversation/asks_about_the_world.py"))
     assert alone, "a module that tests patterns alone must report them"
-    assert any("decides from" in line for line in formed[0].violations())
+    # The detector still fires: a pattern that names a cluster token in a
+    # bare alternation, consulted alone, is a violation. Checked on a
+    # synthetic pattern now that the tree's own count is zero (2026-09-20).
+    import re
+
+    from core.language.formed_constraints import asks_for_a_role
+
+    bare = re.compile(r"\b(?:that|your)\b", re.IGNORECASE)
+    assert not asks_for_a_role(bare, "that")
+    assert asks_for_a_role(re.compile(r"\bthat\b(?=\s+\w)"), "that")

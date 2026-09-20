@@ -53,7 +53,9 @@ def test_the_first_turn_of_a_session_counts_as_presence():
 
 
 def test_presence_is_not_a_literal_in_the_prompt_path():
-    source = (ROOT / "core" / "brain" / "llm" / "context_assembler.py").read_text("utf-8")
+    from tests.source_contract import family_text_at
+
+    source = family_text_at(ROOT / "core" / "brain" / "llm" / "context_assembler.py")
 
     assert "user_present=True" not in source
     assert "user_present=ContextAssembler._user_is_present(state)" in source

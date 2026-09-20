@@ -75,7 +75,12 @@ def module_family_sources(module: ModuleType) -> list[tuple[str, str]]:
             family.append((f"{module.__name__}:{sibling.stem}", sibling.read_text(encoding="utf-8")))
         except OSError:  # pragma: no cover - a file that vanished mid-read
             continue
-    seen = {name for name, _text in family}
+    # A sibling read from disk and the same module reached through a mixin
+    # base are one text; naming both put every call site in it twice.
+    package = module.__name__.rsplit(".", 1)[0]
+    seen = {module.__name__} | {
+        f"{package}.{sibling.stem}" for sibling in own.parent.glob(f"{own.stem}_*.py")
+    }
     for base_home in _mixin_homes(module):
         if base_home.__name__ in seen:
             continue

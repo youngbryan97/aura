@@ -142,8 +142,10 @@ def test_the_assembler_no_longer_multiplies_by_four():
     only one of them can invent a chars-per-token constant.
     """
 
-    source = (ROOT / "core" / "brain" / "llm" / "context_assembler.py").read_text("utf-8")
-    tree = ast.parse(source)
+    from tests.source_contract import family_tree
+
+    # the block that sizes each section was lifted into `context_assembler_blocks`
+    tree = family_tree(ROOT / "core" / "brain" / "llm" / "context_assembler.py")
     converted = 0
 
     for node in ast.walk(tree):

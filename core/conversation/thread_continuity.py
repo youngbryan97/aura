@@ -29,7 +29,7 @@ import re
 from dataclasses import dataclass
 from typing import Iterable, Sequence
 
-from core.language.word_forms import matching_word_forms
+from core.language.word_forms import matching_inflections
 
 _WORD = re.compile(r"[a-z0-9][a-z0-9'’-]*", re.IGNORECASE)
 
@@ -71,11 +71,18 @@ _REFUSAL = re.compile(
 )
 
 
+_CONTRACTION = re.compile(r"(?:'s|'ll|'re|'ve|'d|'m|n't|’s|’ll|’re|’ve|’d|’m|n’t)$")
+
+
 def content_terms(text: str) -> set[str]:
     """Topical vocabulary of a passage — the part that can be *about* something."""
+    # A contraction is its head word: "that's" is "that", a stopword, and
+    # was counted as a shared topic between any two passages that used it.
     return {
         token
-        for token in (m.group(0).lower() for m in _WORD.finditer(str(text or "")))
+        for token in (
+            _CONTRACTION.sub("", m.group(0).lower()) for m in _WORD.finditer(str(text or ""))
+        )
         if len(token) >= 3 and token not in _STOPWORDS
     }
 
@@ -106,7 +113,9 @@ def _overlap(reply_terms: set[str], other: set[str]) -> tuple[float, set[str]]:
     # "drains" and "drain", "minute" and "minutes" are one word: a reply that
     # answers a word problem in the singular shares its subject with a
     # question put in the plural (LIVE 2026-09-19, read as abandoning it).
-    shared = (reply_terms & other) | matching_word_forms(other, reply_terms)
+    # Inflections only: "partly" is not "part" (LIVE 2026-09-20, an octopus
+    # reply read as staying with a thread about people being amazed).
+    shared = (reply_terms & other) | matching_inflections(other, reply_terms)
     return len(shared) / float(len(other)), shared
 
 

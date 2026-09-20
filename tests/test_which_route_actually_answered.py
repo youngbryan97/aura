@@ -146,7 +146,10 @@ def test_a_route_nobody_offered_has_no_record():
 
 def test_every_chat_answer_route_goes_through_the_ledger():
     """The finding: fourteen routes, none of them counted."""
-    source = (ROOT / "interface" / "routes" / "chat.py").read_text("utf-8")
+    from tests.source_contract import family_text_at
+
+    # the recorded-answer routes were lifted into `chat_recorded_answers`
+    source = family_text_at(ROOT / "interface" / "routes" / "chat.py")
     for name in (
         "measured_filesystem_count",
         "measured_belief_history",
