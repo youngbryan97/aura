@@ -2011,6 +2011,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   and four argv comparisons the sweep itself broke by inserting the flag into
   a pinned slice now match on the subcommand instead.
 
+  2026-09-20, the method-size ratchet: seventeen refusals to twelve, every
+  one of them a real cut rather than a refresh. `tools/extract_seam.py`
+  already existed and proves the moved block is the original token for
+  token, so the work was choosing seams and taking them —
+  `_execute_new_state_new_state`, `IntelligentLLMRouter._think_routed`,
+  `init_cognitive_sensory_layer`, `_build_live_turn_contract_payload` and
+  `CapabilityEngine.execute` are back inside their baselines. The tool
+  refused three more cuts on its own terms, each for a name that escapes a
+  block without being bound on every path, which is the refusal working.
+  Found while using it: the seam tools matched `Class.method` on `method`
+  alone, so in a file holding `Sandbox2.execute` above
+  `CapabilityEngine.execute` every seam reported for the second was measured
+  inside the first. I cut one there before noticing. Both honour the class
+  now, with a test that fails when the qualifier is ignored.
+
   Ratchets tightened rather than refreshed while the register was worked:
   raw AURA_* env reads 578 to 571 (EventLoopMonitor's seven knobs declared),
   raw `ServiceContainer.get` 1760 to 1639 (the two most-resolved services
