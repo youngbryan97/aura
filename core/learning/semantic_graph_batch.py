@@ -1,7 +1,11 @@
 """Evaluate shared graph evidence without one dense gradient per witness."""
 
+from math import fsum
+
 import numpy as np
 from scipy.special import softmax
+
+from core.verify.invariants import invariant
 
 
 class GraphConstraintBatch:
@@ -65,20 +69,22 @@ class GraphConstraintBatch:
             yield terms, features, distributions, mass, mass / len(distributions)
 
     def margins(self, parameters):
-        values = np.array([row.fixed_margin for row in self.rows], dtype=np.float64)
+        # Sum each complete contrast once. Adding a small retained floor before
+        # cancelling large shared scores can manufacture a margin violation.
+        values = [[row.fixed_margin] for row in self.rows]
         for bank, label, terms in self.relations.values():
             score = self.scale * bank.score(label, *parameters[:2])
             for row, sign in terms:
-                values[row] += sign * score
+                values[row].append(sign * score)
         for term, occurrences in self.arguments.values():
             score = term.score(parameters)
             for row, sign in occurrences:
-                values[row] += sign * score
+                values[row].append(sign * score)
         for terms, _, _, _, probability in self._operations(parameters):
             scores = np.log(np.maximum(probability, 1e-12))
             for row, bank, label, sign in terms:
-                values[row] += sign * scores[bank, label]
-        return values
+                values[row].append(sign * scores[bank, label])
+        return np.fromiter((fsum(row) for row in values), dtype=np.float64, count=len(values))
 
     def weighted_gradient(self, parameters, coefficients):
         coefficients = np.asarray(coefficients, dtype=np.float64)
@@ -132,3 +138,17 @@ class GraphConstraintBatch:
             for row, bank, label, sign in terms:
                 values[row] += sign * slopes[bank, label]
         return values
+
+
+@invariant("learning.shared_graph_scores_preserve_retained_margin", scope="learning",
+           owner="core/learning/semantic_graph_batch.py", observational=False)
+def _shared_score_cancellation() -> tuple:
+    from core.learning.semantic_argument_graph_learning import ArgumentScoreTerm
+    from core.learning.semantic_relation_graph_learning import RelationGraphContrast, graph_margin_gradient
+
+    parameters = (np.zeros((1, 1)), np.zeros((1, 1)), np.array([100.]), np.array(0.))
+    term = ArgumentScoreTerm(2, np.ones(1), 1., "conditional_log_odds_v1")
+    row = RelationGraphContrast((), (), .1, argument_terms=((1., term), (-1., term)))
+    assert graph_margin_gradient(parameters, row)[0] == .1
+    assert GraphConstraintBatch((row,)).margins(parameters)[0] == .1
+    return ()

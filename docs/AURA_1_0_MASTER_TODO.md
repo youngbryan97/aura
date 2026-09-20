@@ -1006,10 +1006,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Margin accumulation](evidence/G03_MARGIN_ACCUMULATION_2026-09-20.md)
+  fixes disagreement between scalar, gradient and batched retained margins
+  when shared scores cancel. Seventy-five focused tests pass; acceptance
+  thresholds are unchanged. This is not a full-source or transfer result.
   [Source-wide error acquisition](evidence/G03_SOURCE_ERROR_ACQUISITION_2026-09-20.md)
   reaches the existing refit tool. The frozen full training scan is 755/764;
   all nine failures enter refitting with full source retention. Candidate and
-  paired validation evaluation remain in progress, not passing evidence.
+  paired validation evaluation were not reached: the first update was stopped
+  after repeated retention rejection. The scan is retained; optimizer repair
+  and a new paired evaluation remain required.
   [Iterative policy result](evidence/G03_ITERATIVE_POLICY_RESULT_2026-09-20.md)
   re-mines the actual decoder after fitting: selected training improves 7/8
   to 8/8; exposed validation stays 99/100 without regression. The single-fit

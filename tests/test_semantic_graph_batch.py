@@ -69,6 +69,38 @@ def test_empty_operations_and_zero_coefficients():
     assert all(np.count_nonzero(value) == 0 for value in batch.weighted_gradient(parameters, np.zeros(len(rows))))
 
 
+@pytest.mark.parametrize("score", [100., -100., 1e16, -1e16])
+@pytest.mark.parametrize("reverse", [False, True])
+def test_shared_scores_cancel_without_erasing_the_retained_margin(score, reverse):
+    parameters = (np.zeros((1, 1)), np.zeros((1, 1)), np.array([score]), np.array(0.))
+    term = ArgumentScoreTerm(2, np.ones(1), 1., "conditional_log_odds_v1")
+    terms = ((1., term), (-1., term))
+    row = RelationGraphContrast((), (), .1, argument_terms=terms[::-1] if reverse else terms)
+    assert graph_margin(parameters, row) == .1
+    margin, gradient = graph_margin_gradient(parameters, row)
+    assert margin == .1
+    assert all(np.count_nonzero(part) == 0 for part in gradient)
+    assert GraphConstraintBatch((row,)).margins(parameters)[0] == .1
+
+
+@pytest.mark.parametrize("batched", [False, True])
+def test_constant_cancelling_witness_does_not_block_an_independent_repair(batched):
+    from core.learning.semantic_graph_constraints import _fit_graph_parameters
+
+    parameters = (np.zeros((1, 1)), np.zeros((1, 1)), np.array([100., 0.]), np.array(0.))
+    constant = ArgumentScoreTerm(2, np.array([1., 0.]), 1., "conditional_log_odds_v1")
+    learned = ArgumentScoreTerm(2, np.array([0., 1.]), 1., "conditional_log_odds_v1")
+    zero = ArgumentScoreTerm(2, np.zeros(2), 1., "conditional_log_odds_v1")
+    rows = (RelationGraphContrast((), (), .1, argument_terms=((1., constant), (-1., constant))),
+            RelationGraphContrast((), (), -.5, argument_terms=((1., learned), (-1., zero))))
+    _, receipt = _fit_graph_parameters(parameters, rows, batched=batched,
+        steps=2, update_rule="minimum_change")
+    assert receipt["status"] == "retained_constraints_satisfied"
+    assert receipt["initial_margins"][0] == receipt["stored_margins"][0] == .1
+    assert receipt["stored_margins"][1] >= .1
+    assert receipt["retained_positive_regressions"] == 0
+
+
 def test_shared_bank_is_retained_once_and_invalid_configuration_rejected():
     parameters, rows = problem()
     batch = GraphConstraintBatch(rows, max_feature_bytes=1)
