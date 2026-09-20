@@ -115,6 +115,32 @@ def test_many_independent_curved_faces_are_restored_in_one_joint_correction(batc
     assert any(row["restoration_steps"] for row in receipt["accepted_steps"])
 
 
+def test_joint_restoration_does_not_wait_for_all_faces_to_enter_working_set():
+    from core.learning.semantic_graph_constraints import _fit_graph_parameters
+    from core.learning.semantic_relation_graph_learning import RelationEvidenceBank
+
+    count = 12
+    axes = np.eye(2 * count)
+    retained, positive, negative = [], [], []
+    for pair in range(count):
+        i, j = 2 * pair, 2 * pair + 1
+        banks = {(a, b): RelationEvidenceBank(axes[a], np.array([axes[b], np.zeros(2 * count)]),
+                                            np.zeros(2))
+                 for a in (i, j) for b in (i, j)}
+        retained.append(RelationGraphContrast(((banks[i, i], 0), (banks[j, j], 0)),
+            ((banks[i, i], 1), (banks[j, j], 1)), -.9))
+        positive.extend(((banks[i, j], 0), (banks[j, i], 1)))
+        negative.extend(((banks[i, j], 1), (banks[j, i], 0)))
+    wrong = RelationGraphContrast(tuple(positive), tuple(negative), -6.)
+    initial = np.tile([1., 0.], count)[:, None]
+    _, receipt = _fit_graph_parameters((initial, initial), (*retained, wrong),
+        steps=1, update_rule="minimum_change", max_active=1)
+    assert receipt["stored_wrong_or_tied"] == 0
+    assert receipt["retained_positive_regressions"] == 0
+    assert receipt["accepted_constraint_cut_rounds"] == 0
+    assert min(receipt["stored_margins"][:count]) >= .1
+
+
 @pytest.mark.parametrize("magnitude", [1e-12, 1e-6, 1., 1e6])
 def test_projection_is_homogeneous_even_for_small_training_gradients(magnitude):
     result = _project_direction(magnitude * np.array([-2., -3., 5.]),

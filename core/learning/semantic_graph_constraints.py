@@ -308,16 +308,16 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                 trial_margins = evaluate(trial)
                 trial_loss = loss_at(trial_margins)
                 violated = np.flatnonzero(trial_margins < floors)
+                restoration_steps = 0
+                if len(violated) and ((update_rule == "minimum_change" and backtrack == 0)
+                                     or all(index in normals for index in violated)):
+                    trial, trial_margins, restoration_steps = restore_trial(trial, trial_margins)
+                    trial_loss = loss_at(trial_margins)
+                    violated = np.flatnonzero(trial_margins < floors)
                 blockers.update(int(index) for index in violated if index not in normals)
                 if update_rule == "minimum_change":
                     worsening = np.flatnonzero((trial_margins < required_margin) & (trial_margins < margins))
                     blockers.update(int(index) for index in worsening if index not in normals)
-                restoration_steps = 0
-                if len(violated) and all(index in normals for index in violated):
-                    trial, trial_margins, restoration_steps = restore_trial(trial, trial_margins)
-                    trial_loss = loss_at(trial_margins)
-                    violated = np.flatnonzero(trial_margins < floors)
-                    blockers.update(int(index) for index in violated if index not in normals)
                 if not len(violated) and trial_loss < loss:
                     accepted = True
                     entry = {"step": step + 1, "loss": trial_loss,
