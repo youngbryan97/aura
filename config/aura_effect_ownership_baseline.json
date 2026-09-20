@@ -15433,7 +15433,7 @@
       "scope": "<module>.VoiceProvider.speak"
     },
     {
-      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run_until_its_work_is_done",
       "canonical_owner": false,
       "category": "subprocess_gateway",
       "count": 1,
@@ -15441,7 +15441,7 @@
       "scope": "<module>.DiagnosticHub._run_pyright"
     },
     {
-      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run_until_its_work_is_done",
       "canonical_owner": false,
       "category": "subprocess_gateway",
       "count": 1,
@@ -16578,6 +16578,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "376addb447b38c6b66829f4f38c46980d7f06cae91ed827bd74209bb7735dfdc",
+  "inventory_sha256": "40c9e7cdfa11b8eb64bc9c96e1208abc5b34a9ef396f7c1613c218a4cb6fffe5",
   "schema_version": 1
 }

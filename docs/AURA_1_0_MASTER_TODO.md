@@ -1222,6 +1222,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   turn exposed development cases into fresh or powered replication.
 - [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
+  [Validation source identity](evidence/G08_VALIDATION_SOURCE_IDENTITY_2026-09-19.md)
+  prevents decoder/scorer changes from reusing stale cached scores and rejects
+  source drift during selection. Twenty-five focused tests pass; independent
+  campaign verification remains open.
   [Paired public measurement](evidence/G08_PAIRED_PUBLIC_MEASUREMENT_2026-09-18.md)
   repairs containment false positives, disjoint-task causal attribution, and
   baseline-dependent task filtering in the retrieval/depth diagnostic. The

@@ -58,7 +58,9 @@ def select_compositional_program_candidate(
     scoring="register_indices_v1",
 ) -> dict[str, Any]:
     """Select on autonomous validation programs, never gold answers or test tasks."""
-    from core.learning.semantic_validation_checkpoint import VALIDATION_SCORING
+    from core.learning.semantic_validation_checkpoint import (
+        VALIDATION_SCORING, validation_implementation_identity,
+    )
     if scoring not in VALIDATION_SCORING:
         raise ValueError("unknown semantic validation scoring")
     if incumbent not in candidates:
@@ -74,13 +76,15 @@ def select_compositional_program_candidate(
     ):
         raise ValueError("program selection validation overlaps another split")
     checkpoint = None
+    implementation = validation_implementation_identity()
     if checkpoint_path is not None:
         from core.learning.semantic_validation_checkpoint import (
             SemanticValidationCheckpoint, validation_identity,
         )
 
         checkpoint = SemanticValidationCheckpoint(
-            checkpoint_path, validation_identity(candidates, selected, scoring=scoring), candidates, ids,
+            checkpoint_path, validation_identity(candidates, selected, scoring=scoring,
+                implementation=implementation), candidates, ids,
         )
     outcomes = {}
     equivalents = {}
@@ -156,6 +160,8 @@ def select_compositional_program_candidate(
     winner = min(
         improving, key=lambda name: (-summaries[name]["program_exact"], name)
     ) if improving else incumbent
+    if validation_implementation_identity() != implementation:
+        raise ValueError("semantic validation implementation changed during evaluation")
     body = {
         "schema": "aura.semantic_program_validation_selection.v1",
         "objective": "exact_program_gain_without_validation_regression",
@@ -170,6 +176,7 @@ def select_compositional_program_candidate(
         "equivalence_rule": "connected_graph_schedule_and_integer_add_mul_exchange_v1",
         "equivalence_used_for_selection": False,
         "serving_authority": False,
+        "implementation_source_sha256": implementation,
     }
     if scoring == "source_anchors_v2":
         body.update(schema="aura.semantic_program_validation_selection.v2",

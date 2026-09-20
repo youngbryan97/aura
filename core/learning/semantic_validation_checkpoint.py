@@ -3,6 +3,7 @@
 import hashlib
 import json
 from pathlib import Path
+import sys
 
 import numpy as np
 
@@ -15,9 +16,24 @@ def _digest(value):
 
 
 VALIDATION_SCORING = ("register_indices_v1", "source_anchors_v2")
+_CORE_ROOT = Path(__file__).resolve().parents[1]
 
 
-def validation_identity(candidates, examples, *, scoring="register_indices_v1"):
+def validation_implementation_identity():
+    """Conservative source snapshot for cached measurements, not serving gates.
+
+    Include the core tree because decoder imports and floor operators span
+    modules and can change independently of the model's coefficient receipt.
+    This binds disk source; it is not attestation of the loaded interpreter.
+    """
+    sources = {path.relative_to(_CORE_ROOT).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+               for path in sorted(_CORE_ROOT.rglob("*.py")) if path.is_file()}
+    if not sources:
+        raise ValueError("semantic validation implementation source is unavailable")
+    return _digest({"sources": sources, "python": sys.version, "numpy": np.__version__})
+
+
+def validation_identity(candidates, examples, *, scoring="register_indices_v1", implementation=None):
     if scoring not in VALIDATION_SCORING:
         raise ValueError("unknown semantic validation scoring")
     observations = []
@@ -39,7 +55,8 @@ def validation_identity(candidates, examples, *, scoring="register_indices_v1"):
         })
         if scoring == "source_anchors_v2":
             observations[-1]["input_anchors"] = [(span.start, span.end) for span in item.ir.input_spans]
-    return _digest({"models": {name: model.receipt_sha256 for name, model in candidates.items()},
+    return _digest({"implementation": implementation or validation_implementation_identity(),
+                    "models": {name: model.receipt_sha256 for name, model in candidates.items()},
                     "observations": observations, "scoring": "exact_and_equivalent_program_v1"
                     if scoring == "register_indices_v1" else "source_anchored_exact_and_equivalent_program_v2"})
 
