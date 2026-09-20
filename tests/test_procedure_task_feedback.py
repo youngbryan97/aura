@@ -19,6 +19,7 @@ from core.cognition.procedure_execution import BackendResult
 from core.cognition.procedure_planning import ProcedurePlan
 from core.reasoning.action_value import ActionValueModel
 from core.reasoning.procedure_value import (
+    ProcedureOutcomeExecutionError,
     execute_valued_procedure_plan,
     observe_procedure_outcome,
     plan_action_key,
@@ -151,3 +152,53 @@ def test_bad_assessment_preserves_pending_task(tmp_path, observed):
     with pytest.raises(ValueError, match="finite measured"):
         observe_procedure_outcome(ledger, pending, observed=observed, evaluator="fixture", evidence_sha256="e" * 64)
     assert len(ledger.pending()) == 1
+
+
+def test_feedback_execution_preserves_closed_type_checks(tmp_path):
+    registry = ProcedureRegistry()
+    procedure = registry.intern(
+        "opaque fixture", "f" * 64, "opaque fixture", Backend.TOOL,
+        Signature(effects=(Effect("result", "unregistered_result_kind"),)),
+        origin=Origin(learner="test_fixture"),
+    )
+    plan = ProcedurePlan((Precondition("result", "unregistered_result_kind"),),
+                         (procedure.procedure_id,), True, 1, "dependencies_satisfied")
+    selected = rank_procedure_plans(registry, [plan], ActionValueModel(stats={}))[0]
+    ledger = OutcomeLedger(db_path=str(tmp_path / "outcomes.db"))
+    calls = []
+
+    def backend(*args):
+        calls.append(args)
+        return BackendResult({"result": object()})
+
+    with pytest.raises(ProcedureOutcomeExecutionError) as failure:
+        execute_valued_procedure_plan(registry, selected, {},
+            backends={Backend.TOOL: backend}, ledger=ledger, closed_types=True)
+    assert isinstance(failure.value.__cause__, ValueError)
+    assert not calls
+    assert len(ledger.pending()) == 1
+    assert ledger.measured_action_stats() == {}
+
+
+def test_closed_feedback_execution_leaves_correctness_to_external_assessment(tmp_path):
+    registry, _, plans = _registry()
+    selected = rank_procedure_plans(registry, plans, ActionValueModel(stats={}))[0]
+    ledger = OutcomeLedger(db_path=str(tmp_path / "outcomes.db"))
+    pending = execute_valued_procedure_plan(registry, selected, {"raw": [2, 3]},
+        backends=BACKENDS, ledger=ledger, closed_types=True)
+    assert pending.result.completed
+    assert pending.result.execution.closed_types_checked
+    assert pending.result.execution.resulting_state["total"] == 6
+    assert len(ledger.pending()) == 1
+    assert ledger.measured_action_stats() == {}
+
+
+@pytest.mark.parametrize("mode", [None, 0, 1, "strict"])
+def test_feedback_rejects_invalid_type_mode_before_opening_receipt(tmp_path, mode):
+    registry, _, plans = _registry()
+    selected = rank_procedure_plans(registry, plans, ActionValueModel(stats={}))[0]
+    ledger = OutcomeLedger(db_path=str(tmp_path / "outcomes.db"))
+    with pytest.raises(ValueError, match="closed type mode"):
+        execute_valued_procedure_plan(registry, selected, {"raw": [2, 3]},
+            backends=BACKENDS, ledger=ledger, closed_types=mode)
+    assert not ledger.pending()
