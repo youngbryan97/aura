@@ -4862,7 +4862,7 @@
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/learning/live_learner.py",
-      "scope": "<module>.LiveLearner.record_tick"
+      "scope": "<module>.LiveLearner._write_unwritten"
     },
     {
       "callee": "<file_write_gateway>.ensure_directory",
@@ -16578,6 +16578,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "40c9e7cdfa11b8eb64bc9c96e1208abc5b34a9ef396f7c1613c218a4cb6fffe5",
+  "inventory_sha256": "9440167abd1916b6defb57fed49c85d8d2c266909fe6f8c59385bf3c6d599914",
   "schema_version": 1
 }
