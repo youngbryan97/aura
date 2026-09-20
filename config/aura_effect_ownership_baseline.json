@@ -7241,12 +7241,12 @@
       "scope": "<module>.ContentFetcher._web_html"
     },
     {
-      "callee": "core.runtime.network_gateway.get_network_gateway().request",
+      "callee": "llm_health_router.get_network_gateway().request",
       "canonical_owner": false,
       "category": "network_gateway",
       "count": 1,
-      "path": "core/brain/llm_health_router.py",
-      "scope": "<module>.HealthAwareLLMRouter._call_endpoint_fallback_http_api"
+      "path": "core/brain/llm_health_router_endpoint_call.py",
+      "scope": "<module>._CallsTheEndpoint._call_endpoint_fallback_http_api"
     },
     {
       "callee": "core.runtime.network_gateway.get_network_gateway().request",
@@ -9197,8 +9197,8 @@
       "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
-      "path": "core/brain/llm/mlx_client.py",
-      "scope": "<module>.MLXLocalClient._spawn_worker_blocking"
+      "path": "core/brain/llm/mlx_client_worker_lifecycle.py",
+      "scope": "<module>._KeepsTheWorkerAlive._spawn_worker_blocking"
     },
     {
       "callee": "pathlib.Path().mkdir",
@@ -14841,20 +14841,20 @@
       "scope": "<module>.EvidenceProvider._ripgrep"
     },
     {
-      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_python_process",
-      "canonical_owner": false,
-      "category": "subprocess_gateway",
-      "count": 1,
-      "path": "core/brain/llm/mlx_client.py",
-      "scope": "<module>.MLXLocalClient._spawn_worker_blocking"
-    },
-    {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run_until_its_work_is_done",
       "canonical_owner": false,
       "category": "subprocess_gateway",
       "count": 1,
       "path": "core/brain/llm/mlx_client.py",
       "scope": "<module>._run_probe_until_its_work_is_done"
+    },
+    {
+      "callee": "mlx_client.get_subprocess_gateway().spawn_python_process",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "core/brain/llm/mlx_client_worker_lifecycle.py",
+      "scope": "<module>._KeepsTheWorkerAlive._spawn_worker_blocking"
     },
     {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_python_process",
@@ -16570,6 +16570,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "ba4372947b4c6f05bef802c7503eb450f383b6a16bf00927e10710401cfbc005",
+  "inventory_sha256": "a8245b327d5c7b07c7521a750b41b35b7ef50ef37bcc36b23d2356f6baeb78db",
   "schema_version": 1
 }

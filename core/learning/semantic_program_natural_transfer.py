@@ -21,7 +21,7 @@ from core.learning.semantic_program_corpus_sequences import (
     build_semantic_program_sequence_role_binding_corpus,
 )
 
-NATURAL_TRANSFER_PREFLIGHT_SCHEMA: Final = "aura.semantic_program_natural_transfer_preflight.v1"
+NATURAL_TRANSFER_PREFLIGHT_SCHEMA: Final = "aura.semantic_program_natural_transfer_preflight.v2"
 
 _FIT_FAMILY_BUILDERS: Final = {
     "arithmetic": build_semantic_program_corpus,
@@ -77,12 +77,74 @@ def _fit_schema_inventory(families: Sequence[str]) -> set[str]:
     return inventory
 
 
+def build_bound_semantic_source_inventory(
+    *,
+    source_manifests: Mapping[str, Mapping[str, Any]],
+    source_campaign: Mapping[str, Any],
+    training_receipt: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Recover source membership and semantics from the acquisition manifests."""
+    from core.learning.semantic_program_feature_materialization import (
+        rebuild_semantic_feature_selection,
+    )
+
+    if source_campaign.get("report_sha256") != _sha(
+        {key: value for key, value in source_campaign.items() if key != "report_sha256"}
+    ):
+        raise ValueError("natural transfer source evidence identity differs")
+    if source_campaign.get("transducer_receipt_sha256") != training_receipt.get("receipt_sha256"):
+        raise ValueError("natural transfer source report names a different model")
+    expected = source_campaign.get("representation_compatibility", {}).get(
+        "source_feature_manifest_sha256s", {}
+    )
+    families = source_campaign.get("fit_families", sorted(expected))
+    if not expected or set(source_manifests) != set(families) or set(expected) != set(families):
+        raise ValueError("natural transfer needs every bound fit-family manifest")
+    examples, sources = [], {}
+    for name in sorted(families):
+        manifest = source_manifests[name]
+        if manifest.get("manifest_sha256") != expected[name]:
+            raise ValueError(f"natural transfer source manifest differs: {name}")
+        _, selected = rebuild_semantic_feature_selection(manifest)
+        examples.extend(selected)
+        sources[name] = {
+            "manifest_sha256": manifest["manifest_sha256"],
+            "corpus_sha256": manifest["corpus_sha256"],
+            "example_count": len(selected),
+        }
+    ids = [hashlib.sha256(item.source_text.encode("utf-8")).hexdigest() for item in examples]
+    if len(ids) != len(set(ids)):
+        raise ValueError("natural transfer source cohorts repeat source text")
+    for split, prefix in (("train", "training"), ("validation", "validation")):
+        selected_ids = sorted(
+            identity for item, identity in zip(examples, ids, strict=True) if item.split == split
+        )
+        if len(selected_ids) != training_receipt.get(prefix + "_example_count") or _sha(
+            selected_ids
+        ) != training_receipt.get(prefix + "_example_ids_sha256"):
+            raise ValueError(
+                f"natural transfer {split} source cohort differs from the frozen model"
+            )
+    body = {
+        "basis": "bound_feature_manifests_v1",
+        "sources": sources,
+        "source_campaign_sha256": source_campaign["report_sha256"],
+        "transducer_receipt_sha256": training_receipt["receipt_sha256"],
+        "example_count": len(examples),
+        "source_text_sha256s": sorted(ids),
+        "schema_sha256s": sorted({procedure_schema_signature(item) for item in examples}),
+        "hidden_state_arrays_loaded": False,
+    }
+    return {**body, "inventory_sha256": _sha(body)}
+
+
 def build_natural_request_transfer_preflight(
     *,
     examples: Sequence[SemanticProgramExample],
     transducer: Mapping[str, Any],
     source_campaign: Mapping[str, Any],
     frozen_verification: Mapping[str, Any],
+    source_manifests: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Prove the cheap structural conditions before acquiring model features."""
 
@@ -90,6 +152,14 @@ def build_natural_request_transfer_preflight(
         raise ValueError("natural transfer preflight needs typed corpus examples")
     if any(item.split not in {"validation", "test"} for item in examples):
         raise ValueError("natural transfer corpus must remain evaluation-only")
+    for evidence, key in (
+        (source_campaign, "report_sha256"),
+        (frozen_verification, "verification_sha256"),
+    ):
+        if evidence.get(key) != _sha(
+            {name: value for name, value in evidence.items() if name != key}
+        ):
+            raise ValueError("natural transfer source evidence identity differs")
     fit_families = tuple(source_campaign.get("fit_families", ()))
     if not fit_families or set(fit_families) != set(frozen_verification.get("fit_families", ())):
         raise ValueError("natural transfer fit-family evidence differs")
@@ -100,11 +170,27 @@ def build_natural_request_transfer_preflight(
         frozen_verification.get("verified") is not True
         or frozen_verification.get("serving_authority") is not False
         or frozen_verification.get("transducer_receipt_sha256") != receipt.get("receipt_sha256")
+        or source_campaign.get("transducer_receipt_sha256") != receipt.get("receipt_sha256")
+        or frozen_verification.get("source_campaign_report_sha256")
+        != source_campaign.get("report_sha256")
     ):
         raise ValueError("natural transfer transducer is not the frozen verified model")
 
     target_schemas = {procedure_schema_signature(item) for item in examples}
-    source_schemas = _fit_schema_inventory(fit_families)
+    inventory = (
+        None
+        if source_manifests is None
+        else build_bound_semantic_source_inventory(
+            source_manifests=source_manifests,
+            source_campaign=source_campaign,
+            training_receipt=receipt,
+        )
+    )
+    source_schemas = (
+        set(inventory["schema_sha256s"])
+        if inventory is not None
+        else _fit_schema_inventory(fit_families)
+    )
     overlap = target_schemas & source_schemas
     if overlap:
         raise ValueError("natural transfer target schema was present in fitting")
@@ -140,6 +226,10 @@ def build_natural_request_transfer_preflight(
         "topologies": schemas_by_topology,
         "target_schema_count": len(target_schemas),
         "source_schema_count": len(source_schemas),
+        "source_inventory": inventory,
+        "source_inventory_verified": inventory is not None,
+        "structural_preflight_verified": inventory is not None,
+        "blockers": [] if inventory is not None else ["bound_source_manifests_missing"],
         "target_source_schema_overlap": 0,
         "target_operations": sorted(target_operations),
         "unsupported_operations": [],
@@ -150,7 +240,8 @@ def build_natural_request_transfer_preflight(
         "serving_authority": False,
         "claim_boundary": (
             "evaluation-only natural-domain transfer into operation/dependency/type schemas "
-            "absent from every frozen fit family; no open-domain or serving claim"
+            "absent from the bound source inventory when supplied; default family reconstruction "
+            "alone is unverified. No result, freshness, open-domain or serving claim"
         ),
     }
     return {**body, "preflight_sha256": _sha(body)}
@@ -158,6 +249,7 @@ def build_natural_request_transfer_preflight(
 
 __all__ = [
     "NATURAL_TRANSFER_PREFLIGHT_SCHEMA",
+    "build_bound_semantic_source_inventory",
     "build_natural_request_transfer_preflight",
     "procedure_schema_signature",
 ]
