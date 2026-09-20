@@ -65,13 +65,16 @@ HANDWRITTEN = {
     # rule exists to hold. It was generated once, on 2026-09-07, and the
     # written rule survived by one command.
     "subject",
-    # Two packages whose rule names a MODULE rather than a package. Narrative
-    # classification reads core.conversation.word_markers and cycle
-    # observation reads core.state.percepts; the generator emits package-level
-    # rules only, so regenerating either one widens it to the whole of
-    # core.conversation or the whole of core.state and the narrowing is gone
-    # with the gate still green.
-    "consciousness", "world_model",
+    # Three packages whose rule names a MODULE rather than a package.
+    # Narrative classification reads core.conversation.word_markers, the
+    # heuristic imperatives read the same module to match a principle, and
+    # cycle observation reads core.state.percepts; the generator emits
+    # package-level rules only, so regenerating any of them widens it to the
+    # whole of core.conversation or the whole of core.state and the narrowing
+    # is gone with the gate still green. core/values was the third and was not
+    # listed, so `make deps-check` was red on it and the only way to satisfy
+    # the gate was to widen the rule.
+    "consciousness", "world_model", "values",
     # Two more with a module-level rule. The post-action verifier and the task
     # graph each register an invariant and take nothing else from core.verify,
     # so each names core.verify.invariants. Regenerating widens both to the
