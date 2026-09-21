@@ -72,3 +72,36 @@ def test_a_circuit_opened_by_counted_failures_is_still_a_warning(caplog):
     assert not brainstem.is_available()
     said = _the_fallback_line(caplog, _a_router_with(brainstem))
     assert said and said[0].levelno == logging.WARNING
+
+
+def test_an_admission_refusal_is_not_the_endpoints_failure(caplog):
+    """LIVE 2026-09-20: `Circuit OPEN for Brainstem after 3 failures. Reason:
+    event_loop_lag_1.0s` — admission had said "not now" for the host's loop
+    lag, and the router counted it against the endpoint. The reasons
+    admission produces are declared where it produces them, and the router
+    reads them as waits."""
+    from core.brain.llm_health_router import (
+        _background_error_is_quiet,
+        _is_transient_local_runtime_failure,
+    )
+    from core.runtime.control_plane import ADMISSION_REASON_PREFIXES, is_an_admission_reason
+
+    for said in ("event_loop_lag_1.083s", "resource_busy", "moderate_memory_pressure_81.0", "candidate_worker_not_ready"):
+        assert is_an_admission_reason(said), said
+        assert _is_transient_local_runtime_failure(said), said
+        assert _background_error_is_quiet(said), said
+    # a worker that started and then died is a real event and stays loud
+    assert not is_an_admission_reason("worker_died_during_generation")
+    assert not _is_transient_local_runtime_failure("worker_died_during_generation")
+    # the list is the controller's own: every reason it returns starts with one
+    import inspect
+
+    from core.runtime import control_plane
+
+    source = inspect.getsource(control_plane.ResourceAdmissionController)
+    import re
+
+    for literal in re.findall(r'return f?"([a-z_]+)', source):
+        if literal in ("admitted", "unknown"):
+            continue
+        assert literal.startswith(ADMISSION_REASON_PREFIXES) or literal in ("fairness_wait",), literal

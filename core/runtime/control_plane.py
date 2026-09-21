@@ -345,6 +345,35 @@ def _default_pressure_provider() -> PressureSnapshot:
     return PressureSnapshot.from_mapping(raw)
 
 
+#: Every reason this controller refuses or defers work for, by prefix. A
+#: caller that sees one of these was told "not now" by admission; nothing
+#: about the endpoint it asked for is in the answer. The router counted an
+#: endpoint failure for anything else, and opened the brainstem's circuit
+#: on `event_loop_lag_1.0s` three times in one uptime (2026-09-20).
+ADMISSION_REASON_PREFIXES: tuple[str, ...] = (
+    "critical_memory_pressure_",
+    "moderate_memory_pressure_",
+    "critical_thermal_pressure_",
+    "serious_thermal_pressure_",
+    "event_loop_lag_",
+    "event_loop_signal_unavailable",
+    "pressure_provider_unavailable",
+    "runtime_shutdown_requested",
+    "background_capability_suspended",
+    "large_model_capability_suspended",
+    "resource_busy",
+    "resource_admission_",
+    "candidate_worker_not_ready",
+    "fairness_wait",
+)
+
+
+def is_an_admission_reason(reason: object) -> bool:
+    """Whether ``reason`` is admission saying "not now", by its own spelling."""
+    said = str(reason or "").strip().lower()
+    return bool(said) and said.startswith(ADMISSION_REASON_PREFIXES)
+
+
 class ResourceAdmissionController:
     """Loop-agnostic, priority-aware owner of constrained work leases."""
 
@@ -659,13 +688,7 @@ class ResourceAdmissionController:
     @staticmethod
     def _receipt_reason_class(reason: str) -> str:
         normalized = str(reason or "unknown")
-        for prefix in (
-            "critical_memory_pressure_",
-            "moderate_memory_pressure_",
-            "critical_thermal_pressure_",
-            "serious_thermal_pressure_",
-            "event_loop_lag_",
-        ):
+        for prefix in ADMISSION_REASON_PREFIXES:
             if normalized.startswith(prefix):
                 return prefix.rstrip("_")
         return normalized
