@@ -527,6 +527,8 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
             not in {"ranked_v1", "ranked_with_literal_anchors_v2", "overlap_dominance_v3"}
             or receipt.get("argument_literal_boundaries", "unrestricted_v1")
             not in {"unrestricted_v1", "atomic_v1"}
+            or receipt.get("argument_literal_identity", "exact_anchor_v1")
+            not in {"exact_anchor_v1", "token_grammar_aliases_v1"}
             or receipt.get("operation_chart_feasibility", "unfiltered_v1")
             not in {"unfiltered_v1", "register_edge_bounds_v2", "arity_state_bounds_v3", "typed_state_bounds_v4"}
             or receipt.get("operation_assignment_policy", "first_feasible_v1")
@@ -1018,6 +1020,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
                 charts,
                 lambda selected: _assign_typed_arguments(
                     model=self, hidden=hidden, inputs=inputs, input_spans=input_spans,
+                    source_token_ids=tokens,
                     operation_nodes=selected, argument_pointer_scores=argument_pointer_scores,
                     relation_score_cache=relation_score_cache,
                     relation_vector_cache=relation_vector_cache,
@@ -1028,6 +1031,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
                 joint=self.training_receipt.get("operation_assignment_policy") == "joint_factor_score_v2",
                 bounded_assign=lambda selected, minimum: _assign_typed_arguments(
                     model=self, hidden=hidden, inputs=inputs, input_spans=input_spans,
+                    source_token_ids=tokens,
                     operation_nodes=selected, argument_pointer_scores=argument_pointer_scores,
                     minimum_score=minimum,
                     relation_score_cache=relation_score_cache,

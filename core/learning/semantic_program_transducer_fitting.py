@@ -1456,10 +1456,17 @@ def _assign_typed_arguments(
     retain_relation_evidence: bool = False,
     build_only: bool = False,
     time_limit_s: float | None = None,
+    source_token_ids: Sequence[int] | None = None,
 ) -> _TypedArgumentAssignment | None:
     import time
 
     deadline = None if time_limit_s is None else time.monotonic() + time_limit_s
+    literal_bindings = {span: tuple(index for index, anchor in enumerate(input_spans) if anchor == span)
+                        for span in input_spans}
+    if model.training_receipt.get("argument_literal_identity") == "token_grammar_aliases_v1":
+        if source_token_ids is None or len(source_token_ids) != len(hidden):
+            raise ValueError("literal grammar identity needs the source token sequence")
+        literal_bindings = model.input_grounding.literal_alias_bindings(source_token_ids, inputs, input_spans)
     if retain_relation_evidence and (
         not retain_score_factors or chart_observer is None
         or model.training_receipt.get("definition_selection_policy") != "joint_graph_v1"
@@ -1617,9 +1624,7 @@ def _assign_typed_arguments(
                 reference = reference_vectors[span]
                 role_score = role_head.score(reference, operation_vector)
                 proposal_score = proposal_head.score(reference, operation_vector)
-                exact_inputs = tuple(
-                    index for index, input_span in enumerate(input_spans) if span == input_span
-                )
+                exact_inputs = literal_bindings.get(span, ())
                 candidate_registers = (
                     exact_inputs if exact_inputs else tuple(range(len(definitions)))
                 )

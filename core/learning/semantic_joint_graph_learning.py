@@ -60,6 +60,7 @@ def score_annotated_graph(
                   for node, (bank, label) in zip(nodes, operations, strict=True))
     charts = []
     _assign_typed_arguments(model=model, hidden=item.hidden_states, inputs=item.public_inputs,
+        source_token_ids=item.ir.source_token_ids,
         input_spans=input_spans, operation_nodes=nodes,
         argument_pointer_scores=model.argument_pointer.score_sequence(item.hidden_states),
         chart_observer=charts.append, retain_score_factors=True, retain_relation_evidence=True, build_only=True)
@@ -375,6 +376,7 @@ def mine_source_binding_constraint(
     nodes = tuple(_OperationNode(ins.operation_span, ins.op, 0., 0., 1.) for ins in item.ir.instructions)
     charts = []
     _assign_typed_arguments(model=model, hidden=item.hidden_states, inputs=item.public_inputs,
+        source_token_ids=item.ir.source_token_ids,
         input_spans=item.ir.input_spans, operation_nodes=nodes,
         argument_pointer_scores=model.argument_pointer.score_sequence(item.hidden_states),
         chart_observer=charts.append, retain_score_factors=True, retain_relation_evidence=True, build_only=True)

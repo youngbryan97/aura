@@ -165,6 +165,7 @@ def refit_compositional_graph_scales(model: Any, examples: Any, *, progress: Any
                       for instruction in item.ir.instructions)
         _assign_typed_arguments(
             model=model, hidden=item.hidden_states, inputs=item.public_inputs, input_spans=item.ir.input_spans,
+            source_token_ids=item.ir.source_token_ids,
             operation_nodes=nodes,
             argument_pointer_scores=model.argument_pointer.score_sequence(item.hidden_states),
             chart_observer=captured.append, retain_score_factors=True, build_only=True,
