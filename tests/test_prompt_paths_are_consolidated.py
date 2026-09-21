@@ -81,9 +81,11 @@ def test_continuity_group_is_defined_exactly_once():
     """
     from core.brain.llm import context_assembler
 
-    from tests.source_contract import module_source
+    from tests.source_contract import family_text
 
-    source = module_source(context_assembler)
+    # The family: the sections were lifted into context_assembler_blocks, and
+    # "exactly once" is a property of the module and what was lifted out of it.
+    source = family_text(context_assembler)
     assert source.count("continuity_sections = (") == 1
     assert source.count("personhood_sections = (") == 1
 
