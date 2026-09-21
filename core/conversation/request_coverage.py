@@ -1048,6 +1048,45 @@ def _strong_segment_obligations_are_covered(segment: Any, body: Any) -> bool:
     return True
 
 
+_ASKS_TO_READ_RE = re.compile(
+    r"^\s*(?:please\s+)?(?:read|open|look\s+at|check|inspect|go\s+through|"
+    r"take\s+a\s+look\s+at)\b(?:\s+(?:the|this|that|my|your))?\s*(?:file\s+)?"
+    r"(?P<name>[\w./~-]+)",
+    re.IGNORECASE,
+)
+
+
+def _what_the_turn_read() -> tuple[str, ...]:
+    """The objects of this turn's read receipts, by basename, or ()."""
+    try:
+        from core.conversation.surface_disposition import turn_tool_receipts
+
+        receipts = turn_tool_receipts()
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return ()
+    read: list[str] = []
+    for receipt in receipts:
+        if not isinstance(receipt, dict) or not receipt.get("ok"):
+            continue
+        if str(receipt.get("action") or "") != "read":
+            continue
+        if not str(receipt.get("observed_content") or "").strip():
+            continue
+        ref = str(receipt.get("object_ref") or "").strip()
+        if ref:
+            read.append(ref.rstrip("/").rsplit("/", 1)[-1].lower())
+    return tuple(read)
+
+
+def _asks_for_a_read_the_turn_made(segment: str, read: tuple[str, ...]) -> bool:
+    """Whether ``segment`` is an instruction to read something the turn read."""
+    match = _ASKS_TO_READ_RE.match(str(segment or ""))
+    if match is None:
+        return False
+    name = match.group("name").rstrip(".,;:").rsplit("/", 1)[-1].lower()
+    return bool(name) and name in read
+
+
 def _a_clause_for_every_part(body: Any, parts: int) -> bool:
     """Whether the reply says as many things as the question asked for.
 
@@ -1107,8 +1146,16 @@ def unanswered_question_parts(body: Any, contract: object | None) -> list[str]:
         numbered_parts = 0
     numbered_start = max(0, len(segments) - numbered_parts)
     missed: list[str] = []
+    done_this_turn = _what_the_turn_read()
     for index, segment in enumerate(segments):
         if is_reply_shape_constraint_segment(segment):
+            continue
+        # "Read the file CLAUDE.md" is covered by the reading, not by a
+        # sentence about it. LIVE 2026-09-21: the reply quoted the rule the
+        # second part asked for, this counted the first part unanswered
+        # because the reply never said "I read the file", and the turn was
+        # re-planned into four tool calls and a wrong answer.
+        if done_this_turn and _asks_for_a_read_the_turn_made(segment, done_this_turn):
             continue
         numbered_section = index - numbered_start + 1
         local_body = str(body or "")

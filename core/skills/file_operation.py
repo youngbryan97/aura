@@ -31,8 +31,8 @@ class FileOpInput(BaseModel):
     path: str = Field(..., description="Target file or directory path.")
     content: Optional[str] = Field(None, description="Content for write, append, or patch actions.")
     destination: Optional[str] = Field(None, description="Destination path for move or copy actions.")
-    start_line: Optional[int] = Field(None, description="Starting line number for 'patch' action (inclusive, 1-indexed).")
-    end_line: Optional[int] = Field(None, description="Ending line number for 'patch' action (inclusive, 1-indexed).")
+    start_line: Optional[int] = Field(None, description="Starting line number for 'read' and 'patch' actions (inclusive, 1-indexed). For 'read', bounds the lines returned.")
+    end_line: Optional[int] = Field(None, description="Ending line number for 'read' and 'patch' actions (inclusive, 1-indexed). For 'read', bounds the lines returned.")
 
 #: Actions that observe and change nothing.
 _READING_ACTIONS = frozenset({"read", "list", "exists", "stat", "head", "tail"})
@@ -253,15 +253,35 @@ class FileOperationSkill(BaseSkill):
                 if not await asyncio.to_thread(os.path.exists, full_path):
                     return {"ok": False, "error": f"File not found: {path}", "path": path}
                 
+                # A range, when one is asked for. The parameters were declared
+                # for 'patch' and silently ignored here, so a model that asked
+                # for lines 7-14 to get past a truncated whole-file read got the
+                # same truncated whole file back, twice, and concluded the
+                # section was empty (LIVE 2026-09-21).
+                first = params.start_line
+                last = params.end_line
+
                 def _read():
                     with open(full_path, "r", encoding='utf-8', errors='ignore') as f:
                         lines = f.readlines()
-                        # Output semantic line-indexed text
-                        indexed_lines = [f"{i+1:04d}: {line}" for i, line in enumerate(lines)]
-                        return "".join(indexed_lines)
-                
-                data = await asyncio.to_thread(_read)
-                return {"ok": True, "content": data[:60000], "truncated": len(data) > 60000, "path": path}
+                    total = len(lines)
+                    lo = max(1, int(first)) if first is not None else 1
+                    hi = min(total, int(last)) if last is not None else total
+                    # Output semantic line-indexed text
+                    indexed_lines = [
+                        f"{i+1:04d}: {line}"
+                        for i, line in enumerate(lines)
+                        if lo <= i + 1 <= hi
+                    ]
+                    return "".join(indexed_lines), total, lo, hi
+
+                data, total, lo, hi = await asyncio.to_thread(_read)
+                result = {"ok": True, "content": data[:60000], "truncated": len(data) > 60000, "path": path}
+                if first is not None or last is not None:
+                    result["lines"] = {"from": lo, "to": hi, "of": total}
+                    if lo > hi:
+                        result["note"] = f"no lines in that range: the file has {total} line(s)"
+                return result
                 
             elif action == "write":
                 result = await ActionExecutor.execute(

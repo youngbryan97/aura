@@ -150,6 +150,16 @@ SANCTIONED_BLOCKING_LOCKS: dict[str, str] = {
         "off the event loop by GhostLine.advance_async and, for receipts, "
         "by the emit path's own thread hop."
     ),
+    "core.autonomy.research_history": (
+        "The same commit step as audit_chain.lock, for the research cycle's "
+        "hash-chained history: read the head, compute the record's digest "
+        "over its predecessor, append the line, make it durable, then publish "
+        "the new head. Releasing before the fsync lets the next cycle chain "
+        "onto a predecessor that is not yet on disk, and a history whose file "
+        "order differs from its chain order fails its own reader. Off the "
+        "loop on its one live path: ResearchCycle awaits the append through "
+        "asyncio.to_thread (research_cycle.py, the cycle's completion)."
+    ),
     "ghost_line.advance_lock": (
         "Wraps audit_chain.append_with_body for one frame, so it inherits "
         "the same commit point. It exists because the frame body and its "

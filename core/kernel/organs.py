@@ -176,7 +176,9 @@ class OrganStub:
         elif name == "omni_tool":
             return await self._resolve_module("core.cybernetics.omni_tool", "OmniTool")
         elif name == "memory":
-            return self._resolve_from_container("memory_facade")
+            facade = self._resolve_from_container("memory_facade")
+            _warm_the_encoder()
+            return facade
         elif name == "voice":
             return await self._resolve_voice()
         elif name == "metabolism":
@@ -342,3 +344,22 @@ class OrganStub:
                 extra={"resolved_kind": self.resolved_kind},
             )
             logger.warning("Organ %s shutdown hook failed: %s", self.name, exc)
+
+
+def _warm_the_encoder() -> None:
+    """Start the embedding load as the memory organ comes up.
+
+    The first phase to recall runs seconds after this organ is ready and used
+    to pay for the load inline against a ten-second circuit (2026-09-21).
+    """
+    try:
+        from core.memory.embedding_runtime import warm_shared_embedding_runtime
+
+        warm_shared_embedding_runtime()
+    except (ImportError, AttributeError, RuntimeError, OSError) as exc:
+        _record_organ_degradation(
+            exc,
+            organ="memory",
+            action="memory organ came up without warming the encoder",
+            severity="warning",
+        )

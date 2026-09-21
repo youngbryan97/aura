@@ -537,7 +537,11 @@ class ShutdownCoordinator:
             report.completed_at_unix = time.time()
             report.duration_seconds = round(time.monotonic() - started_monotonic, 6)
             try:
-                artifact = publish_shutdown_verdict(
+                # On a thread: the verdict is two atomic writes with their
+                # fsyncs, and this is the loop, still running the handlers
+                # that have not finished (LIVE 2026-09-21).
+                artifact = await asyncio.to_thread(
+                    publish_shutdown_verdict,
                     coordinator_report=report,
                     stage="coordinator",
                     final=False,

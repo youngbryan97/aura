@@ -253,7 +253,13 @@ _SCREEN_OBSERVATION_RE = re.compile(
     r"[^.?!]{0,30}\b(?:am\s+i|are\s+we|is\s+(?:open|active|frontmost|in\s+front)|"
     r"i(?:'m| am)\s+(?:using|in|on|looking\s+at))"
     r"|\b(?:which|what)\s+(?:app|application|program|window)\s+(?:is|am|are)\b"
-    r"|\bwhat\s+am\s+i\s+(?:looking\s+at|working\s+(?:on|in)|reading)\b"
+    # "what am I working on" is a question about the screen only with a
+    # screen noun in it; on its own, and after "scratch that — it's the
+    # refund service", it asks what she was just told (LIVE 2026-09-21: it
+    # went to the desktop lane and was refused as a financial operation).
+    r"|\bwhat\s+am\s+i\s+(?:looking\s+at|reading)\b"
+    r"|\bwhat\s+am\s+i\s+working\s+(?:on|in)\b[^.?!]{0,30}"
+    r"\b(?:screen|display|app|application|window|document|tab|file)\b"
     r"|\bam\s+i\s+(?:in|using|on)\s+(?:\w+\s+){0,2}(?:app|application|window)\b",
     re.IGNORECASE,
 )

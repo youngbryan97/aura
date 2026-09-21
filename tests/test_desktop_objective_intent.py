@@ -207,3 +207,19 @@ def test_an_action_the_person_does_is_not_one_she_was_asked_for():
         "Could you launch Safari?",
     ):
         assert looks_like_desktop_objective(hers), hers
+
+
+def test_what_am_i_working_on_is_the_screen_only_with_a_screen_noun():
+    """LIVE 2026-09-21, in a memory battery: "Actually, scratch that — it's
+    the refund service, not the payment service. What am I working on now?"
+    went to the desktop lane and came back "Permission denied: BLOCKED:
+    Financial operation"."""
+    from core.runtime.desktop_objective_intent import looks_like_desktop_objective
+
+    assert not looks_like_desktop_objective(
+        "Actually, scratch that — it's the refund service, not the payment "
+        "service. What am I working on now?"
+    )
+    assert not looks_like_desktop_objective("what am I working on now?")
+    assert looks_like_desktop_objective("what document am I working on?")
+    assert looks_like_desktop_objective("what am I working on in this window?")

@@ -322,3 +322,37 @@ def test_nobody_waits_on_a_load_in_flight(monkeypatch):
     release.set()
     engine._loader.join(2.0)
     assert engine._checkout_model() is not None, "once loaded, the model is served"
+
+
+def test_a_warm_started_early_is_what_the_first_caller_finds(monkeypatch):
+    """Boot, 2026-09-21: the first phase to recall paid for the load."""
+    engine = EmbeddingEngine.__new__(EmbeddingEngine)
+    EmbeddingEngine.__init__(engine)
+    release = threading.Event()
+    loads: list[str] = []
+
+    def slow_initialize_locked():
+        if engine._initialized:
+            return
+        loads.append(threading.current_thread().name)
+        release.wait(5.0)
+        engine._model = _SlowModel(0.0)
+        engine._initialized = True
+
+    monkeypatch.setattr(engine, "_initialize_locked", slow_initialize_locked)
+
+    loader = engine.warm_in_background()
+    assert loader is not None and loader.is_alive()
+    assert engine.warm_in_background() is loader, "one warm, however often it is asked"
+    assert not engine._initialized
+
+    # The first caller, off the loop, finds the load in flight and does not pay.
+    t0 = time.monotonic()
+    assert engine._checkout_model() is None
+    assert time.monotonic() - t0 < 0.5
+
+    release.set()
+    loader.join(2.0)
+    assert engine._initialized and engine._model is not None
+    assert engine.warm_in_background() is None, "loaded means nothing to warm"
+    assert loads == ["embedding-engine-load"]
