@@ -171,6 +171,46 @@ def _penalties(width: int, own_width: int | None) -> list[tuple[float, float, np
     return out
 
 
+def _within_one_standard_error(
+    scores: np.ndarray, spread: np.ndarray, grid: list[tuple[float, float, np.ndarray]]
+) -> np.ndarray:
+    """The most-shrunk penalty that is not measurably worse than the best.
+
+    The grid already contains the narrow model exactly, so a wide model can in
+    principle fall back to it. It cannot do so reliably, because it is given
+    twice as many candidates to choose between on the same validation rows: a
+    finite addition that wins there by chance is taken, and loses on the test
+    rows. That asymmetry runs one way, against the model offered more, and it
+    is what run_031 read as a negative gain on both sides of every cut — each
+    half predicted itself better than the whole system predicted it.
+
+    A model is only preferred over a more heavily penalised one when it beats
+    it by more than the validation rows can resolve. One standard error of the
+    best candidate's own error is that resolution; the rule is Breiman's and
+    the quantity is measured from the rows rather than chosen here.
+
+    Ties go to the addition being switched off, then to the heavier own
+    penalty, so the fallback is the narrow model rather than the first index.
+    """
+    width_out = scores.shape[1]
+    shrinkage = np.array(
+        [(math.inf if extra == math.inf else extra, own) for own, extra, _ in grid],
+        dtype=float,
+    )
+    order = np.lexsort((-shrinkage[:, 1], -shrinkage[:, 0]))
+    chosen = np.zeros(width_out, dtype=int)
+    for column in range(width_out):
+        best = int(np.argmin(scores[:, column]))
+        bar = scores[best, column] + spread[best, column]
+        for index in order:
+            if scores[index, column] <= bar:
+                chosen[column] = int(index)
+                break
+        else:
+            chosen[column] = best
+    return chosen
+
+
 def fit_predict(
     features: np.ndarray,
     targets: np.ndarray,
@@ -222,11 +262,20 @@ def fit_predict(
     kept_own = int(keep_x[:own_width].sum()) if own_width is not None else None
     grid = _penalties(x_all.shape[1], kept_own)
     scores = np.full((len(grid), width_out), np.inf)
+    spread = np.zeros((len(grid), width_out))
+    rows = int(x_validate.shape[0])
     for index, (_own, _extra, penalty) in enumerate(grid):
         weights = _ridge(x_train, y_train, penalty)
         if x_validate.size:
-            scores[index] = ((x_validate @ weights - y_validate) ** 2).mean(axis=0)
-    chosen = scores.argmin(axis=0) if x_validate.size else np.zeros(width_out, dtype=int)
+            errors = (x_validate @ weights - y_validate) ** 2
+            scores[index] = errors.mean(axis=0)
+            if rows > 1:
+                spread[index] = errors.std(axis=0, ddof=1) / math.sqrt(rows)
+    chosen = (
+        _within_one_standard_error(scores, spread, grid)
+        if x_validate.size
+        else np.zeros(width_out, dtype=int)
+    )
 
     # Refit on train + validate once the alphas are chosen: the validation rows
     # are data, and holding them out of the final fit throws away a fifth of
