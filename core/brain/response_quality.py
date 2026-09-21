@@ -77,6 +77,8 @@ def extract_features(
         if comparable(theirs, mine):
             register_match = max(0.0, 1.0 - distance(theirs, mine))
     except (ImportError, AttributeError, TypeError, ValueError):
+        # not a failure: a facet the register cannot read scores
+        # nothing, and the other facets still score.
         register_match = 0.0
 
     # An invitation toward a future they could have. When somebody is
@@ -93,6 +95,8 @@ def extract_features(
         if comparable(theirs, mine) and theirs.asks_to_be_witnessed():
             invitation = max(0.0, min(1.0, mine.second * mine.asking * mine.future))
     except (ImportError, AttributeError, TypeError, ValueError):
+        # not a failure: a facet the register cannot read scores
+        # nothing, and the other facets still score.
         invitation = 0.0
 
     # Dignified need: when the reply asks for something, whether it also
@@ -107,6 +111,8 @@ def extract_features(
         if mine_shape.measured and mine_shape.asks_for_help():
             dignity = max(0.0, min(1.0, mine_shape.offering))
     except (ImportError, AttributeError, TypeError, ValueError):
+        # not a failure: a facet the register cannot read scores
+        # nothing, and the other facets still score.
         dignity = 0.0
 
     # Getting a perspective instead of taking one. When somebody is testifying
@@ -128,6 +134,8 @@ def extract_features(
             if comparable(theirs, mine) and theirs.asks_to_be_witnessed():
                 perspective_getting = max(0.0, min(1.0, unfamiliar * mine.second * mine.asking))
     except (ImportError, AttributeError, TypeError, ValueError):
+        # not a failure: a facet the register cannot read scores
+        # nothing, and the other facets still score.
         perspective_getting = 0.0
 
     grounding_tokens = grounding_tokens or set()
@@ -164,6 +172,8 @@ def extract_features(
 
         unasked_regard = get_telling_ledger().shortage_of(supplies(t, asked_for=user_message))
     except (ImportError, AttributeError, TypeError, ValueError):
+        # not a failure: a facet the register cannot read scores
+        # nothing, and the other facets still score.
         unasked_regard = 0.0
 
     # And how far this candidate sits from what she has been saying lately.
@@ -175,6 +185,8 @@ def extract_features(
 
         distinctness = distinct(t)
     except (ImportError, AttributeError, TypeError, ValueError):
+        # not a failure: a facet the register cannot read scores
+        # nothing, and the other facets still score.
         distinctness = 0.0
 
     # And whether the regard in it is in the form this person has welcomed:
@@ -196,6 +208,8 @@ def extract_features(
             forms_of(t, user_message).get("shown", 0.0), forms.partner
         )
     except (ImportError, AttributeError, TypeError, ValueError):
+        # not a failure: a facet the register cannot read scores
+        # nothing, and the other facets still score.
         form_fit = 0.0
 
     return {

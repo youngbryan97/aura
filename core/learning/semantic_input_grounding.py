@@ -242,7 +242,7 @@ class SemanticInputGroundingContract:
 
 
 @invariant("learning.literal_alias_occurrence_identity", scope="learning", owner=__name__)
-def literal_alias_occurrence_identity():
+def literal_alias_occurrence_identity() -> list[Violation]:
     """A token-grammar canary keeps equal-valued occurrences separate."""
     contract = SemanticInputGroundingContract(
         tokenizer_identity_sha256="0" * 64, digit_token_ids=tuple(range(10)),

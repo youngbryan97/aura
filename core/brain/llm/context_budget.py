@@ -311,6 +311,8 @@ def prefill_ceiling(room_taken_by_the_rest: int = 0) -> int:
     try:
         from core.brain.llm.mlx_client import _PREFILL_CEILING_CHARS
     except (ImportError, AttributeError):
+        # not a failure: no ceiling to read means no room to report, and
+        # zero is how the caller hears "do not trim to a byte offset".
         return 0
     return max(0, int(_PREFILL_CEILING_CHARS) - max(0, int(room_taken_by_the_rest)))
 
@@ -336,6 +338,8 @@ def budget_for_answer(max_tokens: int) -> int:
     try:
         wanted = int(max_tokens)
     except (TypeError, ValueError):
+        # not a failure: a budget that is not a number earns no prompt
+        # length, which the guard below returns for zero as well.
         return 0
     if wanted <= 0:
         return 0
@@ -415,8 +419,15 @@ def _take_back_what_earlier_runs_measured() -> None:
     _taken_back = True
     try:
         load_volatility()
-    except (OSError, ValueError, RuntimeError):
-        pass
+    except (OSError, ValueError, RuntimeError) as exc:
+        # The measure starts from nothing, which the comment below says
+        # means measuring for nothing until twenty turns have passed.
+        record_degradation(
+            "context_budget.volatility",
+            exc,
+            severity="warning",
+            action="started the volatility measure from nothing",
+        )
 
 
 def observe_sections(prompt: str) -> None:
@@ -463,8 +474,15 @@ def _keep_what_this_session_measured() -> None:
 
     try:
         save_volatility()
-    except (OSError, ValueError, RuntimeError):
-        pass
+    except (OSError, ValueError, RuntimeError) as exc:
+        # The comment above is the defect this write exists to fix: a
+        # session shorter than twenty turns measures for nothing.
+        record_degradation(
+            "context_budget.volatility",
+            exc,
+            severity="warning",
+            action="left this session's volatility unrecorded for the next one",
+        )
 
 
 atexit.register(_keep_what_this_session_measured)
@@ -487,6 +505,7 @@ def _written_down() -> None:
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
+        # not a failure: no loop to write behind, so it is written here.
         save_volatility()
         return
     create_owned_asyncio_task(save_volatility_async())
@@ -497,7 +516,15 @@ def _volatility_payload() -> tuple[Path, str] | None:
         from core.runtime.state_ownership import state_root
 
         return Path(state_root()) / _VOLATILITY_STORE, json.dumps({"changed": _CHANGED})
-    except (ImportError, AttributeError, OSError, TypeError, ValueError):
+    except (ImportError, AttributeError, OSError, TypeError, ValueError) as exc:
+        # Nothing is written when this is None, so the history stops
+        # accumulating with nothing else saying it stopped.
+        record_degradation(
+            "context_budget.volatility",
+            exc,
+            severity="warning",
+            action="stopped accumulating volatility history",
+        )
         return None
 
 
@@ -643,6 +670,8 @@ def load_volatility() -> int:
         target = Path(state_root()) / _VOLATILITY_STORE
         stored = json.loads(target.read_text())
     except (OSError, ValueError, ImportError, AttributeError, TypeError):
+        # not a failure: no store yet on a first run, and zero is where
+        # the measure starts either way.
         return 0
     changed = stored.get("changed")
     if not isinstance(changed, dict):

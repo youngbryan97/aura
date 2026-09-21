@@ -191,6 +191,8 @@ def _validated_region(
     try:
         items = list(region)
     except TypeError:
+        # not a failure: the docstring says boundaries went into schedule
+        # ops unvalidated, and this is the validation saying no.
         return None
     if len(items) != 2:
         return None
@@ -200,6 +202,8 @@ def _validated_region(
     try:
         start, end = int(start_raw), int(end_raw)
     except (TypeError, ValueError, OverflowError):
+        # not a failure: a boundary that is not two integers is not a
+        # region, which the range guards below also refuse.
         return None
     if start < 0 or end <= start:
         return None
@@ -209,6 +213,8 @@ def _validated_region(
         try:
             layers = int(model_layers)
         except (TypeError, ValueError):
+            # not a failure: a layer count this cannot read bounds nothing,
+            # and the check below only acts on a positive one.
             layers = 0
         if layers > 0 and end > layers:
             return None
@@ -232,6 +238,8 @@ def _unit_or_none(value: Any) -> float | None:
     try:
         number = float(value)
     except (TypeError, ValueError):
+        # not a failure: the docstring says None, and NaN being silently
+        # classified 'low' is the defect this exists to stop.
         return None
     if not math.isfinite(number) or not 0.0 <= number <= 1.0:
         return None
@@ -254,6 +262,8 @@ def context_bucket(
 
         facets = ",".join(sorted(request_facets(str(objective or ""))))
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        # not a failure: an objective with no readable facets is keyed on
+        # the rest, which the comment above says is never the lowest.
         facets = ""
     words = len(_WORD_RE.findall(str(objective or "")))
     length_band = "short" if words < 24 else ("medium" if words < 96 else "long")
@@ -969,6 +979,8 @@ class ExecutionController:
         try:
             elapsed = float(wall_clock_s)
         except (TypeError, ValueError, OverflowError):
+            # not a failure: a wall clock that is not a number cannot be
+            # accepted, and the finite check below refuses the same thing.
             return False
         if not math.isfinite(elapsed) or elapsed < 0.0:
             return False
@@ -1097,7 +1109,11 @@ class ExecutionController:
         try:
             for row in rows:
                 normalized.append(validate_action_transition(row))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            # These rows are the action trace a receipt is checked against.
+            # Refusing is right; refusing in silence leaves a rejected
+            # trace looking the same as one nobody sent.
+            logger.warning("Action transitions were refused: %s", exc)
             return False
         if not self._append_action_transitions(normalized):
             return False
