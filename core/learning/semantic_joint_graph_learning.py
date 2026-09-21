@@ -530,6 +530,12 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
                 source_supervision=supervision, source_weight=source_weight)
         if not (learn_arguments or learn_operation_pointer):
             candidate = candidate._with_coefficients(definition_relation_head=relation, operation_head=operation)
+        if checkpoint_dir is not None:
+            from core.learning.semantic_fit_checkpoint import save_round_candidate
+
+            save_round_candidate(Path(checkpoint_dir) / f"round-{round_index + 1}.candidate.json",
+                candidate=candidate, parent=model.receipt_sha256, round_index=round_index + 1,
+                numerical_checkpoint=Path(checkpoint_dir) / f"round-{round_index + 1}.npz")
         history.append({"records": records, "fit": fit})
         if progress:
             progress({"stage": "joint_graph_fit", "round": round_index + 1, "fit": fit})

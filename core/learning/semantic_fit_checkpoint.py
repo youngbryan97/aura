@@ -56,6 +56,23 @@ def write_fit_archive(path, body, arrays):
     get_file_write_gateway().write_bytes(path, output.getvalue(), source="semantic_fit_checkpoint")
 
 
+def save_round_candidate(path, *, candidate, parent, round_index, numerical_checkpoint):
+    """Keep each accepted model available for decoding without replaying training."""
+    from core.runtime.atomic_writer import atomic_write_bytes_if_absent
+
+    if type(round_index) is not int or round_index < 1:
+        raise ValueError("candidate round must be positive")
+    body = {"schema": "aura.semantic_graph_round_candidate.v1", "parent": parent,
+            "round": round_index, "candidate": candidate.to_dict(),
+            "numerical_checkpoint_sha256": hashlib.sha256(Path(numerical_checkpoint).read_bytes()).hexdigest(),
+            "serving_authority": False, "validation_used_for_selection": False}
+    payload = (json.dumps({**body, "sha256": fit_identity(body)}, sort_keys=True,
+                         separators=(",", ":"), allow_nan=False) + "\n").encode("utf-8")
+    path = Path(path)
+    if not atomic_write_bytes_if_absent(path, payload, mode=0o400) and path.read_bytes() != payload:
+        raise ValueError("saved round candidate differs from resumed numerical fit")
+
+
 class SemanticFitCheckpoint:
     """Crash-atomic numerical state; no model publication or serving authority."""
 
