@@ -123,7 +123,9 @@ def test_the_destinations_are_names_that_exist_in_their_source():
         "core/brain/inference_gate.py",
         "core/consciousness/qualia_synthesizer.py",
     ):
-        tree = ast.parse((root / relative).read_text(encoding="utf-8"))
+        named = root / relative
+        family = (named, *sorted(named.parent.glob(f"{named.stem}_*.py")))
+        tree = ast.parse("\n".join(one.read_text(encoding="utf-8") for one in family))
         for node in ast.walk(tree):
             if isinstance(node, ast.Name):
                 seen.add(node.id)

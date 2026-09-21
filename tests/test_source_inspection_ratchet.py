@@ -41,7 +41,24 @@ pytestmark = pytest.mark.unit
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 BASELINE_PATH = PROJECT_ROOT / "config" / "source_inspection_baseline.json"
 
-_SOURCE_READERS = {"getsource", "getsourcelines"}
+# The readers in tests/source_contract.py and tests/source_support.py wrap
+# these two so a test survives a lift; a call to one of them is still a
+# source-string assertion and is counted as one, or the wrapper would hide
+# the debt it was written to carry.
+_SOURCE_READERS = {
+    "getsource",
+    "getsourcelines",
+    "family_text",
+    "family_text_at",
+    "module_source",
+    "class_with_its_bases",
+    "module_and_the_mixins_it_builds_with",
+    "function_containing",
+    "function_with_its_helpers",
+    "declared_in",
+    "inlined_module_source",
+    "inlined_function_source",
+}
 
 
 def _count_source_inspections(path: Path) -> int:

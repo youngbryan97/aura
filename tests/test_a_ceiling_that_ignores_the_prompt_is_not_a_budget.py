@@ -88,9 +88,10 @@ def test_the_rate_is_measured_between_observations_not_since_the_request_began()
 
 
 def test_the_floor_only_ever_raises_a_ceiling():
-    import inspect
+    from tests.source_contract import class_with_its_bases
 
-    source = inspect.getsource(mlx_client.MLXLocalClient)
+    # the wait was lifted into the `_WaitsForTheResult` mixin
+    source = class_with_its_bases(mlx_client.MLXLocalClient)
     where = source.index("needed = min(")
     block = source[where : where + 700]
     assert "0.0 < self._current_first_token_hard_ceiling_s < needed" in block

@@ -240,3 +240,31 @@ def test_an_ordinary_count_still_shows_its_working():
         )
     )
     assert "listed the directory" in served
+
+
+def test_a_possessive_before_the_path_and_a_noun_after_it_are_still_a_place() -> None:
+    """LIVE 2026-09-20: "How many .py files are in your own core/conversation
+    directory right now? Count them, don't guess." parsed as no place at all,
+    and she answered "I'll look at it directly rather than guess." — a promise
+    the reliability gate caught, served as the draft when the repair budget
+    was gone. The path is the anchor; "your own" before it and "directory"
+    after it are the person's way of pointing at it."""
+    from core.conversation.filesystem_check import requested_filesystem_counts
+
+    asked = requested_filesystem_counts(
+        "How many .py files are in your own core/conversation directory right now? Count them, don't guess."
+    )
+    assert [c.path.rsplit("/", 2)[-2:] for c in asked] == [["core", "conversation"]]
+    assert asked[0].suffix == ".py" and asked[0].count > 0
+
+
+def test_an_absolute_path_inside_her_root_is_the_same_question() -> None:
+    from pathlib import Path
+
+    from core.conversation.filesystem_check import _allowed_roots, requested_filesystem_counts
+
+    root = _allowed_roots()[0]
+    asked = requested_filesystem_counts(f"how many python files are in {root}/core/conversation")
+    assert [Path(c.path).name for c in asked] == ["conversation"]
+    # and a place outside it is still not a question this answers
+    assert requested_filesystem_counts("how many files are in /etc") == []

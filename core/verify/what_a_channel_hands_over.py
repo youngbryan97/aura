@@ -236,8 +236,27 @@ def _destination_of_a_value(node: ast.AST, parents: dict[int, ast.AST]) -> str |
     return None
 
 
+def _family_tree(path: pathlib.Path) -> ast.Module | None:
+    """The module and every sibling lifted out of it, parsed as one.
+
+    A lift leaves the verdict bound in one file and the ``if`` that reads
+    it in another: ``mind_context_lesioned`` is set in
+    ``cognitive_engine_quick_reply.py`` and tested in ``cognitive_engine.py``.
+    Read apart, neither file shows where the value lands.
+    """
+    bodies: list[ast.stmt] = []
+    for member in (path, *sorted(path.parent.glob(f"{path.stem}_*.py"))):
+        try:
+            bodies.extend(ast.parse(member.read_text(encoding="utf-8", errors="ignore")).body)
+        except (OSError, SyntaxError, ValueError) as exc:
+            logger.debug("could not read %s: %s", member, exc)
+    if not bodies:
+        return None
+    return ast.Module(body=bodies, type_ignores=[])
+
+
 def _sites_in(path: pathlib.Path, constants: dict[str, str]) -> dict[str, tuple[set[str], set[str]]]:
-    """Per channel in this file: (how it binds, where its value lands)."""
+    """Per channel in this module and its family: (how it binds, where its value lands)."""
     out: dict[str, tuple[set[str], set[str]]] = {}
 
     def note(channel: str, bound: str, destinations: list[str]) -> None:
@@ -245,10 +264,8 @@ def _sites_in(path: pathlib.Path, constants: dict[str, str]) -> dict[str, tuple[
         binds.add(bound)
         dests.update(d for d in destinations if d)
 
-    try:
-        tree = ast.parse(path.read_text(encoding="utf-8", errors="ignore"))
-    except (OSError, SyntaxError, ValueError) as exc:
-        logger.debug("could not read %s: %s", path, exc)
+    tree = _family_tree(path)
+    if tree is None:
         return out
     parents = _walk_with_parents(tree)
 

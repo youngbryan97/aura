@@ -10,10 +10,11 @@ from __future__ import annotations
 import inspect
 
 from core.brain.llm_health_router import HealthAwareLLMRouter
+from tests.source_contract import class_with_its_bases
 
 
 def test_the_exhaustion_path_builds_its_reason_from_the_skips():
-    source = inspect.getsource(HealthAwareLLMRouter)
+    source = class_with_its_bases(HealthAwareLLMRouter)
     where = source.index('if last_error == "unknown":')
     block = source[where : where + 900]
     assert "skip_reason" in block
@@ -25,7 +26,7 @@ def test_the_exhaustion_path_builds_its_reason_from_the_skips():
 def test_a_real_endpoint_error_is_not_overwritten():
     """The summary only replaces the placeholder. An endpoint that actually
     failed keeps its own message."""
-    source = inspect.getsource(HealthAwareLLMRouter)
+    source = class_with_its_bases(HealthAwareLLMRouter)
     where = source.index('if last_error == "unknown":')
     block = source[where : where + 900]
     assert 'last_error == "unknown"' in block

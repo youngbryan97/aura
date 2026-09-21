@@ -16,6 +16,7 @@ from __future__ import annotations
 import inspect
 
 from core.brain.llm import thinking_reserve
+from tests.source_contract import family_text
 
 
 def test_the_read_rate_is_written_from_the_time_mlx_spent_reading():
@@ -31,7 +32,7 @@ def test_the_read_rate_is_written_from_the_time_mlx_spent_reading():
     """
     from core.brain.llm import mlx_worker
 
-    source = inspect.getsource(mlx_worker)
+    source = family_text(mlx_worker)
     at = source.index("_record_read_rate(_prompt_chars_for_rate, _read_s)")
     nearby = source[max(0, at - 2000) : at + 200]
     assert 'generation_performance.get("prefill_seconds")' in nearby
@@ -47,7 +48,7 @@ def test_no_read_rate_is_written_when_mlx_did_not_time_the_prompt():
     """
     from core.brain.llm import mlx_worker
 
-    source = inspect.getsource(mlx_worker)
+    source = family_text(mlx_worker)
     at = source.index("_record_read_rate(_prompt_chars_for_rate, _read_s)")
     before = source[max(0, at - 1200) : at]
     assert "if _read_s > 0.0:" in before
@@ -97,7 +98,7 @@ def test_the_answer_clock_asks_the_worker_that_will_serve_it():
     """
     from core.brain import inference_gate
 
-    source = inspect.getsource(inference_gate)
+    source = family_text(inference_gate)
     at = source.index("_read_s = _seconds_to_read(_prompt_chars_for_clock)")
     nearby = source[at : at + 1400]
     assert "least_time_to_read" in nearby
@@ -107,6 +108,6 @@ def test_the_answer_clock_asks_the_worker_that_will_serve_it():
 def test_a_worker_that_cannot_say_leaves_the_clock_as_it_was():
     from core.brain import inference_gate
 
-    source = inspect.getsource(inference_gate)
+    source = family_text(inference_gate)
     at = source.index("_worker_says = 0.0")
     assert "if callable(_knows):" in source[at : at + 400]

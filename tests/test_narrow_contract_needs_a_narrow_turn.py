@@ -25,6 +25,7 @@ removed the cap would regress the latency the cap exists to protect.
 
 import pytest
 from tests.chat_lane_support import chat_lane_source
+from tests.source_contract import class_with_its_bases
 
 pytestmark = pytest.mark.unit
 
@@ -94,7 +95,7 @@ class TestTheFlagReachesTheEngine:
 
         from core.brain.cognitive_engine import CognitiveEngine
 
-        source = inspect.getsource(CognitiveEngine)
+        source = class_with_its_bases(CognitiveEngine)
         assert 'context.get(\n            "memory_state_contract_covers_turn", True\n        )' in source or (
             '"memory_state_contract_covers_turn"' in source
         ), "the engine must consult the coverage flag"

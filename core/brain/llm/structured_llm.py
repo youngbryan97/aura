@@ -254,12 +254,19 @@ class StructuredLLM:
         schema: dict[str, object],
         is_background: bool,
     ) -> tuple[str, str]:
+        # The caller will parse a JSON object, so the decoder holds that
+        # shape (core/brain/llm/a_shape_the_decoder_enforces.py): the sampler
+        # cannot then produce prose or an unclosed brace, whatever the model
+        # thinks first. LIVE 2026-09-20: nine swarm shards failed three
+        # retries each on a brainstem that narrated before answering, and
+        # the schema alone only pinned the temperature.
         if hasattr(self._llm_router, "generate_with_metadata"):
             metadata = await self._llm_router.generate_with_metadata(
                 prompt,
                 context=context,
                 prefer_tier=prefer_tier,
                 schema=schema,
+                output_shape="json_object",
                 origin="structured_llm",
                 is_background=is_background,
             )
@@ -272,6 +279,7 @@ class StructuredLLM:
             context=context,
             prefer_tier=prefer_tier,
             schema=schema,
+            output_shape="json_object",
             origin="structured_llm",
             is_background=is_background,
         )

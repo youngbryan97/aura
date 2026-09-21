@@ -55,7 +55,11 @@ _COUNT_RE = re.compile(
     # system access", while the same question with "are in" was answered
     # exactly. The preposition is the anchor; what precedes it is filler.
     r"(?:\w+\s+){0,3}?(?:in|inside|under|within)\s+"
-    r"(?:the\s+)?(?P<path>[\w./\-]+)",
+    # "in your own core/conversation directory": a possessive and "own" may
+    # sit before the path, and "directory"/"folder" after it (LIVE
+    # 2026-09-20, unparsed, answered with a promise to look).
+    r"(?:(?:the|your|its|her|my|our)\s+(?:own\s+)?)?(?P<path>[\w./\-]+)"
+    r"(?:\s+(?:directory|dir|folder|tree))?",
     re.IGNORECASE,
 )
 
@@ -299,8 +303,18 @@ def _resolve(path_text: str) -> Path | None:
     # An absolute path silently escapes the root check, because pathlib treats
     # `root / "/etc"` as `/etc`. "How many files are in /etc" is not a question
     # this answers, and it must not become one by accident.
-    if candidate.startswith("/") or candidate.startswith("~") or ".." in candidate:
+    if candidate.startswith("~") or ".." in candidate:
         return None
+    if candidate.startswith("/"):
+        # An absolute path is answered only when it names a place inside her
+        # own root: "/Users/.../live-source/core/conversation" is the same
+        # question as "core/conversation". "/etc" still is not.
+        for root in _allowed_roots():
+            if candidate == str(root) or candidate.startswith(str(root) + "/"):
+                candidate = candidate[len(str(root)) :].lstrip("/") or "."
+                break
+        else:
+            return None
     for root in _allowed_roots():
         for probe in (root / candidate, Path(candidate)):
             try:

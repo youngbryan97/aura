@@ -355,6 +355,23 @@ def submit_blocking_io[T](
     return pool.submit(_run)
 
 
+async def off_the_loop[T](fn: Callable[..., T], *args: Any, **kwargs: Any) -> T:
+    """Await a blocking call on a worker thread; inline once the lane is gone.
+
+    For a save a coroutine has to wait for — a stop() that must finish its
+    write before it returns. `asyncio.to_thread` is the lane; when the loop's
+    executor has already shut down (the last saves of a shutdown) the call
+    runs here rather than not at all. LIVE 2026-09-19: the loop report named
+    ten saves on the loop from stop() coroutines and the shutdown itself.
+    """
+    try:
+        return await asyncio.to_thread(fn, *args, **kwargs)
+    except RuntimeError as exc:
+        if "shutdown" not in str(exc).lower() and "cannot schedule" not in str(exc).lower():
+            raise
+        return fn(*args, **kwargs)
+
+
 #: Keys with a run queued or in flight, and whether it was asked for again.
 _BEHIND_RUNS: dict[str, bool] = {}
 _BEHIND_RUNS_LOCK = checked_lock("core.runtime.executors.behind_the_loop")

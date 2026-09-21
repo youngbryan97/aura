@@ -37,6 +37,7 @@ from typing import Any
 from core.config import config
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.executors import off_the_loop
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.InquiryEngine")
@@ -229,7 +230,7 @@ class InquiryEngine:
         self.running = False
         if self._research_task:
             self._research_task.cancel()
-        self._save()
+        await off_the_loop(self._save)
 
     # ─── Public API ──────────────────────────────────────────────────────────
 

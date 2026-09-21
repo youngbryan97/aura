@@ -18,7 +18,6 @@ Design:
 """
 from __future__ import annotations
 
-from .executive_approvals import _ApprovesWhatItIsAsked
 import asyncio
 import logging
 import os
@@ -28,7 +27,13 @@ from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import lru_cache
-from typing import Any, Dict, List, Optional, Tuple  # noqa: F401  (read at call time by the lifted module)
+from typing import (  # noqa: F401  (read at call time by the lifted module)
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+)
 
 from core.container import ServiceContainer
 from core.conversation.word_markers import names_any
@@ -47,6 +52,8 @@ from core.runtime.service_access import (
     resolve_state_repository,
 )
 from core.state.aura_state import _is_speculative_autonomy_label, _normalize_goal_text
+
+from .executive_approvals import _ApprovesWhatItIsAsked
 
 logger = logging.getLogger("Aura.Executive")
 
@@ -1497,11 +1504,19 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
         """
         try:
             from core.autonomy.research_triggers import emit_research_trigger
-            emit_research_trigger(
-                topic=intent.goal or "contested_belief",
-                source_intent_id=intent.intent_id,
-                contested_count=int(epistemic.get("contested", 0)),
-                payload_hint=intent.payload,
+            from core.runtime.executors import behind_the_loop
+
+            # The trigger ring is appended and, past its size, rewritten —
+            # an fsync the loop report named from update_belief (LIVE
+            # 2026-09-19). Best effort, so it goes behind the loop.
+            behind_the_loop(
+                f"research_trigger:{intent.intent_id}",
+                lambda: emit_research_trigger(
+                    topic=intent.goal or "contested_belief",
+                    source_intent_id=intent.intent_id,
+                    contested_count=int(epistemic.get("contested", 0)),
+                    payload_hint=intent.payload,
+                ),
             )
         except (ImportError, AttributeError, RuntimeError):
             pass  # no-op: intentional

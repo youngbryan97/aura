@@ -23,6 +23,7 @@ import time
 import pytest
 
 from core.brain.inference_gate import InferenceGate
+from tests.source_contract import family_text
 
 pytestmark = pytest.mark.unit
 
@@ -92,11 +93,10 @@ class TestTheLoadGuardStillHolds:
 class TestTheGenerationClockIsStamped:
     def test_starting_a_generation_records_when(self):
         """The guard needs a clock, so the client must set one."""
-        import inspect
 
         from core.brain.llm import mlx_client
 
-        src = inspect.getsource(mlx_client)
+        src = family_text(mlx_client)
         assert src.count("_active_generation_started_at = time.time()") >= 3, (
             "every path that increments _active_generations must stamp the "
             "clock, or a wedged generation becomes indistinguishable from a "

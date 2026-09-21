@@ -39,6 +39,7 @@ from core.runtime.background_policy import (
     background_loop_start_reason,
 )
 from core.runtime.errors import record_degradation
+from core.runtime.executors import off_the_loop
 from core.runtime.service_access import optional_service
 from core.runtime.state_ownership import state_root
 from core.utils.concurrency import cancel_and_join
@@ -186,7 +187,7 @@ class EvolutionOrchestrator:
         self._stop.set()
         if self._task:
             await cancel_and_join(self._task, owner="core.evolution.evolution_orchestrator")
-        self._save()
+        await off_the_loop(self._save)
 
     async def tick(self) -> EvolutionSnapshot:
         """Run one evaluation cycle across all axes."""

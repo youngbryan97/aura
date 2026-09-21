@@ -471,8 +471,12 @@ class EmbeddingEngine:
         `primary_inference_active()` because a recall runs BEFORE generation,
         so a warm held the lock through a whole foreground retrieval.
         """
-        with self._encode_queue_lock:
-            queued = self._encode_queue
+        # Read without the queue lock: this is asked from inside the encode
+        # lock, and both are LEAF, so taking the queue lock here is the rank
+        # inversion lockdep named on the first live boot after 2026-09-20's
+        # encoder change. One int, read under the GIL, at worst one behind —
+        # which for a hint about yielding is the right price.
+        queued = self._encode_queue
         # The holder is in the queue too, so somebody ELSE waiting is two.
         return queued > 1 or self._primary_inference_active()
 

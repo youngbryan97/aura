@@ -282,7 +282,7 @@ Working list. Deleted when every line is done and green.
       depth, seventy seconds apart. One run written twice, because
       `tools/heldout_eval.py` has no depth option and could not have varied
       the thing the filenames claimed to compare. They are deleted; a file
-      named `loops2.json` that is not a depth-two arm is a trap, and the
+      named loops2 that is not a depth-two arm is a trap, and the
       prose here is the record.
 
       `tools/run_recurrent_depth_arms.py` varies it. One model is patched

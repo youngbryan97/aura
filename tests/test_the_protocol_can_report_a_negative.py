@@ -57,14 +57,33 @@ def test_the_positive_control_needs_the_earlier_turn():
 def test_a_zero_delta_that_cannot_be_measured_says_so():
     said = _faculty_reading({"delta_mean": 0.0, "separated": False}, NO_RECURRENT)
     assert said["outcome"] == "NOT_MEASURED"
-    assert "cognitive engine" in said["why"]
+    assert "was not in the path that produced the answer" in said["why"]
     assert said["what_would_measure_it"]
 
 
-def test_a_real_delta_is_reported_as_measured():
+def test_a_delta_alone_is_not_a_measurement():
+    """The reading is taken from the instruments, not from the score.
+
+    2026-09-18: intact drifted a thousandth between reads and a mean-difference
+    test marked a faculty MEASURED that was never in the path. A delta, however
+    large, is MEASURED only when the arm can be seen to have sampled or been
+    prompted differently from intact.
+    """
+    said = _faculty_reading({"delta_mean": 0.2, "separated": True}, NO_RECURRENT)
+    assert said["outcome"] == "NOT_MEASURED"
+    assert said["observed_delta_mean"] == 0.2
+
+
+def test_a_shorter_context_is_a_measurement(monkeypatch):
+    from tools.matched import run_matched_substrate as protocol
+
+    monkeypatch.setitem(protocol._PROMPT_LENGTH, INTACT, [1200, 1200])
+    monkeypatch.setitem(protocol._PROMPT_LENGTH, NO_RECURRENT, [900, 900])
     said = _faculty_reading({"delta_mean": 0.2, "separated": True}, NO_RECURRENT)
     assert said["outcome"] == "MEASURED"
-    assert said["delta_mean"] == 0.2
+    assert said["observed_delta_mean"] == 0.2
+    assert said["prompt_characters"] == 900
+    assert said["intact_prompt_characters"] == 1200
 
 
 def test_only_the_prompt_differs_between_the_base_arms():

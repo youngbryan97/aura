@@ -26,6 +26,7 @@ from __future__ import annotations
 import pytest
 
 from core.brain.llm import context_budget as budget
+from tests.source_contract import family_text
 
 
 @pytest.fixture(autouse=True)
@@ -95,6 +96,6 @@ def test_the_router_puts_each_reading_on_its_own_line():
 
     from core.brain import llm_health_router
 
-    source = inspect.getsource(llm_health_router)
+    source = family_text(llm_health_router)
     assert 'context_header = "\\n".join(ctx_summary)' in source
     assert 'context_header = " ".join(ctx_summary)' not in source

@@ -24,6 +24,7 @@ from __future__ import annotations
 import pytest
 
 from core.brain.inference_gate import InferenceGate
+from tests.source_contract import family_text
 
 
 def _gate():
@@ -111,11 +112,10 @@ def test_a_deferral_is_still_not_a_degradation():
 
 
 def test_the_initialization_receipt_names_the_mode():
-    import inspect
 
     import core.brain.inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
 
     for mode in ("eager_warmup", "deferred_prewarm", "ram_admitted"):
         assert f'"{mode}"' in source
@@ -160,11 +160,10 @@ def test_a_usable_axis_is_clamped_into_its_range():
 def test_the_public_reader_is_preferred_over_the_private_one():
     """Reaching past a public accessor into a subsystem's internals is how a
     rename becomes an outage."""
-    import inspect
 
     import core.brain.inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
     public_at = source.index('_circ and hasattr(_circ, "get_llm_params")')
     private_at = source.index('hasattr(_circ, "_sample_raw_axes")')
 
@@ -174,11 +173,10 @@ def test_the_public_reader_is_preferred_over_the_private_one():
 
 
 def test_defaulted_axes_are_named_in_the_receipt():
-    import inspect
 
     import core.brain.inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
 
     assert 'segments.omit(\n                "affect_axes",' in source
     assert "defaults used for: " in source
@@ -195,11 +193,10 @@ def test_only_neutral_mesh_outcomes_may_answer_before_trust():
 
 
 def test_a_deferred_mesh_self_report_is_recorded():
-    import inspect
 
     import core.brain.inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
 
     assert 'context["mesh_deferred_for_trust"]' in source
 
@@ -207,11 +204,10 @@ def test_a_deferred_mesh_self_report_is_recorded():
 def test_a_raised_mesh_path_is_not_called_a_decline():
     """`handled=False` is the design working; an exception is a broken organism
     path, and one debug line called both the same thing."""
-    import inspect
 
     import core.brain.inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
 
     assert 'context["mesh_cognition_error"]' in source
     assert "fell through to the LLM path after the mesh cognition path raised" in source

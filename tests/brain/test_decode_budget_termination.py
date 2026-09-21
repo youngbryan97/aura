@@ -26,13 +26,12 @@ termination and stays a failure.
 
 from __future__ import annotations
 
-import inspect
-
 from core.brain.llm.latent_cortex import engine
+from tests.source_contract import family_text
 
 
 def _accepted_terminations_source() -> str:
-    source = inspect.getsource(engine)
+    source = family_text(engine)
     marker = "if not failure_reason and receipt.decode_termination not in {"
     start = source.find(marker)
     assert start != -1, "the accepted-termination set moved"
@@ -64,7 +63,7 @@ def test_a_wall_stop_with_no_sentence_boundary_is_not_accepted() -> None:
 def test_the_wind_down_decides_which_kind_the_reserve_emits() -> None:
     import ast
 
-    source = inspect.getsource(engine)
+    source = family_text(engine)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -87,7 +86,7 @@ def test_exhaustion_before_the_first_token_is_not_accepted() -> None:
 
 
 def test_the_pre_decode_path_uses_its_own_termination() -> None:
-    source = inspect.getsource(engine)
+    source = family_text(engine)
 
     assert 'return out, "budget_exhausted_before_decode"' in source
     assert 'return out, "budget_exhausted"' not in source

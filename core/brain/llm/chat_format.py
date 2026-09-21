@@ -1082,7 +1082,25 @@ def thinking_enabled_for_model(model_name: str | None) -> bool | None:
     fast_size = re.search(r"(?<![0-9.])(?:1\.5|7|9)b(?![0-9])", name)
     if "brainstem" in name or fast_size is not None:
         return False
+    # The lane, not the size label: the brainstem is a 27B now (Ternary
+    # Bonsai 2, 2026-09-20), and a 27B label is what the cortex wears too.
+    # Ask the registry which artifact holds the lane.
+    if _is_the_brainstem_artifact(name):
+        return False
     return None
+
+
+def _is_the_brainstem_artifact(name: str) -> bool:
+    """Whether ``name`` (a model name or path, lowercased) is the brainstem's artifact."""
+    try:
+        from core.brain.llm.model_registry import BRAINSTEM_MODEL
+    except ImportError:  # pragma: no cover - the registry is always importable here
+        return False
+    artifact = str(BRAINSTEM_MODEL or "").strip().lower()
+    if not artifact:
+        return False
+    tail = name.rstrip("/").rsplit("/", 1)[-1]
+    return tail == artifact or name == artifact
 
 
 _NON_THINKING_COGNITIVE_MODES = frozenset(

@@ -11,6 +11,7 @@ Two separate faults met in that turn, and both are here.
 from __future__ import annotations
 
 from pathlib import Path
+from tests.source_contract import family_text_at
 
 _GATE = Path("core/brain/inference_gate.py")
 
@@ -18,7 +19,7 @@ _GATE = Path("core/brain/inference_gate.py")
 def test_the_last_turn_is_free_to_write() -> None:
     """One more than the calls, so answering is not itself a call."""
 
-    body = _GATE.read_text()
+    body = family_text_at(_GATE)
     assert "max_turns=max(4, 2 * len(tools) + 2)" in body
     # Two tools now leave a turn spare rather than exactly none.
     assert max(4, 2 * 2 + 2) > max(3, 2 * 2 + 1)
@@ -47,7 +48,7 @@ def test_the_self_service_ceiling_carries_its_own_authority() -> None:
     assert _SELF_SERVICE_EFFECT_CEILING == _SELF_SERVICE_CEILING
     assert _REQUESTED_ARTIFACT_EFFECT_CEILING == _REQUESTED_ARTIFACT_CEILING
 
-    body = _GATE.read_text()
+    body = family_text_at(_GATE)
     start = body.index('"user_explicitly_authorized"')
     window = body[start : start + 300]
     assert "_SELF_SERVICE_EFFECT_CEILING" in window

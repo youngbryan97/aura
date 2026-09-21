@@ -319,7 +319,11 @@ _NOUN_PHRASE_OPENER_RE = re.compile(
     r"^\s*(?:the|a|an|this|that|these|those|my|our|his|her|their|its|i|we|they|he|she|it)\b",
     re.IGNORECASE,
 )
+# A finite verb inside a statement follows its subject. The same verb at the
+# head of the sentence opens a question ("Are you conscious or self-aware?"),
+# which the token alone read as a statement.
 _FINITE_STATEMENT_RE = re.compile(
+    r"(?<!\A)(?<![.!?]\s)"
     r"\b(?:is|are|was|were|has|have|had|been|feels?|felt|seems?|seemed|"
     r"looks?|looked|means?|meant|gets?|got|becomes?|became)\b",
     re.IGNORECASE,
@@ -406,7 +410,14 @@ def _assess_clause(text: str) -> MoodVerdict:
 #: adjunct belonging to what follows it, not a clause of its own — "Tomorrow,
 #: create a reminder" is one instruction with a time on the front, and cutting
 #: it in two lost the time. "Open Notes, click into a new note" is two.
-_HAS_A_VERB_RE = re.compile(rf"\b(?:{_ACTION_VERBS})\b", re.IGNORECASE)
+# In the role of a verb: "the answer", "a copy", "my read" name a thing, and
+# the same word after a determiner is not an action. The token alone decided
+# this six times over (formed constraint: a token is not a decision).
+_NOT_AFTER_A_DETERMINER = (
+    r"(?<!\bthe\s)(?<!\ba\s)(?<!\ban\s)(?<!\bmy\s)(?<!\byour\s)(?<!\bour\s)"
+    r"(?<!\bthis\s)(?<!\bthat\s)(?<!\bits\s)(?<!\bhis\s)(?<!\bher\s)(?<!\btheir\s)"
+)
+_HAS_A_VERB_RE = re.compile(rf"{_NOT_AFTER_A_DETERMINER}\b(?:{_ACTION_VERBS})\b", re.IGNORECASE)
 
 
 def _split_independent_clauses(text: str) -> tuple[str, ...]:

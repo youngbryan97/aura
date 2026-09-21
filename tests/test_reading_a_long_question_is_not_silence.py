@@ -16,6 +16,7 @@ import inspect
 import pytest
 
 from core.brain.llm import mlx_client
+from tests.source_contract import family_text
 
 
 @pytest.fixture(autouse=True)
@@ -49,7 +50,7 @@ def test_nothing_to_read_costs_nothing():
 
 
 def test_the_livelock_ceiling_is_raised_by_what_the_reading_costs():
-    source = inspect.getsource(mlx_client)
+    source = family_text(mlx_client)
     where = source.index("livelock_ceiling = max(")
     window = source[where : where + 220]
     assert "self._prefill_floor_seconds(self._current_prompt_chars)" in window
@@ -57,6 +58,6 @@ def test_the_livelock_ceiling_is_raised_by_what_the_reading_costs():
 
 def test_it_only_ever_raises_the_ceiling():
     """max(), so a short prompt leaves the flat ceiling exactly where it was."""
-    source = inspect.getsource(mlx_client)
+    source = family_text(mlx_client)
     where = source.index("livelock_ceiling = max(")
     assert "livelock_ceiling," in source[where : where + 220]

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from tests.source_contract import family_text_at
 
 _GATE = Path("core/brain/inference_gate.py")
 
@@ -60,7 +61,9 @@ def test_the_clock_runs_for_either_entitlement() -> None:
 def test_the_phase_count_is_decided_before_the_clock_is_gated() -> None:
     """It was computed inside the block it now helps open."""
 
-    body = _GATE.read_text()
+    from source_support import inlined_module_source
+
+    body = inlined_module_source(_GATE)
     decided = body.index("if points_at_something_real(initial_visible_user_prompt)")
     gated = _the_clock_gate().lineno
     assert body[:decided].count("\n") + 1 < gated, (

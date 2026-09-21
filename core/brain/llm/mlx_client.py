@@ -1010,18 +1010,6 @@ def _record_heavy_model_swap(target_path: str) -> None:
     _GLOBAL_LAST_SWAP_TIME = time.time()
 
 
-def _record_heavy_model_swap(target_path: str) -> None:
-    """Remember which heavy model was last swapped in, and when.
-
-    A setter rather than two `global` statements at the call site, because
-    the caller is a mixin in another module now and `global` reaches only
-    the module a function is DEFINED in. The two names stay here, where the
-    reader that checks the swap interval also reads them.
-    """
-    global _GLOBAL_LAST_SWAP_TIME, _GLOBAL_LAST_HEAVY_MODEL
-
-    _GLOBAL_LAST_HEAVY_MODEL = target_path
-    _GLOBAL_LAST_SWAP_TIME = time.time()
 _CLIENTS: dict[str, Any] = {}
 # CP126 bec28d76: every observer iterated `list(_CLIENTS.items())` and then read
 # each client's mutable lifecycle fields independently, so a worker could be

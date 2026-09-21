@@ -19,6 +19,7 @@ from core.brain.llm.context_assembler import (
 from core.runtime.principal_context import relational_principal_scope
 from core.security.trust_engine import TrustLevel
 from core.state.aura_state import AuraState
+from tests.source_contract import family_text_at, family_tree
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -27,8 +28,8 @@ def test_every_marker_is_a_string_this_module_actually_writes():
     """A first draft guessed "## SOMATIC" and "## PHENOMENAL". Neither is
     written anywhere, so both were checks that could never fail — which is the
     failure the receipt exists to prevent."""
-    source = (ROOT / "core" / "brain" / "llm" / "context_assembler.py").read_text("utf-8")
-    tree = ast.parse(source)
+    # the blocks the assembler writes were lifted into `context_assembler_blocks`
+    tree = family_tree(ROOT / "core" / "brain" / "llm" / "context_assembler.py")
 
     emitted: set[str] = set()
     for node in ast.walk(tree):
@@ -193,7 +194,7 @@ def test_a_process_global_agent_id_cannot_key_stored_memory():
 
 
 def test_withholding_relational_memory_is_recorded():
-    source = (ROOT / "core" / "brain" / "llm" / "context_assembler.py").read_text("utf-8")
+    source = family_text_at(ROOT / "core" / "brain" / "llm" / "context_assembler.py")
 
     assert '"context_assembler.relational_scope"' in source
     assert "relational memory withheld" in source

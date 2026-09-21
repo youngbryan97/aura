@@ -22,6 +22,7 @@ from pathlib import Path
 import pytest
 
 from core.brain.llm import thinking_reserve
+from tests.source_contract import family_text_at
 
 
 @pytest.fixture(autouse=True)
@@ -86,7 +87,7 @@ def test_rubbish_readings_are_ignored() -> None:
 
 def test_the_budget_subtracts_the_reserve() -> None:
     """The defect was a search that fit the clock exactly."""
-    source = Path("core/brain/inference_gate.py").read_text()
+    source = family_text_at(Path('core/brain/inference_gate.py'))
     start = source.index("def _tokens_the_turn_is_allowed_to_take")
     end = source.index("def _reasoning_reserve", start)
     body = source[start:end]
@@ -100,7 +101,7 @@ def test_the_budget_subtracts_the_reserve() -> None:
 
 def test_the_route_records_what_delivery_actually_cost() -> None:
     """A reserve with no observer stays silent forever."""
-    source = Path("interface/routes/chat.py").read_text()
+    source = family_text_at(Path('interface/routes/chat.py'))
     assert "record_delivery_cost" in source
 
 

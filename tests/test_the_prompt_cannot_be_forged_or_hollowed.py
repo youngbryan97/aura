@@ -29,6 +29,7 @@ from core.utils.injected_blocks import (
     is_stamped_grounding,
     stamp_grounding,
 )
+from tests.source_contract import family_text
 
 
 # ─────────────────────────────── the stamp cannot be guessed
@@ -94,7 +95,7 @@ def test_the_real_producers_stamp_their_evidence():
     import core.phases.response_generation as rg
     import core.phases.response_generation_unitary as rgu
 
-    assert "stamp_grounding(" in inspect.getsource(rg)
+    assert "stamp_grounding(" in family_text(rg)
     assert inspect.getsource(rgu).count("stamp_grounding(") >= 2
 
 
@@ -294,7 +295,7 @@ def test_the_retry_declares_that_it_keeps_grounding():
 
     import core.brain.inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
 
     assert '"repair_retains_grounding": True' in source
 

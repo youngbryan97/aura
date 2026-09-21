@@ -31,13 +31,14 @@ from core.brain.llm.latent_cortex.engine import (
     LatentCortexEngine,
     LatentEngineBusyError,
 )
+from tests.source_contract import family_text
 
 
 # ─────────────────────────── the attach is inside the cleanup block
 
 
 def _latent_episode_tree() -> tuple[ast.FunctionDef, str]:
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and node.name == "_latent_episode":
@@ -126,7 +127,7 @@ def test_a_zero_layer_attach_is_not_reported_as_applied():
 
 
 def test_the_vanilla_fallback_refuses_a_model_that_was_only_touched():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "receipt.fast_weights_attach_attempted\n" in source
     assert "fallback_refused_unproven_model_state" in source

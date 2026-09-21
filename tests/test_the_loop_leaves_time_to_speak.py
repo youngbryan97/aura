@@ -23,6 +23,7 @@ from core.brain.inference_gate import (
     _answer_reserve_seconds,
     _tool_loop_budget,
 )
+from tests.source_contract import family_text_at
 
 
 class _Worker:
@@ -70,7 +71,7 @@ def test_the_loop_always_gets_enough_for_one_call() -> None:
 def test_the_reserve_is_taken_from_the_evidence_the_loop_carries() -> None:
     from pathlib import Path
 
-    body = Path("core/brain/inference_gate.py").read_text()
+    body = family_text_at(Path('core/brain/inference_gate.py'))
     # Anchored on the call, not on the keyword it is passed under. The
     # parameter was renamed from `timeout` to `budget_s` and this test broke
     # while the code it guards was untouched — a check that fails for a reason

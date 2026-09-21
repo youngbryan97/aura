@@ -353,11 +353,15 @@ _COMPUTATIONAL_EXTENT_RE = re.compile(
     r")",
     re.IGNORECASE,
 )
+# A modifier at the head of a phrase modifies the word after it: "faster
+# algorithm", "more efficient approach". Read alone, the suffix rule took
+# "answer", "earlier" and "five" for modifiers (formed constraint: a token
+# is not a decision), so the pattern asks for the word it would modify.
 _QUALITATIVE_MODIFIER_RE = re.compile(
     r"(?:"
     r"\b(?:more|less|most|least)\b"
     r"|[A-Za-z]+(?:able|ible|ful|less|ous|ive|ent|ant|ed|er|est)\b"
-    r")",
+    r")(?=\s+[A-Za-z])",
     re.IGNORECASE,
 )
 _NAMED_ENUMERATION_RE = re.compile(
@@ -866,7 +870,7 @@ def _candidate_is_substantive(candidate: Any) -> bool:
     )
     if has_identity_shape:
         return True
-    if _QUALITATIVE_MODIFIER_RE.fullmatch(words[0]):
+    if len(words) >= 2 and _QUALITATIVE_MODIFIER_RE.match(" ".join(words[:2])):
         return False
     # Lowercase candidates need positive structural identity. Three-token names
     # carry enough internal structure to distinguish them from adjective-plus-

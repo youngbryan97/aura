@@ -23,6 +23,7 @@
 from __future__ import annotations
 
 import pytest
+from tests.source_contract import family_text
 
 
 # ── 1. The grounding clause must read as English ───────────────────────────
@@ -76,7 +77,7 @@ def test_unchanged_contract_failure_is_not_re_reported() -> None:
 
     from core.brain import latent_cortex_service
 
-    source = inspect.getsource(latent_cortex_service)
+    source = family_text(latent_cortex_service)
     marker = 'reason = "receipt_contract_failed:" + ",".join(contract_errors)'
     index = source.find(marker)
     assert index != -1

@@ -44,6 +44,7 @@ import contextlib
 import contextvars
 import enum
 import hashlib
+import logging
 import threading
 import time
 import uuid
@@ -54,6 +55,8 @@ from core.runtime.errors import record_degradation
 from core.security.structural_redaction import redact_structure, redact_text
 from core.runtime.lockdep import checked_lock
 from core.runtime.turn_progress import TurnProgress
+
+logger = logging.getLogger("Aura.TurnOutcome")
 
 __all__ = [
     "OutcomeStatus",
@@ -102,6 +105,13 @@ class OutcomeStatus(str, enum.Enum):
     #: never be counted as a malfunction — conflating them is what makes a
     #: system's health metrics punish its own good judgement.
     REFUSED = "refused"
+    #: The runtime declined to run this work now — a background lane held
+    #: for memory, a generation pre-empted for the person's turn — and the
+    #: same request runs later. Not a malfunction: admission did its job.
+    #: Recorded as a failure, it read as one (LIVE 2026-09-20: the journal's
+    #: pre-empted generation became a CRITICAL SERVICE FAILURE in a
+    #: fail-closed subsystem and took memory consolidation down with it).
+    DEFERRED = "deferred"
     #: Failed, but the same request could succeed if tried again.
     RETRYABLE_FAILURE = "retryable_failure"
     #: Failed, and retrying this request will not help.
@@ -365,6 +375,7 @@ class TurnOutcome:
         "_receipts",
         "_fallbacks",
         "_refusal",
+        "_deferral",
         "_served",
         "_served_candidate_id",
         "_user_visible",
@@ -387,6 +398,7 @@ class TurnOutcome:
         self._receipts: list[dict[str, Any]] = []
         self._fallbacks: list[dict[str, Any]] = []
         self._refusal: dict[str, Any] | None = None
+        self._deferral: dict[str, Any] | None = None
         self._served: str | None = None
         self._served_candidate_id: str | None = None
         self._user_visible = UserVisibleState.NOT_YET_SERVED
@@ -562,6 +574,16 @@ class TurnOutcome:
         with self._lock:
             self._refuse_if_finalized("record_refusal")
             self._refusal = {
+                "reason": str(reason or ""),
+                "authority": str(authority or "unknown"),
+                "at": time.time(),
+            }
+
+    def record_deferral(self, *, reason: str, authority: str) -> None:
+        """The runtime held this work back on purpose. Not a malfunction."""
+        with self._lock:
+            self._refuse_if_finalized("record_deferral")
+            self._deferral = {
                 "reason": str(reason or ""),
                 "authority": str(authority or "unknown"),
                 "at": time.time(),
@@ -802,6 +824,11 @@ class TurnOutcome:
         # machinery's opinion of itself.
         if self._refusal is not None:
             return OutcomeStatus.REFUSED, f"refused:{self._refusal['reason']}"
+        # Held back by admission and nothing served: a correct outcome for a
+        # turn the runtime chose not to run yet. A deferral that still served
+        # (a fallback answered) is judged on what it served, below.
+        if self._deferral is not None and not (self._served or "").strip():
+            return OutcomeStatus.DEFERRED, f"deferred:{self._deferral['reason']}"
 
         declared = [e for e in self._effects.values() if e.requested]
         confirmed = [e for e in declared if e.is_confirmed]
@@ -1017,6 +1044,15 @@ def _report(receipt: TurnReceipt, *, subsystem: str) -> None:
     one is how health reports learned to cry wolf.
     """
     if receipt.status.is_success or receipt.status is OutcomeStatus.REFUSED:
+        return
+    if receipt.status is OutcomeStatus.DEFERRED:
+        # Said once, below the escalation floor: the lane that held the
+        # work already logged why, and a deferral is not a defect.
+        logger.info(
+            "turn deferred for origin=%s (%s); the same request runs later",
+            receipt.origin,
+            receipt.rationale,
+        )
         return
 
     # The task did fail, so the immutable receipt remains a failure.  But the

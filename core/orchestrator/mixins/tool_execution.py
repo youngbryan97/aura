@@ -24,6 +24,7 @@ from core.executive.standing_authority import (
     get_standing_authority_manager,
 )
 from core.runtime.errors import record_degradation
+from core.runtime.executors import off_the_loop
 from core.runtime.task_ownership import drain_owned_awaitable
 from core.verify.work_ledger import record_work
 
@@ -963,7 +964,11 @@ class ToolExecutionMixin:
                         if success
                         else f"failure:{str(result.get('error', 'unknown'))[:80]}"
                     )
-                    _sandbox.execute_with_prediction(
+                    # The sandbox saves its state on every prediction it
+                    # scores; off the loop, awaited (LIVE 2026-09-19, named
+                    # by the loop report from execute_tool).
+                    await off_the_loop(
+                        _sandbox.execute_with_prediction,
                         action_type="tool_exec",
                         target=tool_name,
                         predicted_outcome=_sandbox_predicted,
@@ -982,7 +987,7 @@ class ToolExecutionMixin:
                     category = self.tool_learner.classify_task(
                         str(args.get("query", args.get("path", "")))
                     )
-                    self.tool_learner.record_usage(tool_name, category, success, elapsed_ms)
+                    await off_the_loop(self.tool_learner.record_usage, tool_name, category, success, elapsed_ms)
                 except _TOOL_EXECUTION_RECOVERABLE_ERRORS as _e:
                     _record_tool_degradation(
                         _e,

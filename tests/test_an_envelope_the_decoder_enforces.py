@@ -21,6 +21,7 @@ from core.brain.llm.an_envelope_the_decoder_enforces import (
     AnEnvelope,
     the_request_for,
 )
+from tests.source_contract import family_text
 
 
 def test_the_model_starts_inside_the_envelope():
@@ -67,7 +68,7 @@ def test_it_is_not_specific_to_one_marker():
 def test_the_recovery_no_longer_asks_for_the_tags():
     from core.brain import cognitive_engine
 
-    source = inspect.getsource(cognitive_engine)
+    source = family_text(cognitive_engine)
     # The code, not the note recording what it used to ask for.
     code = "\n".join(
         line for line in source.splitlines() if not line.lstrip().startswith("#")

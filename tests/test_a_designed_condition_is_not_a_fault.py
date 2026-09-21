@@ -27,6 +27,7 @@ from __future__ import annotations
 import inspect
 
 from core.brain.inference_gate import InferenceGate
+from tests.source_contract import class_with_its_bases, family_text
 
 
 def _finalizer_source() -> str:
@@ -78,7 +79,7 @@ def test_a_worker_that_is_already_gone_is_not_a_gate_failure():
     The handle refers to a process that has exited, which is the outcome the
     recycling pass is trying to reach — not a failure to reach it.
     """
-    source = inspect.getsource(InferenceGate)
+    source = class_with_its_bases(InferenceGate)
     where = source.index("continued recycling other idle local clients")
     guard = source[max(0, where - 900) : where]
     assert "process object is closed" in guard
@@ -114,7 +115,7 @@ def test_a_rollback_receipt_does_not_abort_the_turn_it_describes():
     """
     from core.brain import cognitive_engine
 
-    source = inspect.getsource(cognitive_engine)
+    source = family_text(cognitive_engine)
     where = source.index('RuntimeError("phase_failure_partial_rollback")')
     window = source[where : where + 300]
     assert 'severity="info"' in window, "a receipt about recovery is escalating again"

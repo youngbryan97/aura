@@ -244,3 +244,88 @@ def test_every_probe_on_a_thread_is_bounded_by_its_work():
     for rel in ("core/fictional/skynet.py", "core/runtime/control_plane.py", "core/kernel/organs.py"):
         source = (ROOT / rel).read_text(encoding="utf-8")
         assert not re.search(r"wait_for\(\s*asyncio\.to_thread", source), rel
+
+
+# ── a save a coroutine waits for runs off the loop, inline once the lane is gone
+
+
+@pytest.mark.asyncio
+async def test_off_the_loop_runs_the_call_on_a_worker_and_returns_its_result():
+    import threading
+
+    from core.runtime.executors import off_the_loop
+
+    loop_thread = threading.current_thread().name
+    where = await off_the_loop(lambda: threading.current_thread().name)
+    assert where != loop_thread
+    assert await off_the_loop(lambda a, b=1: a + b, 2, b=3) == 5
+
+
+@pytest.mark.asyncio
+async def test_off_the_loop_runs_inline_once_the_executor_is_gone(monkeypatch):
+    """The last saves of a shutdown must still happen when the loop's
+    executor has already been shut down."""
+    import asyncio
+
+    from core.runtime import executors
+
+    async def gone(*args, **kwargs):
+        raise RuntimeError("cannot schedule new futures after shutdown")
+
+    monkeypatch.setattr(executors.asyncio, "to_thread", gone)
+    ran: list[str] = []
+    assert await executors.off_the_loop(lambda: ran.append("saved") or "ok") == "ok"
+    assert ran == ["saved"]
+
+    async def broken(*args, **kwargs):
+        raise RuntimeError("something else")
+
+    monkeypatch.setattr(executors.asyncio, "to_thread", broken)
+    with pytest.raises(RuntimeError, match="something else"):
+        await executors.off_the_loop(lambda: "never")
+
+
+def test_the_named_shutdown_saves_are_off_the_loop():
+    """The loop report of 2026-09-19 named these from stop() coroutines and
+    the shutdown itself; each is awaited off the loop now."""
+    sites = {
+        "core/consciousness/mhaf_field.py": "await off_the_loop(self._save)",
+        "core/adaptation/epistemic_humility.py": "await off_the_loop(self._save)",
+        "core/introspection/insight_journal.py": "await off_the_loop(self._save)",
+        "core/epistemics/inquiry_engine.py": "await off_the_loop(self._save)",
+        "core/evolution/evolution_orchestrator.py": "await off_the_loop(self._save)",
+        "core/orchestrator/handlers/shutdown.py": "await off_the_loop(orch._save_state, \"shutdown\")",
+        "core/learning/selfplay_flywheel.py": "await off_the_loop(self._save_state, state)",
+        "core/brain/cognitive/integrity_check.py": "await off_the_loop(self._write_audit_log, report)",
+        "core/orchestrator/mixins/boot/boot_cognitive.py": "await off_the_loop(get_live_learner)",
+    }
+    for rel, call in sites.items():
+        assert call in (ROOT / rel).read_text(encoding="utf-8"), rel
+
+
+def test_a_degradation_receipt_is_written_behind_the_loop() -> None:
+    """record_degradation(receipt_required=True) writes a durable receipt — an
+    atomic write, an fsync and a chain append. From an exception handler in
+    async code that ran on the loop (LIVE 2026-09-20, named by the loop report
+    from the code generator). On the loop it is queued behind it."""
+    import asyncio
+
+    import core.runtime.errors as errors
+
+    handed: list[str] = []
+
+    def fake_behind(key: str, fn):
+        handed.append(key)
+        return False
+
+    async def on_the_loop() -> None:
+        with pytest.MonkeyPatch.context() as mp:
+            import core.runtime.executors as executors
+
+            mp.setattr(executors, "behind_the_loop", fake_behind)
+            errors.record_degradation(
+                "a_subsystem", RuntimeError("x"), action="tested", receipt_required=True
+            )
+
+    asyncio.run(on_the_loop())
+    assert handed and handed[0].startswith("degradation_receipt:a_subsystem:")

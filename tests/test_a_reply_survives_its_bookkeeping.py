@@ -15,6 +15,7 @@ import inspect
 from pathlib import Path
 
 import core.brain.cognitive_engine as engine
+from tests.source_contract import family_text_at
 
 
 def _records_in(source: str) -> list[ast.Call]:
@@ -39,7 +40,7 @@ def _mentions(call: ast.Call, text: str) -> bool:
 
 
 def test_the_two_commit_records_do_not_fail_the_turn_closed():
-    source = Path(inspect.getfile(engine)).read_text(encoding="utf-8")
+    source = family_text_at(Path(inspect.getfile(engine)))
     wanted = ("cognitive cycle budget spent before state commit", "foreground_turn_uncommitted")
 
     found = 0
@@ -58,7 +59,7 @@ def test_the_two_commit_records_do_not_fail_the_turn_closed():
 
 def test_the_reply_is_still_extracted_after_an_uncommitted_turn():
     """The lines that matter: the record, then the extraction."""
-    source = Path(inspect.getfile(engine)).read_text(encoding="utf-8")
+    source = family_text_at(Path(inspect.getfile(engine)))
     at = source.index("foreground_turn_uncommitted")
     after = source[at : at + 1200]
     assert "_turn_response_message" in after

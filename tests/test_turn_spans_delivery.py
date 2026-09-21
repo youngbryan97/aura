@@ -118,7 +118,12 @@ def test_custody_is_reachable_from_a_delivery_stage() -> None:
 
 
 def test_the_terminal_boundary_enforces_custody() -> None:
-    source = _CHAT.read_text("utf-8")
+    from source_support import inlined_function_source
+
+    # the envelope is built by a helper the size sweep cut out; read the turn
+    # as it runs, with that block back at its call site, so "before" means
+    # before
+    source = inlined_function_source(_CHAT, "_api_chat_turn")
     restore = source.find("restore_held_facts(_final_reply)")
     envelope = source.find('"response": _final_reply,')
     assert restore != -1, "nothing enforces custody on the outgoing text"

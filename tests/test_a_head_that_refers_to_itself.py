@@ -83,13 +83,21 @@ _RULES = {
 }
 
 
+#: A count, not a clock. The function's own docstring: a result that moves
+#: with what else the machine is doing is not a result. Twenty seconds on an
+#: idle host bought about this many candidates (tools/run_grown_against_reset_heads.py);
+#: seven of these tests failed in a chunk run beside the live runtime and
+#: passed alone (2026-09-20). The clock stays only as a hang bound.
+_A_SEARCH = 20 * 20_000
+
+
 @pytest.mark.parametrize("name", sorted(_RULES))
 def test_she_writes_a_recursive_head_from_the_states_alone(name: str) -> None:
     found = a_way_of_computing_she_wrote(
         _family(_RULES[name]),
         now_sayable=lambda: False,
         words=dict(WHERE_FROM),
-        within=20.0,
+        most_candidates=_A_SEARCH, within=600.0,
     )
     assert found is not None, name
     assert found.by_recurrence, "found without the recurrence, so it was already short"
@@ -104,7 +112,7 @@ def test_it_holds_at_lengths_it_was_neither_fitted_nor_judged_at(name: str) -> N
         _family(rule),
         now_sayable=lambda: False,
         words=dict(WHERE_FROM),
-        within=20.0,
+        most_candidates=_A_SEARCH, within=600.0,
     )
     assert found is not None
     from core.cognition.one_algebra import the_head_she_wrote
@@ -125,13 +133,13 @@ def test_taking_the_recurrence_away_takes_the_head_with_it() -> None:
     """
     family = _family(_RULES["doubling"])
     with_it = a_way_of_computing_she_wrote(
-        family, now_sayable=lambda: False, words=dict(WHERE_FROM), within=20.0
+        family, now_sayable=lambda: False, words=dict(WHERE_FROM), most_candidates=_A_SEARCH, within=600.0
     )
     without = a_way_of_computing_she_wrote(
         family,
         now_sayable=lambda: False,
         words=dict(WHERE_FROM),
-        within=20.0,
+        most_candidates=_A_SEARCH, within=600.0,
         by_recurrence=False,
     )
     assert with_it is not None and with_it.by_recurrence

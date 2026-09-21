@@ -16,15 +16,16 @@ it look like a desktop-routing problem instead of a TypeError.
 
 from __future__ import annotations
 
-import inspect
 import re
+from pathlib import Path
 
 from core.brain import inference_gate
+from tests.source_contract import family_text
 
 
 def test_the_explicit_kwarg_set_matches_the_call_sites():
     """The scrub is only correct if it lists what the calls actually pass."""
-    source = inspect.getsource(inference_gate)
+    source = family_text(inference_gate)
     call = source.index("text = await self._generate_with_client(")
     body = source[call : source.index("**morpho_kwargs", call)]
     passed = set(re.findall(r"^\s+([a-z_]+)=", body, flags=re.MULTILINE))
@@ -38,7 +39,13 @@ def test_the_explicit_kwarg_set_matches_the_call_sites():
 
 
 def test_the_scrub_runs_before_dispatch():
-    source = inspect.getsource(inference_gate)
+    from source_support import inlined_function_source
+
+    # the turn as it runs: the scrub sits in a block the size sweep moved
+    # into a helper, and the order only shows once it is read back in place
+    source = inlined_function_source(
+        Path("core/brain/inference_gate.py"), "InferenceGate._generate_with_metadata_sink"
+    )
     assert "for _reserved in _GENERATE_EXPLICIT_KWARGS:" in source
     assert "morpho_kwargs.pop(_reserved, None)" in source
     scrub_at = source.index("for _reserved in _GENERATE_EXPLICIT_KWARGS:")

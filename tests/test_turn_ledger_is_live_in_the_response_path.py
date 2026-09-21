@@ -123,7 +123,11 @@ def test_the_cognitive_cycle_binds_a_turn_and_finalizes_it_once():
 
 def test_the_no_answer_path_consults_the_ledger_before_giving_up():
     """The salvage consult must sit BEFORE the empty-thought return."""
-    source = (ROOT / "core" / "brain" / "cognitive_engine.py").read_text("utf-8")
+    import core.brain.cognitive_engine as engine_mod
+    from tests.source_contract import function_containing
+
+    # both lines sit in one function, now in the thinking-loop mixin
+    _name, source = function_containing(engine_mod, "salvaged = recoverable_answer()")
     consult = source.find("salvaged = recoverable_answer()")
     give_up = source.find('self._empty_thought(mode, "user_cycle_no_response")')
     assert consult != -1, "nothing asks the ledger before the cycle reports no answer"

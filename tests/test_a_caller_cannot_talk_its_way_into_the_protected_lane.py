@@ -32,6 +32,7 @@ import math
 import pytest
 
 from core.brain.inference_gate import InferenceGate
+from tests.source_contract import family_text
 
 
 # ─────────────────────────────── the origin label
@@ -145,7 +146,7 @@ def test_an_explicit_protected_contract_is_not_rate_limited():
 
     import core.brain.inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -177,7 +178,7 @@ def test_the_gate_writes_who_and_when_with_the_trust_level():
 
     import core.brain.inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
 
     assert 'modifiers["trust_level_binding"]' in source
     assert '"recognized_at"' in source
@@ -189,7 +190,7 @@ def test_the_assembler_requires_a_fresh_binding_before_elevating():
 
     import core.brain.llm.context_assembler as assembler_mod
 
-    source = inspect.getsource(assembler_mod)
+    source = family_text(assembler_mod)
 
     assert "trust_level_binding" in source
     assert "_TRUST_BINDING_MAX_AGE_S" in source
@@ -200,7 +201,7 @@ def test_guest_recognition_does_not_reverse_a_safety_downgrade():
 
     import core.brain.inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
 
     assert "downgraded_for_safety" in source
     assert "not re-promoting it to the protected lane" in source
@@ -254,7 +255,7 @@ def test_a_nan_temperature_is_rejected_not_maxed():
 
     import core.brain.inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
 
     assert "if math.isfinite(_caller_temp)" in source
 
@@ -267,7 +268,7 @@ def test_a_contract_that_requires_a_cold_prompt_overrides_the_caller():
 
     import core.brain.inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
 
     assert "Cache policy is not a caller preference." in source
     assert 'for _cache_key in ("disable_prompt_cache", "clear_prompt_cache"):' in source
@@ -281,7 +282,7 @@ def test_a_non_list_message_payload_is_reported_not_silently_dropped():
 
     import core.brain.inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
 
     assert 'context["prebuilt_messages_rejected"] = "not_a_list"' in source
 
@@ -291,7 +292,7 @@ def test_a_payload_with_no_user_turn_gets_the_prompt_back():
 
     import core.brain.inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
 
     assert 'context["prebuilt_messages_user_turn_recovered"] = True' in source
     assert "restored the caller's prompt as the user turn" in source

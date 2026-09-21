@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from tests.source_contract import family_text
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOLS = REPO_ROOT / "tools"
@@ -155,7 +156,7 @@ def test_both_abstain_paths_are_guarded_under_the_incumbent():
 
     from core.brain.llm.latent_cortex import engine as engine_mod
 
-    src = inspect.getsource(engine_mod)
+    src = family_text(engine_mod)
 
     # Path 2: failing the episode is permitted only when latent owns output.
     assert (

@@ -14,6 +14,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from tests.source_contract import family_text_at
+
 _GATE = Path("core/brain/inference_gate.py")
 
 def _code_after(anchor: str, *, lines: int) -> str:
@@ -27,7 +29,7 @@ def _code_after(anchor: str, *, lines: int) -> str:
     file.
     """
 
-    body = _GATE.read_text().splitlines()
+    body = family_text_at(_GATE).splitlines()
     start = next(
         number for number, line in enumerate(body) if anchor in line
     )
@@ -61,14 +63,14 @@ def test_the_floor_is_restored_after_the_bias_runs() -> None:
 
 
 def test_the_restore_reads_the_floor_the_gate_already_stored() -> None:
-    body = _GATE.read_text()
+    body = family_text_at(_GATE)
     window = body[body.index("Completion floor restored after sampling bias") - 900 :][:1200]
     assert 'context.get("user_surface_completion_floor")' in window
     assert "max_tokens = _floor" in window
 
 
 def test_a_missing_or_unreadable_floor_changes_nothing() -> None:
-    body = _GATE.read_text()
+    body = family_text_at(_GATE)
     start = body.index("# A bias may spend less of the budget")
     window = body[start : start + 1200]
     assert "except (TypeError, ValueError, OverflowError)" in window
@@ -77,7 +79,7 @@ def test_a_missing_or_unreadable_floor_changes_nothing() -> None:
 
 def test_the_multiplier_still_has_a_smallest_factor() -> None:
     # The bias keeps its own range; the floor is a second, independent bound.
-    body = _GATE.read_text()
+    body = family_text_at(_GATE)
     assert re.search(r"0\.40 <= factor <= 1\.20", body)
 
 
@@ -90,7 +92,7 @@ def test_the_floor_covers_the_same_turns_the_multiplier_does() -> None:
     budget worse.
     """
 
-    body = _GATE.read_text()
+    body = family_text_at(_GATE)
     start = body.index("_foreground_answer_turn = (")
     guard = body[start : start + 400]
     for condition in (
@@ -107,7 +109,7 @@ def test_the_floor_covers_the_same_turns_the_multiplier_does() -> None:
 
 
 def test_a_declared_ceiling_and_a_blocked_stake_still_win() -> None:
-    body = _GATE.read_text()
+    body = family_text_at(_GATE)
     start = body.index("desktop_cognitive_engine_contract or _foreground_answer_turn")
     window = body[start : start + 300]
     assert 'context.get("hard_output_token_ceiling", False)' in window
@@ -117,7 +119,7 @@ def test_a_declared_ceiling_and_a_blocked_stake_still_win() -> None:
 def test_a_discarded_draft_is_written_down() -> None:
     """A gate that destroys an answer records what it destroyed."""
 
-    client = Path("core/brain/llm/mlx_client.py").read_text()
+    client = family_text_at(Path('core/brain/llm/mlx_client.py'))
     start = client.index("Worker rejected the visible draft for semantic ")
     window = client[start - 1400 : start + 700]
     assert "draft_chars=%d head=%r tail=%r" in window
@@ -160,7 +162,7 @@ def test_the_last_word_yields_to_a_declared_requirement() -> None:
 
 
 def test_the_execution_floor_still_owns_execution_turns() -> None:
-    body = _GATE.read_text()
+    body = family_text_at(_GATE)
     assert "FINAL word on the budget for an execution turn" in body
     assert "_plan_floor_final" in body
 

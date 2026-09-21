@@ -22,6 +22,7 @@ from core.phases.response_contract import (
     _SELF_SERVICE_CEILING,
     requested_effect_ceiling,
 )
+from tests.source_contract import function_with_its_helpers
 
 
 @pytest.mark.parametrize(
@@ -79,11 +80,10 @@ def test_the_dispatch_authorises_what_selection_offered() -> None:
     """Offering a capability the dispatch then refuses is worse than not
     offering it: the turn spends itself reaching for something it was never
     allowed to use."""
-    from pathlib import Path
 
-    gate = Path("core/brain/inference_gate.py").read_text(encoding="utf-8")
-    body = gate[gate.index("async def _tool_grounded_answer") :]
-    body = body[: body.index("\n    async def ", 10)]
+    import core.brain.inference_gate as gate_mod
+
+    body = function_with_its_helpers(gate_mod, "InferenceGate._tool_grounded_answer")
     assert "requested_effect_ceiling(text)" in body
-    assert '"authorised_effect_scope": _ceiling' in body
+    assert '"authorised_effect_scope": ceiling' in body
     assert "_SELF_SERVICE_CEILING" not in body

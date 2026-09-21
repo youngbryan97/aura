@@ -18,6 +18,7 @@ from __future__ import annotations
 import pytest
 
 from core.brain.llm.mlx_client import MLXLocalClient
+from tests.source_contract import family_text_at
 
 pytestmark = pytest.mark.unit
 
@@ -49,7 +50,7 @@ def test_no_prefill_telemetry_claims_nothing() -> None:
 def test_the_stall_clock_consults_it() -> None:
     from pathlib import Path
 
-    source = Path("core/brain/llm/mlx_client.py").read_text(encoding="utf-8")
+    source = family_text_at(Path('core/brain/llm/mlx_client.py'))
     assert "self._prefill_progress_at()," in source
     # And the first-token clock still keeps prefill separate on purpose: there
     # the question is whether reading has begun at all.
@@ -61,6 +62,6 @@ def test_a_genuinely_silent_generation_is_still_caught() -> None:
 
     from pathlib import Path
 
-    source = Path("core/brain/llm/mlx_client.py").read_text(encoding="utf-8")
+    source = family_text_at(Path('core/brain/llm/mlx_client.py'))
     assert "> token_stall_after" in source
     assert "Token progress stalled during generation" in source

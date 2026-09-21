@@ -11,6 +11,7 @@ import functools
 import hashlib
 import inspect
 import json
+import logging
 import marshal
 import os
 import platform
@@ -1475,6 +1476,13 @@ def _runtime_value_identity(
             "kind": "contextvar",
             "name": value.name,
         }
+    if isinstance(value, logging.Logger):
+        # A logger is named, not composed: walking one reaches the logging
+        # manager, every logger in the process, and a placeholder's map keyed
+        # by Logger objects, and which of those exist depends on what was
+        # imported first (2026-09-20: 59 fixtures failed on a mapping with
+        # Logger keys after an unrelated import order change).
+        return {"kind": "logger", "name": value.name}
     if isinstance(value, types.ModuleType):
         try:
             module_path = inspect.getsourcefile(value)

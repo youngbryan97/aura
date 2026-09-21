@@ -18,12 +18,13 @@ from __future__ import annotations
 from mlx_source import worker_source
 
 from pathlib import Path
+from tests.source_contract import family_text_at
 
 _GATE = Path("core/brain/inference_gate.py")
 
 
 def test_the_refusal_reads_every_key_a_reason_is_kept_under() -> None:
-    body = _GATE.read_text()
+    body = family_text_at(_GATE)
     start = body.index("_quality_reasons = tuple(")
     window = body[start : start + 1200]
     for key in (
@@ -46,7 +47,7 @@ def test_the_worker_really_writes_the_key_the_gate_now_reads() -> None:
 def test_reasons_are_deduplicated_and_bounded() -> None:
     """The same objection under two names is one objection."""
 
-    body = _GATE.read_text()
+    body = family_text_at(_GATE)
     start = body.index("_quality_reasons = tuple(")
     window = body[start : start + 700]
     assert "dict.fromkeys" in window
@@ -62,7 +63,7 @@ def test_when_there_is_no_reason_it_shows_the_draft() -> None:
     for the repair path; nothing was reading it here.
     """
 
-    body = _GATE.read_text()
+    body = family_text_at(_GATE)
     assert "surface_quality_rejected_text" in body
     start = body.index("_rejected_draft = \"\"")
     window = body[start : start + 420]

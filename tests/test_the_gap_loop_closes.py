@@ -33,9 +33,9 @@ def test_something_in_production_asks_the_forge():
 def test_it_is_gated_exactly_as_tool_creation_is_because_it_is_tool_creation():
     import core.learning.recursive_self_improvement as rsi
 
-    source = inspect.getsource(
-        rsi.RecursiveSelfImprovementLoop._ask_the_forge_about_recurring_gaps
-    )
+    # decided in one place, asked in another (2026-09-06): the planner
+    # records a choice, the executor runs it
+    source = inspect.getsource(rsi.RecursiveSelfImprovementLoop._worth_asking_the_forge)
     assert "AURA_RSI_TOOL_CREATION" in source
     assert "if not allowed or not observed" in source
 
@@ -43,17 +43,17 @@ def test_it_is_gated_exactly_as_tool_creation_is_because_it_is_tool_creation():
 def test_it_does_nothing_when_it_is_not_allowed():
     import core.learning.recursive_self_improvement as rsi
 
-    ask = rsi.RecursiveSelfImprovementLoop._ask_the_forge_about_recurring_gaps
-    assert ask(allowed=False, observed=True) is False
-    assert ask(allowed=True, observed=False) is False
+    worth = rsi.RecursiveSelfImprovementLoop._worth_asking_the_forge
+    assert worth(allowed=False, observed=True) is False
+    assert worth(allowed=True, observed=False) is False
 
 
 def test_it_does_nothing_when_the_flag_is_off(monkeypatch):
     import core.learning.recursive_self_improvement as rsi
 
     monkeypatch.setenv("AURA_RSI_TOOL_CREATION", "0")
-    ask = rsi.RecursiveSelfImprovementLoop._ask_the_forge_about_recurring_gaps
-    assert ask(allowed=True, observed=True) is False
+    worth = rsi.RecursiveSelfImprovementLoop._worth_asking_the_forge
+    assert worth(allowed=True, observed=True) is False
 
 
 def test_when_it_is_allowed_it_asks_and_reports_what_came_back(monkeypatch):
@@ -76,12 +76,15 @@ def test_when_it_is_allowed_it_asks_and_reports_what_came_back(monkeypatch):
     assert made == ["a_forged_skill"]
     assert asked["n"] == 1
 
-    async def through_the_scheduler() -> bool:
-        return rsi.RecursiveSelfImprovementLoop._ask_the_forge_about_recurring_gaps(
-            allowed=True, observed=True
-        )
+    assert rsi.RecursiveSelfImprovementLoop._worth_asking_the_forge(allowed=True, observed=True)
 
-    assert asyncio.run(through_the_scheduler()) is True
+    async def through_the_scheduler() -> dict:
+        return rsi.RecursiveSelfImprovementLoop._ask_the_forge(["a_gap_seen_twice"])
+
+    said = asyncio.run(through_the_scheduler())
+    assert said["ok"] is True
+    assert said["asked_about"] == ["a_gap_seen_twice"]
+    assert said["awaited"] is False
 
 
 def test_a_forge_that_raises_is_a_degradation_and_not_a_dead_cycle(monkeypatch):

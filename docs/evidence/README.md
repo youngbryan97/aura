@@ -173,6 +173,13 @@ description is that document's own title.
 | `G03_WORKING_FACE_FULL_LAUNCH_2026-09-18.md` | Frozen working-face development run |
 | `G08_PAIRED_PUBLIC_MEASUREMENT_2026-09-18.md` | Paired public-answer measurement |
 | `G09_ORDINARY_EVALUATION_PATH_2026-09-18.md` | Evaluation requests use ordinary reasoning |
+| `G03_FUNCTION_COORDINATES_2026-09-19.md` | Function-coordinate development |
+| `G03_MINIMUM_CHANGE_TRIAL_2026-09-19.md` | Minimum-change semantic repair: numerical fix, transfer still negative |
+| `G03_PARAMETER_SUBSPACE_2026-09-19.md` | A source repair without the measured classifier regression |
+| `G03_SCALED_SUBSPACE_TRIAL_2026-09-19.md` | Scaled subspace trial |
+| `G03_WORKING_FACE_ATTRIBUTION_2026-09-19.md` | Working-face attribution correction |
+| `G04_BOUND_SOURCE_INVENTORY_2026-09-19.md` | Bound source inventory |
+| `G08_VALIDATION_SOURCE_IDENTITY_2026-09-19.md` | Validation cache source identity |
 | `G_RUNTIME_WATCH_AND_RESIDUAL_2026-09-16.md` | Runtime recovery and residual sampling |
 | `TERNARY_BONSAI_2_27B_2026-09-17.md` | Ternary Bonsai 2 27B on this host, 2026-09-17 |
 

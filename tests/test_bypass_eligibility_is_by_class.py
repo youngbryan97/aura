@@ -21,6 +21,7 @@ from __future__ import annotations
 import pytest
 
 from core.brain.external_execute_coordinator import _bypass_reason_is_eligible
+from tests.source_contract import family_text
 
 
 @pytest.mark.parametrize(
@@ -56,11 +57,10 @@ def test_a_verdict_may_not_be_bypassed(reason):
 
 def test_the_executors_own_fallback_is_eligible():
     """It reached for a bypass with a reason its own gate rejected."""
-    import inspect
 
     from core.runtime import action_executor
 
-    source = inspect.getsource(action_executor)
+    source = family_text(action_executor)
     assert '"availability_failure:rehearsal_unavailable"' in source
     assert _bypass_reason_is_eligible("availability_failure:rehearsal_unavailable")
 

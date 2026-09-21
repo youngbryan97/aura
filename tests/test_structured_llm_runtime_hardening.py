@@ -230,3 +230,32 @@ def test_an_explicit_zero_deadline_means_unbounded_not_the_default():
     """A caller that means unbounded must be able to say so."""
     structured = StructuredLLM(_TaskModel, max_retries=1, llm_router=_CountingRouter([]))
     assert structured._campaign_budget_seconds(0) == 0.0
+
+
+@pytest.mark.anyio
+async def test_the_decoder_is_asked_to_hold_a_json_object():
+    """A caller that will parse JSON says so on the job, and the sampler
+    cannot then produce prose. LIVE 2026-09-20: nine swarm shards failed three
+    retries each on a brainstem that narrated before answering; the schema
+    alone only pinned the temperature."""
+    from pydantic import BaseModel
+
+    from core.brain.llm.structured_llm import StructuredLLM
+
+    class _Shape(BaseModel):
+        value: int
+
+    class _Router:
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        async def generate_with_metadata(self, prompt, **kwargs):
+            self.calls.append(kwargs)
+            return {"text": '{"value": 3}', "error": ""}
+
+    router = _Router()
+    llm = StructuredLLM(_Shape, max_retries=1, llm_router=router)
+    result = await llm.generate("give me a value", is_background=False)
+    assert result is not None and result.value == 3
+    assert router.calls and router.calls[0]["output_shape"] == "json_object"
+    assert router.calls[0]["schema"]["title"] == "_Shape"

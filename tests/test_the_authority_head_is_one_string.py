@@ -18,8 +18,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from core.brain.cognitive_engine import _DESKTOP_AUTHORITY_HEAD
+from tests.source_contract import family_text_at
 
-_SOURCE = Path("core/brain/cognitive_engine.py").read_text()
+_SOURCE = family_text_at(Path('core/brain/cognitive_engine.py'))
 
 
 def test_the_head_is_a_constant_not_a_branch() -> None:

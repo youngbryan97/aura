@@ -17,6 +17,7 @@ import time
 
 from core.brain.inference_gate import InferenceGate
 from core.brain.llm.mlx_client import MLXLocalClient
+from tests.source_contract import class_with_its_bases, family_text
 
 
 class _Client:
@@ -75,7 +76,7 @@ def test_the_background_budget_control_is_for_background() -> None:
 
     import inspect
 
-    source = inspect.getsource(InferenceGate)
+    source = class_with_its_bases(InferenceGate)
     marker = "phi_scale = max(0.6, 0.6 + 0.4 * (phi_val / 0.8))"
     assert marker in source
     condition = source[source.rindex("if (", 0, source.index(marker)) : source.index(marker)]
@@ -245,7 +246,7 @@ def test_a_user_facing_turn_may_reach_the_same_ceiling_as_the_wait() -> None:
     from core.brain import cognitive_engine
     from core.runtime.response_policy import USER_FACING_COMPLETION_DEADLINE_MAX_S
 
-    source = inspect.getsource(cognitive_engine)
+    source = family_text(cognitive_engine)
     marker = "cycle_timeout_cap = response_policy.USER_FACING_COMPLETION_DEADLINE_MAX_S"
     assert marker in source
     condition = source[source.rindex("if ", 0, source.index(marker)) : source.index(marker)]
@@ -322,7 +323,7 @@ def test_the_clock_never_exceeds_the_wait_that_contains_it() -> None:
 
     from core.brain.inference_gate import InferenceGate as Gate
 
-    source = inspect.getsource(Gate)
+    source = class_with_its_bases(Gate)
     # Anchored on the cap, not on the first `primary_timeout` in the file.
     # There are two: one on the path that SHRINKS the clock to fit the answer,
     # which no ceiling concerns, and this one on the path that extends it.

@@ -12,11 +12,6 @@
    "_save"
   ],
   [
-   "core/adaptation/epistemic_humility.py",
-   "stop",
-   "_save"
-  ],
-  [
    "core/adaptation/online_lora_governor.py",
    "maybe_update_from_reflection",
    "_record"
@@ -117,11 +112,6 @@
    "_record_receipt"
   ],
   [
-   "core/brain/cognitive/integrity_check.py",
-   "audit_beliefs",
-   "_write_audit_log"
-  ],
-  [
    "core/brain/semantic_memory.py",
    "consolidate_from_history",
    "add_memory"
@@ -130,11 +120,6 @@
    "core/cognition/paraconsistent_logic.py",
    "stop",
    "_save_graph"
-  ],
-  [
-   "core/consciousness/mhaf_field.py",
-   "stop",
-   "_save"
   ],
   [
    "core/consciousness/neologism_engine.py",
@@ -212,11 +197,6 @@
    "open_question"
   ],
   [
-   "core/epistemics/inquiry_engine.py",
-   "stop",
-   "_save"
-  ],
-  [
    "core/evolution/optimizer.py",
    "run",
    "_archive_dataset"
@@ -249,11 +229,6 @@
   [
    "core/introspection/insight_journal.py",
    "record_insight",
-   "_save"
-  ],
-  [
-   "core/introspection/insight_journal.py",
-   "stop",
    "_save"
   ],
   [
@@ -295,11 +270,6 @@
    "core/learning/rsi_gauntlet.py",
    "run",
    "_check_canary_repair"
-  ],
-  [
-   "core/learning/selfplay_flywheel.py",
-   "_burst",
-   "_save_state"
   ],
   [
    "core/memory/conversation_persistence.py",

@@ -28,6 +28,7 @@ from core.world_state import (
 from core.drive_engine import DriveEngine, ResourceBudget
 from core.simulation.internal_simulator import InternalSimulator
 from core.will import ActionDomain, WillOutcome, get_will
+from tests.source_contract import class_with_its_bases
 
 
 # ---------------------------------------------------------------------------
@@ -283,7 +284,7 @@ class TestTier4Integration:
     def test_boot_wires_tier4_systems(self):
         import inspect
         from core.orchestrator.mixins.boot.boot_autonomy import BootAutonomyMixin
-        source = inspect.getsource(BootAutonomyMixin)
+        source = class_with_its_bases(BootAutonomyMixin)
         assert "WorldState" in source
         assert "InitiativeSynthesizer" in source
         assert "InternalSimulator" in source
@@ -297,5 +298,5 @@ class TestTier4Integration:
     def test_mind_tick_updates_world_state(self):
         import inspect
         from core.mind_tick import MindTick
-        source = inspect.getsource(MindTick)
+        source = class_with_its_bases(MindTick)
         assert "world_state" in source.lower()

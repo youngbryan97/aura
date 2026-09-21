@@ -125,7 +125,7 @@ class AChannelSite:
         where = self.applied_in
         if harness in self.BACKGROUND_HARNESSES:
             where = tuple(one for one in where if one not in self.foreground_only_in)
-        return any(one.startswith(allowed) for one in where)
+        return any(_is_or_was_lifted_from(one, allowed) for one in where)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -183,15 +183,27 @@ def where_each_channel_acts(repo: str = ".") -> tuple[AChannelSite, ...]:
         seen = guarded.get((key, where))
         guarded[(key, where)] = under_a_guard if seen is None else (seen and under_a_guard)
 
-    for path in (root / "core").rglob("*.py"):
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8", errors="ignore"))
-        except (OSError, SyntaxError, ValueError):
+    for family in _module_families(root / "core"):
+        # One tree per family, so a helper the lift moved into a sibling is
+        # still seen from the caller that guards it (LIVE 2026-09-19: the
+        # circumplex site left for `inference_gate_turn_setup.py` and its
+        # guard stayed in `inference_gate.py`).
+        bodies: list[ast.stmt] = []
+        for path in family:
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8", errors="ignore"))
+            except (OSError, SyntaxError, ValueError):
+                continue
+            where = str(path.relative_to(root))
+            for node in ast.walk(tree):
+                node._where = where  # noqa: SLF001 - read back below
+            bodies.extend(tree.body)
+        if not bodies:
             continue
-        where = str(path.relative_to(root))
-        for node, under_a_guard in _calls_with_their_guards(tree):
+        for node, under_a_guard in _calls_with_their_guards(ast.Module(body=bodies, type_ignores=[])):
             if not node.args:
                 continue
+            where = getattr(node, "_where", "")
             called = getattr(node.func, "id", getattr(node.func, "attr", ""))
             if called not in HOW_A_LESION_IS_BOUND:
                 continue
@@ -215,6 +227,56 @@ def where_each_channel_acts(repo: str = ".") -> tuple[AChannelSite, ...]:
         )
         for name, where in sorted(sites.items())
     )
+
+
+def _is_or_was_lifted_from(site: str, allowed: tuple[str, ...]) -> bool:
+    """``site`` is one of the ``allowed`` files, or a module lifted out of one.
+
+    The reach of a harness is by module. A lift moves a site into
+    ``<module>_<part>.py`` beside the module and the module runs it as
+    before, so the sibling is on every path the module is.
+    """
+    for one in allowed:
+        if site == one or site.startswith(one):
+            return True
+        if one.endswith(".py") and site.startswith(one[:-3] + "_") and site.endswith(".py"):
+            return True
+    return False
+
+
+def _module_families(base: pathlib.Path) -> list[list[pathlib.Path]]:
+    """Every module under ``base`` with the siblings lifted out of it.
+
+    A lift names its module ``<parent>_<part>.py`` beside the parent and the
+    parent imports it back; that import is the evidence, so ``event_bus``
+    and an unrelated ``event_bus_recorder`` stay apart.
+    """
+    import re
+
+    paths = sorted(base.rglob("*.py"))
+    parent_of: dict[pathlib.Path, pathlib.Path] = {}
+    for path in paths:
+        stem = path.stem
+        for cut in range(len(stem) - 1, 0, -1):
+            if stem[cut] != "_":
+                continue
+            parent = path.parent / f"{stem[:cut]}.py"
+            if not parent.is_file():
+                continue
+            try:
+                head = parent.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            if re.search(rf"^from \.?(?:[\w.]+\.)?{re.escape(stem)} import", head, flags=re.MULTILINE):
+                parent_of[path] = parent
+                break
+    families: dict[pathlib.Path, list[pathlib.Path]] = {}
+    for path in paths:
+        root_path = path
+        while root_path in parent_of:
+            root_path = parent_of[root_path]
+        families.setdefault(root_path, []).append(path)
+    return [sorted(members, key=lambda p: (p != head_path, p)) for head_path, members in families.items()]
 
 
 def _calls_with_their_guards(tree: ast.AST) -> list[tuple[ast.Call, bool]]:

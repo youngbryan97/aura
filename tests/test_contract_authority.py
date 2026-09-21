@@ -30,6 +30,7 @@ from core.brain.llm.contract_authority import (
     sign_job,
     verify_job,
 )
+from tests.source_contract import family_text
 
 
 @pytest.fixture
@@ -217,13 +218,13 @@ class TestWiring:
     def test_the_client_generates_a_key_per_spawn(self):
         from core.brain.llm import mlx_client
 
-        source = inspect.getsource(mlx_client)
+        source = family_text(mlx_client)
         assert "self._contract_key = new_contract_key()" in source
 
     def test_the_client_passes_the_key_to_the_child(self):
         from core.brain.llm import mlx_client
 
-        source = inspect.getsource(mlx_client)
+        source = family_text(mlx_client)
         block = source.split("target=_mlx_worker_loop", 1)[1][:400]
         assert "self._contract_key," in block
 
@@ -234,7 +235,7 @@ class TestWiring:
     def test_every_submission_site_authorizes(self):
         from core.brain.llm import mlx_client
 
-        source = inspect.getsource(mlx_client)
+        source = family_text(mlx_client)
         tree = ast.parse(source)
         submitted_jobs = []
         for node in ast.walk(tree):

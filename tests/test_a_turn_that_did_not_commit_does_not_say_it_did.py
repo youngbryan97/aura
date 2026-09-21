@@ -32,6 +32,7 @@ import pytest
 
 from core.brain.cognitive_engine import CognitiveEngine
 from tests.chat_lane_support import chat_lane_source
+from tests.source_contract import family_text
 
 # ─────────────────────────────── the response belongs to this turn
 
@@ -216,7 +217,7 @@ def test_closure_is_notified_after_the_commit_loop():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     closure_line = None
@@ -249,7 +250,7 @@ def test_an_uncommitted_foreground_turn_withholds_closure():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "withheld foreground closure because cognitive state did not commit" in source
 
@@ -259,7 +260,7 @@ def test_the_thought_carries_the_commit_outcome():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert '"state_commit_outcome": commit_outcome' in source
     assert 'reasoning=["Phase-based cognitive cycle completed successfully."]' not in source
@@ -270,7 +271,7 @@ def test_the_reward_is_not_maximal_for_an_uncommitted_turn():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "_cycle_reward = 1.0 if commit_outcome in {" in source
     assert "reward=_cycle_reward," in source
@@ -287,7 +288,7 @@ def test_the_commit_loop_is_bounded_by_the_cycle_deadline():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "_commit_budget = max(0.0, commit_deadline - time.monotonic())" in source
     assert "timeout=_commit_budget," in source
@@ -298,7 +299,7 @@ def test_an_expired_cycle_skips_the_commit_rather_than_waiting():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert 'commit_outcome = "cycle_deadline_expired"' in source
     assert 'commit_outcome = "commit_timeout"' in source
@@ -325,7 +326,7 @@ def test_the_deep_downshift_forwards_the_context():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "context=dict(context or {})," in source
     assert (
@@ -341,7 +342,7 @@ def test_the_phase_loop_catches_what_phases_actually_raise():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "except (sqlite3.Error, *_COGNITIVE_ENGINE_RECOVERABLE_ERRORS) as e:" in source
 
@@ -356,7 +357,7 @@ def test_the_spine_injection_is_not_spliced_into_the_objective():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert 'objective = check.injection + "\\n\\n" + objective' not in source
     assert '"type": "spine_prior_position"' in source
@@ -375,7 +376,7 @@ def test_an_action_imperative_alone_does_not_authorise_a_keystroke():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "embodied_control = \"[EMBODIED CONTROL CONTRACT]\" in objective" in source
     assert (
@@ -389,7 +390,7 @@ def test_the_embodied_control_path_still_works():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "content=\"[SOMATIC:key='.']\"" in source
     assert '"embodied_control_contract": True' in source
@@ -403,7 +404,7 @@ def test_a_substring_in_the_prompt_does_not_route_to_cloud():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert (
         'is_strict_answer = "<answer>" in objective.lower() or "answer_format" in kwargs'
@@ -420,7 +421,7 @@ def test_strict_answer_recovery_requires_its_envelope():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "envelope_ok = " in source
     assert '"strict_answer_envelope_verified": True' in source
@@ -438,7 +439,7 @@ def test_the_rollback_receipt_names_what_survives_a_phase_failure():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert '"not_restored": [' in source
     assert '"published_events",' in source
@@ -609,7 +610,7 @@ def test_a_slow_augmentor_does_not_hold_the_turn():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "timeout=self._AUGMENTATION_TIMEOUT_S," in source
     assert "asyncio.to_thread(aug.get_augmentation, objective)" in source
@@ -668,7 +669,7 @@ def test_controls_bound_is_not_re_derived_from_caller_flags():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert (
         """        if (
@@ -687,7 +688,7 @@ def test_context_readiness_flags_need_an_attested_payload():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "if not live_mind_snapshot_ready and _context_attested:" in source
     assert "if not live_mind_required_subsystems_ok and _context_attested:" in source
@@ -833,7 +834,7 @@ def test_the_floor_receipt_reaches_the_thought():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert source.count("_structured_floor_receipt(fast_path)") == 1
     assert "The modular phase pipeline did not run for this answer." in source
@@ -969,7 +970,7 @@ def test_the_reasoning_layer_follows_a_router_replacement():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "self._reasoning is None or self._reasoning_router is not router" in source
     assert "with self._reasoning_lock:" in source
@@ -1026,7 +1027,7 @@ def test_recovery_passes_the_version_this_turn_authored():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert source.count('authored_version=int(getattr(state, "version", 0) or 0),') == 2
     assert "expected_version=authored_version," in source
@@ -1043,7 +1044,7 @@ def test_a_reflex_answer_is_not_assigned_certainty():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert 'reasoning=[f"Reactive recovery via reflex matrix ({reason})"],' not in source
     assert '"reflex_response": True, "verified": False' in source
@@ -1083,7 +1084,7 @@ def test_both_deferral_paths_record():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert source.count("self._record_recovery_deferral(") == 2
     assert source.count('"recovery_deferral_recorded": True') == 2
@@ -1229,7 +1230,7 @@ def test_a_quick_reply_is_not_rewarded_as_if_verified():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     assert "reward=0.8," not in source
 
     # Read the value, not the spelling. The flag this branches on has been
@@ -1253,7 +1254,7 @@ def test_a_prompt_shape_floor_is_not_near_certain():
 
     import core.brain.cognitive_engine as engine_mod
 
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "confidence=0.99," not in source
 

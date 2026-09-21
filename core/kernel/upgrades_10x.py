@@ -519,19 +519,29 @@ class GodModeToolPhase(Phase):
         return str(origin or "").strip().lower().replace("-", "_")
 
     def _resolve_tool_source(self, state: AuraState) -> str:
+        """Whose tool call this is: the person's, when a person is waiting.
+
+        This was the fourteenth list in the tree deciding whether an origin
+        is a person's, and it disagreed with the others: `desktop`, `chat`
+        and every sub-route were missing, so a person's turn that reached a
+        tool from one of them presented as `godmode_phase` and the Will
+        refused it for lack of authority. The shared predicate answers, and
+        the turn bound to this context knows what it started as.
+        """
         origin = self._normalize_origin(getattr(state.cognition, "current_origin", "") or "")
-        if origin in {
-            "user",
-            "voice",
-            "admin",
-            "api",
-            "gui",
-            "ws",
-            "websocket",
-            "direct",
-            "external",
-        }:
+        from core.runtime.turn_origin import a_person_is_waiting
+
+        if origin and a_person_is_waiting(origin):
             return origin
+        try:
+            from core.runtime.turn_outcome import current_turn
+
+            bound = current_turn()
+        except ImportError:
+            bound = None
+        turn_origin = str(getattr(bound, "origin", "") or "")
+        if turn_origin and a_person_is_waiting(turn_origin):
+            return turn_origin
         return "godmode_phase"
 
     @staticmethod

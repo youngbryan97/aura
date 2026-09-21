@@ -1264,7 +1264,15 @@ def request_shutdown(
             _requesting_frames(),
         )
         try:
-            _write_grace_flag(reason=normalized_reason, created_at_unix=now_unix)
+            # The flag is evidence, written with an fsync; the fence above
+            # is already visible. Behind the loop when a coroutine asked
+            # (LIVE 2026-09-19: named from the GUI reaper), inline elsewhere.
+            from core.runtime.executors import behind_the_loop
+
+            behind_the_loop(
+                "shutdown_coordinator.grace_flag",
+                lambda: _write_grace_flag(reason=normalized_reason, created_at_unix=now_unix),
+            )
         except (ImportError, AttributeError, RuntimeError, OSError) as exc:
             logger.debug(
                 "Suppressed %s in core.runtime.shutdown_coordinator: %s",

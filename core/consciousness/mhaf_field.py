@@ -25,6 +25,7 @@ import numpy as np
 
 from core.runtime.background_policy import constitutive_compute_budget_async
 from core.runtime.errors import record_degradation
+from core.runtime.executors import off_the_loop
 from core.runtime.state_ownership import state_root
 from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
@@ -224,7 +225,7 @@ class MycelialHypergraphAttractorField:
             await cancel_and_join(
                 task, owner="core.consciousness.mhaf_field", timeout=1.0
             )
-        self._save()
+        await off_the_loop(self._save)
         logger.info("MHAF stopped.")
 
     async def _loop(self):

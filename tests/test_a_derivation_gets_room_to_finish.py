@@ -27,6 +27,7 @@ from pathlib import Path
 import pytest
 
 from core.brain.cognitive_engine import _turn_wants_a_derivation
+from tests.source_contract import family_text_at
 
 SOURCE = Path("core/brain/cognitive_engine.py")
 
@@ -74,7 +75,7 @@ def test_a_very_long_message_is_not_treated_as_a_derivation() -> None:
 
 def test_the_shape_is_consulted_independently_of_the_lane() -> None:
     """The bug was the extended band being reachable only from the full lane."""
-    src = SOURCE.read_text(encoding="utf-8")
+    src = family_text_at(SOURCE)
     assert "shape_wants_room = bool(" in src
     assert (
         'extended_full_mind_reply = bool(\n'
@@ -85,20 +86,20 @@ def test_the_shape_is_consulted_independently_of_the_lane() -> None:
 
 
 def test_the_quick_lane_uses_the_structural_answer_floor() -> None:
-    src = SOURCE.read_text(encoding="utf-8")
+    src = family_text_at(SOURCE)
     assert "elif shape_wants_room:" in src
     assert "max_tokens = max(896, structural_answer_floor, min(max_tokens, 4096))" in src
     assert "max_tokens = max(1024, structural_answer_floor, min(max_tokens, 4096))" in src
 
 
 def test_the_conversational_floor_is_unchanged_for_everything_else() -> None:
-    src = SOURCE.read_text(encoding="utf-8")
+    src = family_text_at(SOURCE)
     assert "max_tokens = max(512, min(max_tokens, 1024))" in src
 
 
 def test_tight_contracts_still_win() -> None:
     """Status and inventory answers stay short; they are answered, not derived."""
-    src = SOURCE.read_text(encoding="utf-8")
+    src = family_text_at(SOURCE)
     # Anchor on the clamp chain itself. The old anchor also matched the
     # request_timeout chain further down, which silently moved the slice.
     clamp = src[src.index("max_tokens = max(128, min(max_tokens, 256))") :]
@@ -115,13 +116,13 @@ GATE = Path("core/brain/inference_gate.py")
 
 def test_the_engine_says_why_it_asked_for_more() -> None:
     """A number alone cannot survive a pressure cap; a reason can."""
-    assert '"reply_needs_room": shape_wants_room,' in SOURCE.read_text(encoding="utf-8")
+    assert '"reply_needs_room": shape_wants_room,' in family_text_at(SOURCE)
 
 
 def test_the_starvation_floor_answers_the_caller_not_a_constant() -> None:
     """Measured live: caller asked 896, pressure cut it to 459, the flat floor
     lifted it to 512, and the derivation stopped at "- The" in step 5 of 5."""
-    src = GATE.read_text(encoding="utf-8")
+    src = family_text_at(GATE)
     assert 'needs_room = bool(context.get("reply_needs_room", False))' in src
     assert "AURA_FOREGROUND_CHAT_DERIVATION_FLOOR_TOKENS" in src
     assert "1024 if needs_room else 512" in src
@@ -129,7 +130,7 @@ def test_the_starvation_floor_answers_the_caller_not_a_constant() -> None:
 
 def test_the_floor_never_exceeds_what_was_asked_for() -> None:
     """The floor stops starvation; it does not hand out budget nobody wanted."""
-    src = GATE.read_text(encoding="utf-8")
+    src = family_text_at(GATE)
     block = src[src.index("needs_room = bool(") :]
     block = block[: block.index("if max_tokens < starvation_floor")]
     assert "min(\n                    requested_budget," in block

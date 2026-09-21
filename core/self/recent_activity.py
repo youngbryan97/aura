@@ -267,7 +267,12 @@ _ASKS_RECENT_ACTIVITY = re.compile(
 )
 
 #: A question about her, not about the person or a third party.
-_ABOUT_HER = re.compile(r"\byou(?:r|rself|'ve|ve)?\b", re.IGNORECASE)
+# "you" in a sentence has a word on one side of it; the pronoun alone decided
+# this eight times (formed constraint: a token is not a decision).
+_ABOUT_HER = re.compile(
+    r"(?:(?<=\w\s)\byou(?:r|rself|'ve|ve)?\b|\byou(?:r|rself|'ve|ve)?\b(?=\s+\w))",
+    re.IGNORECASE,
+)
 
 #: Asked with the subject left out. "been busy?" carries no "you" and is
 #: addressed to nobody else, so requiring the pronoun lost the shortest and

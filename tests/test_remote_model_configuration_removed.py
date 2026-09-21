@@ -37,7 +37,7 @@ def test_config_fallbacks_name_runtime_roles_instead_of_retired_artifacts():
     assert llm.fast_model == "Aura-Cortex"
     assert llm.deep_model == "Aura-Cortex"
     assert llm.vision_model == "Aura-Cortex"
-    assert llm.chat_model == "Qwen3.5-9B-4bit"
+    assert llm.chat_model == "Ternary-Bonsai-2-27B-mlx-2bit"
 
 
 def test_boot_configuration_never_reads_the_retired_gemini_secret():

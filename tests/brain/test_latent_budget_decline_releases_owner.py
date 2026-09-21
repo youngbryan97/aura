@@ -39,6 +39,7 @@ import inspect
 import pytest
 
 from core.brain.foreground_latent_runtime import latent_owner_exhausted
+from tests.source_contract import family_text
 
 
 def _receipt(**overrides):
@@ -103,7 +104,7 @@ def test_the_engine_keeps_the_refusal_distinct() -> None:
     """Mapping it back onto latent_phase_failed would undo the whole fix."""
     from core.brain.llm.latent_cortex import engine
 
-    source = inspect.getsource(engine)
+    source = family_text(engine)
 
     assert '"latent_budget_declined"' in source
     assert "isinstance(exc, ComputeBudgetUnaffordable)" in source

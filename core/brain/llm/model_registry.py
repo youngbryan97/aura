@@ -81,7 +81,17 @@ _FLAG_BRAINSTEM_MODEL = _declare_flag(
     # cortex and therefore locked to the cortex's own distribution — nothing
     # is keyed to this tier's weights. Verified: no draft/amateur/contrastive
     # path references the brainstem, so the generation gap was free to close.
-    default="Qwen3.5-9B-4bit",
+    #
+    # Ternary Bonsai 2 27B replaced the 9B on 20 Sep 2026: Qwen3.5 27B at two
+    # bits, 8.6GB, so a 27B-class model in this lane's footprint class. On
+    # this host, same harness and budget, it answered 7 of 7 checkable
+    # prompts against the 9B's 6 of 7, and finished inside the 160-token
+    # budget on 7 of 8 where the 9B finished 0 of 8 — it narrates its
+    # thinking until the budget is gone, and this lane runs under a
+    # deadline. Three times slower per token; per answer the 9B produced
+    # none. docs/evidence/TERNARY_BONSAI_2_27B_2026-09-17.md. The live
+    # instance had run it through the .env override since 18 Sep.
+    default="Ternary-Bonsai-2-27B-mlx-2bit",
     description="Migrated from a raw environment read; see owner for the lane.",
     owner="flag-migration",
 )
@@ -807,12 +817,12 @@ _SOLVER_PATH = Path(
 )
 _BRAINSTEM_PATH = Path(
     _FLAG_LLM__MLX_BRAINSTEM_PATH.value()
-    or str(get_models_dir() / "Qwen3.5-9B-4bit")
+    or str(get_models_dir() / "Ternary-Bonsai-2-27B-mlx-2bit")
 )
 
 MODEL_PATHS = {
     "Qwen2.5-1.5B-Instruct-4bit": BASE_DIR / "models" / "Qwen2.5-1.5B-Instruct-4bit",
-    "Qwen3.5-9B-4bit":            _BRAINSTEM_PATH,
+    "Qwen3.5-9B-4bit":            BASE_DIR / "models" / "Qwen3.5-9B-4bit",  # brainstem until 2026-09-20
     "Qwen2.5-7B-Instruct-4bit":   BASE_DIR / "models" / "Qwen2.5-7B-Instruct-4bit",  # legacy
     "Qwen2.5-14B-Instruct-4bit":  BASE_DIR / "models" / "Qwen2.5-14B-Instruct-4bit",
     _LEGACY_CORTEX_ARTIFACT_NAME: get_models_dir() / _LEGACY_CORTEX_ARTIFACT_NAME,
@@ -824,9 +834,10 @@ MODEL_PATHS = {
     "Qwen3-72B-Instruct":         BASE_DIR / "models" / "Qwen3-72B-Instruct",
     "Qwen2.5-72B-Instruct-Q4":    BASE_DIR / "models" / "Qwen2.5-72B-Instruct-Q4",
     # Qwen3.5 27B at two bits with the outlier rotation folded in: a
-    # 27B-class model in the brainstem's footprint class. Loaded through
-    # core/brain/llm/prism_hadamard.py, which mlx_worker routes to.
-    "Ternary-Bonsai-2-27B-mlx-2bit": BASE_DIR / "models" / "Ternary-Bonsai-2-27B-mlx-2bit",
+    # 27B-class model in the brainstem's footprint class, and the brainstem
+    # since 2026-09-20. Loaded through core/brain/llm/prism_hadamard.py,
+    # which mlx_worker routes to.
+    "Ternary-Bonsai-2-27B-mlx-2bit": _BRAINSTEM_PATH,
 }
 
 #: Where MODEL_PATHS was baked. The table above is built once at import, so a

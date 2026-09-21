@@ -13,9 +13,11 @@ difference. This was the last hard one on the compact path.
 from __future__ import annotations
 
 import ast
+import textwrap
 from pathlib import Path
 
 import pytest
+from tests.source_contract import family_tree
 
 pytestmark = pytest.mark.unit
 
@@ -24,12 +26,18 @@ CHAT = Path("interface/routes/chat.py")
 
 
 def _the_quick_reply() -> ast.AsyncFunctionDef:
-    tree = ast.parse(ENGINE.read_text(encoding="utf-8"))
+    """The compact desktop path as it runs: the blocks the size sweep moved
+    into helpers are read back at their call sites, and the helper the lift
+    moved into `cognitive_engine_quick_reply.py` is read from there."""
+    from source_support import inlined_function_source
+
+    try:
+        text = inlined_function_source(ENGINE, "CognitiveEngine._direct_desktop_quick_reply")
+    except AssertionError as exc:
+        raise AssertionError("the compact desktop path is gone") from exc
+    tree = ast.parse(textwrap.dedent(text))
     for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.AsyncFunctionDef)
-            and node.name == "_direct_desktop_quick_reply"
-        ):
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == "_direct_desktop_quick_reply":
             return node
     raise AssertionError("the compact desktop path is gone")
 
@@ -67,7 +75,7 @@ def test_the_budget_is_still_bounded() -> None:
 
 
 def test_the_desktop_transaction_identifies_the_waiting_person() -> None:
-    tree = ast.parse(CHAT.read_text(encoding="utf-8"))
+    tree = family_tree(CHAT)
     for node in ast.walk(tree):
         if not isinstance(node, ast.AsyncFunctionDef):
             continue
@@ -80,8 +88,12 @@ def test_the_desktop_transaction_identifies_the_waiting_person() -> None:
 
 
 def test_identity_rewrite_uses_the_same_foreground_completion_owner() -> None:
-    tree = ast.parse(CHAT.read_text(encoding="utf-8"))
-    function = next(node for node in ast.walk(tree)
+    from source_support import inlined_function_source
+
+    # the wait sits in a block the size sweep moved into a helper; read the
+    # stabiliser as it runs, with that block back in place
+    text = inlined_function_source(CHAT, "_stabilize_user_facing_reply")
+    function = next(node for node in ast.walk(ast.parse(textwrap.dedent(text)))
                     if isinstance(node, ast.AsyncFunctionDef)
                     and node.name == "_stabilize_user_facing_reply")
     waits = [node for node in ast.walk(function)

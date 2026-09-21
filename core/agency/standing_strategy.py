@@ -365,8 +365,10 @@ def _earliest(text: str, patterns: Sequence[str]) -> str:
 
 
 #: Words that open a reason for something rather than the something.
+# A reason-opener has a clause after it. "that" on its own, or "that's a
+# good move", is not a reason (formed constraint: a token is not a decision).
 _OPENS_A_REASON = re.compile(
-    r"^(?:because|since|so|as|therefore|thus|which|that)\b", re.IGNORECASE
+    r"^(?:because|since|so|as|therefore|thus|which|that)\b(?!'s)(?=\s+\w)", re.IGNORECASE
 )
 
 

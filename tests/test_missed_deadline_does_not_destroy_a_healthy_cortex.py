@@ -36,10 +36,10 @@ of the next turn.
 """
 from __future__ import annotations
 
-import inspect
 import re
 
 from core.brain.llm import mlx_client
+from tests.source_contract import family_text
 
 
 def _abandonment_source() -> str:
@@ -138,7 +138,7 @@ class TestOrphanedOutputIsStillFenced:
         assert "self._pending_generations.pop(req_id, None)" in _abandonment_source()
 
     def test_the_worker_is_soft_cancelled_between_tokens(self):
-        source = inspect.getsource(mlx_client)
+        source = family_text(mlx_client)
         assert 'soft_cancel_active_generation("abandoned_first_token_sla")' in source
 
     def test_the_request_id_guards_the_branch(self):

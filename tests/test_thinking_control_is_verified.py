@@ -357,3 +357,19 @@ def test_absent_or_unknown_request_mode_keeps_artifact_policy():
 
     assert thinking_enabled_for_request(model, cognitive_mode=None) is None
     assert thinking_enabled_for_request(model, cognitive_mode="not-a-mode") is None
+
+
+def test_the_brainstem_lane_is_pinned_fast_whatever_size_it_wears() -> None:
+    """The lane decides, not the size label.
+
+    Ternary Bonsai 2 27B holds the brainstem from 2026-09-20. Its label says
+    27B — the cortex's size — and the size rule alone would have let it keep
+    the artifact's default and narrate its thinking under the lane's deadline.
+    """
+    from core.brain.llm.chat_format import thinking_enabled_for_model
+    from core.brain.llm.model_registry import BRAINSTEM_MODEL
+
+    assert thinking_enabled_for_model(f"/models/{BRAINSTEM_MODEL}") is False
+    assert thinking_enabled_for_model(BRAINSTEM_MODEL) is False
+    # and a 27B that is not the brainstem keeps its own default
+    assert thinking_enabled_for_model("Aura-Qwen3.8-27B-persona-crsm-7f6a2e83") is None

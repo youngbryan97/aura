@@ -45,6 +45,7 @@ import pytest
 
 import core.brain.llm.latent_cortex.engine as engine_mod
 from core.brain.llm.latent_cortex.engine import LatentCortexEngine
+from tests.source_contract import family_text
 
 
 def _engine():
@@ -127,14 +128,14 @@ def test_a_working_progress_callback_records_nothing():
 
 
 def test_the_faults_reach_the_receipt():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert 'receipt.flag(f"{channel}_callback_failed:{kind}")' in source
 
 
 def test_the_episode_resets_the_fault_record():
     """A fault from the previous episode is not this episode's evidence."""
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "self._callback_faults = {}" in source
 
@@ -143,7 +144,7 @@ def test_the_episode_resets_the_fault_record():
 
 
 def test_a_probe_refuses_to_start_after_cancellation():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -159,7 +160,7 @@ def test_a_probe_refuses_to_start_after_cancellation():
 def test_the_cancellation_check_precedes_the_memo_lookup():
     """Otherwise a cancelled caller gets an answer or an error depending on
     whether this probe happened to be cached."""
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -174,7 +175,7 @@ def test_the_cancellation_check_precedes_the_memo_lookup():
 
 
 def test_a_probe_honours_the_cleanup_reserve():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -187,7 +188,7 @@ def test_a_probe_honours_the_cleanup_reserve():
 
 
 def test_the_reserve_is_live_from_the_first_mutation_to_the_end_of_cleanup():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert (
         "self._episode_wall_reserve_forwards = _FW_ERASE_PROBE_TOKENS + 1" in source
@@ -199,7 +200,7 @@ def test_the_reserve_is_live_from_the_first_mutation_to_the_end_of_cleanup():
 
 
 def test_the_boundary_returns_a_receipted_result_for_runtime_failures():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -215,7 +216,7 @@ def test_the_boundary_returns_a_receipted_result_for_runtime_failures():
 
 def test_a_callers_contract_violation_still_raises():
     """Turning a malformed argument into ok=False hides the caller's bug."""
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -231,7 +232,7 @@ def test_a_callers_contract_violation_still_raises():
 def test_the_receipt_is_published_only_once_payload_validation_passed():
     """Payload refusals — a tampered memory authority above all — must stay
     loud rather than becoming a quiet ok=False."""
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     publish = None
@@ -254,7 +255,7 @@ def test_the_receipt_is_published_only_once_payload_validation_passed():
 
 
 def test_an_armed_invariant_is_closed_on_an_admission_failure():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "def _close_armed_invariant(" in source
     assert "self._episode_invariant_armed = True" in source
@@ -262,7 +263,7 @@ def test_an_armed_invariant_is_closed_on_an_admission_failure():
 
 
 def test_the_invariant_is_not_closed_twice():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -281,7 +282,7 @@ def test_the_invariant_is_not_closed_twice():
 
 
 def test_a_tokenizer_failure_at_the_end_still_returns_a_result():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -299,7 +300,7 @@ def test_a_tokenizer_failure_at_the_end_still_returns_a_result():
 def test_an_empty_answer_is_not_the_failure_signal():
     """An empty string is a real answer shape — no tokens, or a substrate
     engine with no tokenizer — so it cannot double as "conversion failed"."""
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -313,7 +314,7 @@ def test_an_empty_answer_is_not_the_failure_signal():
 
 
 def test_the_success_path_checks_the_conversion_verdict():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert "text, converted = self._public_text_or_receipt(out_tokens, receipt)" in source
     assert "if not converted:" in source
@@ -334,7 +335,7 @@ def test_a_reason_carries_the_class_and_not_the_message():
 
 
 def test_no_reason_interpolates_the_exception_itself():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert '{type(exc).__name__}:{exc}' not in source
     assert '{type(exc).__name__}: {exc}' not in source
@@ -356,7 +357,7 @@ def test_the_public_codes_are_still_distinguishable():
 
 
 def test_memory_exhaustion_does_not_fall_back():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -373,7 +374,7 @@ def test_memory_exhaustion_does_not_fall_back():
 
 
 def test_the_exhaustion_path_releases_what_the_episode_held():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -414,7 +415,7 @@ def test_the_receipt_carries_a_seed_and_a_trace():
 
 
 def test_a_deterministic_decode_says_so_rather_than_inventing_a_seed():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert (
         "self._last_decode_sample_seed = -1 if sample_seed is None else int(sample_seed)"
@@ -425,7 +426,7 @@ def test_a_deterministic_decode_says_so_rather_than_inventing_a_seed():
 def test_the_episode_derives_its_seed_from_its_own_commitment():
     """A fresh random number would be neither stable for the same inputs nor
     tied to them."""
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -444,7 +445,7 @@ def test_the_episode_derives_its_seed_from_its_own_commitment():
 
 
 def test_every_sampled_decision_enters_the_trace():
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
 
     assert (
         source.count("sample_trace.update(_sample_decision_bytes(token, token_logprob))")
@@ -463,7 +464,7 @@ def test_the_trace_commits_to_the_token_and_its_logprob():
 def test_both_decode_paths_publish_the_same_discipline_fields():
     """The fallback recorded four of the six and dropped exactly the two that
     say sampling was intervened in."""
-    source = inspect.getsource(engine_mod)
+    source = family_text(engine_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):

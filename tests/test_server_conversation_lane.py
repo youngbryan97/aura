@@ -5920,7 +5920,11 @@ async def test_api_chat_desktop_surface_blocks_critical_memory_before_cognition(
         percent=96.0,
     )
     assert chat_routes._foreground_chat_lock.release(blocker_token) is True
-    response = await asyncio.wait_for(request_task, timeout=2.0)
+    # A hang bound, not a latency claim: the delivery journal settles each
+    # progress claim off the loop with a durable sqlite commit (2026-09-19),
+    # and on a host running the full suite beside the live runtime those
+    # commits took the request past two seconds without anything hanging.
+    response = await asyncio.wait_for(request_task, timeout=30.0)
 
     # In-band for real users: the guard text IS the answer (raw 503s
     # surfaced as bare HTTP errors in both July 8 soaks). Benchmarks

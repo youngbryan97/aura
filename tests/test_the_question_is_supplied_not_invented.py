@@ -22,6 +22,7 @@ survives only where the origin really is a person talking.
 from __future__ import annotations
 
 import inspect
+from pathlib import Path
 
 from core.brain.inference_gate import InferenceGate
 
@@ -34,11 +35,18 @@ def _generate_source() -> str:
     the binding logic and three tests failed about code that had not moved off
     the path at all.
     """
+    from source_support import inlined_function_source
+
     entry = inspect.getsource(InferenceGate.generate)
     assert "_generate_with_metadata_sink(" in entry, (
         "generate no longer delegates; the body may have moved somewhere else"
     )
-    return entry + inspect.getsource(InferenceGate._generate_with_metadata_sink)
+    # the binding logic sits in blocks the size sweep moved into helpers and
+    # a lift then moved into `inference_gate_turn_setup.py`; read the turn
+    # as it runs, with those blocks back at their call sites
+    return entry + inlined_function_source(
+        Path("core/brain/inference_gate.py"), "InferenceGate._generate_with_metadata_sink"
+    )
 
 
 def test_the_fallback_is_reached_only_for_an_origin_that_is_a_person():

@@ -20,6 +20,7 @@ from collections import Counter
 from dataclasses import asdict, dataclass, field
 
 from core.runtime.errors import record_degradation
+from core.runtime.executors import off_the_loop
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.service_registry import get_runtime_service, register_runtime_service
 from core.utils.concurrency import cancel_and_join
@@ -87,7 +88,7 @@ class EpistemicHumility:
             await cancel_and_join(
                 task, owner="core.adaptation.epistemic_humility", timeout=1.0
             )
-        self._save()
+        await off_the_loop(self._save)
         logger.info("🙇 Epistemic Humility DORMANT.")
 
     def record_failure(self, source: str, error: Exception, context: str = ""):

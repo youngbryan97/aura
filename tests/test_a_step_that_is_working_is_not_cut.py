@@ -20,6 +20,7 @@ import ast
 from pathlib import Path
 
 import pytest
+from tests.source_contract import family_text_at
 
 pytestmark = pytest.mark.unit
 
@@ -54,7 +55,7 @@ def test_nobody_waiting_keeps_the_proportional_bound() -> None:
 def test_the_tool_loop_says_so() -> None:
     """It already puts the same fact on the context it hands the conscience."""
 
-    gate = Path("core/brain/inference_gate.py").read_text(encoding="utf-8")
+    gate = family_text_at(Path('core/brain/inference_gate.py'))
     assert "person_is_waiting=True," in gate
     assert '"a_person_is_waiting": True,' in gate
 

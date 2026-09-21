@@ -154,8 +154,11 @@ def test_the_gate_site_is_behind_a_foreground_guard():
 
     sites = {one.channel: one for one in where_each_channel_acts(str(RECEIPT.parents[2]))}
     circumplex = sites["affect.circumplex_sampling"]
-    assert "core/brain/inference_gate.py" in circumplex.applied_in
-    assert "core/brain/inference_gate.py" in circumplex.foreground_only_in
+    # the gate's turn setup moved into a sibling mixin; the site is still
+    # the gate's, and still behind its foreground guard
+    gate_family = {"core/brain/inference_gate.py", "core/brain/inference_gate_turn_setup.py"}
+    assert gate_family & set(circumplex.applied_in)
+    assert gate_family & set(circumplex.foreground_only_in)
     assert not circumplex.reachable_by("a background call through the gate")
 
 
