@@ -53,6 +53,31 @@ def test_every_same_model_bank_score_replays(fixture):
     assert report["receipt_sha256"] == _sha({k: v for k, v in report.items() if k != "receipt_sha256"})
 
 
+def test_literal_identity_replay_passes_observation_without_target_ir(fixture, monkeypatch):
+    from core.learning import semantic_bank_replay as replay
+
+    model, _bank, kwargs = fixture
+    model = model.with_literal_grammar_identities()
+    bank = model.decode_candidates(**kwargs, max_charts=1, max_graphs_per_chart=1)
+    original = replay.score_annotated_graph
+    observed = []
+
+    def inspect(model, item, instructions, input_spans, **options):
+        assert not hasattr(item, "ir")
+        assert not hasattr(item, "split")
+        assert options["source_token_ids"] == tuple(kwargs["source_token_ids"])
+        observed.append(True)
+        return original(model, item, instructions, input_spans, **options)
+
+    monkeypatch.setattr(replay, "score_annotated_graph", inspect)
+    report = replay.rescore_semantic_candidate_bank(bank, model, **kwargs)
+    assert observed and report["scoring_complete"]
+    assert all(row["status"] == "scored" for row in report["rows"])
+    for row, candidate in zip(report["rows"], bank.candidates, strict=True):
+        if candidate.joint_score is not None:
+            assert row["score"] == pytest.approx(candidate.joint_score, abs=1e-4)
+
+
 def test_second_scorer_keeps_bank_identity_without_generating_candidates(fixture, monkeypatch):
     model, bank, kwargs = fixture
     other = model._with_coefficients(operation_head=replace(model.operation_head, heads=tuple(

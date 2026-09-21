@@ -160,6 +160,74 @@ def test_nonconverged_fit_does_not_export(parent, monkeypatch):
         learning.refit_compositional_span_set_pointer(parent, _examples())
 
 
+def test_interrupted_fit_resumes_iterate_without_moving_regularization_center(parent, tmp_path, monkeypatch):
+    import scipy.optimize
+
+    path = tmp_path / "fit.npz"
+    real_minimize = scipy.optimize.minimize
+    accepted = []
+
+    def interrupt(fun, initial, **kwargs):
+        weight = initial + .001
+        accepted.append(weight.copy())
+        kwargs["callback"](weight)
+        raise InterruptedError("simulated interruption")
+
+    monkeypatch.setattr(scipy.optimize, "minimize", interrupt)
+    with pytest.raises(InterruptedError):
+        learning.refit_compositional_span_set_pointer(parent, _examples(), checkpoint_path=path)
+    assert path.exists()
+    centers = []
+    real_loss = learning._span_set_loss
+
+    def loss(*args, **kwargs):
+        centers.append(kwargs["center"].copy())
+        return real_loss(*args, **kwargs)
+
+    def resume(fun, initial, **kwargs):
+        np.testing.assert_array_equal(initial, accepted[0])
+        return real_minimize(fun, initial, **kwargs)
+
+    monkeypatch.setattr(learning, "_span_set_loss", loss)
+    monkeypatch.setattr(scipy.optimize, "minimize", resume)
+    result = learning.refit_compositional_span_set_pointer(parent, _examples(), checkpoint_path=path)
+    fit = result.training_receipt["span_set_pointer_refit"]["fit"]
+    assert fit["converged"] and fit["resumed_iterations"] == 1
+    assert fit["optimizer_resume"] == "fresh_lbfgs_history_same_objective"
+    assert all(np.array_equal(center, centers[0]) for center in centers)
+    np.testing.assert_allclose(centers[0], accepted[0] - .001, atol=1e-14)
+
+
+def test_checkpoint_refuses_changed_objective_before_optimizer(parent, tmp_path, monkeypatch):
+    import scipy.optimize
+
+    path = tmp_path / "fit.npz"
+    learning.refit_compositional_span_set_pointer(parent, _examples(), checkpoint_path=path)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("changed objective reached optimizer")
+
+    monkeypatch.setattr(scipy.optimize, "minimize", forbidden)
+    with pytest.raises(ValueError, match="identity"):
+        learning.refit_compositional_span_set_pointer(parent, _examples(), learn_pair=True, checkpoint_path=path)
+
+
+def test_checkpoint_rejects_modified_iterate(tmp_path):
+    from io import BytesIO
+
+    from core.learning.semantic_fit_checkpoint import ObjectiveFitCheckpoint
+
+    path = tmp_path / "fit.npz"
+    checkpoint = ObjectiveFitCheckpoint(path, "source-identity", np.zeros(3))
+    checkpoint.save(np.ones(3), 1)
+    with np.load(BytesIO(path.read_bytes()), allow_pickle=False) as archive:
+        arrays = {name: archive[name] for name in archive.files}
+    arrays["weight"][0] += 1
+    np.savez(path, **arrays)
+    with pytest.raises(ValueError, match="checksum"):
+        checkpoint.load()
+
+
 def test_training_span_inventory_matches_runtime_input_exclusions(parent, monkeypatch):
     from core.learning.semantic_program_transducer_fitting import _operation_nodes
 

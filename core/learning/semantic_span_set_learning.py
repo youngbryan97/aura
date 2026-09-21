@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import replace
+from typing import Any
 
 import numpy as np
 
 from core.learning.semantic_program_ir import TokenSpan
 from core.learning.semantic_program_shared_transducer import _geometry
 from core.learning.semantic_program_transducer import LinearPointerHead, _sha
-from typing import Any
 
 
 def span_set_partition(scores: np.ndarray, max_spans: int) -> tuple[float, np.ndarray]:
@@ -113,6 +113,7 @@ def fit_span_set_pointer(
     progress: Any=None,
     excluded_spans: Any=None,
     learn_pair: bool=False,
+    checkpoint_path: Any=None,
 ) -> Any:
     """Fit complete source span sets, optionally learning existing pair interactions."""
     from scipy.optimize import minimize
@@ -183,17 +184,37 @@ def fit_span_set_pointer(
 
     initial_loss, _ = objective(initial)
     iterations = 0
+    checkpoint = None
+    start = initial
+    if checkpoint_path is not None:
+        from core.learning.semantic_fit_checkpoint import ObjectiveFitCheckpoint, fit_identity
+
+        identity = fit_identity({
+            "objective": "source_nonoverlapping_span_set_likelihood_v1",
+            "rows": tuple(rows), "width": width, "max_spans": max_spans,
+            "regularization": regularization, "center": initial, "learn_pair": learn_pair,
+            "sources": ids,
+        })
+        checkpoint = ObjectiveFitCheckpoint(checkpoint_path, identity, initial)
+        saved = checkpoint.load()
+        if saved is not None:
+            start, iterations = saved["weight"], saved["iterations"]
+    resumed_iterations = iterations
 
     def callback(weight: Any) -> None:
         nonlocal iterations
         iterations += 1
+        if checkpoint is not None:
+            checkpoint.save(weight, iterations)
         if progress is not None:
             progress({"stage": "span_set_fit", "iteration": iterations})
 
-    result = minimize(objective, initial, jac=True, method="L-BFGS-B", callback=callback,
+    result = minimize(objective, start, jac=True, method="L-BFGS-B", callback=callback,
                       options={"maxiter": max_iter, "ftol": 1e-8, "gtol": 1e-5})
     if not result.success or not np.all(np.isfinite(result.x)):
         raise RuntimeError(f"span-set fit incomplete: {result.status}: {result.message}")
+    if checkpoint is not None:
+        checkpoint.save(result.x, iterations, converged=True)
     coefficients = np.asarray(result.x, dtype=np.float32)
     fitted = LinearPointerHead(coefficients[:width], float(coefficients[-1]) / 2,
                                coefficients[width:2 * width], float(coefficients[-1]) / 2,
@@ -211,6 +232,8 @@ def fit_span_set_pointer(
         "negative_space": "all_bounded_intervals_excluding_declared_spans",
         "initial_loss": initial_loss, "exported_loss": exported_loss,
         "iterations": int(result.nit), "converged": True,
+        "resumed_iterations": resumed_iterations,
+        "optimizer_resume": "fresh_lbfgs_history_same_objective" if resumed_iterations else "none",
         "validation_used_for_fit": False, "test_examples_used": 0,
     }
     return fitted, receipt
@@ -223,6 +246,7 @@ def refit_compositional_span_set_pointer(
     max_iter: int=200,
     progress: Any=None,
     learn_pair: bool=False,
+    checkpoint_path: Any=None,
 ) -> Any:
     """Export the fitted boundaries through the existing runtime pointer contract."""
     if model.training_receipt.get("operation_background_fit", {}).get("score") == "joint_operation_background_log_odds_v2":
@@ -240,7 +264,7 @@ def refit_compositional_span_set_pointer(
         pointer=model.operation_pointer, max_span_tokens=model.max_span_tokens,
         max_spans=model.max_steps, length_penalty=model.operation_length_penalty,
         max_iter=max_iter, progress=progress, excluded_spans=lambda item: item.ir.input_spans,
-        learn_pair=learn_pair,
+        learn_pair=learn_pair, checkpoint_path=checkpoint_path,
     )
     coefficients = model._coefficient_body()
     coefficients["operation_pointer"] = pointer.to_dict()

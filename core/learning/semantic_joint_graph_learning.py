@@ -35,6 +35,7 @@ def score_annotated_graph(
     learn_arguments: bool=False,
     learn_operation_pointer: bool=False,
     argument_evidence_cache: Any=None,
+    source_token_ids: Any=None,
 ) -> Any:
     """Score a supplied graph with the runtime's latent mention and definition choices."""
     from core.learning.semantic_program_transducer_fitting import (
@@ -58,9 +59,11 @@ def score_annotated_graph(
     nodes = tuple(replace(node, score=(node.pointer_score if bank.normalizer_label is None else 0.)
                           + bank.score_gradient(label, components)[0])
                   for node, (bank, label) in zip(nodes, operations, strict=True))
+    if source_token_ids is None:
+        source_token_ids = item.ir.source_token_ids
     charts = []
     _assign_typed_arguments(model=model, hidden=item.hidden_states, inputs=item.public_inputs,
-        source_token_ids=item.ir.source_token_ids,
+        source_token_ids=source_token_ids,
         input_spans=input_spans, operation_nodes=nodes,
         argument_pointer_scores=model.argument_pointer.score_sequence(item.hidden_states),
         chart_observer=charts.append, retain_score_factors=True, retain_relation_evidence=True, build_only=True)

@@ -210,8 +210,9 @@ def main() -> int:
         parser.error("relation rank expansion requires joint_graphs")
     if args.evaluate_existing and args.relation_rank is not None and not args.compare_fit_start:
         parser.error("replaying a rank-expanded start requires compare-fit-start")
-    if args.fit_checkpoint_dir is not None and not args.retain_semantic_constraints:
-        parser.error("fit checkpoints require a retained-constraint training run")
+    if (args.fit_checkpoint_dir is not None and not args.retain_semantic_constraints
+            and args.objective != "span_set_pointer"):
+        parser.error("fit checkpoints require retained constraints or span_set_pointer")
     if args.evaluate_existing and not args.compare_fit_start and (
         args.starting_candidate or args.joint_operation_argument_scores or args.conditional_argument_choices
     ):
@@ -285,6 +286,9 @@ def main() -> int:
     options = {"refit_pointer": True} if args.objective == "argument_pointer" else {}
     if args.objective == "span_set_pointer":
         options["learn_pair"] = args.learn_span_pairs
+        options["checkpoint_path"] = (
+            args.fit_checkpoint_dir or args.output.with_suffix(".fit-checkpoints")
+        ) / "span-set.npz"
     if args.objective == "operation_views":
         options["candidate_modes"] = args.operation_view_mode
         options["conditional_labels"] = args.conditional_operation_labels
