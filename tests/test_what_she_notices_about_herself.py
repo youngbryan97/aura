@@ -337,6 +337,7 @@ def test_every_part_has_one_kind_of_address():
         "what is done",
         "way of building",
         "way of computing",
+        "invented operator",
         "rule",
         "the search",
         "the deciding",

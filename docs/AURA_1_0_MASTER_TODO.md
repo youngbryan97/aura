@@ -1544,6 +1544,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   baseline-dependent task filtering in the retrieval/depth diagnostic. The
   68-test focused pass does not qualify a model or close campaign verification.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [Operator causal inventory](evidence/G09_OPERATOR_CAUSAL_INVENTORY_2026-09-21.md)
+  adds retained operators to isolated interventions, including dependency
+  withdrawal and rescue. The narrower developmental cost path remains open.
   [Operator retention](evidence/G09_OPERATOR_RETENTION_2026-09-21.md) connects
   invented terms to the existing language store and shared rollback boundary.
   Recall preserves semantics without granting a new qualification; novelty

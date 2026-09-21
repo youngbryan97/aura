@@ -26,8 +26,9 @@ for looks indispensable every time.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from typing import Any, Callable, Sequence
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from typing import Any
 
 __all__ = [
     "APart",
@@ -75,6 +76,7 @@ def what_she_is_made_of() -> list[APart]:
         WHAT_OF_IT,
         WHERE_FROM,
     )
+    from core.cognition.an_operator_she_invents import the_kernel
     from core.cognition.one_algebra import DERIVED_HEADS
     from core.cognition.the_order_she_tries_them_in import the_order_she_uses
     from core.cognition.the_proposer_she_can_replace import the_proposer_in_use
@@ -88,7 +90,7 @@ def what_she_is_made_of() -> list[APart]:
     uses = the_record().uses
     made: list[APart] = []
 
-    def add(kind: str, name: str, term: Any = None) -> None:
+    def add(kind: str, name: str, term: Any = None, dependents: tuple[str, ...] = ()) -> None:
         made.append(
             APart(
                 at=f"{kind}/{name}",
@@ -97,7 +99,7 @@ def what_she_is_made_of() -> list[APart]:
                 term=term,
                 used=int(uses.get(name, 0)),
                 idle=how_long_since(name),
-                holds_up=tuple(what_rests_on_it(name)),
+                holds_up=tuple(dict.fromkeys((*what_rests_on_it(name), *dependents))),
             )
         )
 
@@ -111,6 +113,13 @@ def what_she_is_made_of() -> list[APart]:
         add("way of computing", name, head.body)
     for name, rule in RULES_WITH_NO_SHAPE.items():
         add("rule", name, getattr(rule, "body", None))
+    operators = the_kernel().operators()
+    for name, operator in operators.items():
+        if operator.invented:
+            add("invented operator", name, operator.term, tuple(
+                f"invented operator/{other}" for other, child in operators.items()
+                if name in child.built_from
+            ))
     add("the search", "the order she tries them in", the_order_she_uses())
     add("the search", "the proposer", the_proposer_in_use())
     add("the deciding", "what a change is worth", the_worth_she_uses())
@@ -133,21 +142,16 @@ def what_a_part_is_worth(
     active when things went well — are what make a system confident about the
     wrong component.
     """
-    from core.cognition.sequence_induction import (  # noqa: PLC2701
-        _everything_she_can_say,
-        _put_back,
-    )
+    from core.cognition.what_she_can_take_back import only_if_it_pays
 
     if not probe:
         return None
-    with_it = sum(costs(cases) for _name, cases in probe)
-    held = _everything_she_can_say()
-    if not _take_it_out(part):
-        return None
-    try:
+    with only_if_it_pays(f"baseline for {part.at}"):
+        with_it = sum(costs(cases) for _name, cases in probe)
+    with only_if_it_pays(f"lesion of {part.at}"):
+        if not _take_it_out(part):
+            return None
         without_it = sum(costs(cases) for _name, cases in probe)
-    finally:
-        _put_back(held)
     return without_it - with_it
 
 
@@ -160,6 +164,11 @@ def _take_it_out(part: APart) -> bool:
         WHERE_FROM,
     )
     from core.cognition.one_algebra import DERIVED_HEADS
+
+    if part.kind == "invented operator":
+        from core.cognition.an_operator_she_invents import the_kernel
+
+        return bool(the_kernel().withdraw(part.name))
 
     where = {
         "word": WHERE_FROM,
@@ -230,7 +239,7 @@ def the_most_they_have_in_common(first: Any, second: Any) -> Any | None:
         ):
             holes[0] += 1
             return Code("the one it was given", parts=(), value=0)
-        parts = tuple(both(one, other) for one, other in zip(a.parts, b.parts))
+        parts = tuple(both(one, other) for one, other in zip(a.parts, b.parts, strict=True))
         if any(one is None for one in parts):
             return None
         return Code(a.head, parts=parts, value=a.value)

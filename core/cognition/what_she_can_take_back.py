@@ -55,21 +55,23 @@ WHAT_A_CHANGE_CAN_REACH: tuple[tuple[str, str], ...] = (
     ("core.cognition.the_proposer_she_can_replace", "_IN_USE"),
     ("core.cognition.what_counts_as_better", "_IN_USE"),
     ("core.cognition.what_it_is_worth_doing", "_IN_USE"),
+    ("core.cognition.one_thing_many_spellings", "_SIZES_ASKED_ABOUT"),
+    ("core.cognition.one_thing_many_spellings", "_ALSO_WRITTEN"),
 )
 
 
-def _reach() -> list[tuple[str, dict | list]]:
+def _reach() -> list[tuple[str, dict | list | set]]:
     """The live registries, skipping any that will not import here."""
     from importlib import import_module
 
-    found: list[tuple[str, dict | list]] = []
+    found: list[tuple[str, dict | list | set]] = []
     for module_name, attr in WHAT_A_CHANGE_CAN_REACH:
         try:
             registry = getattr(import_module(module_name), attr)
         except (ImportError, AttributeError) as exc:
             logger.debug("cannot reach %s.%s: %s", module_name, attr, exc)
             continue
-        if isinstance(registry, (dict, list)):
+        if isinstance(registry, (dict, list, set)):
             found.append((f"{module_name}.{attr}", registry))
     return found
 
@@ -78,7 +80,7 @@ def _reach() -> list[tuple[str, dict | list]]:
 class HowItStood:
     """Every registry as it was, keyed by where it lives."""
 
-    held: dict[str, dict[Any, Any] | list[Any]]
+    held: dict[str, dict[Any, Any] | list[Any] | set[Any]]
     operator_state: Any = None
 
     def restore(self) -> tuple[str, ...]:
@@ -131,7 +133,7 @@ def put_it_back(was: HowItStood) -> tuple[str, ...]:
         if held is None:
             continue
         registry.clear()
-        if isinstance(registry, dict):
+        if isinstance(registry, (dict, set)):
             registry.update(held)
         else:
             registry.extend(held)

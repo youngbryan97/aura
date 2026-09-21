@@ -211,4 +211,4 @@ def test_every_named_registry_is_reachable():
 
     for module_name, attr in WHAT_A_CHANGE_CAN_REACH:
         registry = getattr(import_module(module_name), attr)
-        assert isinstance(registry, (dict, list)), f"{module_name}.{attr}"
+        assert isinstance(registry, (dict, list, set)), f"{module_name}.{attr}"

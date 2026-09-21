@@ -33,7 +33,9 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from core.brain.llm.context_assembler import ContextAssembler
-from core.brain.reasoning_amplifier_flags import reasoning_amplifier_v2_enabled  # noqa: F401  (read at call time by the lifted module)
+from core.brain.reasoning_amplifier_flags import (
+    reasoning_amplifier_v2_enabled,  # noqa: F401  (read at call time by the lifted module)
+)
 from core.container import ServiceContainer
 from core.kernel.bridge import Phase
 from core.phases.dialogue_policy import enforce_dialogue_contract, validate_dialogue_response
@@ -64,7 +66,9 @@ from core.runtime.proof_policy import (
 from core.runtime.service_access import resolve_inference_gate, resolve_orchestrator
 from core.runtime.structured_input import looks_like_learning_resource_bundle
 from core.self.inner_language import say_focus
-from core.social.witness import is_witnessing  # noqa: F401  (read at call time by the lifted module)
+from core.social.witness import (
+    is_witnessing,  # noqa: F401  (read at call time by the lifted module)
+)
 from core.state.aura_state import AuraState
 from core.utils.injected_blocks import stamp_grounding
 from core.utils.intent_normalization import normalize_memory_intent_text

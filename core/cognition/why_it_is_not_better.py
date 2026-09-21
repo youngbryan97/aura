@@ -29,7 +29,7 @@ Two rivals, a little each
 -------------------------
 "Search longer" and "search differently" look identical from outside and the
 difference is the whole question in a hard case. `spend_a_little_on_both` gives
-each a small share of the budget, measures, and keeps the winner. That is what
+each a small share of the budget, measures, and reports the winner. That is what
 tells them apart without anybody naming the difference, and it is cheap enough
 to run before committing to either.
 """
@@ -37,8 +37,9 @@ to run before committing to either.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from typing import Any, Callable, Sequence
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from typing import Any
 
 __all__ = [
     "ACause",
@@ -88,6 +89,7 @@ def what_a_reader_would_call_it(cause: ACause) -> str:
         "what is done": "a representation problem",
         "way of building": "a representation problem",
         "way of computing": "an algorithm problem",
+        "invented operator": "an algorithm problem",
         "rule": "an algorithm problem",
         "the search": "a search problem",
         "the deciding": "a problem with how she decides",
@@ -96,13 +98,13 @@ def what_a_reader_would_call_it(cause: ACause) -> str:
 
 def _lesion_causes() -> list[ACause]:
     """One cause per part: what happens without it."""
-    from core.cognition.what_she_is_made_of import (
-        _take_it_out,  # noqa: PLC2701
-        what_she_is_made_of,
-    )
     from core.cognition.sequence_induction import (  # noqa: PLC2701
         _everything_she_can_say,
         _put_back,
+    )
+    from core.cognition.what_she_is_made_of import (
+        _take_it_out,  # noqa: PLC2701
+        what_she_is_made_of,
     )
 
     found: list[ACause] = []
@@ -200,31 +202,32 @@ def why_it_is_not_better(
     """
     if not probe:
         return []
+    from core.cognition.what_she_can_take_back import only_if_it_pays
     causes = list(
         among
         if among is not None
         else [*_lesion_causes(), *_machinery_causes(within=within)]
     )
-    before = sum(costs(cases) for _name, cases in probe)
+    with only_if_it_pays("causal comparison baseline"):
+        before = sum(costs(cases) for _name, cases in probe)
     found: list[dict[str, Any]] = []
     for cause in causes:
-        try:
-            made = cause.make_it()
-        except Exception:  # noqa: BLE001 - a change that raises was not made
-            logger.info("could not make %s", cause.describes(), exc_info=True)
-            made = False
-        if not made:
-            continue
-        try:
-            after = sum(costs(cases) for _name, cases in probe)
-        finally:
+        with only_if_it_pays(cause.describes()):
             try:
+                try:
+                    made = cause.make_it()
+                except Exception:  # noqa: BLE001 - a partial change is restored below
+                    logger.info("could not make %s", cause.describes(), exc_info=True)
+                    made = False
+                if not made:
+                    continue
+                after = sum(costs(cases) for _name, cases in probe)
+            finally:
+                # Custom effects may extend beyond the shared registry snapshot.
+                # An undo failure cannot be published as a clean comparison.
                 cause.put_it_back()
-            except Exception:  # noqa: BLE001 - putting back is best effort
-                logger.info("could not undo %s", cause.describes(), exc_info=True)
-        # Positive means the change made things worse, which for a lesion means
-        # the part was earning its place. For a proposed replacement it means
-        # the replacement is bad. Both readings are the same arithmetic.
+        # Positive means the change reduced cost. A useful component's lesion
+        # increases cost and therefore has negative worth here.
         moved = before - after
         found.append(
             {
@@ -247,7 +250,7 @@ def spend_a_little_on_both(
     *,
     costs: Callable[[Sequence[Any]], int],
 ) -> dict[str, Any]:
-    """Try both cheaply and keep whichever won.
+    """Try both cheaply and report whichever won without retaining either trial.
 
     The way to tell "search longer" from "search differently" without anybody
     naming the difference. Both get the same small share, both are measured on

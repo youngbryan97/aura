@@ -78,6 +78,7 @@ class Rejection(StrEnum):
     RAISED = "raised"
     NAME_CONFLICT = "name_conflict"
     STATE_CHANGED = "state_changed"
+    INVALID_LINEAGE = "invalid_lineage"
 
 
 @dataclass
@@ -372,6 +373,14 @@ class OperatorKernel:
             return self._record(Verdict(candidate.name, False, Rejection.NAME_CONFLICT,
                                         detail="an invention cannot replace an installed name"))
 
+        if (not isinstance(candidate.name, str) or not candidate.name
+                or not isinstance(candidate.body, str)
+                or not isinstance(candidate.built_from, tuple)
+                or any(not isinstance(name, str) or name not in existing for name in candidate.built_from)
+                or len(set(candidate.built_from)) != len(candidate.built_from)):
+            return self._record(Verdict(candidate.name, False, Rejection.INVALID_LINEAGE,
+                                        detail="an invention needs a unique installed dependency lineage"))
+
         if residual is None or not residual.persistent:
             return self._record(Verdict(
                 candidate.name, False, Rejection.NOT_PERSISTENT,
@@ -472,8 +481,7 @@ class OperatorKernel:
                     detail="operator semantics changed while the candidate was being checked"))
             self._snapshots.append((candidate.name, dict(self._operators)))
             generation = 1 + max(
-                (self._operators[n].generation for n in candidate.built_from
-                 if n in self._operators),
+                (self._operators[n].generation for n in candidate.built_from),
                 default=-1,
             )
             self._operators[candidate.name] = Operator(
@@ -486,6 +494,31 @@ class OperatorKernel:
             compression=compression, adversarial_passed=passed,
             adversarial_total=len(adversarial),
         ))
+
+    def withdraw(self, name: str) -> tuple[str, ...]:
+        """Remove an invented dependency closure, not unrelated later installs.
+
+        Prune every rollback snapshot too: a later undo must not resurrect an
+        intentionally withdrawn operator. A surrounding trial owns the rescue.
+        """
+        with self._lock:
+            operator = self._operators.get(name)
+            if operator is None or not operator.invented:
+                return ()
+            removed = {name}
+            while True:
+                dependents = {key for key, value in self._operators.items()
+                              if value.invented and removed.intersection(value.built_from)}
+                if dependents <= removed:
+                    break
+                removed.update(dependents)
+            ordered = tuple(key for key in self._operators if key in removed)
+            self._operators = {key: value for key, value in self._operators.items() if key not in removed}
+            self._snapshots = [
+                (key, {part: value for part, value in before.items() if part not in removed})
+                for key, before in self._snapshots if key not in removed
+            ]
+            return ordered
 
     def rollback(self, name: str) -> dict[str, Any]:
         """Restore the exact operator set from before this install."""
