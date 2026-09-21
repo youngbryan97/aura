@@ -431,6 +431,20 @@ async def _chat_delivery_heartbeat(
         logger.error("Chat delivery lease renewal failed closed: %s", exc)
 
 
+def _take_back_a_handled_cancellation() -> None:
+    """The person cancelled, and the boundary answers with a sealed receipt.
+
+    Handled means handled: ``Task.cancelling()`` keeps counting the request
+    until it is taken back, and every teardown below the boundary reads that
+    count to tell its own cancellation from a child's. Left standing, the
+    heartbeat's join re-raised the child's cancellation as ours and the
+    receipt was never sealed (2026-09-20).
+    """
+    me = asyncio.current_task()
+    if me is not None:
+        me.uncancel()
+
+
 async def _stop_chat_delivery_heartbeat(task: asyncio.Task[Any] | None) -> None:
     if task is None:
         return
@@ -1021,11 +1035,16 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                         except asyncio.CancelledError:
                             if not owner.cancel_requested:
                                 raise
+                            _take_back_a_handled_cancellation()
                             response = _user_cancelled_response()
                     finally:
                         if _executing_deliveries.get(admission.record.identity) is owner:
                             _executing_deliveries.pop(admission.record.identity, None)
                     if owner.cancel_requested:
+                        # The handler may have caught the cancel itself and
+                        # returned a late draft; the request still stands
+                        # on the task until it is taken back.
+                        _take_back_a_handled_cancellation()
                         response = _user_cancelled_response()
                     response = _no_empty_answer_leaves_this_boundary(response)
                     await report_chat_delivery_progress(

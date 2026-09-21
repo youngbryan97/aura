@@ -4968,7 +4968,7 @@ def _build_the_generation_request(
         "tools": kwargs.get("tools"),
         "cognitive_mode": str(kwargs.get("cognitive_mode") or "").strip().lower(),
         # The shape the caller will parse, held by the decoder in the worker.
-        "output_shape": str(kwargs.get("output_shape") or "").strip().lower(),
+        "output_shape": _the_shape_named(kwargs),
         "serving_lane": str(
             kwargs.get("serving_lane") or "foreground_standard"
         ).strip().lower(),
@@ -12508,6 +12508,11 @@ _NATIVE_XML_PARAMETER_RE = re.compile(
     r"(?P<value>.*?)</parameter>",
     re.DOTALL,
 )
+
+
+def _the_shape_named(kwargs: Any) -> str:
+    """The output shape a caller asked for, as the worker spells it."""
+    return str((kwargs or {}).get("output_shape") or "").strip().lower()
 
 
 def _record_tool_receipt_for_this_turn(

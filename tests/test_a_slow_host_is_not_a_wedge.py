@@ -84,7 +84,11 @@ async def test_a_stage_working_through_synchronous_steps_outlives_the_budget():
 
     async def kernel_like():
         for organ in ("llm", "vision", "memory", "affect", "will", "mesh"):
-            time.sleep(0.12)  # synchronous work on the loop thread
+            # Synchronous work on the loop thread: a spin, so the thread is
+            # busy rather than asleep, which is what a slow organ looks like.
+            spin_until = time.monotonic() + 0.12
+            while time.monotonic() < spin_until:
+                pass
             organs.append(organ)
             await asyncio.sleep(0)
         return "kernel ready"

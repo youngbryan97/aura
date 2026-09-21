@@ -28,7 +28,9 @@ from core.brain.llm.how_big_is_the_checkpoint import (
     _model_load_min_available_gb,
 )
 
-BONSAI = "/Users/bryan/.aura/live-source/models/Ternary-Bonsai-2-27B-mlx-2bit"
+from core.brain.llm.model_paths import get_models_dir
+
+BONSAI = str(get_models_dir() / "Ternary-Bonsai-2-27B-mlx-2bit")
 
 
 def test_a_measured_checkpoint_is_not_held_to_the_unmeasured_floor():

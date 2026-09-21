@@ -18,6 +18,20 @@ from core.cognition.cognitive_event import (
 from core.runtime.errors import record_degradation
 from core.verify.invariants import invariant
 
+#: What a trace may survive. A digest that will not hash, a store that will
+#: not take the event, a degradation sink that is down: each is recorded on
+#: the trace by name and the answer goes out. A bug in the trace itself
+#: (an assertion, a name that does not exist) is not one of these.
+_TRACE_RECOVERABLE = (
+    AttributeError,
+    KeyError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,7 +49,7 @@ class ObservedProcedureInputs(Mapping[str, Any]):
     def _dependency(self, key: str, value: Any) -> ReadDependency:
         try:
             return reads(((key, value),), owner=self._owner)[0]
-        except Exception as exc:
+        except _TRACE_RECOVERABLE as exc:
             self.errors.add("read_digest:" + type(exc).__name__)
             return ReadDependency(key, Epistemic.INACCESSIBLE, owner=self._owner)
 
@@ -124,7 +138,7 @@ class ProcedureTrace:
             event_id = event.seq
             if set(parents) - set(event.parents):
                 errors.add("parent_event_not_retained")
-        except Exception as exc:
+        except _TRACE_RECOVERABLE as exc:
             errors.add("event_record:" + type(exc).__name__)
         if not error:
             for key in outputs:
@@ -137,7 +151,7 @@ class ProcedureTrace:
                     action="retain execution result with incomplete dependency evidence",
                     enforce_failure_policy=False,
                 )
-            except Exception as exc:
+            except _TRACE_RECOVERABLE as exc:
                 errors.add("degradation_record:" + type(exc).__name__)
                 logger.warning("Procedure trace reporting failed: %s", type(exc).__name__)
         return ProcedureTraceResult(event_id, tuple(sorted(errors)))

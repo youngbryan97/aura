@@ -78,12 +78,12 @@ def test_the_gate_carries_the_shape_into_the_generation_kwargs() -> None:
     [("json_array", "json_array"), ("JSON_Object", "json_object"), (None, "")],
 )
 def test_the_client_puts_the_shape_on_the_job(given: str | None, expected: str) -> None:
-    """Run the client's own line rather than reading it."""
+    """Run the client's own normalisation, and see the job carry it."""
+    from core.brain.llm.mlx_client import _the_shape_named
+
     body = (ROOT / "core/brain/llm/mlx_client.py").read_text(encoding="utf-8")
-    line = '"output_shape": str(kwargs.get("output_shape") or "").strip().lower()'
-    assert line in body
-    kwargs = {"output_shape": given}
-    assert eval(line.split(": ", 1)[1], {"str": str}, {"kwargs": kwargs}) == expected  # noqa: S307
+    assert '"output_shape": _the_shape_named(kwargs),' in body
+    assert _the_shape_named({"output_shape": given}) == expected
 
 
 def test_the_worker_holds_the_shape_the_job_names() -> None:

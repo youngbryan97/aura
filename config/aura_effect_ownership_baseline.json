@@ -900,7 +900,7 @@
       "callee": "core.runtime.atomic_writer.ensure_private_directory",
       "canonical_owner": false,
       "category": "direct_atomic_file_write",
-      "count": 5,
+      "count": 1,
       "path": "core/conversation/external_chat_ipc.py",
       "scope": "<module>.DurableChannelSpool.__init__"
     },
@@ -6300,7 +6300,7 @@
       "callee": "<file_write_gateway>.write_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
-      "count": 5,
+      "count": 1,
       "path": "core/self_modification/mutation_safety.py",
       "scope": "<module>.QuarantineStore.quarantine"
     },
@@ -16570,6 +16570,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "72c4e5b1d721fd739f7d6ade0e6fc38aa0d650a152c22583eb086b1ea7e439f6",
+  "inventory_sha256": "87018849cc03eb991ea15d8ed8ca6c5a28309e3083ddb085474918f66d9d4bf4",
   "schema_version": 1
 }

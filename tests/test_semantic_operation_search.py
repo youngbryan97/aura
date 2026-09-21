@@ -73,7 +73,9 @@ def test_interruption_keeps_the_frontier_and_never_claims_complete():
     search = OperationChartSearch(nodes, max_steps=1, length_penalty=0, max_expansions=8)
     seen = []
     with pytest.raises(OperationSearchIncompleteError, match="operation_search_incomplete"):
-        while True:
+        # The search raises long before this bound; the bound is so a search
+        # that never raises is a failed test, not a hung one.
+        for _ in range(10_000):
             seen.append(next(search))
     assert not search.complete and search.remaining_operation_score_upper_bound > -math.inf
     search.max_expansions = None

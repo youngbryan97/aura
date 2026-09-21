@@ -29,7 +29,7 @@ OUT = REPO / "artifacts/migration/27b/recovery/unattended"
 STATUS = OUT / "status.json"
 TRAINED = REPO / "training/vectors/gradient-trained"
 PLAN = REPO / "artifacts/migration/27b/recovery/steering_plan_wide.json"
-PYTHON = "/Users/bryan/.aura/live-source/.venv/bin/python"
+PYTHON = str(REPO / ".venv/bin/python")
 
 #: Long enough for a 27B campaign that decodes 216 samples, and bounded so a
 #: hung step is a reported failure rather than a wait nobody ends.
