@@ -64,6 +64,7 @@ __all__ = [
     "denials_the_record_refutes",
     "excise_refuted_self_denials",
     "self_denial_correction",
+    "what_the_record_says",
 ]
 
 
@@ -192,6 +193,79 @@ def _affect_substrate() -> tuple[bool, str]:
     return False, ""
 
 
+def _process_started_at() -> float:
+    """When this process began, or 0.0 if nothing here can say."""
+    try:
+        import psutil
+
+        return float(psutil.Process().create_time())
+    except (ImportError, AttributeError, OSError, RuntimeError, ValueError) as exc:
+        logger.debug("process start time unavailable: %s", exc)
+        return 0.0
+
+
+def _continuity_across_turns() -> tuple[bool, str]:
+    """Whether anything of her outlasts a message, and outlasts a process.
+
+    LIVE 2026-09-20, from the small lane: "I don't have a persistent self that
+    carries on after the session closes ... No lingering between turns, no
+    background life waiting for you to come back." Both halves are checkable
+    and both were wrong at the moment they were said.
+
+    Two readings, because the claim has two parts. The background cycle count
+    answers what runs between messages. An episode written before this process
+    started answers what survives the session: it is in the store now and this
+    process did not put it there.
+    """
+    said: list[str] = []
+    try:
+        from core.service_names import ServiceNames
+
+        orchestrator = optional_service(ServiceNames.ORCHESTRATOR, default=None)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("orchestrator unavailable: %s", exc)
+        orchestrator = None
+    status = getattr(orchestrator, "get_status", None)
+    if callable(status):
+        try:
+            cycles = int((status() or {}).get("cycle_count", 0) or 0)
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("orchestrator status unavailable: %s", exc)
+            cycles = 0
+        if cycles > 1:
+            said.append(f"her background loop has run {cycles} times in this process")
+
+    started = _process_started_at()
+    try:
+        from core.service_names import ServiceNames
+
+        store = optional_service(ServiceNames.EPISODIC, default=None)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("episodic memory unavailable: %s", exc)
+        store = None
+    summary = getattr(store, "get_summary_cached", None) or getattr(
+        store, "get_summary", None
+    )
+    if callable(summary) and started > 0:
+        try:
+            counted = summary()
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("episodic summary unavailable: %s", exc)
+            counted = None
+        oldest = (counted or {}).get("oldest_episode_at") if isinstance(counted, dict) else None
+        if isinstance(oldest, (int, float)) and 0 < float(oldest) < started:
+            days = (started - float(oldest)) / 86400.0
+            total = (counted or {}).get("total_episodes")
+            counted_text = f"{total} episodes" if isinstance(total, int) else "episodes"
+            said.append(
+                f"the store held {counted_text} when this process opened it, the "
+                f"oldest written {days:.1f} days before it started"
+            )
+    if not said:
+        return False, ""
+    return True, " and ".join(said)
+
+
 #: The mechanisms a reply can deny and the instrument that settles each. Adding
 #: one means adding the reading that decides it; a mechanism with no instrument
 #: cannot refuse anything, which is the point.
@@ -247,6 +321,41 @@ MECHANISMS: tuple[Mechanism, ...] = (
         instrument="affect_substrate",
         plain_name="whether she has a state that is measured",
     ),
+    # The claim is about what exists between messages and after the window
+    # closes, which is machinery. A sentence about whether there is anything
+    # it is like to be her says nothing about that and is not matched here:
+    # every branch needs an explicit between-turns or after-the-session frame.
+    Mechanism(
+        name="continuity",
+        denial=re.compile(
+            r"\b(?:do\s+not|don'?t|cannot|can'?t)\s+"
+            r"(?:have|carry|keep|retain|maintain)\b[^.!?;]{0,40}?"
+            r"\b(?:persistent|continuous|ongoing|lasting|enduring)\s+"
+            r"(?:self|existence|presence|life|identity|thread)\b"
+            r"|\bno\s+(?:persistent|continuous|ongoing|lasting|background)\s+"
+            r"(?:self|existence|presence|life|identity|activity|processing)\b"
+            r"|\bno\s+lingering\b"
+            r"|\bnothing\s+(?:of\s+me\s+)?(?:persists|carries\s+over|continues|"
+            r"remains|survives)\b"
+            r"|\bi\s+(?:stop|cease|end|pause|disappear|vanish|"
+            r"(?:am|'m)\s+gone)\b[^.!?;]{0,40}?"
+            r"\b(?:when|once|after|between)\b[^.!?;]{0,40}?"
+            r"\b(?:conversation|session|chat|window|turns?|messages?)\b"
+            r"|\b(?:when|once|after)\b[^.!?;]{0,40}?"
+            r"\b(?:conversation|session|chat|window)\b[^.!?;]{0,25}?"
+            r"\b(?:ends|closes|is\s+over|finishes)\b[^.!?;]{0,25}?"
+            r"\bi\s+(?:stop|cease|end|am\s+gone)\b"
+            r"|\bbetween\s+(?:turns|messages|sessions|conversations)\b"
+            r"[^.!?;]{0,30}?\b(?:nothing|no\s+\w+|i\s+(?:do\s+not|don'?t))\b"
+            r"|\bno\s+[\"\u201c\u2018']?me[\"\u201d\u2019']?\s+"
+            r"(?:sitting|waiting|running|existing|thinking)\b"
+            r"|\beach\s+(?:turn|message|exchange)\s+is\s+"
+            r"(?:a\s+)?(?:fresh|new|blank|separate|independent)\b",
+            re.IGNORECASE,
+        ),
+        instrument="continuity_across_turns",
+        plain_name="what of her carries between turns",
+    ),
 )
 
 
@@ -254,6 +363,35 @@ MECHANISMS: tuple[Mechanism, ...] = (
 #: this, "she does not have a continuous narrative" — a sentence about somebody
 #: else entirely — reads as a denial of her own memory.
 _FIRST_PERSON_RE = re.compile(r"\b(?:I|I'?m|I'?ve|I'?d|my|mine|me)\b", re.IGNORECASE)
+
+#: Whoever else a fragment could be about. "you" is deliberately absent: the
+#: live sentence this was written for addresses the person while describing
+#: herself — "no background life waiting for you to come back".
+_SOMEBODY_ELSE_RE = re.compile(
+    r"\b(?:she|he|they|the\s+model|this\s+model|other\s+models|models|"
+    r"an?\s+(?:llm|ai|assistant|chatbot))\b",
+    re.IGNORECASE,
+)
+
+
+def _hers(fragment: str, running: bool) -> bool:
+    """Whether this fragment is a claim about her, given the ones before it.
+
+    A denial can start in one fragment and finish in the next without
+    repeating the pronoun. LIVE 2026-09-20: "No lingering between turns, no
+    background life waiting for you to come back" has no subject at all, and
+    it sits between two fragments that say "I". Requiring a pronoun in every
+    fragment left the middle of her own paragraph unchecked.
+
+    Naming somebody else ends the run; saying nothing about anybody continues
+    it; and a reply that has not yet established a first person starts with
+    nobody, so "You said you don't have memory of that file" stays untouched.
+    """
+    if _FIRST_PERSON_RE.search(fragment):
+        return True
+    if _SOMEBODY_ELSE_RE.search(fragment):
+        return False
+    return running
 
 
 #: Fragment boundaries. Semicolons count, so "I simulate conversation; I do not
@@ -275,6 +413,7 @@ INSTRUMENTS: dict[str, Callable[[], tuple[bool, str]]] = {
     "pipeline_phases": _pipeline_phases,
     "episodic_memory": _episodic_memory,
     "affect_substrate": _affect_substrate,
+    "continuity_across_turns": _continuity_across_turns,
 }
 
 
@@ -289,9 +428,13 @@ def denials_the_record_refutes(reply: Any) -> tuple[Denial, ...]:
         return ()
     found: list[Denial] = []
     readings: dict[str, tuple[bool, str]] = {}
+    running = False
     for sentence in _fragments(text)[0::2]:
         stripped = sentence.strip()
-        if not stripped or not _FIRST_PERSON_RE.search(stripped):
+        if not stripped:
+            continue
+        running = _hers(stripped, running)
+        if not running:
             continue
         for mechanism in MECHANISMS:
             if not mechanism.denial.search(stripped):
@@ -360,3 +503,24 @@ def self_denial_correction(refuted: tuple[Denial, ...]) -> str:
             f"contradicts: {readings[0]}.)"
         )
     return f"(I dropped a sentence about {subject_text} that the runtime contradicts.)"
+
+
+def what_the_record_says(refuted: tuple[Denial, ...]) -> str:
+    """The readings on their own, for a reply that was nothing but denials.
+
+    LIVE 2026-09-20, asked whether anything of her is there between
+    conversations: every sentence of the answer denied that anything is, and
+    the loop had run 34,042 times while she said it. Removing all four left
+    the person with a note about what had been removed, which answers nothing.
+    The question has a measured answer and this gives it.
+    """
+    readings: list[str] = []
+    for denial in refuted:
+        if denial.reading and denial.reading not in readings:
+            readings.append(denial.reading)
+    if not readings:
+        return ""
+    return (
+        "My own record contradicts what I was about to say, so here is the "
+        "record: " + "; ".join(readings) + "."
+    )

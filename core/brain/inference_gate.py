@@ -1984,7 +1984,76 @@ _PLUMBING_FIELDS = frozenset(
 )
 
 
-def _what_a_tool_returned(result: Any) -> str:
+#: Envelope fields that hold a result rather than being one. A bounded tool
+#: result is re-emitted as {"note": …, "preview": "<the result, as JSON>"},
+#: and the readable part is inside the preview.
+_WRAPPED_RESULT_FIELDS = ("preview", "result", "data")
+
+#: The longest thing a cut can land in the middle of: one surrogate pair of
+#: \uXXXX escapes.
+_ESCAPE_TAIL = 12
+
+
+def _readable_inside(value: Any, depth: int) -> str:
+    """The readable part of a nested result, whole or cut short."""
+    if isinstance(value, dict):
+        return _what_a_tool_returned(value, depth=depth)
+    text = str(value or "").strip()
+    if not text.startswith("{"):
+        return ""
+    import json as _json
+
+    try:
+        parsed = _json.loads(text)
+    except (TypeError, ValueError):
+        return _a_readable_field_of_broken_json(text)
+    if isinstance(parsed, dict):
+        return _what_a_tool_returned(parsed, depth=depth)
+    return ""
+
+
+def _a_readable_field_of_broken_json(text: str) -> str:
+    """A readable field of a JSON object whose tail was cut off.
+
+    LIVE 2026-09-20: a tool result is bounded to 4000 characters as a valid
+    envelope, and the receipt recorder then cut the envelope at 2000. What
+    reached the screen was `{"note":"Result exceeded the context budget;
+    preview only.","preview":"{\\"authority_closure\\"…` — the runtime's own
+    plumbing, because nothing downstream could parse what it was handed.
+    """
+    import json as _json
+
+    for field in _READABLE_RESULT_FIELDS + _WRAPPED_RESULT_FIELDS:
+        at = text.find(f'"{field}":')
+        if at < 0:
+            continue
+        chunk = text[at + len(field) + 3 :].lstrip()
+        if not chunk.startswith('"'):
+            continue
+        body = chunk[1:]
+        # Only the last escape sequence can be half-written, so the string
+        # closes within a dozen characters of where the cut landed.
+        for back in range(_ESCAPE_TAIL):
+            trimmed = body[: len(body) - back].rstrip("\\")
+            if not trimmed:
+                break
+            try:
+                value = _json.loads(f'"{trimmed}"')
+            except (TypeError, ValueError):
+                continue
+            if isinstance(value, str) and value.strip():
+                inner = _readable_inside(value, depth=1)
+                if inner:
+                    return inner
+                if value.lstrip().startswith("{"):
+                    # Still JSON, and nothing readable got into the budget.
+                    # Saying nothing beats putting the envelope on screen.
+                    return ""
+                return value.strip()
+    return ""
+
+
+def _what_a_tool_returned(result: Any, depth: int = 0) -> str:
     """The readable part of a tool result, never the envelope.
 
     LIVE, 2026-08-27: with none of the readable fields present, this fell back
@@ -2000,10 +2069,19 @@ def _what_a_tool_returned(result: Any) -> str:
         value = result.get(field)
         if isinstance(value, str) and value.strip():
             return value.strip()
+    # A result bounded for the context window is an envelope around the
+    # result, and the readable part is one level further in.
+    if depth < 2:
+        for field in _WRAPPED_RESULT_FIELDS:
+            inner = _readable_inside(result.get(field), depth=depth + 1)
+            if inner:
+                return inner
     # No prose, so say what it found in the fields that name things.
     said: list[str] = []
     for key, value in result.items():
         if key in _PLUMBING_FIELDS or key in _READABLE_RESULT_FIELDS:
+            continue
+        if key in _WRAPPED_RESULT_FIELDS or key in ("note", "truncated", "original_chars"):
             continue
         if isinstance(value, str) and value.strip():
             said.append(f"{key}: {value.strip()}")

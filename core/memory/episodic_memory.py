@@ -1386,6 +1386,14 @@ class EpisodicMemory(_RecallsEpisodes, _RanksWhatToRecall):
             avg_novelty = conn.execute(
                 "SELECT AVG(novelty) FROM episodes WHERE source_authoritative = 1"
             ).fetchone()[0]
+            # When the earliest surviving episode was written.
+            #
+            # Read to settle a claim rather than to describe the store: an
+            # episode older than this process is one the process did not
+            # write and found waiting for it. `idx_ep_timestamp` covers it.
+            oldest = conn.execute(
+                "SELECT MIN(timestamp) FROM episodes WHERE source_authoritative = 1"
+            ).fetchone()[0]
         engram_stats = {}
         try:
             engram_stats = self._hippocampus.stats()
@@ -1406,6 +1414,7 @@ class EpisodicMemory(_RecallsEpisodes, _RanksWhatToRecall):
             "total_reconsolidations": int(total_reconsolidations or 0),
             "avg_novelty": round(avg_novelty if avg_novelty is not None else 0.5, 3),
             "indexed_engrams": engram_stats.get("indexed_engrams", 0),
+            "oldest_episode_at": float(oldest) if oldest is not None else None,
         }
 
     def add_lesson(self, episode_id: str, lesson: str):
