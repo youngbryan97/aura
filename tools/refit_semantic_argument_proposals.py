@@ -111,6 +111,8 @@ def main() -> int:
                         help="operation_views only: explicitly select candidate feature modes")
     parser.add_argument("--conditional-operation-labels", action="store_true",
                         help="operation_views only: learn meanings on operation spans; retain pointer boundary scores")
+    parser.add_argument("--learn-span-pairs", action="store_true",
+                        help="span_set_pointer only: fit existing boundary interactions against complete span sets")
     parser.add_argument("--background-log-odds", action="store_true")
     parser.add_argument("--runtime-mention-margin", action="store_true")
     parser.add_argument("--joint-operation-argument-scores", action="store_true")
@@ -172,6 +174,8 @@ def main() -> int:
         parser.error("operation view candidates require operation_views")
     if args.conditional_operation_labels and args.objective != "operation_views":
         parser.error("conditional operation labels require operation_views")
+    if args.learn_span_pairs and args.objective != "span_set_pointer":
+        parser.error("span pair learning requires span_set_pointer")
     if args.background_log_odds and args.objective != "operation_background":
         parser.error("background log odds require operation_background")
     if args.runtime_mention_margin and args.objective != "pairwise_arguments":
@@ -279,6 +283,8 @@ def main() -> int:
         "labeled_spans": refit_compositional_labeled_spans,
     }[args.objective]
     options = {"refit_pointer": True} if args.objective == "argument_pointer" else {}
+    if args.objective == "span_set_pointer":
+        options["learn_pair"] = args.learn_span_pairs
     if args.objective == "operation_views":
         options["candidate_modes"] = args.operation_view_mode
         options["conditional_labels"] = args.conditional_operation_labels

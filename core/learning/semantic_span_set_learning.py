@@ -55,7 +55,7 @@ def span_set_partition(scores: np.ndarray, max_spans: int) -> tuple[float, np.nd
     return partition, marginals
 
 
-def _span_set_loss(weight, rows, *, width, max_spans, regularization, center):
+def _span_set_loss(weight, rows, *, width, max_spans, regularization, center, learn_pair=False):
     delta = weight - center
     loss = 0.5 * regularization * float(delta @ delta)
     gradient = regularization * delta
@@ -64,6 +64,13 @@ def _span_set_loss(weight, rows, *, width, max_spans, regularization, center):
         scores = np.full(fixed.shape, -np.inf)
         columns = ends - starts
         scores[starts, columns] = projected[starts, 0] + projected[ends, 1] + weight[-1] + fixed[starts, columns]
+        if learn_pair:
+            pair_weight = weight[2 * width:3 * width] * np.sqrt(width)
+            # Stream one diagonal at a time; do not retain an intervals-by-width tensor.
+            for column in range(scores.shape[1]):
+                size = len(hidden) - column
+                pair_score = np.einsum("ij,j,ij->i", hidden[:size], pair_weight, hidden[column:], optimize=False)
+                scores[:size, column] += pair_score
         partition, marginals = span_set_partition(scores, max_spans)
         loss += sample_weight * (partition - sum(scores[s, length - 1] for s, length in target))
         residual = marginals
@@ -74,14 +81,19 @@ def _span_set_loss(weight, rows, *, width, max_spans, regularization, center):
         end_mass = np.bincount(ends, weights=values, minlength=len(hidden))
         gradient[:width] += sample_weight * (start_mass @ hidden)
         gradient[width:2 * width] += sample_weight * (end_mass @ hidden)
+        if learn_pair:
+            for column in range(scores.shape[1]):
+                size = len(hidden) - column
+                gradient[2 * width:3 * width] += sample_weight * np.sqrt(width) * np.einsum(
+                    "i,ij,ij->j", residual[:size, column], hidden[:size], hidden[column:], optimize=False)
         gradient[-1] += sample_weight * float(values.sum())
     return loss, gradient
 
 
 def fit_span_set_pointer(training, *, spans, pointer, max_span_tokens, max_spans,
                          length_penalty=0.0, inverse_regularization=10.0,
-                         max_iter=200, progress=None, excluded_spans=None):
-    """Fit source span-set likelihood while retaining frozen pair interactions."""
+                         max_iter=200, progress=None, excluded_spans=None, learn_pair=False):
+    """Fit complete source span sets, optionally learning existing pair interactions."""
     from scipy.optimize import minimize
 
     training = tuple(training)
@@ -93,6 +105,7 @@ def fit_span_set_pointer(training, *, spans, pointer, max_span_tokens, max_spans
         or not np.isfinite(length_penalty)
         or not np.isfinite(inverse_regularization) or inverse_regularization <= 0
         or (excluded_spans is not None and not callable(excluded_spans))
+        or type(learn_pair) is not bool
     ):
         raise ValueError("invalid source span-set training contract")
     ids = [item.ir.source_text_sha256 for item in training]
@@ -129,6 +142,7 @@ def fit_span_set_pointer(training, *, spans, pointer, max_span_tokens, max_spans
         fixed = np.full((n, length), -np.inf)
         for start, end in zip(starts, ends, strict=True):
             fixed[start, end - start] = (
+                -length_penalty if learn_pair else
                 sequence.score_span(TokenSpan(int(start), int(end + 1)))
                 - float(sequence.start[start] + sequence.end[end]) - length_penalty
             )
@@ -136,13 +150,15 @@ def fit_span_set_pointer(training, *, spans, pointer, max_span_tokens, max_spans
         rows.append((hidden, starts, ends, fixed, target_pairs, 1.0 / counts[_geometry(item)] / len(counts)))
         targets.append([item.ir.source_text_sha256, target_pairs])
     width = pointer.width
-    initial = np.concatenate((pointer.start_weight, pointer.end_weight,
-                              [pointer.start_bias + pointer.end_bias])).astype(np.float64)
+    components = [pointer.start_weight, pointer.end_weight]
+    if learn_pair:
+        components.append(pointer.pair_weight if pointer.pair_weight is not None else np.zeros(width))
+    initial = np.concatenate((*components, [pointer.start_bias + pointer.end_bias])).astype(np.float64)
     regularization = 1.0 / (inverse_regularization * len(training))
 
     def objective(weight):
         return _span_set_loss(weight, rows, width=width, max_spans=max_spans,
-                              regularization=regularization, center=initial)
+                              regularization=regularization, center=initial, learn_pair=learn_pair)
 
     initial_loss, _ = objective(initial)
     iterations = 0
@@ -160,15 +176,16 @@ def fit_span_set_pointer(training, *, spans, pointer, max_span_tokens, max_spans
     coefficients = np.asarray(result.x, dtype=np.float32)
     fitted = LinearPointerHead(coefficients[:width], float(coefficients[-1]) / 2,
                                coefficients[width:2 * width], float(coefficients[-1]) / 2,
-                               pointer.pair_weight)
+                               coefficients[2 * width:3 * width] if learn_pair else pointer.pair_weight)
     exported_loss, _ = objective(coefficients.astype(np.float64))
     receipt = {
         "objective": "source_nonoverlapping_span_set_likelihood_v1",
         "training_examples": len(training), "targets_sha256": _sha(targets),
         "max_spans": max_spans, "max_span_tokens": max_span_tokens,
         "length_penalty": float(length_penalty), "regularization": regularization,
-        "regularization_center": "parent_boundary_coefficients",
-        "pair_interaction": "frozen_parent", "geometry_balanced": True,
+        "regularization_center": "parent_boundary_and_pair_coefficients" if learn_pair else "parent_boundary_coefficients",
+        "pair_interaction": "learned_sqrt_width_diagonal_product" if learn_pair else "frozen_parent",
+        "geometry_balanced": True,
         "excluded_spans_sha256": _sha(exclusions),
         "negative_space": "all_bounded_intervals_excluding_declared_spans",
         "initial_loss": initial_loss, "exported_loss": exported_loss,
@@ -178,7 +195,7 @@ def fit_span_set_pointer(training, *, spans, pointer, max_span_tokens, max_spans
     return fitted, receipt
 
 
-def refit_compositional_span_set_pointer(model, examples, *, max_iter=200, progress=None):
+def refit_compositional_span_set_pointer(model, examples, *, max_iter=200, progress=None, learn_pair=False):
     """Export the fitted boundaries through the existing runtime pointer contract."""
     if model.training_receipt.get("operation_background_fit", {}).get("score") == "joint_operation_background_log_odds_v2":
         raise ValueError("span-set objective requires runtime boundary scores")
@@ -195,6 +212,7 @@ def refit_compositional_span_set_pointer(model, examples, *, max_iter=200, progr
         pointer=model.operation_pointer, max_span_tokens=model.max_span_tokens,
         max_spans=model.max_steps, length_penalty=model.operation_length_penalty,
         max_iter=max_iter, progress=progress, excluded_spans=lambda item: item.ir.input_spans,
+        learn_pair=learn_pair,
     )
     coefficients = model._coefficient_body()
     coefficients["operation_pointer"] = pointer.to_dict()

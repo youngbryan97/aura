@@ -1087,6 +1087,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Paired span-set objective](evidence/G03_PAIRED_SPAN_SET_OBJECTIVE_2026-09-21.md):
+  all fourteen conditional span failures lose on operation evidence. The exact
+  source objective can now learn the existing pointer's paired-boundary term;
+  additive scores cannot express crossed-boundary preferences. Pilot pending.
   [Factorized recognition result](evidence/G03_FACTORIZED_RECOGNITION_RESULT_2026-09-21.md):
   both conditional variants reach 39/54, retaining three source cases but
   missing one control. Boundary-only intervention repairs fourteen of fifteen
