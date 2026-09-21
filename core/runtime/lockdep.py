@@ -248,6 +248,10 @@ class _HeldLock:
     thread_ident: int
     site: str
     acquired_cpu: float = 0.0
+    #: The coroutine whose step reached this lock, when one did. The lock's
+    #: own site names the line that takes it; a fix for a hold on the loop
+    #: goes where the await is, which is usually several plain calls above.
+    reached_from: str = ""
 
 
 @dataclass(slots=True)
@@ -498,6 +502,9 @@ class LockdepValidator:
                     thread_ident=threading.get_ident(),
                     site=site,
                     acquired_cpu=time.thread_time(),
+                    reached_from=(
+                        _coroutine_above() if self.on_the_loop_thread() else ""
+                    ),
                 )
             )
 
@@ -542,7 +549,13 @@ class LockdepValidator:
                     kind="loop_blocking_hold",
                     signature=f"hold:{name}@{entry.site}",
                     message=(
-                        f"blocking lock {name!r} taken at {entry.site} was held "
+                        f"blocking lock {name!r} taken at {entry.site}"
+                        + (
+                            f", reached from the coroutine {entry.reached_from},"
+                            if entry.reached_from
+                            else ""
+                        )
+                        + f" was held "
                         f"{held_for * 1000:.0f}ms on the event loop thread "
                         f"({cpu_for * 1000:.0f}ms on CPU; limit "
                         f"{LOOP_BLOCKING_HOLD_S * 1000:.0f}ms) — "
@@ -1203,6 +1216,29 @@ _PLUMBING = (
     "core/runtime/pressure_stall.py",
     "contextlib.py",
 )
+
+
+def _coroutine_above() -> str:
+    """The coroutine whose step reached this call, if one did.
+
+    Named where a fix goes. Lockdep's own site is the line that TAKES the
+    lock, and for a hold on the loop that line is usually a plain function
+    several calls below the await. LIVE 2026-09-20: 'vector_memory_engine.encode
+    taken at vector_memory_engine.py:497' held the loop 387ms with 87ms on
+    CPU, and the line said nothing about which turn reached it.
+    """
+    frame = sys._getframe(2)
+    while frame is not None and frame.f_code.co_filename.endswith(_PLUMBING):
+        frame = frame.f_back
+    coroutine = frame
+    while coroutine is not None and not coroutine.f_code.co_flags & _CO_COROUTINE:
+        coroutine = coroutine.f_back
+    if coroutine is None:
+        return ""
+    return (
+        f"{coroutine.f_code.co_filename.rsplit('/', 1)[-1]}:{coroutine.f_lineno} "
+        f"in {coroutine.f_code.co_name}"
+    )
 
 
 def report_blocking_on_loop(operation: str) -> bool:

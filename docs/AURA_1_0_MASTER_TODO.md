@@ -254,9 +254,27 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   into it; no fallback footer, no context-repair template, and the word
   "consciousness" in a path did not read as a claim about her. The grace
   path and all four routings hold on one build.
-- [ ] R04 Live-validate progress-aware owner cleanup (2aefb6f46); audit other
+- [x] R04 Live-validate progress-aware owner cleanup (2aefb6f46); audit other
   eviction paths and cross-client ownership, not only the patched function.
-- [ ] R05 Resolve empty latent answers without exposing private reasoning.
+  CLOSED 2026-09-20. Six sites clear the MLX foreground owner, and the audit
+  is a test rather than a reading
+  (tests/test_mlx_foreground_lease_is_measured.py): a new clearing site
+  fails it. Two clear on AGE — the stale sweep and the eviction inside the
+  owner context — and both consult `_foreground_owner_silence()`, because a
+  cold 27B load is legitimately slow and clearing it mid-load is what
+  produced "cortex warming forever". The other four clear for a reason that
+  is not age: a release by name, an explicit cancel with its own receipt, a
+  person outranking background work immediately, and a release that checks
+  both the owner and its acquisition stamp. Cross-client: the owner is one
+  process-global, and every release is guarded by name or by name and stamp,
+  so one client cannot drop another's lease. The explicit cancel asks for
+  silence by default (`require_silence=True`, `min_silence_s=30`), and both
+  of its callers — the flagship doctor and chat-lane recovery — take that
+  default. The stale-lane worker reset is progress-aware by the same rule:
+  it classifies liveness from last token progress, then the heartbeat, and
+  preserves the process and the ownership when liveness cannot be
+  classified.
+- [x] R05 Resolve empty latent answers without exposing private reasoning.
   PARTIAL 2026-09-07, and the canned dead end behind it is closed.
   "I couldn't get my full attention onto that one" was served over a cortex
   answer that existed, was on topic, and measured `confidence=high`. The
@@ -291,6 +309,24 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   this. Also: "keep this short" set a 64-token hard ceiling that cut answers
   mid-sentence into the fallback; a bare brevity request is a semantic cap
   only (d985f43b2).
+  CLOSED 2026-09-20. The last thread was the short cortex reply thrown
+  away: 26 characters at confidence=high, discarded while the turn said the
+  cortex was unavailable. The salvage rule's own docstring says length was
+  never the property being tested, and underneath it sat four words and
+  twenty characters. A draft that FINISHES, with a question in hand it
+  finished answering, is served at any length; a fragment still needs
+  substance to stand without its ending; with no question the floor is the
+  honest default, because a two-word sentence cannot be shown to answer
+  anything. The same shape one layer down in surface_disposition.
+  tests/test_a_short_answer_is_still_an_answer.py.
+  Live on 23c503356, desktop surface: "Walk me through why a hybrid
+  linear-attention model can't trim its KV cache" — four correct paragraphs
+  about the collapsed state matrix, no canned line, no private channel in
+  the reply. "Does your prompt cache survive a worker restart? Answer in one
+  short sentence." — one sentence, served whole. "Is 1,024 the answer-floor
+  default on the desktop lane? Yes or no." — she declined to guess a config
+  value and asked where it is set, which is the honest answer and not the
+  canned one.
 - [ ] R06 Repair event-loop blocking: filesystem writes, fsync under locks,
   knowledge operations, learning callbacks, and scheduler contention.
   UPDATE 2026-09-08. Lockdep reported nine distinct loop-blocking holds in one

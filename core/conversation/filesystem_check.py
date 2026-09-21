@@ -57,8 +57,12 @@ _COUNT_RE = re.compile(
     r"(?:\w+\s+){0,3}?(?:in|inside|under|within)\s+"
     # "in your own core/conversation directory": a possessive and "own" may
     # sit before the path, and "directory"/"folder" after it (LIVE
-    # 2026-09-20, unparsed, answered with a promise to look).
-    r"(?:(?:the|your|its|her|my|our)\s+(?:own\s+)?)?(?P<path>[\w./\-]+)"
+    # 2026-09-20, unparsed, answered with a promise to look). What follows a
+    # possessive has to BE a place, though — "my downloads" and "our repo"
+    # name no directory of hers, and inventing one is the 2026-08-18 defect
+    # this module is named for, so the possessive is remembered and the
+    # place is required to exist.
+    r"(?P<owned>(?:the|your|its|her|my|our)\s+(?:own\s+)?)?(?P<path>[\w./\-]+)"
     r"(?:\s+(?:directory|dir|folder|tree))?",
     re.IGNORECASE,
 )
@@ -532,6 +536,12 @@ def _count_for_match(match: "re.Match[str]", text: str) -> FilesystemCount | Non
         # become "all files", which answers a different question.
         return None
     target = _resolve(match.group("path"))
+    if target is not None and (match.groupdict().get("owned") or "").strip() and not target.is_dir():
+        # A possessive in front of a word that is not a place of hers: the
+        # phrase is a reference, not a path. Fall through to what she does
+        # have (her source tree) or decline, rather than composing
+        # ".../downloads" and reporting it missing.
+        target = None
     if target is None and _OWN_SOURCE_RE.search(text):
         roots = _allowed_roots()
         target = roots[0] if roots else None

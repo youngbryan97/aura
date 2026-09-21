@@ -211,3 +211,41 @@ def test_the_first_use_from_the_loop_loads_on_a_thread_and_answers_nothing_once(
     monkeypatch.setattr(other, "_initialize_locked", inline_initialize)
     assert other._checkout_model() is not None
     assert inline == [threading.current_thread().name]
+
+
+def test_a_hold_on_the_loop_names_the_coroutine_that_reached_it(caplog):
+    """Lockdep names the line that TAKES the lock; the fix goes where the
+    await is, which is usually several plain calls above it.
+
+    LIVE 2026-09-20: "blocking lock 'vector_memory_engine.encode' taken at
+    vector_memory_engine.py:497 was held 387ms on the event loop thread
+    (87ms on CPU)" — real work on the loop, and nothing in the line said
+    which turn reached it.
+    """
+    import logging
+    import time
+
+    from core.runtime.lockdep import checked_lock, note_event_loop_thread
+
+    lock = checked_lock("probe.a_section_that_blocks_the_loop")
+
+    def a_plain_function_below_the_await():
+        with lock:
+            end = time.time() + 0.12
+            while time.time() < end:
+                sum(index * index for index in range(2000))
+
+    async def the_coroutine_that_reached_it():
+        a_plain_function_below_the_await()
+
+    async def main():
+        note_event_loop_thread()
+        await the_coroutine_that_reached_it()
+
+    with caplog.at_level(logging.ERROR, logger="Aura.Lockdep"):
+        asyncio.run(main())
+
+    said = [r.getMessage() for r in caplog.records if "loop_blocking_hold" in r.getMessage()]
+    assert said, "the hold was not reported"
+    assert "reached from the coroutine" in said[0]
+    assert "the_coroutine_that_reached_it" in said[0]

@@ -128,34 +128,38 @@ def _engine():
 
 
 def test_not_converting_takes_a_step_off_the_ceiling() -> None:
-    engine = _engine()
-    assert engine._conversion_penalty() == 0, "no reading yet is no penalty"
+    # module-level since 2026-09-20: the class was three methods over its
+    # ratchet and these read no state of the engine's
+    from core.capability_engine import _conversion_penalty
+
+    assert _conversion_penalty() == 0, "no reading yet is no penalty"
 
     ledger = get_conversion_ledger()
     for index in range(10):
         ledger.note(effort=float(index + 1), returned=float(10 - index))
-    assert engine._conversion_penalty() == 1
+    assert _conversion_penalty() == 1
 
     reset_conversion()
     ledger = get_conversion_ledger()
     for index in range(10):
         ledger.note(effort=float(index + 1), returned=float(index + 1))
-    assert engine._conversion_penalty() == 0
+    assert _conversion_penalty() == 0
 
 
 def test_a_blind_retry_is_not_offered_and_a_named_request_still_is() -> None:
-    engine = _engine()
+    from core.capability_engine import _never_taught
+
     teaching = get_teaching_ledger()
     for _ in range(3):
         teaching.attempted("build_app", managed=False)
 
-    assert engine._never_taught("build_app") is True
-    assert engine._never_taught("code_repl") is False
+    assert _never_taught("build_app") is True
+    assert _never_taught("code_repl") is False
 
     # The one route through is the request by name, and a success on it is the
     # example arriving.
     teaching.shown("build_app")
-    assert engine._never_taught("build_app") is False
+    assert _never_taught("build_app") is False
 
 
 def test_the_gate_asks_before_it_offers() -> None:
@@ -163,6 +167,6 @@ def test_the_gate_asks_before_it_offers() -> None:
     from pathlib import Path
 
     engine = Path("core/capability_engine.py").read_text(encoding="utf-8")
-    assert "if not requested and self._never_taught(skill_name):" in engine
-    assert "allowed_max_cost - self._conversion_penalty()" in engine
-    assert "self._note_what_the_attempt_cost(skill_name, ctx, result)" in engine
+    assert "if not requested and _never_taught(skill_name):" in engine
+    assert "allowed_max_cost - _conversion_penalty()" in engine
+    assert "_note_what_the_attempt_cost(self, skill_name, ctx, result)" in engine

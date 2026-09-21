@@ -199,3 +199,58 @@ def test_the_stamps_stay_coherent():
         mlx_client._FOREGROUND_OWNER_ACQUIRED_MONOTONIC
     )
     assert mlx_client._foreground_owner_age() == pytest.approx(90.0, abs=2.0)
+
+
+def test_every_age_based_eviction_consults_progress():
+    """The audit R04 asks for, as a test rather than a reading.
+
+    Age alone never means wedged: a cold 27B load is legitimately slow, and
+    clearing it mid-load is what produced "cortex warming forever". Every
+    site that clears the owner BECAUSE IT IS OLD must also ask whether it has
+    gone silent. The sites that clear it for another reason — a release by
+    name, an explicit cancel, a person outranking background work — are
+    listed here so a new one cannot be added without a decision.
+    """
+    import ast
+    import inspect
+
+    source = inspect.getsource(mlx_client)
+    tree = ast.parse(source)
+    lines = source.splitlines()
+
+    cleared_in: dict[str, list[int]] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        body = "\n".join(lines[node.lineno - 1 : node.end_lineno])
+        if "_FOREGROUND_OWNER_NAME = None" in body:
+            cleared_in.setdefault(node.name, []).append(node.lineno)
+
+    # Every function that clears the owner, and why it is allowed to.
+    by_design = {
+        # Release by name: the holder asked for it.
+        "_clear_matching_foreground_owner",
+        # An explicit cancel, with its own receipt.
+        "force_clear_foreground_owner",
+        # Acquire/release around one turn: a person outranks background work
+        # immediately, an age eviction consults silence, and the release
+        # checks the owner and its stamp.
+        "_foreground_owner_context",
+        "_release_owner_slot",
+        # The stale sweep — age-based, and the one this test is named for.
+        "_clear_stale_foreground_owner",
+    }
+    assert set(cleared_in) <= by_design, (
+        f"a new site clears the foreground owner: {sorted(set(cleared_in) - by_design)}; "
+        "if it evicts on age it must consult _foreground_owner_silence()"
+    )
+
+    for name in ("_clear_stale_foreground_owner", "_foreground_owner_context"):
+        body = inspect.getsource(getattr(mlx_client, name))
+        assert "_foreground_owner_silence()" in body, name
+
+    # And the explicit cancel asks for silence by default, so a caller that
+    # names no policy cannot clear an owner that is still reporting progress.
+    signature = inspect.signature(mlx_client.force_clear_foreground_owner)
+    assert signature.parameters["require_silence"].default is True
+    assert float(signature.parameters["min_silence_s"].default) > 0.0
