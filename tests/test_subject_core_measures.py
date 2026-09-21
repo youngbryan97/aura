@@ -113,7 +113,35 @@ def test_a_flat_target_is_reported_as_degenerate_rather_than_perfect():
 
 
 def _toy(name: str, steps: int = 2000, seed: int = 3):
-    return toy_recording(architecture(name, seed=seed), steps=steps, seed=seed)
+    system = _strongly_integrated(seed) if name == "recurrent" else architecture(name, seed=seed)
+    return toy_recording(system, steps=steps, seed=seed)
+
+
+def _strongly_integrated(seed: int):
+    """The recurrent tanh wiring these estimator tests were written against.
+
+    `architecture("recurrent")` is the battery's positive control and is now
+    built to be seen by every line the battery reads, which puts its
+    irreducibility near the bar rather than far above it
+    (docs/ISC_REFERENCE_PREREGISTRATION.md). These tests are about the
+    estimator on a strongly integrated system, so they build that system here:
+    each domain reading three neighbours through a squash, sparse, reciprocal,
+    no broker — what the reference was before.
+    """
+    import numpy as np
+
+    from core.subject.nulls import ToySystem, _matrix
+
+    rng = np.random.default_rng(seed)
+    widths = {key: 4 for key in DOMAINS}
+    decay = {key: rng.uniform(0.3, 0.7, size=width) for key, width in widths.items()}
+    coupling: dict = {key: {} for key in widths}
+    order = list(widths)
+    for index, key in enumerate(order):
+        for offset in (1, 2, -1):
+            other = order[(index + offset) % len(order)]
+            coupling[key][other] = _matrix(rng, widths[key], widths[other], 0.6)
+    return ToySystem(name="recurrent", widths=widths, coupling=coupling, decay=decay, noise=0.05)
 
 
 def test_a_recurrent_architecture_is_irreducible_and_the_nulls_are_not():
