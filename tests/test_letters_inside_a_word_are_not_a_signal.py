@@ -90,10 +90,13 @@ def test_the_tool_block_says_what_available_was_checked_against():
     nothing there proves a credential is current or a target answers."""
     from pathlib import Path as _Path
 
-    source = (
+    from tests.source_contract import family_text_at
+
+    # The tool block was lifted into `context_assembler_blocks` (2026-09-20).
+    source = family_text_at(
         _Path(__file__).resolve().parents[1]
         / "core" / "brain" / "llm" / "context_assembler.py"
-    ).read_text("utf-8")
+    )
 
     assert "registered, validated and past preflight" in source
     assert "not proof the tool works right now" in source
