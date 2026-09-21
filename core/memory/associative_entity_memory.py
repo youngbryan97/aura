@@ -78,6 +78,19 @@ class EntityKind(str, Enum):
 
     @classmethod
     def coerce(cls, value: Any) -> EntityKind:
+        """A kind from whatever the caller had, including one of these.
+
+        This could not coerce its own enum. `str(EntityKind.PERSON)` is
+        "EntityKind.PERSON", which lowercases to something no member has as a
+        value, so the ValueError branch ran and returned OTHER — silently, for
+        exactly the argument every `EntityKind | str` signature in the module
+        invites. The kind is not decoration: it selects how stance is computed,
+        and people delegate bonding to the attachment system, so an
+        interlocutor coerced to OTHER is read by the wrong machinery for the
+        rest of her life.
+        """
+        if isinstance(value, cls):
+            return value
         try:
             return cls(str(value or "").strip().lower())
         except ValueError:

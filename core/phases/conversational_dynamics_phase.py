@@ -517,6 +517,57 @@ class ConversationalDynamicsPhase(Phase):
             )
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug("the person record did not see this turn: %s", exc)
+        ConversationalDynamicsPhase._let_the_entity_record_see_this_turn(state, partner)
+
+    @staticmethod
+    def _let_the_entity_record_see_this_turn(state: AuraState, partner: str) -> None:
+        """The one entity a conversation definitionally has.
+
+        `core/memory/entity_memory_bridge.py` has a writer for turn evidence
+        and it had no caller anywhere in the tree, because entities are only
+        ever introduced from the text of a message and nothing introduces the
+        person sending it. So the entity memory was empty in every run, and
+        `world.known_entities` with it: `W.entity_load` read 0.000000 on all
+        5,280 frames of a probe, beside `relationship_load`, `preference_load`
+        and `concept_load` at zero and `fact_load` pinned at one fact. Five of
+        the world model's columns could not move, in the domain that had one
+        measured cause.
+
+        Introducing the interlocutor is a deliberate act and not the silent
+        filling the bridge refuses: "resolution never creates" guards against
+        every capitalised word becoming a permanent member of her world, and
+        the person she is talking to is not a capitalised word. Everyone else
+        still has to be introduced in what somebody says.
+
+        The turn's own affect goes with it, which is how a stance becomes
+        earned rather than declared.
+        """
+        if not partner:
+            return
+        try:
+            from core.memory.associative_entity_memory import (
+                EntityKind,
+                get_associative_entity_memory,
+            )
+            from core.memory.entity_memory_bridge import learn_entity, record_turn_evidence
+
+            entity = learn_entity(partner, EntityKind.PERSON)
+            if entity is None:
+                return
+            # Meeting them is itself evidence, which is what the bridge says
+            # where it recognises somebody in a message, and what
+            # `best_known` orders the standing list by.
+            get_associative_entity_memory().note_mention(entity.entity_id)
+            affect = getattr(state, "affect", None)
+            record_turn_evidence(
+                entity,
+                episode_id=f"turn:{getattr(state, 'version', 0)}",
+                valence=float(getattr(affect, "valence", 0.0) or 0.0),
+                arousal=float(getattr(affect, "arousal", 0.0) or 0.0),
+                role="interlocutor",
+            )
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("the entity record did not see this turn: %s", exc)
 
     async def _execute_compute_dynamics_latest(self, active_user_id, engine, new_state, objective, state):
         # Compute dynamics from the latest user message
