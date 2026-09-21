@@ -42,12 +42,13 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                           adaptive_step=False, checkpoint_path=None, progress=None,
                           checkpoint_identity=None, batched=True, objective="squared_deficit",
                           update_rule="working_face", trainable_parameters=None,
-                          relation_metric="coefficient_euclidean"):
+                          relation_metric="coefficient_euclidean", operation_metric="coefficient_euclidean"):
     """Search for all retained inequalities; retain every already-positive margin."""
     if (objective not in {"squared_deficit", "pairwise_logistic"}
             or update_rule not in {"working_face", "minimum_change"}
             or (update_rule == "minimum_change" and objective != "squared_deficit")
             or relation_metric not in {"coefficient_euclidean", "factor_function"}
+            or operation_metric not in {"coefficient_euclidean", "source_function"}
             or type(batched) is not bool or type(adaptive_step) is not bool or not contrasts or type(steps) is not int or steps < 1 or type(max_active) is not int
             or max_active < 1 or not np.isfinite(required_margin) or required_margin <= 0
             or not np.isfinite(learning_rate) or learning_rate <= 0
@@ -57,10 +58,11 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         raise ValueError("invalid semantic graph constraint fit")
     initial = tuple(np.asarray(value, dtype=np.float64) for value in initial)
     geometry = None
+    relation_geometry, operation_geometries = None, []
     if relation_metric == "factor_function":
         from core.learning.bilinear_geometry import BilinearFactorGeometry
 
-        geometry = BilinearFactorGeometry.from_factors(*initial[:2], scale=scale)
+        relation_geometry = BilinearFactorGeometry.from_factors(*initial[:2], scale=scale)
     if trainable_parameters is None:
         trainable_parameters = (True,) * len(initial)
     trainable_parameters = tuple(trainable_parameters)
@@ -68,6 +70,27 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
             or any(type(value) is not bool for value in trainable_parameters)
             or not any(trainable_parameters)):
         raise ValueError("trainable parameter blocks must match model geometry")
+    if operation_metric == "source_function":
+        from core.learning.affine_function_geometry import AffineFunctionGeometry
+        from core.learning.semantic_fit_checkpoint import fit_identity
+
+        banks = {}
+        for row in contrasts:
+            for bank, _ in (*row.positive_operations, *row.negative_operations):
+                banks.setdefault(fit_identity(bank.features), bank)
+        if not banks or len({len(bank.features) for bank in banks.values()}) != 1:
+            raise ValueError("source function metric requires consistent operation evidence")
+        for view in range(len(next(iter(banks.values())).features)):
+            index = 2 + 2 * view
+            if trainable_parameters[index] != trainable_parameters[index + 1]:
+                raise ValueError("source function metric must jointly freeze affine weight and bias")
+            operation_geometries.append(AffineFunctionGeometry.from_features(
+                np.stack([bank.features[view] for bank in banks.values()]), parameter_index=index))
+    components = tuple(([relation_geometry] if relation_geometry is not None else []) + operation_geometries)
+    if components:
+        from core.learning.affine_function_geometry import CompositeParameterGeometry
+
+        geometry = CompositeParameterGeometry(components)
     shapes = tuple(value.shape for value in initial)
     ends = np.cumsum([value.size for value in initial])
     mutable = np.concatenate([np.full(value.size, trainable, dtype=bool)
@@ -178,12 +201,12 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         source_files = ("semantic_graph_constraints.py", "semantic_graph_batch.py", "semantic_relation_graph_learning.py",
                         "semantic_operation_graph_learning.py", "semantic_argument_graph_learning.py",
                         "semantic_operation_pointer_learning.py", "margin_repair.py", "bilinear_geometry.py",
-                        "affine_margin_polish.py", "semantic_fit_checkpoint.py")
+                        "affine_margin_polish.py", "semantic_fit_checkpoint.py", "affine_function_geometry.py")
         identity = fit_identity({
             "algorithm": [Path(__file__).with_name(name).read_text() for name in source_files],
             "owner": checkpoint_identity, "initial": initial, "contrasts": tuple(contrasts),
             "options": (scale, steps, required_margin, learning_rate, max_active, adaptive_step, batched, objective,
-                        update_rule, trainable_parameters, relation_metric),
+                        update_rule, trainable_parameters, relation_metric, operation_metric),
         })
         checkpoint = SemanticFitCheckpoint(checkpoint_path, identity)
         saved = checkpoint.load()
@@ -195,7 +218,7 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                 "learning_rate": learning_rate, "max_active": max_active,
                 "adaptive_step": adaptive_step, "batched": batched, "objective": objective,
                 "update_rule": update_rule, "trainable_parameters": trainable_parameters,
-                "relation_metric": relation_metric})
+                "relation_metric": relation_metric, "operation_metric": operation_metric})
         if saved is not None:
             allowed = {"running", "search_budget_exhausted", "retained_constraints_satisfied",
                        "no_feasible_direction_found", "no_retention_preserving_step_found",
@@ -430,8 +453,12 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         "infeasibility_proven": False, "latent_choices_frozen_for_update": True,
         "serving_authority": False,
     }
-    if geometry is not None:
-        receipt["relation_geometry"] = {**geometry.certificate(),
+    if relation_geometry is not None:
+        receipt["relation_geometry"] = {**relation_geometry.certificate(),
+            "coordinate_displacement_norm": float(np.linalg.norm(flat - anchor)),
+            "physical_storage_dtype": "float32"}
+    if operation_geometries:
+        receipt["operation_geometry"] = {"views": [part.certificate() for part in operation_geometries],
             "coordinate_displacement_norm": float(np.linalg.norm(flat - anchor)),
             "physical_storage_dtype": "float32"}
     return values, receipt

@@ -110,6 +110,8 @@ def main() -> int:
     parser.add_argument("--freeze-operation-head", action="store_true")
     parser.add_argument("--operation-retention-policy", choices=("supervised", "retain_existing"),
                         default="supervised", help="retain auxiliary span evidence without retargeting its labels")
+    parser.add_argument("--operation-metric", choices=("coefficient_euclidean", "source_function"),
+                        default="coefficient_euclidean", help="measure classifier changes on retained source features")
     parser.add_argument("--relation-metric", choices=("coefficient_euclidean", "factor_function"),
                         default="coefficient_euclidean")
     parser.add_argument("--boundary-policy", choices=("supervised", "retain_existing"), default="supervised")
@@ -155,6 +157,8 @@ def main() -> int:
         parser.error("functional relation geometry requires retained semantic constraints")
     if args.operation_retention_policy != "supervised" and not args.retain_semantic_constraints:
         parser.error("operation retention policy requires retained semantic constraints")
+    if args.operation_metric != "coefficient_euclidean" and not args.retain_semantic_constraints:
+        parser.error("operation function geometry requires retained semantic constraints")
     if args.boundary_policy != "supervised" and not args.learn_operation_pointer:
         parser.error("boundary policy requires operation pointer learning")
     if args.relation_rank is not None and args.objective != "joint_graphs":
@@ -242,6 +246,7 @@ def main() -> int:
         options["relation_metric"] = args.relation_metric
         options["boundary_policy"] = args.boundary_policy
         options["operation_policy"] = args.operation_retention_policy
+        options["operation_metric"] = args.operation_metric
         if args.retain_semantic_constraints:
             options["checkpoint_dir"] = args.fit_checkpoint_dir or args.output.with_suffix(".fit-checkpoints")
             options["retention_operation_charts"] = args.retention_operation_charts
