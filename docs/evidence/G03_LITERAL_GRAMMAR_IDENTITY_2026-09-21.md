@@ -40,3 +40,25 @@ governance lint, layering and writing passed without expanding baselines.
 
 Full development replay remains necessary. This mechanism repair does not
 establish a new accuracy score, promote a candidate, or close G03.
+
+## Completed paired pilot
+
+The same 54 development cases were replayed in rotating order across four
+arms: incumbent, incumbent with grammar identities, conditional recognition,
+and conditional recognition with grammar identities. All operations and
+input anchors were inferred during decoding; no coefficients were fitted.
+
+The incumbent moved from 30/54 to 31/54 and conditional recognition from
+39/54 to 40/54. Each comparison has exactly one gain, the division case above,
+and no regressions. The incumbent retained all 16 controls and three source
+retention cases. Conditional recognition retained its prior 15/16 controls
+and three source cases. The still-failing control was not concealed.
+
+The report is `semantic-literal-identity-pilot-20260921/report.json`, receipt
+`1ec5e4208caa67168f607d244d59ddc181e7d0df64e67e6c9d1e4971a4704cea`.
+Its supervisor completed in 289.188455 seconds with exit zero and an empty
+descendant lineage, receipt
+`ff3029537f36a5f2d1899d0b016aff3562714bc8fab8b7ce685177e21e3b7e63`.
+The runtime code was frozen at `ee1a54c8cc` for this replay. Subsequent source
+integration does not alter that historical identity. The full development
+cohort is the next measurement; this pilot does not authorize promotion.
