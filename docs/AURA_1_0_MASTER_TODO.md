@@ -1120,6 +1120,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Complete source-decision audit](evidence/G03_FULL_SOURCE_DECISION_RESULT_2026-09-21.md):
+  764/764 train and 476/500 exposed validation are semantically equivalent;
+  24 validation failures remain. Original memberships and every receipt were
+  independently reconstructed. Full-source request features did not improve
+  the paired pilot; no promotion or G03 closure follows.
   [Complete-request operation pilot](evidence/G03_REQUEST_CONTEXT_PILOT_2026-09-21.md):
   runtime and training share an opt-in request-conditioned feature; background
   refits preserve their supervision and score. The 64-example fit regresses
