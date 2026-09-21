@@ -3007,6 +3007,11 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
         # What the turn asked for comes first and is fetched by name. Ranking
         # a set that was already decided is how build_app survived selection
         # and vanished one call later.
+        # Which names the turn asked for, kept for the execution that follows:
+        # a request by name is the one route that reaches a capability the
+        # teaching ledger is holding back, and a success on that route is the
+        # example arriving. See `_note_what_the_attempt_cost`.
+        self._asked_by_name = {str(name) for name in asked_for}
         for name in [*sorted(asked_for), *ordered]:
             if len(selected) >= max_tools:
                 break
@@ -4705,7 +4710,29 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
         if urgency and health_score > 0.6:
             allowed_max_cost = min(allowed_max_cost, 2)
 
+        # And what the spending has been buying. Vitality says what she can
+        # afford; conversion says what the more expensive work returns. Every
+        # finished attempt goes into that ledger with its cost and whether it
+        # did what it was for, so when effort and return stop moving together
+        # the ceiling comes down by one and the next attempts are cheaper —
+        # which produces the pairs the reading is taken from. A measure of her
+        # own productivity that changed nothing would be a declaration nobody
+        # checks. See core/self/converted.py.
+        allowed_max_cost = max(0, allowed_max_cost - self._conversion_penalty())
+
         return allowed_max_cost
+
+    def _conversion_penalty(self) -> int:
+        """One step off the ceiling while paying more is not returning more."""
+        try:
+            from core.self.converted import get_conversion_ledger
+
+            reading = get_conversion_ledger().read()
+        except (ImportError, RuntimeError, TypeError, ValueError):
+            return 0
+        if not reading.measured:
+            return 0
+        return 0 if reading.converting else 1
 
     def _tool_definition_for_skill(
         self,
@@ -4727,6 +4754,19 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
 
         active_skills = getattr(self, "active_skills", set(self.skills))
         if skill_name not in active_skills:
+            return None
+
+        # Tried, never managed, and never seen done. Offering it again spends
+        # the turn on a retry with nothing new behind it, and the ledger is
+        # where that is known. A capability asked for by name still goes
+        # through — that request is the example arriving, and a success there
+        # is what takes the capability back out of the list. See
+        # core/self/never_taught.py.
+        if not requested and self._never_taught(skill_name):
+            self.logger.info(
+                "📘 [TAUGHT] %s withheld: tried and never managed, and never seen done.",
+                skill_name,
+            )
             return None
 
         # A skill that knows it cannot run here says so, and is not offered.
@@ -6765,6 +6805,12 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                 )
                 self.logger.warning("Reinforcement failed: %s", e)
 
+            # 6a. What it cost her and what it returned, and whether this is a
+            # thing she has ever managed. Both readings act on the offer gate
+            # above, so this is the half of the loop that closes: what she is
+            # allowed to reach for next turn is decided by how the last ones went.
+            self._note_what_the_attempt_cost(skill_name, ctx, result)
+
             # 6. Outcome Recording (Asynchronous)
             if self.temporal:
                 t = get_task_tracker().create_task(
@@ -7509,6 +7555,51 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
             return "Failed"
         return "Error"
 
+
+    def _never_taught(self, skill_name: str) -> bool:
+        """Whether this is the kind of missing an example is the repair for."""
+        try:
+            from core.self.never_taught import get_teaching_ledger
+
+            reading = get_teaching_ledger().read()
+        except (ImportError, RuntimeError, TypeError, ValueError):
+            return False
+        return skill_name.strip().lower() in set(reading.never_taught)
+
+    def _note_what_the_attempt_cost(
+        self, skill_name: str, ctx: dict[str, Any], result: dict[str, Any]
+    ) -> None:
+        """One finished attempt, into the two ledgers that gate the next one.
+
+        What it cost is the skill's own declared cost, which is the number the
+        offer gate already spends. What it returned is whether the attempt did
+        what it was for, which is the only return this engine can see without
+        asking the caller what they wanted.
+
+        A capability asked for by name is an example arriving from outside her
+        own initiative: the gate lets a named request through whatever the
+        ledgers say, so a success there is the one thing that can take a
+        capability out of "tried, never managed, never seen done".
+        """
+        try:
+            from core.self.converted import get_conversion_ledger
+            from core.self.never_taught import get_teaching_ledger
+
+            meta = self.skills.get(skill_name)
+            cost = float(getattr(meta, "cost", 1) or 1) if meta is not None else 1.0
+            managed = bool(result.get("ok", False)) if isinstance(result, dict) else False
+            get_conversion_ledger().note(effort=cost, returned=1.0 if managed else 0.0)
+
+            teaching = get_teaching_ledger()
+            asked_by_name = bool((ctx or {}).get("requested_by_name")) or (
+                skill_name in getattr(self, "_asked_by_name", set())
+            )
+            if asked_by_name and managed:
+                teaching.shown(skill_name)
+            else:
+                teaching.attempted(skill_name, managed=managed)
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            self.logger.debug("the attempt was not recorded against its ledgers: %s", exc)
 
     async def _record_temporal(
         self, action: str, params: dict[str, Any], context: dict[str, Any], result: dict[str, Any]
