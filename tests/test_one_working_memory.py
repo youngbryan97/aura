@@ -153,10 +153,12 @@ def test_the_finitude_model_is_asked_for_the_real_capacity():
     """
     from pathlib import Path
 
-    source = (
-        Path(__file__).resolve().parents[1]
-        / "core" / "brain" / "llm" / "context_assembler.py"
-    ).read_text("utf-8")
+    from tests.source_contract import family_text_at
+
+    # With the modules lifted out of it: the call is in context_assembler_blocks.
+    source = family_text_at(
+        Path(__file__).resolve().parents[1] / "core" / "brain" / "llm" / "context_assembler.py"
+    )
     assert "working_memory_cap=40" not in source
     assert "working_memory_cap=the_capacity()" in source
 

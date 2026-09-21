@@ -102,9 +102,10 @@ def test_caller_supplied_persona_prompt_is_not_overwritten(adapter):
 
 def test_engine_applies_the_context_key_at_system_role():
     """The seam the wrapper targets must exist in the engine."""
-    from pathlib import Path
+    from tests.source_contract import family_text_at
 
-    source = Path("core/brain/cognitive_engine.py").read_text(encoding="utf-8")
+    # With the modules lifted out of it: the seam is in cognitive_engine_quick_reply.
+    source = family_text_at("core/brain/cognitive_engine.py")
     assert 'context.get("persona_system_prompt")' in source
     assert "[PERSONA CONTRACT]" in source
 

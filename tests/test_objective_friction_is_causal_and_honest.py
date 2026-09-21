@@ -166,7 +166,10 @@ def test_the_report_is_bounded():
 
 def test_the_engine_actually_reads_it():
     """A reader nothing calls is the same defect one layer up."""
-    source = (ROOT / "core" / "brain" / "cognitive_engine.py").read_text("utf-8")
+    from tests.source_contract import family_text_at
+
+    # With the modules lifted out of it: the read is in cognitive_engine_thinking_loop.
+    source = family_text_at(ROOT / "core" / "brain" / "cognitive_engine.py")
 
     assert "self.autopoiesis.is_under_pressure(" in source, (
         "cognitive_engine still only writes to the friction graph"
