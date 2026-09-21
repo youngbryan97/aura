@@ -57,6 +57,7 @@ __all__ = [
     "encode",
     "felt_now",
     "stamp",
+    "stamp_from_repository",
 ]
 
 #: Where the stamp lives in a memory's metadata.
@@ -140,6 +141,29 @@ def stamp(metadata: dict[str, Any], affect: Any) -> dict[str, Any]:
     if felt:
         metadata[FELT_KEY] = encode(felt)
     return metadata
+
+
+def stamp_from_repository(metadata: Any) -> dict[str, Any]:
+    """Stamp a memory from the state the repository holds now.
+
+    The memory facade calls this on every write, so a memory made by any
+    caller carries the feeling it was made in. A caller that stamped from the
+    state it had in hand is left as it wrote it.
+    """
+    payload = metadata if isinstance(metadata, dict) else {}
+    try:
+        from core.container import ServiceContainer
+
+        repo = ServiceContainer.get("state_repository", default=None)
+        current = getattr(repo, "_current", None) if repo is not None else None
+        affect = getattr(current, "affect", None)
+        if affect is not None:
+            stamp(payload, affect)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        from core.runtime.errors import record_degradation
+
+        record_degradation("memory_facade", exc, action="wrote the memory without the feeling it was made in")
+    return payload
 
 
 def distinctive(felts: Mapping[str, Any]) -> dict[str, dict[str, float]]:

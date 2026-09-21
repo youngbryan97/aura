@@ -27,6 +27,11 @@ from core.state.percepts import (
 
 if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
+from core.runtime.cognitive_contract import (
+    BranchSpec,
+    CognitiveTransformContract,
+    register_contract,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +183,18 @@ _BASELINE_RATE = 0.001
 _MOOD_REST: dict[str, float] = dict(AffectVector().mood_baselines)
 
 
+def _kind_leans_positive(kind: str) -> bool:
+    """Whether a kind of percept moves her positive emotions more than her negative ones.
+
+    Read off the affect table and the weights valence is derived from, so the
+    answer is the one her own feeling would give.
+    """
+    named = PERCEPT_EMOTIONS.get(str(kind or ""), ())
+    positive = sum(_POSITIVE_AFFECT_WEIGHTS.get(name, 0.0) for name in named)
+    negative = sum(_NEGATIVE_AFFECT_WEIGHTS.get(name, 0.0) for name in named)
+    return positive > negative
+
+
 def bump_emotion(emotions: dict, name: str, delta: float) -> None:
     """Move a feeling by a share of the room it has left, in place.
 
@@ -325,7 +342,13 @@ class AffectUpdatePhase(Phase):
         # holds exactly one turn of perception by the time affect is done.
         drop_consumed(state.world, "affect")
         recent_percepts = fresh_for(state.world.recent_percepts, "affect")
+        # What the last event cost her, now that a whole turn has passed, and
+        # what she expects of the one arriving now. Read before this turn's
+        # percepts land. See core/self/still_standing.py.
+        self._note_what_it_cost(state, recent_percepts)
         self._process_percepts(affect, recent_percepts)
+        # Gladness at somebody else's rise. See core/social/their_rise.py.
+        self._glad_for_their_rise(affect)
         for item in recent_percepts:
             mark_consumed(item, "affect")
         self._record_what_others_did(recent_percepts)
@@ -994,18 +1017,37 @@ class AffectUpdatePhase(Phase):
                 actor = actor_of_percept(item)
                 if actor is None:
                     continue
+                kind = str(item.get("type") or "percept")
                 ledger.observe(
                     Event(
-                        what=str(item.get("type") or "percept"),
+                        what=kind,
                         actor=actor,
                         verified=True,
-                        detail={"source": str(item.get("source") or "")},
+                        detail={
+                            "source": str(item.get("source") or ""),
+                            # Whether it went well for them: the kind moves her
+                            # positive emotions more than her negative ones.
+                            # See core/social/their_rise.py.
+                            "went_well": _kind_leans_positive(kind),
+                        },
                     )
                 )
                 recorded += 1
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug("what others did went unrecorded this turn: %s", exc)
         return recorded
+
+    @staticmethod
+    def _glad_for_their_rise(affect: AffectVector) -> None:
+        from core.social.their_rise import glad_into
+
+        glad_into(affect, bump_emotion)
+
+    @staticmethod
+    def _note_what_it_cost(state: AuraState, percepts: list[dict]) -> None:
+        from core.self.still_standing import note_turn
+
+        note_turn(state, percepts)
 
     def _process_percepts(self, affect: AffectVector, percepts: list[dict]):
         """Maps recent world events to emotional triggers."""
@@ -1222,7 +1264,7 @@ class AffectUpdatePhase(Phase):
             self._bump_emotion(affect, "fear", (0.10 * failure_pressure))
             self._bump_emotion(affect, "sadness", (0.06 * failure_pressure))
             self._bump_emotion(affect, "anger", (0.04 * failure_pressure))
-            self._bump_emotion(affect, "trust", -((0.03 * failure_pressure)))
+            self._bump_emotion(affect, "trust", -(0.03 * failure_pressure))
             affect.social_hunger = min(1.0, affect.social_hunger + (0.03 * failure_pressure))
 
         if continuity_pressure > 0.0:
@@ -1398,11 +1440,6 @@ class AffectUpdatePhase(Phase):
 # `writes` is MEASURED — tools/observe_phase_writes.py ran this phase against a
 # real AuraState and recorded which fields moved. It is not a reading of the
 # code, which is how a declaration ends up describing what the author believed.
-from core.runtime.cognitive_contract import (
-    BranchSpec,
-    CognitiveTransformContract,
-    register_contract,
-)
 
 register_contract(
     CognitiveTransformContract(

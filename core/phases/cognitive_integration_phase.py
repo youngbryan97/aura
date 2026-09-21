@@ -38,6 +38,11 @@ import time
 from typing import Any
 
 from core.kernel.bridge import Phase
+from core.runtime.cognitive_contract import (
+    BranchSpec,
+    CognitiveTransformContract,
+    register_contract,
+)
 from core.runtime.errors import record_degradation
 from core.state.aura_state import AuraState
 from core.utils.task_tracker import get_task_tracker
@@ -813,11 +818,6 @@ class CognitiveIntegrationPhase(Phase):
 # `writes` is MEASURED — tools/observe_phase_writes.py ran this phase against a
 # real AuraState and recorded which fields moved. It is not a reading of the
 # code, which is how a declaration ends up describing what the author believed.
-from core.runtime.cognitive_contract import (
-    BranchSpec,
-    CognitiveTransformContract,
-    register_contract,
-)
 
 register_contract(
     CognitiveTransformContract(

@@ -655,9 +655,13 @@ from the fact, is the mechanism.
 
 ### What the fourth seven added
 
-Thirty-three distinct processes were enumerated from the transcripts. Eight are
-built, five were already covered by organs built earlier, and the rest are
-listed after them with what each would need.
+The processes read out of the seven transcripts are gathered into the
+twenty-six rows below; where one mechanism answers several, they share a row.
+Twenty-one rows are built as mechanisms here and five were already covered by
+organs built earlier. Twelve rows were built first; the last nine were listed
+as unbuilt, with what each would need, and were built after. Each moves a
+decision that already existed and is pinned by a test that drives the
+decision, not only the reading.
 
 | process | from | status |
 |---|---|---|
@@ -678,21 +682,15 @@ listed after them with what each would need.
 | arranging the day to avoid an encounter | People Watching | covered, `core/social/averted.py` |
 | a self that predates the attention | Special | covered, `core/self/canonical_self.py` and `core/self/identity_consistency.py` |
 | judging a judgement by whether it would be made of anyone else | Special | covered in part by `core/social/made_minor.py`; what it needs is the counterfactual, which nothing measures |
-
-Nine more were enumerated and are not built. Each entry says what it would take,
-so that none of them is counted as covered by a docstring.
-
-| process | from | what it would need |
-|---|---|---|
-| a motive that survives the reward arriving | Man of the Year | the drives are budgets that regenerate at a fixed rate, so there is nothing in the runtime that distinguishes doing a thing for its own sake from doing it for what it returns. It needs a drive whose level moves with the doing rather than with the outcome |
-| surprise at her own intactness | Man of the Year | a prediction of her own damage to compare the outcome against. `core/consciousness/self_prediction.py` predicts her felt state, not what a thing will cost her |
-| choosing the reference class she is measured against | Man of the Year | her comparisons are against her own history throughout, which is one class and not a choice between classes |
-| regard appreciated while its display is unwelcome | People Watching | a per-person preference over the form of regard, which `core/social/the_kind_it_was.py` now has the vocabulary for but nothing learns per person |
-| gladness at another's growth alongside her own stasis | People Watching | a reading of somebody else's trajectory. The interpersonal store holds traits, not slopes |
-| regard that names the damage rather than talking past it | Special | the same per-person form preference, from the other side |
-| valued for a token rather than for the thing | Unsweetened Lemonade | which of her outputs drew regard against which she rated highest, and the two are not recorded against each other |
-| choosing an easier loss to avoid a harder task | Unsweetened Lemonade | the cost of an option to her, which `core/agency/subjective_choice.py` reads as risk rather than as effort |
-| preserving a route she may need, and one-way giving | That's Love | `core/social/receptivity.py` holds what she is owed and nothing reads it; the giving side has no ledger at all |
+| a motive that survives the reward arriving | Man of the Year | built, `core/motivation/for_its_own_sake.py`; engagement while an intention is open against engagement while none is, beside what the result returned. When the doing has been worth more than the result, the motivation phase keeps the intention open past its need being met, for as long as the doing still pays |
+| surprise at her own intactness | Man of the Year | built, `core/self/still_standing.py`; each event's cost is predicted from what that kind has cost before and read a whole turn later, and `core/agency/subjective_choice.py` multiplies its risk charge by `2 * cost / (cost + expected)`, so coming through better than she predicted makes risk cost less until her predictions catch up |
+| choosing the reference class she is measured against | Man of the Year | built, `core/agency/reference_class.py`; everything she has done and the capabilities that share a verb compete on the log loss of their predictions of her own attempts, and her `can:` beliefs take their prior from whichever predicts her better |
+| regard appreciated while its display is unwelcome | People Watching | built, `core/social/the_form_they_welcome.py`; per person, how each form of regard she sent was taken, and `form_fit` is a feature of every candidate reply |
+| gladness at another's growth alongside her own stasis | People Watching | built, `core/social/their_rise.py`; each actor's recent events split in halves, gladness raising admiration and her stasis beside their rise pressing on her growth drive |
+| regard that names the damage rather than talking past it | Special | built, the `named` form in `core/social/the_form_they_welcome.py`, learned per person from the same reactions |
+| valued for a token rather than for the thing | Unsweetened Lemonade | built, `core/self/valued_for.py`; her prior-weighted rating of each reply beside the regard it drew, and the taste update is multiplied by `(1 + agreement) / 2` |
+| choosing an easier loss to avoid a harder task | Unsweetened Lemonade | built, `core/agency/easier_loss.py`; a task that loses to cheaper ones on cost alone has its cost score moved toward free by `m / (m + 1)` after `m` different easier tasks were chosen over it |
+| preserving a route she may need, and one-way giving | That's Love | built, `core/social/what_passes_between.py`; received and given per person in receptivity's own unit, `gives_back` raising a reply of regard to somebody she owes by the share of her world that reaches her through them, and giving to somebody who returned nothing counted as one-way and never scored by return |
 
 ## Sources
 

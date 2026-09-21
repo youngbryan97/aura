@@ -6,9 +6,14 @@ import re
 from typing import Any
 
 from core.container import ServiceContainer
-from core.runtime.service_access import optional_service
 from core.kernel.bridge import Phase
+from core.runtime.cognitive_contract import (
+    BranchSpec,
+    CognitiveTransformContract,
+    register_contract,
+)
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.runtime.service_access import optional_service
 from core.service_names import ServiceNames
 from core.state.aura_state import AuraState
 
@@ -329,11 +334,6 @@ class SocialContextPhase(Phase):
 # `writes` is MEASURED — tools/observe_phase_writes.py ran this phase against a
 # real AuraState and recorded which fields moved. It is not a reading of the
 # code, which is how a declaration ends up describing what the author believed.
-from core.runtime.cognitive_contract import (
-    BranchSpec,
-    CognitiveTransformContract,
-    register_contract,
-)
 
 register_contract(
     CognitiveTransformContract(
