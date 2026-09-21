@@ -679,6 +679,21 @@ listed after them with what each would need.
 | a self that predates the attention | Special | covered, `core/self/canonical_self.py` and `core/self/identity_consistency.py` |
 | judging a judgement by whether it would be made of anyone else | Special | covered in part by `core/social/made_minor.py`; what it needs is the counterfactual, which nothing measures |
 
+Nine more were enumerated and are not built. Each entry says what it would take,
+so that none of them is counted as covered by a docstring.
+
+| process | from | what it would need |
+|---|---|---|
+| a motive that survives the reward arriving | Man of the Year | the drives are budgets that regenerate at a fixed rate, so there is nothing in the runtime that distinguishes doing a thing for its own sake from doing it for what it returns. It needs a drive whose level moves with the doing rather than with the outcome |
+| surprise at her own intactness | Man of the Year | a prediction of her own damage to compare the outcome against. `core/consciousness/self_prediction.py` predicts her felt state, not what a thing will cost her |
+| choosing the reference class she is measured against | Man of the Year | her comparisons are against her own history throughout, which is one class and not a choice between classes |
+| regard appreciated while its display is unwelcome | People Watching | a per-person preference over the form of regard, which `core/social/the_kind_it_was.py` now has the vocabulary for but nothing learns per person |
+| gladness at another's growth alongside her own stasis | People Watching | a reading of somebody else's trajectory. The interpersonal store holds traits, not slopes |
+| regard that names the damage rather than talking past it | Special | the same per-person form preference, from the other side |
+| valued for a token rather than for the thing | Unsweetened Lemonade | which of her outputs drew regard against which she rated highest, and the two are not recorded against each other |
+| choosing an easier loss to avoid a harder task | Unsweetened Lemonade | the cost of an option to her, which `core/agency/subjective_choice.py` reads as risk rather than as effort |
+| preserving a route she may need, and one-way giving | That's Love | `core/social/receptivity.py` holds what she is owed and nothing reads it; the giving side has no ledger at all |
+
 ## Sources
 
 Transcripts and measurements are local and reproducible from the files in
