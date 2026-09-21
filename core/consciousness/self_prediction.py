@@ -78,6 +78,10 @@ class SelfPredictionLoop:
         #: record of a mind that can only be wrong.
         self._expectation: Any = None
         self._confirmation_count: int = 0
+        #: Whether each recent outcome confirmed her and whether it surprised
+        #: her, over the same window as the errors. The counts saturate in the
+        #: readers that record them; the shares keep moving.
+        self._recent_outcomes: deque = deque(maxlen=self._HISTORY_SIZE)
         #: The direction and the size, scored separately. One confidence over
         #: both understates what she knows and overstates what she understands.
         self._conviction: Any = None
@@ -196,12 +200,21 @@ class SelfPredictionLoop:
         }
         return max(errors, key=errors.get)
 
+    def _outcome_share(self, which: int) -> float:
+        """The share of recent outcomes that confirmed her (0) or surprised her (1)."""
+        outcomes = list(self._recent_outcomes)
+        if not outcomes:
+            return 0.0
+        return round(sum(1 for outcome in outcomes if outcome[which]) / len(outcomes), 4)
+
     def get_snapshot(self) -> Dict[str, Any]:
         pred = self._current_prediction
         return {
             "smoothed_error": round(self._smoothed_error, 3),
             "surprise_count": self._surprise_count,
             "confirmation_count": self._confirmation_count,
+            "confirmation_rate": self._outcome_share(0),
+            "surprise_rate": self._outcome_share(1),
             "conviction": (
                 round(float(getattr(self._conviction, "conviction", 0.0)), 4)
                 if self._conviction is not None else 0.0
@@ -431,6 +444,7 @@ class SelfPredictionLoop:
         self._error_history.append(error)
         if error.was_surprising:
             self._surprise_count += 1
+        confirmed = False
 
         # And the other tail. Every measure in this system fires when reality
         # disagrees and none of them fire when it agrees — including this loop,
@@ -451,6 +465,7 @@ class SelfPredictionLoop:
 
             if self._expectation.confirmed():
                 self._confirmation_count += 1
+                confirmed = True
             # The same reading, kept as a pattern: a run of being right, and
             # the surprise that turns it. See core/affect/frisson.py.
             from core.affect.frisson import get_frisson_ledger
@@ -458,6 +473,8 @@ class SelfPredictionLoop:
             get_frisson_ledger().note(self._expectation)
         except (ImportError, AttributeError, TypeError, ValueError):
             self._expectation = None
+
+        self._recent_outcomes.append((confirmed, bool(error.was_surprising)))
 
         # Update smoothed error (EMA)
         self._smoothed_error = (

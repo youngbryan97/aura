@@ -1,9 +1,9 @@
 {
   "organs": 123,
   "cross_package_edges": 2043,
-  "dependency_entropy": 9.1653,
-  "kernel_lines": 620178,
-  "at_commit": "84989105dfa8e7d1d99470b289e4dbd9881feb47",
+  "dependency_entropy": 9.1654,
+  "kernel_lines": 620242,
+  "at_commit": "984c4887388d6fd0f8f53056c9366f3a02871e89",
   "history": [
     {
       "raised": [
@@ -696,6 +696,56 @@
         "commits_by_author": {
           "Claude": 2,
           "Codex": 2
+        }
+      }
+    },
+    {
+      "raised": [
+        "dependency_entropy",
+        "kernel_lines"
+      ],
+      "from": {
+        "dependency_entropy": 9.1653,
+        "kernel_lines": 620178
+      },
+      "to": {
+        "dependency_entropy": 9.1654,
+        "kernel_lines": 620242
+      },
+      "because": "Sixty-four kernel lines: forty-seven from 9388e1747, Codex's isolated causal trials (operator_invention +33, what_she_is_made_of +9, why_it_is_not_better +3, what_she_can_take_back +2), landed without a raise; and seventeen in self_prediction, the recent confirmation and surprise shares the core records because the counts saturate and the closure test found their increments predicting the core from outside it.",
+      "landed": {
+        "since": "84989105dfa8e7d1d99470b289e4dbd9881feb47",
+        "net_kernel_lines": 64,
+        "files_touched": 5,
+        "per_package": {
+          "cognition": 47,
+          "consciousness": 17
+        },
+        "largest_files": [
+          {
+            "path": "core/cognition/operator_invention.py",
+            "net_lines": 33
+          },
+          {
+            "path": "core/consciousness/self_prediction.py",
+            "net_lines": 17
+          },
+          {
+            "path": "core/cognition/what_she_is_made_of.py",
+            "net_lines": 9
+          },
+          {
+            "path": "core/cognition/why_it_is_not_better.py",
+            "net_lines": 3
+          },
+          {
+            "path": "core/cognition/what_she_can_take_back.py",
+            "net_lines": 2
+          }
+        ],
+        "commits_by_author": {
+          "Claude": 1,
+          "Codex": 1
         }
       }
     }

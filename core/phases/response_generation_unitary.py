@@ -76,6 +76,7 @@ from core.utils.prompt_compression import compress_system_prompt
 from core.utils.task_tracker import get_task_tracker
 
 from .response_generation_amplifiers import _AmplifiesTheDraft
+from .response_generation_shaping import _ShapesTheReply
 from .unitary_memory_recall import _AnswersFromWhatSheRemembers
 
 # Declared flags (migrated from raw os.environ reads so the knobs are
@@ -732,7 +733,7 @@ def _timeout_for_request(
 
 
 
-class UnitaryResponsePhase(_AmplifiesTheDraft, _AnswersFromWhatSheRemembers, Phase):
+class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhatSheRemembers, Phase):
     """
     Liberated Response Generation.
     Aura speaks as herself, based on her phenomenal experience, not instructions.
@@ -2600,95 +2601,6 @@ class UnitaryResponsePhase(_AmplifiesTheDraft, _AnswersFromWhatSheRemembers, Pha
         )
         merged.insert(insert_at, evidence_message)
         return merged
-
-    @staticmethod
-    def _shape_user_facing_response(text: str, user_message: str = "") -> str:
-        authored = str(text or "").strip()
-        shaped = authored
-        if not shaped:
-            return shaped
-        shaped = re.sub(r"^\s*[.。]\s+(?=[A-Z0-9\"'“‘])", "", shaped).strip()
-        try:
-            from core.synthesis import cure_personality_leak, stabilize_user_facing_response
-
-            shaped = cure_personality_leak(shaped)
-            shaped = stabilize_user_facing_response(shaped, user_message)
-        except _RESPONSE_RECOVERABLE_ERRORS as exc:
-            _record_response_degradation(
-                exc, "UnitaryResponse: initial user-facing stabilization skipped: %s"
-            )
-
-        try:
-            personality = ServiceContainer.get("personality_engine", default=None)
-            if personality:
-                if hasattr(personality, "filter_response"):
-                    filtered = personality.filter_response(shaped)
-                    if isinstance(filtered, str) and filtered.strip():
-                        shaped = filtered.strip()
-                if hasattr(personality, "apply_lexical_style"):
-                    styled = personality.apply_lexical_style(shaped)
-                    if isinstance(styled, str) and styled.strip():
-                        shaped = styled.strip()
-        except _RESPONSE_RECOVERABLE_ERRORS as exc:
-            _record_response_degradation(
-                exc,
-                "UnitaryResponse: response shaping skipped: %s",
-                action="continued user-facing response shaping without personality lexical filter",
-            )
-            logger.debug("UnitaryResponse: response shaping skipped: %s", exc)
-        try:
-            from core.synthesis import stabilize_user_facing_response
-
-            shaped = stabilize_user_facing_response(shaped, user_message)
-        except _RESPONSE_RECOVERABLE_ERRORS as exc:
-            _record_response_degradation(
-                exc, "UnitaryResponse: final user-facing stabilization skipped: %s"
-            )
-        shaped = re.sub(r"^\s*[.。]\s+(?=[A-Z0-9\"'“‘])", "", shaped).strip()
-        if shaped != authored:
-            try:
-                from core.conversation.surface_disposition import repair_is_an_improvement
-
-                if not repair_is_an_improvement(authored, shaped, user_message):
-                    logger.warning(
-                        "UnitaryResponse rejected a post-generation transform that lost request semantics "
-                        "(before_len=%d after_len=%d).",
-                        len(authored),
-                        len(shaped),
-                    )
-                    return authored
-            except (ImportError, RuntimeError, TypeError, ValueError) as exc:
-                _record_response_degradation(
-                    exc,
-                    "UnitaryResponse: semantic transform admission failed: %s",
-                    action="preserved the model-authored user-facing response",
-                    severity="error",
-                )
-                return authored
-        return shaped
-
-    async def _apply_deep_honesty(self, text: str) -> str:
-        """Opt-in (AURA_DEEP_HONESTY=1) inline fact-check of the final user-facing
-        response via the Data honesty governor. Off by default — so it never taxes a
-        response unless explicitly enabled — bounded ~8s, and fail-open to the text
-        as-is. The model can only annotate an unverified claim, never alter intent."""
-        try:
-            from core.morality.honesty_governor import deep_honesty_enabled
-
-            if not text or not deep_honesty_enabled():
-                return text
-            from core.container import ServiceContainer
-
-            gov = ServiceContainer.get("data", default=None)
-            if gov is None or not hasattr(gov, "vet_output_deep"):
-                return text
-            vetted = await gov.vet_output_deep(text, force=True, timeout=8.0)
-            return vetted if isinstance(vetted, str) and vetted.strip() else text
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            _record_response_degradation(
-                exc, "UnitaryResponse: deep honesty pass skipped: %s"
-            )
-            return text
 
     def _build_router_messages(
         self,

@@ -51,6 +51,7 @@ from typing import Any
 import numpy as np
 
 from core.state.percepts import read_percept
+from core.subject.sketch import SKETCH_FIELDS, sketch
 
 __all__ = [
     "DOMAINS",
@@ -143,6 +144,10 @@ class Organs:
     #: between turns. Persistent planner state is deliberation's, so the action
     #: domain reads it and a lesion that holds that domain holds the loop.
     intentions: Any = None
+    #: The mesh's column activations are recurrent cognition's own state, beside
+    #: the substrate's. The closure test found both predicting the core from
+    #: outside it; see core/subject/sketch.py.
+    mesh: Any = None
 
     @classmethod
     def live(cls) -> Organs:
@@ -177,6 +182,7 @@ class Organs:
         return cls(
             workspace=runtime("global_workspace"),
             substrate=runtime("conscious_substrate"),
+            mesh=runtime("neural_mesh"),
             free_energy=service("free_energy_engine"),
             self_model=service("self_model"),
             world_model=service("unified_world_model"),
@@ -557,6 +563,15 @@ _SCHEMAS: dict[str, Schema] = {
             ("substrate_curiosity", "organ:substrate.curiosity"),
             ("substrate_frustration", "organ:substrate.frustration"),
             ("substrate_revision", "organ:substrate.state_revision"),
+            # The two recurrent states themselves, not only what the substrate
+            # says about its own. The closure test read the substrate's 512
+            # activations and the mesh's 64 column means from outside the core
+            # and found each predicting the core's next state better than the
+            # core did: that is state the core was leaving out. Each is read
+            # through the same sketch the test reads it through.
+            # See core/subject/sketch.py.
+            *((f"substrate_state_{part}", "organ:substrate.x") for part in SKETCH_FIELDS),
+            *((f"mesh_state_{part}", "organ:mesh.column_activations") for part in SKETCH_FIELDS),
         ),
     ),
     "S": _sch(
@@ -632,6 +647,13 @@ _SCHEMAS: dict[str, Schema] = {
             # nothing she predicts is worth being right about.
             ("prediction_confirmed", "organ:self_prediction.confirmation"),
             ("prediction_confirmations", "organ:self_prediction.confirmation_count"),
+            # The counts saturate once she has been right or wrong a few dozen
+            # times, and after that a new confirmation barely moves them; the
+            # closure test found the count's increments predicting the core
+            # from outside it. The share of her recent predictions that were
+            # confirmed, and that surprised her, keep moving for the whole life.
+            ("prediction_confirmation_rate", "organ:self_prediction.confirmation_rate"),
+            ("prediction_surprise_rate", "organ:self_prediction.surprise_rate"),
             # The two halves of being right. One confidence over both
             # understates what she knows and overstates what she understands.
             # See core/affect/conviction.py.
@@ -1366,7 +1388,21 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
             _sat(_f(status.get("state_revision")), 200.0),
         ]
     )
+    head.extend(_sketched(organs.substrate, "x", source="organ:substrate.x"))
+    head.extend(_sketched(organs.mesh, "column_activations", source="organ:mesh.column_activations"))
     return np.array(head, dtype=np.float64)
+
+
+def _sketched(organ: Any, attribute: str, *, source: str) -> list[float]:
+    """An organ's state array through the shared sketch, zeros and a miss when absent."""
+    if organ is None:
+        _miss(source, "organ absent")
+        return [0.0] * len(SKETCH_FIELDS)
+    summary = sketch(getattr(organ, attribute, None))
+    if summary is None:
+        _miss(source, "no finite state")
+        return [0.0] * len(SKETCH_FIELDS)
+    return [summary[part] for part in SKETCH_FIELDS]
 
 
 def _read_S(state: Any, organs: Organs) -> np.ndarray:
@@ -1433,6 +1469,8 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
             _sat(_f(prediction.get("surprise_count")), 16.0),
             _f(prediction.get("confirmation")),
             _sat(_f(prediction.get("confirmation_count")), 16.0),
+            _f(prediction.get("confirmation_rate")),
+            _f(prediction.get("surprise_rate")),
             _f(prediction.get("conviction")),
             _f(prediction.get("understanding")),
             _f(prediction.get("valence_error_ema")),
