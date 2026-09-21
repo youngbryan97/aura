@@ -1120,6 +1120,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Complete-request operation pilot](evidence/G03_REQUEST_CONTEXT_PILOT_2026-09-21.md):
+  runtime and training share an opt-in request-conditioned feature; background
+  refits preserve their supervision and score. The 64-example fit regresses
+  and is not promoted. Full-source paired refitting is a separate experiment.
   [Source decision pilot](evidence/G03_SOURCE_DECISION_PILOT_2026-09-21.md):
   paired training replay improved 19/23 to 23/23, with no retained regressions.
   Full development coverage and fresh transfer remain unmeasured for this fit.

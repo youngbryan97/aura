@@ -135,7 +135,8 @@ _OPERATION_FEATURE_MODES_V3: Final = (
     "contextual_last",
 )
 _OPERATION_FEATURE_MODES: Final = tuple(
-    dict.fromkeys((*_OPERATION_FEATURE_MODES_V2, *_OPERATION_FEATURE_MODES_V3))
+    dict.fromkeys((*_OPERATION_FEATURE_MODES_V2, *_OPERATION_FEATURE_MODES_V3,
+                  "contextual_span_request_interaction"))
 )
 _MAX_OPERATION_VIEWS: Final = 3
 
@@ -406,6 +407,7 @@ def _operation_feature_width(
         "lexical_mean": lexical,
         "contextual_mean": contextual,
         "contextual_last": contextual,
+        "contextual_span_request_interaction": 3 * contextual,
         "lexical_mean_contextual_last": lexical + contextual,
         "lexical_mean_contextual_mean_contextual_last": lexical + 2 * contextual,
     }
@@ -458,6 +460,11 @@ def _operation_feature(
         value = np.mean(contextual_span, axis=0, dtype=np.float32)
     elif mode == "contextual_last":
         value = contextual_span[-1]
+    elif mode == "contextual_span_request_interaction":
+        # A causal span cannot see a disambiguating suffix; the request end can.
+        local = _normalized_feature(np.mean(contextual_span, axis=0, dtype=np.float32))
+        request = _normalized_feature(contextual[-1])
+        value = np.concatenate((local, request, _normalized_feature(local * request)))
     elif mode == "lexical_mean_contextual_last":
         value = np.concatenate((np.mean(lexical_span, axis=0, dtype=np.float32), contextual_span[-1]))
     elif mode == "lexical_mean_contextual_mean_contextual_last":

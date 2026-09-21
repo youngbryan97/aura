@@ -16,6 +16,7 @@ from core.learning.semantic_program_transducer import (
     _OPERATION_FEATURE_MODES,
     _OPERATION_FEATURE_MODES_V2,
     _OPERATION_FEATURE_MODES_V3,
+    OPERATION_BACKGROUND_LABEL,
     MultiViewClassifierHead,
     _fit_classifier,
     _operation_feature,
@@ -103,7 +104,7 @@ def valid_operation_view_contract(head, receipt, channels, widths):
     )
 
 
-def refit_compositional_operation_views(model, examples):
+def refit_compositional_operation_views(model, examples, *, candidate_modes=None, progress=None):
     """Fit on source train, select views and chart length on source validation."""
     from core.learning.semantic_program_transducer_fitting import (
         _OPERATION_CANDIDATES,
@@ -111,6 +112,11 @@ def refit_compositional_operation_views(model, examples):
         _calibrate_operation_charts,
         _OperationNode,
         _overlap,
+    )
+    from core.learning.semantic_operation_background import (
+        operation_background_receipt,
+        operation_background_training_spans,
+        valid_background_contract,
     )
 
     train = tuple(item for item in examples if item.split == "train")
@@ -133,20 +139,41 @@ def refit_compositional_operation_views(model, examples):
     ):
         raise ValueError("operation view refit source representation differs")
     modes = _OPERATION_FEATURE_MODES_V3 if "middle_causal_hidden" in model.hidden_channels else _OPERATION_FEATURE_MODES_V2
-    train_rows = tuple((item, instruction) for item in train for instruction in item.ir.instructions)
-    validation_rows = tuple((item, instruction) for item in validation for instruction in item.ir.instructions)
-    labels = [instruction.op for _item, instruction in train_rows]
-    targets = [instruction.op for _item, instruction in validation_rows]
+    if candidate_modes is not None:
+        if (not isinstance(candidate_modes, (tuple, list)) or not candidate_modes
+                or any(mode not in _OPERATION_FEATURE_MODES for mode in candidate_modes)
+                or len(set(candidate_modes)) != len(candidate_modes)):
+            raise ValueError("operation view candidates must be unique supported modes")
+        modes = tuple(candidate_modes)
+    for mode in modes:
+        _operation_feature_width(mode, hidden_channels=model.hidden_channels,
+                                 hidden_channel_widths=model.hidden_channel_widths)
+    if not valid_background_contract(model.operation_head, model.training_receipt):
+        raise ValueError("operation view refit background evidence differs")
+    background = model.training_receipt.get("operation_background_fit")
+    groups = tuple((item, operation_background_training_spans(
+        item, model.operation_pointer, model.max_span_tokens,
+    ) if background else tuple((instruction.operation_span, instruction.op)
+                               for instruction in item.ir.instructions)) for item in train)
+    train_rows = tuple((item, span, label) for item, rows in groups for span, label in rows)
+    validation_rows = tuple((item, instruction.operation_span, instruction.op)
+                            for item in validation for instruction in item.ir.instructions)
+    labels = [label for _item, _span, label in train_rows]
+    targets = [label for _item, _span, label in validation_rows]
+    if set(labels) != set(model.operation_head.labels):
+        raise ValueError("operation view refit must retain the source operation vocabulary")
     if not targets or not set(targets) <= set(labels):
         raise ValueError("operation view validation has no training label support")
     geometry_counts = Counter(_geometry(item) for item in train)
-    weights = _normalized_weights([1.0 / geometry_counts[_geometry(item)] for item, _ in train_rows])
+    weights = _normalized_weights([1.0 / geometry_counts[_geometry(item)]
+                                   / (len(rows) if background else 1)
+                                   for item, rows in groups for _ in rows])
     heads, probabilities, runtime_probabilities = {}, {}, {}
     def features(rows, mode):
         return np.stack([
-            _operation_feature(item.hidden_states, instruction.operation_span, mode=mode,
+            _operation_feature(item.hidden_states, span, mode=mode,
                                hidden_channels=model.hidden_channels, hidden_channel_widths=model.hidden_channel_widths)
-            for item, instruction in rows
+            for item, span, _label in rows
         ])
 
     runtime_rows, runtime_groups = [], []
@@ -161,6 +188,8 @@ def refit_compositional_operation_views(model, examples):
         runtime_groups.append((item, candidates, slice(lower, len(runtime_rows))))
 
     for mode in modes:
+        if progress is not None:
+            progress({"stage": "operation_view_fit", "mode": mode, "rows": len(train_rows)})
         heads[mode] = _fit_classifier(features(train_rows, mode), labels, sample_weight=weights)
         probabilities[mode] = np.stack([heads[mode].predict_probabilities(row) for row in features(validation_rows, mode)])
         runtime_probabilities[mode] = np.stack([
@@ -171,6 +200,10 @@ def refit_compositional_operation_views(model, examples):
             for item, span in runtime_rows
         ])
     label_indices = {label: index for index, label in enumerate(heads[modes[0]].labels)}
+    operation_indices = tuple(index for label, index in label_indices.items()
+                              if label != OPERATION_BACKGROUND_LABEL)
+    background_index = label_indices.get(OPERATION_BACKGROUND_LABEL)
+    odds = background and background["score"] == "joint_operation_background_log_odds_v2"
     expected = np.asarray([label_indices[label] for label in targets])
     candidates = []
     calibrations = {}
@@ -181,11 +214,15 @@ def refit_compositional_operation_views(model, examples):
             cached = []
             for item, proposals, indices in runtime_groups:
                 scores = runtime_probability[indices]
-                nodes = tuple(
-                    _OperationNode(span, heads[modes[0]].labels[int(p.argmax())],
-                                   float(score + math.log(max(float(p.max()), 1e-12))), float(score), float(p.max()))
-                    for (span, score), p in zip(proposals, scores, strict=True)
-                )
+                nodes = []
+                for (span, score), p in zip(proposals, scores, strict=True):
+                    index = max(operation_indices, key=lambda index: p[index])
+                    confidence = float(p[index])
+                    node_score = math.log(max(confidence, 1e-12))
+                    node_score += (-math.log(max(float(p[background_index]), 1e-12))
+                                   if odds else float(score))
+                    nodes.append(_OperationNode(span, heads[modes[0]].labels[index],
+                                                node_score, float(score), confidence))
                 cached.append((item, tuple(_best_nonoverlapping_nodes(nodes, count) for count in range(1, model.max_steps + 1))))
             penalty, length_rows = _calibrate_operation_charts(cached)
             selected_length = next(row for row in length_rows if row["length_penalty"] == penalty)
@@ -204,6 +241,10 @@ def refit_compositional_operation_views(model, examples):
     coefficient.update(operation_head=head.to_dict(), operation_length_penalty=penalty)
     body = {key: value for key, value in model.training_receipt.items() if key != "receipt_sha256"}
     body["coefficient_sha256"] = _sha(coefficient)
+    if background:
+        body["operation_background_fit"] = operation_background_receipt(
+            model, head, train, train_rows, score=background["score"],
+        )
     body["operation_view_selection"] = {
         "schema": "aura.semantic_operation_view_selection.v2",
         "objective": "source_validation_predicted_chart_v2",
@@ -216,12 +257,12 @@ def refit_compositional_operation_views(model, examples):
         "training_example_ids_sha256": _sha(sorted(train_ids)),
         "validation_example_ids_sha256": _sha(sorted(validation_ids)),
         "training_targets_sha256": _sha([
-            [item.ir.source_text_sha256, instruction.op, instruction.operation_span.start, instruction.operation_span.end]
-            for item, instruction in train_rows
+            [item.ir.source_text_sha256, label, span.start, span.end]
+            for item, span, label in train_rows
         ]),
         "validation_targets_sha256": _sha([
-            [item.ir.source_text_sha256, instruction.op, instruction.operation_span.start, instruction.operation_span.end]
-            for item, instruction in validation_rows
+            [item.ir.source_text_sha256, label, span.start, span.end]
+            for item, span, label in validation_rows
         ]),
         "length_calibration": length_rows,
         "validation_used_for_fit": False, "test_examples_used": 0, "serving_authority": False,
