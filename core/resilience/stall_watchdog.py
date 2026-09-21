@@ -21,6 +21,7 @@ import sys
 import threading
 import time
 import traceback
+from collections import deque
 from importlib import import_module
 from pathlib import Path
 
@@ -151,6 +152,11 @@ def _record_watchdog_degradation(
 _TASK_HUNG_SECONDS = 90.0
 
 # Minimum stall length to trigger active recovery. Below this, we just log.
+#: How often the watchdog posts its heartbeat and looks at the answer. A
+#: healthy loop therefore shows about this much elapsed on every look, and
+#: anything beyond it is lateness.
+_WATCHDOG_TICK_S = 1.0
+
 _ACTIVE_RECOVERY_THRESHOLD = 30.0
 
 # Absolute ceiling on CONTINUOUS event-loop unresponsiveness, immune to all
@@ -228,6 +234,9 @@ class StallWatchdog(threading.Thread):
         #: stuck. Read with the loop thread's clock from this thread; see
         #: core/runtime/thread_cpu.py.
         self._loop_cpu_at_heartbeat: float | None = None
+        # (monotonic, seconds late) for looks that fell short of the
+        # threshold. See _note_lateness.
+        self._recent_lateness: deque[tuple[float, float]] = deque(maxlen=256)
         # The wall clock at that sample, and the last look this thread took
         # during a stall, so each share is over the interval it names.
         self._loop_cpu_sampled_at: float | None = None
@@ -357,7 +366,7 @@ class StallWatchdog(threading.Thread):
                 )
                 logger.debug("Watchdog heartbeat schedule issue: %s", e)
 
-            time.sleep(1.0)  # Check every second
+            time.sleep(_WATCHDOG_TICK_S)
 
             # Refresh the out-of-process liveness beacon every tick. When the
             # loop wedges, _last_loop_run stops advancing; when the GIL is held
@@ -401,6 +410,46 @@ class StallWatchdog(threading.Thread):
                 self._last_heartbeat = time.time()
             else:
                 self._consecutive_long_stalls = 0
+                self._note_lateness(elapsed)
+
+    def _note_lateness(self, elapsed: float) -> None:
+        """Accumulate the lateness a single look was too small to report.
+
+        LIVE, 2026-09-16: a streak of lags between 22:49 and 22:51Z, the
+        shortest 1.5s and the longest 11s, produced no dump. Each look
+        measured less than
+        the 5s threshold and the next one started fresh. Two minutes of a
+        loop that could not keep up left nothing to read.
+
+        Neither number here is chosen. The window is the interval over which
+        this watchdog already considers a stall worth acting on, and the
+        budget is one reportable stall's worth of lost time: losing that much
+        inside that window is the same evidence as one stall of that length,
+        arriving in pieces.
+        """
+        late = elapsed - _WATCHDOG_TICK_S
+        now = time.monotonic()
+        if late > 0.0:
+            self._recent_lateness.append((now, late))
+        cutoff = now - _ACTIVE_RECOVERY_THRESHOLD
+        while self._recent_lateness and self._recent_lateness[0][0] < cutoff:
+            self._recent_lateness.popleft()
+        total = sum(one for _when, one in self._recent_lateness)
+        if total < self.threshold or len(self._recent_lateness) < 2:
+            return
+        if self._should_suppress_stall(total):
+            self._recent_lateness.clear()
+            return
+        logger.error(
+            "🚨 [WATCHDOG] EVENT LOOP FALLING BEHIND! (%.1fs late across %d looks "
+            "in %.0fs, none of them past the %.1fs line)",
+            total,
+            len(self._recent_lateness),
+            _ACTIVE_RECOVERY_THRESHOLD,
+            self.threshold,
+        )
+        self._recent_lateness.clear()
+        self._report_stall(total, self._loop_cpu_share_since_heartbeat(total))
 
     def stop(self):
         self._stop_event.set()

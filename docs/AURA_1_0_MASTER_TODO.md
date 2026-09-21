@@ -450,9 +450,22 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   thread's own CPU now and reads the audit's age only where that clock is
   unreadable. `tests/test_health_read_model.py::test_a_collection_that_is_
   still_working_is_not_a_timeout` holds it; 32 tests in that file pass.
-  Still open: the streak of 1.5–11s lags between 22:49 and 22:51Z that
-  produced no dump because each was under the 5s watchdog line. Resident
-  replay on this build follows.
+  The streak of lags between 22:49 and 22:51Z — the shortest 1.5s, the
+  longest 11s — is closed, 2026-09-21. Each look measured less than the 5s
+  threshold and the next one started fresh, so two minutes of a loop that
+  could not keep up left nothing to read. The watchdog accumulates the
+  lateness a single look was too small to report, and reports once when it
+  reaches one stall's worth. Neither number is chosen: the window is
+  `_ACTIVE_RECOVERY_THRESHOLD`, the interval over which this watchdog
+  already considers a stall worth acting on, and the budget is `threshold`,
+  one reportable stall's worth of lost time. Losing that much inside that
+  window is the same evidence as one stall of that length, arriving in
+  pieces. `tests/test_a_streak_of_small_lags_is_a_stall.py` replays the
+  four lags that produced nothing and holds the nulls — a single late look
+  is not a streak, four seconds of lateness is under the line, on-time looks
+  accumulate nothing, and lags a window apart are not a streak.
+  Every named hold in R06 is now closed. Resident replay on this build
+  follows.
   2026-09-16, a loaded host (load 34 to 124 on 18 cores, other agents' jobs).
   A day of stalls that were not the loop's: the loop thread was getting 2% of
   a core. Every monitor now tells starved from stuck by the thread's own CPU
