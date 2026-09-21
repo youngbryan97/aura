@@ -1,9 +1,9 @@
 {
   "organs": 123,
-  "cross_package_edges": 2042,
+  "cross_package_edges": 2043,
   "dependency_entropy": 9.1653,
-  "kernel_lines": 619395,
-  "at_commit": "b3eb87505ef1976b41c8eba4185c6a3e972f88ba",
+  "kernel_lines": 620178,
+  "at_commit": "84989105dfa8e7d1d99470b289e4dbd9881feb47",
   "history": [
     {
       "raised": [
@@ -569,6 +569,134 @@
         "files": 42,
         "insertions": 2188,
         "deletions": 192
+      }
+    },
+    {
+      "raised": [
+        "cross_package_edges",
+        "kernel_lines"
+      ],
+      "from": {
+        "cross_package_edges": 2042,
+        "kernel_lines": 619395
+      },
+      "to": {
+        "cross_package_edges": 2043,
+        "kernel_lines": 620108
+      },
+      "because": "Seven hundred and seventy-three kernel lines landed since b3eb87505 from four sessions, most of them lifts: mlx_worker_recurrent_adapters (+458) and mlx_client_artifacts (+196) are code moved out of the worker and the client to pay the module-size budget, and a lift costs the import header at both ends. unbidden (+287) is a new memory organ, a return bringing back the state it was laid down in. The cross-package edge and the entropy rise came with those. This commit's own share is twenty lines: sixteen in felt_at_encoding, the percept-carried arithmetic and the repository stamp moved out of the retrieval phase and the facade so both stay inside their size ratchets, and four in inference_gate naming a tool call's status as plumbing, so a receipt keeps what the tool returned instead of 'status: ok'.",
+      "landed": {
+        "since": "b3eb87505ef1976b41c8eba4185c6a3e972f88ba",
+        "net_kernel_lines": 773,
+        "files_touched": 24,
+        "per_package": {
+          "memory": 426,
+          "cognition": 129,
+          "brain": 119,
+          "runtime": 56,
+          "consciousness": 43
+        },
+        "largest_files": [
+          {
+            "path": "core/brain/llm/mlx_worker_recurrent_adapters.py",
+            "net_lines": 458
+          },
+          {
+            "path": "core/memory/unbidden.py",
+            "net_lines": 287
+          },
+          {
+            "path": "core/brain/llm/mlx_client_artifacts.py",
+            "net_lines": 196
+          },
+          {
+            "path": "core/cognition/operator_invention.py",
+            "net_lines": 52
+          },
+          {
+            "path": "core/memory/vector_memory_engine.py",
+            "net_lines": 50
+          },
+          {
+            "path": "core/memory/intentional_retrieval.py",
+            "net_lines": 45
+          },
+          {
+            "path": "core/consciousness/global_workspace.py",
+            "net_lines": 43
+          },
+          {
+            "path": "core/brain/inference_gate_living_context.py",
+            "net_lines": 34
+          },
+          {
+            "path": "core/cognition/an_operator_she_invents.py",
+            "net_lines": 31
+          },
+          {
+            "path": "core/runtime/desktop_objective_intent.py",
+            "net_lines": 29
+          },
+          {
+            "path": "core/memory/embedding_runtime.py",
+            "net_lines": 24
+          },
+          {
+            "path": "core/cognition/what_she_can_take_back.py",
+            "net_lines": 19
+          }
+        ],
+        "commits_by_author": {
+          "Claude": 8,
+          "Codex": 1
+        }
+      }
+    },
+    {
+      "raised": [
+        "kernel_lines"
+      ],
+      "from": {
+        "kernel_lines": 620108
+      },
+      "to": {
+        "kernel_lines": 620178
+      },
+      "because": "Seventy kernel lines from ab641e544, Codex's operator retention: operator_invention (+82) keeps an invented operator across trials and restores a trial whole, what_she_gave_meaning (+15) and what_she_can_take_back (+7) read it, and sequence_induction gave back 34. Landed without a raise; recorded here so the next reading starts from what is in the tree.",
+      "landed": {
+        "since": "22ed2e0cd19adf442139c87169d6a427944492d5",
+        "net_kernel_lines": 74,
+        "files_touched": 5,
+        "per_package": {
+          "cognition": 70,
+          "brain": 4
+        },
+        "largest_files": [
+          {
+            "path": "core/cognition/operator_invention.py",
+            "net_lines": 82
+          },
+          {
+            "path": "core/cognition/what_she_gave_meaning.py",
+            "net_lines": 15
+          },
+          {
+            "path": "core/cognition/what_she_can_take_back.py",
+            "net_lines": 7
+          },
+          {
+            "path": "core/brain/inference_gate.py",
+            "net_lines": 4
+          },
+          {
+            "path": "core/cognition/sequence_induction.py",
+            "net_lines": -34
+          }
+        ],
+        "commits_by_author": {
+          "Claude": 2,
+          "Codex": 2
+        }
       }
     }
   ]

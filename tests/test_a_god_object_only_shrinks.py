@@ -43,6 +43,21 @@ def test_the_tree_is_within_its_baseline():
     assert stale == [], "\n".join(stale)
 
 
+def test_the_ratchet_actually_examines_files():
+    """A size check that scanned nothing would pass every other test here.
+
+    The growth check in `core/architecture_quality/gate.py` iterated a list its
+    only caller never passed, so it examined zero files and reported a pass
+    while `interface/routes/chat.py` reached 24,658 lines. The per-file ratchet
+    built after that (`tools/god_file_ratchet.py`) opened with this assertion;
+    it was retired as the per-file design this tool's rule 3 corrects, and the
+    assertion moved here.
+    """
+    measurements, baseline = _live()
+    assert len(measurements) > 1000, f"only {len(measurements)} modules measured"
+    assert len(baseline) > 50, f"only {len(baseline)} oversize modules recorded"
+
+
 def test_the_baseline_records_the_known_offenders():
     """A baseline that omitted them would pass while they grew."""
     baseline = load_baseline(BASELINE)

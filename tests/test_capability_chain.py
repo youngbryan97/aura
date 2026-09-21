@@ -155,6 +155,10 @@ def test_capability_signed_by_a_foreign_key_fails():
         ("nonce", "a" * 32),
         ("capability_id", "cap-swapped"),
     ],
+    # Named by the field. The expiry is read off the clock, and an id built
+    # from the value differed between xdist workers, which then refused to
+    # run anything because they had not collected the same tests.
+    ids=lambda item: item if isinstance(item, str) and item.isidentifier() else "value",
 )
 def test_altering_any_signed_field_fails(field, value):
     """Every field in the payload is covered by the signature."""

@@ -1665,6 +1665,11 @@ def _readable_result(raw: object) -> str:
         # and there was no second way in.
         # "" when nothing readable survived the cut: the caller drops an
         # empty receipt, and an empty receipt beats a visible envelope.
+        # Only an envelope, though: something with braces round it and no
+        # JSON key inside is prose that happens to start with a brace, and
+        # it stays as it was.
+        if '":' not in said:
+            return said
         return _a_readable_field_of_broken_json(said)
     try:
         return _what_a_tool_returned(parsed)

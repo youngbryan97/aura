@@ -2564,7 +2564,6 @@ tests/test_global_workspace_runtime_contract.py
 tests/test_goal_lifecycle_runtime.py
 tests/test_goal_planner.py
 tests/test_goal_pursuit.py
-tests/test_god_file_ratchet.py
 tests/test_governance_bypass_proof.py
 tests/test_governance_closure_deep.py
 tests/test_governance_coverage.py
@@ -4076,7 +4075,6 @@ tools/fuse_rlc_candidate.py
 tools/generate_deps.py
 tools/generate_lora_consolidation_proof.py
 tools/generate_undeniable_rsi_bundle.py
-tools/god_file_ratchet.py
 tools/grade_latent_facets.py
 tools/heldout_eval.py
 tools/import_unified_intrinsic_legacy_checkpoint.py

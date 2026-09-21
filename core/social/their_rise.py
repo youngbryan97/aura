@@ -44,6 +44,7 @@ __all__ = [
     "get_rise_ledger",
     "glad_into",
     "reset_for_test",
+    "stasis_now",
 ]
 
 logger = logging.getLogger(__name__)
@@ -113,6 +114,11 @@ class RiseLedger:
         mine = own if own is not None else 0.0
         stasis = glad if (own is not None and mine <= 0.0) else 0.0
         return Rise(glad=glad, who=who if glad > 0.0 else "", own=mine, stasis=stasis, measured=own is not None)
+
+
+def stasis_now() -> float:
+    """How far somebody else's rise outruns hers while she stands still, in [0, 1]."""
+    return max(0.0, min(1.0, float(get_rise_ledger().read().stasis)))
 
 
 def glad_into(affect: Any, bump: Any) -> None:

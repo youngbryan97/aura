@@ -36,6 +36,7 @@ __all__ = [
     "Between",
     "BetweenLedger",
     "get_between_ledger",
+    "note_act",
     "reset_for_test",
 ]
 
@@ -119,6 +120,12 @@ class BetweenLedger:
             "people": {name: held.as_dict() | {"route": round(self.route(name), 4)} for name, held in sorted(self._people.items())},
             "one_way": self.one_way(),
         }
+
+
+def note_act(person: str, kind: bool, cost_to_source: float = 0.0) -> None:
+    """Something they did, read for its kind: a kind act is something she received."""
+    if kind:
+        get_between_ledger().note_received(person, cost_to_source=cost_to_source)
 
 
 _LEDGER: BetweenLedger | None = None

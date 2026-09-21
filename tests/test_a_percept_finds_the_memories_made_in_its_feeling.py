@@ -62,7 +62,6 @@ def test_carries_is_the_share_of_the_feeling_on_the_named_emotions() -> None:
 
 def test_every_facade_write_carries_the_feeling_it_was_made_in(monkeypatch) -> None:
     from core.container import ServiceContainer
-    from core.memory.memory_facade import MemoryFacade
 
     state = AuraState.default()
     state.affect.emotions["fear"] = 0.6
@@ -78,6 +77,8 @@ def test_every_facade_write_carries_the_feeling_it_was_made_in(monkeypatch) -> N
 
     written = _stamp_felt({})
     assert decode(written["felt"])["fear"] == pytest.approx(0.6)
+    kept = _stamp_felt({"felt": "dread:0.300"})
+    assert kept["felt"] == "dread:0.300", "a stamp from the turn's own state is left as it was written"
 
 
 def _phase(memories: list[dict]) -> MemoryRetrievalPhase:
