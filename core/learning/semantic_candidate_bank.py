@@ -169,6 +169,7 @@ def decode_semantic_candidates(
             if progress:
                 progress({"stage": "candidate_chart", "chart": chart_index})
             _assign_typed_arguments(model=model, hidden=hidden, inputs=inputs, input_spans=spans,
+                source_token_ids=tokens,
                 operation_nodes=nodes, argument_pointer_scores=argument_scores,
                 relation_score_cache=relation_scores, relation_vector_cache=relation_vectors,
                 definition_pointer_scores=definition_scores, chart_observer=captured.append, build_only=True)

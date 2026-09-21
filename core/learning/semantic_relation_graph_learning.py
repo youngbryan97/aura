@@ -326,6 +326,7 @@ def refit_compositional_graph_relations(
             charts = []
             nodes = tuple(_OperationNode(i.operation_span, i.op, 0., 0., 1.) for i in item.ir.instructions)
             _assign_typed_arguments(model=candidate, hidden=item.hidden_states, inputs=item.public_inputs,
+                source_token_ids=item.ir.source_token_ids,
                 input_spans=item.ir.input_spans, operation_nodes=nodes,
                 argument_pointer_scores=candidate.argument_pointer.score_sequence(item.hidden_states),
                 chart_observer=charts.append, retain_score_factors=True,

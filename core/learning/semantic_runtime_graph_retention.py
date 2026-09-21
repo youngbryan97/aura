@@ -75,6 +75,7 @@ def mine_runtime_graph_constraints(
                 break
             charts = []
             _assign_typed_arguments(model=model, hidden=item.hidden_states, inputs=item.public_inputs,
+                source_token_ids=item.ir.source_token_ids,
                 input_spans=spans, operation_nodes=nodes, argument_pointer_scores=argument_scores,
                 relation_score_cache=relation_scores, relation_vector_cache=relation_vectors,
                 definition_pointer_scores=definition_scores, chart_observer=charts.append,

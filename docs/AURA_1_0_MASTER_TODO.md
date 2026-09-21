@@ -1087,6 +1087,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Literal grammar identity](evidence/G03_LITERAL_GRAMMAR_IDENTITY_2026-09-21.md):
+  the division reversal used a whitespace-wrapped literal to bypass input
+  ownership. Grammar-equivalent forms now share occurrence identity, opt-in,
+  through decoding and learning callers. Development replay remains pending.
   [Paired span-set objective](evidence/G03_PAIRED_SPAN_SET_OBJECTIVE_2026-09-21.md):
   all fourteen conditional span failures lose on operation evidence. The exact
   source objective can now learn the existing pointer's paired-boundary term;
@@ -1559,6 +1563,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   baseline-dependent task filtering in the retrieval/depth diagnostic. The
   68-test focused pass does not qualify a model or close campaign verification.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [Bounded reach criterion](evidence/G09_BOUNDED_REACH_CRITERION_2026-09-21.md)
+  separates candidate reach from selected-answer correctness and adopted code
+  from acquired machinery. Search bounds are conditional, not speedup receipts.
   [Shared sequence reach](evidence/G09_SHARED_SEQUENCE_REACH_2026-09-21.md)
   connects retained operators to answering and developmental measurement;
   cheaper failure cannot count as improvement. Broad gain remains unmeasured.

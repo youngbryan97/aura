@@ -94,6 +94,14 @@ class _CarriesItsAmendments:
         body["argument_literal_boundaries"] = "atomic_v1"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
+    def with_literal_grammar_identities(self) -> CompositionalSemanticProgramTransducer:
+        """Keep equivalent token forms of a parsed input bound to that input."""
+        from .semantic_program_compositional_transducer import _sha, replace
+
+        body = {key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"}
+        body["argument_literal_identity"] = "token_grammar_aliases_v1"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
     def with_feasible_operation_charts(
         self,
         *,

@@ -9,6 +9,7 @@ from typing import Any, Final
 
 from core.learning.recurrent_literal_grounding import tokenizer_digit_token_ids
 from core.learning.semantic_program_ir import SemanticValue, TokenSpan, normalize_semantic_value
+from core.verify.invariants import Violation, invariant
 
 SEMANTIC_INPUT_GROUNDING_SCHEMA: Final = "aura.semantic_input_grounding.v1"
 _BOUNDARY_SUFFIXES: Final = ("", ",", ".", ":", ";", "?", "!")
@@ -212,6 +213,54 @@ class SemanticInputGroundingContract:
                 if source_token_ids[start : start + len(needle)] == needle:
                     spans.add(TokenSpan(start, start + len(needle)))
         return tuple(sorted(spans, key=lambda span: (span.start, span.end)))
+
+    def literal_alias_bindings(
+        self,
+        source_token_ids: tuple[int, ...],
+        values: tuple[SemanticValue, ...],
+        anchors: tuple[TokenSpan, ...],
+    ) -> dict[TokenSpan, tuple[int, ...]]:
+        """Give grammar-equivalent forms of each grounded occurrence one owner.
+
+        Only complete forms admitted by the tokenizer-bound value grammar are
+        aliases. A larger linguistic expression containing a literal is not.
+        Overlap with the chosen occurrence preserves distinct equal-valued inputs.
+        """
+        tokens, values, anchors = tuple(source_token_ids), tuple(values), tuple(anchors)
+        if len(values) != len(anchors) or any(type(token) is not int or token < 0 for token in tokens):
+            raise ValueError("literal alias source geometry differs")
+        bindings: dict[TokenSpan, list[int]] = {}
+        for register, (value, anchor) in enumerate(zip(values, anchors, strict=True)):
+            anchor.validate_bound(len(tokens))
+            candidates = self.candidate_spans(tokens, value)
+            if anchor not in candidates:
+                raise ValueError("literal alias anchor does not parse as its public value")
+            for span in candidates:
+                if span.start < anchor.end and anchor.start < span.end:
+                    bindings.setdefault(span, []).append(register)
+        return {span: tuple(registers) for span, registers in bindings.items()}
+
+
+@invariant("learning.literal_alias_occurrence_identity", scope="learning", owner=__name__)
+def literal_alias_occurrence_identity():
+    """A token-grammar canary keeps equal-valued occurrences separate."""
+    contract = SemanticInputGroundingContract(
+        tokenizer_identity_sha256="0" * 64, digit_token_ids=tuple(range(10)),
+        positive_integer_prefixes=((), (10,)), negative_integer_prefixes=((11,),),
+        integer_suffixes=((), (12,)), empty_sequence_variants=((13, 14),),
+        sequence_formats=(SequenceTokenFormat(
+            positive_prefix=(13,), negative_prefix=(13, 11),
+            positive_separator=(15,), negative_separator=(15, 11),
+            suffixes=((14,),), singleton_suffixes=((14,),)),))
+    bindings = contract.literal_alias_bindings(
+        (10, 7, 8, 12, 16, 10, 7, 8, 12), (78, 78),
+        (TokenSpan(1, 3), TokenSpan(6, 8)))
+    expected = {TokenSpan(start, end): (owner,)
+                for owner, starts, ends in ((0, (0, 1), (3, 4)), (1, (5, 6), (8, 9)))
+                for start in starts for end in ends}
+    if bindings != expected:
+        return [Violation(subject="literal aliases", message="formatting changed an occurrence owner")]
+    return []
 
 
 def semantic_input_grounding_contract_from_tokenizer(
