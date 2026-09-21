@@ -463,6 +463,19 @@ async def main() -> int:
         _log(f"{turns.frames} turns from {recording.frames} frames")
         phi = phi_do(turns)
         evidence["phi"] = phi.as_dict()
+        # And ISC-v4's reading of the same cuts on the same folds, beside it
+        # rather than instead of it. v3 divides the cut's cost by everything
+        # the target does, including the part nothing can predict, so the score
+        # falls as she is recorded more widely — four noise columns per domain
+        # took the recurrent reference from 0.062 to 0.005. v4 divides by what
+        # the intact model can explain at all, in which that part cancels.
+        # Nothing decides on this number until a run declares v4.
+        # See docs/ISC_V4_PREREGISTRATION.md.
+        try:
+            evidence["phi_v4"] = phi_do(turns, explained_share=True).as_dict()
+        except (RuntimeError, TypeError, ValueError) as exc:
+            _log(f"  the v4 reading of irreducibility was unavailable: {exc}")
+            evidence["phi_v4"] = {"unavailable": str(exc)}
         evidence["differentiation"] = effective_dimension(recording).as_dict()
         # And the other honest reading of the word, beside it rather than
         # instead of it. The participation ratio falls as integration rises,
