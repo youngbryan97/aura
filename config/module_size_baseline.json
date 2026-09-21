@@ -3,7 +3,7 @@
   "description": "Modules already above the size thresholds, and the total oversize budget. Individual entries may move; the total may only shrink. A file that has shrunk must be re-recorded, because a stale entry is headroom nobody earned.",
   "max_new_module_lines": 2000,
   "max_new_class_methods": 30,
-  "oversize_budget_lines": 129963,
+  "oversize_budget_lines": 129884,
   "modules": {
     "core/adaptation/adaptive_immunity.py": {
       "lines": 3750,

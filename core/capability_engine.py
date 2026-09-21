@@ -25,6 +25,14 @@ from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.utils.task_tracker import get_task_tracker
 
 from .capabilities.user_advocate import _AsksWhetherThePersonWouldWantThis
+from .capability_engine_params import (  # noqa: F401  (re-exported: they were defined here)
+    _a_model_from_a_schema,
+    _coerce_and_harmonize_params,
+    _get_base_types,
+    _get_field_info,
+    _minimal_model_payload,
+    _safe_field_default,
+)
 from .capability_engine_skill_scope import (  # noqa: F401  (re-exported: they were defined here)
     _is_forged_skill,
     _name_what_is_still_available,
@@ -508,58 +516,6 @@ _PARAMETER_COERCION_ERRORS = (TypeError, ValueError, json.JSONDecodeError)
 _SCHEMA_RECOVERY_ERRORS = (ValidationError, TypeError, ValueError)
 
 
-def _safe_field_default(field_name: str, field_obj: Any) -> tuple[Any, bool]:
-    default_factory = getattr(field_obj, "default_factory", None)
-    if default_factory is None:
-        return None, False
-
-    try:
-        return default_factory(), True
-    except _FIELD_DEFAULT_FACTORY_ERRORS as exc:
-        _record_capability_degradation(
-            exc,
-            action=f"omitted invalid default factory value for parameter {field_name!r}",
-            severity="warning",
-        )
-        return None, False
-
-
-def _get_field_info(field_name: str, field_obj: Any) -> tuple[Any, Any, bool]:
-    annotation = None
-    default_val = None
-    has_default = False
-
-    if hasattr(field_obj, "annotation"):
-        annotation = field_obj.annotation
-        from pydantic_core import PydanticUndefined
-
-        if field_obj.default is not PydanticUndefined:
-            default_val = field_obj.default
-            has_default = True
-        else:
-            default_val, has_default = _safe_field_default(field_name, field_obj)
-    elif hasattr(field_obj, "type_"):
-        annotation = field_obj.type_
-        if field_obj.default is not None:
-            default_val = field_obj.default
-            has_default = True
-        else:
-            default_val, has_default = _safe_field_default(field_name, field_obj)
-
-    return annotation, default_val, has_default
-
-
-def _minimal_model_payload(fields: dict[str, Any], params: dict[str, Any]) -> dict[str, Any]:
-    minimal: dict[str, Any] = {}
-    for field_name, field_obj in fields.items():
-        _, default_val, has_default = _get_field_info(field_name, field_obj)
-        if has_default:
-            minimal[field_name] = default_val
-        elif field_name in params:
-            minimal[field_name] = params[field_name]
-    return minimal
-
-
 def _humanize_skill_name(name: str) -> str:
     raw = str(name or "").strip()
     if not raw:
@@ -619,168 +575,6 @@ class SkillRequirements(BaseModel):
         if sys.platform not in self.supported_platforms:
             errors.append(f"Unsupported platform: {sys.platform}")
         return len(errors) == 0, errors
-
-
-def _get_base_types(annotation: Any) -> list[Any]:
-    if annotation is None:
-        return []
-    import types
-    from typing import Union, get_args, get_origin
-
-    origin = get_origin(annotation)
-    # Check if union type (typing.Union or PEP 604 | )
-    if origin is Union or (hasattr(types, "UnionType") and origin is types.UnionType):
-        args = get_args(annotation)
-        types_list = []
-        for arg in args:
-            types_list.extend(_get_base_types(arg))
-        return types_list
-
-    if annotation is type(None):
-        return []
-
-    if origin is not None:
-        return [origin]
-
-    return [annotation]
-
-
-def _coerce_and_harmonize_params(params: dict[str, Any], input_model: Any) -> dict[str, Any]:
-    """Coerces parameter types and injects defaults from a Pydantic model class."""
-    if not input_model or not isinstance(params, dict):
-        return params
-
-    # 1. Get fields map
-    fields = {}
-    if hasattr(input_model, "model_fields"):
-        fields = input_model.model_fields
-    elif hasattr(input_model, "__fields__"):
-        fields = input_model.__fields__
-
-    if not fields:
-        return params
-
-    healed = dict(params)
-
-    # 2. Coerce existing params
-    for name, val in list(healed.items()):
-        if name not in fields:
-            continue
-
-        field_obj = fields[name]
-        annotation, _, _ = _get_field_info(name, field_obj)
-        if not annotation:
-            continue
-
-        target_types = _get_base_types(annotation)
-        if not target_types:
-            continue
-
-        # If value already matches one of target types, keep it
-        if any(isinstance(val, t) for t in target_types if isinstance(t, type)):
-            continue
-
-        # Otherwise, let's coerce!
-        coerced = False
-        coercion_error: BaseException | None = None
-        for t in target_types:
-            if coerced:
-                break
-            if not isinstance(t, type):
-                continue
-
-            try:
-                if t is bool:
-                    val_str = str(val).strip().lower()
-                    if val_str in {"true", "yes", "1", "t", "y", "on"}:
-                        healed[name] = True
-                        coerced = True
-                    elif val_str in {"false", "no", "0", "f", "n", "off", ""}:
-                        healed[name] = False
-                        coerced = True
-                    elif isinstance(val, (int, float)):
-                        healed[name] = bool(val)
-                        coerced = True
-                elif t is int:
-                    if isinstance(val, float):
-                        healed[name] = int(val)
-                        coerced = True
-                    elif isinstance(val, str):
-                        cleaned = val.strip()
-                        healed[name] = int(float(cleaned))
-                        coerced = True
-                elif t is float:
-                    if isinstance(val, (int, str)):
-                        healed[name] = float(val)
-                        coerced = True
-                elif t is str:
-                    if isinstance(val, (dict, list)):
-                        healed[name] = json.dumps(val)
-                        coerced = True
-                    else:
-                        healed[name] = str(val)
-                        coerced = True
-                elif t is list:
-                    if isinstance(val, str):
-                        cleaned = val.strip()
-                        if cleaned.startswith("[") and cleaned.endswith("]"):
-                            healed[name] = json.loads(cleaned)
-                            coerced = True
-                        elif "," in cleaned:
-                            healed[name] = [item.strip() for item in cleaned.split(",")]
-                            coerced = True
-                        else:
-                            healed[name] = [cleaned]
-                            coerced = True
-                elif t is dict:
-                    if isinstance(val, str):
-                        cleaned = val.strip()
-                        if cleaned.startswith("{") and cleaned.endswith("}"):
-                            healed[name] = json.loads(cleaned)
-                            coerced = True
-            except _PARAMETER_COERCION_ERRORS as exc:
-                coercion_error = exc
-                continue
-
-        if not coerced and coercion_error is not None:
-            # A value that won't coerce (e.g. limit="not_an_int") is bad INPUT
-            # gracefully handled by keeping the original — not a capability_engine
-            # fault. Under a fail-closed policy + production governance this
-            # warning would otherwise escalate to a CRITICAL service failure and
-            # raise, spiking existential threat (the same July-2026 live pathology
-            # already fixed at the sanitized-fallback site below).
-            _record_capability_degradation(
-                coercion_error,
-                action=f"kept original value for parameter {name!r} after coercion failed",
-                severity="warning",
-                enforce_failure_policy=False,
-            )
-
-    # 3. Inject Defaults for missing keys
-    for name, field_obj in fields.items():
-        if name not in healed:
-            _, default_val, has_default = _get_field_info(name, field_obj)
-            if has_default:
-                healed[name] = default_val
-
-    return healed
-
-
-def _a_model_from_a_schema(schema: dict[str, Any]) -> Any:
-    """Wrap a plain JSON schema so it answers `model_json_schema` like a model.
-
-    A skill that has a schema and not a model should not have to grow a
-    dependency to say what it returns.
-    """
-
-    class _SaysItsSchema:
-        def __init__(self, said: dict[str, Any]) -> None:
-            self._said = dict(said)
-
-        def model_json_schema(self) -> dict[str, Any]:
-            return dict(self._said)
-
-    return _SaysItsSchema(schema)
 
 
 class SkillMetadata(BaseModel):
@@ -1639,6 +1433,66 @@ def _grandfathered_overreach() -> frozenset[str]:
 
 
 
+
+
+def _conversion_penalty() -> int:
+    """One step off the ceiling while paying more is not returning more."""
+    try:
+        from core.self.converted import get_conversion_ledger
+
+        reading = get_conversion_ledger().read()
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        return 0
+    if not reading.measured:
+        return 0
+    return 0 if reading.converting else 1
+
+
+def _never_taught(skill_name: str) -> bool:
+    """Whether this is the kind of missing an example is the repair for."""
+    try:
+        from core.self.never_taught import get_teaching_ledger
+
+        reading = get_teaching_ledger().read()
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        return False
+    return skill_name.strip().lower() in set(reading.never_taught)
+
+
+def _note_what_the_attempt_cost(
+    self, skill_name: str, ctx: dict[str, Any], result: dict[str, Any]
+) -> None:
+    """One finished attempt, into the two ledgers that gate the next one.
+
+    What it cost is the skill's own declared cost, which is the number the
+    offer gate already spends. What it returned is whether the attempt did
+    what it was for, which is the only return this engine can see without
+    asking the caller what they wanted.
+
+    A capability asked for by name is an example arriving from outside her
+    own initiative: the gate lets a named request through whatever the
+    ledgers say, so a success there is the one thing that can take a
+    capability out of "tried, never managed, never seen done".
+    """
+    try:
+        from core.self.converted import get_conversion_ledger
+        from core.self.never_taught import get_teaching_ledger
+
+        meta = self.skills.get(skill_name)
+        cost = float(getattr(meta, "cost", 1) or 1) if meta is not None else 1.0
+        managed = bool(result.get("ok", False)) if isinstance(result, dict) else False
+        get_conversion_ledger().note(effort=cost, returned=1.0 if managed else 0.0)
+
+        teaching = get_teaching_ledger()
+        asked_by_name = bool((ctx or {}).get("requested_by_name")) or (
+            skill_name in getattr(self, "_asked_by_name", set())
+        )
+        if asked_by_name and managed:
+            teaching.shown(skill_name)
+        else:
+            teaching.attempted(skill_name, managed=managed)
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+        self.logger.debug("the attempt was not recorded against its ledgers: %s", exc)
 
 
 class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
@@ -4718,21 +4572,9 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
         # which produces the pairs the reading is taken from. A measure of her
         # own productivity that changed nothing would be a declaration nobody
         # checks. See core/self/converted.py.
-        allowed_max_cost = max(0, allowed_max_cost - self._conversion_penalty())
+        allowed_max_cost = max(0, allowed_max_cost - _conversion_penalty())
 
         return allowed_max_cost
-
-    def _conversion_penalty(self) -> int:
-        """One step off the ceiling while paying more is not returning more."""
-        try:
-            from core.self.converted import get_conversion_ledger
-
-            reading = get_conversion_ledger().read()
-        except (ImportError, RuntimeError, TypeError, ValueError):
-            return 0
-        if not reading.measured:
-            return 0
-        return 0 if reading.converting else 1
 
     def _tool_definition_for_skill(
         self,
@@ -4762,7 +4604,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
         # through — that request is the example arriving, and a success there
         # is what takes the capability back out of the list. See
         # core/self/never_taught.py.
-        if not requested and self._never_taught(skill_name):
+        if not requested and _never_taught(skill_name):
             self.logger.info(
                 "📘 [TAUGHT] %s withheld: tried and never managed, and never seen done.",
                 skill_name,
@@ -6809,7 +6651,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
             # thing she has ever managed. Both readings act on the offer gate
             # above, so this is the half of the loop that closes: what she is
             # allowed to reach for next turn is decided by how the last ones went.
-            self._note_what_the_attempt_cost(skill_name, ctx, result)
+            _note_what_the_attempt_cost(self, skill_name, ctx, result)
 
             # 6. Outcome Recording (Asynchronous)
             if self.temporal:
@@ -7555,51 +7397,6 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
             return "Failed"
         return "Error"
 
-
-    def _never_taught(self, skill_name: str) -> bool:
-        """Whether this is the kind of missing an example is the repair for."""
-        try:
-            from core.self.never_taught import get_teaching_ledger
-
-            reading = get_teaching_ledger().read()
-        except (ImportError, RuntimeError, TypeError, ValueError):
-            return False
-        return skill_name.strip().lower() in set(reading.never_taught)
-
-    def _note_what_the_attempt_cost(
-        self, skill_name: str, ctx: dict[str, Any], result: dict[str, Any]
-    ) -> None:
-        """One finished attempt, into the two ledgers that gate the next one.
-
-        What it cost is the skill's own declared cost, which is the number the
-        offer gate already spends. What it returned is whether the attempt did
-        what it was for, which is the only return this engine can see without
-        asking the caller what they wanted.
-
-        A capability asked for by name is an example arriving from outside her
-        own initiative: the gate lets a named request through whatever the
-        ledgers say, so a success there is the one thing that can take a
-        capability out of "tried, never managed, never seen done".
-        """
-        try:
-            from core.self.converted import get_conversion_ledger
-            from core.self.never_taught import get_teaching_ledger
-
-            meta = self.skills.get(skill_name)
-            cost = float(getattr(meta, "cost", 1) or 1) if meta is not None else 1.0
-            managed = bool(result.get("ok", False)) if isinstance(result, dict) else False
-            get_conversion_ledger().note(effort=cost, returned=1.0 if managed else 0.0)
-
-            teaching = get_teaching_ledger()
-            asked_by_name = bool((ctx or {}).get("requested_by_name")) or (
-                skill_name in getattr(self, "_asked_by_name", set())
-            )
-            if asked_by_name and managed:
-                teaching.shown(skill_name)
-            else:
-                teaching.attempted(skill_name, managed=managed)
-        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
-            self.logger.debug("the attempt was not recorded against its ledgers: %s", exc)
 
     async def _record_temporal(
         self, action: str, params: dict[str, Any], context: dict[str, Any], result: dict[str, Any]
