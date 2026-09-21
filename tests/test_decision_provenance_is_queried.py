@@ -140,14 +140,17 @@ def test_a_question_about_phases_does_not_get_the_limit_boilerplate() -> None:
 
 def test_the_legacy_pipeline_opens_a_provenance_tick() -> None:
     """Chat drives this loop. A graph only the kernel writes is not a record."""
+    from tests.source_contract import family_text_at
 
-    source = _ENGINE.read_text("utf-8")
+    source = family_text_at(_ENGINE)
     assert "_open_provenance_tick(" in source
     assert "_close_provenance_tick(" in source
 
 
 def test_every_legacy_phase_is_measured_and_skips_are_recorded() -> None:
-    source = _ENGINE.read_text("utf-8")
+    from tests.source_contract import family_text_at
+
+    source = family_text_at(_ENGINE)
     assert "_begin_provenance(phase_name, temp_state)" in source
     assert "_complete_provenance(" in source
     assert "_skip_provenance(phase_name, temp_state, reason)" in source
