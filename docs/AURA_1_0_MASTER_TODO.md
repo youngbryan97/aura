@@ -432,8 +432,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   per-turn trace writers (`thought_tracer.log_cycle` x34,
   `cognitive_trace.save` x14 per boot) were sync gateway writes from
   coroutines; they await the async lane (77e59bf05).
-  Still open: `degradation_habituation` lock held 186ms on the loop; the
-  health snapshot refresh exceeding 8s; the streak of 1.5–11s lags between
+  `degradation_habituation` is closed, 2026-09-21, and it was the same
+  pattern again: once the scar map reached its 2,048 cap, every `note` —
+  and `record_degradation` takes that path, on the loop — sorted all 2,048
+  to find the least recently seen one to drop. The map is kept in note
+  order and eviction is a pop: 0.279ms to 0.0117ms per note at capacity on
+  an idle host, and constant rather than O(n log n) where the 186ms came
+  from. `chronic()` also built its rows from live scars outside the lock
+  while `note` mutated them in place; they are copies now.
+  `tests/test_degradation_habituation.py` bans the sort rather than timing
+  the call, because a timing threshold on a loaded host is what produced
+  this defect's report in the first place.
+  Still open: the health snapshot refresh exceeding 8s; the streak of 1.5–11s lags between
   22:49 and 22:51Z that produced no dump because each was under the 5s
   watchdog line. Resident replay on this build follows.
   2026-09-16, a loaded host (load 34 to 124 on 18 cores, other agents' jobs).

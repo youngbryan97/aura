@@ -135,6 +135,8 @@ def _nothing_has_ever_arrived() -> bool:
 
         return seconds_since_progress() < 0.0
     except (ImportError, AttributeError, TypeError, ValueError):
+        # not a failure: with no progress clock to read, this cannot say
+        # nothing has arrived, and the callers only act on True.
         return False
 
 
@@ -220,6 +222,9 @@ async def _keep_the_cycle_open_while_it_is_working(
                                 time.monotonic() + clock.when() - loop.time()
                             )
                     except (AttributeError, RuntimeError):
+                        # not a failure: a clock that will not reschedule
+                        # leaves the deadline where it was, and the cycle
+                        # below runs against that one.
                         return
                 continue
             if now >= ceiling_at:
@@ -254,6 +259,8 @@ async def _keep_the_cycle_open_while_it_is_working(
                         time.monotonic() + clock.when() - loop.time()
                     )
             except (AttributeError, RuntimeError):
+                # not a failure: see the rung above — the existing deadline
+                # stands and the cycle runs against it.
                 return
             if not said_it_once:
                 said_it_once = True
@@ -262,6 +269,8 @@ async def _keep_the_cycle_open_while_it_is_working(
                     "holding it open while the answer arrives."
                 )
     except asyncio.CancelledError:
+        # not a failure: this watcher is cancelled when the turn it watches
+        # ends, which is every ordinary turn.
         return
 
 def _history_budget_for(system_prompt: str, max_tokens: int) -> int:
@@ -653,6 +662,8 @@ def _truncation_verdict(text: str, *, generation_stop_reason: str = "") -> bool:
         from core.conversation.response_reliability import assess_user_facing_reply
         from core.conversation.surface_disposition import PHYSICAL_COMPLETION_REASONS
     except (ImportError, AttributeError):
+        # not a failure: with no assessor to ask, nothing here can call the
+        # generation unfinished, and this verdict only ever withholds.
         return False
     try:
         assessment = assess_user_facing_reply(
@@ -662,6 +673,8 @@ def _truncation_verdict(text: str, *, generation_stop_reason: str = "") -> bool:
         )
         return bool(set(assessment.reasons or ()) & PHYSICAL_COMPLETION_REASONS)
     except (RuntimeError, TypeError, ValueError):
+        # not a failure: an assessment that will not run cannot call the
+        # generation unfinished, and this verdict only ever withholds.
         return False
 
 
@@ -770,6 +783,8 @@ def _turn_needs_undistorted_computation(user_message: Any) -> bool:
             requires_reasoning_lane,
         )
     except ImportError:
+        # not a failure: with no classifier, this turn does not get routed
+        # to the reasoning lane, which is the default it would have had.
         return False
     try:
         if (
@@ -781,6 +796,8 @@ def _turn_needs_undistorted_computation(user_message: Any) -> bool:
             asks_for_a_number(user_message) or requires_reasoning_lane(user_message)
         )
     except (RuntimeError, TypeError, ValueError):
+        # not a failure: a classification that will not run leaves the turn
+        # on the ordinary lane, which is the default.
         return False
 
 
@@ -824,6 +841,8 @@ def _apply_neurodynamic_sampling_bias(
         try:
             value = float(sampling.get(key, 0.0))
         except (TypeError, ValueError):
+            # not a failure: advice that is not a number moves the sampler
+            # by nothing, which is what zero means here.
             return 0.0
         if not (-limit <= value <= limit):
             return 0.0
@@ -1402,6 +1421,8 @@ def _time_the_answer_needs(objective: Any) -> float:
         reserve = max(0, int(reserve_tokens(model))) if native_thinking is True else 0
         needed = float(seconds_to_decode(floor + reserve, model))
     except (ImportError, AttributeError, TypeError, ValueError):
+        # not a failure: with no decode estimate, this reserves no time, and
+        # the caller's own budget stands unchanged.
         return 0.0
     if needed <= 0.0:
         return 0.0
@@ -3271,6 +3292,8 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
         try:
             self._active_tasks = set()
         except AttributeError:
+            # not a failure: an engine without the attribute has no task set
+            # to clear, and the count below is already correct.
             pass
         if cancelled:
             logger.info(

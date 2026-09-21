@@ -453,6 +453,8 @@ def looks_like_desktop_objective(user_message: str) -> bool:
         if read_watched_goal(user_message) is not None:
             return True
     except (ImportError, AttributeError, TypeError, ValueError):
+        # not a failure: the watched-goal reader is one signal of several,
+        # and the checks below all still run without it.
         pass
     # Acting on a web page is acting on the world.
     #
@@ -519,6 +521,8 @@ def looks_like_desktop_objective(user_message: str) -> bool:
         ):
             return False
     except (ImportError, AttributeError, TypeError, ValueError):
+        # not a failure: without the computation reader this cannot rule the
+        # turn out here, and the checks below still run.
         pass
 
     try:
@@ -527,6 +531,7 @@ def looks_like_desktop_objective(user_message: str) -> bool:
         if asks_to_act_on_a_page(user_message):
             return True
     except (ImportError, AttributeError, TypeError, ValueError):
+        # not a failure: one signal of several, and the checks below run.
         pass
     # OS settings are declared in one affordance registry that already owns
     # their language-to-goal-state translation. The registry establishes WHAT
@@ -545,6 +550,8 @@ def looks_like_desktop_objective(user_message: str) -> bool:
             if setting_mood.is_about_rather_than_asking:
                 return False
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        # not a failure: the settings registry is one signal of several, and
+        # the vocabulary check below still runs.
         pass
     sanitized_text = strip_negated_action_spans(text).lower()
     # An action verb inside REPORTED history is not an instruction.
@@ -665,6 +672,8 @@ def looks_like_desktop_objective(user_message: str) -> bool:
         ):
             return True
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        # not a failure: the comment below says the vocabulary check is
+        # where an unenumerated phrasing dies, and it still runs.
         pass
     # The vocabulary check is where a phrasing nobody enumerated dies.
     #
@@ -695,6 +704,8 @@ def looks_like_desktop_objective(user_message: str) -> bool:
         if assess_request_mood(user_message).asks_for_action:
             return True
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        # not a failure: the mood judgement is one signal of several, and
+        # without it the checks below decide the turn.
         pass
 
     by_pattern = bool(_DIRECT_DESKTOP_ACTION_RE.search(sanitized_text))
@@ -730,6 +741,8 @@ def _learned_actuation_decision(user_message: str) -> bool | None:
 
         return actuation_surface().decide_without_waiting(str(user_message or ""))
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        # not a failure: the docstring says None means unsure, and a surface
+        # that cannot be asked is exactly that.
         return None
 
 
@@ -866,6 +879,8 @@ def _looking_surface() -> Any:
             features=embed_sentences,
         )
     except (ImportError, RuntimeError, TypeError, ValueError):
+        # not a failure: every caller checks for None and falls back to the
+        # written rules, which is what ran before this surface existed.
         _WANTS_TO_LOOK = None
     return _WANTS_TO_LOOK
 
@@ -1038,12 +1053,18 @@ def looks_like_filesystem_observation(user_message: str) -> bool:
     if settled:
         try:
             surface.observe(user_message, holds=True)
-        except (RuntimeError, TypeError, ValueError):
-            pass
+        except (RuntimeError, TypeError, ValueError) as exc:
+            # The verdict below is already settled, so the turn is right
+            # either way; what is lost is the observation this surface
+            # learns from, and losing those quietly is how it stops
+            # learning without anything saying so.
+            logger.debug("Looking surface did not take the observation: %s", exc)
         return True
     try:
         return bool(surface.decide_without_waiting(user_message))
     except (RuntimeError, TypeError, ValueError):
+        # not a failure: a surface that cannot decide has not decided, and
+        # False leaves the written rules in charge.
         return False
 
 
@@ -1170,6 +1191,8 @@ def asks_about_screens_in_general(user_message: str) -> bool:
             if assess_request_mood(user_message).asks_for_action:
                 return False
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            # not a failure: one signal of several, and the class check
+            # below still runs.
             pass
     # The class, and nothing definite alongside it to look at.
     if not _SCREENS_IN_GENERAL_RE.search(text):

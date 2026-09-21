@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import math
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -137,7 +138,9 @@ class DegradationHabituation:
 
     def __init__(self) -> None:
         self._lock = checked_lock("degradation_habituation", rank=LockRank.LEAF)
-        self._scars: dict[str, Scar] = {}
+        # Ordered by when each signature was last noted, so eviction is a
+        # pop rather than a sort. See _evict_locked.
+        self._scars: OrderedDict[str, Scar] = OrderedDict()
 
     # ------------------------------------------------------------------ decay
 
@@ -169,17 +172,25 @@ class DegradationHabituation:
             beyond = max(0, scar.count - _FREE_OCCURRENCES)
             scar.strength = 1.0 - math.exp(-beyond * _GROWTH) if beyond else 0.0
             scar.last_seen = moment
+            self._scars.move_to_end(key)
             self._evict_locked()
             return Scar(**{**scar.__dict__})
 
     def _evict_locked(self) -> None:
-        if len(self._scars) <= _MAX_SIGNATURES:
-            return
-        # Drop the least recently seen: a signature nobody has hit in a long
-        # time is also the one whose scar has decayed closest to nothing.
-        stale = sorted(self._scars.values(), key=lambda s: s.last_seen)
-        for scar in stale[: len(self._scars) - _MAX_SIGNATURES]:
-            self._scars.pop(scar.signature, None)
+        """Drop the least recently seen signatures, in constant time.
+
+        A signature nobody has hit in a long time is also the one whose scar
+        has decayed closest to nothing, so recency is the right thing to drop
+        on. This sorted all 2,048 scars on every single note once the map was
+        full — inside the lock, on the event loop, on the path that
+        `record_degradation` takes. Lockdep measured the hold at 186ms on a
+        loaded host, and R06's whole pattern is a lock held across the work
+        rather than across the read the work needs. The map is kept in
+        note order instead, which is last_seen order for any caller whose
+        clock moves forward, and eviction is a pop.
+        """
+        while len(self._scars) > _MAX_SIGNATURES:
+            self._scars.popitem(last=False)
 
     # ------------------------------------------------------------------- read
 
@@ -225,7 +236,13 @@ class DegradationHabituation:
         keeps failing, and how long it has been doing so".
         """
         with self._lock:
-            scars = [s for s in self._scars.values() if s.count >= minimum_count]
+            # Copied, not referenced: note() mutates a scar in place, and
+            # the rows below are built outside the lock.
+            scars = [
+                Scar(**{**s.__dict__})
+                for s in self._scars.values()
+                if s.count >= minimum_count
+            ]
         return [
             {**s.to_dict(), "recurring_for_h": round((s.last_seen - s.first_seen) / 3600.0, 2)}
             for s in sorted(scars, key=lambda s: -s.count)

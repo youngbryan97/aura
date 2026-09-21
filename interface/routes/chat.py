@@ -1482,8 +1482,10 @@ def _store_conversation_resume_handle(
             admitted=accepted,
             reason="; ".join(reasons),
         )
-    except (ImportError, AttributeError, TypeError, ValueError):
-        pass
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        # The decision record is the audit trail for whether a resume handle
+        # was honoured. Losing it leaves the admission unexplained.
+        logger.debug("Resume-handle decision was not recorded: %s", exc)
     with _conversation_quality_lock:
         state = _conversation_quality_state_locked(
             session_id=session_id,
@@ -2723,6 +2725,8 @@ def _run_cognitive_engine_chat_turn_part_13(_timed_out, no_reply_action, timeout
         if _ours:
             _where = f" (through {' -> '.join(_ours[-4:])})"
     except (AttributeError, IndexError, TypeError, ValueError):
+        # not a failure: this decorates the warning below with a call site,
+        # and the warning is worth more than the decoration.
         _where = ""
     logger.warning(
         "CognitiveEngine desktop chat turn timed out after %.1fs%s; %s.",
@@ -5680,8 +5684,9 @@ def _schedule_recent_response_reasoning_audit(text: str) -> None:
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        # Synchronous tools/tests still update repetition state; the live
-        # symbolic audit requires a supervised runtime loop.
+        # not a failure: synchronous tools and tests still update repetition
+        # state, and the live symbolic audit needs a supervised loop, which
+        # no running loop means there is not one of.
         return
     active = {task for task in _reasoning_audit_tasks if not task.done()}
     _reasoning_audit_tasks.clear()
@@ -6009,7 +6014,7 @@ _PROTECTED_FOREGROUND_PRIMARY_BUDGET_SECONDS: float = 300.0
 _PROTECTED_FOREGROUND_SECONDARY_BUDGET_SECONDS: float = 360.0
 # [STABILITY v53] Raised from 8s→45s. The old 8s deadline was the #1 cause of
 # false-positive kernel timeouts on first-turn responses. The 32B cortex
-# regularly needs 15-40s for complex responses, and after a 35s warmup the
+# regularly needs up to 40s for complex responses, and after a 35s warmup the
 # kernel had only 8s before being interrupted by a competing protected
 # foreground request — which itself competes for the same LLM resources,
 # creating a resource contention spiral. 45s gives the kernel real time to
@@ -7151,6 +7156,8 @@ def _bounded_export_records(
     try:
         known_source_items = len(source)
     except (TypeError, AttributeError):
+        # not a failure: a source with no length is an iterator, and None is
+        # how the counting below says it did not know in advance.
         known_source_items = None
     for item in itertools.islice(source, max_items):
         if used_chars >= total_chars:
@@ -7545,8 +7552,10 @@ async def api_chat(
             _record_histogram(
                 "Aura.Chat.TurnMs", max(0.0, time.perf_counter() - turn_started) * 1000.0
             )
-        except (ImportError, RuntimeError, ValueError, TypeError):
-            pass
+        except (ImportError, RuntimeError, ValueError, TypeError) as exc:
+            # A turn missing from the latency histogram is a turn the
+            # latency work cannot see, and R11 measures from this.
+            logger.debug("Turn latency was not recorded: %s", exc)
         _CHAT_REQUEST_SESSION.reset(session_token)
         _CHAT_REQUEST_SURFACE.reset(surface_token)
         _CHAT_REQUEST_PRINCIPAL.reset(principal_token)
@@ -8507,6 +8516,12 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         try:
             await asyncio.wait_for(task, timeout=2.0)
         except asyncio.CancelledError:
+            # The task we just cancelled, or this caller being cancelled
+            # underneath it — and swallowing the second is how a teardown
+            # keeps running after its own turn was abandoned.
+            mine = asyncio.current_task()
+            if mine is not None and mine.cancelling() > 0:
+                raise
             return
         except TimeoutError:
             logger.error("KernelInterface chat task ignored cancellation after %s.", reason)
@@ -9000,8 +9015,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         response_path,
                         reason,
                     )
-            except _CHAT_RECOVERABLE_ERRORS:
-                pass
+            except _CHAT_RECOVERABLE_ERRORS as exc:
+                # The warning above is the only place a gate veto over a
+                # real generation is visible. Losing it leaves the turn
+                # looking like the model produced nothing.
+                logger.debug("Could not report the gate veto: %s", exc)
 
             salvaged = _servable_draft_or_none(
                 rejected_reply,
@@ -9385,6 +9403,8 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                             recent_user_messages=recent_user_messages,
                         )
                     except ImportError:
+                        # not a failure: no assessor means no assessment,
+                        # and the checks below treat None as "not judged".
                         fastpath_assessment = None
                     if (
                         is_stale
@@ -9443,6 +9463,8 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                                     recent_user_messages=recent_user_messages,
                                 )
                             except ImportError:
+                                # not a failure: no assessor means no
+                                # assessment, read below as "not judged".
                                 fastpath_assessment = None
                             hard_fastpath_quality_failed = bool(
                                 is_off_topic
@@ -11501,7 +11523,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         reply_text,
                         recent_user_messages=recent_user_messages,
                     )
-                except _CHAT_RECOVERABLE_ERRORS:
+                except _CHAT_RECOVERABLE_ERRORS as exc:
+                    # An assessment that did not run is read below as "not
+                    # judged", which lets a repaired reply through. Worth
+                    # knowing which repairs were never checked.
+                    logger.debug("Repaired reply was not assessed: %s", exc)
                     repaired_assessment = None
                 repaired_recall_contract_failed = False
                 repaired_context_contract_failed = False
@@ -11619,6 +11645,8 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         try:
             actual_generation_at = float(lane_status.get("last_user_generation_at") or 0.0)
         except (TypeError, ValueError):
+            # not a failure: a lane that reports no generation time reads as
+            # never having generated, which is the conservative side here.
             actual_generation_at = 0.0
         _downgrade = assess_post_response_confidence(
             response_confidence,

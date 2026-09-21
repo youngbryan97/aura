@@ -157,3 +157,69 @@ def test_the_degradation_record_itself_is_never_attenuated():
     # Every occurrence is still recorded, however familiar it became.
     assert after - before == 30 or after == tracker._records.maxlen
     hab.reset_for_test()
+
+
+def test_eviction_does_not_walk_every_scar() -> None:
+    """The hold is constant, not O(n log n) in the number of signatures.
+
+    LIVE, lockdep, on a loaded host: this lock was held 186ms, and R06's
+    whole pattern is a lock held across the work rather than across the read
+    the work needs. Once the map was full, every single `note` — and
+    `record_degradation` takes that path, on the event loop — sorted all
+    2,048 scars to find the one to drop.
+
+    Banning the sort rather than timing the call, because a timing threshold
+    on a loaded host is the thing that produced this defect's report in the
+    first place.
+    """
+    import core.runtime.degradation_habituation as module
+
+    store = module.DegradationHabituation()
+    for index in range(module._MAX_SIGNATURES):
+        store.note(f"sig-{index}")
+
+    def _refuse(*args: object, **kwargs: object) -> object:
+        raise AssertionError("eviction sorted the scars")
+
+    original = module.sorted if hasattr(module, "sorted") else None
+    module.sorted = _refuse  # type: ignore[attr-defined]
+    try:
+        for index in range(50):
+            store.note(f"overflow-{index}")
+    finally:
+        if original is None:
+            del module.sorted  # type: ignore[attr-defined]
+        else:
+            module.sorted = original  # type: ignore[attr-defined]
+
+    assert len(store._scars) == module._MAX_SIGNATURES
+
+
+def test_eviction_drops_the_least_recently_seen() -> None:
+    """The null for the speed-up: it must still drop the right scar."""
+    import core.runtime.degradation_habituation as module
+
+    store = module.DegradationHabituation()
+    for index in range(module._MAX_SIGNATURES):
+        store.note(f"sig-{index}", now=1000.0 + index)
+    # Touch the oldest, so it is no longer the least recently seen.
+    store.note("sig-0", now=9000.0)
+    store.note("newcomer", now=9001.0)
+
+    assert store.scar("sig-0") is not None
+    assert store.scar("newcomer") is not None
+    assert store.scar("sig-1") is None
+    assert len(store._scars) == module._MAX_SIGNATURES
+
+
+def test_chronic_rows_are_copies_not_live_scars() -> None:
+    """`note` mutates a scar in place; the rows are built outside the lock."""
+    import core.runtime.degradation_habituation as module
+
+    store = module.DegradationHabituation()
+    for _ in range(6):
+        store.note("recurring", now=1000.0)
+    rows = store.chronic(minimum_count=5)
+    counted = rows[0]["count"]
+    store.note("recurring", now=1001.0)
+    assert rows[0]["count"] == counted

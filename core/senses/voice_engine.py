@@ -82,16 +82,20 @@ _whisper_import_attempted = False
 try:
     import sounddevice as sd
 except ImportError:
+    # not a failure: the header above says these are optional, and every
+    # use site checks the name before calling into it.
     sd = None
 
 try:
     import pyttsx3
 except ImportError:
+    # not a failure: optional; the speech path checks the name first.
     pyttsx3 = None
 
 try:
     from piper import PiperVoice
 except ImportError:
+    # not a failure: optional; the speech path checks the name first.
     PiperVoice = None
 
 logger = logging.getLogger("Aura.VoiceEngine")
@@ -110,6 +114,8 @@ def _runtime_shutdown_requested() -> bool:
 
         return bool(is_shutdown_requested())
     except (ImportError, AttributeError, RuntimeError):
+        # not a failure: with no shutdown coordinator to ask, no shutdown has
+        # been requested, which is what the caller acts on.
         return False
 
 
@@ -192,6 +198,8 @@ def _stt_dependency_available() -> bool:
     try:
         return importlib.util.find_spec("faster_whisper") is not None
     except (ImportError, AttributeError, RuntimeError, ValueError):
+        # not a failure: a spec search that will not run cannot say the
+        # package is there, and the question is whether it is.
         return False
 
 TTS = None
@@ -241,6 +249,8 @@ def _tts_dependency_available() -> bool:
     try:
         return importlib.util.find_spec("TTS") is not None
     except (ImportError, AttributeError, RuntimeError, ValueError):
+        # not a failure: a spec search that will not run cannot say the
+        # package is there, and the question is whether it is.
         return False
 
 
@@ -396,6 +406,8 @@ class SovereignVoiceEngine:
             self.loop = asyncio.get_running_loop()
             self._owner_loop_thread_id: int | None = threading.get_ident()
         except RuntimeError:
+            # not a failure: built off the loop, so there is no owner loop to
+            # record yet; the interrupt path checks for one before using it.
             self.loop = None
             self._owner_loop_thread_id = None
 
@@ -791,6 +803,9 @@ class SovereignVoiceEngine:
                         RuntimeError,
                         subprocess.SubprocessError,
                     ):
+                        # not a failure: a player that already exited needs no
+                        # terminate, and the interrupt flag above is what the
+                        # speech loop actually reads.
                         pass
             finally:
                 completed.set()
@@ -806,8 +821,11 @@ class SovereignVoiceEngine:
             try:
                 loop.call_soon_threadsafe(_interrupt)
                 return completed.wait(timeout=1.0)
-            except RuntimeError:
-                pass
+            except RuntimeError as exc:
+                # A loop that closed between the check above and this call
+                # falls through to the direct interrupt below, which is
+                # correct — and which is also what a bug here looks like.
+                logger.debug("Interrupt could not go through the owner loop: %s", exc)
         _interrupt()
         return completed.is_set()
 
@@ -1670,14 +1688,16 @@ class SovereignVoiceEngine:
             stop = getattr(stream, "stop", None)
             if callable(stop):
                 stop()
-        except (RuntimeError, AttributeError, OSError, TypeError, ValueError):
-            pass
+        except (RuntimeError, AttributeError, OSError, TypeError, ValueError) as exc:
+            # A microphone stream that will not stop is how the device stays
+            # held after the lease is released.
+            logger.debug("Mic stream would not stop: %s", exc)
         try:
             close = getattr(stream, "close", None)
             if callable(close):
                 close()
-        except (RuntimeError, AttributeError, OSError, TypeError, ValueError):
-            pass
+        except (RuntimeError, AttributeError, OSError, TypeError, ValueError) as exc:
+            logger.debug("Mic stream would not close: %s", exc)
 
     def _finish_late_mic_start(
         self,
@@ -1691,7 +1711,12 @@ class SovereignVoiceEngine:
             self._mic_start_task = None
         try:
             stream = task.result()
-        except (asyncio.CancelledError, RuntimeError, OSError, TypeError, ValueError):
+        except (asyncio.CancelledError, RuntimeError, OSError, TypeError, ValueError) as exc:
+            # A cancelled late start is ordinary; a start that RAISED means
+            # the microphone never opened, and the recovery scheduled below
+            # is the only sign of it.
+            if not isinstance(exc, asyncio.CancelledError):
+                logger.warning("Late microphone start did not produce a stream: %s", exc)
             if authority is not None:
                 authority.release(lease, reason="late_start_finished")
             if self._mic_lease is lease:
@@ -1976,6 +2001,9 @@ class SovereignVoiceEngine:
                 try:
                     avg_prob = sum(seg.avg_logprob for seg in segments) / len(segments)
                 except (AttributeError, ZeroDivisionError):
+                    # not a failure: segments without a logprob carry no
+                    # confidence to average, and zero is the gate's own
+                    # "no evidence" value.
                     avg_prob = 0.0
                 
                 # Homeostatic Gating: Irritable (high gate) vs. Curious (low gate)

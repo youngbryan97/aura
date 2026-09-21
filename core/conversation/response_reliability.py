@@ -4349,6 +4349,8 @@ def actionable_screen_floor(user_message: Any) -> str:
     try:
         app = str(frontmost_app_name_fast() or "").strip()
     except (OSError, RuntimeError, TypeError, ValueError):
+        # not a failure: no readable frontmost app means no app to name, and
+        # the check below already handles the empty case.
         app = ""
     if not app:
         return (
@@ -4740,6 +4742,8 @@ def _has_ungrounded_self_cause_claim(user_message: Any, reply_text: Any) -> bool
     try:
         from core.introspection.self_forensics import is_self_forensics_question
     except ImportError:
+        # not a failure: with no forensics module, this is not a forensics
+        # question, which is what the caller asked.
         return False
     if not is_self_forensics_question(str(user_message or "")):
         return False
@@ -5703,6 +5707,8 @@ def _carries_source(raw: str) -> bool:
 
         from core.brain.llm.code_generator import extract_python_code
     except ImportError:
+        # not a failure: with no extractor, this text is not code as far as
+        # anything here can tell, which is the answer.
         return False
     code = extract_python_code(raw)
     if not code or "\n" not in code.strip():
@@ -5712,6 +5718,8 @@ def _carries_source(raw: str) -> bool:
     try:
         tree = ast.parse(code)
     except (SyntaxError, ValueError):
+        # not a failure: text that will not parse is not a program, and the
+        # docstring above says the parser is what answers that.
         return False
     return any(
         isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Import, ast.ImportFrom, ast.Call))
@@ -5834,6 +5842,8 @@ def _screen_perception_is_live() -> bool:
 
         age = screen_frame_age_seconds()
     except (ImportError, RuntimeError, AttributeError):
+        # not a failure: no readable frame age means no recent frame behind
+        # the claim, which is what this refuses to vouch for.
         return False
     if age is None:
         return False
@@ -5847,6 +5857,8 @@ def _camera_perception_is_live() -> bool:
 
         age = camera_observation_age_seconds()
     except (ImportError, RuntimeError, AttributeError):
+        # not a failure: no readable observation age means no recent frame
+        # behind the claim.
         return False
     if age is None:
         return False
@@ -5861,6 +5873,8 @@ def _typed_sensory_evidence_is_live(value: Any, channel: str) -> bool:
 
         return sensory_evidence_supports_channel(value, channel)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        # not a failure: evidence that cannot be read does not support the
+        # claim, and this gate exists to withhold, never to grant.
         return False
 
 
@@ -6907,6 +6921,8 @@ def _is_structured_payload(body: str) -> bool:
 
         json.loads(text)
     except (ValueError, TypeError):
+        # not a failure: text that will not parse is not JSON, which is the
+        # question this answers.
         return False
     return True
 
@@ -6942,14 +6958,17 @@ def _has_internal_task_prompt_leak(reply_text: Any, asked: Any = "") -> bool:
             # user-facing content?"
             return True
     except (ImportError, RuntimeError, TypeError, ValueError):
-        pass  # no-op: the detectors below remain authoritative
+        # not a failure: the detectors below remain authoritative, so an
+        # absent language substrate costs a signal and decides nothing.
+        pass
     try:
         from core.language.answer_surface import has_private_planning_prefix
 
         return has_private_planning_prefix(body)
     except (ImportError, RuntimeError, TypeError, ValueError):
-        # The literal protocol detector remains authoritative if the language
-        # substrate is unavailable.  Unknown is not permission to cut prose.
+        # not a failure: the literal protocol detector remains authoritative
+        # if the language substrate is unavailable, and unknown is not
+        # permission to cut prose.
         return False
 
 
@@ -8670,8 +8689,9 @@ def _assess_user_facing_reply(
         if SymbolicBridge().check_arithmetic_claims(raw):
             reasons.append("false_checkable_arithmetic_claim")
     except (ImportError, RuntimeError, TypeError, ValueError):
-        # A verifier outage is not evidence that the prose is false. The
-        # response transaction records subsystem failures separately.
+        # not a failure: a verifier outage is not evidence that the prose is
+        # false, and the response transaction records subsystem failures
+        # separately.
         pass
     if _has_low_signal_acknowledgement_placeholder(user_message, raw):
         reasons.append("low_signal_acknowledgement_placeholder")
@@ -9190,6 +9210,8 @@ def disclaims_delivered_evidence(reply_text: Any, delivered: Any = None) -> bool
 
             delivered = evidence_delivered()
         except (ImportError, RuntimeError, TypeError, ValueError):
+            # not a failure: evidence that cannot be confirmed delivered is
+            # treated as undelivered, which is the safe side of this gate.
             return False
     if not delivered:
         return False

@@ -206,6 +206,8 @@ def _breath_in_words(state: Any, draft: str) -> int:
         delivery = state.response_modifiers.get("delivery") or {}
         phrase = int(delivery.get("phrase_budget", 0) or 0)
     except (AttributeError, TypeError, ValueError):
+        # not a failure: no reading means no length target from here, and the
+        # docstring above says zero leaves the taste model in charge.
         return 0
     text = str(draft or "")
     words = re.findall(r"[A-Za-z0-9']+", text)
@@ -1421,6 +1423,8 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             if gate and hasattr(gate, "_background_local_deferral_reason"):
                 return bool(gate._background_local_deferral_reason(origin=origin))
         except _RESPONSE_RECOVERABLE_ERRORS:
+            # not a failure: a gate that will not say whether it is deferring
+            # is read the same as one that is not, which is the line below.
             return False
         return False
 
@@ -1973,29 +1977,31 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             limit,
         )
 
+    @staticmethod
+    def _optional_service(name: str) -> Any:
+        """A service the coherence frame uses if it is there.
+
+        not a failure: every caller below writes one line of the frame from
+        what it gets and leaves the line out when it gets nothing, so an
+        absent service and a container that will not answer are the same
+        answer to the same question. Written once because it was written
+        five times, each one an assignment of None.
+        """
+        try:
+            return ServiceContainer.get(name, default=None)
+        except _RESPONSE_RECOVERABLE_ERRORS:
+            # not a failure: see the docstring — an absent service and a
+            # container that will not answer are the same answer here.
+            return None
+
     def _build_integrated_coherence_frame(self, state: AuraState, *, compact: bool = False) -> str:
-        try:
-            now = ServiceContainer.get("phenomenal_now", default=None)
-        except _RESPONSE_RECOVERABLE_ERRORS:
-            now = None
-        try:
-            report = ServiceContainer.get("coherence_report", default=None)
-        except _RESPONSE_RECOVERABLE_ERRORS:
-            report = None
-        try:
-            unity_state = getattr(state.cognition, "unity_state", None) or ServiceContainer.get(
-                "unity_state", default=None
-            )
-        except _RESPONSE_RECOVERABLE_ERRORS:
-            unity_state = None
-        try:
-            unity_report = ServiceContainer.get("unity_fragmentation_report", default=None)
-        except _RESPONSE_RECOVERABLE_ERRORS:
-            unity_report = None
-        try:
-            repair_plan = ServiceContainer.get("unity_repair_plan", default=None)
-        except _RESPONSE_RECOVERABLE_ERRORS:
-            repair_plan = None
+        now = self._optional_service("phenomenal_now")
+        report = self._optional_service("coherence_report")
+        unity_state = getattr(state.cognition, "unity_state", None) or self._optional_service(
+            "unity_state"
+        )
+        unity_report = self._optional_service("unity_fragmentation_report")
+        repair_plan = self._optional_service("unity_repair_plan")
 
         claim = self._integrated_phenomenal_claim(state, limit=180 if compact else 240)
         interior = self._normalize_text(getattr(now, "interior_narrative", "") if now else "", 220)
@@ -2016,6 +2022,8 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
         try:
             tension = float(getattr(report, "tension_pressure", 0.0) if report else 0.0)
         except _RESPONSE_RECOVERABLE_ERRORS:
+            # not a failure: no report means no measured tension, which is
+            # the same zero the line above reads when there is no report.
             tension = 0.0
         posture = self._coherence_posture(score, tension)
 
@@ -3164,6 +3172,8 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
         try:
             exit_code = int(payload.get("exit_code", 0) or 0)
         except (TypeError, ValueError, OverflowError):
+            # not a failure: the ok flag above already decided this payload,
+            # and a missing exit code reads as the success it reported.
             exit_code = 0
         if exit_code != 0:
             return ""
@@ -4021,6 +4031,8 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 "on",
             }
         except (OSError, TypeError, ValueError):
+            # not a failure: a flag that cannot be read is a flag that is not
+            # set, and this one only ever widens what may be replied.
             return False
 
     @classmethod
@@ -4136,6 +4148,8 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
 
             return get_executive_guard()
         except ImportError:
+            # not a failure: a build without the guard runs without it, and
+            # every caller checks for None before asking it anything.
             return None
 
     @staticmethod
@@ -4150,6 +4164,8 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
 
             return RefusalEngine()
         except ImportError:
+            # not a failure: a build without the refusal engine has none to
+            # return, and the caller checks for None.
             return None
 
     async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
@@ -5590,6 +5606,8 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             try:
                 foreground_cap = int(runtime_context.get("max_tokens") or 0)
             except (TypeError, ValueError, OverflowError):
+                # not a failure: a cap that is not a number is no cap, and the
+                # line below only acts on a positive one.
                 foreground_cap = 0
             if foreground_cap > 0 and is_user_facing:
                 # A turn this heavy gets back what her own record says she
@@ -6803,7 +6821,13 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                     from core.synthesis import deterministic_user_facing_floor
 
                                     deterministic_floor = deterministic_user_facing_floor(objective)
-                                except _RESPONSE_RECOVERABLE_ERRORS:
+                                except _RESPONSE_RECOVERABLE_ERRORS as exc:
+                                    # The floor is what gets served when the
+                                    # draft is retryable. Losing it silently
+                                    # is how a turn ends with nothing.
+                                    logger.warning(
+                                        "No deterministic floor for a retryable draft: %s", exc
+                                    )
                                     deterministic_floor = ""
                                 floor = (
                                     reliability_floor_for_user(objective)
@@ -7455,8 +7479,11 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             from core.soma.effort import note_effort
 
             note_effort("response_chars", len(str(response or "")))
-        except (ImportError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+            # The docstring above says the body's exertion moved only with
+            # recall before this call. A write that does not land puts it
+            # back there, quietly.
+            logger.debug("Effort from this reply was not noted: %s", exc)
         r_lower = response.lower()
         p_type = "positive_interaction"
         intensity = 0.2
