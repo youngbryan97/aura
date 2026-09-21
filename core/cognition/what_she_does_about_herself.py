@@ -36,7 +36,9 @@ step scores negative, which is the honest limit this removes.
 from __future__ import annotations
 
 import logging
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
+
 from core.cognition.what_a_change_measured_about_itself import changes_nothing
 
 __all__ = [
@@ -56,21 +58,15 @@ def _probe(than: str = "") -> list[tuple[str, tuple]]:
 
 
 def _costs(cases: Sequence[Any]) -> int:
-    from core.cognition.an_invented_kind import (
-        how_many_were_walked,
-        induce_from,
-        start_counting_again,
-    )
+    from core.cognition.sequence_reach import measure_sequence_reach
 
-    start_counting_again()
-    induce_from(cases)
-    return max(1, how_many_were_walked())
+    return max(1, measure_sequence_reach(cases).walked)
 
 
 def _sayable(cases: Sequence[Any]) -> bool:
-    from core.cognition.an_invented_kind import induce_from
+    from core.cognition.sequence_reach import measure_sequence_reach
 
-    return induce_from(cases) is not None
+    return measure_sequence_reach(cases).solved
 
 
 def worth_keeping(
@@ -88,18 +84,25 @@ def worth_keeping(
 
     cheaper = 0
     opened: list[str] = []
+    lost: list[str] = []
     each: list[float] = []
-    for name, cases in probe:
-        was, could = before.get(name, (0, False))
-        now = _costs(cases)
-        can = _sayable(cases)
+    after = _how_it_stands(probe)
+    for name, _cases in probe:
+        if name not in before:
+            return False, f"no baseline measurement for {name}"
+        was, could = before[name]
+        now, can = after[name]
         cheaper += was - now
         # One bounded observation per family: did this one get cheaper. Bounded
         # because the interval below needs it to be, and a share is the honest
         # bounded form of a saving.
-        each.append(1 if now < was else 0)
+        each.append(1 if could and can and now < was else 0)
         if can and not could:
             opened.append(name)
+        if could and not can:
+            lost.append(name)
+    if lost:
+        return False, f"lost previously solved families: {', '.join(lost)}"
     if opened:
         return True, f"it says {', '.join(opened)}, which it could not before"
     # Not "the total went down". One family falling by a lot while three rise
@@ -129,29 +132,34 @@ def _what_it_measured(
     for and then returned a sentence, so the layer above had the action's word
     and nothing else. The reading was always there; it was never shown.
 
-    Scored as the share of held-out families that got cheaper, which is what
-    ``worth_keeping`` decides on, so the number shown is the number used.
+    Record solved reach before speed. Cost savings cannot hide a lost family.
     """
+    from core.cognition.sequence_reach import reach_utility
     from core.cognition.what_a_change_measured_about_itself import WhatItMeasured
 
     names = tuple(name for name, _cases in probe)
     if not names:
         return said
-    was = sum(before.get(name, (0, False))[0] for name, _cases in probe)
-    now = sum(_costs(cases) for _name, cases in probe)
-    # Higher is better, so a cost becomes what was saved against the start.
-    start = float(was) or 1.0
+    after = _how_it_stands(probe)
     return WhatItMeasured(
         said=said,
         on=names,
-        before=0.0,
-        after=(was - now) / start,
+        before=reach_utility([before[name] for name in names]),
+        after=reach_utility([after[name] for name in names]),
         why_it_counts=why,
     )
 
 
 def _how_it_stands(probe: Sequence[tuple[str, tuple]]) -> dict[str, tuple[int, bool]]:
-    return {name: (_costs(cases), _sayable(cases)) for name, cases in probe}
+    from core.cognition.sequence_reach import measure_sequence_reach
+    from core.cognition.what_she_can_take_back import only_if_it_pays
+
+    found = {}
+    for name, cases in probe:
+        with only_if_it_pays(f"measure sequence reach: {name}"):
+            measured = measure_sequence_reach(cases)
+        found[name] = (max(1, measured.walked), measured.solved)
+    return found
 
 
 def _the_library_is_over_budget(parts: Sequence[Any]) -> bool:
@@ -275,7 +283,6 @@ def offer_what_she_can_do_about_what_she_is_made_of() -> None:
     def one_name_for_both(situation: Any = None) -> str | None:
         from core.cognition.a_way_of_computing_she_wrote import as_a_head
         from core.cognition.one_algebra import DERIVED_HEADS, the_head_she_wrote
-
         from core.cognition.what_she_can_take_back import only_if_it_pays
 
         found = what_two_parts_share()

@@ -973,6 +973,26 @@ def _install_language_growth_claims(suite: Any) -> None:
     using a word she had derived and kept. A claim with a test behind it is
     something she can answer from instead of guessing.
     """
+    from core.cognition.sequence_reach import reach_preserves_correctness
+
+    suite.add_test(ValidationTest(
+        name="sequence_reach_cost_cannot_hide_a_lost_solution",
+        description="the bounded sequence-reach utility orders correctness before candidate savings",
+        required_capability="",
+        observation=Observation(name="reach_utility_violations", value=0,
+            source="tests/test_sequence_reach.py"),
+        predict=lambda _m: len(reach_preserves_correctness()),
+        score=lambda p, o: threshold_score(float(p), float(o.value), units=" violations"),
+        owner="core/cognition/sequence_reach.py",
+    ))
+    suite.add_claim(Claim(
+        statement="The sequence-reach utility cannot prefer search savings over a lower solved-family count.",
+        test="sequence_reach_cost_cannot_hide_a_lost_solution",
+        owner="core/cognition/sequence_reach.py",
+        asserted_in="core/cognition/sequence_reach.py",
+        evidence=Evidence.MEASURED_SYNTHETIC,
+        evidence_note="Synthetic arithmetic canary and unit tests; not evidence of broad reasoning gain.",
+    ))
     for name, description, predict, owner in (
         (
             "test_a_word_the_closure_already_says_is_refused",

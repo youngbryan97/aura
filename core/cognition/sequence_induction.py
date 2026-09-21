@@ -128,15 +128,9 @@ def _put_back(held) -> None:
 
 def _what_it_costs_to_say(pairs: Sequence[tuple[Sequence[Any], Sequence[Any]]]) -> int:
     """How many meanings the search walks to reach this family. The measurement."""
-    from core.cognition.an_invented_kind import (
-        how_many_were_walked,
-        induce_from,
-        start_counting_again,
-    )
+    from core.cognition.sequence_reach import measure_sequence_reach
 
-    start_counting_again()
-    induce_from(pairs)
-    return max(1, how_many_were_walked())
+    return max(1, measure_sequence_reach(pairs).walked)
 
 
 def _she_may_improve_a_working_answer(
@@ -159,12 +153,14 @@ def _she_may_improve_a_working_answer(
     With nothing held out there is nothing to judge on, and the honest answer
     is to make no change rather than to fall back on the trigger.
     """
+    from core.cognition.sequence_reach import reach_utility
     from core.cognition.she_decides_to_develop import what_to_do_next
     from core.cognition.the_record_of_her_own_work import (
         note_an_episode,
         other_families,
     )
     from core.cognition.what_she_could_do_next import the_actions_she_has
+    from core.cognition.what_she_does_about_herself import _how_it_stands
 
     _register_what_she_could_do()
     held_out = other_families(than=family)
@@ -175,7 +171,8 @@ def _she_may_improve_a_working_answer(
     if decided.action is None:
         return None
     held = _everything_she_can_say()
-    was = sum(_what_it_costs_to_say(cases) for _name, cases in held_out)
+    baseline = _how_it_stands(held_out)
+    was = sum(cost for cost, _ in baseline.values())
     situation = _Situation(
         pairs=tuple((tuple(before), tuple(after)) for before, after in pairs),
         sayable=lambda: True,
@@ -186,12 +183,11 @@ def _she_may_improve_a_working_answer(
         logger.info("%s raised improving a working answer", decided.action.name,
                     exc_info=True)
         said = None
-    now = (
-        sum(_what_it_costs_to_say(cases) for _name, cases in held_out)
-        if said
-        else was
-    )
-    if not said or now >= was:
+    after = _how_it_stands(held_out) if said else baseline
+    now = sum(cost for cost, _ in after.values())
+    lost = any(could and not after[name][1] for name, (_, could) in baseline.items())
+    gain = reach_utility(list(after.values())) - reach_utility(list(baseline.values()))
+    if not said or lost or gain <= 0:
         _put_back(held)
         from core.cognition.what_she_could_do_next import note_what_it_did
 
@@ -242,14 +238,15 @@ def _she_may_improve_a_working_answer(
         admitted=decided.action.kind,
         about=pairs,
     )
-    note_what_it_did(decided.action.name, kept=True, gained=was - now)
+    note_what_it_did(decided.action.name, kept=True, gained=gain)
     # Canary rather than shadow: it has already been measured on families it
     # was not chosen for, which is the whole of what shadow is for.
     promote(
         f"{decided.action.over}/{decided.action.name}",
         became="canary",
         started_by="she",
-        evidence=f"{was - now:,} fewer over {len(held_out)} held-out families",
+        evidence=(f"reach utility increased by {gain:.9g} over {len(held_out)} held-out families; "
+                  f"no solved family lost; candidate cost {was} to {now}"),
     )
     logger.info(
         "she improved a working answer with %s: %d then %d over %d held-out "
@@ -304,17 +301,21 @@ def _work_the_meaning_out(question: SequenceQuestion) -> str | None:
 
     # Then something already settled, which is what makes the second question
     # of a kind cheaper than the first.
-    for _kind, known in list(KINDS.items()):
-        if not all(known.read(before) == after for before, after in pairs):
-            continue
-        answer = known.read(tuple(question.asked))
-        if answer is None:
-            continue
+    from core.cognition.sequence_reach import retained_sequence_reach
+
+    retained = retained_sequence_reach(pairs)
+    if retained.solved:
+        answer = retained.agreed_on(question.asked)
+        if answer is not None:
+            return (
+                f"{list(answer)}\n\n"
+                "The executable meanings I retained agree with every example "
+                "you gave and produce this result for your new case."
+            )
         return (
-            f"{list(answer)}\n\n"
-            f"I have met this before: {known.name}. I worked that meaning out "
-            "from examples of it earlier and kept it, so this one needed no "
-            "working out at all."
+            "I cannot answer this one yet: your examples fit retained meanings "
+            "that do not agree on this case. "
+            "One more example distinguishing them would settle the answer."
         )
 
     # Then a case she has an unsettled reading of already, where the readings
@@ -1079,10 +1080,9 @@ def _a_rule_with_no_shape(
     )
 
     def already_said() -> bool:
-        return any(
-            rule.read(before) == tuple(after)
+        return bool(pairs) and any(
+            all(rule.read(before) == tuple(after) for before, after in pairs)
             for rule in RULES_WITH_NO_SHAPE.values()
-            for before, after in pairs
         )
 
     found = a_rule_she_wrote(pairs, now_sayable=already_said)

@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 import pytest
 
-from core.cognition import what_she_does_about_herself as W
+from core.cognition import what_she_does_about_herself as W  # noqa: N812
 from core.cognition.an_invented_kind import WHERE_FROM
 from core.cognition.what_she_can_take_back import (
     WHAT_A_CHANGE_CAN_REACH,
@@ -75,7 +75,9 @@ def _letting_go(verdict: tuple[bool, str]) -> tuple[Any, bool]:
     with patch.object(W, "_probe", return_value=[("fam", ())]), patch.object(
         W, "the_one_she_should_let_go", return_value=part
     ), patch.object(W, "worth_keeping", return_value=verdict), patch.object(
-        W, "_how_it_stands", return_value={"fam": (5, True)}
+        W, "_how_it_stands", side_effect=lambda _: {
+            "fam": (5 if "a_word_of_hers" in WHERE_FROM else 1, True)
+        }
     ):
         W.offer_what_she_can_do_about_what_she_is_made_of()
         action = next(
@@ -151,7 +153,9 @@ def _saying_so(name: str, *, paid: bool | None):
     probe = [] if paid is None else [("fam", ())]
     stands = {"fam": (5 if paid else 0, True)}
     with patch.object(W, "_probe", return_value=probe), patch.object(
-        W, "_how_it_stands", return_value=stands
+        W, "_how_it_stands", side_effect=lambda _: (
+            {"fam": (1, True)} if paid and "kept_on_purpose" in WHERE_FROM else stands
+        )
     ):
         said = action.do_it(None)
     kept = "kept_on_purpose" in WHERE_FROM
