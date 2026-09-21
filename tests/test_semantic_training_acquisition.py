@@ -83,6 +83,17 @@ def test_cli_cannot_enable_acquisition_without_retention(monkeypatch, tmp_path):
     assert exc.value.code == 2
 
 
+def test_cli_cannot_replay_source_graphs_without_retention(monkeypatch, tmp_path):
+    from tools.refit_semantic_argument_proposals import main
+
+    monkeypatch.setattr("sys.argv", ["refit", "--transducer", "unused", "--source-report", "unused",
+        "--bundle", "unused=unused", "--output", str(tmp_path / "candidate.json"),
+        "--replay-source-graphs"])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2
+
+
 def test_acquisition_rejects_source_changes_during_observation(source, monkeypatch):
     import core.learning.semantic_validation_checkpoint as checkpoint
 
@@ -116,6 +127,7 @@ def test_refit_cli_retains_full_source_pool_and_embeds_acquisition_receipt(sourc
         assert len(training) == 2
         assert all(item.split != "test" for item in mining)
         retained = options["source_retention_examples"]
+        assert options["source_graph_retention"] is True
         assert retained == tuple(item for item in examples if item.split == "train")
         assert len(retained) > len(training)
         body = {key: value for key, value in parent.training_receipt.items() if key != "receipt_sha256"}
@@ -134,7 +146,7 @@ def test_refit_cli_retains_full_source_pool_and_embeds_acquisition_receipt(sourc
     monkeypatch.setattr(campaign, "select_compositional_program_candidate", select)
     monkeypatch.setattr("sys.argv", ["refit", "--transducer", str(original), "--source-report", str(report),
         "--bundle", "fixture=fixture", "--output", str(output), "--objective", "joint_graphs",
-        "--retain-semantic-constraints", "--acquire-training-errors", "2",
+        "--retain-semantic-constraints", "--acquire-training-errors", "2", "--replay-source-graphs",
         "--validation-output", str(tmp_path / "validation.json")])
     assert tool.main() == 0
     from core.learning.semantic_program_compositional_transducer import compositional_semantic_program_transducer_from_dict

@@ -1119,14 +1119,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  tasks using the existing language and computational substrates.
+  [Full cohort attribution](evidence/G03_FULL_COHORT_ATTRIBUTION_2026-09-21.md):
+  760/764 train and 477/500 validation semantically equivalent; 18 witnessed
+  ranking failures and nine unresolved searches. Fixed-bank interventions
+  separate scoring from label pruning. Complete-decision source replay is
+  implemented in the joint trainer; full candidate qualification remains open.
   [Six-report review](G_LEDGER_REVIEW_DISPOSITION_2026-09-21.md) records all
   105 pages read, 42 mechanism-level dispositions, mathematical corrections
   and their existing runtime owners. Recommendations do not close any G item.
   [Fixed-bank replay](evidence/G03_FIXED_BANK_REPLAY_2026-09-21.md) repairs
   diagnostic program/span ordering and compares two scorers on unchanged
-  target-blind banks; 112 focused tests pass. Full development evidence remains
-  required before selecting a new fit or claiming G03 complete.
-  tasks using the existing language and computational substrates.
+  target-blind banks; 112 focused tests pass. The full audit above now supplies
+  the failure map; repaired-candidate qualification remains required.
   [Diagnostic search cost](evidence/G03_DIAGNOSTIC_SEARCH_COST_2026-09-21.md)
   bounds optional diagnostic solves and stops reachability diagnosis after a
   witnessed equivalent alternative. Serving defaults and selection stay

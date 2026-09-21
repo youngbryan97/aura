@@ -182,9 +182,11 @@ These checks support methodological boundaries, not an Aura result:
 ## Execution order and evidence requirements
 
 - [x] Read six reports fully; preserve exact identity and item-level dispositions.
-- [ ] Complete frozen full-cohort diagnosis; retain partial/interrupted evidence.
-- [ ] Repair and test diagnostic program/span identity; replay both scorers on
+- [x] Complete frozen full-cohort diagnosis; retain partial/interrupted evidence.
+  [1,264-row result](evidence/G03_FULL_COHORT_ATTRIBUTION_2026-09-21.md).
+- [x] Repair and test diagnostic program/span identity; replay both scorers on
   common target-blind banks and attribute ranking versus candidate differences.
+  [Completed interventions](evidence/G03_FULL_COHORT_ATTRIBUTION_2026-09-21.md).
 - [ ] Audit score-class feasibility with existing exact certificates where
   affine; distinguish nonlinear optimization failure from representability.
 - [ ] Test the smallest justified objective/representation change on training
