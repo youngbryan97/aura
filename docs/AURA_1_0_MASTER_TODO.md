@@ -1068,6 +1068,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Round candidates](evidence/G03_ROUND_CANDIDATES_2026-09-20.md) retain each
+  learned transducer for direct decoding without rerunning training. Fifty-seven
+  focused tests pass; per-round model export does not establish generalization.
   [Shared choice evidence](evidence/G03_SHARED_CHOICE_EVIDENCE_2026-09-20.md)
   removes duplicated argument vectors and repeated relation projections from
   conditional training while preserving every option. The preceding run exited

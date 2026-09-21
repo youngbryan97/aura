@@ -153,6 +153,9 @@ def test_resume_rechecks_numerical_state_even_with_a_valid_checksum(tmp_path, ch
 
 
 def test_production_joint_refit_wires_round_checkpoints(tmp_path):
+    import hashlib
+    import json
+    from core.learning.semantic_program_compositional_transducer import compositional_semantic_program_transducer_from_dict
     from core.learning.semantic_joint_graph_learning import refit_compositional_joint_graphs
     from tests.test_semantic_relation_graph_learning import model_examples
     model, examples = model_examples()
@@ -161,8 +164,45 @@ def test_production_joint_refit_wires_round_checkpoints(tmp_path):
     options = dict(rounds=1, steps=2, constraint_learning=True, checkpoint_dir=tmp_path)
     first = refit_compositional_joint_graphs(model, examples, progress=progress.append, **options)
     assert (tmp_path / "round-1.npz").exists()
+    saved_path = tmp_path / "round-1.candidate.json"
+    saved_bytes = saved_path.read_bytes()
+    saved = json.loads(saved_bytes)
+    assert saved['sha256'] == fit_identity({k: v for k, v in saved.items() if k != 'sha256'})
+    assert saved['numerical_checkpoint_sha256'] == hashlib.sha256((tmp_path / "round-1.npz").read_bytes()).hexdigest()
+    assert saved['parent'] == model.receipt_sha256 and saved['round'] == 1
+    assert not saved['serving_authority'] and not saved['validation_used_for_selection']
+    restored = compositional_semantic_program_transducer_from_dict(saved['candidate'])
+    assert fit_identity(restored._coefficient_body()) == fit_identity(first._coefficient_body())
     resumed = []
     second = refit_compositional_joint_graphs(model, examples, progress=resumed.append, **options)
     assert first.receipt_sha256 == second.receipt_sha256
     assert any(row["stage"] == "constraint_fit_resumed" and row["round"] == 1 for row in resumed)
     assert not any(row["stage"] == "constraint_fit_step" for row in resumed)
+    assert saved_path.read_bytes() == saved_bytes
+
+
+def test_round_candidate_survives_interruption_before_next_round(tmp_path):
+    import json
+    from core.learning.semantic_joint_graph_learning import refit_compositional_joint_graphs
+    from core.learning.semantic_program_compositional_transducer import compositional_semantic_program_transducer_from_dict
+    from tests.test_semantic_relation_graph_learning import model_examples
+
+    model, examples = model_examples()
+    model = model.with_joint_operation_argument_scores().with_source_ordered_definitions()
+    def interrupt(row):
+        if row['stage'] == 'joint_graph_fit':
+            raise InterruptedFit
+    with pytest.raises(InterruptedFit):
+        refit_compositional_joint_graphs(model, examples, rounds=2, steps=2,
+            constraint_learning=True, checkpoint_dir=tmp_path, progress=interrupt)
+    path = tmp_path / 'round-1.candidate.json'
+    saved = json.loads(path.read_bytes())
+    restored = compositional_semantic_program_transducer_from_dict(saved['candidate'])
+    assert restored.model_basis_sha256 == model.model_basis_sha256
+    assert not (tmp_path / 'round-2.candidate.json').exists()
+    path.chmod(0o600)
+    path.write_text('{}')
+    with pytest.raises(ValueError, match='saved round candidate differs'):
+        refit_compositional_joint_graphs(model, examples, rounds=2, steps=2,
+            constraint_learning=True, checkpoint_dir=tmp_path)
+    assert path.read_text() == '{}'
