@@ -2,8 +2,8 @@
   "organs": 123,
   "cross_package_edges": 2043,
   "dependency_entropy": 9.1653,
-  "kernel_lines": 620108,
-  "at_commit": "22ed2e0cd19adf442139c87169d6a427944492d5",
+  "kernel_lines": 620178,
+  "at_commit": "84989105dfa8e7d1d99470b289e4dbd9881feb47",
   "history": [
     {
       "raised": [
@@ -649,6 +649,53 @@
         "commits_by_author": {
           "Claude": 8,
           "Codex": 1
+        }
+      }
+    },
+    {
+      "raised": [
+        "kernel_lines"
+      ],
+      "from": {
+        "kernel_lines": 620108
+      },
+      "to": {
+        "kernel_lines": 620178
+      },
+      "because": "Seventy kernel lines from ab641e544, Codex's operator retention: operator_invention (+82) keeps an invented operator across trials and restores a trial whole, what_she_gave_meaning (+15) and what_she_can_take_back (+7) read it, and sequence_induction gave back 34. Landed without a raise; recorded here so the next reading starts from what is in the tree.",
+      "landed": {
+        "since": "22ed2e0cd19adf442139c87169d6a427944492d5",
+        "net_kernel_lines": 74,
+        "files_touched": 5,
+        "per_package": {
+          "cognition": 70,
+          "brain": 4
+        },
+        "largest_files": [
+          {
+            "path": "core/cognition/operator_invention.py",
+            "net_lines": 82
+          },
+          {
+            "path": "core/cognition/what_she_gave_meaning.py",
+            "net_lines": 15
+          },
+          {
+            "path": "core/cognition/what_she_can_take_back.py",
+            "net_lines": 7
+          },
+          {
+            "path": "core/brain/inference_gate.py",
+            "net_lines": 4
+          },
+          {
+            "path": "core/cognition/sequence_induction.py",
+            "net_lines": -34
+          }
+        ],
+        "commits_by_author": {
+          "Claude": 2,
+          "Codex": 2
         }
       }
     }
