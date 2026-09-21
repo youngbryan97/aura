@@ -1120,6 +1120,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Additional continuation review and complete audit](evidence/G03_ADDITIONAL_CONTINUATION_REVIEW_2026-09-21.md)
+  checks all fourteen pages and rejects sorted-input cache identity and a
+  sign-preserving temperature as a guaranteed ranking repair. The completed
+  transition candidate reaches 761/764 training and 477/500 validation, with
+  thirteen gains and fifteen regressions across the complete cohort. It is
+  not promoted; the coupled replacement is undergoing full replay.
   [Second advisory batch](evidence/G03_SECOND_REVIEW_DISPOSITION_2026-09-21.md)
   maps all ten supplied files to existing owners and remaining experiments.
   Fourteen reference checks reproduce five fixtures and nine counterexamples;

@@ -3,7 +3,10 @@
 import pytest
 
 from core.learning.procedure_induction import Instruction, Program
-from core.learning.semantic_graph_counterexamples import ProgramObservationCache, compare_program_meanings
+from core.learning.semantic_graph_counterexamples import (
+    ProgramObservationCache,
+    compare_program_meanings,
+)
 
 
 def programs():
@@ -31,6 +34,19 @@ def test_values_program_and_fuel_are_separate_identities():
     assert cache.observe(target, (8, 2), fuel=1)["status"] == "error"
     assert cache.statistics()["hits"] == 0
     assert cache.statistics()["retained"] == 3
+
+
+@pytest.mark.parametrize("operation,expected", [("sub", (6, -6)), ("idiv", (4, 0))])
+def test_input_order_cannot_be_canonicalized_as_a_multiset(operation, expected):
+    program = Program(2, (Instruction(operation, (0, 1)),))
+    cache = ProgramObservationCache()
+    forward = cache.observe(program, (8, 2), fuel=100_000)
+    reverse = cache.observe(program, (2, 8), fuel=100_000)
+    assert (forward["result"], reverse["result"]) == expected
+    assert forward["compiled_receipt"]["public_inputs_sha256"] != reverse["compiled_receipt"]["public_inputs_sha256"]
+    assert cache.observe(program, (8, 2), fuel=100_000) == forward
+    assert cache.observe(program, (2, 8), fuel=100_000) == reverse
+    assert cache.statistics() == {"hits": 2, "executions": 2, "retained": 2, "capacity": 256}
 
 
 def test_checked_undefined_domain_is_reused_but_never_means_equivalence():
