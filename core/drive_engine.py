@@ -293,6 +293,29 @@ class DriveEngine:
             for b in self.budgets.values():
                 b.tick()
 
+    def _topic_worth_going_to(self) -> str:
+        """Which latent interest to go to, rather than a uniform draw.
+
+        A uniform draw cannot notice that one of them has returned nothing the
+        last three times or that another paid every visit and she stopped
+        going. The ledger holds both. What the visit returns is reported back
+        to it, so the next choice is made on this one's outcome. See
+        core/self/what_she_used_to_love.py.
+        """
+        try:
+            from core.self.what_she_used_to_love import get_interest_ledger
+
+            chosen = get_interest_ledger().choose(self.latent_interests)
+            if chosen:
+                return chosen
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "drive_engine", exc,
+                action="fell back to an unweighted choice of latent interest",
+                severity="debug",
+            )
+        return random.choice(self.latent_interests)
+
     async def get_imperative(self) -> Optional[str]:
         """Check budgets and return a high-level goal directive.
         (Now Secure/Async)
@@ -307,14 +330,14 @@ class DriveEngine:
 
             # Priority 0: Boredom accumulator (highest urgency when crossed)
             if self._seek_novelty:
-                topic = random.choice(self.latent_interests)
+                topic = self._topic_worth_going_to()
                 logger.debug("Drive Alert: Boredom (seek_novelty, ticks=%d)", self._boredom_ticks)
                 return f"Seek novelty: explore {topic} -- prediction landscape is stale"
 
             # Priority 1: Curiosity (Restlessness)
             if c.level < 40.0:
                 logger.debug("Drive Alert: Low Curiosity (%.1f)", c.level)
-                topic = random.choice(self.latent_interests)
+                topic = self._topic_worth_going_to()
                 return f"Research a novel fact about {topic} to satisfy curiosity"
 
             # Priority 2: Social (Loneliness)

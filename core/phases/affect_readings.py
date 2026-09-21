@@ -619,9 +619,29 @@ class AffectReadings:
             usefulness = 0.0
             if agency is not None and hasattr(agency, "snapshot"):
                 usefulness = float((agency.snapshot() or {}).get("efficacy", 0.0) or 0.0)
+            # What one person's regard is worth as evidence about her depends
+            # on when it started. Somebody whose regard began at a peak and
+            # has never been present at a low is not evidence of the same kind
+            # as somebody who was there at the low. See
+            # core/social/late_regard.py.
+            standing_now = float(getattr(state.identity, "stability", 0.0) or 0.0)
+            weight = 1.0
+            try:
+                from core.social.late_regard import get_regard_ledger
+
+                regard_ledger = get_regard_ledger()
+                regard_ledger.note_standing(standing_now)
+                partner = str(getattr(state.cognition, "current_partner", "") or "")
+                if partner:
+                    regard_ledger.note_regard(partner, standing_now)
+                    weight = regard_ledger.weight(partner)
+                state.identity.late_regard = regard_ledger.read().as_dict()
+            except AFFECT_UPDATE_ERRORS:
+                weight = 1.0
             ledger.note_regard(
-                regard=float(getattr(state.identity, "stability", 0.0) or 0.0),
+                regard=standing_now,
                 usefulness=usefulness,
+                weight=weight,
             )
             state.identity.standing = ledger.read().as_dict()
             # And what coming through hard things says about what she can do.

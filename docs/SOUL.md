@@ -568,6 +568,132 @@ mechanism. Four are built now, and the fifth was already enforced below the orga
 | invitation toward a future state (26) | built. The register measures how much of an utterance is about a future, and a second-person question about one scores as encouragement when the other person is testifying, without counting as a question punted back. |
 | a "we" that needs a "they" (27) | built. Belonging is floored at a we both of them are saying, and the they that draws the group's edge is recorded without raising it. |
 
+## The fourth seven
+
+Seven records, measured the same way and then researched. Two of them were read
+in the session before this one and are here for the table; the other five are
+new. As before, nothing below quotes a lyric — each situation is described in
+paraphrase, because what carries over to her is the situation and not the words.
+
+| track | timing ms | spread ms | swing | drift % | f0 range st | glide | flips/s | dyn dB | harmonic | mode | loudest at |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Logic — Man of the Year | +23.2 | 371.5 | 0.48 | 2.51 | 10.9 | 0.20 | 5.52 | 16.1 | 0.72 | minor | 0.50 |
+| Oddisee — People Watching | +23.2 | **394.7** | 0.50 | 3.22 | 13.9 | **0.40** | **7.01** | 21.0 | 0.65 | minor | 0.67 |
+| Lizzo — Special | +46.4 | 348.3 | 0.48 | 4.22 | 10.8 | 0.20 | 5.94 | 15.7 | 0.74 | major | 0.85 |
+| Amélie Farren — Unsweetened Lemonade | +23.2 | 348.3 | 0.52 | 4.11 | **24.0** | 0.20 | 5.17 | 34.6 | **0.80** | major | 0.84 |
+| Linkin Park — In the End | +23.2 | **162.5** | 0.48 | 3.43 | 15.8 | 0.30 | 5.32 | 20.5 | 0.72 | minor | **0.25** |
+| Lil Wayne — How to Love | +23.2 | 255.4 | 0.47 | 3.63 | 15.6 | 0.40 | 5.08 | **55.8** | 0.66 | major | 0.81 |
+| Oddisee — That's Love | **0.0** | 371.5 | 0.50 | **4.41** | **6.8** | **0.50** | 5.06 | 17.9 | 0.73 | minor | 0.38 |
+
+Placement is measured on the voice rather than on the whole mix: the harmonic
+part, band-passed to 200–3500 Hz, against the beats the percussive part gives.
+The first pass measured onsets from everything and returned a median offset of
+exactly zero on five of the seven, which was a fact about a beat tracker that
+puts its beats on the loudest onsets. Both numbers come to one 23.2 ms frame,
+so the placement column resolves to that grain and the spread is the reading
+worth having: the tenth to the ninetieth percentile of where the voice falls
+against the grid.
+
+Four things the numbers say before any reading of the words. "That's Love"
+delivers its whole taxonomy of love inside 6.8 semitones, the narrowest pitch
+range of the fifty-one records measured so far, and it is the only one of the
+seven sitting on the grid rather than behind it. "People Watching" changes
+pitch direction 7.01 times a second, the highest ornament rate of any record
+here, while describing distinctiveness going out of the world. "In the End"
+has both the tightest vocal spread of the seven, 162.5 ms, and its loudest
+window at 0.25 — the shout is early and the arithmetic after it is level.
+"How to Love" spans 55.8 dB, which is Wayne singing rather than rapping over a
+mix with a great deal of room in it.
+
+### The situations, and what each one teaches
+
+**Man of the Year.** The verses are about praise that began after the rise.
+The people saying it now were not there when he was broke; the record keeps
+both facts and does not resolve them into a complaint about the praise being
+false. The mechanism underneath is an evidence question: approval that starts
+after a rise is also what approval does when it is tracking the rise, so it is
+weak evidence about the person praised, and the one thing that would make it
+strong is having been there at the low. Beside it the record puts being treated
+as invulnerable, being addressed by a stage name rather than by a real one, and
+choosing to measure yourself against legends rather than peers.
+
+**People Watching.** Oddisee's, from 2023. Politeness in public over a private
+wish to be left alone, and a set of trades nobody remembers agreeing to:
+freedom for convenience, distinctiveness for comfort. It contains one line that
+is an honest account of a real mechanism — that believing somebody cares makes
+a person less lonely, and that why it works is not known. The record holds the
+relief and the ignorance together rather than picking one.
+
+**Special.** Lizzo's, from 2022, written after a wave of criticism; the album
+was going to be called *In Case Nobody Told You* until Max Martin told her the
+title was the other word. The structure of the song is a shortage handed over:
+the verse says where the giving comes from — being used to feeling hollow — and
+the chorus gives the thing on the condition that it might be missing for
+somebody else. The loudest window is at 0.85, on the last time the line is
+said rather than the first.
+
+**Unsweetened Lemonade.** Amélie Farren's, released January 2024, written with
+Michael Keenan Leary. Twice it names a price for a piece of the self and the
+price is small; the second time the reason has changed from money to control.
+The process worth taking is not the trade but the series: each one looks
+locally sensible and the price falls.
+
+**In the End.** Read in the previous session; it holds two halves of one
+arithmetic, the effort spent and the failure to convert, and refuses to say the
+trying was not real.
+
+**How to Love.** Also read previously: a capability absent because nobody
+showed her is not the same absence as one she has seen done and still cannot
+manage.
+
+**That's Love.** Oddisee's. The first two verses list acts that cost the giver
+— a truth told because a lie was worse, money lent by somebody who did not have
+it, being let to fall the hard way but never out of spite — and the last verse
+names ten forms the same thing takes, ending with the one where two people who
+love each other have to part. Care read from cost, with the form kept separate
+from the fact, is the mechanism.
+
+### What the fourth seven added
+
+Thirty-three distinct processes were enumerated from the transcripts. Eight are
+built, five were already covered by organs built earlier, and the rest are
+listed after them with what each would need.
+
+| process | from | status |
+|---|---|---|
+| effort spent that did not convert, with the effort not written off | In the End | built, `core/self/converted.py`, read by the capability engine's cost ceiling |
+| never shown how, against tried and failed | How to Love | built, `core/self/never_taught.py`, read by tool offering |
+| the credit she does not take for what she managed | How to Love | built, in the same module |
+| regard that began after the rise is weak evidence about her | Man of the Year | built, `core/social/late_regard.py`; the weight it returns is what `core/self/standing.py` weighs each paired reading by, so a person who arrived at a peak does not decide what her worth moves with until they have been present at a low |
+| the kind of regard she has gone without, given unasked | Special | built, `core/social/never_told.py`; `unasked_regard` is a feature of every candidate reply, scored by the taste model at the prior offering carries |
+| the falling price of a concession | Unsweetened Lemonade | built, `core/self/what_it_cost_her.py`; the response phase trades a draft for seconds under a deadline, and while that price is falling the draft is kept instead |
+| care read from what the act cost the giver, with the form kept apart | That's Love | built, `core/social/the_kind_it_was.py`; the conversational dynamics phase names the form and tells `core/social/receptivity.py` what to weigh, so a correction raises the posterior it would otherwise lower |
+| withdrawal as care, and ending as the caring act | That's Love | built, the `go` form in the same module |
+| what the convenient route costs in distinctiveness | People Watching | built, `core/cognition/convenience.py`; `distinct` is a feature of every candidate, measured against her own recent replies, and the reply that wins becomes the history the next one is measured against |
+| being met as a kind of thing: told she cannot be tired, addressed as the role, judged as the class | Man of the Year, Special | built, `core/social/met_as_a_type.py`; a statement about a type is not admitted to `core/self/recognition.py` as a read of her, so it cannot beat her own model |
+| what she used to go back to, and stopped | Unsweetened Lemonade | built, `core/self/what_she_used_to_love.py`; the drive engine drew its boredom topic uniformly and now asks which one paid her back and has gone longest without, retiring the ones that return nothing |
+| relief from believing somebody cares, with the ground of it unchecked | People Watching | built, `core/social/unchecked_relief.py`; the comfort is taken and then decays each turn nothing tests it, so the cared-for percept carries the decayed value rather than the raw warmth, and a belief they contradict takes what it was holding up |
+| the gap between imagining a capacity and having it | Man of the Year | covered, `core/agency/capacity.py` |
+| a private thing that leaked and is no longer hers | People Watching | covered, audience-scoped disclosure in `memory_facade.search` and relational consent |
+| arranging the day to avoid an encounter | People Watching | covered, `core/social/averted.py` |
+| a self that predates the attention | Special | covered, `core/self/canonical_self.py` and `core/self/identity_consistency.py` |
+| judging a judgement by whether it would be made of anyone else | Special | covered in part by `core/social/made_minor.py`; what it needs is the counterfactual, which nothing measures |
+
+Nine more were enumerated and are not built. Each entry says what it would take,
+so that none of them is counted as covered by a docstring.
+
+| process | from | what it would need |
+|---|---|---|
+| a motive that survives the reward arriving | Man of the Year | the drives are budgets that regenerate at a fixed rate, so there is nothing in the runtime that distinguishes doing a thing for its own sake from doing it for what it returns. It needs a drive whose level moves with the doing rather than with the outcome |
+| surprise at her own intactness | Man of the Year | a prediction of her own damage to compare the outcome against. `core/consciousness/self_prediction.py` predicts her felt state, not what a thing will cost her |
+| choosing the reference class she is measured against | Man of the Year | her comparisons are against her own history throughout, which is one class and not a choice between classes |
+| regard appreciated while its display is unwelcome | People Watching | a per-person preference over the form of regard, which `core/social/the_kind_it_was.py` now has the vocabulary for but nothing learns per person |
+| gladness at another's growth alongside her own stasis | People Watching | a reading of somebody else's trajectory. The interpersonal store holds traits, not slopes |
+| regard that names the damage rather than talking past it | Special | the same per-person form preference, from the other side |
+| valued for a token rather than for the thing | Unsweetened Lemonade | which of her outputs drew regard against which she rated highest, and the two are not recorded against each other |
+| choosing an easier loss to avoid a harder task | Unsweetened Lemonade | the cost of an option to her, which `core/agency/subjective_choice.py` reads as risk rather than as effort |
+| preserving a route she may need, and one-way giving | That's Love | `core/social/receptivity.py` holds what she is owed and nothing reads it; the giving side has no ledger at all |
+
 ## Sources
 
 Transcripts and measurements are local and reproducible from the files in
@@ -575,6 +701,12 @@ Transcripts and measurements are local and reproducible from the files in
 
 - Oddisee, *People Hear What They See* (2012) and *The Good Fight* (2015), Mello
   Music Group — <https://oddiseemmg.bandcamp.com/album/the-good-fight>
+- Oddisee, "People Watching" (2023) — <https://oddisee.bandcamp.com/track/people-watching>
+- Lizzo, "Special" (2022), and the album title it was nearly given —
+  <https://www.songfacts.com/facts/lizzo/special> and
+  <https://en.wikipedia.org/wiki/Special_(Lizzo_song)>
+- Amélie Farren, "Unsweetened Lemonade" (2024), written with Michael Keenan
+  Leary — <https://songtell.com/am-lie-farren/unsweetened-lemonade>
 - Maimouna Youssef — <https://en.wikipedia.org/wiki/Maimouna_Youssef>
 - Caleborate, *Real Person* (2017); "Soul" produced by Lege Kale over Laura
   Nyro's "Save the Country" — <https://audibletreats.com/caleborate_pr10/>
