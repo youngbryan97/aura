@@ -1006,6 +1006,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Construction replay](evidence/G03_CONTRAST_CONSTRUCTION_REPLAY_2026-09-20.md)
+  prevents shared-score cancellation from reversing a training margin.
+  Fifty-one tests pass; the full-source diagnostic has no completed candidate.
   [Early joint restoration](evidence/G03_EARLY_JOINT_RESTORATION_2026-09-20.md)
   removes twelve working-set retries in a constructed case while reaching
   identical stored margins. Seventy-four tests pass; transfer is unmeasured.

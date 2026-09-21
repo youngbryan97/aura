@@ -20,6 +20,7 @@ from core.learning.semantic_operation_graph_learning import (
 from core.learning.semantic_relation_graph_learning import (
     RelationGraphContrast,
     fit_joint_graph_contrasts,
+    graph_margin,
 )
 
 
@@ -92,20 +93,15 @@ def joint_graph_contrast(model, positive, negative, *, weight=1.):
     projections = (head.query_projection.astype(np.float64), head.definition_projection.astype(np.float64))
     operations = tuple(value.astype(np.float64) for head in model.operation_head.heads
                        for value in (head.weight, head.bias))
-    variable = 0.
     from core.learning.semantic_argument_graph_learning import argument_parameters
     from core.learning.semantic_operation_pointer_learning import operation_pointer_parameters
     parameters = (*projections, *operations, *argument_parameters(model), *operation_pointer_parameters(model))
     terms = tuple((sign, term) for sign, graph in ((1., positive), (-1., negative))
                   for term in graph.get("argument_terms", ()))
-    variable += sum(sign * term.score_gradient(parameters)[0] for sign, term in terms)
-    for sign, graph in ((1., positive), (-1., negative)):
-        variable += sign * (model.definition_relation_scale * sum(
-            bank.score_gradient(index, *projections)[0] for bank, index in graph["relations"])
-            + sum(bank.score_gradient(index, operations)[0] for bank, index in graph["operations"]))
-    return RelationGraphContrast(positive["relations"], negative["relations"],
-        positive["score"] - negative["score"] - variable, weight,
+    row = RelationGraphContrast(positive["relations"], negative["relations"], 0., weight,
         positive["operations"], negative["operations"], terms)
+    variable = graph_margin(parameters, row, scale=model.definition_relation_scale)
+    return replace(row, fixed_margin=math.fsum((positive["score"], -negative["score"], -variable)))
 
 
 def graph_selection_key(model, graph):

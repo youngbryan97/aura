@@ -60,12 +60,9 @@ def contrast_from_search(result, head, *, scale, weight=1.):
     if result.negative is None or not result.positive_evidence or not result.negative_evidence:
         raise ValueError("relation contrast needs witnessed selected graph evidence")
     projections = (head.query_projection.astype(np.float64), head.definition_projection.astype(np.float64))
-    relation_margin = sum(bank.score_gradient(choice, *projections)[0]
-                          for bank, choice in result.positive_evidence) - sum(
-        bank.score_gradient(choice, *projections)[0] for bank, choice in result.negative_evidence)
-    margin = result.positive[0][0] - result.negative[0][0]
-    return RelationGraphContrast(result.positive_evidence, result.negative_evidence,
-                                 margin - scale * relation_margin, weight)
+    row = RelationGraphContrast(result.positive_evidence, result.negative_evidence, 0., weight)
+    variable = graph_margin(projections, row, scale=scale)
+    return replace(row, fixed_margin=fsum((result.positive[0][0], -result.negative[0][0], -variable)))
 
 
 def graph_margin_gradient(parameters, row, *, scale=1.):
