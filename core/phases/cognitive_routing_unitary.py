@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import time
@@ -562,7 +563,15 @@ class CognitiveRoutingPhase(Phase):
             new_state.response_modifiers["deep_handoff"] = False
             return new_state
 
-        contract = build_response_contract(new_state, objective, is_user_facing=is_user_facing and not is_benchmark)
+        # Off the loop: the contract's capability selection reaches the
+        # resident encoder, and it held the loop 241ms with 25ms on CPU
+        # (LOCKDEP, live 2026-09-21, named from this line).
+        contract = await asyncio.to_thread(
+            build_response_contract,
+            new_state,
+            objective,
+            is_user_facing=is_user_facing and not is_benchmark,
+        )
         new_state.response_modifiers["response_contract"] = contract.to_dict()
         semantic_work = build_semantic_work_contract(objective)
         new_state.response_modifiers["semantic_work_contract"] = semantic_work.to_dict()

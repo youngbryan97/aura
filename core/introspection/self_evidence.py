@@ -114,8 +114,12 @@ _A_FILE_OR_A_PATH = re.compile(
 #: itself, which is how the real questions are actually written: "how much
 #: memory are you using" says "are you", and "is your runtime ok" says "your".
 #: The words for the machine underneath her.
+#: "body" is here because her body is the host, in the runtime's own words
+#: and in the person's: "how are you feeling right now, in your body?" asks
+#: for the readings (LIVE 2026-09-21: answered with a mood and no
+#: measurement).
 _HOST_PARTS = (
-    "machine|host|hardware|box|processor|cpu|memory|ram|disk|thermals?|"
+    "machine|host|hardware|box|body|processor|cpu|memory|ram|disk|thermals?|"
     "temperature|battery"
 )
 _HOST_SUBJECT_RE = re.compile(rf"\b(?:{_HOST_PARTS})\b", re.IGNORECASE)
@@ -344,10 +348,14 @@ def _condition_surface() -> Any:
 #: Words that name something an instrument reads. A question carrying one of
 #: these is asking about the machine; a question carrying none of them and
 #: shaped like an inquiry after somebody is asking about her.
+#:
+#: "body" is here because her body is the host: "how are you feeling right
+#: now, in your body?" is asking for the readings, and read as asking after
+#: her it was answered with a mood and no measurement (LIVE 2026-09-21).
 _AN_INSTRUMENT = re.compile(
     r"\b(?:memory|ram|cpu|processor|core|load|disk|storage|temperature|thermal|"
     r"subsystem|degrad\w*|failing|failure|error|usage|resource|uptime|latency|"
-    r"throughput|queue|backlog|swap|throttl\w*|overload\w*|capacity|健康)\b",
+    r"throughput|queue|backlog|swap|throttl\w*|overload\w*|capacity|body|健康)\b",
     re.IGNORECASE,
 )
 

@@ -98,3 +98,13 @@ def test_what_she_is_doing_is_about_her_activity_not_her_machine(asked):
 def test_naming_an_instrument_still_reaches_the_instruments():
     """"What are you doing with all that memory" is a question about memory."""
     assert asks_about_own_operational_state("what are you doing with all that memory?")
+
+
+def test_her_body_is_the_host():
+    """LIVE 2026-09-21: "How are you feeling right now, in your body?" was
+    answered with a mood and no measurement. Her body is the host, and the
+    question names it; "how are you feeling" alone stays hers to answer."""
+    assert asks_about_own_operational_state("How are you feeling right now, in your body?")
+    assert asks_about_own_operational_state("how is your body holding up?")
+    assert not asks_about_own_operational_state("how are you feeling?")
+    assert not asks_about_own_operational_state("the body of the essay is weak, fix it")

@@ -398,8 +398,14 @@ def atomic_write_bytes_behind(
     try:
         submit_blocking_io(_drain_behind, key, label=f"write_behind:{Path(key).name}")
     except RuntimeError:
-        # Shutting down: nothing will run it later, so this call pays for it.
-        _drain_behind(key)
+        # Shutting down: the lane refuses new work once the fence is set, and
+        # the saves that arrive then are the ones teardown makes. Paying
+        # inline put the fsync on the loop (LIVE 2026-09-21: resource_stakes
+        # two seconds before the shutdown record). A thread of its own, not a
+        # daemon, so the interpreter waits for the write and the loop does not.
+        threading.Thread(
+            target=_drain_behind, args=(key,), name=f"write_behind:{Path(key).name}:shutdown", daemon=False
+        ).start()
     return False
 
 

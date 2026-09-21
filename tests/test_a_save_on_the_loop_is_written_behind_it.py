@@ -100,3 +100,35 @@ def test_the_loop_thread_after_its_loop_has_stopped_is_not_reported(tmp_path):
         assert not lockdep.lockdep_report()["blocking_on_loop"]
     finally:
         lockdep.reset_lockdep_for_test()
+
+
+def test_a_save_the_lane_refuses_still_leaves_the_loop(tmp_path, monkeypatch):
+    """LIVE 2026-09-21: two seconds before the shutdown record, resource
+    stakes saved behind the loop, the lane refused the drain because the
+    fence was set, and the fallback paid inline — an fsync on the loop."""
+    from core.runtime import executors
+
+    def refuse(*_args, **_kwargs):
+        raise RuntimeError("blocking lane closed for shutdown")
+
+    monkeypatch.setattr(executors, "submit_blocking_io", refuse)
+    target = tmp_path / "state.json"
+    wrote_on: list[str] = []
+    real = atomic_writer.atomic_write_bytes
+
+    def counting(path, payload, **kwargs):
+        wrote_on.append(threading.current_thread().name)
+        return real(path, payload, **kwargs)
+
+    monkeypatch.setattr(atomic_writer, "atomic_write_bytes", counting)
+
+    async def save():
+        assert atomic_writer.atomic_write_text_behind(target, "held") is False
+        return threading.current_thread().name
+
+    loop_thread = asyncio.run(save())
+    for thread in threading.enumerate():
+        if thread.name.startswith("write_behind:"):
+            thread.join(2.0)
+    assert target.read_text() == "held"
+    assert wrote_on and wrote_on[0] != loop_thread, "the write ran on the loop thread"
