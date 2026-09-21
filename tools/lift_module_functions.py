@@ -20,6 +20,38 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from lift_methods import HEADER_BOUND, HEADER_IMPORTS, module_bound_names  # noqa: E402
 
 
+def _annotate_what_moved(out: "pathlib.Path", source: "pathlib.Path") -> None:
+    """Give the lifted module the annotations its new file now needs.
+
+    A method untyped inside a grandfathered God object is untyped in a NEW
+    module too, and `make typed-surface` refuses a new module that is —
+    correctly, because the lift moved the debt rather than paying it. One
+    lift of twenty-five clusters left 174 such modules and 724 definitions.
+
+    The types are recoverable from the call sites the lift left behind, so
+    they are recovered here rather than discovered by the gate afterwards.
+    """
+    import sys
+
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    try:
+        from annotate_extracted_seams import plan
+    except ImportError:
+        print("   (annotator unavailable; the lifted module keeps its bare signatures)")
+        return
+    try:
+        rewritten, counted = plan(out)
+    except (OSError, SyntaxError, ValueError) as exc:
+        print(f"   (annotation skipped: {type(exc).__name__}: {exc})")
+        return
+    if rewritten != out.read_text("utf-8"):
+        out.write_text(rewritten, encoding="utf-8")
+    print(
+        f"   annotated {counted['resolved']} parameter(s) from the call sites, "
+        f"{counted['any']} as Any, {counted['returns']} return type(s)"
+    )
+
+
 def run(src_path, names, out_path, doc):
     p = pathlib.Path(src_path)
     src = p.read_text(encoding="utf-8")
@@ -102,6 +134,7 @@ def run(src_path, names, out_path, doc):
                  + "    )\n" if annotated else "")
               + "\n\n")
     out.write_text(header + "".join(moved), encoding="utf-8")
+    _annotate_what_moved(out, p)
 
     for start, end in sorted(blocks, key=lambda b: -b[0]):
         del lines[start:end]
@@ -131,3 +164,5 @@ def run(src_path, names, out_path, doc):
 
 if __name__ == "__main__":
     sys.exit(run(*json.loads(sys.argv[1])))
+
+

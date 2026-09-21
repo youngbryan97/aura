@@ -1160,6 +1160,6 @@ class _WarmsUpAndSwapsAdapters:
         finally:
             self._warmup_in_flight = False
 
-    async def warm_up(self, **kwargs):
+    async def warm_up(self, **kwargs: Any) -> Any:
         """Backward-compatible alias for older call sites."""
         return await self.warmup(**kwargs)

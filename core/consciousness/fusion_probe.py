@@ -108,13 +108,13 @@ SETTLE_UPDATES = 40
 CONTROL_DIRECTIONS = 3
 
 
-def _softmax(logits):
+def _softmax(logits: Any) -> Any:
     import mlx.core as mx
 
     return mx.softmax(logits.astype(mx.float32), axis=-1)
 
 
-def _symmetric_kl(left, right, floor: float = 1e-12) -> float:
+def _symmetric_kl(left: Any, right: Any, floor: float=1e-12) -> float:
     import mlx.core as mx
 
     p = mx.maximum(left, floor)
@@ -122,7 +122,7 @@ def _symmetric_kl(left, right, floor: float = 1e-12) -> float:
     return float(mx.sum((p - q) * (mx.log(p) - mx.log(q)))) / 2.0
 
 
-def chat_ids(tokenizer, prompt: str) -> list[int]:
+def chat_ids(tokenizer: Any, prompt: str) -> list[int]:
     """The prompt as this template's own token ids.
 
     Through the one preparer rather than by handing the template a message
@@ -144,13 +144,13 @@ def chat_ids(tokenizer, prompt: str) -> list[int]:
     return list(tokenizer.encode(text))
 
 
-def _cache(model):
+def _cache(model: Any) -> Any:
     from mlx_lm.models.cache import make_prompt_cache
 
     return make_prompt_cache(model)
 
 
-def _walk(model, prompt_ids: Sequence[int], path_ids: Sequence[int]) -> list:
+def _walk(model: Any, prompt_ids: Sequence[int], path_ids: Sequence[int]) -> list:
     """Decode a fixed token path one step at a time, returning each distribution."""
     import mlx.core as mx
 
@@ -164,7 +164,7 @@ def _walk(model, prompt_ids: Sequence[int], path_ids: Sequence[int]) -> list:
     return distributions
 
 
-def _greedy_path(model, prompt_ids: Sequence[int], steps: int) -> list[int]:
+def _greedy_path(model: Any, prompt_ids: Sequence[int], steps: int) -> list[int]:
     """The tokens the model produces here, under whatever steering is active."""
     import mlx.core as mx
 
@@ -185,11 +185,11 @@ def _first_difference(left: Sequence[int], right: Sequence[int]) -> int:
     return -1
 
 
-def _mean_shift(left, right) -> float:
+def _mean_shift(left: Any, right: Any) -> float:
     return sum(_symmetric_kl(a, b) for a, b in zip(left, right, strict=True)) / max(1, len(left))
 
 
-def _forced_choice(model, tokenizer) -> tuple[float, float]:
+def _forced_choice(model: Any, tokenizer: Any) -> tuple[float, float]:
     """How often the right continuation wins, and by how much.
 
     Two numbers because one is not sensitive enough alone. The accuracy is what
@@ -285,11 +285,11 @@ def _measure_fusion(
             for hook in hooks:
                 hook.update_substrate(moods)
 
-    def override(vectors) -> None:
+    def override(vectors: dict[str, Any]) -> None:
         for hook in hooks:
             hook.override_composite_vector(None if vectors is None else vectors[hook._layer_idx])
 
-    def walk_all(paths) -> list:
+    def walk_all(paths: list[Any]) -> list:
         return [_walk(model, ids, path) for ids, path in zip(prompt_ids, paths, strict=True)]
 
     set_alpha(0.0)

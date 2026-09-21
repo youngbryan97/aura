@@ -302,11 +302,11 @@ class VectorRegistry:
     def measure_projection(
         self,
         substrate: str,
-        out_fn,
-        back_fn,
+        out_fn: Any,
+        back_fn: Any,
         *,
-        samples: int = 20,
-        note: str = "",
+        samples: int=20,
+        note: str='',
     ) -> Projection:
         """Project concepts out and back, and record what survived.
 
@@ -389,7 +389,7 @@ def representational_similarity(
     if len(a) != len(b) or len(a) < 2:
         return 0.0
 
-    def matrix(space):
+    def matrix(space: Sequence[Sequence[float]]) -> list[Any]:
         return [
             similarity(space[i], space[j])
             for i in range(len(space))

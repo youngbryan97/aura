@@ -34,7 +34,7 @@ from core.learning.semantic_program_transducer import (
 _DIRECTIONAL_RELATION_PARTS: Final = 3
 
 
-def valid_relation_rank_contract(head, receipt) -> bool:
+def valid_relation_rank_contract(head: Any, receipt: Any) -> bool:
     """Keep original training rank historical; validate explicit expansion lineage."""
     fit = receipt.get("relation_tissue_fit")
     if not isinstance(fit, Mapping):
@@ -104,7 +104,7 @@ class DirectionalFeatureRows:
     def ndim(self) -> int:
         return 2
 
-    def __getitem__(self, indices):
+    def __getitem__(self, indices: Any) -> Any:
         if isinstance(indices, (int, np.integer)):
             return _directional_relation_feature(*self._pairs[int(indices)])
         selected = range(*indices.indices(len(self._pairs))) if isinstance(indices, slice) else indices

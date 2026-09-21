@@ -29,6 +29,7 @@ import re
 
 from core.language.asking_clauses import DELIVERABLE_NOUNS as _DELIVERABLE_NOUNS
 from dataclasses import dataclass, field
+from typing import Any
 
 __all__ = [
     "Section",
@@ -370,18 +371,18 @@ def check_document(
             self._in_title = False
             self.title = ""
 
-        def handle_starttag(self, tag, attrs):
+        def handle_starttag(self, tag: Any, attrs: Any) -> None:
             found = {key: (value or "") for key, value in attrs}
             if tag == "section" and "section" in found.get("class", ""):
                 self.sections += 1
             if tag == "title":
                 self._in_title = True
 
-        def handle_endtag(self, tag):
+        def handle_endtag(self, tag: Any) -> None:
             if tag == "title":
                 self._in_title = False
 
-        def handle_data(self, data):
+        def handle_data(self, data: Any) -> None:
             if self._in_title:
                 self.title += data
                 self.title_seen = True

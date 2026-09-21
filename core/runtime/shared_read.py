@@ -30,7 +30,7 @@ class SharedRead:
     cannot create replacement work while the original loader is running.
     """
 
-    def __init__(self, *, capacity: int = 16, retention_s: float = 30.0):
+    def __init__(self, *, capacity: int=16, retention_s: float=30.0) -> None:
         self._capacity = max(1, capacity)
         self._retention_s = max(0.0, retention_s)
         self._loops: WeakKeyDictionary = WeakKeyDictionary()
@@ -58,7 +58,7 @@ class SharedRead:
             entry = _Read()
             entries[key] = entry
 
-            async def collect():
+            async def collect() -> Any:
                 try:
                     value = await loader()
                 except BaseException as exc:

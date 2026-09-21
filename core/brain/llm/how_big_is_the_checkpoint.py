@@ -19,6 +19,7 @@ them visible from here.
 """
 
 from __future__ import annotations
+from collections.abc import Iterator
 
 import logging
 import math
@@ -184,7 +185,7 @@ _MAX_ARTIFACT_SCAN_DEPTH = 2
 _MAX_ARTIFACT_FILES_SCANNED = 512
 
 
-def _weight_files(root: Path):
+def _weight_files(root: Path) -> Iterator[Path]:
     """Weight files within the artifact, bounded in depth."""
     stack: list[tuple[Path, int]] = [(root, 0)]
     while stack:

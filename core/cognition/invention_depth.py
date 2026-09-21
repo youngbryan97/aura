@@ -529,7 +529,7 @@ class Vocabulary:
         }
 
 
-def _compose(outer: Callable[[Any], Any], inner: Callable[[Any], Any]):
+def _compose(outer: Callable[[Any], Any], inner: Callable[[Any], Any]) -> Any:
     def composed(value: Any) -> Any:
         return outer(inner(value))
 

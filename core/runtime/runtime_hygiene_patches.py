@@ -16,6 +16,7 @@ from core.runtime.errors import record_degradation
 from core.utils.task_tracker import (
     shutdown_resource_creation_allowed,
 )
+from typing import Any
 
 
 class _WatchesWhatTheRuntimeCreates:
@@ -35,7 +36,7 @@ class _WatchesWhatTheRuntimeCreates:
         self._original_new_event_loop = asyncio.new_event_loop
         tracker = self._task_tracker
 
-        def _patched_new_event_loop():
+        def _patched_new_event_loop() -> Any:
             loop = self._original_new_event_loop()
             try:
                 tracker.install_loop_hygiene(loop)
@@ -53,7 +54,7 @@ class _WatchesWhatTheRuntimeCreates:
         self._original_thread_start = threading.Thread.start
         manager = self
 
-        def _patched_start(thread: threading.Thread, *args, **kwargs):
+        def _patched_start(thread: threading.Thread, *args: Any, **kwargs: Any) -> Any:
             executor_teardown = manager._is_executor_shutdown_thread(thread)
             cleanup_critical = (
                 shutdown_resource_creation_allowed() or executor_teardown
@@ -98,7 +99,7 @@ class _WatchesWhatTheRuntimeCreates:
         self._original_popen_init = subprocess.Popen.__init__
         manager = self
 
-        def _patched_init(proc_self, *args, **kwargs):
+        def _patched_init(proc_self: Any, *args: Any, **kwargs: Any) -> None:
             cleanup_critical = shutdown_resource_creation_allowed()
             command = kwargs.get("args") or (args[0] if args else "unknown")
             if manager._shutdown_blocks_resource_start(
@@ -135,7 +136,7 @@ class _WatchesWhatTheRuntimeCreates:
         self._original_mp_start = mp.process.BaseProcess.start
         manager = self
 
-        def _patched_start(proc_self, *args, **kwargs):
+        def _patched_start(proc_self: Any, *args: Any, **kwargs: Any) -> Any:
             cleanup_critical = shutdown_resource_creation_allowed()
             if manager._shutdown_blocks_resource_start(
                 operation=f"multiprocessing.start:{getattr(proc_self, 'name', 'unknown')}",

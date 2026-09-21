@@ -13,6 +13,7 @@ from core.learning.semantic_program_ir import TokenSpan, normalize_semantic_valu
 from core.learning.semantic_program_transducer import SemanticTransductionOutcome, _hidden_array
 from core.learning.semantic_program_transducer_fitting import _assign_typed_arguments
 from core.verify.invariants import invariant
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -25,12 +26,21 @@ class SemanticCandidate:
     graph_index: int | None
 
     @classmethod
-    def from_argument_graph(cls, nodes, arguments, *, n_inputs, joint_score, chart_index, graph_index):
+    def from_argument_graph(
+        cls,
+        nodes: tuple[Any, ...],
+        arguments: tuple[Any, ...],
+        *,
+        n_inputs: int,
+        joint_score: float,
+        chart_index: int,
+        graph_index: int,
+    ) -> Any:
         order = argument_graph_order(nodes, arguments, n_inputs=n_inputs)
         return cls(argument_graph_program(nodes, arguments, n_inputs=n_inputs), joint_score,
                    tuple(nodes[index].span for index in order), chart_index, graph_index)
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         return {"program": self.program.to_dict(), "program_sha256": self.program.sha(),
                 "joint_score": self.joint_score,
                 "operation_spans": [span.to_dict() for span in self.operation_spans],
@@ -44,7 +54,7 @@ class SemanticCandidateBank:
     input_spans: tuple[TokenSpan, ...]
     receipt: dict
 
-    def validate(self):
+    def validate(self) -> None:
         """Reject modified payloads before they can become diagnostic evidence."""
         body = {key: value for key, value in self.receipt.items() if key != "receipt_sha256"}
         if self.receipt.get("receipt_sha256") != _sha(body):
@@ -62,16 +72,30 @@ class SemanticCandidateBank:
             raise ValueError("candidate bank completion lacks exhausted search")
 
 
-def candidate_observation_identity(tokens, inputs, hidden):
+def candidate_observation_identity(
+    tokens: tuple[Any, ...],
+    inputs: tuple[Any, ...],
+    hidden: Any,
+) -> Any:
     """Bind every decoded observation, not only its caller-supplied text hash."""
     return _sha({"tokens": tuple(tokens), "inputs": tuple(inputs),
         "hidden_dtype": hidden.dtype.str, "hidden_shape": list(hidden.shape),
         "hidden_sha256": hashlib.sha256(hidden.tobytes(order="C")).hexdigest()})
 
 
-def decode_semantic_candidates(model, *, source_token_ids, hidden_states, public_inputs,
-                               source_text_sha256, model_basis_sha256, max_charts=16,
-                               max_graphs_per_chart=16, solve_time_limit_s=10., progress=None):
+def decode_semantic_candidates(
+    model: Any,
+    *,
+    source_token_ids: Any,
+    hidden_states: Any,
+    public_inputs: Any,
+    source_text_sha256: Any,
+    model_basis_sha256: Any,
+    max_charts: int=16,
+    max_graphs_per_chart: int=16,
+    solve_time_limit_s: float=10.0,
+    progress: Any=None,
+) -> Any:
     """Retain bounded alternatives from the same builders used by ``decode``.
 
     The incumbent answer is preserved, not selected again from this bank.
@@ -101,7 +125,7 @@ def decode_semantic_candidates(model, *, source_token_ids, hidden_states, public
     candidates = []
     spans = ()
 
-    def finish(reason):
+    def finish(reason: str) -> Any:
         body["limit_reason"] = reason
         body["candidates"] = [candidate.to_dict() for candidate in candidates]
         body["input_spans"] = [span.to_dict() for span in spans]

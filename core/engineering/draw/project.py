@@ -286,7 +286,7 @@ def _hull(points: np.ndarray) -> tuple[tuple[float, float], ...]:
     if len(ordered) < 3:
         return tuple(ordered)
 
-    def cross(o, a, b):
+    def cross(o: Any, a: Any, b: Any) -> Any:
         return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
 
     lower: list[tuple[float, float]] = []

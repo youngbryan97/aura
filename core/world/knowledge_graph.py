@@ -145,7 +145,7 @@ class TheKnowledgeGraphAsAGraph:
 
 
 @a_store_that_is_a_graph("knowledge_graph")
-def _the_knowledge_graph(*, live: bool = False):
+def _the_knowledge_graph(*, live: bool=False) -> Any:
     inner = None
     if live:
         from core.container import ServiceContainer

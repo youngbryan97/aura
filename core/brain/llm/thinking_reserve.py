@@ -807,7 +807,7 @@ def _one_pair(item: Any) -> tuple[int, float] | None:
         return None
 
 
-def _put_older_readings_first(window: deque, stored: Any, read_one) -> None:
+def _put_older_readings_first(window: deque, stored: Any, read_one: Any) -> None:
     """Push what was on disk in behind what this process has measured."""
 
     known = set(window)

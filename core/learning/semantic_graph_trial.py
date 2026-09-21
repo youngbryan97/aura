@@ -19,9 +19,10 @@ from core.learning.semantic_joint_graph_learning import (
 from core.learning.semantic_program_campaign import _sha
 from core.learning.semantic_program_shared_transducer import _geometry
 from core.learning.semantic_runtime_graph_retention import mine_runtime_graph_constraints
+from typing import Any
 
 
-def select_trial_examples(examples, *, split, count):
+def select_trial_examples(examples: tuple[Any, ...], *, split: str, count: Any) -> tuple[Any, ...]:
     """Select by source identity across geometries, never by measured correctness."""
     if split not in {"train", "validation"} or type(count) is not int or count < 1:
         raise ValueError("trial selection needs a source split and positive count")
@@ -42,7 +43,7 @@ def select_trial_examples(examples, *, split, count):
     return tuple(selected)
 
 
-def _observe(model, item, *, solve_time_limit_s=None):
+def _observe(model: Any, item: Any, *, solve_time_limit_s: Any=None) -> dict[str, Any]:
     decode_options = {} if solve_time_limit_s is None else {"search_time_limit_s": solve_time_limit_s}
     score_options = {} if solve_time_limit_s is None else {"solve_time_limit_s": solve_time_limit_s}
     outcome = model.decode(source_token_ids=item.ir.source_token_ids, hidden_states=item.hidden_states,
@@ -76,7 +77,13 @@ def _observe(model, item, *, solve_time_limit_s=None):
             "target_program_sha256": target["program"].sha()}
 
 
-def acquire_semantic_training_errors(model, examples, *, control_count, progress=None):
+def acquire_semantic_training_errors(
+    model: Any,
+    examples: tuple[Any, ...],
+    *,
+    control_count: Any,
+    progress: Any=None,
+) -> tuple[tuple[Any, ...], dict[str, Any]]:
     """Mine all unresolved training rows, retaining source-selected controls.
 
     Validation and test rows are never decoded here. Unknown semantics remain
@@ -126,7 +133,7 @@ def acquire_semantic_training_errors(model, examples, *, control_count, progress
     return training, {**body, "receipt_sha256": _sha(body)}
 
 
-def _constraint_group_summary(groups, fit):
+def _constraint_group_summary(groups: Any, fit: Any) -> Any:
     """Attribute measured fitting deficits without interpreting missing data as zero."""
     before, after = fit.get("initial_margins"), fit.get("stored_margins")
     if before is None or after is None:
@@ -142,13 +149,26 @@ def _constraint_group_summary(groups, fit):
             for name, indices in groups.items()}
 
 
-def run_semantic_graph_trial(model, examples, *, training_count=8, validation_count=8,
-                             training_pool_count=None, steps=20, max_charts=32, progress=None,
-                             objective="squared_deficit", operation_retention_count=None,
-                             learn_operation_pointer=False, update_rule="working_face",
-                             boundary_policy="supervised", learn_operations=True,
-                             relation_metric="coefficient_euclidean", operation_policy="supervised",
-                             operation_metric="coefficient_euclidean"):
+def run_semantic_graph_trial(
+    model: Any,
+    examples: Any,
+    *,
+    training_count: int=8,
+    validation_count: int=8,
+    training_pool_count: Any=None,
+    steps: int=20,
+    max_charts: int=32,
+    progress: Any=None,
+    objective: str='squared_deficit',
+    operation_retention_count: Any=None,
+    learn_operation_pointer: bool=False,
+    update_rule: str='working_face',
+    boundary_policy: str='supervised',
+    learn_operations: bool=True,
+    relation_metric: str='coefficient_euclidean',
+    operation_policy: str='supervised',
+    operation_metric: str='coefficient_euclidean',
+) -> dict[str, Any]:
     """Fit only selected source rows and independently replay both small cohorts.
 
     This returns no deployable candidate. Validation rows never enter mining
@@ -191,7 +211,7 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
     operation_supervision = source_operation_supervision(model, operation_training)
     constraints, groups = [], defaultdict(list)
 
-    def retain(name, rows):
+    def retain(name: str, rows: tuple[Any, ...]) -> None:
         rows = tuple(rows)
         groups[name].extend(range(len(constraints), len(constraints) + len(rows)))
         constraints.extend(rows)

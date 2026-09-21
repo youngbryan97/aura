@@ -158,7 +158,7 @@ class DesignVerdict:
         }
 
 
-def ungrounded(finding) -> str:
+def ungrounded(finding: Any) -> str:
     """Why this finding may not be drawn, or an empty string if it may.
 
     A number with no formula behind it is the exact thing this package
@@ -177,7 +177,7 @@ def ungrounded(finding) -> str:
     return ""
 
 
-def grounded_findings(findings) -> tuple[tuple, tuple]:
+def grounded_findings(findings: tuple) -> tuple[tuple, tuple]:
     """Split findings into those that may be drawn and those that may not."""
     keep = []
     drop = []
@@ -186,7 +186,7 @@ def grounded_findings(findings) -> tuple[tuple, tuple]:
     return (tuple(keep), tuple(drop))
 
 
-def _check_physics(design, findings) -> list[Problem]:
+def _check_physics(design: Any, findings: Any) -> list[Problem]:
     problems: list[Problem] = []
     for part in design.parts:
         mass = part.mass()
@@ -238,7 +238,7 @@ def _check_physics(design, findings) -> list[Problem]:
     return problems
 
 
-def _check_units(design) -> list[Problem]:
+def _check_units(design: Any) -> list[Problem]:
     problems: list[Problem] = []
     for part in design.parts:
         for port in part.ports:
@@ -306,7 +306,7 @@ def _check_units(design) -> list[Problem]:
     return problems
 
 
-def _check_requirements(design, findings) -> list[Problem]:
+def _check_requirements(design: Any, findings: Any) -> list[Problem]:
     problems: list[Problem] = []
     available = {f.id for f in findings}
     for requirement in design.requirements:
@@ -327,7 +327,7 @@ def _check_requirements(design, findings) -> list[Problem]:
     return problems
 
 
-def _check_completeness(design) -> list[Problem]:
+def _check_completeness(design: Any) -> list[Problem]:
     problems: list[Problem] = []
     if not design.parts:
         problems.append(Problem(
@@ -370,7 +370,7 @@ def _check_completeness(design) -> list[Problem]:
     return problems
 
 
-def _check_sourcing(design) -> tuple[bool, list[Problem]]:
+def _check_sourcing(design: Any) -> tuple[bool, list[Problem]]:
     problems: list[Problem] = []
     unsourced = [
         part for part in design.parts
@@ -386,7 +386,7 @@ def _check_sourcing(design) -> tuple[bool, list[Problem]]:
     return (not unsourced, problems)
 
 
-def verify_design(design, findings: tuple = (), *, check_validation: bool = True) -> DesignVerdict:
+def verify_design(design: Any, findings: tuple=(), *, check_validation: bool=True) -> DesignVerdict:
     """Decide whether this design may be drawn, and say what is wrong if not.
 
     ``check_validation`` runs the whole published-answer battery, which takes

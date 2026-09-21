@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from scipy.special import expit
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -13,7 +14,7 @@ class ArgumentScoreTerm:
     scale: float
     strategy: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         feature = np.asarray(self.feature, dtype=np.float64)
         if (type(self.parameter_index) is not int or self.parameter_index < 2
                 or feature.ndim != 1 or not feature.size or not np.all(np.isfinite(feature))
@@ -22,7 +23,7 @@ class ArgumentScoreTerm:
             raise ValueError("invalid argument graph evidence")
         object.__setattr__(self, "feature", feature)
 
-    def _logit(self, parameters):
+    def _logit(self, parameters: Any) -> float:
         if self.parameter_index + 1 >= len(parameters):
             raise ValueError("argument graph parameter block is missing")
         weight, bias = parameters[self.parameter_index:self.parameter_index + 2]
@@ -30,12 +31,12 @@ class ArgumentScoreTerm:
             raise ValueError("argument graph parameter geometry differs")
         return float(self.feature @ weight + np.asarray(bias).item())
 
-    def score(self, parameters):
+    def score(self, parameters: Any) -> float:
         logit = self._logit(parameters)
         return float(self.scale * (logit if self.strategy == "conditional_log_odds_v1"
                                    else -np.logaddexp(0., -logit)))
 
-    def score_gradient(self, parameters):
+    def score_gradient(self, parameters: Any) -> tuple[float, Any, Any]:
         logit = self._logit(parameters)
         bias = parameters[self.parameter_index + 1]
         if self.strategy == "conditional_log_odds_v1":
@@ -47,18 +48,24 @@ class ArgumentScoreTerm:
         return float(self.scale * value), self.scale * slope * self.feature, np.full_like(bias, self.scale * slope)
 
 
-def argument_parameters(model):
+def argument_parameters(model: Any) -> tuple[Any, ...]:
     return tuple(np.asarray(value, dtype=np.float64)
                  for pair in zip(model.argument_role_heads, model.argument_proposal_heads, strict=True)
                  for head in pair for value in (head.weight, head.bias))
 
 
-def argument_slot_evidence(model, hidden, operation_span, position, mention):
+def argument_slot_evidence(
+    model: Any,
+    hidden: Any,
+    operation_span: Any,
+    position: Any,
+    mention: Any,
+) -> Any:
     from core.learning.semantic_program_transducer_fitting import (
         _directional_relation_feature, _relation_span_vector,
     )
 
-    def vector(span):
+    def vector(span: Any) -> Any:
         return _relation_span_vector(hidden, span, hidden_channels=model.hidden_channels,
                                      hidden_channel_widths=model.hidden_channel_widths)
 
@@ -71,7 +78,7 @@ def argument_slot_evidence(model, hidden, operation_span, position, mention):
     )
 
 
-def argument_graph_evidence(model, hidden, nodes, spans):
+def argument_graph_evidence(model: Any, hidden: Any, nodes: Any, spans: Any) -> tuple[Any, ...]:
     terms = []
     for node, mentions in zip(nodes, spans, strict=True):
         for position, mention in enumerate(mentions):

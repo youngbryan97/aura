@@ -416,11 +416,7 @@ async def _resolve_action_episode_grounding(
     return action_episode_grounding(episode)
 
 
-async def _resolve_action_episode(
-    user_message: str,
-    *,
-    session_id: str = "",
-):
+async def _resolve_action_episode(user_message: str, *, session_id: str='') -> Any:
     """Resolve the verified action episode referred to by this turn."""
 
     from core.conversation.action_episode import (

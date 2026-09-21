@@ -1,6 +1,7 @@
 """Program-first language variations with independently checked semantic contrasts."""
 
 from dataclasses import replace
+from collections.abc import Iterator
 import random
 import string
 
@@ -14,11 +15,18 @@ from core.learning.semantic_program_floor import (
     compile_source_independent_program_to_floor, execute_semantic_floor_program,
     semantic_primitive_type_signature, semantic_program_structural_key,
 )
+from typing import Any
 
 _BINARY_LANGUAGE = ('add', 'sub', 'mul', 'idiv', 'at', 'count_of')
 
 
-def render_bound_program(source, *, names, clause_order, program=None):
+def render_bound_program(
+    source: Any,
+    *,
+    names: Any,
+    clause_order: list[Any],
+    program: Any=None,
+) -> Any:
     """Render named dependencies independently of their textual clause order."""
     program = source.program if program is None else program
     count = program.n_inputs
@@ -85,7 +93,7 @@ def render_bound_program(source, *, names, clause_order, program=None):
         register_definition_spans=tuple(text.span(f'definition:{index}') for index in range(len(names))))
 
 
-def _names(rng, count):
+def _names(rng: Any, count: Any) -> tuple[Any, ...]:
     names = []
     while len(names) < count:
         value = ''.join(rng.choice(string.ascii_lowercase) for _ in range(8))
@@ -94,7 +102,7 @@ def _names(rng, count):
     return tuple(names)
 
 
-def equivalent_recompositions(program):
+def equivalent_recompositions(program: Any) -> Iterator[Any]:
     """Rotate single-use associative subtrees without changing public inputs."""
     for child, instruction in enumerate(program.instructions):
         if instruction.op not in ('add', 'mul'):
@@ -121,7 +129,13 @@ def equivalent_recompositions(program):
             yield candidate
 
 
-def augment_source_programs(examples, *, seed=0, variations=2, forbidden_constructions=()):
+def augment_source_programs(
+    examples: tuple[Any, ...],
+    *,
+    seed: int=0,
+    variations: int=2,
+    forbidden_constructions: tuple[Any, ...]=(),
+) -> tuple[tuple[Any, ...], dict[str, Any]]:
     """Rename/reorder source programs and retain only witnessed meaning changes."""
     if type(seed) is not int or type(variations) is not int or variations < 1:
         raise ValueError('counterfactual generation settings are invalid')
@@ -194,7 +208,11 @@ def augment_source_programs(examples, *, seed=0, variations=2, forbidden_constru
     return tuple(rows), {**body, 'receipt_sha256': _sha(body)}
 
 
-def build_semantic_counterfactual_source_corpus(*, seed=0, examples_per_schema_domain=1):
+def build_semantic_counterfactual_source_corpus(
+    *,
+    seed: int=0,
+    examples_per_schema_domain: int=1,
+) -> Any:
     """Augment existing natural source training, never its validation/test domains."""
     from core.learning.semantic_program_corpus_natural import build_semantic_program_natural_source_corpus
 

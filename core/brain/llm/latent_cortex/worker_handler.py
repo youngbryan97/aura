@@ -418,7 +418,13 @@ def budget_from_job(job_budget: dict[str, Any] | None) -> ComputeBudget:
     return ComputeBudget(**kwargs)
 
 
-def _handle_latent_reason_admit_action_state_runtime(action_intervention, action_state_runtime_wire, worker_capture_launch_challenge, worker_capture_signing_identity, worker_identity):
+def _handle_latent_reason_admit_action_state_runtime(
+    action_intervention: Any,
+    action_state_runtime_wire: Any,
+    worker_capture_launch_challenge: Mapping[str, Any] | None,
+    worker_capture_signing_identity: Any | None,
+    worker_identity: dict[str, Any] | None,
+) -> tuple[Any, Any]:
     from core.brain.llm.latent_cortex.action_state_runtime import (
         admit_action_state_runtime,
         resident_model_identity_for_worker,
@@ -477,7 +483,12 @@ def _handle_latent_reason_admit_action_state_runtime(action_intervention, action
             )
     return action_state_runtime, action_state_runtime_identity
 
-def _handle_latent_reason_build_critic_identity(candidate_verifier, config, job, worker_identity):
+def _handle_latent_reason_build_critic_identity(
+    candidate_verifier: Any,
+    config: Any,
+    job: dict[str, Any],
+    worker_identity: dict[str, Any] | None,
+) -> tuple[Any, Any]:
     from core.brain.llm.latent_cortex.critic_identity import (
         build_critic_identity,
         build_shared_blind_spot_evidence,
@@ -512,7 +523,17 @@ def _handle_latent_reason_build_critic_identity(candidate_verifier, config, job,
         raise ValueError("shared_blind_spot_upper_bound_exceeded")
     return critic_identity, shared_blind_spots
 
-def _handle_latent_reason_part_3(critic_identity, operation_authority, result, shared_blind_spots, task_verifier, tokenizer, verifier_requested, verifier_unavailable_reason, worker_identity):
+def _handle_latent_reason_part_3(
+    critic_identity: dict[str, Any],
+    operation_authority: Any,
+    result: Any,
+    shared_blind_spots: dict[str, Any],
+    task_verifier: Any,
+    tokenizer: Any,
+    verifier_requested: bool,
+    verifier_unavailable_reason: str,
+    worker_identity: dict[str, Any] | None,
+) -> Any:
     if task_verifier is not None:
         excluded = set(
             result.receipt.verifier_preflight.get(
@@ -572,7 +593,17 @@ def _handle_latent_reason_part_3(critic_identity, operation_authority, result, s
     )
     return receipt
 
-def _handle_latent_reason_engine_measures_model(action_state_restore_receipt, action_state_runtime, job, model_path, public_action_state_receipt, receipt, result, tokenizer, worker_identity):
+def _handle_latent_reason_engine_measures_model(
+    action_state_restore_receipt: Any,
+    action_state_runtime: Any,
+    job: dict[str, Any],
+    model_path: str,
+    public_action_state_receipt: Any,
+    receipt: Any,
+    result: Any,
+    tokenizer: Any,
+    worker_identity: dict[str, Any] | None,
+) -> Any:
     # The engine measures model state but cannot identify the worker process.
     # Bind those measurements to this exact boot and serving stack before any
     # caller is allowed to keep the resident worker alive.

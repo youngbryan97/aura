@@ -211,13 +211,7 @@ class RoutedWorkload:
     somewhere nothing bound it to.
     """
 
-    def __init__(
-        self,
-        graph: MorphGraph,
-        *,
-        seed: int = 0,
-        deadline_steps: int = 60,
-    ):
+    def __init__(self, graph: MorphGraph, *, seed: int=0, deadline_steps: int=60) -> None:
         self.graph = graph
         self.deadline_steps = int(deadline_steps)
         self._rng = random.Random(seed)

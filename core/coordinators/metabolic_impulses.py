@@ -13,7 +13,7 @@ import time
 class _TriggersTheImpulses:
     """Lifted whole out of MetabolicCoordinator; see metabolic_coordinator.py."""
 
-    def trigger_boredom_impulse(self):
+    def trigger_boredom_impulse(self) -> None:
         """Inject a curiosity-driven autonomous goal."""
         from .metabolic_coordinator import (
             _record_metabolic_degradation,
@@ -64,7 +64,7 @@ class _TriggersTheImpulses:
         except RuntimeError as _e:
             logger.debug("Boredom impulse deferred outside an event loop: %s", _e)
 
-    def trigger_reflection_impulse(self):
+    def trigger_reflection_impulse(self) -> None:
         """Inject a self-reflection goal due to frustration."""
         from .metabolic_coordinator import (
             IDLE_COGNITION_BACKGROUND_POLICY,
@@ -100,7 +100,7 @@ class _TriggersTheImpulses:
         except RuntimeError as _e:
             logger.debug("Reflection impulse deferred outside an event loop: %s", _e)
 
-    async def trigger_autonomous_thought(self, has_message: bool):
+    async def trigger_autonomous_thought(self, has_message: bool) -> None:
         """Trigger idle-time search for autonomous goals."""
         from .metabolic_coordinator import (
             _coerce_float,
@@ -152,7 +152,7 @@ class _TriggersTheImpulses:
                     orch._perform_autonomous_thought(),
                 )
 
-    def trigger_background_reflection(self, response: str):
+    def trigger_background_reflection(self, response: str) -> None:
         from core.orchestrator.types import _bg_task_exception_handler
 
         from .metabolic_coordinator import (
@@ -191,7 +191,7 @@ class _TriggersTheImpulses:
                 reflect_coro.close()
             logger.debug("Background reflection setup failed: %s", e)
 
-    def trigger_background_learning(self, message: str, response: str):
+    def trigger_background_learning(self, message: str, response: str) -> None:
         from core.orchestrator.types import _bg_task_exception_handler
 
         from .metabolic_coordinator import (

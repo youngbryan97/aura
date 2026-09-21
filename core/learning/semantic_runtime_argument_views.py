@@ -4,9 +4,10 @@ from collections import Counter
 from dataclasses import replace
 
 from core.verify.invariants import invariant
+from typing import Any
 
 
-def align_operation_views(gold, predicted):
+def align_operation_views(gold: tuple[Any, ...], predicted: tuple[Any, ...]) -> Any:
     """Match labels and overlapping spans only when ownership is one-to-one.
 
     Predicted argument identities never become targets. Missing or ambiguous
@@ -29,7 +30,12 @@ def align_operation_views(gold, predicted):
                  for instruction, index in zip(gold, matches, strict=True))
 
 
-def runtime_argument_training_views(model, training, *, progress=None):
+def runtime_argument_training_views(
+    model: Any,
+    training: Any,
+    *,
+    progress: Any=None,
+) -> tuple[tuple[Any, ...], dict[str, Any]]:
     """Keep every original target and add unambiguous on-policy boundary views."""
     if any(item.split != "train" for item in training):
         raise ValueError("runtime argument views may decode source training only")
@@ -85,7 +91,7 @@ def runtime_argument_training_views(model, training, *, progress=None):
 
 @invariant("semantic.runtime_views_preserve_targets", scope="learning",
            owner="core/learning/semantic_runtime_argument_views.py", observational=False)
-def _runtime_views_preserve_targets():
+def _runtime_views_preserve_targets() -> tuple[()]:
     from core.learning.semantic_program_ir import SemanticIRInstruction, TokenSpan
 
     gold = SemanticIRInstruction("add", (0, 1), TokenSpan(3, 4),

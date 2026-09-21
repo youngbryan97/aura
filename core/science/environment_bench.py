@@ -343,7 +343,7 @@ class EnvironmentBench:
         train = [r for r in results if split.get(r.family) == "train"]
         held = [r for r in results if split.get(r.family) == "held_out"]
 
-        def rate(rows):
+        def rate(rows: list[Any]) -> Any:
             return sum(1 for r in rows if r.succeeded) / len(rows) if rows else None
 
         train_rate, held_rate = rate(train), rate(held)

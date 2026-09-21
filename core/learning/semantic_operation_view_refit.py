@@ -23,14 +23,15 @@ from core.learning.semantic_program_transducer import (
     _operation_feature_width,
     _sha,
 )
+from typing import Any
 
 
-def _selection_key(row, *, predicted_charts):
+def _selection_key(row: Any, *, predicted_charts: bool) -> tuple[Any, ...]:
     chart = (-row["graph_exact"], -row["operation_exact"], -row["span_exact"]) if predicted_charts else ()
     return (*chart, -row["correct"], row["cross_entropy"], len(row["modes"]), row["modes"])
 
 
-def valid_operation_view_contract(head, receipt, channels, widths):
+def valid_operation_view_contract(head: Any, receipt: Any, channels: Any, widths: Any) -> bool:
     """Check every selected view against both its evidence and tensor geometry."""
     from core.learning.semantic_operation_background import valid_background_contract
 
@@ -104,8 +105,14 @@ def valid_operation_view_contract(head, receipt, channels, widths):
     )
 
 
-def refit_compositional_operation_views(model, examples, *, candidate_modes=None, progress=None,
-                                        conditional_labels=False):
+def refit_compositional_operation_views(
+    model: Any,
+    examples: Any,
+    *,
+    candidate_modes: Any=None,
+    progress: Any=None,
+    conditional_labels: bool=False,
+) -> Any:
     """Fit on source train, select views and chart length on source validation."""
     from core.learning.semantic_operation_background import (
         operation_background_receipt,
@@ -175,7 +182,7 @@ def refit_compositional_operation_views(model, examples, *, candidate_modes=None
                                    / (len(rows) if background else 1)
                                    for item, rows in groups for _ in rows])
     heads, probabilities, runtime_probabilities = {}, {}, {}
-    def features(rows, mode):
+    def features(rows: tuple[Any, ...], mode: Any) -> Any:
         return np.stack([
             _operation_feature(item.hidden_states, span, mode=mode,
                                hidden_channels=model.hidden_channels, hidden_channel_widths=model.hidden_channel_widths)

@@ -47,7 +47,16 @@ from .mlx_worker import (
 _FALL_THROUGH = object()
 
 
-def _latent_reason_async_part_1(base, budget, config, foreground_request, messages, prompt, response_contract, runtime_controls):
+def _latent_reason_async_part_1(
+    base: dict[str, Any],
+    budget: dict[str, Any] | None,
+    config: dict[str, Any] | None,
+    foreground_request: bool,
+    messages: list | None,
+    prompt: str | None,
+    response_contract: str | None,
+    runtime_controls: dict[str, Any] | None,
+) -> Any:
     from .mlx_client import _latent_request_schema_error
     if not (isinstance(prompt, str) and prompt.strip()) and not (
         isinstance(messages, list) and messages
@@ -83,7 +92,16 @@ def _latent_reason_async_part_1(base, budget, config, foreground_request, messag
             return {**base, "reason": "invalid_response_contract"}
     return _FALL_THROUGH
 
-def _latent_reason_async_cp126_d78cbfa4_status(self, action_capture_receipt, action_restore_receipt, base, expected_request_sha256, receipt, req_id, res):
+def _latent_reason_async_cp126_d78cbfa4_status(
+    self,
+    action_capture_receipt: Any,
+    action_restore_receipt: Any,
+    base: Any,
+    expected_request_sha256: dict[str, Any],
+    receipt: Any,
+    req_id: dict[str, Any],
+    res: Any,
+) -> dict[str, Any]:
     from .mlx_client import _record_mlx_degradation
     # CP126 d78cbfa4: a status=ok response used to be coerced with
     # str(value or "") — a missing, empty, list, or mapping answer
@@ -464,7 +482,11 @@ class _ReasonsInLatentSpace:
             return cancel_ack
         return None
 
-    def _latent_reason_async_admit_action_state_runtime(self, action_state_runtime, wire_action_intervention):
+    def _latent_reason_async_admit_action_state_runtime(
+        self,
+        action_state_runtime: dict[str, Any] | None,
+        wire_action_intervention: Any,
+    ) -> tuple[Any, Any]:
         from core.brain.llm.latent_cortex.action_state_runtime import (
             admit_action_state_runtime,
             provision_action_state_store_custody,
@@ -504,7 +526,15 @@ class _ReasonsInLatentSpace:
         admitted_action_state_runtime = admitted_runtime
         return admitted_action_state_runtime, wire_action_state_runtime
 
-    def _latent_reason_async_fut(self, bounded_timeout_s, messages, prompt, req_id, request_seq, wire_config):
+    def _latent_reason_async_fut(
+        self,
+        bounded_timeout_s: Any,
+        messages: list | None,
+        prompt: str | None,
+        req_id: Any,
+        request_seq: Any,
+        wire_config: dict[str, Any],
+    ) -> Any:
         from .mlx_client import _new_shared_future
         fut = _new_shared_future()
         self._pending_generations[req_id] = fut
@@ -625,7 +655,7 @@ class _ReasonsInLatentSpace:
         )
         return fut
 
-    def _latent_reason_async_runtime_integrity_safe(self, receipt):
+    def _latent_reason_async_runtime_integrity_safe(self, receipt: dict[str, Any]) -> Any:
         from core.brain.llm.latent_cortex.runtime_integrity import (
             runtime_integrity_safe,
         )
@@ -660,7 +690,14 @@ class _ReasonsInLatentSpace:
         )
         return integrity_safe
 
-    async def _latent_reason_async_part_4(self, deferred_reboot, foreground_owner_cm, fut, lane_fenced, req_id):
+    async def _latent_reason_async_part_4(
+        self,
+        deferred_reboot: str,
+        foreground_owner_cm: Any,
+        fut: Any,
+        lane_fenced: bool,
+        req_id: Any,
+    ) -> None:
         try:
             try:
                 if fut is not None:

@@ -1,9 +1,16 @@
 """Refine an affine repair in feature coordinates, not squared Gram geometry."""
 
 import numpy as np
+from typing import Any
 
 
-def polish_feature_dual(normals, target, initial, *, max_iterations):
+def polish_feature_dual(
+    normals: Any,
+    target: Any,
+    initial: Any,
+    *,
+    max_iterations: Any,
+) -> tuple[Any, Any, Any]:
     """Return primal and dual proposals; the caller must independently verify.
 
     A thin QR retains the constraint row space. Active equality systems use

@@ -179,7 +179,10 @@ def _repair_missing_followup_delta(user_message: str, reply_text: str) -> str:
 
 
 
-def _stabilize_user_facing_reply_architecture_self_assessment(reply_text, user_message):
+def _stabilize_user_facing_reply_architecture_self_assessment(
+    reply_text: Any,
+    user_message: str,
+) -> tuple[Any, Any]:
     architecture_self_assessment = _chat_preflight._is_architecture_self_assessment_request(
         user_message
     )
@@ -225,7 +228,17 @@ def _stabilize_user_facing_reply_architecture_self_assessment(reply_text, user_m
         )
     return architecture_self_assessment, text
 
-def _stabilize_user_facing_reply_frame_lines(architecture_self_assessment, frame, recent_user_context, same_diff, stabilizer_length_line, stale_repeat, text, truncated_tail, user_message):
+def _stabilize_user_facing_reply_frame_lines(
+    architecture_self_assessment: Any,
+    frame: Any,
+    recent_user_context: Any,
+    same_diff: Any,
+    stabilizer_length_line: str,
+    stale_repeat: Any,
+    text: Any,
+    truncated_tail: Any,
+    user_message: str,
+) -> tuple[str, str]:
     frame_lines = []
     if frame.get("mood"):
         frame_lines.append(f"- mood: {frame['mood']}")
@@ -350,7 +363,17 @@ def _stabilize_user_facing_reply_frame_lines(architecture_self_assessment, frame
     )
     return correction_prompt, rewrite_system_prompt
 
-async def _stabilize_user_facing_reply_part_3(correction_prompt, desktop_cognitive_engine_required, inference_gate, memory_block, protected_foreground_lane, rewrite_messages, rewrite_system_prompt, stabilizer_max_tokens, user_message):
+async def _stabilize_user_facing_reply_part_3(
+    correction_prompt: Any,
+    desktop_cognitive_engine_required: bool,
+    inference_gate: Any,
+    memory_block: Any,
+    protected_foreground_lane: bool,
+    rewrite_messages: list[Any],
+    rewrite_system_prompt: Any,
+    stabilizer_max_tokens: Any,
+    user_message: str,
+) -> tuple[Any, Any]:
     if memory_block:
         logger.warning(
             "Skipping stabilizer rewrite under memory pressure: %s",
@@ -1056,7 +1079,15 @@ async def _stabilize_user_facing_reply(
     return reflex
 
 
-async def _repair_final_degraded_reply_assessment_reasons(assess_user_facing_reply, assessment, desktop_cognitive_engine_required, recent_user_messages, reply_text, session_id, user_message):
+async def _repair_final_degraded_reply_assessment_reasons(
+    assess_user_facing_reply: Any,
+    assessment: Any,
+    desktop_cognitive_engine_required: bool,
+    recent_user_messages: Any,
+    reply_text: str,
+    session_id: str,
+    user_message: str,
+) -> Any:
     from .chat import _build_grounded_self_process_repair_reply
     assessment_reasons = set(getattr(assessment, "reasons", ()) or ())
     if _is_simple_affect_check_request(user_message):
@@ -1163,7 +1194,17 @@ async def _repair_final_degraded_reply_assessment_reasons(assess_user_facing_rep
         return social_repair, False, False, False, "", True
     return _FALL_THROUGH
 
-def _repair_final_degraded_reply_part_2(assess_user_facing_reply, assessment, off_topic, recent_user_messages, repair_instruction_shape, reply_text, same_diff, stale, user_message):
+def _repair_final_degraded_reply_part_2(
+    assess_user_facing_reply: Any,
+    assessment: Any,
+    off_topic: bool,
+    recent_user_messages: Any,
+    repair_instruction_shape: Any,
+    reply_text: str,
+    same_diff: bool,
+    stale: bool,
+    user_message: str,
+) -> Any:
     logger.warning(
         "🛡️ Final reply quality gate repairing degraded output "
         "(stale=%s same_diff=%s off_topic=%s assessment=%s).",
@@ -1285,7 +1326,15 @@ def _repair_final_degraded_reply_part_2(assess_user_facing_reply, assessment, of
                 )
     return _FALL_THROUGH
 
-def _repair_final_degraded_reply_repaired_stale(assess_user_facing_reply, desktop_cognitive_engine_required, recent_user_messages, reliability_floor_for_user, repaired, reply_text, user_message):
+def _repair_final_degraded_reply_repaired_stale(
+    assess_user_facing_reply: Any,
+    desktop_cognitive_engine_required: bool,
+    recent_user_messages: Any,
+    reliability_floor_for_user: Any,
+    repaired: Any,
+    reply_text: str,
+    user_message: str,
+) -> Any:
     repaired_stale = _is_actionably_stale_response(user_message, repaired)
     repaired_same_diff = _is_same_answer_different_prompt(user_message, repaired)
     repaired_off_topic, repaired_off_topic_reason = _evaluate_reply_topicality(

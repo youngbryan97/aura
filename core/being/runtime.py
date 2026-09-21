@@ -618,7 +618,10 @@ class BeingRuntime:
         return 0.5
 
     @staticmethod
-    def _action_policy_cp126_a67ee_these(context, domain_name):
+    def _action_policy_cp126_a67ee_these(
+        context: dict[str, Any] | None,
+        domain_name: str,
+    ) -> tuple[bool, bool]:
         # CP126 310a67ee: these converted qualifying writes from defer to
         # constrain on the strength of caller-supplied booleans alone. The
         # flags now require a capability token bound to this domain+action.
@@ -669,7 +672,10 @@ class BeingRuntime:
         return continuity_memory_write, internal_evidence_memory_write
 
     @staticmethod
-    def _action_policy_internal_runtime_maintenance(context, domain_name):
+    def _action_policy_internal_runtime_maintenance(
+        context: dict[str, Any] | None,
+        domain_name: str,
+    ) -> tuple[bool, bool]:
         internal_runtime_maintenance = bool(
             domain_name == "file_write"
             and context.get("effect_scope") == "private_runtime_maintenance"
@@ -700,7 +706,17 @@ class BeingRuntime:
         )
         return explicit_foreground_desktop_tool, internal_runtime_maintenance
 
-    def _action_policy_welfare_driven_constraints(self, consequential, constraints, context, defers, domain_name, internal_evidence_memory_write, priority, repair_lane):
+    def _action_policy_welfare_driven_constraints(
+        self,
+        consequential: bool,
+        constraints: list[str],
+        context: dict[str, Any] | None,
+        defers: Any,
+        domain_name: str,
+        internal_evidence_memory_write: Any,
+        priority: float,
+        repair_lane: bool,
+    ) -> tuple[Any, Any]:
         # Welfare-driven constraints.
         welfare = getattr(self, "_last_welfare", None)
         if welfare is not None:
@@ -789,7 +805,17 @@ class BeingRuntime:
         return body_cost_estimate, welfare
 
     @staticmethod
-    def _action_policy_part_4(body_pressure, consequential, constraints, controllability, defers, deliberative_consequential, distress, free_energy, repair_lane):
+    def _action_policy_part_4(
+        body_pressure: float,
+        consequential: bool,
+        constraints: list[str],
+        controllability: float,
+        defers: Any,
+        deliberative_consequential: bool,
+        distress: float,
+        free_energy: float,
+        repair_lane: bool,
+    ) -> None:
         if controllability < 0.18:
             constraints.append(f"aura_now_controllability_low: controllability={controllability:.3f}")
             if deliberative_consequential and not repair_lane:
@@ -819,7 +845,15 @@ class BeingRuntime:
                 defers.append("prediction_error_requires_observation_or_plan")
 
     @staticmethod
-    def _action_policy_part_5(blocks, consequential, constraints, context, defers, domain_name, explicit_foreground_desktop_tool):
+    def _action_policy_part_5(
+        blocks: list[str],
+        consequential: bool,
+        constraints: list[str],
+        context: dict[str, Any] | None,
+        defers: Any,
+        domain_name: str,
+        explicit_foreground_desktop_tool: Any,
+    ) -> Any:
         if explicit_foreground_desktop_tool and defers and not blocks:
             desktop_soft_defers = {
                 "action_controllability_too_low",

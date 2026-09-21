@@ -58,7 +58,7 @@ MESH_FORMATS: dict[str, tuple[str, str, str]] = {
 }
 
 
-def placed_meshes(design, *, explode: float = 0.0) -> list[tuple[Any, np.ndarray, np.ndarray]]:
+def placed_meshes(design: Any, *, explode: float=0.0) -> list[tuple[Any, np.ndarray, np.ndarray]]:
     """Every part's triangles in world metres, with its explode offset."""
     out: list[tuple[Any, np.ndarray, np.ndarray]] = []
     for part in design.parts:
@@ -82,7 +82,7 @@ def _normals(vertices: np.ndarray, faces: np.ndarray) -> np.ndarray:
     return normals / lengths[:, None]
 
 
-def stl_binary(design, *, scale: float = 1000.0) -> bytes:
+def stl_binary(design: Any, *, scale: float=1000.0) -> bytes:
     """Binary STL in millimetres.
 
     STL carries no unit, and every slicer assumes millimetres. A model
@@ -111,7 +111,7 @@ def stl_binary(design, *, scale: float = 1000.0) -> bytes:
     return header.ljust(80, b" ") + struct.pack("<I", len(triangles)) + b"".join(triangles)
 
 
-def stl_text(design, *, scale: float = 1000.0) -> str:
+def stl_text(design: Any, *, scale: float=1000.0) -> str:
     """ASCII STL, for when a file has to be readable."""
     lines = [f"solid {design.name.replace(' ', '_')}"]
     for _part, vertices, faces in placed_meshes(design):
@@ -130,7 +130,7 @@ def stl_text(design, *, scale: float = 1000.0) -> str:
     return "\n".join(lines) + "\n"
 
 
-def obj_text(design, *, scale: float = 1000.0) -> str:
+def obj_text(design: Any, *, scale: float=1000.0) -> str:
     """Wavefront OBJ with one named group per part."""
     lines = [
         f"# {design.name}",
@@ -152,7 +152,7 @@ def obj_text(design, *, scale: float = 1000.0) -> str:
     return "\n".join(lines) + "\n"
 
 
-def three_mf_bytes(design, *, colours: dict[str, str] | None = None) -> bytes:
+def three_mf_bytes(design: Any, *, colours: dict[str, str] | None=None) -> bytes:
     """3MF: the same triangles, with units, part names and colours attached."""
     entries = placed_meshes(design)
     objects: list[str] = []
@@ -214,7 +214,7 @@ _DXF_LAYERS: tuple[tuple[str, int], ...] = (
 )
 
 
-def dxf_text(design, *, view: str = "front", scale: float = 1000.0) -> str:
+def dxf_text(design: Any, *, view: str='front', scale: float=1000.0) -> str:
     """A DXF R12 of one projected view, on proper layers.
 
     R12 is deliberate: it is the version every tool still reads without
@@ -282,7 +282,7 @@ def dxf_text(design, *, view: str = "front", scale: float = 1000.0) -> str:
     return "\n".join(lines) + "\n"
 
 
-def openscad_text(design) -> str:
+def openscad_text(design: Any) -> str:
     """OpenSCAD source: the geometry as parameters that can still be changed.
 
     A mesh is a decision already made. This is the decisions, so a reader can
@@ -324,7 +324,7 @@ def openscad_text(design) -> str:
     return "\n".join(lines)
 
 
-def _scad_body(part, name: str) -> str:
+def _scad_body(part: Any, name: str) -> str:
     """The OpenSCAD call that builds one solid from its own parameters."""
     kind = part.solid.kind
     if kind == "box":

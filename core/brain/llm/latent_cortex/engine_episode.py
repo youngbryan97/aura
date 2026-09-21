@@ -21,7 +21,13 @@ if TYPE_CHECKING:
 class _ReasonsThroughAnEpisode:
     """Lifted whole out of LatentCortexEngine; see engine.py."""
 
-    def _reason_episode_part_1(self, capture_decode_logprobs, decode_sentence_grace_tokens, incumbent_artifact, sample_seed):
+    def _reason_episode_part_1(
+        self,
+        capture_decode_logprobs: bool,
+        decode_sentence_grace_tokens: int | None,
+        incumbent_artifact: Any | None,
+        sample_seed: int | None,
+    ) -> None:
         if type(capture_decode_logprobs) is not bool:
             raise TypeError("capture_decode_logprobs must be boolean")
         # An incumbent artifact under a latent-owned policy is a contradiction
@@ -49,7 +55,17 @@ class _ReasonsThroughAnEpisode:
         ):
             raise ValueError("sample_seed must be null or an integer inside [0, 2^32-1]")
 
-    def _reason_episode_part_2(self, action_continuation_capture, action_continuation_capture_only, action_continuation_restore, action_continuation_restore_verified, action_continuation_runner_state, episode_id, memory_principal, nonparametric_memory_enabled):
+    def _reason_episode_part_2(
+        self,
+        action_continuation_capture: Callable[[Any], None] | None,
+        action_continuation_capture_only: bool,
+        action_continuation_restore: Any | None,
+        action_continuation_restore_verified: Callable[[str], None] | None,
+        action_continuation_runner_state: Mapping[str, Any] | None,
+        episode_id: str | None,
+        memory_principal: str,
+        nonparametric_memory_enabled: bool,
+    ) -> Any:
         from .engine import (
             EpisodeReceipt,
             uuid,
@@ -115,7 +131,17 @@ class _ReasonsThroughAnEpisode:
         self._callback_faults = {}
         return receipt
 
-    def _reason_episode_read_actual_serialized(self, budget, context_items, messages, policy_evidence, prompt, receipt, tokens, verifier):
+    def _reason_episode_read_actual_serialized(
+        self,
+        budget: ComputeBudget | None,
+        context_items: Any,
+        messages: list | None,
+        policy_evidence: Any,
+        prompt: str | None,
+        receipt: Any,
+        tokens: Any,
+        verifier: Callable[[str], float] | None,
+    ) -> tuple[Any, Any]:
         # Read the actual serialized prefix; model names and requested modes
         # do not establish which channel the tokenizer left open.
         from .engine import (
@@ -152,7 +178,14 @@ class _ReasonsThroughAnEpisode:
         )
         return encoded_tokens, verification_objective
 
-    def _reason_episode_part_4(self, budget, decode_max_tokens, incumbent_artifact, receipt, tokens):
+    def _reason_episode_part_4(
+        self,
+        budget: ComputeBudget | None,
+        decode_max_tokens: int | None,
+        incumbent_artifact: Any | None,
+        receipt: Any,
+        tokens: Any,
+    ) -> tuple[str, Any]:
         receipt.decode_temperature = float(self.config.decode_temperature)
         receipt.decode_top_p = float(self.config.decode_top_p)
         receipt.decode_bridge_policy = self.config.decode_bridge_policy
@@ -201,7 +234,15 @@ class _ReasonsThroughAnEpisode:
         failure_reason = ""
         return failure_reason, validated_incumbent
 
-    def _reason_episode_ok_says_machinery(self, budget, episode_started, failure_reason, progress, receipt, verifier):
+    def _reason_episode_ok_says_machinery(
+        self,
+        budget: ComputeBudget | None,
+        episode_started: Any,
+        failure_reason: Any,
+        progress: Callable[[dict], None] | None,
+        receipt: Any,
+        verifier: Callable[[str], float] | None,
+    ) -> None:
         # `ok` says the machinery ran. These two say what it established.
         receipt.verifier_identity = (
             f"{type(verifier).__module__}.{type(verifier).__qualname__}"
@@ -247,7 +288,7 @@ class _ReasonsThroughAnEpisode:
         receipt.causal_receipt = build_causal_receipt(receipt.to_dict())
 
     @staticmethod
-    def _reason_episode_part_6(failure_reason, out_tokens, receipt):
+    def _reason_episode_part_6(failure_reason: str, out_tokens: Any, receipt: Any) -> str:
         if not failure_reason and receipt.decode_termination not in {
             "eos",
             # The public answer contract completed: one FINAL_ANSWER JSON

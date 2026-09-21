@@ -13,7 +13,11 @@ from typing import Any
 class _SetsTheTurnUp:
     """Lifted whole out of InferenceGate; see inference_gate.py."""
 
-    def _generate_with_metadata_sink_part_1(self, context, prompt):
+    def _generate_with_metadata_sink_part_1(
+        self,
+        context: dict[str, Any] | None,
+        prompt: str,
+    ) -> tuple[Any, bool]:
         from .inference_gate import (
             bind_user_surface_prompt,
             logger,
@@ -160,7 +164,15 @@ class _SetsTheTurnUp:
         initial_visible_user_prompt = surface_prompt.prompt or initial_visible_user_prompt
         return initial_visible_user_prompt, internal_inference_call
 
-    def _generate_with_metadata_sink_is_background(self, context, explicit_background, explicit_foreground, origin, purpose, requested_tier):
+    def _generate_with_metadata_sink_is_background(
+        self,
+        context: dict[str, Any] | None,
+        explicit_background: bool,
+        explicit_foreground: Any,
+        origin: str,
+        purpose: str,
+        requested_tier: Any,
+    ) -> tuple[bool, bool]:
         is_background = bool(context.get("is_background", False))
         if explicit_foreground:
             is_background = False
@@ -189,7 +201,17 @@ class _SetsTheTurnUp:
         return deep_handoff, is_background
 
     @staticmethod
-    def _generate_with_metadata_sink_part_3(context, deep_handoff, explicit_background, health_probe, is_background, live_benchmark_request, origin, proof_evaluation_contract, purpose):
+    def _generate_with_metadata_sink_part_3(
+        context: dict[str, Any] | None,
+        deep_handoff: bool,
+        explicit_background: bool,
+        health_probe: bool,
+        is_background: bool,
+        live_benchmark_request: bool,
+        origin: str,
+        proof_evaluation_contract: bool,
+        purpose: str,
+    ) -> tuple[bool, bool]:
         from .inference_gate import (
             _INFERENCE_RECOVERABLE_ERRORS,
             _record_inference_degradation,
@@ -248,7 +270,7 @@ class _SetsTheTurnUp:
         return is_background, strict_primary_proof_lane
 
     @staticmethod
-    def _generate_with_metadata_sink_part_4(background_deferral, origin):
+    def _generate_with_metadata_sink_part_4(background_deferral: Any, origin: str) -> None:
         from .inference_gate import (
             logger,
         )
@@ -284,7 +306,15 @@ class _SetsTheTurnUp:
                 origin,
             )
 
-    async def _generate_with_metadata_sink_part_5(self, context, is_background, origin, protected_foreground_lane, requested_tier, strict_primary_proof_lane):
+    async def _generate_with_metadata_sink_part_5(
+        self,
+        context: dict[str, Any] | None,
+        is_background: bool,
+        origin: str,
+        protected_foreground_lane: bool,
+        requested_tier: str,
+        strict_primary_proof_lane: Any,
+    ) -> tuple[Any, str]:
         from .inference_gate import (
             _INFERENCE_RECOVERABLE_ERRORS,
             _recover_the_cortex_before_answering,
@@ -354,7 +384,15 @@ class _SetsTheTurnUp:
         return _seam_early_response, requested_tier
 
     @staticmethod
-    def _generate_with_metadata_sink_source_code_prose(context, operator_evidence_contract, proof_evaluation_contract, strict_answer_contract, strict_proof_answer_request, strict_value_contract, web_interlocutor_contract):
+    def _generate_with_metadata_sink_source_code_prose(
+        context: dict[str, Any] | None,
+        operator_evidence_contract: bool,
+        proof_evaluation_contract: bool,
+        strict_answer_contract: bool,
+        strict_proof_answer_request: bool,
+        strict_value_contract: bool,
+        web_interlocutor_contract: bool,
+    ) -> tuple[bool, Any]:
         # Source code is not prose, and the conversational pipeline exists to
         # shape prose for a person: it repairs sentences, normalises
         # whitespace, and enforces a reply contract. Every one of those is
@@ -398,7 +436,14 @@ class _SetsTheTurnUp:
         return isolated_generation_contract, strict_max_token_cap
 
     @staticmethod
-    def _generate_with_metadata_sink_part_7(caller_declared_completion_floor, context, explicit_max_tokens_cap, initial_visible_user_prompt, max_tokens, surface_completion_floor):
+    def _generate_with_metadata_sink_part_7(
+        caller_declared_completion_floor: bool,
+        context: dict[str, Any] | None,
+        explicit_max_tokens_cap: Any,
+        initial_visible_user_prompt: Any,
+        max_tokens: Any,
+        surface_completion_floor: int,
+    ) -> tuple[Any, Any]:
         from .inference_gate import (
             answer_surface_token_floor,
             logger,
@@ -438,7 +483,13 @@ class _SetsTheTurnUp:
         return max_tokens, surface_completion_floor
 
     @staticmethod
-    def _generate_with_metadata_sink_resource_stakes_scale(benchmark_request, health_probe, isolated_generation_contract, max_tokens, strict_answer_contract):
+    def _generate_with_metadata_sink_resource_stakes_scale(
+        benchmark_request: bool,
+        health_probe: bool,
+        isolated_generation_contract: Any,
+        max_tokens: Any,
+        strict_answer_contract: bool,
+    ) -> tuple[Any, int | None]:
         # ── Resource Stakes: scale token budget by computational survival state ──
         from .inference_gate import (
             _INFERENCE_RECOVERABLE_ERRORS,
@@ -474,7 +525,9 @@ class _SetsTheTurnUp:
         return max_tokens, stakes_token_ceiling
 
     @staticmethod
-    def _generate_with_metadata_sink_affective_circumplex_let(context):
+    def _generate_with_metadata_sink_affective_circumplex_let(
+        context: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], Any]:
         # ── Affective Circumplex: let somatic state modulate generation params ──
         # Only applies on user-facing, non-background requests. Background tasks
         # run at fixed params to avoid thermal feedback loops.
@@ -545,7 +598,11 @@ class _SetsTheTurnUp:
         return morpho_kwargs, somatic_temperature
 
     @staticmethod
-    def _generate_with_metadata_sink_part_10(context, max_tokens, somatic_temperature):
+    def _generate_with_metadata_sink_part_10(
+        context: dict[str, Any] | None,
+        max_tokens: Any,
+        somatic_temperature: Any,
+    ) -> tuple[Any, Any]:
         from .inference_gate import (
             _INFERENCE_RECOVERABLE_ERRORS,
             logger,
@@ -629,7 +686,12 @@ class _SetsTheTurnUp:
             logger.debug("ActiveInferenceSampler unavailable: %s", _ais_e)
         return max_tokens, somatic_temperature
 
-    def _generate_with_metadata_sink_part_11(self, _homeostasis, max_tokens, somatic_temperature):
+    def _generate_with_metadata_sink_part_11(
+        self,
+        _homeostasis: Any,
+        max_tokens: Any,
+        somatic_temperature: Any,
+    ) -> tuple[Any, Any]:
         from .inference_gate import (
             logger,
         )
@@ -668,7 +730,12 @@ class _SetsTheTurnUp:
         return max_tokens, somatic_temperature
 
     @staticmethod
-    def _generate_with_metadata_sink_part_12(_plasticity, _substrate, morpho_kwargs, somatic_temperature):
+    def _generate_with_metadata_sink_part_12(
+        _plasticity: Any,
+        _substrate: Any,
+        morpho_kwargs: Any,
+        somatic_temperature: Any,
+    ) -> Any:
         from .inference_gate import (
             _INFERENCE_RECOVERABLE_ERRORS,
             logger,
@@ -714,7 +781,12 @@ class _SetsTheTurnUp:
             _plasticity.pre_inference_capture(_sub_state, _hedonic)
         return somatic_temperature
 
-    def _generate_with_metadata_sink_part_13(self, _sq, morpho_kwargs, somatic_temperature):
+    def _generate_with_metadata_sink_part_13(
+        self,
+        _sq: Any,
+        morpho_kwargs: Any,
+        somatic_temperature: Any,
+    ) -> Any:
         from .inference_gate import (
             logger,
         )
@@ -756,7 +828,17 @@ class _SetsTheTurnUp:
                 )
         return somatic_temperature
 
-    def _generate_with_metadata_sink_block_above_skipped(self, context, deep_probe_request, health_probe, is_background, isolated_generation_contract, max_tokens, origin, requested_tier):
+    def _generate_with_metadata_sink_block_above_skipped(
+        self,
+        context: dict[str, Any] | None,
+        deep_probe_request: Any,
+        health_probe: bool,
+        is_background: bool,
+        isolated_generation_contract: Any,
+        max_tokens: Any,
+        origin: str,
+        requested_tier: Any,
+    ) -> Any:
         # The block above is skipped whenever the caller named its own budget —
         # and the desktop chat route always does, so no live desktop turn has
         # ever had a starvation floor. An explicit cap is an upper bound the
@@ -823,7 +905,17 @@ class _SetsTheTurnUp:
         return max_tokens
 
     @staticmethod
-    def _generate_with_metadata_sink_part_15(context, deep_probe_request, explicit_max_tokens_cap, is_background, max_tokens, operator_evidence_contract, protected_compact_capability_contract, strict_answer_contract, strict_max_token_cap):
+    def _generate_with_metadata_sink_part_15(
+        context: dict[str, Any] | None,
+        deep_probe_request: Any,
+        explicit_max_tokens_cap: Any,
+        is_background: bool,
+        max_tokens: Any,
+        operator_evidence_contract: bool,
+        protected_compact_capability_contract: bool,
+        strict_answer_contract: bool,
+        strict_max_token_cap: Any,
+    ) -> Any:
         from .inference_gate import (
             _FLAG_DEEP_PROBE_MAX_TOKENS,
             _record_inference_degradation,
@@ -891,7 +983,14 @@ class _SetsTheTurnUp:
         return max_tokens
 
     @staticmethod
-    def _generate_with_metadata_sink_part_16(benchmark_request, context, health_probe, initial_visible_user_prompt, max_tokens, morpho_kwargs):
+    def _generate_with_metadata_sink_part_16(
+        benchmark_request: bool,
+        context: dict[str, Any] | None,
+        health_probe: bool,
+        initial_visible_user_prompt: Any,
+        max_tokens: Any,
+        morpho_kwargs: Any,
+    ) -> Any:
         if health_probe:
             requested_cap = context.get("max_tokens", max_tokens)
             try:
@@ -920,7 +1019,16 @@ class _SetsTheTurnUp:
         return max_tokens
 
     @staticmethod
-    def _generate_with_metadata_sink_turn_executes_something(context, explicit_max_tokens_cap, max_tokens, morpho_kwargs, output_contract, output_contract_is_user_facing, output_contract_payload, stakes_token_ceiling):
+    def _generate_with_metadata_sink_turn_executes_something(
+        context: dict[str, Any] | None,
+        explicit_max_tokens_cap: Any,
+        max_tokens: Any,
+        morpho_kwargs: Any,
+        output_contract: Any,
+        output_contract_is_user_facing: bool,
+        output_contract_payload: Any,
+        stakes_token_ceiling: Any,
+    ) -> tuple[Any, Any]:
         # On a turn that EXECUTES something, a shape phrase describes the
         # ARTIFACT, not her reply.
         #

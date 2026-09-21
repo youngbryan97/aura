@@ -17,11 +17,12 @@ from core.learning.semantic_program_shared_transducer import (
 )
 from core.learning.semantic_program_transducer import _fit_binary_head, _sha
 from core.learning.semantic_relation_tissue import _directional_relation_feature
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def valid_attachment_contract(receipt):
+def valid_attachment_contract(receipt: Any) -> bool:
     fit = receipt.get("definition_attachment_fit")
     return (
         isinstance(fit, Mapping)
@@ -40,7 +41,13 @@ def valid_attachment_contract(receipt):
     )
 
 
-def definition_proposal_pool(anchors, hidden, pointer, *, max_span_tokens):
+def definition_proposal_pool(
+    anchors: tuple[Any, ...],
+    hidden: Any,
+    pointer: Any,
+    *,
+    max_span_tokens: Any,
+) -> tuple[Any, ...]:
     """One answer-blind proposal bank shared by all register anchors."""
     return tuple(
         dict.fromkeys(
@@ -59,7 +66,13 @@ def definition_proposal_pool(anchors, hidden, pointer, *, max_span_tokens):
     )
 
 
-def _owner_scores(head, vectors, anchors, *, conditional):
+def _owner_scores(
+    head: Any,
+    vectors: dict[str, Any],
+    anchors: tuple[Any, ...],
+    *,
+    conditional: bool,
+) -> dict[str, Any]:
     scores = {}
     for span, vector in vectors.items():
         logits = [head.score(vector, vectors[anchor]) for anchor in anchors]
@@ -70,7 +83,7 @@ def _owner_scores(head, vectors, anchors, *, conditional):
     return scores
 
 
-def attachment_hypotheses(model, hidden, anchors, local_candidates):
+def attachment_hypotheses(model: Any, hidden: Any, anchors: Any, local_candidates: Any) -> Any:
     """Retain local hypotheses and add names selected by the learned attachment."""
     head = model.definition_attachment_head
     if head is None:
@@ -79,7 +92,7 @@ def attachment_hypotheses(model, hidden, anchors, local_candidates):
         anchors, hidden, model.definition_pointer, max_span_tokens=model.max_definition_span_tokens
     )
 
-    def vector(span):
+    def vector(span: Any) -> Any:
         return _relation_span_vector(
             hidden,
             span,
@@ -127,7 +140,12 @@ def attachment_hypotheses(model, hidden, anchors, local_candidates):
     return tuple(hypotheses), scores
 
 
-def refit_definition_attachment(model, examples, *, objective="conditional_anchor_owner_v2"):
+def refit_definition_attachment(
+    model: Any,
+    examples: Any,
+    *,
+    objective: str='conditional_anchor_owner_v2',
+) -> Any:
     """Fit attachment on training labels; report validation without fitting it."""
     from core.learning.semantic_program_transducer_fitting import (
         LinearArgumentRoleHead,
@@ -161,7 +179,7 @@ def refit_definition_attachment(model, examples, *, objective="conditional_ancho
     geometries = Counter(_geometry(item) for item in train)
     features, labels, weights = [], [], []
 
-    def vector(item, span):
+    def vector(item: Any, span: Any) -> Any:
         return _relation_span_vector(
             item.hidden_states,
             span,

@@ -18,13 +18,14 @@ somewhere in this codebase:
 from __future__ import annotations
 
 from collections.abc import Iterator
+from typing import Any
 
 from core.verify.invariants import Severity, Violation, invariant
 
 _OWNER = "core/brain/llm/endogenous_vocab_head.py"
 
 
-def _resident_head():
+def _resident_head() -> tuple[Any, Any]:
     from core.brain.llm.endogenous_decode import load_head
 
     head, reason = load_head()

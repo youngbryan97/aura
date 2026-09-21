@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable
+from typing import Any
 
 from core.engineering.analysis import Finding, register
 from core.engineering.units import Q
@@ -26,7 +27,7 @@ _R = 8.314462618
     domains=("fluid", "chemical", "biological"),
     discipline="chemical",
 )
-def mass_balance(design) -> Iterable[Finding]:
+def mass_balance(design: Any) -> Iterable[Finding]:
     for part in design.parts:
         if not {"vessel", "reactor", "tank", "separator", "mixer"} & set(part.tags):
             continue
@@ -84,7 +85,7 @@ def mass_balance(design) -> Iterable[Finding]:
     domains=("fluid", "chemical", "biological"),
     discipline="chemical",
 )
-def residence_time(design) -> Iterable[Finding]:
+def residence_time(design: Any) -> Iterable[Finding]:
     for part in design.parts:
         if not {"vessel", "reactor", "tank"} & set(part.tags):
             continue
@@ -126,7 +127,7 @@ def residence_time(design) -> Iterable[Finding]:
     domains=("chemical",),
     discipline="chemical",
 )
-def reaction_conversion(design) -> Iterable[Finding]:
+def reaction_conversion(design: Any) -> Iterable[Finding]:
     for part in design.parts:
         if "reactor" not in part.tags:
             continue
@@ -182,7 +183,7 @@ def reaction_conversion(design) -> Iterable[Finding]:
     domains=("biological",),
     discipline="bio",
 )
-def enzyme_kinetics(design) -> Iterable[Finding]:
+def enzyme_kinetics(design: Any) -> Iterable[Finding]:
     for part in design.parts:
         vmax = part.ratings.get("vmax")
         km = part.ratings.get("km")
@@ -219,7 +220,7 @@ def enzyme_kinetics(design) -> Iterable[Finding]:
     domains=("biological",),
     discipline="bio",
 )
-def cell_growth(design) -> Iterable[Finding]:
+def cell_growth(design: Any) -> Iterable[Finding]:
     for part in design.parts:
         if "bioreactor" not in part.tags and "culture" not in part.tags:
             continue
@@ -262,7 +263,7 @@ def cell_growth(design) -> Iterable[Finding]:
     domains=("biological",),
     discipline="bio",
 )
-def oxygen_transfer(design) -> Iterable[Finding]:
+def oxygen_transfer(design: Any) -> Iterable[Finding]:
     for part in design.parts:
         kla = part.ratings.get("kla")
         demand = part.ratings.get("oxygen_demand")
@@ -302,7 +303,7 @@ def oxygen_transfer(design) -> Iterable[Finding]:
     domains=("pneumatic", "chemical"),
     discipline="chemical",
 )
-def gas_state(design) -> Iterable[Finding]:
+def gas_state(design: Any) -> Iterable[Finding]:
     for part in design.parts:
         if "gas" not in part.tags and "cylinder" not in part.tags:
             continue

@@ -7,12 +7,22 @@ patches a name on it has to reach the code that reads it.
 from __future__ import annotations
 
 import time
+from typing import Any
 
 
 class _ReasonsDeeply:
     """Lifted whole out of LatentCortexService; see latent_cortex_service.py."""
 
-    def _deep_reason_part_1(self, config, controller_decision, domain, messages, question, stakes, uncertainty):
+    def _deep_reason_part_1(
+        self,
+        config: Any,
+        controller_decision: Any,
+        domain: str,
+        messages: list | None,
+        question: str | None,
+        stakes: float,
+        uncertainty: float,
+    ) -> None:
         from .latent_cortex_service import (
             logger,
         )
@@ -95,7 +105,17 @@ class _ReasonsDeeply:
             logger.debug("Verifier fusion evidence unavailable: %s", exc)
             config["verifier_fusion_evidence"] = None
 
-    def _deep_reason_build_critic_source_identity(self, config, controller_decision, domain, messages, question, stakes, uncertainty, worker_identity):
+    def _deep_reason_build_critic_source_identity(
+        self,
+        config: Any,
+        controller_decision: Any,
+        domain: str,
+        messages: list | None,
+        question: str | None,
+        stakes: float,
+        uncertainty: float,
+        worker_identity: dict[str, Any],
+    ) -> None:
         from core.brain.llm.latent_cortex.critic_identity import (
             build_critic_source_identity,
             build_generator_function_identity,
@@ -132,7 +152,13 @@ class _ReasonsDeeply:
             ],
         }
 
-    def _deep_reason_recommended_completion_tokens(self, capacity_decode_tokens, messages, question, target_decode_tokens):
+    def _deep_reason_recommended_completion_tokens(
+        self,
+        capacity_decode_tokens: int,
+        messages: list | None,
+        question: str | None,
+        target_decode_tokens: Any,
+    ) -> tuple[Any, Any]:
         from core.brain.llm.measured_admission import (
             recommended_completion_tokens,
             recommended_foreground_deadline,
@@ -187,7 +213,10 @@ class _ReasonsDeeply:
         return required_wall_clock_s, target_decode_tokens
 
     @staticmethod
-    def _deep_reason_policy_receipt(action_policy_evidence, result_receipt):
+    def _deep_reason_policy_receipt(
+        action_policy_evidence: Any,
+        result_receipt: Any,
+    ) -> tuple[Any, Any]:
         from .latent_cortex_service import (
             _WRITTEN_WHEN_ACTIONS_ARE_SELECTED,
             _ActionSelectionNeverRanError,
@@ -264,7 +293,15 @@ class _ReasonsDeeply:
         return policy_receipt, raw_trace
 
     @staticmethod
-    def _deep_reason_part_5(action_policy_evidence, action_transitions, external_execution_offer, policy_receipt, raw_trace, result_receipt, validated_trace):
+    def _deep_reason_part_5(
+        action_policy_evidence: Any,
+        action_transitions: list[dict[str, Any]],
+        external_execution_offer: dict[str, Any] | None,
+        policy_receipt: Any,
+        raw_trace: Any,
+        result_receipt: Any,
+        validated_trace: Any,
+    ) -> bool:
         for validated_row in validated_trace["rows"]:
             decision = validated_row["decision"]
             transition = validated_row["transition"]
@@ -301,7 +338,16 @@ class _ReasonsDeeply:
         return action_policy_matches
 
     @staticmethod
-    def _deep_reason_part_6(adaptive_plan, budget, config, contract_errors, quality_receipt, result, result_receipt, visible_objective):
+    def _deep_reason_part_6(
+        adaptive_plan: Any,
+        budget: Any,
+        config: Any,
+        contract_errors: Any,
+        quality_receipt: Any,
+        result: Any,
+        result_receipt: Any,
+        visible_objective: Any,
+    ) -> Any:
         from .latent_cortex_service import (
             evaluate_latent_output,
         )
@@ -334,7 +380,15 @@ class _ReasonsDeeply:
             result["receipt"] = result_receipt
         return quality_receipt
 
-    def _deep_reason_part_7(self, action_policy_evidence, action_policy_matches, epistemic_state, result, result_receipt, selective_memory_result):
+    def _deep_reason_part_7(
+        self,
+        action_policy_evidence: Any,
+        action_policy_matches: Any,
+        epistemic_state: Any | None,
+        result: Any,
+        result_receipt: Any,
+        selective_memory_result: Any | None,
+    ) -> None:
         if action_policy_matches and action_policy_evidence is not None:
             result_receipt["host_action_policy_evidence"] = dict(
                 action_policy_evidence
@@ -361,7 +415,13 @@ class _ReasonsDeeply:
         raw_progress = result.get("progress")
         self._last_progress = dict(raw_progress) if isinstance(raw_progress, dict) else {}
 
-    def _deep_reason_reason(self, contract_errors, host_incumbent, result, result_receipt):
+    def _deep_reason_reason(
+        self,
+        contract_errors: Any,
+        host_incumbent: Any,
+        result: Any,
+        result_receipt: Any,
+    ) -> dict[str, Any]:
         from .latent_cortex_service import (
             logger,
             record_degradation,
@@ -408,7 +468,15 @@ class _ReasonsDeeply:
         self._last_failure_receipt = result_receipt
         return failed
 
-    def _deep_reason_part_9(self, action_transitions, budget, controller_decision, result, result_receipt, started):
+    def _deep_reason_part_9(
+        self,
+        action_transitions: list[dict[str, Any]],
+        budget: Any,
+        controller_decision: Any,
+        result: Any,
+        result_receipt: Any,
+        started: Any,
+    ) -> None:
         from .latent_cortex_service import (
             _controller_outcome,
             logger,
@@ -541,7 +609,7 @@ class _ReasonsDeeply:
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug("Identity consistency check skipped: %s", exc)
 
-    def _deep_reason_part_10(self, elapsed, result, result_receipt):
+    def _deep_reason_part_10(self, elapsed: Any, result: Any, result_receipt: Any) -> None:
         from .latent_cortex_service import (
             logger,
         )

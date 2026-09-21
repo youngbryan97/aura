@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from types import MappingProxyType
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 import math
 
 from core.learning import semantic_argument_optimization
@@ -15,7 +15,14 @@ if TYPE_CHECKING:
     from core.learning.semantic_program_transducer_fitting import RegisterUseContract
 
 
-def select_operation_argument_graph(charts, assign, *, length_penalty, joint=False, bounded_assign=None):
+def select_operation_argument_graph(
+    charts: Any,
+    assign: Any,
+    *,
+    length_penalty: Any,
+    joint: bool=False,
+    bounded_assign: Any=None,
+) -> Any:
     """Select complete graphs under a declared factor score, or replay legacy order."""
     selected, best = None, -math.inf
     for chart in charts:
@@ -96,7 +103,7 @@ class ScoredArgumentChart:
             per_register[register] = max(per_register.get(register, 0.0), score)
         return math.fsum((*maxima, *per_register.values(), -self.choice_log_normalizer))
 
-    def with_conditional_choices(self):
+    def with_conditional_choices(self) -> Any:
         """Normalize the full local choice pools before restricting any target.
 
         This is a product of local categorical factors, not the partition
@@ -111,7 +118,14 @@ class ScoredArgumentChart:
         normalizer = math.fsum(float(logsumexp([option[0] for option in slot])) for slot in slots)
         return replace(self, choice_log_normalizer=normalizer)
 
-    def solve(self, *, excluded_arguments=None, excluded_graphs=(), selection_observer=None, time_limit_s=None):
+    def solve(
+        self,
+        *,
+        excluded_arguments: Any=None,
+        excluded_graphs: tuple[Any, ...]=(),
+        selection_observer: Any=None,
+        time_limit_s: Any=None,
+    ) -> Any:
         result = semantic_argument_optimization.optimize_argument_chart(
             self.options, n_inputs=self.n_inputs, contract=self.contract,
             definition_options=self.definition_options, definition_scores=self.definition_scores,
@@ -123,8 +137,14 @@ class ScoredArgumentChart:
         )
         return (result[0] - self.choice_log_normalizer, *result[1:]) if result is not None else None
 
-    def solve_with_factors(self, *, excluded_arguments=None, excluded_graphs=(), time_limit_s=None,
-                           relation_observer=None):
+    def solve_with_factors(
+        self,
+        *,
+        excluded_arguments: Any=None,
+        excluded_graphs: tuple[Any, ...]=(),
+        time_limit_s: Any=None,
+        relation_observer: Any=None,
+    ) -> Any:
         """Return the exact selected factor sums, including latent definitions."""
         if self.option_factors is None:
             raise ValueError("argument chart did not retain score factors")

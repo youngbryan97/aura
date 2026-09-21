@@ -28,8 +28,16 @@ class CampaignProgress:
     use a different path; it cannot reuse samples from this one.
     """
 
-    def __init__(self, path: Path, *, identity: dict, conditions: tuple[str, ...],
-                 samples_per_condition: int, write: Callable[[dict], None], resume: bool = False):
+    def __init__(
+        self,
+        path: Path,
+        *,
+        identity: dict,
+        conditions: tuple[str, ...],
+        samples_per_condition: int,
+        write: Callable[[dict], None],
+        resume: bool=False,
+    ) -> None:
         if not conditions or len(set(conditions)) != len(conditions) or samples_per_condition < 1:
             raise ValueError("campaign_progress_shape_invalid")
         self.path = path

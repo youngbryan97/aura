@@ -8,6 +8,7 @@ geometry and the material density, both of which the model already holds.
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import Any
 
 import numpy as np
 
@@ -22,7 +23,7 @@ from core.engineering.units import Q
     "How heavy is it, and which part dominates?",
     discipline="mechanical",
 )
-def mass_rollup(design) -> Iterable[Finding]:
+def mass_rollup(design: Any) -> Iterable[Finding]:
     total = design.total_mass()
     if total is None:
         return
@@ -92,7 +93,7 @@ def mass_rollup(design) -> Iterable[Finding]:
     "Where does it balance, and does that sit where it should?",
     discipline="mechanical",
 )
-def centre_of_mass(design) -> Iterable[Finding]:
+def centre_of_mass(design: Any) -> Iterable[Finding]:
     weighted = []
     total = 0.0
     for part in design.parts:
@@ -143,7 +144,7 @@ def centre_of_mass(design) -> Iterable[Finding]:
     "How much room does it need?",
     discipline="mechanical",
 )
-def envelope(design) -> Iterable[Finding]:
+def envelope(design: Any) -> Iterable[Finding]:
     low, high = design.bounds()
     span = [high[i] - low[i] for i in range(3)]
     if max(span) <= 0:
@@ -182,7 +183,7 @@ def envelope(design) -> Iterable[Finding]:
     domains=("mechanical_rotary",),
     discipline="mechanical",
 )
-def rotational_inertia(design) -> Iterable[Finding]:
+def rotational_inertia(design: Any) -> Iterable[Finding]:
     for part in design.parts:
         if part.solid is None or part.material is None:
             continue

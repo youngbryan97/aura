@@ -11,11 +11,21 @@ from core.learning.semantic_joint_graph_learning import (
 from core.learning.semantic_program_campaign import _sha
 from core.learning.semantic_program_ir import normalize_semantic_value
 from core.learning.semantic_program_transducer import _hidden_array
+from typing import Any
 
 
-def rescore_semantic_candidate_bank(bank, model, *, source_token_ids, hidden_states,
-                                    public_inputs, source_text_sha256, model_basis_sha256,
-                                    solve_time_limit_s=10., progress=None):
+def rescore_semantic_candidate_bank(
+    bank: Any,
+    model: Any,
+    *,
+    source_token_ids: Any,
+    hidden_states: Any,
+    public_inputs: Any,
+    source_text_sha256: Any,
+    model_basis_sha256: Any,
+    solve_time_limit_s: float=10.0,
+    progress: Any=None,
+) -> dict[str, Any]:
     """Replay both scorers through this function without adding target programs.
 
     Program bindings and source spans are frozen; the scorer optimizes its own
@@ -96,8 +106,16 @@ def rescore_semantic_candidate_bank(bank, model, *, source_token_ids, hidden_sta
     return {**body, "receipt_sha256": _sha(body)}
 
 
-def compare_semantic_candidate_banks(parent, candidate, item, *, max_charts=2,
-                                    max_graphs_per_chart=2, solve_time_limit_s=3., progress=None):
+def compare_semantic_candidate_banks(
+    parent: Any,
+    candidate: Any,
+    item: Any,
+    *,
+    max_charts: int=2,
+    max_graphs_per_chart: int=2,
+    solve_time_limit_s: float=3.0,
+    progress: Any=None,
+) -> Any:
     """A two-by-two search/scorer intervention, labeled only after both banks exist."""
     from core.learning.semantic_failure_diagnosis import diagnose_semantic_candidate_bank
 
@@ -132,7 +150,7 @@ def compare_semantic_candidate_banks(parent, candidate, item, *, max_charts=2,
             "selected_semantic_status": {scorer: (statuses[bank.candidates[replay["selected_index"]].program.sha()]
                 if replay["selected_index"] is not None else "unmeasured")
                 for scorer, replay in replays.items()}}
-    def identities(bank):
+    def identities(bank: Any) -> set[Any]:
         return {_sha({"program": value.program.to_dict(),
                       "operation_spans": [span.to_dict() for span in value.operation_spans]})
                 for value in bank.candidates}

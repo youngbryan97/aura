@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
+from typing import Any
 
 
 def deep_solver_is_distinctly_configured() -> bool:
@@ -144,10 +145,10 @@ def _current_specialist_source_commit() -> str:
 
 
 def get_deep_solver_admission_status(
-    requested_domain: str | None = None,
+    requested_domain: str | None=None,
     *,
-    force_refresh: bool = False,
-):
+    force_refresh: bool=False,
+) -> Any:
     """Return evidence qualification for the optional specialist.
 
     This is the one model-free admission authority used by startup, routing,

@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import asyncio
 import time
+from typing import Any
 
 
 class _RunsTheTickLoopSteps:
     """Lifted whole out of MindTick; see mind_tick.py."""
 
-    async def _run_loop_part_1(self):
+    async def _run_loop_part_1(self) -> Any:
         from .mind_tick import (
             _MIND_BOUNDARY_ERRORS,
             _record_mind_degradation,
@@ -90,7 +91,7 @@ class _RunsTheTickLoopSteps:
             self._mark_loop_progress(f"llm_health_deferred:{health_pause}")
         return health_pause
 
-    async def _run_loop_gate(self):
+    async def _run_loop_gate(self) -> Any:
         from .mind_tick import (
             _MIND_BOUNDARY_ERRORS,
             _dead_tiers_are_policy_deferred_cortex,
@@ -155,7 +156,7 @@ class _RunsTheTickLoopSteps:
             await asyncio.wait_for(gate._ensure_cortex_recovery(), timeout=45.0)
         return gate
 
-    async def _run_loop_bridge_event_bus(self, metadata, start_time):
+    async def _run_loop_bridge_event_bus(self, metadata: Any, start_time: Any) -> float:
         # 4. Bridge to Event Bus (for UI/Observability)
         # Circuit-breaker: after repeated failures, back off to avoid
         # flooding the resilience engine with degradation events.
@@ -231,7 +232,7 @@ class _RunsTheTickLoopSteps:
         return audit_interval
 
     @staticmethod
-    def _run_loop_check_sidecar_process():
+    def _run_loop_check_sidecar_process() -> Any:
         # Check sidecar process health
         from .mind_tick import (
             _MIND_BOUNDARY_ERRORS,
@@ -270,7 +271,7 @@ class _RunsTheTickLoopSteps:
                 local_runtime_state = "unknown"
         return local_runtime_state
 
-    async def _run_loop_these_run_during(self):
+    async def _run_loop_these_run_during(self) -> None:
         # These run during dream consolidation, not on
         # every tick — but they ran ON THE LOOP:
         # metacognitive assessment, value-graph
@@ -312,7 +313,11 @@ class _RunsTheTickLoopSteps:
         )
         self.set_mode(CognitiveMode.SLEEP)
 
-    def _run_loop_always_advance_heartbeat(self, sleep_time_override, start_time):
+    def _run_loop_always_advance_heartbeat(
+        self,
+        sleep_time_override: Any,
+        start_time: Any,
+    ) -> tuple[Any, Any]:
         # Always advance heartbeat counters, even on degraded ticks.
         from .mind_tick import (
             _MIND_BOUNDARY_ERRORS,
@@ -352,7 +357,7 @@ class _RunsTheTickLoopSteps:
             _record_mind_degradation(exc)
         return elapsed, interval
 
-    async def _run_loop_health_pause(self):
+    async def _run_loop_health_pause(self) -> None:
         from .mind_tick import (
             _MIND_BOUNDARY_ERRORS,
             _record_mind_degradation,

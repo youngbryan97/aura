@@ -26,9 +26,10 @@ from core.learning.semantic_program_floor import (
 )
 from core.learning.semantic_program_transducer_fitting import _operation_order
 from core.verify.invariants import invariant
+from typing import Any
 
 
-def counterfactual_inputs(inputs, *, count=32, seed=0):
+def counterfactual_inputs(inputs: Any, *, count: int=32, seed: int=0) -> tuple[Any, ...]:
     """Vary typed public values without reading operations, names or answers."""
     if type(count) is not int or count < 0:
         raise ValueError("counterfactual count must be nonnegative")
@@ -46,7 +47,7 @@ def counterfactual_inputs(inputs, *, count=32, seed=0):
     return tuple(dict.fromkeys(probes))
 
 
-def argument_graph_order(nodes, arguments, *, n_inputs: int) -> tuple[int, ...]:
+def argument_graph_order(nodes: Any, arguments: Any, *, n_inputs: int) -> tuple[int, ...]:
     """Keep execution and source attribution on one topological permutation."""
     if len(nodes) != len(arguments) or any(
         type(register) is not int or not 0 <= register < n_inputs + len(nodes)
@@ -60,7 +61,7 @@ def argument_graph_order(nodes, arguments, *, n_inputs: int) -> tuple[int, ...]:
     return tuple(order)
 
 
-def argument_graph_program(nodes, arguments, *, n_inputs: int) -> Program:
+def argument_graph_program(nodes: Any, arguments: tuple[Any, ...], *, n_inputs: int) -> Program:
     """Normalize a selected DAG using the decoder's existing topological rule."""
     order = argument_graph_order(nodes, arguments, n_inputs=n_inputs)
     remap = {n_inputs + old: n_inputs + new for new, old in enumerate(order)}
@@ -68,7 +69,7 @@ def argument_graph_program(nodes, arguments, *, n_inputs: int) -> Program:
         tuple(r if r < n_inputs else remap[r] for r in arguments[index])) for index in order))
 
 
-def _observe_program_domain(program, values, *, fuel):
+def _observe_program_domain(program: Any, values: tuple[Any, ...], *, fuel: Any) -> dict[str, Any]:
     """Require reference/floor agreement before admitting a value or domain fact."""
     reference = program.run(values)
     observation = {"status": "error", "result": None, "execution_receipt": None,
@@ -101,7 +102,7 @@ class ProgramObservationCache:
     executions are retried, and returned receipts cannot mutate stored evidence.
     """
 
-    def __init__(self, *, capacity=256):
+    def __init__(self, *, capacity: int=256) -> None:
         if type(capacity) is not int or capacity < 1:
             raise ValueError("observation cache capacity must be positive")
         self.capacity = capacity
@@ -109,7 +110,7 @@ class ProgramObservationCache:
         self.hits = 0
         self.executions = 0
 
-    def observe(self, program, values, *, fuel):
+    def observe(self, program: Any, values: tuple[Any, ...], *, fuel: Any) -> Any:
         if type(fuel) is not int or fuel < 1:
             raise ValueError("observation fuel must be a positive integer")
         values = tuple(values)
@@ -130,13 +131,19 @@ class ProgramObservationCache:
                 self._observations.popitem(last=False)
         return result
 
-    def statistics(self):
+    def statistics(self) -> dict[str, Any]:
         return {"hits": self.hits, "executions": self.executions,
                 "retained": len(self._observations), "capacity": self.capacity}
 
 
-def compare_program_meanings(target: Program, alternative: Program, probes: Sequence[tuple], *, fuel=100_000,
-                             observation_cache=None) -> dict:
+def compare_program_meanings(
+    target: Program,
+    alternative: Program,
+    probes: Sequence[tuple],
+    *,
+    fuel: int=100000,
+    observation_cache: Any=None,
+) -> dict:
     """Prove a supported symmetry or witness different values or defined domains."""
     if target.n_inputs != alternative.n_inputs:
         raise ValueError("semantic contrast public input geometry differs")
@@ -185,7 +192,7 @@ class GraphCounterexampleSearch:
     negative_evidence: tuple = ()
 
 
-def uniform_reduction_equivalence(chart, nodes):
+def uniform_reduction_equivalence(chart: ScoredArgumentChart, nodes: Any) -> Any:
     """Prove all feasible linear-use monoid trees have one output meaning.
 
     The argument solver enforces acyclicity and a single sink. With each
@@ -207,8 +214,16 @@ def uniform_reduction_equivalence(chart, nodes):
             "claim": "output_equality_only"}
 
 
-def find_graph_counterexample(chart: ScoredArgumentChart, nodes, target_arguments, *, probes=(), max_graphs=128,
-                              progress=None, solve_time_limit_s=None):
+def find_graph_counterexample(
+    chart: ScoredArgumentChart,
+    nodes: Any,
+    target_arguments: tuple[Any, ...],
+    *,
+    probes: tuple[Any, ...]=(),
+    max_graphs: int=128,
+    progress: Any=None,
+    solve_time_limit_s: Any=None,
+) -> Any:
     """Find the highest-scoring witnessed error; unresolved meanings prevent that claim."""
     if type(max_graphs) is not int or max_graphs < 1:
         raise ValueError("counterexample graph allowance must be positive")
@@ -238,9 +253,20 @@ def find_graph_counterexample(chart: ScoredArgumentChart, nodes, target_argument
         positive_evidence=positive_evidence[0] if positive_evidence else (), excluded_graphs=(target_arguments,))
 
 
-def find_program_counterexample(chart: ScoredArgumentChart, nodes, target: Program, *, probes=(), max_graphs=128,
-                                progress=None, solve_time_limit_s=None, positive=None,
-                                positive_evidence=(), excluded_graphs=(), observation_cache=None):
+def find_program_counterexample(
+    chart: ScoredArgumentChart,
+    nodes: Any,
+    target: Program,
+    *,
+    probes: tuple[Any, ...]=(),
+    max_graphs: int=128,
+    progress: Any=None,
+    solve_time_limit_s: Any=None,
+    positive: Any=None,
+    positive_evidence: tuple[Any, ...]=(),
+    excluded_graphs: tuple[Any, ...]=(),
+    observation_cache: Any=None,
+) -> Any:
     """Search a runtime chart even when its operations differ from the source target."""
     if type(max_graphs) is not int or max_graphs < 1:
         raise ValueError("counterexample graph allowance must be positive")

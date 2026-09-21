@@ -124,11 +124,11 @@ class LocalMorphPolicy:
     def __init__(
         self,
         *,
-        seed: int = 0,
-        queue_pressure_bind: float = 0.15,
-        queue_pressure_spawn: float = 0.55,
-        idle_rounds_before_retire: int = 8,
-    ):
+        seed: int=0,
+        queue_pressure_bind: float=0.15,
+        queue_pressure_spawn: float=0.55,
+        idle_rounds_before_retire: int=8,
+    ) -> None:
         self._rng = random.Random(seed)
         self.queue_pressure_bind = float(queue_pressure_bind)
         self.queue_pressure_spawn = float(queue_pressure_spawn)
@@ -358,7 +358,7 @@ class CentralPolicy:
 
     name = "central"
 
-    def __init__(self, *, seed: int = 0, pressure_threshold: float = 0.8):
+    def __init__(self, *, seed: int=0, pressure_threshold: float=0.8) -> None:
         self._rng = random.Random(seed)
         self.pressure_threshold = float(pressure_threshold)
 
@@ -423,7 +423,7 @@ class RandomPolicy:
 
     name = "random"
 
-    def __init__(self, *, seed: int = 0, rate: float = 0.5):
+    def __init__(self, *, seed: int=0, rate: float=0.5) -> None:
         self._rng = random.Random(seed)
         self.rate = float(rate)
 

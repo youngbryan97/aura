@@ -50,7 +50,16 @@ from core.skills.screen_pursuit_surface import (
 _FALL_THROUGH = object()
 
 
-def _decide_the_next_move_what_she_what(began_at, cannot_explain, laid_out, narrate, pending, plan, success_when, trying):
+def _decide_the_next_move_what_she_what(
+    began_at: Any,
+    cannot_explain: Any,
+    laid_out: Any,
+    narrate: Any,
+    pending: Any,
+    plan: Any,
+    success_when: Any,
+    trying: Any,
+) -> None:
     # What she was in, what she made of it, and what it came to.
     #
     # Two situations she scores alike, one of which went on to do
@@ -90,7 +99,17 @@ def _decide_the_next_move_what_she_what(began_at, cannot_explain, laid_out, narr
                 )
             trying["name"] = ""
 
-def _decide_the_next_move_part_12(furthest, laid_out, pending, plan, previous, responds, skilled, success_when, single_action=True):
+def _decide_the_next_move_part_12(
+    furthest: Any,
+    laid_out: Any,
+    pending: Any,
+    plan: Any,
+    previous: Any,
+    responds: Any,
+    skilled: Any,
+    success_when: Any,
+    single_action: bool=True,
+) -> tuple[Any, Any]:
     if single_action:
         skilled.learned(
             pending["arranged"].as_shape(),
@@ -147,7 +166,15 @@ def _decide_the_next_move_part_12(furthest, laid_out, pending, plan, previous, r
     further = _she_got_further(made, beaten)
     return further, made
 
-def _decide_the_next_move_learned_same_measurement(anchor, attempt, observation, pending, previous, responds, target_app):
+def _decide_the_next_move_learned_same_measurement(
+    anchor: Any,
+    attempt: Any,
+    observation: dict[str, Any],
+    pending: Any,
+    previous: Any,
+    responds: Any,
+    target_app: Any,
+) -> None:
     # Learned from the same measurement. A move that changed nothing
     # is the control: whatever still changed across it was changing
     # on its own, and a page whose advertising animates as often as
@@ -182,7 +209,14 @@ def _decide_the_next_move_learned_same_measurement(anchor, attempt, observation,
             acting=previous.chosen.name if previous.chosen is not None else "",
         )
 
-def _decide_the_next_move_part_14(ended, holding, looking_at_the_thing, moves, plan, costs=None):
+def _decide_the_next_move_part_14(
+    ended: Any,
+    holding: bool,
+    looking_at_the_thing: Any,
+    moves: Any,
+    plan: Any,
+    costs: Any=None,
+) -> bool:
     from .screen_pursuit import logger
     if plan["held"] is not None and holding is False:
         logger.info("the line she was taking stopped holding: %s", ended)
@@ -243,7 +277,15 @@ def _a_move_here(run: Any) -> float:
     return (sum(looks) / len(looks)) if looks else 0.0
 
 
-def _decide_the_next_move_nothing_task_working(can_do, move_keys, observation, offered_a_restart, responds, knows=None, laid_out=None):
+def _decide_the_next_move_nothing_task_working(
+    can_do: Any,
+    move_keys: Any,
+    observation: dict[str, Any],
+    offered_a_restart: Any,
+    responds: Any,
+    knows: Any=None,
+    laid_out: Any=None,
+) -> tuple[Any, Any]:
     from .screen_pursuit import logger
     # When nothing in the task is working, the task itself becomes a
     # choice. Both ways out are hers, and both are recorded as
@@ -365,7 +407,14 @@ def _what_she_says_as_she_moves(
     return what_a_move_does(laid_out, key, after, biggest_so_far=biggest_so_far, because=because)
 
 
-def _decide_the_next_move_act_has_done(available, knows, laid_out, reaches, responds, stretch):
+def _decide_the_next_move_act_has_done(
+    available: Any,
+    knows: Any,
+    laid_out: Any,
+    reaches: Any,
+    responds: Any,
+    stretch: Any,
+) -> Any:
     from .screen_pursuit import logger
     # And an act that has done nothing since the last time anything
     # happened is not the act to take again.
@@ -451,7 +500,15 @@ def _decide_the_next_move_act_has_done(available, knows, laid_out, reaches, resp
             ]
     return available
 
-def _decide_the_next_move_where_move_she(ahead, aiming_at, available, goal, laid_out, marks, wont):
+def _decide_the_next_move_where_move_she(
+    ahead: Any,
+    aiming_at: Any,
+    available: Any,
+    goal: Any,
+    laid_out: Any,
+    marks: Any,
+    wont: Any,
+) -> Any:
     from core.cognition.when_the_move_is_forbidden import a_way_round
 
     from .screen_pursuit import logger
@@ -490,7 +547,13 @@ def _decide_the_next_move_where_move_she(ahead, aiming_at, available, goal, laid
         marks.she_marked(kind, saying=aiming_at or goal)
     return kind
 
-async def _decide_the_next_move_blocker(blocker_attempts, clear_blocker, needs_person, no_move, observation):
+async def _decide_the_next_move_blocker(
+    blocker_attempts: Any,
+    clear_blocker: Any,
+    needs_person: Any,
+    no_move: Any,
+    observation: dict[str, Any],
+) -> Any:
     from .screen_pursuit import MAX_BLOCKER_ATTEMPTS, logger
     blocker = await clear_blocker(observation)
     if blocker is not None:
@@ -530,7 +593,14 @@ async def _decide_the_next_move_blocker(blocker_attempts, clear_blocker, needs_p
         return None
     return _FALL_THROUGH
 
-def _decide_the_next_move_while_there_something(available, chosen, laid_out, no_move, responds, she_keeps):
+def _decide_the_next_move_while_there_something(
+    available: Any,
+    chosen: Any,
+    laid_out: Any,
+    no_move: Any,
+    responds: Any,
+    she_keeps: Any,
+) -> Any:
     from core.cognition.what_she_cannot_afford_to_lose import what_she_cannot_afford_to_lose
     from core.cognition.when_to_say_it_outright import whether_to_say_it
 

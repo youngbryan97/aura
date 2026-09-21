@@ -473,7 +473,7 @@ class _PoisonPolicy:
 
     name = "poison"
 
-    def __init__(self, *, seed: int = 0):
+    def __init__(self, *, seed: int=0) -> None:
         self.seed = seed
 
     def propose(self, context: PolicyContext) -> list[Any]:

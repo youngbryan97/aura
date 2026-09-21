@@ -23,7 +23,13 @@ class _CallsTheEndpoint:
     """Lifted whole out of HealthAwareLLMRouter; see llm_health_router.py."""
 
     @staticmethod
-    def _generate_core_live_benchmark_request(benchmark_request, kwargs, origin, prompt, purpose):
+    def _generate_core_live_benchmark_request(
+        benchmark_request: bool,
+        kwargs: Any,
+        origin: str,
+        prompt: str,
+        purpose: str,
+    ) -> tuple[bool, bool]:
         from .llm_health_router import (
             is_proof_evaluation_purpose,
             is_strict_proof_answer_prompt,
@@ -71,7 +77,15 @@ class _CallsTheEndpoint:
         )
         return isolated_generation_contract, live_benchmark_request
 
-    async def _generate_core_part_2(self, _fast_model, _model_parts, classification_mode, isolated_generation_contract, prompt, system_prompt):
+    async def _generate_core_part_2(
+        self,
+        _fast_model: Any,
+        _model_parts: list[Any],
+        classification_mode: bool,
+        isolated_generation_contract: Any,
+        prompt: str,
+        system_prompt: str | None,
+    ) -> tuple[Any, Any]:
         if _fast_model:
             _model_parts.append(f"{_fast_model} (fast reflex)")
         _models_line = (
@@ -188,7 +202,7 @@ class _CallsTheEndpoint:
         tier_preference = guidance.get("tier_preference") if guidance else None
         return system_prompt, tier_preference
 
-    def _generate_core_background_hardening_force(self, kwargs, origin):
+    def _generate_core_background_hardening_force(self, kwargs: Any, origin: str) -> tuple[Any, str]:
         # Background Hardening: Force tertiary (7B) for background tasks
         from .llm_health_router import (
             _USER_FACING_PURPOSES,
@@ -224,7 +238,13 @@ class _CallsTheEndpoint:
         return is_bg, purpose
 
     @staticmethod
-    def _generate_core_strict_primary_proof_lane(isolated_generation_contract, kwargs, live_benchmark_request, origin, purpose):
+    def _generate_core_strict_primary_proof_lane(
+        isolated_generation_contract: Any,
+        kwargs: Any,
+        live_benchmark_request: Any,
+        origin: str,
+        purpose: str,
+    ) -> bool:
         from .llm_health_router import (
             _record_router_degradation,
             proof_model_tier,
@@ -272,7 +292,12 @@ class _CallsTheEndpoint:
         return strict_primary_proof_lane
 
     @staticmethod
-    def _generate_core_selectors(deep_handoff, is_bg, prefer_endpoint, prefer_tier):
+    def _generate_core_selectors(
+        deep_handoff: bool,
+        is_bg: bool,
+        prefer_endpoint: Any,
+        prefer_tier: str | None,
+    ) -> list[tuple[str, str]]:
         selectors: list[tuple[str, str]] = []
         if prefer_endpoint:
             selectors.append(("name", prefer_endpoint))
@@ -316,7 +341,14 @@ class _CallsTheEndpoint:
                 ])
         return selectors
 
-    def _generate_core_part_6(self, available, deep_handoff, ordered, origin, prefer_tier):
+    def _generate_core_part_6(
+        self,
+        available: Any,
+        deep_handoff: bool,
+        ordered: list[EndpointHealth],
+        origin: str,
+        prefer_tier: str | None,
+    ) -> Any:
         from .llm_health_router import (
             _only_warming,
             logger,
@@ -375,7 +407,14 @@ class _CallsTheEndpoint:
             available = []
         return available
 
-    def _generate_core_benchmark_uncertified(self, chain_entry, ep, fallback_chain, is_bg, result):
+    def _generate_core_benchmark_uncertified(
+        self,
+        chain_entry: dict[str, Any],
+        ep: Any,
+        fallback_chain: list[dict[str, Any]],
+        is_bg: bool,
+        result: Any,
+    ) -> None:
         from .llm_health_router import (
             _endpoint_provider_identity,
             _record_router_degradation,
@@ -436,7 +475,15 @@ class _CallsTheEndpoint:
             self.last_user_endpoint = ep.name
             self.last_user_error = ""
 
-    def _generate_core_endpoint_budget_computed(self, chain_entry, endpoint_budget, ep, exc, is_bg, watchdog_aborted):
+    def _generate_core_endpoint_budget_computed(
+        self,
+        chain_entry: dict[str, Any],
+        endpoint_budget: Any,
+        ep: Any,
+        exc: Any,
+        is_bg: bool,
+        watchdog_aborted: dict[str, Any],
+    ) -> str:
         # endpoint_budget was computed at the top of this try block
         # before any await — recomputing it here from the ORIGINAL
         # timeout misreported the budget the attempt actually had.
@@ -509,11 +556,11 @@ class _CallsTheEndpoint:
     async def _generate_core(
         self,
         prompt: str,
-        system_prompt: str | None = None,
-        timeout: float = 120.0,  # noqa: ASYNC109 - public router API accepts timeout budgets.
-        prefer_tier: str | None = None,
-        schema: dict | None = None,
-        **kwargs,
+        system_prompt: str | None=None,
+        timeout: float=120.0,
+        prefer_tier: str | None=None,
+        schema: dict | None=None,
+        **kwargs: Any,
     ) -> dict[str, Any]:
         from .llm_health_router import (
             _ROUTER_CLIENT_ERRORS,
@@ -978,7 +1025,10 @@ class _CallsTheEndpoint:
         }
 
     @staticmethod
-    def _call_endpoint_sanitize_kwargs_json(kwargs, schema):
+    def _call_endpoint_sanitize_kwargs_json(
+        kwargs: Any,
+        schema: dict | None,
+    ) -> tuple[bool, dict[str, Any]]:
         # 1. Sanitize kwargs for JSON (remove non-serializable like LLMTier)
         from .llm_health_router import (
             is_proof_evaluation_purpose,
@@ -1013,7 +1063,16 @@ class _CallsTheEndpoint:
             clean_kwargs["proof_evaluation_contract"] = True
         return benchmark_request, clean_kwargs
 
-    def _call_endpoint_aura_hardening_formatting(self, clean_kwargs, client, ep, kwargs, prompt, schema, system_prompt):
+    def _call_endpoint_aura_hardening_formatting(
+        self,
+        clean_kwargs: Any,
+        client: Any,
+        ep: EndpointHealth,
+        kwargs: Any,
+        prompt: str,
+        schema: dict | None,
+        system_prompt: str | None,
+    ) -> tuple[Any, Any]:
         # Aura Hardening: Formatting for local models
         from .llm_health_router import (
             PRIMARY_ENDPOINT,
@@ -1066,7 +1125,10 @@ class _CallsTheEndpoint:
         return final_prompt, system_prompt
 
     @staticmethod
-    def _call_endpoint_generation_metadata(client, client_generation_metadata_sink):
+    def _call_endpoint_generation_metadata(
+        client: Any,
+        client_generation_metadata_sink: dict[str, Any],
+    ) -> tuple[str, dict[str, Any]]:
         generation_metadata: dict[str, Any] = dict(
             client_generation_metadata_sink
         )
@@ -1105,7 +1167,13 @@ class _CallsTheEndpoint:
         return _quality_rejection, generation_metadata
 
     @staticmethod
-    async def _call_endpoint_fallback_http_api(clean_kwargs, ep, prompt, system_prompt, timeout):  # noqa: ASYNC109 - inherited budget semantics.
+    async def _call_endpoint_fallback_http_api(
+        clean_kwargs: Any,
+        ep: EndpointHealth,
+        prompt: str,
+        system_prompt: str | None,
+        timeout: float,
+    ) -> tuple[Any, int]:  # noqa: ASYNC109 - inherited budget semantics.
         # 3. Fallback to HTTP API proxying (if no direct client)
         from .llm_health_router import (
             get_network_gateway,
@@ -1147,9 +1215,9 @@ class _CallsTheEndpoint:
         ep: EndpointHealth,
         prompt: str,
         system_prompt: str | None,
-        timeout: float,  # noqa: ASYNC109 - endpoint adapter receives caller timeout budgets.
-        schema: dict | None = None,
-        **kwargs,
+        timeout: float,
+        schema: dict | None=None,
+        **kwargs: Any,
     ) -> dict[str, Any]:
         """Make the actual call and validate the response."""
         from .llm_health_router import (

@@ -8,9 +8,16 @@ from core.learning.semantic_graph_counterexamples import (
 from core.learning.semantic_joint_graph_learning import align_source_input_registers
 from core.learning.semantic_program_campaign import _sha
 from core.learning.semantic_program_transducer import _hidden_array
+from typing import Any
 
 
-def diagnose_semantic_candidate_bank(bank, item, *, execution_correct=None, emission_correct=None):
+def diagnose_semantic_candidate_bank(
+    bank: Any,
+    item: Any,
+    *,
+    execution_correct: Any=None,
+    emission_correct: Any=None,
+) -> Any:
     """Compare after generation; labels never change the search or its selection.
 
     Exhausted search with unknown equivalence cannot establish unreachability.
@@ -32,7 +39,7 @@ def diagnose_semantic_candidate_bank(bank, item, *, execution_correct=None, emis
             "search_complete": bank.receipt["search_complete"], "comparisons": [],
             "correct_reachable": None, "selected_semantic_status": "unmeasured"}
 
-    def finish(stage):
+    def finish(stage: str) -> dict[str, Any]:
         body["failure_stage"] = stage
         return {**body, "receipt_sha256": _sha(body)}
 

@@ -1814,7 +1814,13 @@ def _validate_release_readiness(
     return summary
 
 
-def _verify_frontier_gain_bundle_part_1(prereg, seen_task_payloads, trial, trial_id, trial_reasons):
+def _verify_frontier_gain_bundle_part_1(
+    prereg: Any,
+    seen_task_payloads: set[str],
+    trial: Any,
+    trial_id: str,
+    trial_reasons: list[str],
+) -> tuple[Any, Any]:
     _validate_trial_lineage(trial, trial_reasons)
     # Each trial must have been scored by the PREREGISTERED scoring
     # program (its per-trial config may differ; the program may not).
@@ -1867,7 +1873,17 @@ def _verify_frontier_gain_bundle_part_1(prereg, seen_task_payloads, trial, trial
         trial_reasons.append(f"{trial_id}:decode_policy_mismatch")
     return control_information, treatment_information
 
-def _verify_frontier_gain_bundle_part_2(episode_id, installed_app_build_sha256, prereg, seen_control_request_ids, seen_episode_ids, trial, trial_id, trial_reasons, worker_boot_id):
+def _verify_frontier_gain_bundle_part_2(
+    episode_id: Any,
+    installed_app_build_sha256: str,
+    prereg: Any,
+    seen_control_request_ids: set[str],
+    seen_episode_ids: set[str],
+    trial: Any,
+    trial_id: str,
+    trial_reasons: list[str],
+    worker_boot_id: str,
+) -> tuple[Any, ...]:
     if episode_id in seen_episode_ids:
         trial_reasons.append(f"{trial_id}:duplicate_treatment_episode")
     seen_episode_ids.add(episode_id)
@@ -1903,7 +1919,16 @@ def _verify_frontier_gain_bundle_part_2(episode_id, installed_app_build_sha256, 
         canary_arms += (("control", "control_receipt"),)
     return canary_arms
 
-def _verify_frontier_gain_bundle_achieved_power(min_trials, order_by_domain, paired, prereg_alpha, prereg_target_power, prereg_win_share, reasons, task_families):
+def _verify_frontier_gain_bundle_achieved_power(
+    min_trials: Any,
+    order_by_domain: dict[str, dict[str, int]],
+    paired: dict[str, list[PairedObservation]],
+    prereg_alpha: Any,
+    prereg_target_power: Any,
+    prereg_win_share: Any,
+    reasons: list[str],
+    task_families: Any,
+) -> tuple[dict[str, float], dict[str, int]]:
     achieved_power: dict[str, float] = {}
     effective_sample: dict[str, int] = {}
     for domain, observations in paired.items():
@@ -1951,7 +1976,14 @@ def _verify_frontier_gain_bundle_achieved_power(min_trials, order_by_domain, pai
             reasons.append(f"{domain}:run_order_imbalanced")
     return achieved_power, effective_sample
 
-def _verify_frontier_gain_bundle_admitted_order_total(order_by_domain, order_effect_samples, prereg, reasons, scored_pairs, success_threshold):
+def _verify_frontier_gain_bundle_admitted_order_total(
+    order_by_domain: dict[str, dict[str, int]],
+    order_effect_samples: dict[str, list[int]],
+    prereg: Any,
+    reasons: list[str],
+    scored_pairs: list[tuple[float, float]],
+    success_threshold: Any,
+) -> tuple[list[float], Any]:
     admitted_order_total = sum(
         counts["treatment_first"] + counts["control_first"]
         for counts in order_by_domain.values()
@@ -2020,7 +2052,13 @@ def _verify_frontier_gain_bundle_admitted_order_total(order_by_domain, order_eff
         reasons.append("order_effect_unmeasurable")
     return fragile_thresholds, order_effect
 
-def _verify_frontier_gain_bundle_cp126_ca4271_cccfcb5(bundle, earliest_evaluation_started_at, earliest_task_generated_at, reasons, trusted_transparency_logs):
+def _verify_frontier_gain_bundle_cp126_ca4271_cccfcb5(
+    bundle: Any,
+    earliest_evaluation_started_at: Any,
+    earliest_task_generated_at: Any,
+    reasons: list[str],
+    trusted_transparency_logs: Mapping[str, Mapping[str, Any]] | None,
+) -> tuple[Any, Any]:
     # CP126 89ca4271 + 9cccfcb5: a signature says who wrote a timestamp, never
     # when the event happened. Both the preregistration and the task
     # commitment have to be in an append-only log whose root was pinned out of

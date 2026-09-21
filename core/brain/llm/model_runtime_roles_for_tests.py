@@ -20,6 +20,7 @@ says so in its authority_source.
 from __future__ import annotations
 
 import hashlib
+from typing import Any
 
 from core.runtime.model_runtime_assignment import ModelRuntimeAssignment
 
@@ -28,7 +29,7 @@ from core.runtime.model_runtime_assignment import ModelRuntimeAssignment
 AUTHORITY_SOURCE = "declared_role_for_tests"
 
 
-def assignment_for(model_path: str, *, role: str, purpose: str = "serve"):
+def assignment_for(model_path: str, *, role: str, purpose: str='serve') -> Any:
     """A runtime assignment binding ``model_path`` to a declared serving role."""
     return ModelRuntimeAssignment.issue(
         model_path=model_path,

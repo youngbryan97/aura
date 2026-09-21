@@ -102,7 +102,7 @@ class ExportBundle:
         }
 
 
-def _bom_csv(design, plan) -> str:
+def _bom_csv(design: Any, plan: Any) -> str:
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
@@ -132,7 +132,7 @@ def _bom_csv(design, plan) -> str:
     return output.getvalue()
 
 
-def _spec_markdown(design, findings, verdict, plan, narrative: str) -> str:
+def _spec_markdown(design: Any, findings: tuple, verdict: Any, plan: Any, narrative: str) -> str:
     lines = [f"# {design.name}", ""]
     if design.purpose:
         lines += [design.purpose, ""]
@@ -306,7 +306,15 @@ _HTML_SCRIPT = """
 """
 
 
-def _html_bundle(design, findings, verdict, plan, sheets, narrative: str, files) -> str:
+def _html_bundle(
+    design: Any,
+    findings: tuple,
+    verdict: Any,
+    plan: Any,
+    sheets: tuple,
+    narrative: str,
+    files: list[ExportedFile],
+) -> str:
     from core.engineering.explain import annotate_terms, explain_part
 
     def tile(label: str, value: str, klass: str = "") -> str:
@@ -474,14 +482,14 @@ SHEET_CAPTIONS: dict[str, str] = {
 
 
 def build_bundle(
-    design,
+    design: Any,
     findings: tuple,
-    verdict,
+    verdict: Any,
     *,
-    sheets: tuple = (),
-    plan=None,
-    narrative: str = "",
-    formats: tuple[str, ...] = (),
+    sheets: tuple=(),
+    plan: Any=None,
+    narrative: str='',
+    formats: tuple[str, ...]=(),
 ) -> ExportBundle:
     """Produce every requested format for one design, in memory."""
     from core.engineering.export_mesh import (

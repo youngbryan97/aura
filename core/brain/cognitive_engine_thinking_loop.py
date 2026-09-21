@@ -21,7 +21,13 @@ if TYPE_CHECKING:
 class _RunsTheThinkingLoop:
     """Lifted whole out of CognitiveEngine; see cognitive_engine.py."""
 
-    def _run_thinking_loop_part_1(self, context, objective, origin, state):
+    def _run_thinking_loop_part_1(
+        self,
+        context: dict[str, Any],
+        objective: str,
+        origin: str,
+        state: AuraState,
+    ) -> tuple[dict[str, Any], str]:
         """
         Internal method to execute the core cognitive phase loop.
         Extracted from `think` to allow pre/post-processing in `think`.
@@ -56,7 +62,14 @@ class _RunsTheThinkingLoop:
         self._thinking_loop_surface_prompt(append_user_message, context, objective, origin, state, surface_prompt)
         return context, foreground_turn_objective
 
-    def _run_thinking_loop_part_2(self, context, cycle_timeout, is_background, objective, origin):
+    def _run_thinking_loop_part_2(
+        self,
+        context: dict[str, Any],
+        cycle_timeout: Any,
+        is_background: bool,
+        objective: str,
+        origin: str,
+    ) -> tuple[Any, Any]:
         from .cognitive_engine import (
             _DEFAULT_COGNITIVE_CYCLE_MAX_S,
             _time_the_answer_needs,
@@ -103,7 +116,14 @@ class _RunsTheThinkingLoop:
         context["cognitive_cycle_deadline_monotonic"] = cycle_deadline_at
         return cycle_deadline_at, cycle_timeout
 
-    def _run_thinking_loop_part_3(self, direct_quick_reply, origin, state, success, temp_state):
+    def _run_thinking_loop_part_3(
+        self,
+        direct_quick_reply: Any,
+        origin: str,
+        state: AuraState,
+        success: bool,
+        temp_state: Any,
+    ) -> tuple[bool, Any]:
         from .cognitive_engine import (
             record_response_path,
         )
@@ -138,7 +158,14 @@ class _RunsTheThinkingLoop:
             success = True
         return success, temp_state
 
-    def _run_thinking_loop__clock_keeper(self, _cycle_clock, context, is_background, objective, origin):
+    def _run_thinking_loop__clock_keeper(
+        self,
+        _cycle_clock: Any,
+        context: dict[str, Any],
+        is_background: bool,
+        objective: str,
+        origin: str,
+    ) -> tuple[Any, Any]:
         from .cognitive_engine import (
             _begin_pass_run,
             _keep_the_cycle_open_while_it_is_working,
@@ -180,7 +207,15 @@ class _RunsTheThinkingLoop:
         return _clock_keeper, _provenance_tick
 
     @staticmethod
-    async def _run_thinking_loop_started_at(context, kwargs, objective, ordinal, phase, phase_name, temp_state):
+    async def _run_thinking_loop_started_at(
+        context: dict[str, Any],
+        kwargs: Any,
+        objective: str,
+        ordinal: Any,
+        phase: Any,
+        phase_name: Any,
+        temp_state: Any,
+    ) -> Any:
         from .cognitive_engine import (
             _begin_provenance,
             _complete_provenance,
@@ -238,7 +273,14 @@ class _RunsTheThinkingLoop:
                 pass
         return temp_state
 
-    async def _run_thinking_loop_closed_rather_after(self, _clock_keeper, _provenance_tick, backup_state, state, success):
+    async def _run_thinking_loop_closed_rather_after(
+        self,
+        _clock_keeper: Any,
+        _provenance_tick: Any,
+        backup_state: Any,
+        state: AuraState,
+        success: bool,
+    ) -> Any:
         # Closed here rather than after the loop so a tick that timed
         # out or crashed still lands in the ring. Those are the ticks
         # somebody most wants to read afterwards, and the version that
@@ -311,7 +353,16 @@ class _RunsTheThinkingLoop:
             logger.debug("Ignored Exception in cognitive_engine.py: %s", _e)
         return state
 
-    async def _run_thinking_loop_should_bypass_commit(self, context, cycle_deadline_at, is_test_run, origin, pre_turn_cognition, state, temp_state):
+    async def _run_thinking_loop_should_bypass_commit(
+        self,
+        context: dict[str, Any],
+        cycle_deadline_at: Any,
+        is_test_run: Any,
+        origin: str,
+        pre_turn_cognition: dict[str, Any],
+        state: AuraState,
+        temp_state: Any,
+    ) -> tuple[str, Any]:
         from .cognitive_engine import (
             _commit_the_thought_with_retries,
         )
@@ -347,7 +398,16 @@ class _RunsTheThinkingLoop:
         )
         return commit_outcome, state
 
-    def _run_thinking_loop_imagination_feedback(self, _cycle_reward, commit_outcome, context, feedback, last_msg, mode, state):
+    def _run_thinking_loop_imagination_feedback(
+        self,
+        _cycle_reward: Any,
+        commit_outcome: Any,
+        context: dict[str, Any],
+        feedback: Any,
+        last_msg: Any,
+        mode: ThinkingMode,
+        state: AuraState,
+    ) -> Any:
         from .cognitive_engine import (
             _COGNITIVE_ENGINE_RECOVERABLE_ERRORS,
             Thought,
@@ -553,7 +613,11 @@ class _RunsTheThinkingLoop:
         )
         return thought
 
-    def _run_thinking_loop_record_pressure_read(self, context, objective):
+    def _run_thinking_loop_record_pressure_read(
+        self,
+        context: dict[str, Any],
+        objective: str,
+    ) -> None:
         # Record the pressure, then READ it back. Until this, the graph had
         # two writers and no reader anywhere in the codebase: it accumulated
         # friction that could not influence any output, which makes the
@@ -603,7 +667,12 @@ class _RunsTheThinkingLoop:
         )
 
     @staticmethod
-    def _run_thinking_loop_generation_metadata(context, origin, salvaged, state):
+    def _run_thinking_loop_generation_metadata(
+        context: dict[str, Any],
+        origin: str,
+        salvaged: Any,
+        state: AuraState,
+    ) -> dict[str, Any]:
         from .cognitive_engine import (
             _truncation_verdict,
             logger,
@@ -749,8 +818,8 @@ class _RunsTheThinkingLoop:
         objective: str,
         mode: ThinkingMode,
         origin: str,
-        context: dict[str, Any] = None,
-        **kwargs,
+        context: dict[str, Any]=None,
+        **kwargs: Any,
     ) -> Thought:
         from .cognitive_engine import (
             _COGNITIVE_ENGINE_RECOVERABLE_ERRORS,

@@ -104,7 +104,11 @@ class _AnswersTheDesktopDirectly:
         return thought
 
     @staticmethod
-    def _direct_desktop_quick_reply_prompt_shape(context, objective, self_condition_contract_covers_turn):
+    def _direct_desktop_quick_reply_prompt_shape(
+        context: dict[str, Any] | None,
+        objective: str,
+        self_condition_contract_covers_turn: bool,
+    ) -> tuple[bool, Any]:
         from .cognitive_engine import (
             _turn_wants_a_derivation,
             answer_surface_token_floor,
@@ -147,7 +151,17 @@ class _AnswersTheDesktopDirectly:
         return shape_wants_room, structural_answer_floor
 
     @staticmethod
-    def _direct_desktop_quick_reply_part_2(advisory_factors, capability_inventory_contract, context, extended_full_mind_reply, max_tokens, memory_state_contract, runtime_fact_status_contract, shape_wants_room, structural_answer_floor):
+    def _direct_desktop_quick_reply_part_2(
+        advisory_factors: list[float],
+        capability_inventory_contract: bool,
+        context: dict[str, Any] | None,
+        extended_full_mind_reply: bool,
+        max_tokens: Any,
+        memory_state_contract: bool,
+        runtime_fact_status_contract: bool,
+        shape_wants_room: Any,
+        structural_answer_floor: Any,
+    ) -> tuple[Any, Any]:
         from .cognitive_engine import (
             _combine_advisory_token_factors,
         )
@@ -200,7 +214,17 @@ class _AnswersTheDesktopDirectly:
         return completion_floor, max_tokens
 
     @staticmethod
-    def _direct_desktop_quick_reply_authority_head_always(capability_inventory_contract, completion_retry_contract, continuation_contract, memory_state_contract, obligation_contract, runtime_fact_status_contract, self_condition_contract, style_contract, visible_user_message):
+    def _direct_desktop_quick_reply_authority_head_always(
+        capability_inventory_contract: bool,
+        completion_retry_contract: bool,
+        continuation_contract: bool,
+        memory_state_contract: bool,
+        obligation_contract: bool,
+        runtime_fact_status_contract: bool,
+        self_condition_contract: bool,
+        style_contract: Any,
+        visible_user_message: str,
+    ) -> tuple[Any, list[str]]:
         # ONE authority head, always the same bytes.
         #
         # This used to be five hand-written system prompts selected by contract
@@ -319,7 +343,14 @@ class _AnswersTheDesktopDirectly:
         return system_prompt, turn_dynamic_contracts
 
     @staticmethod
-    def _direct_desktop_quick_reply_task_grounding_blocks(capability_inventory_contract, live_mind_context, live_speech_frame, memory_state_contract, mind_context_contract, self_condition_contract):
+    def _direct_desktop_quick_reply_task_grounding_blocks(
+        capability_inventory_contract: bool,
+        live_mind_context: Any,
+        live_speech_frame: Any,
+        memory_state_contract: bool,
+        mind_context_contract: Any,
+        self_condition_contract: bool,
+    ) -> tuple[list[str], list[str]]:
         from .cognitive_engine import (
             _note_the_quick_reply_contract,
             get_lesion_registry,
@@ -368,7 +399,17 @@ class _AnswersTheDesktopDirectly:
         return ambient_grounding_blocks, task_grounding_blocks
 
     @staticmethod
-    def _direct_desktop_quick_reply_context_challenge_evidence(canonical_memory_state_evidence, canonical_self_condition_context, context, contract_grounding_blocks, discourse_repair_contract, runtime_fact_status_contract, self_condition_contract, task_grounding_blocks, user_prompt):
+    def _direct_desktop_quick_reply_context_challenge_evidence(
+        canonical_memory_state_evidence: str,
+        canonical_self_condition_context: str,
+        context: dict[str, Any] | None,
+        contract_grounding_blocks: Any,
+        discourse_repair_contract: Any,
+        runtime_fact_status_contract: bool,
+        self_condition_contract: bool,
+        task_grounding_blocks: list[Any],
+        user_prompt: Any,
+    ) -> str:
         from .cognitive_engine import (
             logger,
         )
@@ -572,7 +613,17 @@ class _AnswersTheDesktopDirectly:
         return action_episode_evidence
 
     @staticmethod
-    async def _direct_desktop_quick_reply_part_6(context, live_mind_generation_controls, obligation_contract, obligation_segment, origin, request_timeout, router, router_generation_metadata, router_kwargs):
+    async def _direct_desktop_quick_reply_part_6(
+        context: dict[str, Any] | None,
+        live_mind_generation_controls: Any,
+        obligation_contract: bool,
+        obligation_segment: str,
+        origin: str,
+        request_timeout: Any,
+        router: Any,
+        router_generation_metadata: dict[str, Any],
+        router_kwargs: dict[str, Any],
+    ) -> tuple[Any, dict[str, Any]]:
         from .cognitive_engine import (
             get_lesion_registry,
             influence_channels,
@@ -639,7 +690,12 @@ class _AnswersTheDesktopDirectly:
         return content, router_generation_metadata
 
     @staticmethod
-    def _direct_desktop_quick_reply_semantic_completion_incomplete(generation_stop_reason, surface_reasons, surface_receipt, text):
+    def _direct_desktop_quick_reply_semantic_completion_incomplete(
+        generation_stop_reason: str,
+        surface_reasons: tuple[Any, ...],
+        surface_receipt: Any,
+        text: Any,
+    ) -> tuple[Any, bool]:
         from .cognitive_engine import (
             _truncation_verdict,
             record_degradation,

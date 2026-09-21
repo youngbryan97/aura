@@ -9,7 +9,12 @@ from __future__ import annotations
 from typing import Any
 
 
-def _pursue_on_screen_where_her_actions(knew, knows, skilled, world):
+def _pursue_on_screen_where_her_actions(
+    knew: Any,
+    knows: Any,
+    skilled: Any,
+    world: Any,
+) -> tuple[Any, dict[str, Any]]:
     from core.perception.the_lattice_she_holds import TheLatticeSheHolds
     from core.perception.what_moves_within_itself import MovesWithinItself
     from core.perception.where_it_responds import Responsive
@@ -69,7 +74,17 @@ def _pursue_on_screen_where_her_actions(knew, knows, skilled, world):
     )
     return reaches, responds
 
-async def _pursue_on_screen_part_2(already, anchor, began, first, fresh, intending, restarts, settle, target_app):
+async def _pursue_on_screen_part_2(
+    already: dict[str, bool],
+    anchor: dict[str, str],
+    began: Any,
+    first: Any,
+    fresh: Any,
+    intending: dict[str, str],
+    restarts: dict[str, Any],
+    settle: Any,
+    target_app: str,
+) -> Any:
     from .screen_pursuit import (
         START_OVER,
         _answer_own_confirmation,
@@ -107,7 +122,7 @@ async def _pursue_on_screen_part_2(already, anchor, began, first, fresh, intendi
         already["value"] = True
     return began
 
-def _pursue_on_screen_she_has_taken(goal, target_app):
+def _pursue_on_screen_she_has_taken(goal: str, target_app: str) -> tuple[Any, Any, Any]:
     from core.agency import what_she_is_doing as doing
     from core.skills.fluid_executor import FluidExecutor
 
@@ -163,7 +178,17 @@ def _pursue_on_screen_she_has_taken(goal, target_app):
         )
     return executor, holding_the_foreground, awake
 
-def _pursue_on_screen_result(already, blocker_attempts, history, moves, pacing, receipt, restarts, seen_through, success_when):
+def _pursue_on_screen_result(
+    already: dict[str, bool],
+    blocker_attempts: dict[str, Any],
+    history: Any,
+    moves: list[dict[str, Any]],
+    pacing: dict[str, Any],
+    receipt: Any,
+    restarts: dict[str, Any],
+    seen_through: dict[str, Any],
+    success_when: str,
+) -> Any:
     from .screen_pursuit import (
         MAX_BLOCKER_ATTEMPTS,
     )
@@ -201,7 +226,16 @@ def _pursue_on_screen_result(already, blocker_attempts, history, moves, pacing, 
     ]
     return result
 
-def _pursue_on_screen_part_5(began_at, cannot_explain, endings, narrate, pending, plan, result, trying):
+def _pursue_on_screen_part_5(
+    began_at: dict[str, Any],
+    cannot_explain: Any,
+    endings: list[tuple[list[str], str]],
+    narrate: bool,
+    pending: dict[str, Any],
+    plan: dict[str, Any],
+    result: Any,
+    trying: dict[str, Any],
+) -> None:
     from .screen_pursuit import (
         WORTH_TRYING_AT,
         _tell,
@@ -267,7 +301,16 @@ def _pursue_on_screen_part_5(began_at, cannot_explain, endings, narrate, pending
             for way in which_way_to_win(ways, endings)[:1]:
                 logger.info("the ending she has a route to: %s", way.describe())
 
-def _pursue_on_screen_part_6(cannot_see, moves, no_move, not_there, receipt, result, success_when, undecided):
+def _pursue_on_screen_part_6(
+    cannot_see: dict[str, str],
+    moves: list[dict[str, Any]],
+    no_move: dict[str, str],
+    not_there: dict[str, str],
+    receipt: Any,
+    result: Any,
+    success_when: str,
+    undecided: dict[str, str],
+) -> None:
     from .screen_pursuit import (
         logger,
     )
@@ -302,7 +345,16 @@ def _pursue_on_screen_part_6(cannot_see, moves, no_move, not_there, receipt, res
         result["cannot_decide"] = undecided["reason"]
     result["success_when"] = success_when
 
-def _pursue_on_screen_part_7(anchor, expect_page, lost_page, moves, needs_person, receipt, result, target_app):
+def _pursue_on_screen_part_7(
+    anchor: dict[str, str],
+    expect_page: str,
+    lost_page: dict[str, Any],
+    moves: list[dict[str, Any]],
+    needs_person: dict[str, Any],
+    receipt: Any,
+    result: Any,
+    target_app: str,
+) -> None:
     from .screen_pursuit import (
         logger,
     )

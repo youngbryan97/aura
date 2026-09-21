@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import itertools
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from typing import Any
 
 from core.cognition.operator_invention import Candidate, OperatorKernel
@@ -129,7 +129,7 @@ def _computes_a_number(body: Any, probes: Sequence[Any]) -> bool:
 def _a_candidate_for(
     family: str, probes: Sequence[Any], *, how_many: int = 4000,
     deepest: int = 3, max_offered: int | None = 64,
-):
+) -> Iterator[Candidate]:
     """Terms to offer, shortest first, over the floor.
 
     The proposer here is enumeration, and that is the honest description: the

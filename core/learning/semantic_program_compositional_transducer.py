@@ -895,7 +895,13 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
             )
         )
 
-    def _runtime_operation_charts(self, tokens, hidden, inputs, inference_max_steps):
+    def _runtime_operation_charts(
+        self,
+        tokens: tuple[Any, ...],
+        hidden: Any,
+        inputs: tuple[Any, ...],
+        inference_max_steps: Any,
+    ) -> Any:
         """Share source grounding and operation candidates with offline graph learning."""
         input_banks: list[tuple[tuple[TokenSpan, float], ...]] = []
         argument_pointer_scores = self.argument_pointer.score_sequence(hidden)
@@ -927,7 +933,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
 
         complete_search = self.training_receipt.get("operation_search_policy") == "complete_bounded_v1"
         typed_search = self.training_receipt.get("operation_chart_feasibility") == "typed_state_bounds_v4"
-        def feasible(selected):
+        def feasible(selected: Any) -> Any:
             return _operation_chart_use_feasible(selected, n_inputs=len(inputs), contract=self.register_use_contract,
                 input_types=tuple("integer" if type(value) is int else "integer_sequence" for value in inputs)
                 if typed_search else None)
@@ -949,7 +955,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
             raise ValueError("operation_chart_empty")
         return input_spans, input_scores, argument_pointer_scores, charts
 
-    def decode_candidates(self, **kwargs):
+    def decode_candidates(self, **kwargs: Any) -> Any:
         """Inspect bounded runtime alternatives while preserving ordinary selection."""
         from core.learning.semantic_candidate_bank import decode_semantic_candidates
 
@@ -995,7 +1001,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
         from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
         from core.learning.semantic_argument_chart import select_operation_argument_graph
 
-        def remaining():
+        def remaining() -> Any:
             if deadline is None:
                 return None
             duration = deadline - time.monotonic()
@@ -1605,10 +1611,10 @@ def refit_compositional_argument_rankings(
     model: CompositionalSemanticProgramTransducer,
     examples: Sequence[SemanticTransducerTrainingExample],
     *,
-    preserve_coreferent_mentions: bool = False,
-    use_runtime_operation_views: bool = False,
-    runtime_mention_margin: bool = False,
-    progress=None,
+    preserve_coreferent_mentions: bool=False,
+    use_runtime_operation_views: bool=False,
+    runtime_mention_margin: bool=False,
+    progress: Any=None,
 ) -> CompositionalSemanticProgramTransducer:
     """Fit source-only argument choices while preserving other learned modules."""
     from core.learning.semantic_argument_ranking import fit_pairwise_argument_weight

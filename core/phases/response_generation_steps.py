@@ -14,7 +14,11 @@ class _RunsTheGenerationSteps:
     """Lifted whole out of ResponseGenerationPhase; see response_generation.py."""
 
     @staticmethod
-    def _execute_substrate_voice_compile(objective, origin, state):
+    def _execute_substrate_voice_compile(
+        objective: str | None,
+        origin: str,
+        state: Any,
+    ) -> tuple[Any, Any]:
         # ── SUBSTRATE VOICE: Compile speech profile BEFORE prompt assembly ──
         # The substrate reads all internal systems and decides HOW Aura will speak.
         # This must happen before ContextAssembler builds the prompt so the
@@ -51,7 +55,13 @@ class _RunsTheGenerationSteps:
             logger.error("SubstrateVoiceEngine compile failed: %s", _sve_exc, exc_info=True)
         return _speech_profile, _sve
 
-    def _execute_derived_merely_read(self, messages, objective, runtime_context, state):
+    def _execute_derived_merely_read(
+        self,
+        messages: Any,
+        objective: str | None,
+        runtime_context: Any,
+        state: Any,
+    ) -> None:
         # Derived, not merely read. The flag has to survive chat route ->
         # CognitiveEngine -> phase context to arrive here, and when it
         # does not, this block never renders: she is then asked to do a
@@ -118,7 +128,13 @@ class _RunsTheGenerationSteps:
                 messages.insert(0, {"role": "system", "content": desktop_block})
         self._inject_live_runtime_grounding(messages, runtime_context)
 
-    def _execute_causal_world_model(self, kwargs, messages, proof_answer_run, state):
+    def _execute_causal_world_model(
+        self,
+        kwargs: Any,
+        messages: Any,
+        proof_answer_run: bool,
+        state: Any,
+    ) -> tuple[Any, Any]:
         # Causal World Model Context Injection
         from .response_generation import (
             CognitiveMode,
@@ -174,7 +190,15 @@ class _RunsTheGenerationSteps:
             runtime_context = {}
         return router, runtime_context
 
-    def _execute_turn_completed_capabilities(self, contract, incoming_continuation_contract, is_background, is_test_run, runtime_context, state):
+    def _execute_turn_completed_capabilities(
+        self,
+        contract: Any,
+        incoming_continuation_contract: bool,
+        is_background: bool,
+        is_test_run: bool,
+        runtime_context: Any,
+        state: Any,
+    ) -> tuple[Any, Any]:
         from .response_generation import (
             completed_capabilities,
             project_user_surface_resume_capability,
@@ -231,7 +255,15 @@ class _RunsTheGenerationSteps:
             )
         return resume_capability, turn_completed_capabilities
 
-    def _execute_affect_modulated_generation(self, deep_handoff, is_background, live_mind_controls_bound, live_mind_generation_controls, runtime_context, state):
+    def _execute_affect_modulated_generation(
+        self,
+        deep_handoff: bool,
+        is_background: bool,
+        live_mind_controls_bound: bool,
+        live_mind_generation_controls: Any,
+        runtime_context: Any,
+        state: Any,
+    ) -> tuple[Any, Any]:
         # Affect-modulated generation parameters
         from .response_generation import (
             CognitiveMode,
@@ -285,7 +317,16 @@ class _RunsTheGenerationSteps:
             )
         return generation_temperature, token_budget
 
-    async def _execute_tenth_clock_same(self, is_background, latent_trace, ordinary_timeout, origin, router, router_generation_metadata_sink, think_coro):
+    async def _execute_tenth_clock_same(
+        self,
+        is_background: bool,
+        latent_trace: dict[str, Any],
+        ordinary_timeout: Any,
+        origin: str,
+        router: Any,
+        router_generation_metadata_sink: dict[str, Any],
+        think_coro: Any,
+    ) -> tuple[Any, Any]:
         # The tenth clock, and the same lesson as the other nine.
         #
         # asyncio.wait_for cancels on a stopwatch. LIVE
@@ -332,7 +373,13 @@ class _RunsTheGenerationSteps:
         return generation_metadata, response_text
 
     @staticmethod
-    def _execute_amplifier_generation_metadata(generation_metadata, latent_trace, pre_amplifier_text, response_mutation_receipt, response_text):
+    def _execute_amplifier_generation_metadata(
+        generation_metadata: dict[str, Any],
+        latent_trace: dict[str, Any],
+        pre_amplifier_text: Any,
+        response_mutation_receipt: dict[str, Any],
+        response_text: Any,
+    ) -> dict[str, Any]:
         from .response_generation import (
             append_text_mutation,
             generation_metadata_of,
@@ -388,7 +435,14 @@ class _RunsTheGenerationSteps:
         return generation_metadata
 
     @staticmethod
-    def _execute_defensive_hardening_json(append_only_continuation_pending, kwargs, objective, response_mutation_receipt, response_text, state):
+    def _execute_defensive_hardening_json(
+        append_only_continuation_pending: Any,
+        kwargs: Any,
+        objective: str | None,
+        response_mutation_receipt: dict[str, Any],
+        response_text: Any,
+        state: Any,
+    ) -> tuple[Any, Any]:
         # 4. Defensive Hardening: JSON Repair & Proactive Extraction
         from .response_generation import (
             CognitiveMode,
@@ -546,7 +600,15 @@ class _RunsTheGenerationSteps:
         return action, content
 
     @staticmethod
-    def _execute_surface_control_receipt(final_latent_quality, generation_metadata, latent_trace, live_mind_controls_bound, live_mind_generation_controls, response_mutation_receipt, state):
+    def _execute_surface_control_receipt(
+        final_latent_quality: dict[str, Any],
+        generation_metadata: Any,
+        latent_trace: dict[str, Any],
+        live_mind_controls_bound: bool,
+        live_mind_generation_controls: Any,
+        response_mutation_receipt: dict[str, Any],
+        state: Any,
+    ) -> None:
         from .response_generation import (
             merge_text_mutations,
             normalize_live_mind_surface_control_receipt,
@@ -601,7 +663,17 @@ class _RunsTheGenerationSteps:
             state.response_modifiers[key] = value
 
     @staticmethod
-    def _execute_derive_new_state(_shaped_messages, _speech_profile, _sve, action, cleaned_response, is_background, is_test_run, objective, state):
+    def _execute_derive_new_state(
+        _shaped_messages: Any,
+        _speech_profile: Any,
+        _sve: Any,
+        action: Any,
+        cleaned_response: Any,
+        is_background: bool,
+        is_test_run: bool,
+        objective: str | None,
+        state: Any,
+    ) -> Any:
         # 7. Derive new state with the response
         from .response_generation import (
             _record_response_generation_degradation,

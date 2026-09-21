@@ -24,7 +24,17 @@ class _BuildsTheLivingContext:
     """Lifted whole out of InferenceGate; see inference_gate.py."""
 
     @staticmethod
-    async def _tool_grounded_answer_part_1(ceiling, client, decode_budget, evidence, origin, required, text, timeout_s, tools):
+    async def _tool_grounded_answer_part_1(
+        ceiling: Any,
+        client: Any,
+        decode_budget: int,
+        evidence: Any,
+        origin: str,
+        required: Any,
+        text: str,
+        timeout_s: float,
+        tools: Any,
+    ) -> Any:
         from .inference_gate import (
             _REQUESTED_ARTIFACT_EFFECT_CEILING,
             _SELF_SERVICE_EFFECT_CEILING,
@@ -211,7 +221,7 @@ class _BuildsTheLivingContext:
         )
         return result
 
-    def _tool_grounded_answer_model_path(self, called, client, text):
+    def _tool_grounded_answer_model_path(self, called: list[Any], client: Any, text: str) -> None:
         from .inference_gate import (
             logger,
         )
@@ -501,7 +511,11 @@ class _BuildsTheLivingContext:
         return text or None
 
     @staticmethod
-    def _build_living_mind_context_memory_pressure(mem_monitor, segments, state):
+    def _build_living_mind_context_memory_pressure(
+        mem_monitor: Any,
+        segments: Any,
+        state: Any,
+    ) -> None:
         from .inference_gate import (
             InferenceGate,
             psutil,
@@ -553,7 +567,7 @@ class _BuildsTheLivingContext:
         segments.add("physiology", "\n".join(physiology_lines))
 
     @staticmethod
-    def _build_living_mind_context_pneuma_active_inference(prompt, segments):
+    def _build_living_mind_context_pneuma_active_inference(prompt: str, segments: Any) -> None:
         from .inference_gate import (
             _INFERENCE_RECOVERABLE_ERRORS,
             _record_inference_degradation,
@@ -615,7 +629,13 @@ class _BuildsTheLivingContext:
             )
             logger.debug("NeologismEngine injection unavailable: %s", exc)
 
-    def _build_living_mind_context_part_3(self, _affect_observed, _circ, _shared_arousal, _shared_valence):
+    def _build_living_mind_context_part_3(
+        self,
+        _affect_observed: dict[str, bool],
+        _circ: Any,
+        _shared_arousal: Any,
+        _shared_valence: Any,
+    ) -> tuple[Any, Any]:
         if _circ and hasattr(_circ, "get_llm_params"):
             # The PUBLIC reader first. _sample_raw_axes is private, and
             # reaching past a public accessor into a subsystem's internals
@@ -644,7 +664,15 @@ class _BuildsTheLivingContext:
         return _shared_arousal, _shared_valence
 
     @staticmethod
-    def _build_living_mind_context_part_4(_affect_observed, _shared_arousal, _shared_curiosity, _shared_energy, _shared_valence, advance_state, segments):
+    def _build_living_mind_context_part_4(
+        _affect_observed: dict[str, bool],
+        _shared_arousal: Any,
+        _shared_curiosity: Any,
+        _shared_energy: Any,
+        _shared_valence: Any,
+        advance_state: bool,
+        segments: Any,
+    ) -> None:
         from .inference_gate import (
             _INFERENCE_RECOVERABLE_ERRORS,
             _record_inference_degradation,
@@ -738,7 +766,11 @@ class _BuildsTheLivingContext:
             logger.debug("HedoniGradient injection unavailable: %s", exc)
 
     @staticmethod
-    def _build_living_mind_context_hierarchical_goals(advance_state, prompt, segments):
+    def _build_living_mind_context_hierarchical_goals(
+        advance_state: bool,
+        prompt: str,
+        segments: Any,
+    ) -> None:
         from .inference_gate import (
             _INFERENCE_RECOVERABLE_ERRORS,
             _record_inference_degradation,
@@ -887,7 +919,7 @@ class _BuildsTheLivingContext:
         )
 
 
-        async def _resolve(value):
+        async def _resolve(value: Any) -> Any:
             if inspect.isawaitable(value):
                 return await value
             return value

@@ -16,6 +16,7 @@ from collections.abc import Iterable
 from core.engineering.analysis import Finding, register
 from core.engineering.materials import STANDARD_GRAVITY, fluid as get_fluid
 from core.engineering.units import Q, Quantity
+from typing import Any
 
 #: Wall roughness in metres for the pipe materials a design names.
 ROUGHNESS: dict[str, float] = {
@@ -72,7 +73,7 @@ def friction_factor(reynolds: float, relative_roughness: float) -> tuple[float, 
     return (value, "turbulent, well mixed")
 
 
-def _working_fluid(design):
+def _working_fluid(design: Any) -> Any:
     name = design.environment.get("fluid") or design.environment.get("medium")
     if isinstance(name, str) and name:
         try:
@@ -95,7 +96,7 @@ def _working_fluid(design):
     domains=("fluid", "hydraulic", "pneumatic"),
     discipline="fluid",
 )
-def pipe_pressure_drop(design) -> Iterable[Finding]:
+def pipe_pressure_drop(design: Any) -> Iterable[Finding]:
     working = _working_fluid(design)
     if working is None:
         return
@@ -200,7 +201,7 @@ def pipe_pressure_drop(design) -> Iterable[Finding]:
     domains=("fluid", "hydraulic"),
     discipline="fluid",
 )
-def pump_duty(design) -> Iterable[Finding]:
+def pump_duty(design: Any) -> Iterable[Finding]:
     working = _working_fluid(design)
     if working is None:
         return
@@ -251,7 +252,7 @@ def pump_duty(design) -> Iterable[Finding]:
     domains=("fluid", "structural"),
     discipline="fluid",
 )
-def buoyancy(design) -> Iterable[Finding]:
+def buoyancy(design: Any) -> Iterable[Finding]:
     environment = design.environment
     if not any(
         key in environment for key in ("depth", "water_depth", "submerged", "fluid")
@@ -313,7 +314,7 @@ def buoyancy(design) -> Iterable[Finding]:
     domains=("fluid",),
     discipline="fluid",
 )
-def hydrostatic_pressure(design) -> Iterable[Finding]:
+def hydrostatic_pressure(design: Any) -> Iterable[Finding]:
     depth = design.environment.get("depth") or design.environment.get("water_depth")
     if depth is None:
         return
@@ -345,7 +346,7 @@ def hydrostatic_pressure(design) -> Iterable[Finding]:
     domains=("fluid",),
     discipline="fluid",
 )
-def drag(design) -> Iterable[Finding]:
+def drag(design: Any) -> Iterable[Finding]:
     speed = design.environment.get("speed") or design.environment.get("velocity")
     if speed is None:
         return

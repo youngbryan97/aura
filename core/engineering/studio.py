@@ -73,7 +73,7 @@ class DesignStudioResult:
         }
 
 
-def _kinds_worth_drawing(design, requested: tuple[str, ...]) -> tuple[str, ...]:
+def _kinds_worth_drawing(design: Any, requested: tuple[str, ...]) -> tuple[str, ...]:
     """Only draw the views this design actually has something to show in.
 
     A section through a design with nothing hollow in it is an empty

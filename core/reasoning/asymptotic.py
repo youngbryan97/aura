@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import re
+from typing import Any
 
 
 def growth_class(value: object, *, variable: str = "n") -> tuple[int, int] | None:
@@ -29,7 +30,7 @@ def growth_class(value: object, *, variable: str = "n") -> tuple[int, int] | Non
 
     n, log_n = sp.symbols("n log_n", positive=True)
 
-    def convert(node):
+    def convert(node: Any) -> Any:
         if isinstance(node, ast.Constant) and type(node.value) is int and 0 <= node.value <= 10**6:
             return sp.Integer(node.value)
         if isinstance(node, ast.Name) and node.id == variable:

@@ -69,7 +69,7 @@ class SchematicResult:
         return "not to scale"
 
 
-def _depths(design) -> dict[str, int]:
+def _depths(design: Any) -> dict[str, int]:
     """How far each part is from a source, along the connection graph."""
     outgoing: dict[str, list[str]] = defaultdict(list)
     incoming: dict[str, list[str]] = defaultdict(list)
@@ -105,7 +105,7 @@ def _depths(design) -> dict[str, int]:
     return depth
 
 
-def _symbol_options(part, symbol: Symbol) -> dict[str, Any]:
+def _symbol_options(part: Any, symbol: Symbol) -> dict[str, Any]:
     """Per-symbol drawing options taken from what the part declares."""
     options: dict[str, Any] = {}
     if symbol.key in {"block", "macromolecule", "controller", "compartment", "gain"}:
@@ -191,13 +191,13 @@ def _junction_dots(canvas: Canvas, paths: list[list[Point]], colour: str, layer:
 
 def draw_schematic(
     canvas: Canvas,
-    design,
+    design: Any,
     region: Region,
     *,
-    findings: tuple = (),
-    show_values: bool = True,
-    show_legend: bool = True,
-    layer_prefix: str = "",
+    findings: tuple=(),
+    show_values: bool=True,
+    show_legend: bool=True,
+    layer_prefix: str='',
 ) -> SchematicResult:
     """Lay the design out as a connection diagram and wire it up."""
     if not design.parts:
@@ -334,7 +334,13 @@ def draw_schematic(
 
 
 def _legend(
-    canvas: Canvas, design, region: Region, paths_by_domain, standards, *, layer: str
+    canvas: Canvas,
+    design: Any,
+    region: Region,
+    paths_by_domain: dict[str, list[list[Point]]],
+    standards: set[str],
+    *,
+    layer: str,
 ) -> None:
     """A key naming each line's domain, what it carries, and the standard used."""
     y = region.y + region.height - canvas.text_height * 2.2
@@ -360,10 +366,10 @@ def _legend(
         )
 
 
-def schematic_drawer(findings: tuple = ()):
+def schematic_drawer(findings: tuple=()) -> Any:
     """A drawer for :func:`core.engineering.draw.sheet.compose_sheet`."""
 
-    def drawer(canvas: Canvas, design, region: Region):
+    def drawer(canvas: Canvas, design: Any, region: Region) -> Any:
         return draw_schematic(canvas, design, region, findings=findings)
 
     return drawer

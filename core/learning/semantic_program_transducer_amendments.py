@@ -6,7 +6,7 @@ patches a name on it has to reach the code that reads it.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .semantic_program_compositional_transducer import (
@@ -94,7 +94,11 @@ class _CarriesItsAmendments:
         body["argument_literal_boundaries"] = "atomic_v1"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
-    def with_feasible_operation_charts(self, *, preserve_arity_states=False) -> CompositionalSemanticProgramTransducer:
+    def with_feasible_operation_charts(
+        self,
+        *,
+        preserve_arity_states: bool=False,
+    ) -> CompositionalSemanticProgramTransducer:
         """Spend chart capacity only on cardinalities permitted by the graph contract."""
         from .semantic_program_compositional_transducer import (
             _sha,
@@ -149,7 +153,11 @@ class _CarriesItsAmendments:
         body["operation_label_limit"] = limit
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
-    def with_complete_operation_search(self, *, max_expansions=None) -> CompositionalSemanticProgramTransducer:
+    def with_complete_operation_search(
+        self,
+        *,
+        max_expansions: Any=None,
+    ) -> CompositionalSemanticProgramTransducer:
         """Search all source spans and learned operation labels inside the declared bounds."""
         from .semantic_program_compositional_transducer import (
             _sha,

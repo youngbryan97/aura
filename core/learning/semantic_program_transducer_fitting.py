@@ -703,7 +703,13 @@ def _operation_chart_candidates(
     )
 
 
-def _operation_chart_use_feasible(nodes, *, n_inputs, contract, input_types=None):
+def _operation_chart_use_feasible(
+    nodes: Any,
+    *,
+    n_inputs: Any,
+    contract: Any,
+    input_types: Any=None,
+) -> Any:
     """Necessary edge-count bounds for a connected single-result graph."""
     count = len(nodes)
     if count < 1:
@@ -801,7 +807,7 @@ def _fit_argument_role_heads(
     return tuple(heads)
 
 
-def _argument_identity_spans(item, register):
+def _argument_identity_spans(item: Any, register: Any) -> frozenset[Any]:
     """Unambiguous source-labeled mentions of one register, not equal values."""
     owners = {}
     for index, span in enumerate(item.ir.input_spans):
@@ -1239,7 +1245,12 @@ def _definition_relation_score_banks(
     return combined, base
 
 
-def _retained_argument_mentions(candidates, *, literal_anchor=None, overlap_complete=False):
+def _retained_argument_mentions(
+    candidates: list[Any],
+    *,
+    literal_anchor: Any=None,
+    overlap_complete: bool=False,
+) -> Any:
     """Prune within one slot/register/definition, preserving declared semantics."""
     if overlap_complete:
         # A better subset occupies fewer tokens with the same binding. Any
@@ -1312,7 +1323,17 @@ def _argument_literal_boundaries() -> tuple:
     return ("Argument references do not split parsed literal atoms.",)
 
 
-def _assign_typed_arguments_ranked_options(by_register, definition_registers, evidence_by_position, evidence_lookup, factor_lookup, factors_by_position, input_spans, inputs, model):
+def _assign_typed_arguments_ranked_options(
+    by_register: dict[int, list[tuple[float, TokenSpan]]],
+    definition_registers: tuple[Any, ...],
+    evidence_by_position: list[Any],
+    evidence_lookup: Any,
+    factor_lookup: Any,
+    factors_by_position: list[Any],
+    input_spans: Sequence[TokenSpan],
+    inputs: Sequence[SemanticValue],
+    model: CompositionalSemanticProgramTransducer,
+) -> tuple[list[Any], Any]:
     ranked_options = sorted(
         (
             (score, definition_registers[candidate_index], span, candidate_index)
@@ -1343,7 +1364,15 @@ def _assign_typed_arguments_ranked_options(by_register, definition_registers, ev
             for _score, _register, span, index in ranked_options))
     return options, ranked_options
 
-def _assign_typed_arguments_candidates(inputs, model, operation_nodes, options_by_position, partial, prefix_feasible, states):
+def _assign_typed_arguments_candidates(
+    inputs: Sequence[SemanticValue],
+    model: CompositionalSemanticProgramTransducer,
+    operation_nodes: Sequence[_OperationNode],
+    options_by_position: list[list[tuple[float, int, TokenSpan]]],
+    partial: Any,
+    prefix_feasible: bool,
+    states: Any,
+) -> Any:
     candidates: list[
         tuple[
             float,
@@ -1515,7 +1544,7 @@ def _assign_typed_arguments(
         definition_registers = tuple(register for register, _span in hypotheses)
         definition_labels = tuple(span for _register, span in hypotheses)
         definition_candidates = tuple((span,) for span in definition_labels)
-    def relation_vector(span):
+    def relation_vector(span: Any) -> Any:
         # This cache belongs to one decode, just like relation_score_cache.
         if relation_vector_cache is not None and span in relation_vector_cache:
             return relation_vector_cache[span]
@@ -1876,7 +1905,9 @@ def _select_operation_length_penalty(
     return _calibrate_operation_charts(cached)
 
 
-def _calibrate_operation_charts(cached):
+def _calibrate_operation_charts(
+    cached: list[tuple[SemanticTransducerTrainingExample, tuple[tuple[float, tuple[_OperationNode, ...]], ...]]],
+) -> tuple[float, list[dict[str, Any]]]:
     """Calibrate source-ordered charts independently of execution order."""
     average_scores = [
         score / count

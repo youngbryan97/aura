@@ -7,9 +7,18 @@ import numpy as np
 
 from core.learning.semantic_argument_graph_learning import argument_parameters, argument_slot_evidence
 from core.learning.semantic_relation_graph_learning import GraphChoiceNormalizer, RelationGraphContrast
+from typing import Any
 
 
-def argument_choice_normalizers(model, hidden, nodes, chart, *, learn_arguments, argument_evidence_cache=None):
+def argument_choice_normalizers(
+    model: Any,
+    hidden: Any,
+    nodes: Any,
+    chart: Any,
+    *,
+    learn_arguments: Any,
+    argument_evidence_cache: Any=None,
+) -> tuple[Any, ...]:
     if chart is None or chart.option_relation_evidence is None:
         raise ValueError("conditional graph learning requires the complete scored chart")
     parameters = (model.definition_relation_head.query_projection.astype(np.float64),

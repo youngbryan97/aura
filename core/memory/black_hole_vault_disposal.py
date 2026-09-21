@@ -30,7 +30,7 @@ class _LetsMemoriesGo:
         total_bytes = len(json.dumps(self.memories).encode()) if self.memories else 0
         return round(total_bytes / 1024, 2)
 
-    def _evaporate(self):
+    def _evaporate(self) -> None:
         if not self.memories: return
         
         # Notify Mycelium of qualitative shift (Evolution 8)
@@ -50,23 +50,23 @@ class _LetsMemoriesGo:
         self.memories = self._select_semantically_important(self.memories, keep_count)
         self._save_vault()
 
-    def clear(self):
+    def clear(self) -> Any:
         """Standard interface: Reset the vault."""
         with self._mutation_guard():
             return self._clear_locked()
 
-    def _clear_locked(self):
+    def _clear_locked(self) -> None:
         self.memories = []
         self._dirty = True
         self._save_vault()
         logger.info("BlackHoleVault: Event horizon cleared.")
 
-    def delete(self, ids: List[str]):
+    def delete(self, ids: List[str]) -> Any:
         """Standard interface: Delete memories by ID."""
         with self._mutation_guard():
             return self._delete_locked(ids)
 
-    def _delete_locked(self, ids: List[str]):
+    def _delete_locked(self, ids: List[str]) -> None:
         id_set = {str(memory_id) for memory_id in ids}
         self.memories = [
             m
@@ -79,10 +79,10 @@ class _LetsMemoriesGo:
 
     def delete_memories(
         self,
-        ids: Optional[List[str]] = None,
+        ids: Optional[List[str]]=None,
         *,
-        filter_metadata: Optional[Dict[str, Any]] = None,
-        **kwargs,
+        filter_metadata: Optional[Dict[str, Any]]=None,
+        **kwargs: Any,
     ) -> int:
         """VectorMemory-compatible deletion shim used by episodic pruning."""
         with self._mutation_guard():
@@ -94,10 +94,10 @@ class _LetsMemoriesGo:
 
     def _delete_memories_locked(
         self,
-        ids: Optional[List[str]] = None,
+        ids: Optional[List[str]]=None,
         *,
-        filter_metadata: Optional[Dict[str, Any]] = None,
-        **kwargs,
+        filter_metadata: Optional[Dict[str, Any]]=None,
+        **kwargs: Any,
     ) -> int:
         id_set = {str(memory_id) for memory_id in (ids or []) if str(memory_id)}
         metadata_filters = dict(filter_metadata or {})

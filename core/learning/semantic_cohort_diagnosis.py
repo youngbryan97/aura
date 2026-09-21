@@ -11,11 +11,20 @@ from core.learning.semantic_graph_trial import _observe
 from core.learning.semantic_program_campaign import _sha
 from core.learning.semantic_validation_checkpoint import validation_identity, validation_implementation_identity
 from core.runtime.atomic_writer import atomic_write_bytes_if_absent
+from typing import Any
 
 
-def audit_semantic_cohort(model, examples, *, directory, max_charts=16,
-                         max_graphs_per_chart=16, solve_time_limit_s=3., progress=None,
-                         diagnose_failures=True):
+def audit_semantic_cohort(
+    model: Any,
+    examples: tuple[Any, ...],
+    *,
+    directory: Any,
+    max_charts: int=16,
+    max_graphs_per_chart: int=16,
+    solve_time_limit_s: float=3.0,
+    progress: Any=None,
+    diagnose_failures: bool=True,
+) -> dict[str, Any]:
     """Audit a fixed cohort; annotated targets never enter candidate generation."""
     examples = tuple(examples)
     if type(diagnose_failures) is not bool:

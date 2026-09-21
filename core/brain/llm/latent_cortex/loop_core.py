@@ -384,7 +384,7 @@ def validate_kv_bound_receipt(value: Any) -> dict[str, Any]:
     }
     legacy = value["schema"] == "aura.rlc.kv_bound.v1"
 
-    def valid_context(row):
+    def valid_context(row: Any) -> bool:
         context = row["context_tokens"]
         total = row["total_tokens"]
         post = row["post_context_tokens"]

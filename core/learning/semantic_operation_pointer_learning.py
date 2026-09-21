@@ -8,9 +8,10 @@ from core.learning.semantic_argument_graph_learning import ArgumentScoreTerm, ar
 from core.learning.semantic_paired_pointer_refit import paired_boundary_feature
 from core.learning.semantic_program_transducer import LinearPointerHead
 from core.verify.invariants import invariant
+from typing import Any
 
 
-def operation_pointer_parameters(model):
+def operation_pointer_parameters(model: Any) -> tuple[Any, Any]:
     pointer = model.operation_pointer
     parts = (pointer.start_weight, pointer.end_weight)
     if pointer.pair_weight is not None:
@@ -21,7 +22,7 @@ def operation_pointer_parameters(model):
     )
 
 
-def operation_pointer_graph_evidence(model, hidden, nodes):
+def operation_pointer_graph_evidence(model: Any, hidden: Any, nodes: Any) -> tuple[Any, ...]:
     """Differentiate only the boundary features declared by the shipped pointer."""
     offset = 2 + 2 * len(model.operation_head.heads) + len(argument_parameters(model))
     terms = []
@@ -35,7 +36,7 @@ def operation_pointer_graph_evidence(model, hidden, nodes):
     return tuple(terms)
 
 
-def operation_pointer_from_parameters(values, *, pointer):
+def operation_pointer_from_parameters(values: Any, *, pointer: Any) -> Any:
     weight, bias = values
     parts = 2 if pointer.pair_weight is None else 3
     if np.shape(weight) != (parts * pointer.width,) or np.shape(bias) != ():

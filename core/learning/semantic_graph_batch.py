@@ -1,17 +1,25 @@
 """Evaluate shared graph evidence without one dense gradient per witness."""
 
 from math import fsum
+from collections.abc import Iterator
 
 import numpy as np
 from scipy.special import logsumexp, softmax
 
 from core.verify.invariants import invariant
+from typing import Any
 
 
 class GraphConstraintBatch:
     """Chunk operation banks; preserve each witness and the runtime mixture score."""
 
-    def __init__(self, contrasts, scale=1., *, max_feature_bytes=32 * 1024 * 1024):
+    def __init__(
+        self,
+        contrasts: Any,
+        scale: float=1.0,
+        *,
+        max_feature_bytes: Any=32 * 1024 * 1024,
+    ) -> None:
         if not np.isfinite(scale) or scale <= 0 or type(max_feature_bytes) is not int or max_feature_bytes < 1:
             raise ValueError("invalid graph batch configuration")
         self.rows, self.scale = tuple(contrasts), scale
@@ -61,7 +69,7 @@ class GraphConstraintBatch:
             max_feature_bytes=max_feature_bytes), groups)
             for inner_scale, (choices, groups) in by_scale.items())
 
-    def _operations(self, parameters):
+    def _operations(self, parameters: Any) -> Iterator[tuple[Any, ...]]:
         for selected, terms in self.chunks:
             banks = [self.banks[index] for index in selected]
             features, distributions = [], []
@@ -82,7 +90,7 @@ class GraphConstraintBatch:
             mass = sum(distributions)
             yield terms, features, distributions, mass, mass / len(distributions)
 
-    def margins(self, parameters):
+    def margins(self, parameters: tuple[Any, ...]) -> Any:
         # Sum each complete contrast once. Adding a small retained floor before
         # cancelling large shared scores can manufacture a margin violation.
         values = [[row.fixed_margin] for row in self.rows]
@@ -106,7 +114,7 @@ class GraphConstraintBatch:
                 values[row].append(sign * scores[bank, label])
         return np.fromiter((fsum(row) for row in values), dtype=np.float64, count=len(values))
 
-    def weighted_gradient(self, parameters, coefficients):
+    def weighted_gradient(self, parameters: Any, coefficients: Any) -> tuple[Any, ...]:
         coefficients = np.asarray(coefficients, dtype=np.float64)
         if coefficients.shape != (len(self.rows),) or not np.all(np.isfinite(coefficients)):
             raise ValueError("graph batch coefficients differ")
@@ -147,7 +155,7 @@ class GraphConstraintBatch:
                 gradients[3 + 2 * view] += delta.sum(axis=0)
         return tuple(gradients)
 
-    def directional_derivative(self, parameters, direction):
+    def directional_derivative(self, parameters: Any, direction: Any) -> Any:
         if len(parameters) != len(direction) or any(a.shape != b.shape for a, b in zip(parameters, direction, strict=True)):
             raise ValueError("graph batch direction geometry differs")
         values = np.zeros(len(self.rows))

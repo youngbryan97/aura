@@ -16,6 +16,7 @@ what a faculty is allowed to touch.
 """
 
 from __future__ import annotations
+from collections.abc import Iterator
 
 import inspect
 
@@ -31,7 +32,7 @@ _OWNER = "core/interiority/"
     description="A mechanism with no declared place in the runtime is a folder.",
     owner=_OWNER,
 )
-def _every_faculty_has_a_home():
+def _every_faculty_has_a_home() -> Iterator[Violation]:
     from core.interiority.faculties import load_all
     from core.interiority.faculty import registry
     from core.interiority.homes import HOMES
@@ -60,7 +61,7 @@ def _every_faculty_has_a_home():
     description="A coefficient with no origin is an opinion wearing a decimal point.",
     owner=_OWNER,
 )
-def _every_number_states_its_reason():
+def _every_number_states_its_reason() -> Iterator[Violation]:
     from core.interiority.faculties import load_all
     from core.interiority.params import ParamKind, registry
 
@@ -90,7 +91,7 @@ def _every_number_states_its_reason():
     ),
     owner=_OWNER,
 )
-def _no_faculty_reads_ground_truth():
+def _no_faculty_reads_ground_truth() -> Iterator[Violation]:
     from core.interiority.faculties import load_all
     from core.interiority.faculty import registry
 
@@ -128,7 +129,7 @@ def _no_faculty_reads_ground_truth():
     description="A value that a large enough number can buy is a price.",
     owner=_OWNER,
 )
-def _constraints_are_not_weights():
+def _constraints_are_not_weights() -> Iterator[Violation]:
     from core.interiority.arbitration import arbitrate, permitted
     from core.interiority.effects import (
         ActionConstraint,

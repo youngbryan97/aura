@@ -287,7 +287,7 @@ class _ActsOnThePage:
             logger.error("Scroll failed: %s", e)
             return False
 
-    async def _human_delay(self, min_s=0.5, max_s=1.5):
+    async def _human_delay(self, min_s: int=0.5, max_s: int=1.5) -> None:
         """Random delay to simulate human pause, modulated by homeostasis."""
         if self._homeostasis is None:
             try:

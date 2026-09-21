@@ -184,7 +184,7 @@ class _TransactionScope:
     def __enter__(self) -> CognitiveTransaction:
         return self.txn
 
-    def __exit__(self, exc_type, exc, _tb) -> bool:
+    def __exit__(self, exc_type: Any, exc: Any, _tb: Any) -> bool:
         if exc_type is not None:
             self.txn.state = TransactionState.ABORTED
             self.txn.log.append(f"body raised {exc_type.__name__}; nothing committed")

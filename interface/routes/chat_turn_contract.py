@@ -270,7 +270,11 @@ _RUNTIME_GROUNDING_RESPONSE_PATHS = frozenset(
 )
 
 
-def _build_live_turn_contract_payload_latent_cortex_receipt(raw_latent_receipt, raw_runtime_identity, trace):
+def _build_live_turn_contract_payload_latent_cortex_receipt(
+    raw_latent_receipt: Any,
+    raw_runtime_identity: Any,
+    trace: dict[str, Any],
+) -> tuple[dict[str, Any], str]:
     latent_cortex_receipt = {
         key: raw_latent_receipt.get(key)
         for key in (
@@ -371,7 +375,9 @@ def _build_live_turn_contract_payload_latent_cortex_receipt(raw_latent_receipt, 
     preflight_evidence_profile = str(trace.get("preflight_evidence_profile") or "")
     return latent_cortex_receipt, preflight_evidence_profile
 
-def _build_live_turn_contract_payload_raw_surface_control_receipt(trace):
+def _build_live_turn_contract_payload_raw_surface_control_receipt(
+    trace: dict[str, Any],
+) -> tuple[Any, Any]:
     raw_surface_control_receipt = trace.get("live_mind_surface_control_receipt")
     live_mind_surface_control_receipt = (
         {
@@ -428,7 +434,13 @@ def _build_live_turn_contract_payload_raw_surface_control_receipt(trace):
     live_mind_surface_control_receipt["text_mutation_count"] = len(text_mutations)
     return live_mind_surface_control_receipt, text_mutations
 
-def _build_live_turn_contract_payload_live_mind_controls_structurally_bound(live_mind_context_required, live_mind_controls_application_satisfied, live_mind_controls_bound, live_mind_surface_quality_gate_passed, qualified_recurrent_path_proven):
+def _build_live_turn_contract_payload_live_mind_controls_structurally_bound(
+    live_mind_context_required: bool,
+    live_mind_controls_application_satisfied: bool,
+    live_mind_controls_bound: bool,
+    live_mind_surface_quality_gate_passed: bool,
+    qualified_recurrent_path_proven: bool,
+) -> tuple[set[Any], bool]:
     live_mind_controls_structurally_bound = bool(
         (not live_mind_context_required)
         or qualified_recurrent_path_proven
@@ -479,7 +491,16 @@ def _build_live_turn_contract_payload_live_mind_controls_structurally_bound(live
     }
     return accepted_full_mind_response_paths, live_mind_controls_structurally_bound
 
-def _build_live_turn_contract_payload_authored_generation_source_proven(authorship_replacement_applied, bounded_contract_used, engine_reply_accepted, engine_reply_failed, engine_think_invoked, legacy_fallback_used, protected_foreground_generation_proven, response_path):
+def _build_live_turn_contract_payload_authored_generation_source_proven(
+    authorship_replacement_applied: bool,
+    bounded_contract_used: bool,
+    engine_reply_accepted: bool,
+    engine_reply_failed: bool,
+    engine_think_invoked: bool,
+    legacy_fallback_used: bool,
+    protected_foreground_generation_proven: bool,
+    response_path: str,
+) -> tuple[bool, bool]:
     authored_generation_source_proven = bool(
         (engine_think_invoked and engine_reply_accepted)
         or (
@@ -522,7 +543,17 @@ def _build_live_turn_contract_payload_authored_generation_source_proven(authorsh
     )
     return authored_generation_source_proven, engine_authored_the_text
 
-def _build_live_turn_contract_payload_part_5(architecture_context_bound, authored_answer_completion_proven, foreground_model_generation_transaction_count, missing_proofs, semantic_completion_expected, semantic_completion_receipt_present, semantic_completion_satisfied, single_owner_model_generation_proven, trace):
+def _build_live_turn_contract_payload_part_5(
+    architecture_context_bound: bool,
+    authored_answer_completion_proven: bool,
+    foreground_model_generation_transaction_count: int,
+    missing_proofs: list[str],
+    semantic_completion_expected: bool,
+    semantic_completion_receipt_present: bool,
+    semantic_completion_satisfied: bool,
+    single_owner_model_generation_proven: Any,
+    trace: dict[str, Any],
+) -> None:
     if not single_owner_model_generation_proven:
         missing_proofs.append(
             "duplicate_foreground_model_generation"

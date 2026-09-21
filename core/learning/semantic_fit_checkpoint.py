@@ -9,13 +9,14 @@ from pathlib import Path
 import numpy as np
 
 from core.runtime.file_write_gateway import get_file_write_gateway
+from typing import Any
 
 
-def fit_identity(value):
+def fit_identity(value: dict[str, Any]) -> Any:
     """Hash numerical evidence by value, retaining type, shape and field identity."""
     cache = {}
 
-    def digest(item):
+    def digest(item: Any) -> Any:
         if isinstance(item, (np.ndarray, tuple)) or is_dataclass(item):
             key = id(item)
             if key in cache:
@@ -47,7 +48,7 @@ def fit_identity(value):
     return digest(value)
 
 
-def write_fit_archive(path, body, arrays):
+def write_fit_archive(path: Any, body: dict[str, Any], arrays: dict[str, Any]) -> None:
     """Write numerical checkpoint evidence through one checksummed owner."""
     metadata = json.dumps({**body, "sha256": fit_identity((body, arrays))},
                           sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
@@ -56,7 +57,14 @@ def write_fit_archive(path, body, arrays):
     get_file_write_gateway().write_bytes(path, output.getvalue(), source="semantic_fit_checkpoint")
 
 
-def save_round_candidate(path, *, candidate, parent, round_index, numerical_checkpoint):
+def save_round_candidate(
+    path: Any,
+    *,
+    candidate: Any,
+    parent: Any,
+    round_index: Any,
+    numerical_checkpoint: Any,
+) -> None:
     """Keep each accepted model available for decoding without replaying training."""
     from core.runtime.atomic_writer import atomic_write_bytes_if_absent
 
@@ -73,7 +81,13 @@ def save_round_candidate(path, *, candidate, parent, round_index, numerical_chec
         raise ValueError("saved round candidate differs from resumed numerical fit")
 
 
-def load_round_candidate(path, *, expected_parent, expected_round, numerical_checkpoint):
+def load_round_candidate(
+    path: Any,
+    *,
+    expected_parent: Any,
+    expected_round: Any,
+    numerical_checkpoint: Any,
+) -> Any:
     """Verify the complete snapshot before exposing its model for evaluation."""
     from core.learning.semantic_program_compositional_transducer import compositional_semantic_program_transducer_from_dict
 
@@ -98,10 +112,10 @@ class SemanticFitCheckpoint:
 
     _arrays = ("flat", "margins", "floors")
 
-    def __init__(self, path, identity):
+    def __init__(self, path: Any, identity: Any) -> None:
         self.path, self.identity = Path(path), identity
 
-    def load(self):
+    def load(self) -> Any:
         if not self.path.exists():
             return None
         with np.load(BytesIO(self.path.read_bytes()), allow_pickle=False) as archive:
@@ -118,14 +132,31 @@ class SemanticFitCheckpoint:
             raise ValueError("fit checkpoint array geometry differs")
         return {**body, **arrays}
 
-    def save(self, *, flat, margins, floors, trace, next_step, status):
+    def save(
+        self,
+        *,
+        flat: Any,
+        margins: Any,
+        floors: Any,
+        trace: Any,
+        next_step: Any,
+        status: Any,
+    ) -> None:
         arrays = {name: np.asarray(value, dtype=np.float64) for name, value in
                   (("flat", flat), ("margins", margins), ("floors", floors))}
         body = {"schema": "aura.semantic_fit_checkpoint.v1", "identity": self.identity,
                 "trace": trace, "next_step": next_step, "status": status}
         write_fit_archive(self.path, body, arrays)
 
-    def save_projection(self, *, normals, required, anchor, receipt, step):
+    def save_projection(
+        self,
+        *,
+        normals: Any,
+        required: Any,
+        anchor: Any,
+        receipt: Any,
+        step: Any,
+    ) -> Any:
         """Retain a rejected affine problem independently of accepted model state."""
         arrays = {name: np.asarray(value, dtype=np.float64) for name, value in
                   (("normals", normals), ("required", required), ("anchor", anchor))}

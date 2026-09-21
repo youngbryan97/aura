@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -83,7 +84,7 @@ class DrawnView:
         return f"1:{1.0 / self.scale:.0f}"
 
 
-def _placed_meshes(design, *, explode: float = 0.0):
+def _placed_meshes(design: Any, *, explode: float=0.0) -> list[Any]:
     """Every part's mesh in world millimetres, with its explode offset."""
     entries = []
     for part in design.parts:
@@ -98,7 +99,7 @@ def _placed_meshes(design, *, explode: float = 0.0):
     return entries
 
 
-def _subsystem_colour(canvas: Canvas, design, part) -> str:
+def _subsystem_colour(canvas: Canvas, design: Any, part: Any) -> str:
     """One colour per subsystem, distinct and stable across every view.
 
     Taken from the subsystem's position in the design rather than from a
@@ -121,7 +122,11 @@ def _subsystem_colour(canvas: Canvas, design, part) -> str:
 
 
 def _fit(
-    entries, region: Region, view: View, *, margin: float = 0.08
+    entries: Any,
+    region: Region,
+    view: View,
+    *,
+    margin: float=0.08,
 ) -> tuple[float, np.ndarray, np.ndarray]:
     """Scale and offset that put the whole model inside the region."""
     right, up, _forward = view.basis()
@@ -221,9 +226,7 @@ def _place_callouts(
     return drawn
 
 
-def _feature_point(
-    part, sheet_points: np.ndarray, index_range: tuple[int, int]
-) -> Point:
+def _feature_point(part: Any, sheet_points: np.ndarray, index_range: tuple[int, int]) -> Point:
     """A visible attachment point for a callout leader.
 
     The outermost projected vertex reads best: a leader that lands in the
@@ -244,8 +247,8 @@ def _feature_point(
 
 def _draw_parts(
     canvas: Canvas,
-    design,
-    entries,
+    design: Any,
+    entries: Any,
     view: View,
     region: Region,
     *,
@@ -254,10 +257,10 @@ def _draw_parts(
     centre_sheet: np.ndarray,
     hidden_lines: bool,
     wireframe_opacity: float,
-    highlight: str = "",
-    ghost: tuple[str, ...] = (),
-    layer_prefix: str = "",
-    xray: bool = False,
+    highlight: str='',
+    ghost: tuple[str, ...]=(),
+    layer_prefix: str='',
+    xray: bool=False,
 ) -> dict[str, tuple[np.ndarray, tuple[int, int]]]:
     """Draw every part back to front, and report where each one landed."""
     right, up, forward = view.basis()
@@ -323,11 +326,17 @@ def _draw_parts(
     return placement
 
 
-def _findings_for(findings, part_id: str) -> list:
+def _findings_for(findings: Any, part_id: str) -> list:
     return [f for f in findings if f.subject == part_id]
 
 
-def _callout_for_part(canvas: Canvas, design, part, findings, anchor: Point) -> Callout:
+def _callout_for_part(
+    canvas: Canvas,
+    design: Any,
+    part: Any,
+    findings: tuple,
+    anchor: Point,
+) -> Callout:
     """One label per part: what it is, and the number that matters about it."""
     headline = ""
     relevant = _findings_for(findings, part.id)
@@ -427,18 +436,18 @@ def _orientation_marker(canvas: Canvas, region: Region, view: View, *, layer: st
 
 def draw_assembly(
     canvas: Canvas,
-    design,
+    design: Any,
     region: Region,
     *,
-    findings: tuple = (),
-    view: str | View = "iso",
-    hidden_lines: bool = True,
-    callouts: bool = True,
-    highlight: str = "",
-    only: tuple[str, ...] = (),
-    scale_bar: bool = True,
-    layer_prefix: str = "",
-    xray: bool | None = None,
+    findings: tuple=(),
+    view: str | View='iso',
+    hidden_lines: bool=True,
+    callouts: bool=True,
+    highlight: str='',
+    only: tuple[str, ...]=(),
+    scale_bar: bool=True,
+    layer_prefix: str='',
+    xray: bool | None=None,
 ) -> DrawnView:
     """The hero view: the whole thing assembled, labelled where it matters."""
     camera = view if isinstance(view, View) else view_named(view)
@@ -494,15 +503,15 @@ def draw_assembly(
 
 def draw_exploded(
     canvas: Canvas,
-    design,
+    design: Any,
     region: Region,
     *,
-    findings: tuple = (),
-    view: str | View = "iso",
-    spread: float = 1.0,
-    balloons: bool = True,
-    trails: bool = True,
-    layer_prefix: str = "",
+    findings: tuple=(),
+    view: str | View='iso',
+    spread: float=1.0,
+    balloons: bool=True,
+    trails: bool=True,
+    layer_prefix: str='',
 ) -> DrawnView:
     """The same assembly pulled apart along each part's own explode vector.
 
@@ -579,13 +588,13 @@ def draw_exploded(
 
 def draw_section(
     canvas: Canvas,
-    design,
+    design: Any,
     region: Region,
     *,
-    axis: str = "y",
-    offset: float = 0.0,
-    findings: tuple = (),
-    layer_prefix: str = "",
+    axis: str='y',
+    offset: float=0.0,
+    findings: tuple=(),
+    layer_prefix: str='',
 ) -> DrawnView:
     """A cut through the model, hatched, so the inside can be seen.
 
@@ -695,12 +704,12 @@ def _cut_loops(
 
 def draw_orthographic(
     canvas: Canvas,
-    design,
+    design: Any,
     region: Region,
     *,
-    angle: str = "third",
-    dimensions: bool = True,
-    layer_prefix: str = "",
+    angle: str='third',
+    dimensions: bool=True,
+    layer_prefix: str='',
 ) -> DrawnView:
     """The three squared-on views, arranged and dimensioned.
 

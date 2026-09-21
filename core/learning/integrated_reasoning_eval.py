@@ -153,7 +153,7 @@ def _grade_answer(produced: object, answer: str, policy: str) -> bool:
     return bool(selected) and selected == normalize_answer(answer, "str")
 
 
-def _validate_design(tasks, depths, policy):
+def _validate_design(tasks: list[KnowledgeTask], depths: tuple[int, ...], policy: str) -> None:
     if policy not in {INTEGRATED_EVAL_POLICY, LEGACY_EVAL_POLICY}:
         raise ValueError("unknown integrated evaluation policy")
     if not tasks:
@@ -238,14 +238,18 @@ def _mean(flags: list[bool]) -> float:
     return round(sum(1 for f in flags if f) / len(flags), 4) if flags else 0.0
 
 
-def _paired_verdicts(accuracy, depths, per_task):
+def _paired_verdicts(
+    accuracy: dict[str, Any],
+    depths: tuple[int, ...],
+    per_task: list[dict[str, Any]],
+) -> dict[str, Any]:
     """Report fixed-depth effects and their intersection on the same tasks."""
     from core.brain.llm.latent_cortex.exact_paired_statistics import exact_paired_binomial_tail
 
     shallow, deep = depths[0], depths[-1]
     treatment = f"on@{deep}"
 
-    def paired(control):
+    def paired(control: str) -> dict[str, Any]:
         wins = sum(row[treatment] and not row[control] for row in per_task)
         losses = sum(row[control] and not row[treatment] for row in per_task)
         return {"wins": wins, "losses": losses, "ties": len(per_task) - wins - losses,

@@ -19,6 +19,7 @@ again gets the claim it already has, counted, and releases it once. That is
 the one case where a lock silently deadlocks instead.
 """
 from __future__ import annotations
+from collections.abc import AsyncIterator
 
 import asyncio
 import logging
@@ -288,7 +289,7 @@ async def claim(
     *,
     context: AnExecutionContext | None = None,
     seconds: float = 0.0,
-):
+) -> AsyncIterator[Any]:
     """Hold ``resource`` as ``by``, waiting in line for it.
 
     The deadline is the caller's own: ``context.seconds_left`` unless

@@ -182,18 +182,18 @@ class Harness:
     def __init__(
         self,
         *,
-        seed: int = 0,
-        policy_name: str = "local",
-        bounds: MorphBounds | None = None,
-        physics: SubstratePhysics | None = None,
-        motifs: MotifLibrary | None = None,
-        allow_recovery: bool = True,
-        radius: int = 1,
-        require_governance: bool = False,
-        shadow: bool = True,
-        deadline_steps: int = 26,
-        demand_window_len: int = 6,
-    ):
+        seed: int=0,
+        policy_name: str='local',
+        bounds: MorphBounds | None=None,
+        physics: SubstratePhysics | None=None,
+        motifs: MotifLibrary | None=None,
+        allow_recovery: bool=True,
+        radius: int=1,
+        require_governance: bool=False,
+        shadow: bool=True,
+        deadline_steps: int=26,
+        demand_window_len: int=6,
+    ) -> None:
         self.seed = int(seed)
         self.policy_name = policy_name
         self.policy: MorphPolicy = build_policy(policy_name, seed=seed)

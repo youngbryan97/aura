@@ -10,10 +10,20 @@ from core.learning.semantic_joint_graph_learning import (
 )
 from core.learning.semantic_operation_search import OperationChartSearch, OperationSearchIncompleteError
 from core.learning.semantic_program_transducer_fitting import _assign_typed_arguments
+from typing import Any
 
 
-def mine_runtime_graph_constraints(model, item, *, weight=1., max_charts=32, max_graphs=32,
-                                  solve_time_limit_s=20., learn_arguments=False, learn_operation_pointer=False):
+def mine_runtime_graph_constraints(
+    model: Any,
+    item: Any,
+    *,
+    weight: float=1.0,
+    max_charts: int=32,
+    max_graphs: int=32,
+    solve_time_limit_s: float=20.0,
+    learn_arguments: bool=False,
+    learn_operation_pointer: bool=False,
+) -> tuple[tuple[Any, ...], dict[str, Any]]:
     """Search source-training competitors without supplying operations to the decoder.
 
     Only the offline comparison sees the annotation. Search allowances are

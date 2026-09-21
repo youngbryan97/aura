@@ -63,7 +63,7 @@ class LiveCoverageEvaluator:
     #: binding has to cover something genuinely uncovered to pay for itself.
     edge_cost = 0.01
 
-    def __init__(self, runtime: Any):
+    def __init__(self, runtime: Any) -> None:
         self._runtime = runtime
 
     def __call__(self, graph: MorphGraph, proposal: Any = None) -> float | None:
@@ -158,7 +158,7 @@ class LiveObserverPolicy:
 
     name = "live_observer"
 
-    def __init__(self, *, idle_ticks_before_retire: int = 600):
+    def __init__(self, *, idle_ticks_before_retire: int=600) -> None:
         self.idle_ticks_before_retire = int(idle_ticks_before_retire)
 
     #: Ports a repair binding may use, best first.

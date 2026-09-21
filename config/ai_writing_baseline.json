@@ -32,7 +32,7 @@
       "core/introspection/code_graph.py": 1,
       "core/knowledge/local_corpus.py": 2,
       "core/phases/response_generation.py": 1,
-      "core/phases/response_generation_unitary.py": 1,
+      "core/phases/response_generation_amplifiers.py": 1,
       "core/resilience/stall_watchdog.py": 1,
       "core/runtime/boot_profile.py": 1,
       "core/security/user_recognizer.py": 1,
@@ -45,12 +45,11 @@
       "core/voice/duplex/streaming_asr.py": 1,
       "core/voice/duplex/tts_stream.py": 1,
       "core/voice/speech_profile.py": 1,
-      "interface/routes/chat.py": 1,
       "slo/slo_monitor.py": 1,
       "tools/proof/run_rsi_challenge_proof.py": 1,
       "tools/run_rlc_reconciliation_sweep.py": 1
     },
-    "total": 62
+    "total": 61
   },
   "front": {
     "per_file": {

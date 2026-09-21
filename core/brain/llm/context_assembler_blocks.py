@@ -175,7 +175,7 @@ class _BuildsThePromptBlocks:
         return block
 
     @staticmethod
-    def _build_system_prompt_part_1(state):
+    def _build_system_prompt_part_1(state: AuraState) -> tuple[Any, str]:
         """Construct the core system prompt from state. Uses Elasticity to scale verbosity.
 
         CONTEXT PRESSURE: the resident primary model's window is resolved from
@@ -209,7 +209,10 @@ class _BuildsThePromptBlocks:
         return is_casual, objective
 
     @staticmethod
-    def _build_system_prompt_compile_substrate_voice(affect, black_box_steering):
+    def _build_system_prompt_compile_substrate_voice(
+        affect: Any,
+        black_box_steering: Any,
+    ) -> tuple[Any, Any]:
         # Compile substrate voice constraints
         from .context_assembler import (
             ContextAssembler,
@@ -246,7 +249,10 @@ class _BuildsThePromptBlocks:
         return mood_hint, substrate_constraint_block
 
     @staticmethod
-    def _build_system_prompt_ledger_non_decaying(continuity_budget, state):
+    def _build_system_prompt_ledger_non_decaying(
+        continuity_budget: Any,
+        state: AuraState,
+    ) -> tuple[Any, Any]:
         # The ledger is the non-decaying half of continuity. The rolling
         # summary above is still useful as narrative, but it is lossy by
         # construction; this block is what makes an early disclosure reachable
@@ -297,7 +303,11 @@ class _BuildsThePromptBlocks:
         return ledger_block, self_preference_block
 
     @staticmethod
-    def _build_system_prompt_part_4(continuity_block, continuity_obligations, elasticity):
+    def _build_system_prompt_part_4(
+        continuity_block: str,
+        continuity_obligations: dict[str, Any],
+        elasticity: Any,
+    ) -> tuple[str, Any]:
         from .context_assembler import (
             logger,
             record_degradation,
@@ -353,7 +363,7 @@ class _BuildsThePromptBlocks:
         return continuity_block, goal_execution_block
 
     @staticmethod
-    def _build_system_prompt_part_5(state, temporal_finitude_block):
+    def _build_system_prompt_part_5(state: AuraState, temporal_finitude_block: Any) -> Any:
         from .context_assembler import (
             ContextAssembler,
             logger,
@@ -394,7 +404,13 @@ class _BuildsThePromptBlocks:
         return temporal_finitude_block
 
     @staticmethod
-    def _build_system_prompt_personhood_module_context(black_box_steering, elasticity, is_casual, mods, response_mods):
+    def _build_system_prompt_personhood_module_context(
+        black_box_steering: Any,
+        elasticity: Any,
+        is_casual: Any,
+        mods: dict[str, Any],
+        response_mods: dict[str, Any],
+    ) -> tuple[Any, Any]:
         # 3.9 Personhood module context injections
         # These come from modules wired into ConversationalDynamicsPhase.
         # Skip at elasticity >= 2 to save context for conversation history.
@@ -480,7 +496,13 @@ class _BuildsThePromptBlocks:
         return entity_memory_context, personhood_context
 
     @staticmethod
-    def _build_system_prompt_bicameral_context(black_box_steering, elasticity, is_casual, mods, response_mods):
+    def _build_system_prompt_bicameral_context(
+        black_box_steering: Any,
+        elasticity: Any,
+        is_casual: Any,
+        mods: dict[str, Any],
+        response_mods: dict[str, Any],
+    ) -> tuple[Any, Any]:
         from .context_assembler import (
             logger,
             record_degradation,
@@ -522,7 +544,13 @@ class _BuildsThePromptBlocks:
         return bicameral_context, cognitive_situation_context
 
     @staticmethod
-    def _build_system_prompt_stability_v58_zenith(continuity_block, ledger_block, mods, rolling_summary, self_preference_block):
+    def _build_system_prompt_stability_v58_zenith(
+        continuity_block: str,
+        ledger_block: Any,
+        mods: dict[str, Any],
+        rolling_summary: str,
+        self_preference_block: Any,
+    ) -> tuple[tuple[Any, ...], bool]:
         # [STABILITY v58] ZENITH PERSONA RELIANCE
         # For Sovereign and Trusted users, we trust the fine-tuning.
         # We strictly silence internal telemetry/vibes but PRESERVE tools and constraints.
@@ -621,7 +649,13 @@ class _BuildsThePromptBlocks:
         return continuity_sections, elevated_trust
 
     @staticmethod
-    def _build_system_prompt_agent_id(bound_agent, hinted_agent, internal_unbound_scope, request_origin, state):
+    def _build_system_prompt_agent_id(
+        bound_agent: Any,
+        hinted_agent: Any,
+        internal_unbound_scope: bool,
+        request_origin: str,
+        state: AuraState,
+    ) -> tuple[Any, str]:
         from .context_assembler import (
             record_degradation,
         )
@@ -656,7 +690,7 @@ class _BuildsThePromptBlocks:
         return agent_id, relational_block
 
     @staticmethod
-    def _build_system_prompt_skills_summary(base, skills_summary):
+    def _build_system_prompt_skills_summary(base: Any, skills_summary: Any) -> Any:
         skills_summary += (
             "\n- These available tools are action affordances of your current body. "
             "You may choose them from the meaning and context of a request, an active "
@@ -685,7 +719,7 @@ class _BuildsThePromptBlocks:
         return base
 
     @staticmethod
-    def _build_system_prompt_active_commitments_inject(base, is_casual):
+    def _build_system_prompt_active_commitments_inject(base: Any, is_casual: Any) -> tuple[Any, Any]:
         # 6b. Active Commitments — inject so Aura knows what tasks are in-flight
         from .context_assembler import (
             AURA_FEW_SHOT_EXAMPLES,
@@ -778,7 +812,12 @@ class _BuildsThePromptBlocks:
             return ""
 
     @staticmethod
-    def _build_messages_part_1(max_tokens, objective, record_attention, state):
+    def _build_messages_part_1(
+        max_tokens: int | None,
+        objective: str,
+        record_attention: bool,
+        state: AuraState,
+    ) -> tuple[Any, list[Any]]:
         """
         Builds the LLM message array using strict priority budgeting to prevent context collapse.
         Priority: System Prompt (Identity/Constraints) > Current Input > Affective State > Recent History > RAG Context > Older History
@@ -858,7 +897,12 @@ class _BuildsThePromptBlocks:
         return char_limit, messages
 
     @staticmethod
-    def _build_messages_affect_summary(aura_now_sample, objective, state, system_prompt):
+    def _build_messages_affect_summary(
+        aura_now_sample: Any,
+        objective: str,
+        state: AuraState,
+        system_prompt: Any,
+    ) -> str:
         from .context_assembler import (
             ContextAssembler,
         )
@@ -900,7 +944,7 @@ class _BuildsThePromptBlocks:
         return dynamic_system
 
     @staticmethod
-    def _build_messages_part_3(objective_text, safe_input, user_budget):
+    def _build_messages_part_3(objective_text: str, safe_input: Any, user_budget: Any) -> None:
         from .context_assembler import (
             logger,
             record_degradation,
@@ -948,7 +992,17 @@ class _BuildsThePromptBlocks:
                 )
 
     @classmethod
-    def _build_messages_part_4(cls, conversation_history, current_chars, history_chars, input_chars, messages, objective, safe_input, state):
+    def _build_messages_part_4(
+        cls,
+        conversation_history: list[dict[str, Any]] | None,
+        current_chars: int,
+        history_chars: Any,
+        input_chars: Any,
+        messages: Any,
+        objective: str,
+        safe_input: Any,
+        state: AuraState,
+    ) -> Any:
         from .context_assembler import (
             logger,
             record_degradation,

@@ -22,10 +22,20 @@ from core.learning.semantic_relation_graph_learning import (
     fit_joint_graph_contrasts,
     graph_margin,
 )
+from typing import Any
 
 
-def score_annotated_graph(model, item, instructions, input_spans, *, solve_time_limit_s=20., learn_arguments=False,
-                          learn_operation_pointer=False, argument_evidence_cache=None):
+def score_annotated_graph(
+    model: Any,
+    item: Any,
+    instructions: Any,
+    input_spans: Any,
+    *,
+    solve_time_limit_s: float=20.0,
+    learn_arguments: bool=False,
+    learn_operation_pointer: bool=False,
+    argument_evidence_cache: Any=None,
+) -> Any:
     """Score a supplied graph with the runtime's latent mention and definition choices."""
     from core.learning.semantic_program_transducer_fitting import (
         _assign_typed_arguments,
@@ -65,9 +75,19 @@ def score_annotated_graph(model, item, instructions, input_spans, *, solve_time_
                                  argument_evidence_cache=argument_evidence_cache)
 
 
-def scored_graph_evidence(model, item, nodes, result, relations, *, learn_arguments=False,
-                          learn_operation_pointer=False, chart=None, argument_evidence_cache=None,
-                          choice_normalizers=None):
+def scored_graph_evidence(
+    model: Any,
+    item: Any,
+    nodes: tuple[Any, ...],
+    result: Any,
+    relations: Any,
+    *,
+    learn_arguments: bool=False,
+    learn_operation_pointer: bool=False,
+    chart: Any=None,
+    argument_evidence_cache: Any=None,
+    choice_normalizers: Any=None,
+) -> dict[str, Any]:
     """Retain differentiable terms for the same latent graph the solver selected."""
     operation_score = sum(node.score for node in nodes) - model.operation_length_penalty * len(nodes)
     score = result[0][0] + operation_score
@@ -98,7 +118,7 @@ def scored_graph_evidence(model, item, nodes, result, relations, *, learn_argume
             "program": argument_graph_program(nodes, result[0][1], n_inputs=len(item.public_inputs))}
 
 
-def joint_graph_contrast(model, positive, negative, *, weight=1.):
+def joint_graph_contrast(model: Any, positive: Any, negative: Any, *, weight: float=1.0) -> Any:
     """Remove variable terms from the replayed margin before differentiating them."""
     head = model.definition_relation_head
     projections = (head.query_projection.astype(np.float64), head.definition_projection.astype(np.float64))
@@ -117,7 +137,7 @@ def joint_graph_contrast(model, positive, negative, *, weight=1.):
     return replace(row, fixed_margin=math.fsum((positive["score"], -negative["score"], -variable)))
 
 
-def graph_selection_key(model, graph):
+def graph_selection_key(model: Any, graph: Any) -> tuple[Any, ...]:
     """Keep offline comparisons in the ordering the decoder actually uses."""
     policy = model.training_receipt.get("operation_assignment_policy", "first_feasible_v1")
     if policy == "joint_factor_score_v2":
@@ -129,7 +149,7 @@ def graph_selection_key(model, graph):
             tuple((-start, -end) for _op, start, end in signature))
 
 
-def preferred_semantic_graph(model, candidate, incumbent):
+def preferred_semantic_graph(model: Any, candidate: Any, incumbent: Any) -> bool:
     """Compare bindings only within the same first-feasible operation chart."""
     if (model.training_receipt.get("operation_assignment_policy", "first_feasible_v1") == "first_feasible_v1"
             and candidate["operation_signature"] == incumbent["operation_signature"]):
@@ -137,7 +157,7 @@ def preferred_semantic_graph(model, candidate, incumbent):
     return graph_selection_key(model, candidate) > graph_selection_key(model, incumbent)
 
 
-def selection_score_margin(model, positive, negative):
+def selection_score_margin(model: Any, positive: Any, negative: Any) -> Any:
     if len(graph_selection_key(model, positive)) == 1:
         return positive["score"] - negative["score"]
     if positive["operation_signature"] == negative["operation_signature"]:
@@ -145,7 +165,7 @@ def selection_score_margin(model, positive, negative):
     return graph_selection_key(model, positive)[0] - graph_selection_key(model, negative)[0]
 
 
-def selection_graph_contrast(model, positive, negative, *, weight=1.):
+def selection_graph_contrast(model: Any, positive: Any, negative: Any, *, weight: float=1.0) -> Any:
     """Train the deciding component, not a sum the incumbent never compares.
 
     First-feasible decoding sorts feasible operation charts by operation
@@ -157,7 +177,7 @@ def selection_graph_contrast(model, positive, negative, *, weight=1.):
         return joint_graph_contrast(model, positive, negative, weight=weight)
     same_chart = positive["operation_signature"] == negative["operation_signature"]
 
-    def component(graph):
+    def component(graph: Any) -> dict[str, Any]:
         if not same_chart:
             return {**graph, "score": graph["operation_score"],
                     "relations": (), "argument_terms": graph["operation_pointer_terms"]}
@@ -167,7 +187,10 @@ def selection_graph_contrast(model, positive, negative, *, weight=1.):
     return joint_graph_contrast(model, component(positive), component(negative), weight=weight)
 
 
-def align_source_input_registers(item, input_spans):
+def align_source_input_registers(
+    item: Any,
+    input_spans: Any,
+) -> tuple[tuple[Any, ...], tuple[Any, ...]]:
     """Express source labels in the decoder's source-anchored input coordinates.
 
     Equal-valued literals can exchange register indices during grounding.
@@ -191,8 +214,16 @@ def align_source_input_registers(item, input_spans):
     return instructions, mapping
 
 
-def mine_runtime_graph_contrast(model, item, *, weight=1., solve_time_limit_s=20., learn_arguments=False,
-                                learn_operation_pointer=False, decode_time_limit_s=None):
+def mine_runtime_graph_contrast(
+    model: Any,
+    item: Any,
+    *,
+    weight: float=1.0,
+    solve_time_limit_s: float=20.0,
+    learn_arguments: bool=False,
+    learn_operation_pointer: bool=False,
+    decode_time_limit_s: Any=None,
+) -> Any:
     """Interpret without annotations, then independently compare to the source target."""
     from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
 
@@ -211,7 +242,7 @@ def mine_runtime_graph_contrast(model, item, *, weight=1., solve_time_limit_s=20
     record["source_to_runtime_input_registers"] = list(input_mapping)
     from types import SimpleNamespace
 
-    def program(instructions):
+    def program(instructions: Any) -> Any:
         return argument_graph_program(tuple(SimpleNamespace(operation=ins.op, span=ins.operation_span)
             for ins in instructions), tuple(ins.args for ins in instructions), n_inputs=len(item.public_inputs))
 
@@ -243,8 +274,15 @@ def mine_runtime_graph_contrast(model, item, *, weight=1., solve_time_limit_s=20
     return selection_graph_contrast(model, positive, negative, weight=weight), record
 
 
-def replay_source_graph_retention(model, examples, *, solve_time_limit_s=20., learn_arguments=False,
-                                  learn_operation_pointer=False, progress=None):
+def replay_source_graph_retention(
+    model: Any,
+    examples: tuple[Any, ...],
+    *,
+    solve_time_limit_s: float=20.0,
+    learn_arguments: bool=False,
+    learn_operation_pointer: bool=False,
+    progress: Any=None,
+) -> tuple[tuple[Any, ...], dict[str, Any]]:
     """Reacquire complete-decision errors across the declared training population.
 
     Per-token operation constraints do not retain a joint graph decision.
@@ -292,7 +330,7 @@ def replay_source_graph_retention(model, examples, *, solve_time_limit_s=20., le
     return tuple(contrasts), {**body, "receipt_sha256": _sha(body)}
 
 
-def source_operation_supervision(model, training):
+def source_operation_supervision(model: Any, training: Any) -> Any:
     """Preserve all source operation labels, not only the currently wrong graphs."""
     from core.learning.semantic_operation_background import operation_background_training_spans
     from core.learning.semantic_program_shared_transducer import _geometry
@@ -315,7 +353,15 @@ def source_operation_supervision(model, training):
         np.array([label for _, label in evidence]), np.array(weights))
 
 
-def mine_source_binding_constraint(model, item, *, weight=1., max_graphs=32, solve_time_limit_s=20., learn_arguments=False):
+def mine_source_binding_constraint(
+    model: Any,
+    item: Any,
+    *,
+    weight: float=1.0,
+    max_graphs: int=32,
+    solve_time_limit_s: float=20.0,
+    learn_arguments: bool=False,
+) -> tuple[Any, dict[str, Any]]:
     """Keep a witnessed binding competitor even when the source already decodes correctly."""
     from core.learning.semantic_graph_counterexamples import find_graph_counterexample
     from core.learning.semantic_program_transducer_fitting import (
@@ -361,7 +407,14 @@ def mine_source_binding_constraint(model, item, *, weight=1., max_graphs=32, sol
     return contrast, record
 
 
-def source_operation_constraints(model, supervision, *, weight=1., policy="supervised", required_margin=.1):
+def source_operation_constraints(
+    model: Any,
+    supervision: Any,
+    *,
+    weight: float=1.0,
+    policy: str='supervised',
+    required_margin: float=0.1,
+) -> list[Any]:
     """Compare all labels, separating auxiliary targets from retained evidence."""
     if (policy not in {"supervised", "retain_existing"} or not math.isfinite(required_margin)
             or required_margin <= 0 or not math.isfinite(weight) or weight <= 0):
@@ -384,8 +437,14 @@ def source_operation_constraints(model, supervision, *, weight=1., policy="super
     return constraints
 
 
-def source_operation_pointer_constraints(model, training, *, weight=1., required_margin=.1,
-                                         policy="supervised"):
+def source_operation_pointer_constraints(
+    model: Any,
+    training: Any,
+    *,
+    weight: float=1.0,
+    required_margin: float=0.1,
+    policy: str='supervised',
+) -> tuple[Any, ...]:
     """Retain source operation boundaries against the pointer's hard negatives."""
     from types import SimpleNamespace
 
@@ -433,15 +492,29 @@ def source_operation_pointer_constraints(model, training, *, weight=1., required
     return tuple(constraints)
 
 
-def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
-                                    solve_time_limit_s=20., progress=None, source_weight=1.,
-                                    constraint_learning=False, learn_arguments=False,
-                                    checkpoint_dir=None, retention_operation_charts=32,
-                                    learn_operation_pointer=False, update_rule="working_face",
-                                    boundary_policy="supervised", learn_operations=True,
-                                    relation_metric="coefficient_euclidean",
-                                    source_retention_examples=None, operation_policy="supervised",
-                                    operation_metric="coefficient_euclidean", source_graph_retention=False):
+def refit_compositional_joint_graphs(
+    model: Any,
+    examples: Any,
+    *,
+    rounds: int=3,
+    steps: int=100,
+    solve_time_limit_s: float=20.0,
+    progress: Any=None,
+    source_weight: float=1.0,
+    constraint_learning: bool=False,
+    learn_arguments: bool=False,
+    checkpoint_dir: Any=None,
+    retention_operation_charts: int=32,
+    learn_operation_pointer: bool=False,
+    update_rule: str='working_face',
+    boundary_policy: str='supervised',
+    learn_operations: bool=True,
+    relation_metric: str='coefficient_euclidean',
+    source_retention_examples: Any=None,
+    operation_policy: str='supervised',
+    operation_metric: str='coefficient_euclidean',
+    source_graph_retention: bool=False,
+) -> Any:
     """Remine source-training predictions after each joint operation/relation update."""
     from core.learning.semantic_graph_margin import graph_refit_source_splits
     from core.learning.semantic_program_campaign import _sha
@@ -490,7 +563,7 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         if not all(item.ir.source_text_sha256 in by_source for item in training):
             raise ValueError("source retention must include the mining cohort")
         bound = tuple(by_source[item.ir.source_text_sha256] for item in training)
-        def identity(rows):
+        def identity(rows: tuple[Any, ...]) -> Any:
             return validation_identity({"parent": model}, rows,
                 scoring="source_anchors_v2", implementation="source-retention-input-v1")
         if identity(training) != identity(bound):
@@ -507,7 +580,7 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
     candidate, retained, history = model, [], []
     graph_replays = []
 
-    def replay_retained_graphs(phase):
+    def replay_retained_graphs(phase: str) -> None:
         pairs, receipt = replay_source_graph_retention(candidate, retention,
             solve_time_limit_s=solve_time_limit_s, learn_arguments=learn_arguments,
             learn_operation_pointer=learn_operation_pointer, progress=progress)

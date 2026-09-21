@@ -54,7 +54,7 @@ from core.interiority.params import Param, ParamKind, declare
 from core.interiority.receptors import ReceptorBank, get_receptor_bank
 
 
-def _p(name: str, value: float, basis: str, sensitivity: str, **kw) -> Param:
+def _p(name: str, value: float, basis: str, sensitivity: str, **kw: Any) -> Param:
     return declare(
         f"interiority.cleft.{name}",
         value,

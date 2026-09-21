@@ -159,7 +159,12 @@ class ImpasseBus:
     selection reach the same code because they are the same kind of failure.
     """
 
-    def __init__(self, *, default_budget: SubstateBudget | None = None, clock=time.monotonic) -> None:
+    def __init__(
+        self,
+        *,
+        default_budget: SubstateBudget | None=None,
+        clock: Any=time.monotonic,
+    ) -> None:
         self._lock = checked_lock("core.cognition.substate.ImpasseBus", reentrant=True)
         self._handlers: dict[ImpasseType, list[tuple[str, Handler]]] = {}
         self._substates: dict[str, CognitiveSubstate] = {}
@@ -257,7 +262,7 @@ class ImpasseBus:
             self._finish(substate, graph, event.seq)
         return substate
 
-    def _finish(self, substate: CognitiveSubstate, graph, parent_event: int) -> None:
+    def _finish(self, substate: CognitiveSubstate, graph: Any, parent_event: int) -> None:
         resolution = substate.resolution or Resolution(SubstateOutcome.UNHANDLED)
         with self._lock:
             key = resolution.outcome.value

@@ -41,7 +41,7 @@ from core.connectome.types import ConnectomeSnapshot
 from core.runtime.flags import FlagKind
 
 
-def _declare(name: str, **spec: object):
+def _declare(name: str, **spec: object) -> Any:
     """Declare a flag, falling back to a raw read where the registry is absent."""
     from core.runtime.flags import declare
 

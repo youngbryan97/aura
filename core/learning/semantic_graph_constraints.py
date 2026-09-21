@@ -15,9 +15,10 @@ from scipy.optimize import nnls
 from core.learning.semantic_graph_batch import GraphConstraintBatch
 from core.learning.semantic_relation_graph_learning import graph_margin, graph_margin_gradient
 from core.verify.invariants import invariant
+from typing import Any
 
 
-def _project_direction(direction, normals):
+def _project_direction(direction: Any, normals: list[Any]) -> Any:
     """Project onto the intersection of linearized nondecreasing halfspaces."""
     if not normals:
         return direction
@@ -37,12 +38,26 @@ def _project_direction(direction, normals):
     return (normalized + a.T @ multiplier) * magnitude
 
 
-def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
-                          required_margin=.1, learning_rate=.001, max_active=32,
-                          adaptive_step=False, checkpoint_path=None, progress=None,
-                          checkpoint_identity=None, batched=True, objective="squared_deficit",
-                          update_rule="working_face", trainable_parameters=None,
-                          relation_metric="coefficient_euclidean", operation_metric="coefficient_euclidean"):
+def _fit_graph_parameters(
+    initial: tuple[Any, ...],
+    contrasts: Any,
+    *,
+    scale: float=1.0,
+    steps: int=100,
+    required_margin: float=0.1,
+    learning_rate: float=0.001,
+    max_active: int=32,
+    adaptive_step: bool=False,
+    checkpoint_path: Any=None,
+    progress: Any=None,
+    checkpoint_identity: Any=None,
+    batched: bool=True,
+    objective: str='squared_deficit',
+    update_rule: str='working_face',
+    trainable_parameters: tuple[Any, ...]=None,
+    relation_metric: str='coefficient_euclidean',
+    operation_metric: str='coefficient_euclidean',
+) -> Any:
     """Search for all retained inequalities; retain every already-positive margin."""
     if (objective not in {"squared_deficit", "pairwise_logistic"}
             or update_rule not in {"working_face", "minimum_change"}
@@ -97,30 +112,30 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                               for value, trainable in zip(initial, trainable_parameters, strict=True)])
     batch = GraphConstraintBatch(contrasts, scale) if batched else None
 
-    def split(flat):
+    def split(flat: Any) -> tuple[Any, ...]:
         return tuple(value.reshape(shape) for value, shape in
                      zip(np.split(flat, ends[:-1]), shapes, strict=True))
 
-    def unpack(flat):
+    def unpack(flat: Any) -> Any:
         parts = split(flat)
         return parts if geometry is None else geometry.decode(parts)
 
-    def pack(parameters):
+    def pack(parameters: tuple[Any, ...]) -> Any:
         parts = parameters if geometry is None else geometry.encode(parameters)
         return np.concatenate([value.ravel() for value in parts])
 
-    def pack_gradient(gradients):
+    def pack_gradient(gradients: Any) -> Any:
         parts = gradients if geometry is None else geometry.pullback(gradients)
         return np.concatenate([value.ravel() for value in parts]) * mutable
 
-    def stored_parameters(flat):
+    def stored_parameters(flat: Any) -> Any:
         parts = unpack(flat)
         if geometry is None:
             return parts
         return tuple(part.astype(np.float32).astype(np.float64) if trainable else original
                      for part, original, trainable in zip(parts, initial, trainable_parameters, strict=True))
 
-    def evaluate(flat):
+    def evaluate(flat: Any) -> Any:
         parameters = stored_parameters(flat)
         values = (batch.margins(parameters) if batch is not None else
                   np.asarray([graph_margin(parameters, row, scale=scale) for row in contrasts]))
@@ -131,7 +146,7 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
     flat = pack(initial)
     anchor = flat.copy()
 
-    def store_trial(value):
+    def store_trial(value: Any) -> Any:
         stored = (value.astype(np.float32).astype(np.float64) if geometry is None else
                   pack(tuple(part.astype(np.float32).astype(np.float64) for part in unpack(value))))
         stored[~mutable] = anchor[~mutable]
@@ -145,12 +160,12 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
     weights = np.array([row.weight for row in contrasts])
     weights /= weights.sum()
 
-    def loss_at(values):
+    def loss_at(values: Any) -> float:
         terms = (np.logaddexp(0., -values) if objective == "pairwise_logistic"
                  else np.maximum(required_margin - values, 0.) ** 2)
         return float(weights @ terms)
 
-    def restore_trial(trial, values):
+    def restore_trial(trial: Any, values: Any) -> Any:
         # Tangent motion can leave a curved feasible boundary at second order.
         # Correct violated faces together, then recheck every nonlinear margin
         # at exported precision. Iterations bound curvature refinement, not how
@@ -176,7 +191,7 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
             # positive reserve here would move an exact affine optimum.
             required = floors[indices] - values[indices]
 
-            def stored_correction(point):
+            def stored_correction(point: Any) -> Any:
                 full = trial.copy()
                 full[mutable] = point
                 return store_trial(full)[mutable]
@@ -244,7 +259,7 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
             if status != "running":
                 start_step = steps
 
-    def persist(state):
+    def persist(state: str) -> None:
         if checkpoint is not None:
             checkpoint.save(flat=flat, margins=margins, floors=floors, trace=trace,
                             next_step=len(trace), status=state)
@@ -287,7 +302,7 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                 indices = tuple(normals)
                 matrix = np.stack(tuple(normals.values()))
                 required = required_margin - margins[list(indices)] + matrix @ (flat - anchor)
-                def stored_mutable(point):
+                def stored_mutable(point: Any) -> Any:
                     full = anchor.copy()
                     full[mutable] = point
                     return store_trial(full)[mutable]
@@ -465,19 +480,26 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
     return values, receipt
 
 
-def _model_parameters(head, operation_head):
+def _model_parameters(head: Any, operation_head: Any) -> tuple[Any, ...]:
     return (head.query_projection, head.definition_projection,
             *(value for part in operation_head.heads for value in (part.weight, part.bias)))
 
 
-def _fitted_heads(head, operation_head, values):
+def _fitted_heads(head: Any, operation_head: Any, values: Any) -> tuple[Any, Any]:
     return (replace(head, query_projection=values[0], definition_projection=values[1]),
             replace(operation_head, heads=tuple(replace(part,
                 weight=values[2 + 2 * index], bias=values[3 + 2 * index])
                 for index, part in enumerate(operation_head.heads))))
 
 
-def fit_graph_constraints(head, operation_head, contrasts, *, learn_operations=True, **options):
+def fit_graph_constraints(
+    head: Any,
+    operation_head: Any,
+    contrasts: Any,
+    *,
+    learn_operations: bool=True,
+    **options: Any,
+) -> tuple[Any, ...]:
     if type(learn_operations) is not bool:
         raise ValueError("operation learning option must be boolean")
     parameters = _model_parameters(head, operation_head)
@@ -487,8 +509,14 @@ def fit_graph_constraints(head, operation_head, contrasts, *, learn_operations=T
     return (*_fitted_heads(head, operation_head, values), receipt)
 
 
-def fit_complete_graph_constraints(model, contrasts, *, learn_operation_pointer=False,
-                                   learn_operations=True, **options):
+def fit_complete_graph_constraints(
+    model: Any,
+    contrasts: Any,
+    *,
+    learn_operation_pointer: bool=False,
+    learn_operations: bool=True,
+    **options: Any,
+) -> tuple[Any, Any]:
     from core.learning.semantic_argument_graph_learning import argument_parameters
     from core.learning.semantic_operation_pointer_learning import (
         operation_pointer_from_parameters,

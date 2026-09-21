@@ -17,9 +17,10 @@ from core.learning.semantic_program_transducer import (
     _operation_feature,
     _sha,
 )
+from typing import Any
 
 
-def valid_background_contract(head, receipt):
+def valid_background_contract(head: Any, receipt: Any) -> bool:
     """Bind background competition to its training record, not a class name alone."""
     record = receipt.get("operation_background_fit")
     if OPERATION_BACKGROUND_LABEL not in head.labels:
@@ -43,7 +44,11 @@ def valid_background_contract(head, receipt):
     )
 
 
-def operation_background_training_spans(item, pointer, max_span_tokens):
+def operation_background_training_spans(
+    item: Any,
+    pointer: Any,
+    max_span_tokens: Any,
+) -> tuple[Any, ...]:
     """Mine source-local boundary and pointer errors; keep every gold operation."""
     labels = {}
     for instruction in item.ir.instructions:
@@ -61,7 +66,14 @@ def operation_background_training_spans(item, pointer, max_span_tokens):
     return tuple(rows)
 
 
-def operation_background_receipt(model, head, train, rows, *, score):
+def operation_background_receipt(
+    model: Any,
+    head: Any,
+    train: tuple[Any, ...],
+    rows: list[Any],
+    *,
+    score: Any,
+) -> dict[str, Any]:
     """Bind a fitted background head to the actual source span supervision."""
     labels = [label for _, _, label in rows]
     return {
@@ -79,7 +91,13 @@ def operation_background_receipt(model, head, train, rows, *, score):
     }
 
 
-def refit_compositional_operation_background(model, examples, *, progress=None, background_log_odds=False):
+def refit_compositional_operation_background(
+    model: Any,
+    examples: Any,
+    *,
+    progress: Any=None,
+    background_log_odds: bool=False,
+) -> Any:
     """Fit one shared head on source training spans, including non-operation spans."""
     if type(background_log_odds) is not bool:
         raise ValueError("background odds option must be boolean")

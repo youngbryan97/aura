@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from core.verify.invariants import invariant
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -21,7 +22,7 @@ class AffineFunctionGeometry:
     source_count: int
 
     @classmethod
-    def from_features(cls, features, *, parameter_index):
+    def from_features(cls, features: Any, *, parameter_index: int) -> Any:
         x = np.asarray(features, dtype=np.float64)
         if (x.ndim != 2 or not all(x.shape) or not np.all(np.isfinite(x))
                 or type(parameter_index) is not int or parameter_index < 0):
@@ -30,7 +31,7 @@ class AffineFunctionGeometry:
         _, singular, directions = np.linalg.svd(augmented, full_matrices=False)
         return cls(parameter_index, directions, np.sqrt(1. + singular ** 2), len(x))
 
-    def _transform(self, parameters, *, inverse):
+    def _transform(self, parameters: Any, *, inverse: bool) -> tuple[Any, ...]:
         index = self.parameter_index
         values = list(parameters)
         weight, bias = values[index:index + 2]
@@ -43,17 +44,17 @@ class AffineFunctionGeometry:
         values[index:index + 2] = (transformed[:, :-1], transformed[:, -1])
         return tuple(values)
 
-    def encode(self, parameters):
+    def encode(self, parameters: tuple[Any, ...]) -> Any:
         return self._transform(parameters, inverse=False)
 
-    def decode(self, parameters):
+    def decode(self, parameters: Any) -> Any:
         return self._transform(parameters, inverse=True)
 
-    def pullback(self, gradients):
+    def pullback(self, gradients: Any) -> Any:
         # The inverse square root is symmetric, so it is its own adjoint.
         return self.decode(gradients)
 
-    def certificate(self):
+    def certificate(self) -> dict[str, Any]:
         return {"metric": "coefficient_plus_empirical_affine_function_v1",
                 "parameter_index": self.parameter_index, "source_feature_count": self.source_count,
                 "feature_width": self.directions.shape[1] - 1,
@@ -66,17 +67,17 @@ class AffineFunctionGeometry:
 class CompositeParameterGeometry:
     components: tuple
 
-    def encode(self, parameters):
+    def encode(self, parameters: tuple[Any, ...]) -> Any:
         for component in self.components:
             parameters = component.encode(parameters)
         return parameters
 
-    def decode(self, parameters):
+    def decode(self, parameters: Any) -> Any:
         for component in reversed(self.components):
             parameters = component.decode(parameters)
         return parameters
 
-    def pullback(self, gradients):
+    def pullback(self, gradients: Any) -> Any:
         for component in self.components:
             gradients = component.pullback(gradients)
         return gradients

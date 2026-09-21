@@ -518,7 +518,7 @@ class ProcedureRegistry:
 
     """Every learned procedure, priced and matched through one door."""
 
-    def __init__(self, *, max_procedures: int = 20_000, clock=lambda: time.time()) -> None:
+    def __init__(self, *, max_procedures: int=20000, clock: Any=lambda: time.time()) -> None:
         self._lock = checked_lock("core.cognition.procedure.ProcedureRegistry", reentrant=True)
         self._procedures: dict[str, Procedure] = {}
         self._interned: dict[tuple[Backend, str], tuple[str, str]] = {}

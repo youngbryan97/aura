@@ -96,7 +96,7 @@ def fit_pairwise_argument_weight(
     weights = sample_weight[negative]
     regularization = 1.0 / (inverse_regularization * float(np.sum(weights)))
 
-    def objective(weight):
+    def objective(weight: Any) -> Any:
         return _pairwise_loss(
             weight, features, positive, negative, weights,
             regularization=regularization,

@@ -413,6 +413,7 @@ def plan(module_path: Path) -> tuple[str, dict[str, int]]:
 
     counted = {"resolved": 0, "any": 0, "returns": 0, "skipped": 0}
     spans: list[tuple[int, int, str]] = []
+    in_scope = _names_in_scope(tree)
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
@@ -439,6 +440,13 @@ def plan(module_path: Path) -> tuple[str, dict[str, int]]:
             counted["skipped"] += 1
             continue
         resolved = _resolve_parameters(node, own, caller_trees) if missing else {}
+        resolved = {
+            name: kind
+            for name, kind in resolved.items()
+            if _annotation_is_writable(kind, in_scope)
+        }
+        if returns and not _annotation_is_writable(returns, in_scope):
+            returns = "Any"
         for one in missing:
             kind = "Any" if one in (node.args.vararg, node.args.kwarg) else resolved.get(one.arg, "Any")
             counted["resolved" if kind != "Any" else "any"] += 1
@@ -483,6 +491,51 @@ def _bodies_of(tree: ast.AST) -> list[str]:
                 ast.dump(ast.Module(body=node.body, type_ignores=[]), include_attributes=False)
             )
     return sorted(bodies)
+
+
+def _names_in_scope(tree: ast.AST) -> set[str]:
+    """Every name a module can already write in an annotation."""
+    names: set[str] = set(dir(__builtins__)) | {
+        "Any", "None", "int", "str", "float", "bool", "list", "dict", "set",
+        "tuple", "bytes", "object", "type", "Path", "Callable", "Iterator",
+        "AsyncIterator", "Sequence", "Mapping", "Awaitable", "Hashable",
+    }
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            names.update(alias.asname or alias.name for alias in node.names)
+        elif isinstance(node, ast.Import):
+            names.update((alias.asname or alias.name).split(".")[0] for alias in node.names)
+        elif isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            names.add(node.name)
+        elif isinstance(node, ast.Assign):
+            names.update(t.id for t in node.targets if isinstance(t, ast.Name))
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            names.add(node.target.id)
+    return names
+
+
+def _annotation_is_writable(text: str, in_scope: set[str]) -> bool:
+    """Whether the destination module can name every type in this annotation.
+
+    An annotation copied from a caller can name a class the caller imports
+    and this module does not, which is an F821 the moment it is written —
+    ruff reads annotations even under `from __future__ import annotations`.
+    Better a truthful `Any` here than a name that does not resolve.
+    """
+    try:
+        expression = ast.parse(text, mode="eval")
+    except SyntaxError:
+        return False
+    for node in ast.walk(expression):
+        if isinstance(node, ast.Name) and node.id not in in_scope:
+            return False
+        if isinstance(node, ast.Attribute):
+            root = node
+            while isinstance(root, ast.Attribute):
+                root = root.value
+            if isinstance(root, ast.Name) and root.id not in in_scope:
+                return False
+    return True
 
 
 def _needs_any_import(source: str) -> bool:

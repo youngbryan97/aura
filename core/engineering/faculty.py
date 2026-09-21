@@ -88,7 +88,7 @@ class DesignRecord:
         }
 
 
-def record_design(result, *, seconds: float = 0.0) -> DesignRecord:
+def record_design(result: Any, *, seconds: float=0.0) -> DesignRecord:
     """Note what one finished design did, for the faculty probes to read."""
     verdict = result.verdict
     disciplines = sorted({
@@ -240,7 +240,7 @@ def capability_statement() -> str:
     return " ".join(lines)
 
 
-def declare_engineering_faculty(registry=None):
+def declare_engineering_faculty(registry: Any=None) -> Any:
     """Declare engineering design so metacognition can see and score it."""
     from core.metacognition.faculty_model import (
         Faculty,

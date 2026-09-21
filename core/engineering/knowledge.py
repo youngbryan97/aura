@@ -227,7 +227,7 @@ PRINCIPLES: dict[str, tuple[str, str, str]] = {
 }
 
 
-def lessons_from(design, findings, verdict=None) -> tuple[Lesson, ...]:
+def lessons_from(design: Any, findings: Any, verdict: Any=None) -> tuple[Lesson, ...]:
     """The transferable knowledge one finished design produced.
 
     Only findings whose family has a stated principle teach anything, and
@@ -278,7 +278,7 @@ def lessons_from(design, findings, verdict=None) -> tuple[Lesson, ...]:
     return tuple(lessons)
 
 
-def _memory_facade():
+def _memory_facade() -> Any:
     """The memory service, or nothing when the runtime is not up.
 
     A design produced from a script, a test or a cold start has no service
@@ -298,7 +298,7 @@ def _memory_facade():
         return None
 
 
-def _memory_payload(design, lesson: Lesson) -> tuple[str, dict[str, Any]]:
+def _memory_payload(design: Any, lesson: Lesson) -> tuple[str, dict[str, Any]]:
     return (
         lesson.statement(),
         {
@@ -314,7 +314,7 @@ def _memory_payload(design, lesson: Lesson) -> tuple[str, dict[str, Any]]:
     )
 
 
-def record_design_knowledge(design, findings, verdict=None) -> tuple[Lesson, ...]:
+def record_design_knowledge(design: Any, findings: Any, verdict: Any=None) -> tuple[Lesson, ...]:
     """Write what this design taught into general memory, and return it.
 
     Failure to write is recorded as a degradation rather than raised: a
@@ -348,7 +348,11 @@ def record_design_knowledge(design, findings, verdict=None) -> tuple[Lesson, ...
     return lessons
 
 
-async def record_design_knowledge_async(design, findings, verdict=None) -> tuple[Lesson, ...]:
+async def record_design_knowledge_async(
+    design: Any,
+    findings: Any,
+    verdict: Any=None,
+) -> tuple[Lesson, ...]:
     """The same, from the running loop, which is where the live runtime is."""
     from core.runtime.errors import record_degradation
 

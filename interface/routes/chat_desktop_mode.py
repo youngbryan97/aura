@@ -716,7 +716,7 @@ def _is_lightweight_live_desktop_state_or_recall_turn(
     return len(str(effective_user_message or user_message or "")) <= 1800
 
 
-def _select_cognitive_chat_mode(user_message: str, effective_user_message: str):
+def _select_cognitive_chat_mode(user_message: str, effective_user_message: str) -> Any:
     from core.brain.types import ThinkingMode
     from core.language.semantic_work import INLINE_REPLY, build_semantic_work_contract
 

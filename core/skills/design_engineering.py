@@ -219,7 +219,7 @@ class DesignEngineeringSkill(BaseSkill):
         return payload
 
 
-def _headline(result) -> list[str]:
+def _headline(result: Any) -> list[str]:
     """The handful of numbers worth putting in the reply itself."""
     lines: list[str] = []
     by_id = {f.id: f for f in result.findings}

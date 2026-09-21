@@ -49,12 +49,12 @@ import math
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Mapping
+from typing import Any, Mapping
 
 from core.interiority.params import Param, ParamKind, declare
 
 
-def _p(name: str, value: float, basis: str, sensitivity: str, **kw) -> Param:
+def _p(name: str, value: float, basis: str, sensitivity: str, **kw: Any) -> Param:
     return declare(
         f"interiority.receptor.{name}",
         value,

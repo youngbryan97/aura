@@ -221,10 +221,10 @@ class SimulationSubstrate:
     def __init__(
         self,
         *,
-        seed: int = 0,
-        physics: SubstratePhysics | None = None,
-        max_cells: int = 256,
-    ):
+        seed: int=0,
+        physics: SubstratePhysics | None=None,
+        max_cells: int=256,
+    ) -> None:
         self.physics = physics or SubstratePhysics()
         self.max_cells = int(max_cells)
         self._rng = random.Random(seed)
@@ -476,7 +476,7 @@ class LocalRuntimeSubstrate:
 
     name = "local_runtime"
 
-    def __init__(self, *, locus: str = "aura_main", max_cells: int = 256):
+    def __init__(self, *, locus: str='aura_main', max_cells: int=256) -> None:
         self.locus = str(locus)
         self.max_cells = int(max_cells)
         self._placements: dict[str, Placement] = {}

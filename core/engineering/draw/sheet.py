@@ -124,7 +124,7 @@ def _verdict_colour(canvas: Canvas, verdict: str) -> str:
     }.get(verdict, canvas.theme.ink_soft)
 
 
-def _header(canvas: Canvas, design, findings, region: Region) -> None:
+def _header(canvas: Canvas, design: Any, findings: tuple, region: Region) -> None:
     """The title strip, and the four numbers somebody wants at a glance."""
     canvas.rect(
         (region.x, region.y), region.width, region.height,
@@ -176,7 +176,7 @@ def _header(canvas: Canvas, design, findings, region: Region) -> None:
         x += tile_width
 
 
-def _headline_numbers(design, findings) -> list[tuple[str, str, str]]:
+def _headline_numbers(design: Any, findings: Any) -> list[tuple[str, str, str]]:
     """The handful of figures that belong at the top of the sheet."""
     by_id = {f.id: f for f in findings}
     tiles: list[tuple[str, str, str]] = []
@@ -201,7 +201,7 @@ def _headline_numbers(design, findings) -> list[tuple[str, str, str]]:
     return tiles[:5]
 
 
-def _compare(finding, requirement) -> str:
+def _compare(finding: Any, requirement: Any) -> str:
     """Does this finding satisfy this requirement, in the requirement's units?"""
     if requirement.target is None:
         return "unverified"
@@ -223,7 +223,7 @@ def _compare(finding, requirement) -> str:
     return "pass" if abs(actual - target) <= abs(target) * 0.02 else "fail"
 
 
-def _requirements_panel(canvas: Canvas, design, findings, region: Region) -> None:
+def _requirements_panel(canvas: Canvas, design: Any, findings: tuple, region: Region) -> None:
     if not design.requirements:
         return
     panel = canvas.bounded_panel(
@@ -257,7 +257,13 @@ def _requirements_panel(canvas: Canvas, design, findings, region: Region) -> Non
     panel.truncation_note(len(design.requirements) - shown)
 
 
-def _findings_panel(canvas: Canvas, findings, region: Region, *, limit: int = 8) -> tuple[str, ...]:
+def _findings_panel(
+    canvas: Canvas,
+    findings: tuple,
+    region: Region,
+    *,
+    limit: int=8,
+) -> tuple[str, ...]:
     """The results worth reading first: failures, then warnings, then the rest."""
     ranked = sorted(
         findings,
@@ -295,7 +301,7 @@ def _findings_panel(canvas: Canvas, findings, region: Region, *, limit: int = 8)
     return tuple(quoted)
 
 
-def _bom_panel(canvas: Canvas, design, region: Region) -> None:
+def _bom_panel(canvas: Canvas, design: Any, region: Region) -> None:
     """The parts list, keyed to the balloons on the view."""
     panel = canvas.bounded_panel(
         (region.x, region.y), region.width, region.height,
@@ -340,7 +346,7 @@ def _bom_panel(canvas: Canvas, design, region: Region) -> None:
     panel.truncation_note(len(design.parts) - shown)
 
 
-def _how_it_works_panel(canvas: Canvas, design, region: Region, narrative: str) -> None:
+def _how_it_works_panel(canvas: Canvas, design: Any, region: Region, narrative: str) -> None:
     if not narrative:
         return
     panel = canvas.bounded_panel(
@@ -368,7 +374,7 @@ def _legend(canvas: Canvas, region: Region) -> None:
         panel.gap(size * 1.55)
 
 
-def _title_block(canvas: Canvas, design, region: Region, scale_text: str) -> None:
+def _title_block(canvas: Canvas, design: Any, region: Region, scale_text: str) -> None:
     """Bottom right, ASME Y14.1: who, what, when, which revision, what scale."""
     canvas.rect((region.x, region.y), region.width, region.height,
                 kind="visible", colour=canvas.theme.ink_soft,
@@ -415,7 +421,7 @@ def _title_block(canvas: Canvas, design, region: Region, scale_text: str) -> Non
         x += cell_width
 
 
-def _dominant_material(design) -> str:
+def _dominant_material(design: Any) -> str:
     counts: dict[str, float] = {}
     for part in design.parts:
         if part.material is None:
@@ -430,16 +436,16 @@ def _dominant_material(design) -> str:
 
 
 def compose_sheet(
-    design,
-    findings: tuple = (),
+    design: Any,
+    findings: tuple=(),
     *,
-    kind: str = "assembly",
-    size: str = "A3",
-    theme: str = "drafting",
-    view: str = "iso",
-    narrative: str = "",
-    section_axis: str = "y",
-    schematic_drawer: Any = None,
+    kind: str='assembly',
+    size: str='A3',
+    theme: str='drafting',
+    view: str='iso',
+    narrative: str='',
+    section_axis: str='y',
+    schematic_drawer: Any=None,
 ) -> Sheet:
     """Lay out one finished drawing sheet and return the SVG.
 

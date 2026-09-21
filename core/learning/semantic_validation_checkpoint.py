@@ -8,9 +8,10 @@ import sys
 import numpy as np
 
 from core.runtime.file_write_gateway import get_file_write_gateway
+from typing import Any
 
 
-def _digest(value):
+def _digest(value: dict[str, Any]) -> Any:
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"),
                                      allow_nan=False).encode()).hexdigest()
 
@@ -19,7 +20,7 @@ VALIDATION_SCORING = ("register_indices_v1", "source_anchors_v2")
 _CORE_ROOT = Path(__file__).resolve().parents[1]
 
 
-def validation_implementation_identity():
+def validation_implementation_identity() -> Any:
     """Conservative source snapshot for cached measurements, not serving gates.
 
     Include the core tree because decoder imports and floor operators span
@@ -33,7 +34,13 @@ def validation_implementation_identity():
     return _digest({"sources": sources, "python": sys.version, "numpy": np.__version__})
 
 
-def validation_identity(candidates, examples, *, scoring="register_indices_v1", implementation=None):
+def validation_identity(
+    candidates: Any,
+    examples: Any,
+    *,
+    scoring: str='register_indices_v1',
+    implementation: Any=None,
+) -> Any:
     if scoring not in VALIDATION_SCORING:
         raise ValueError("unknown semantic validation scoring")
     observations = []
@@ -64,7 +71,7 @@ def validation_identity(candidates, examples, *, scoring="register_indices_v1", 
 class SemanticValidationCheckpoint:
     """A checksummed local measurement cache, not qualification authority."""
 
-    def __init__(self, path, identity, candidates, source_ids):
+    def __init__(self, path: Any, identity: Any, candidates: Any, source_ids: Any) -> None:
         self.path = Path(path)
         self.identity = identity
         self.allowed = {name: set(source_ids) for name in candidates}
@@ -86,10 +93,10 @@ class SemanticValidationCheckpoint:
                             or (value[0] and not value[1])):
                         raise ValueError("semantic validation checkpoint has invalid observation")
 
-    def get(self, name, source):
+    def get(self, name: str, source: dict[str, Any]) -> Any:
         return self.rows.get(name, {}).get(source)
 
-    def record(self, name, source, exact, equivalent):
+    def record(self, name: Any, source: Any, exact: Any, equivalent: Any) -> None:
         if name not in self.allowed or source not in self.allowed[name]:
             raise ValueError("semantic validation checkpoint observation is out of scope")
         if type(exact) is not bool or type(equivalent) is not bool or (exact and not equivalent):

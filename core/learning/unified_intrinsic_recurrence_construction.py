@@ -21,11 +21,11 @@ class _BuildsItsRegisters:
     def _init_correction_and_halt(
         self,
         config: UnifiedRecurrenceConfig,
-        scale,
-        key_a,
-        key_depth,
-        key_memory,
-        key_halt,
+        scale: Any,
+        key_a: Any,
+        key_depth: Any,
+        key_memory: Any,
+        key_halt: Any,
     ) -> None:
         from .unified_intrinsic_recurrence import (
             mx,
@@ -87,24 +87,24 @@ class _BuildsItsRegisters:
     def _init_state_registers_and_actions(
         self,
         config: UnifiedRecurrenceConfig,
-        scale,
-        key_state,
-        key_state_slots,
-        key_state_values,
-        key_transition_query,
-        key_transition_key,
-        key_transition_value,
-        key_transition_self,
-        key_transition_output,
-        key_transition_depth,
-        key_action_slots,
-        key_action_values,
-        key_action_query,
-        key_action_key,
-        key_action_value,
-        key_action_output,
-        key_action_depth,
-        key_state_action,
+        scale: Any,
+        key_state: Any,
+        key_state_slots: Any,
+        key_state_values: Any,
+        key_transition_query: Any,
+        key_transition_key: Any,
+        key_transition_value: Any,
+        key_transition_self: Any,
+        key_transition_output: Any,
+        key_transition_depth: Any,
+        key_action_slots: Any,
+        key_action_values: Any,
+        key_action_query: Any,
+        key_action_key: Any,
+        key_action_value: Any,
+        key_action_output: Any,
+        key_action_depth: Any,
+        key_state_action: Any,
     ) -> None:
         from .unified_intrinsic_recurrence import (
             mx,
@@ -269,7 +269,7 @@ class _BuildsItsRegisters:
             * scale
         )
 
-    def _init_transition_memory(self, config: UnifiedRecurrenceConfig, scale) -> None:
+    def _init_transition_memory(self, config: UnifiedRecurrenceConfig, scale: Any) -> None:
         from .unified_intrinsic_recurrence import (
             mx,
         )
@@ -955,14 +955,14 @@ class _BuildsItsRegisters:
     def _init_action_causal_and_answer(
         self,
         config: UnifiedRecurrenceConfig,
-        workspace_width,
-        workspace_scale,
-        key_literal_values,
-        scale,
-        key_answer_query,
-        key_answer_key,
-        key_answer_value,
-        key_answer_output,
+        workspace_width: Any,
+        workspace_scale: Any,
+        key_literal_values: Any,
+        scale: Any,
+        key_answer_query: Any,
+        key_answer_key: Any,
+        key_answer_value: Any,
+        key_answer_output: Any,
     ) -> None:
         from .unified_intrinsic_recurrence import (
             ACTION_LITERAL_BINDING_TRANSFORMS,
@@ -1098,7 +1098,11 @@ class _BuildsItsRegisters:
             / math.sqrt(config.correction_rank)
         )
 
-    def _init_process_reader_and_answer_gates(self, config: UnifiedRecurrenceConfig, scale) -> None:
+    def _init_process_reader_and_answer_gates(
+        self,
+        config: UnifiedRecurrenceConfig,
+        scale: Any,
+    ) -> None:
         from .unified_intrinsic_recurrence import (
             mx,
         )

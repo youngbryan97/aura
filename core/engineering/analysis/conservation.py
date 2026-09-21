@@ -22,6 +22,7 @@ from collections.abc import Iterable
 from core.engineering.analysis import Finding, register
 from core.engineering.domains import domain as get_domain
 from core.engineering.units import Q
+from typing import Any
 
 #: Port roles that push into the node, and roles that draw from it.
 _SOURCES = frozenset({"source", "output", "outlet", "supply", "producer", "out"})
@@ -38,7 +39,7 @@ _TOLERANCE = 0.02
     "At every junction, does what arrives equal what leaves?",
     discipline="general",
 )
-def conservation(design) -> Iterable[Finding]:
+def conservation(design: Any) -> Iterable[Finding]:
     for net in design.nets():
         spec = get_domain(net.domain)
         if not spec.conserved:
@@ -143,7 +144,7 @@ def conservation(design) -> Iterable[Finding]:
     "Does more come out than went in?",
     discipline="general",
 )
-def energy_balance(design) -> Iterable[Finding]:
+def energy_balance(design: Any) -> Iterable[Finding]:
     """No subsystem may deliver more power than reaches it.
 
     A design that does is either wrong or a perpetual motion machine, and

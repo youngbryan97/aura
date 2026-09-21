@@ -81,7 +81,7 @@ class LineageRecord:
 class Lineage:
     """The developmental record for a population."""
 
-    def __init__(self, *, max_generation: int = 6):
+    def __init__(self, *, max_generation: int=6) -> None:
         self.max_generation = int(max_generation)
         self._records: dict[str, LineageRecord] = {}
 

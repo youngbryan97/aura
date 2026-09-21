@@ -14,7 +14,7 @@ from typing import Any
 class _TicksAndShutsDown:
     """Lifted whole out of AuraKernel; see aura_kernel.py."""
 
-    def _tick_body_part_1(self, bound_objective, priority, state):
+    def _tick_body_part_1(self, bound_objective: Any, priority: Any, state: Any) -> tuple[Any, Any]:
         from .aura_kernel import (
             _begin_pass_run,
             get_executive_authority,
@@ -50,7 +50,14 @@ class _TicksAndShutsDown:
         _provenance = open_tick(objective=bound_objective, priority=priority)
         return _provenance, volition
 
-    async def _tick_body_part_2(self, _provenance, entry, objective, start_time, turn_origin):
+    async def _tick_body_part_2(
+        self,
+        _provenance: Any,
+        entry: Any,
+        objective: Any,
+        start_time: Any,
+        turn_origin: Any,
+    ) -> None:
         from .aura_kernel import (
             ServiceContainer,
             _record_kernel_degradation,
@@ -206,7 +213,7 @@ class _TicksAndShutsDown:
         # Record completion timestamp for telemetry staleness detection
         self._last_tick_completed_at = time.time()
 
-    async def _tick_body(self, objective, priority, turn_origin, state):
+    async def _tick_body(self, objective: str, priority: bool, turn_origin: Any, state: Any) -> Any:
         """Body lifted verbatim out of ``AuraKernel.tick``.
 
         Moved by tools/extract_seam.py, which refuses to write unless the

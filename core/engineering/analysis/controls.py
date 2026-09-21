@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable
+from typing import Any
 
 from core.engineering.analysis import Finding, register
 from core.engineering.units import Q
@@ -22,7 +23,7 @@ from core.engineering.units import Q
     domains=("signal",),
     discipline="controls",
 )
-def loop_response(design) -> Iterable[Finding]:
+def loop_response(design: Any) -> Iterable[Finding]:
     for part in design.parts:
         if "controller" not in part.tags and "loop" not in part.tags:
             continue
@@ -79,7 +80,7 @@ def loop_response(design) -> Iterable[Finding]:
     domains=("signal",),
     discipline="controls",
 )
-def sensor_resolution(design) -> Iterable[Finding]:
+def sensor_resolution(design: Any) -> Iterable[Finding]:
     for part in design.parts:
         if "sensor" not in part.tags:
             continue
@@ -119,7 +120,7 @@ def sensor_resolution(design) -> Iterable[Finding]:
     domains=("signal", "data"),
     discipline="controls",
 )
-def sample_rate(design) -> Iterable[Finding]:
+def sample_rate(design: Any) -> Iterable[Finding]:
     for part in design.parts:
         rate = part.ratings.get("sample_rate")
         bandwidth = part.ratings.get("signal_bandwidth")
@@ -164,7 +165,7 @@ def sample_rate(design) -> Iterable[Finding]:
     domains=("signal", "data"),
     discipline="controls",
 )
-def latency_budget(design) -> Iterable[Finding]:
+def latency_budget(design: Any) -> Iterable[Finding]:
     delays = []
     for part in design.parts:
         delay = part.ratings.get("latency") or part.ratings.get("delay")

@@ -740,7 +740,12 @@ class _KeepsTheWorkerAlive:
             )
             return False
 
-    async def _ensure_worker_alive_inner_part_1(self, listener_alive, silence, stale_after):
+    async def _ensure_worker_alive_inner_part_1(
+        self,
+        listener_alive: bool,
+        silence: Any,
+        stale_after: Any,
+    ) -> Any:
         from .mlx_client import (
             _cancel_shared_future,
             _record_mlx_degradation,
@@ -787,7 +792,11 @@ class _KeepsTheWorkerAlive:
         self._replace_ipc_queues()
         return _doomed
 
-    async def _ensure_worker_alive_inner_part_2(self, handshake_age, handshake_budget):
+    async def _ensure_worker_alive_inner_part_2(
+        self,
+        handshake_age: Any,
+        handshake_budget: Any,
+    ) -> Any:
         from .mlx_client import (
             _record_mlx_degradation,
             logger,
@@ -828,7 +837,7 @@ class _KeepsTheWorkerAlive:
         self._replace_ipc_queues()
         return _doomed
 
-    async def _ensure_worker_alive_inner_part_3(self):
+    async def _ensure_worker_alive_inner_part_3(self) -> Any:
         from .mlx_client import (
             _new_shared_future,
             logger,
@@ -864,7 +873,12 @@ class _KeepsTheWorkerAlive:
         )
         return init_future
 
-    def _ensure_worker_alive_inner__sf(self, detail, exc, foreground_request):
+    def _ensure_worker_alive_inner__sf(
+        self,
+        detail: str,
+        exc: Any,
+        foreground_request: bool,
+    ) -> None:
         from .mlx_client import (
             _record_mlx_degradation,
             logger,
@@ -909,7 +923,13 @@ class _KeepsTheWorkerAlive:
         )
         self._init_future = None
 
-    def _ensure_worker_alive_inner_bug_fix_exponential(self, _spawn_fails, detail, exc, foreground_request):
+    def _ensure_worker_alive_inner_bug_fix_exponential(
+        self,
+        _spawn_fails: Any,
+        detail: str,
+        exc: Any,
+        foreground_request: bool,
+    ) -> None:
         from .mlx_client import (
             _record_mlx_degradation,
             logger,
@@ -952,7 +972,7 @@ class _KeepsTheWorkerAlive:
         )
         self._init_future = None
 
-    def _ensure_worker_alive_inner_readiness_earned_announced(self, res):
+    def _ensure_worker_alive_inner_readiness_earned_announced(self, res: Any) -> tuple[Any, Any]:
         from .mlx_client import (
             _observe_worker_token_budget_calibration,
             _record_mlx_degradation,
@@ -1003,7 +1023,7 @@ class _KeepsTheWorkerAlive:
                 )
         return attested_worker_identity, readiness_errors
 
-    async def _ensure_worker_alive_inner_part_7(self, readiness_errors):
+    async def _ensure_worker_alive_inner_part_7(self, readiness_errors: Any) -> None:
         from .mlx_client import (
             _record_mlx_degradation,
         )
@@ -1039,7 +1059,7 @@ class _KeepsTheWorkerAlive:
             mark_failed=False,
         )
 
-    def _ensure_worker_alive_inner_part_8(self, attested_worker_identity, res):
+    def _ensure_worker_alive_inner_part_8(self, attested_worker_identity: Any, res: Any) -> Any:
         from .mlx_client import (
             _record_mlx_degradation,
         )
@@ -1471,7 +1491,7 @@ class _KeepsTheWorkerAlive:
             return False
         return self._process is not None and self._process.is_alive() and self._init_done
 
-    async def reboot_worker(self, reason: str = "manual_reboot", mark_failed: bool = False):
+    async def reboot_worker(self, reason: str='manual_reboot', mark_failed: bool=False) -> None:
         """Forcibly reboots the worker.
 
         LOCK DISCIPLINE (CP126 ec341dfa). This used to log "forcing reboot

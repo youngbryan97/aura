@@ -2343,7 +2343,14 @@ def _validate_model_stability(raw: Any, *, measurement_subject: str) -> dict[str
     }
 
 
-def _validate_capability_report_part_1(report, trusted_evaluator_keys, trusted_release_keys, trusted_run_keys, trusted_verifiers, trusted_worker_keys):
+def _validate_capability_report_part_1(
+    report: Any,
+    trusted_evaluator_keys: Mapping[str, str] | None,
+    trusted_release_keys: Mapping[str, str] | None,
+    trusted_run_keys: Mapping[str, str] | None,
+    trusted_verifiers: Mapping[str, Mapping[str, str]] | None,
+    trusted_worker_keys: Mapping[str, str] | None,
+) -> tuple[Any, Any]:
     """Recompute a v5 claim from signed execution and correctness evidence.
 
     ``model_manifest_resolver`` opens the declared checkpoint and compares it
@@ -2396,7 +2403,11 @@ def _validate_capability_report_part_1(report, trusted_evaluator_keys, trusted_r
     )
     return normalized, trust_basis
 
-def _validate_capability_report_part_2(normalized, source_identity, source_stability):
+def _validate_capability_report_part_2(
+    normalized: Any,
+    source_identity: Any,
+    source_stability: Any,
+) -> tuple[Any, Any]:
     if (
         source_identity["commit_sha"] != source_stability["after"]["commit_sha"]
         or source_identity["tree_sha"] != source_stability["after"]["tree_sha"]
@@ -2424,7 +2435,13 @@ def _validate_capability_report_part_2(normalized, source_identity, source_stabi
     )
     return model_stability, runtime_manifest
 
-def _validate_capability_report_part_3(model_manifest_resolver, model_stability, normalized, require_resolved_model, runtime_manifest):
+def _validate_capability_report_part_3(
+    model_manifest_resolver: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None,
+    model_stability: Any,
+    normalized: Any,
+    require_resolved_model: bool,
+    runtime_manifest: Any,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     if runtime_manifest["base_model_manifest_sha256"] != model_stability["before"][
         "manifest_sha256"
     ]:
@@ -2464,7 +2481,17 @@ def _validate_capability_report_part_3(model_manifest_resolver, model_stability,
         )
     return model_files, model_resolution
 
-def _validate_capability_report_part_4(expected_freeze, normalized, per_class, reference, require_fresh_challenge, seed, trusted_evaluator_keys, trusted_verifiers, verification_time_unix):
+def _validate_capability_report_part_4(
+    expected_freeze: Any,
+    normalized: Any,
+    per_class: Any,
+    reference: Any,
+    require_fresh_challenge: bool,
+    seed: Any,
+    trusted_evaluator_keys: Mapping[str, str] | None,
+    trusted_verifiers: Mapping[str, Mapping[str, str]] | None,
+    verification_time_unix: float | None,
+) -> tuple[Any, Any]:
     if canonical_json_bytes(normalized.get("task_spec")) != canonical_json_bytes(
         reference.task_spec
     ) or canonical_json_bytes(normalized.get("challenge")) != canonical_json_bytes(
@@ -2495,7 +2522,16 @@ def _validate_capability_report_part_4(expected_freeze, normalized, per_class, r
     )
     return challenge, task_spec
 
-def _validate_capability_report_correctness_raw(challenge, evidence_items, items, normalized, outputs, run_id, task_spec, trusted_verifiers):
+def _validate_capability_report_correctness_raw(
+    challenge: Any,
+    evidence_items: Any,
+    items: Any,
+    normalized: Any,
+    outputs: list[dict[str, Any]],
+    run_id: Any,
+    task_spec: Any,
+    trusted_verifiers: Mapping[str, Mapping[str, str]] | None,
+) -> list[dict[str, Any]]:
     correctness_raw = normalized.get("correctness_receipts")
     if not isinstance(correctness_raw, list) or len(correctness_raw) != len(items):
         raise ValueError("capability independent correctness receipts are incomplete")
@@ -2531,7 +2567,17 @@ def _validate_capability_report_correctness_raw(challenge, evidence_items, items
         correctness_receipts.append(correctness)
     return correctness_receipts
 
-def _validate_capability_report_part_6(challenge, correctness_receipts, items, normalized, outputs, per_class, reference, require_attested_custody, seed):
+def _validate_capability_report_part_6(
+    challenge: Any,
+    correctness_receipts: Any,
+    items: Any,
+    normalized: Any,
+    outputs: list[dict[str, Any]],
+    per_class: Any,
+    reference: Any,
+    require_attested_custody: bool,
+    seed: Any,
+) -> Any:
     if (
         require_attested_custody
         and normalized["actor_independence"]["independence"] != "custody_attested"
@@ -2617,7 +2663,17 @@ def _validate_capability_report_part_6(challenge, correctness_receipts, items, n
             raise ValueError(f"capability execution has nonzero {field_name}")
     return execution
 
-def _validate_capability_report_counters_above_report(correctness_receipts, evidence_items, execution, normalized, output_token_counter, outputs, require_measured_output_tokens, source_stability, worker_receipts):
+def _validate_capability_report_counters_above_report(
+    correctness_receipts: Any,
+    evidence_items: Any,
+    execution: Any,
+    normalized: Any,
+    output_token_counter: Callable[[str], int] | None,
+    outputs: list[dict[str, Any]],
+    require_measured_output_tokens: bool,
+    source_stability: Any,
+    worker_receipts: list[dict[str, Any]],
+) -> Any:
     # The counters above are the REPORT'S. Derive them from the item evidence
     # and require agreement: clean counters could otherwise sit over
     # contradictory answers, execution errors and fallback lists.
@@ -2664,7 +2720,17 @@ def _validate_capability_report_counters_above_report(correctness_receipts, evid
     normalized["source_provenance"] = source_stability["after"]
     return token_measurement
 
-def _validate_capability_report_part_8(model_resolution, normalized, reference, require_complete_component_coverage, run, runtime_manifest, source_stability, worker_receipts, workspace_resolver):
+def _validate_capability_report_part_8(
+    model_resolution: Any,
+    normalized: Any,
+    reference: Any,
+    require_complete_component_coverage: bool,
+    run: Any,
+    runtime_manifest: Any,
+    source_stability: Any,
+    worker_receipts: list[dict[str, Any]],
+    workspace_resolver: Callable[[], Mapping[str, Any]] | None,
+) -> None:
     normalized["effective_runtime_manifest"] = runtime_manifest
     normalized["model_manifest_resolution"] = model_resolution
     # Derived AFTER the signed windows are verified: the provenance dicts are
@@ -2693,7 +2759,17 @@ def _validate_capability_report_part_8(model_resolution, normalized, reference, 
         candidate_worker_receipts=worker_receipts,
     )
 
-def _validate_capability_report_part_9(model_files, model_stability, normalized, require_bound_runtime_identity, require_resolved_workspace, run, runtime_manifest, source_stability, token_measurement):
+def _validate_capability_report_part_9(
+    model_files: Any,
+    model_stability: Any,
+    normalized: Any,
+    require_bound_runtime_identity: bool,
+    require_resolved_workspace: bool,
+    run: Any,
+    runtime_manifest: Any,
+    source_stability: Any,
+    token_measurement: Any,
+) -> None:
     normalized["runtime_identity_binding"] = runtime_identity_binding(
         runtime_manifest,
         source_components=(

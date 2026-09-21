@@ -54,7 +54,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Mapping
+from typing import Any, Mapping
 
 from core.interiority.evidence import (
     Reading,
@@ -127,7 +127,7 @@ SPECIES_CHANNELS: Mapping[str, tuple[str, ...]] = MappingProxyType(
 )
 
 
-def _p(name: str, value: float, basis: str, sensitivity: str, **kw) -> Param:
+def _p(name: str, value: float, basis: str, sensitivity: str, **kw: Any) -> Param:
     return declare(
         f"interiority.other_minds.{name}",
         value,

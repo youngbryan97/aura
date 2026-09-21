@@ -285,8 +285,7 @@ def _python_source_for_command(command: Sequence[str]) -> str | None:
             return None
         return path.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as exc:
-        # Callers read None as "nothing to inspect", so this is the trace.
-        logger.debug("Could not read %s as source: %s", path, exc)
+        logger.debug("Could not read %s as source: %s", path, exc)  # the only trace
         return None
 
 
@@ -350,8 +349,7 @@ def _dynamic_command_accelerator_use(command: Sequence[str]) -> bool | None:
         try:
             script_text = payload.decode("utf-8")
         except UnicodeError:
-            # not a failure: a shebang on non-UTF-8 bytes is not a Python
-            # script, which is what the caller asked.
+            # not a failure: a shebang on non-UTF-8 bytes is not a Python script.
             return None
         return _source_declares_accelerator_import(script_text)
     accelerator_markers = (
@@ -566,8 +564,8 @@ def _terminate_and_reap_python_process(
         try:
             process.terminate()
         except (AttributeError, OSError, RuntimeError, ValueError):
-            # not a failure: every rung may fail, the next is harder, and
-            # the is_alive() below is the verdict.
+            # not a failure: every rung may fail, the next is harder, and the
+            # is_alive() below is the verdict.
             pass
     try:
         process.join(timeout=max(0.0, float(terminate_timeout_s)))
@@ -589,8 +587,8 @@ def _terminate_and_reap_python_process(
     try:
         return not bool(process.is_alive())
     except (AssertionError, AttributeError, OSError, RuntimeError, ValueError) as exc:
-        # A failure: the ladder ran and the verdict cannot be read, so the
-        # caller is told the process may still be alive.
+        # A failure: the ladder ran and the verdict cannot be read, so the caller
+        # is told the process may still be alive.
         logger.warning("Could not confirm the process ended: %s", exc)
         return False
 
@@ -683,15 +681,15 @@ def _child_cpu_seconds(pid: int) -> float | None:
 
         observed = get_resource_observer().process(int(pid))
     except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
-        # not a failure: an unseen process has no CPU figure, and the stall
-        # watcher reads None as no progress signal this tick.
+        # not a failure: an unseen process has no CPU figure, and the stall watcher
+        # reads None as no progress signal this tick.
         return None
     if observed is None:
         return None
     try:
         return float(observed.cpu_user_seconds) + float(observed.cpu_system_seconds)
     except (AttributeError, TypeError, ValueError):
-        return None  # not a failure: no CPU fields, no figure to add.
+        return None  # not a failure: no CPU fields, no figure
 
 
 class WorkBoundExpired(subprocess.TimeoutExpired):
@@ -702,7 +700,15 @@ class WorkBoundExpired(subprocess.TimeoutExpired):
     for making no CPU progress, or for exhausting its budget.
     """
 
-    def __init__(self, cmd, timeout, output=None, stderr=None, *, reason: str = ""):
+    def __init__(
+        self,
+        cmd: Any,
+        timeout: Any,
+        output: Any=None,
+        stderr: Any=None,
+        *,
+        reason: str='',
+    ) -> None:
         super().__init__(cmd, timeout, output=output, stderr=stderr)
         self.reason = reason
 
@@ -767,8 +773,7 @@ def _run_bounded_by_its_work(
                 out, err = proc.communicate(pending_input, timeout=period)
                 break
             except subprocess.TimeoutExpired:
-                # not a failure: the timeout IS the watch period.
-                pending_input = None  # delivered on the first call
+                pending_input = None  # not a failure: the timeout IS the watch period
             now = time.monotonic()
             cpu = _child_cpu_seconds(proc.pid)
             if cpu is None:
@@ -980,8 +985,8 @@ class SubprocessGateway:
                     try:
                         process.close()
                     except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
-                        # The admission event recorded the outcome; this
-                        # names the handle that would not close.
+                        # The admission event recorded the outcome; this names
+                        # the handle that would not close.
                         logger.debug("Reaped handle would not close: %s", exc)
             raise
         return process
@@ -1759,9 +1764,9 @@ class SubprocessGateway:
                 process_group_id = int(os.getpgid(proc.pid))
                 process_session_id = int(os.getsid(proc.pid))
             except (OSError, ProcessLookupError, ValueError) as exc:
-                # Zero means no group to govern, and the lane controller
-                # acts on that. A child that exited between spawn and this
-                # call reaches the same zero as a refused query.
+                # Zero means no group to govern, and the lane controller acts on
+                # that. A child that exited between spawn and this call reaches
+                # the same zero as a refused query.
                 logger.debug("No process group for pid %s: %s", proc.pid, exc)
                 process_group_id = 0
                 process_session_id = 0

@@ -256,7 +256,7 @@ class BuildPlan:
         return out
 
 
-def _stock_for(part) -> str:
+def _stock_for(part: Any) -> str:
     """The raw material to order, sized from the part's own bounding box."""
     if part.solid is None or part.material is None:
         return ""
@@ -301,7 +301,7 @@ def _stock_for(part) -> str:
     )
 
 
-def _assembly_order(design) -> list:
+def _assembly_order(design: Any) -> list:
     """Parts in the order they go together: nearest the centre first.
 
     The explode vector already says which way a part comes off, so the part
@@ -320,7 +320,7 @@ def _assembly_order(design) -> list:
     return [part for _score, part in scored]
 
 
-def _connection_steps(design, number: int, placed: set[str]) -> list[BuildStep]:
+def _connection_steps(design: Any, number: int, placed: set[str]) -> list[BuildStep]:
     """One step per connection, once both of its parts are in place."""
     from core.engineering.domains import domain as get_domain
 
@@ -385,7 +385,7 @@ def _connection_steps(design, number: int, placed: set[str]) -> list[BuildStep]:
     return steps
 
 
-def build_plan(design, findings: tuple = ()) -> BuildPlan:
+def build_plan(design: Any, findings: tuple=()) -> BuildPlan:
     """Work out what to buy, what to make, and what order to do it in."""
     buy: list[ShoppingItem] = []
     make: list[MakeItem] = []
@@ -506,7 +506,12 @@ def build_plan(design, findings: tuple = ()) -> BuildPlan:
     )
 
 
-def _connection_steps_for(design, part_id: str, placed: set[str], number: int) -> list[BuildStep]:
+def _connection_steps_for(
+    design: Any,
+    part_id: str,
+    placed: set[str],
+    number: int,
+) -> list[BuildStep]:
     """Connections that become possible now this part is in place."""
     from core.engineering.domains import domain as get_domain
 

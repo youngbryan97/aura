@@ -207,9 +207,9 @@ class _FindsTheModelsGeometry:
 
     def _discover_model_geometry(
         self,
-        model,
+        model: Any,
         *,
-        model_identity: dict[str, object] | None = None,
+        model_identity: dict[str, object] | None=None,
     ) -> tuple[int, int]:
         """Determine n_layers and d_model from the loaded model."""
         from .affective_steering import (
@@ -322,7 +322,7 @@ class _FindsTheModelsGeometry:
             logger.error("Error discovering model geometry: %s", e)
             return 0, 0
 
-    def _discover_model_layers(self, model) -> list[Any] | None:
+    def _discover_model_layers(self, model: Any) -> list[Any] | None:
         """Helper to find the layers list in various MLX model structures."""
         view = resolve_model_layers(model)
         return view.layers if view is not None else None

@@ -189,14 +189,14 @@ class MorphGovernor:
         graph: MorphGraph,
         substrate: SubstrateAdapter,
         *,
-        bounds: MorphBounds | None = None,
-        lineage: Lineage | None = None,
-        shadow_evaluator: ShadowEvaluator | None = None,
-        clock: Callable[[], float] = lambda: time.time(),
-        require_governance: bool = True,
-        emit_receipts: bool = True,
-        receipt_sink: Callable[[Any], None] | None = None,
-    ):
+        bounds: MorphBounds | None=None,
+        lineage: Lineage | None=None,
+        shadow_evaluator: ShadowEvaluator | None=None,
+        clock: Callable[[], float]=lambda: time.time(),
+        require_governance: bool=True,
+        emit_receipts: bool=True,
+        receipt_sink: Callable[[Any], None] | None=None,
+    ) -> None:
         self.graph = graph
         self.substrate = substrate
         self.bounds = bounds or MorphBounds()
@@ -760,7 +760,11 @@ class MorphGovernor:
             substrate_events=tuple(substrate_events),
         )
 
-    def _drive_substrate(self, proposal: MorphProposal, transition: MorphTransition):
+    def _drive_substrate(
+        self,
+        proposal: MorphProposal,
+        transition: MorphTransition,
+    ) -> tuple[Any, Any]:
         kind = transition.kind
         if kind is TransitionKind.BIND and transition.edge is not None:
             return self.substrate.bind(transition.edge), transition.edge.source

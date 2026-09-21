@@ -43,9 +43,10 @@ from __future__ import annotations
 from core.interiority.appraisal import AppraisalFrame
 from core.interiority.effects import AffectDelta
 from core.interiority.params import Param, ParamKind, declare
+from typing import Any
 
 
-def _p(name: str, value: float, basis: str, sensitivity: str, **kw) -> Param:
+def _p(name: str, value: float, basis: str, sensitivity: str, **kw: Any) -> Param:
     return declare(
         f"interiority.core_affect.{name}",
         value,

@@ -10,6 +10,7 @@ import numpy as np
 from core.learning.semantic_program_ir import TokenSpan
 from core.learning.semantic_program_shared_transducer import _geometry
 from core.learning.semantic_program_transducer import LinearPointerHead, _sha
+from typing import Any
 
 
 def span_set_partition(scores: np.ndarray, max_spans: int) -> tuple[float, np.ndarray]:
@@ -55,7 +56,16 @@ def span_set_partition(scores: np.ndarray, max_spans: int) -> tuple[float, np.nd
     return partition, marginals
 
 
-def _span_set_loss(weight, rows, *, width, max_spans, regularization, center, learn_pair=False):
+def _span_set_loss(
+    weight: Any,
+    rows: Any,
+    *,
+    width: Any,
+    max_spans: Any,
+    regularization: Any,
+    center: Any,
+    learn_pair: bool=False,
+) -> tuple[Any, Any]:
     delta = weight - center
     loss = 0.5 * regularization * float(delta @ delta)
     gradient = regularization * delta
@@ -90,9 +100,20 @@ def _span_set_loss(weight, rows, *, width, max_spans, regularization, center, le
     return loss, gradient
 
 
-def fit_span_set_pointer(training, *, spans, pointer, max_span_tokens, max_spans,
-                         length_penalty=0.0, inverse_regularization=10.0,
-                         max_iter=200, progress=None, excluded_spans=None, learn_pair=False):
+def fit_span_set_pointer(
+    training: tuple[Any, ...],
+    *,
+    spans: Any,
+    pointer: Any,
+    max_span_tokens: Any,
+    max_spans: Any,
+    length_penalty: float=0.0,
+    inverse_regularization: float=10.0,
+    max_iter: int=200,
+    progress: Any=None,
+    excluded_spans: Any=None,
+    learn_pair: bool=False,
+) -> Any:
     """Fit complete source span sets, optionally learning existing pair interactions."""
     from scipy.optimize import minimize
 
@@ -156,14 +177,14 @@ def fit_span_set_pointer(training, *, spans, pointer, max_span_tokens, max_spans
     initial = np.concatenate((*components, [pointer.start_bias + pointer.end_bias])).astype(np.float64)
     regularization = 1.0 / (inverse_regularization * len(training))
 
-    def objective(weight):
+    def objective(weight: Any) -> Any:
         return _span_set_loss(weight, rows, width=width, max_spans=max_spans,
                               regularization=regularization, center=initial, learn_pair=learn_pair)
 
     initial_loss, _ = objective(initial)
     iterations = 0
 
-    def callback(weight):
+    def callback(weight: Any) -> None:
         nonlocal iterations
         iterations += 1
         if progress is not None:
@@ -195,7 +216,14 @@ def fit_span_set_pointer(training, *, spans, pointer, max_span_tokens, max_spans
     return fitted, receipt
 
 
-def refit_compositional_span_set_pointer(model, examples, *, max_iter=200, progress=None, learn_pair=False):
+def refit_compositional_span_set_pointer(
+    model: Any,
+    examples: Any,
+    *,
+    max_iter: int=200,
+    progress: Any=None,
+    learn_pair: bool=False,
+) -> Any:
     """Export the fitted boundaries through the existing runtime pointer contract."""
     if model.training_receipt.get("operation_background_fit", {}).get("score") == "joint_operation_background_log_odds_v2":
         raise ValueError("span-set objective requires runtime boundary scores")

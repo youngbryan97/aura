@@ -129,7 +129,7 @@ def annotate_terms(text: str, *, limit: int = 3) -> list[tuple[str, str]]:
     return found
 
 
-def explain_part(part) -> str:
+def explain_part(part: Any) -> str:
     """One paragraph about a part: what it is, does, weighs and costs."""
     name = part.lay_name or part.name
     pieces = [f"{name.capitalize()}."]
@@ -163,7 +163,7 @@ def explain_part(part) -> str:
     return " ".join(pieces)
 
 
-def explain_finding(finding) -> str:
+def explain_finding(finding: Any) -> str:
     """A finding written out with its arithmetic, for somebody checking it."""
     lines = [finding.plain]
     if finding.formula:
@@ -177,7 +177,7 @@ def explain_finding(finding) -> str:
     return " ".join(lines)
 
 
-def reading_order(design) -> list:
+def reading_order(design: Any) -> list:
     """Parts in the order a person would meet them following the energy.
 
     Starts at whatever supplies power and walks outward through the
@@ -218,7 +218,7 @@ def reading_order(design) -> list:
     return order
 
 
-def narrate(design, findings: tuple = (), *, limit: int = 9) -> str:
+def narrate(design: Any, findings: tuple=(), *, limit: int=9) -> str:
     """Walk the design and say what happens, stage by stage.
 
     Generated from the graph, so it cannot describe a connection the model

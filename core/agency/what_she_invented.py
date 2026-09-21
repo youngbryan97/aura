@@ -27,6 +27,7 @@ import logging
 from pathlib import Path
 
 from core.runtime.errors import record_degradation
+from typing import Any
 
 __all__ = ["forget_everything", "keep", "recall"]
 
@@ -75,7 +76,7 @@ def _adopt_an_older_file(data: dict, major: int, minor: int) -> dict:
     return data
 
 
-def _the_store():
+def _the_store() -> Any:
     from core.persistence.a_versioned_store import AVersionedStore
 
     return AVersionedStore(

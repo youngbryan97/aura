@@ -12,10 +12,15 @@ from core.learning.semantic_program_floor import (
     semantic_program_structural_key,
 )
 from core.verify.invariants import invariant
+from typing import Any
 
 
-def semantic_program_symbolic_key(program: Program, *, max_terms=4096,
-                                  max_expression_chars=65536):
+def semantic_program_symbolic_key(
+    program: Program,
+    *,
+    max_terms: int=4096,
+    max_expression_chars: int=65536,
+) -> Any:
     """Normalize a typed program without evaluating any public inputs.
 
     All non-ring primitives are treated as possibly partial uninterpreted
@@ -83,7 +88,7 @@ def semantic_program_symbolic_key(program: Program, *, max_terms=4096,
 
 @invariant("learning.symbolic_cancellation_retains_definedness", scope="learning",
            owner="core/learning/semantic_program_symbolic.py", observational=False)
-def _cancellation_keeps_domain():
+def _cancellation_keeps_domain() -> tuple[()]:
     from core.learning.procedure_induction import Instruction
 
     partial = Program(2, (Instruction("idiv", (0, 1)), Instruction("sub", (2, 2))))

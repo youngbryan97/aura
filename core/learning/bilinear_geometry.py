@@ -11,9 +11,10 @@ from dataclasses import dataclass
 import numpy as np
 
 from core.verify.invariants import invariant
+from typing import Any
 
 
-def _gram_root(factor, scale):
+def _gram_root(factor: Any, scale: Any) -> tuple[Any, Any, float]:
     # Thin SVD avoids squaring the condition number before rank detection.
     _, singular, right = np.linalg.svd(factor, full_matrices=False)
     threshold = np.finfo(float).eps * max(factor.shape) * singular[0]
@@ -33,7 +34,7 @@ class BilinearFactorGeometry:
     condition_numbers: tuple[float, float]
 
     @classmethod
-    def from_factors(cls, query, definition, *, scale=1.):
+    def from_factors(cls, query: Any, definition: Any, *, scale: float=1.0) -> Any:
         q, d = (np.asarray(value, dtype=np.float64) for value in (query, definition))
         if (q.ndim != 2 or d.shape != q.shape or not all(q.shape)
                 or not np.all(np.isfinite(q)) or not np.all(np.isfinite(d))
@@ -43,19 +44,19 @@ class BilinearFactorGeometry:
         dr, di, qc = _gram_root(q, scale)
         return cls(qr, qi, dr, di, (qc, dc))
 
-    def encode(self, parameters):
+    def encode(self, parameters: tuple[Any, ...]) -> tuple[Any, ...]:
         q, d, *rest = parameters
         return (q @ self.query_root, d @ self.definition_root, *rest)
 
-    def decode(self, coordinates):
+    def decode(self, coordinates: Any) -> tuple[Any, ...]:
         q, d, *rest = coordinates
         return (q @ self.query_inverse, d @ self.definition_inverse, *rest)
 
-    def pullback(self, gradients):
+    def pullback(self, gradients: Any) -> tuple[Any, ...]:
         q, d, *rest = gradients
         return (q @ self.query_inverse.T, d @ self.definition_inverse.T, *rest)
 
-    def certificate(self):
+    def certificate(self) -> dict[str, Any]:
         return {"metric": "anchored_bilinear_factor_function_v1",
                 "factor_condition_numbers": list(self.condition_numbers),
                 "dense_bilinear_map_materialized": False,

@@ -31,7 +31,7 @@ __all__ = ["growth_fragment", "install_growth_report"]
 FRAGMENT_NAME = "cognitive_growth"
 
 
-def _safe(label: str, fn) -> dict[str, Any]:
+def _safe(label: str, fn: Any) -> dict[str, Any]:
     try:
         return fn()
     except Exception as exc:  # noqa: BLE001 - a health fragment never fails the report

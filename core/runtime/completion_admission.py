@@ -1,6 +1,7 @@
 """Let an owning foreground clock admit measured work before dispatch."""
 
 from __future__ import annotations
+from collections.abc import AsyncIterator
 
 import asyncio
 import math
@@ -13,7 +14,9 @@ _OWNER: ContextVar[Any] = ContextVar("completion_admission_owner", default=None)
 
 
 @asynccontextmanager
-async def bind_completion_admission(clock: Any, context: dict, *, enabled: bool):
+async def bind_completion_admission(
+    clock: Any, context: dict, *, enabled: bool
+) -> AsyncIterator[None]:
     from core.runtime.turn_outcome import current_turn
 
     owner = current_turn()

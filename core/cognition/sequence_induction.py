@@ -112,14 +112,14 @@ def _a_meaning_worked_out(question: SequenceQuestion) -> str | None:
     return _work_the_meaning_out(question)
 
 
-def _everything_she_can_say():
+def _everything_she_can_say() -> Any:
     """Use the same complete snapshot as the developmental action wrapper."""
     from core.cognition.what_she_can_take_back import as_it_stands
 
     return as_it_stands()
 
 
-def _put_back(held) -> None:
+def _put_back(held: Any) -> None:
     """Undo a change that did not pay."""
     stubborn = held.restore()
     if stubborn:

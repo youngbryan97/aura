@@ -7,13 +7,23 @@ patches a name on it has to reach the code that reads it.
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 
 class _RunsTheActionSteps:
     """Lifted whole out of ActionExecutor; see action_executor.py."""
 
     @staticmethod
-    async def _execute_part_1(action_name, action_summary, domain, expectation_contract, external_execute_coordinator, external_execution_offer, external_execution_transaction, preaction_thread):
+    async def _execute_part_1(
+        action_name: str,
+        action_summary: Any,
+        domain: Any,
+        expectation_contract: Any,
+        external_execute_coordinator: Any,
+        external_execution_offer: Any,
+        external_execution_transaction: Any,
+        preaction_thread: Any,
+    ) -> Any:
         if (
             external_execution_offer is not None
             and external_execution_transaction.get("state") == "DECIDED"
@@ -78,7 +88,15 @@ class _RunsTheActionSteps:
         return external_execution_transaction
 
     @staticmethod
-    def _execute_part_2(action_id, action_name, exc, expectation_contract, external_execution_transaction, request_digest, will_receipt_id):
+    def _execute_part_2(
+        action_id: str | None,
+        action_name: str,
+        exc: Any,
+        expectation_contract: Any,
+        external_execution_transaction: Any,
+        request_digest: Any,
+        will_receipt_id: Any,
+    ) -> dict[str, Any]:
         from .action_executor import (
             SkillStatus,
             _raise_site,
@@ -127,7 +145,12 @@ class _RunsTheActionSteps:
         return failure_result
 
     @staticmethod
-    async def _execute_begin_task(external_execute_coordinator, external_execution_offer, external_execution_transaction, will_receipt_id):
+    async def _execute_begin_task(
+        external_execute_coordinator: Any,
+        external_execution_offer: Any,
+        external_execution_transaction: Any,
+        will_receipt_id: Any,
+    ) -> tuple[str, Any]:
         from .action_executor import (
             _abandon_external_dispatch,
             _external_dispatch_task_id,
@@ -178,7 +201,7 @@ class _RunsTheActionSteps:
         return external_dispatch_attempt_id, external_execution_transaction
 
     @staticmethod
-    def _execute_part_4(action_name, dispatch_result, exc):
+    def _execute_part_4(action_name: str, dispatch_result: Any, exc: Any) -> dict[str, Any]:
         from .action_executor import (
             SkillStatus,
             logger,
@@ -213,7 +236,16 @@ class _RunsTheActionSteps:
         return result
 
     @staticmethod
-    async def _execute_part_5(action_name, external_dispatch_attempt_id, external_dispatch_heartbeat, external_execute_coordinator, external_execution_offer, external_execution_transaction, post_receipt, result):
+    async def _execute_part_5(
+        action_name: str,
+        external_dispatch_attempt_id: str,
+        external_dispatch_heartbeat: Any,
+        external_execute_coordinator: Any,
+        external_execution_offer: Any,
+        external_execution_transaction: Any,
+        post_receipt: Any,
+        result: Any,
+    ) -> tuple[str, bool]:
         from .action_executor import (
             SkillStatus,
             _await_external_closure,
@@ -256,7 +288,13 @@ class _RunsTheActionSteps:
         return final_status, final_transport_succeeded
 
     @staticmethod
-    def _execute_final_error_msg(final_effect_verified, final_status, final_transport_succeeded, post_receipt, result):
+    def _execute_final_error_msg(
+        final_effect_verified: bool,
+        final_status: Any,
+        final_transport_succeeded: Any,
+        post_receipt: Any,
+        result: Any,
+    ) -> tuple[Any, Any]:
         from .action_executor import (
             PostActionReceipt,
             _stable_digest,
@@ -293,7 +331,15 @@ class _RunsTheActionSteps:
         return final_error_msg, post_receipt
 
     @staticmethod
-    async def _execute_part_7(action_name, external_execute_coordinator, external_execution_offer, persisted_post_receipt, post_receipt, receipt_store, result):
+    async def _execute_part_7(
+        action_name: str,
+        external_execute_coordinator: Any,
+        external_execution_offer: Any,
+        persisted_post_receipt: Any,
+        post_receipt: Any,
+        receipt_store: Any,
+        result: Any,
+    ) -> None:
         from .action_executor import (
             _ACTION_EXECUTOR_RECOVERABLE_ERRORS,
             record_degradation,

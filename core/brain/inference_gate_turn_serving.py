@@ -7,12 +7,21 @@ patches a name on it has to reach the code that reads it.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 
 class _ServesTheTurn:
     """Lifted whole out of InferenceGate; see inference_gate.py."""
 
-    def _generate_with_metadata_sink_use_compact_foreground_context(self, context, deep_handoff, initial_visible_user_prompt, is_background, origin, requested_tier):
+    def _generate_with_metadata_sink_use_compact_foreground_context(
+        self,
+        context: dict[str, Any] | None,
+        deep_handoff: bool,
+        initial_visible_user_prompt: Any,
+        is_background: bool,
+        origin: str,
+        requested_tier: Any,
+    ) -> tuple[Any, Any]:
         from .inference_gate import (
             _record_inference_degradation,
         )
@@ -46,7 +55,15 @@ class _ServesTheTurn:
         return provided_messages, use_compact_foreground_context
 
     @staticmethod
-    async def _generate_with_metadata_sink_task_grounding_blocks(context, contract_grounding_blocks, isolated_generation_contract, living_mind_context, prompt_contract_block, somatic_temperature, visible_user_prompt):
+    async def _generate_with_metadata_sink_task_grounding_blocks(
+        context: dict[str, Any] | None,
+        contract_grounding_blocks: list[str],
+        isolated_generation_contract: Any,
+        living_mind_context: Any,
+        prompt_contract_block: Any,
+        somatic_temperature: Any,
+        visible_user_prompt: Any,
+    ) -> tuple[list[str], list[str]]:
         from .inference_gate import (
             _INFERENCE_RECOVERABLE_ERRORS,
             _attach_the_present_moment,
@@ -106,7 +123,14 @@ class _ServesTheTurn:
         return ambient_grounding_blocks, task_grounding_blocks
 
     @staticmethod
-    def _generate_with_metadata_sink_architecture_self_awareness(context, contract_grounding_blocks, isolated_generation_contract, prompt_user_facing, task_grounding_blocks, visible_user_prompt):
+    def _generate_with_metadata_sink_architecture_self_awareness(
+        context: dict[str, Any] | None,
+        contract_grounding_blocks: list[str],
+        isolated_generation_contract: Any,
+        prompt_user_facing: bool,
+        task_grounding_blocks: Any,
+        visible_user_prompt: Any,
+    ) -> Any:
         # ── Architecture Self-Awareness: inject relevant subsystem context ──────
         # Only for user-facing requests that mention architecture/code keywords.
         from .inference_gate import (
@@ -152,7 +176,15 @@ class _ServesTheTurn:
         history = context.get("history", [])
         return history
 
-    def _generate_with_metadata_sink_messages(self, context, deep_probe_context, foreground_profile, is_background, messages, visible_user_prompt):
+    def _generate_with_metadata_sink_messages(
+        self,
+        context: dict[str, Any] | None,
+        deep_probe_context: bool,
+        foreground_profile: Any,
+        is_background: bool,
+        messages: Any,
+        visible_user_prompt: Any,
+    ) -> tuple[Any, str]:
         messages = self._compact_prebuilt_messages(
             messages,
             history_limit=(
@@ -190,7 +222,16 @@ class _ServesTheTurn:
         system_prompt = ""
         return messages, system_prompt
 
-    def _generate_with_metadata_sink_volatile_grounding_rides(self, ambient_grounding_blocks, context, contract_grounding_blocks, messages, morpho_kwargs, system_prompt, task_grounding_blocks):
+    def _generate_with_metadata_sink_volatile_grounding_rides(
+        self,
+        ambient_grounding_blocks: Any,
+        context: dict[str, Any] | None,
+        contract_grounding_blocks: list[str],
+        messages: Any,
+        morpho_kwargs: Any,
+        system_prompt: Any,
+        task_grounding_blocks: Any,
+    ) -> tuple[Any, Any]:
         # Volatile grounding rides LAST, behind the conversation, so the KV
         # prefix covering the history survives from one turn to the next.
         # Appended after compaction on purpose: compaction rewrites the history
@@ -238,7 +279,12 @@ class _ServesTheTurn:
         return messages, system_prompt
 
     @staticmethod
-    def _generate_with_metadata_sink_authority_block_moves(context, max_tokens, messages, system_prompt):
+    def _generate_with_metadata_sink_authority_block_moves(
+        context: dict[str, Any] | None,
+        max_tokens: Any,
+        messages: Any,
+        system_prompt: Any,
+    ) -> tuple[list[Any], Any]:
         # WHICH authority block moves. The scaffold total said 1809 on one turn
         # and 1817 on the next, which is enough to make the merged front system
         # message a different token sequence and cost the whole conversation
@@ -312,7 +358,12 @@ class _ServesTheTurn:
         return _grounded, max_tokens
 
     @staticmethod
-    def _generate_with_metadata_sink_part_24(_answer_floor_final, context, initial_visible_user_prompt, max_tokens):
+    def _generate_with_metadata_sink_part_24(
+        _answer_floor_final: Any,
+        context: dict[str, Any] | None,
+        initial_visible_user_prompt: Any,
+        max_tokens: Any,
+    ) -> tuple[int, Any]:
         from .inference_gate import (
             logger,
         )
@@ -362,8 +413,12 @@ class _ServesTheTurn:
         return _generations, max_tokens
 
     def _generate_with_metadata_sink__decode_s(
-        self, _tokens_to_pay_for, messages, system_prompt, model: str = ""
-    ):
+        self,
+        _tokens_to_pay_for: Any,
+        messages: Any,
+        system_prompt: Any,
+        model: str='',
+    ) -> tuple[Any, Any]:
         # The rate belongs to the model. `_seconds_to_decode` has taken one
         # since the 9B's readings aborted three generations on the 27B, and
         # both call sites in this file passed nothing — so the parameter that
@@ -406,7 +461,16 @@ class _ServesTheTurn:
         return _decode_s, _read_s
 
     @staticmethod
-    def _generate_with_metadata_sink_part_26(_decode_s, _generations, _needed, _read_s, _reserve_the_worker_adds, _tokens_to_pay_for, max_tokens, timeout_val):
+    def _generate_with_metadata_sink_part_26(
+        _decode_s: Any,
+        _generations: Any,
+        _needed: Any,
+        _read_s: Any,
+        _reserve_the_worker_adds: Any,
+        _tokens_to_pay_for: Any,
+        max_tokens: Any,
+        timeout_val: Any,
+    ) -> tuple[Any, Any]:
         from .inference_gate import (
             _DELIVERY_MARGIN_S,
             logger,
@@ -441,7 +505,16 @@ class _ServesTheTurn:
         primary_timeout = max(8.0, timeout_val - _DELIVERY_MARGIN_S)
         return primary_timeout, timeout_val
 
-    def _generate_with_metadata_sink_serving_lane(self, _grounded, context, initial_visible_user_prompt, max_tokens, messages, morpho_kwargs, system_prompt):
+    def _generate_with_metadata_sink_serving_lane(
+        self,
+        _grounded: Any,
+        context: dict[str, Any] | None,
+        initial_visible_user_prompt: Any,
+        max_tokens: Any,
+        messages: Any,
+        morpho_kwargs: Any,
+        system_prompt: Any,
+    ) -> Any:
         from .inference_gate import (
             estimate_context_tokens,
             get_active_cortex_serving_limits,
@@ -491,7 +564,16 @@ class _ServesTheTurn:
         return max_tokens
 
     @staticmethod
-    def _generate_with_metadata_sink_part_28(max_tokens, messages, origin, prompt_chars, prompt_mode, request_chars, scaffold_chars, system_prompt):
+    def _generate_with_metadata_sink_part_28(
+        max_tokens: Any,
+        messages: Any,
+        origin: str,
+        prompt_chars: Any,
+        prompt_mode: Any,
+        request_chars: Any,
+        scaffold_chars: Any,
+        system_prompt: Any,
+    ) -> None:
         from .inference_gate import (
             logger,
         )
@@ -528,7 +610,13 @@ class _ServesTheTurn:
                 ),
             )
 
-    def _generate_with_metadata_sink__foreground_cap(self, context, initial_visible_user_prompt, morpho_kwargs, visible_user_prompt):
+    def _generate_with_metadata_sink__foreground_cap(
+        self,
+        context: dict[str, Any] | None,
+        initial_visible_user_prompt: Any,
+        morpho_kwargs: Any,
+        visible_user_prompt: Any,
+    ) -> None:
         from .inference_gate import (
             _GENERATE_EXPLICIT_KWARGS,
         )
@@ -568,7 +656,10 @@ class _ServesTheTurn:
         )
 
     @staticmethod
-    def _generate_with_metadata_sink_say_quality_check(local_label, primary_surface_receipt):
+    def _generate_with_metadata_sink_say_quality_check(
+        local_label: Any,
+        primary_surface_receipt: Any,
+    ) -> tuple[Any, ...]:
         # Say WHICH quality check rejected the text.
         #
         # This refusal is the last step before the person gets
@@ -680,7 +771,11 @@ class _ServesTheTurn:
         return _quality_reasons
 
     @staticmethod
-    def _generate_with_metadata_sink_retry_morpho_kwargs(morpho_kwargs, retry_attempt, somatic_temperature):
+    def _generate_with_metadata_sink_retry_morpho_kwargs(
+        morpho_kwargs: Any,
+        retry_attempt: Any,
+        somatic_temperature: Any,
+    ) -> tuple[dict[str, Any], Any]:
         retry_morpho_kwargs = dict(morpho_kwargs)
         retry_morpho_kwargs.update(
             {

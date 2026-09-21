@@ -6,9 +6,18 @@ from core.learning.procedure_induction import _UNDEFINED
 from core.learning.semantic_graph_counterexamples import compare_program_meanings, counterfactual_inputs
 from core.learning.semantic_procedure_currency import from_semantic_program, execute_semantic_procedure
 from core.learning.semantic_program_campaign import _sha
+from typing import Any
 
 
-def evaluate_learned_procedure_reuse(model, examples, *, split, probe_count=32, seed=0, progress=None):
+def evaluate_learned_procedure_reuse(
+    model: Any,
+    examples: Any,
+    *,
+    split: Any,
+    probe_count: int=32,
+    seed: int=0,
+    progress: Any=None,
+) -> dict[str, Any]:
     """Keep task correctness separate from faithful lowering and new-value execution.
 
     The decoder and registry receive no target program or expected answer.

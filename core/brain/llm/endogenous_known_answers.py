@@ -12,6 +12,8 @@ logits, and one proposal that two different states must decide differently.
 
 from __future__ import annotations
 
+from typing import Any
+
 __all__ = [
     "arbitration_follows_the_state",
     "declare_validation_tests",
@@ -43,7 +45,7 @@ def verdict_is_earned_on_known_corpora() -> bool:
     base = 1.0 / np.arange(1, vocabulary + 1) ** 1.1
     base /= base.sum()
 
-    def corpus(mode: str, seed: int, turns: int = 300, tokens: int = 30):
+    def corpus(mode: str, seed: int, turns: int=300, tokens: int=30) -> list[Any]:
         rng = np.random.default_rng(seed)
         out = []
         for _ in range(turns):
@@ -131,7 +133,7 @@ def arbitration_follows_the_state() -> bool:
         and arbitrate(proposal, settled).decision == "accept"
     )
 
-def declare_validation_tests(ValidationTest, Observation, boolean_score) -> list:  # noqa: N803
+def declare_validation_tests(ValidationTest: Any, Observation: Any, boolean_score: Any) -> list:  # noqa: N803
     """The pathway's validation tests, built from the suite's own types.
 
     The types are passed in rather than imported, so this module does not

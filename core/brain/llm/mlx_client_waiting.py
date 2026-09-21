@@ -318,7 +318,15 @@ class _WaitsForTheResult:
         if foreground_request:
             self.soft_cancel_active_generation("abandoned_generation_deadline")
 
-    def _wait_for_generation_result_remaining(self, deadline, foreground_request, hard_cap, progress_owned_completion, token_stall_after, wait_started):
+    def _wait_for_generation_result_remaining(
+        self,
+        deadline: Deadline,
+        foreground_request: bool,
+        hard_cap: Any,
+        progress_owned_completion: bool,
+        token_stall_after: Any,
+        wait_started: Any,
+    ) -> Any:
         from .mlx_client import (
             logger,
         )
@@ -364,7 +372,7 @@ class _WaitsForTheResult:
             )
         return slice_timeout
 
-    async def _wait_for_generation_result_part_2(self):
+    async def _wait_for_generation_result_part_2(self) -> Any:
         from .mlx_client import (
             _record_mlx_degradation,
             gc,
@@ -401,7 +409,13 @@ class _WaitsForTheResult:
                 logger.debug("MLX live memory pressure probe unavailable: %s", exc)
         return memory_snapshot
 
-    def _wait_for_generation_result_part_3(self, foreground_request, future, memory_snapshot, req_id):
+    def _wait_for_generation_result_part_3(
+        self,
+        foreground_request: bool,
+        future: SharedFuture,
+        memory_snapshot: Any,
+        req_id: str,
+    ) -> None:
         from .mlx_client import (
             _cancel_shared_future,
             _record_mlx_degradation,
@@ -452,7 +466,11 @@ class _WaitsForTheResult:
                 foreground_request=foreground_request,
             )
 
-    def _wait_for_generation_result_current_runtime_progress(self, foreground_request, request_started_at):
+    def _wait_for_generation_result_current_runtime_progress(
+        self,
+        foreground_request: bool,
+        request_started_at: Any,
+    ) -> tuple[bool, Any]:
         current_runtime_progress = max(
             self._last_heartbeat,
             self._last_progress_at,
@@ -498,7 +516,10 @@ class _WaitsForTheResult:
         )
         return has_runtime_progress_after_request, livelock_ceiling
 
-    def _wait_for_generation_result_ceiling_about_fire(self, request_started_at):
+    def _wait_for_generation_result_ceiling_about_fire(
+        self,
+        request_started_at: Any,
+    ) -> tuple[Any, bool]:
         # Which ceiling is about to fire matters, because the two mean
         # opposite things about the worker.
         #
@@ -543,7 +564,16 @@ class _WaitsForTheResult:
         )
         return elapsed_without_token, prefilling
 
-    def _wait_for_generation_result_ceiling_fired_decides(self, elapsed_without_token, first_token_sla, foreground_request, future, hard_first_token_ceiling, livelock_ceiling, req_id):
+    def _wait_for_generation_result_ceiling_fired_decides(
+        self,
+        elapsed_without_token: Any,
+        first_token_sla: Any,
+        foreground_request: bool,
+        future: SharedFuture,
+        hard_first_token_ceiling: Any,
+        livelock_ceiling: Any,
+        req_id: str,
+    ) -> None:
         # Which ceiling fired decides what this line is allowed to
         # claim. hard_first_token_ceiling is min(livelock, the
         # caller's deadline), so exceeding it usually means the
@@ -688,7 +718,13 @@ class _WaitsForTheResult:
         self.soft_cancel_active_generation("abandoned_first_token_sla")
         _cancel_shared_future(future)
 
-    def _wait_for_generation_result_part_7(self, foreground_request, future, req_id, token_stall_after):
+    def _wait_for_generation_result_part_7(
+        self,
+        foreground_request: bool,
+        future: SharedFuture,
+        req_id: str,
+        token_stall_after: Any,
+    ) -> None:
         from .mlx_client import (
             _cancel_shared_future,
             logger,

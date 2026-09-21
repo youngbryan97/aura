@@ -1687,7 +1687,7 @@ def _map_then_move(
         if rule is None:
             continue
 
-        def apply(state: Sequence[Any], _r=rule, _said=said) -> tuple[Any, ...]:
+        def apply(state: Sequence[Any], _r: Any=rule, _said: Any=said) -> tuple[Any, ...]:
             size = len(state)
             moved_state = tuple(state[_r(place, size)] for place in range(size))
             return tuple(_said[1](cell) for cell in moved_state)

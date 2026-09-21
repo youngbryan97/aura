@@ -14,6 +14,7 @@ from collections.abc import Iterable
 from core.engineering.analysis import Finding, register
 from core.engineering.materials import STANDARD_GRAVITY
 from core.engineering.units import Q
+from typing import Any
 
 
 @register(
@@ -23,7 +24,7 @@ from core.engineering.units import Q
     domains=("mechanical_rotary",),
     discipline="mechanical",
 )
-def gear_train(design) -> Iterable[Finding]:
+def gear_train(design: Any) -> Iterable[Finding]:
     gears = [p for p in design.parts if "gear" in p.tags or "pulley" in p.tags]
     if len(gears) < 2:
         return
@@ -76,7 +77,7 @@ def gear_train(design) -> Iterable[Finding]:
     domains=("mechanical_rotary", "electrical"),
     discipline="mechanical",
 )
-def motor_sizing(design) -> Iterable[Finding]:
+def motor_sizing(design: Any) -> Iterable[Finding]:
     for part in design.parts:
         if "motor" not in part.tags and "actuator" not in part.tags:
             continue
@@ -135,7 +136,7 @@ def motor_sizing(design) -> Iterable[Finding]:
     domains=("mechanical_linear",),
     discipline="mechanical",
 )
-def lever_and_linkage(design) -> Iterable[Finding]:
+def lever_and_linkage(design: Any) -> Iterable[Finding]:
     for part in design.parts:
         if "lever" not in part.tags and "linkage" not in part.tags:
             continue
@@ -173,7 +174,7 @@ def lever_and_linkage(design) -> Iterable[Finding]:
     domains=("mechanical_linear", "mechanical_rotary"),
     discipline="mechanical",
 )
-def leadscrew(design) -> Iterable[Finding]:
+def leadscrew(design: Any) -> Iterable[Finding]:
     for part in design.parts:
         if "leadscrew" not in part.tags and "screw_drive" not in part.tags:
             continue
@@ -224,7 +225,7 @@ def leadscrew(design) -> Iterable[Finding]:
     domains=("mechanical_linear",),
     discipline="mechanical",
 )
-def actuation_energy(design) -> Iterable[Finding]:
+def actuation_energy(design: Any) -> Iterable[Finding]:
     for part in design.parts:
         stroke = part.ratings.get("stroke")
         force = part.ratings.get("force")

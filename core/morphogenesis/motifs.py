@@ -285,7 +285,7 @@ class MorphMotif:
 class MotifLibrary:
     """The motifs a population has kept, and what each has earned."""
 
-    def __init__(self, *, capacity: int = 32):
+    def __init__(self, *, capacity: int=32) -> None:
         self.capacity = int(capacity)
         self._motifs: dict[str, MorphMotif] = {}
 

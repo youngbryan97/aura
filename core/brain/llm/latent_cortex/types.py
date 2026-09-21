@@ -685,7 +685,7 @@ class CortexConfig:
     # influence recurrence; None is an honest unmeasured bootstrap.
     critic_blind_spot_evidence: dict[str, Any] | None = None
 
-    def _validate_part_1(self, problems):
+    def _validate_part_1(self, problems: list[str]) -> None:
         if (
             self.prefix_stability_calibrator is not None
             and not isinstance(self.prefix_stability_calibrator, dict)
@@ -714,7 +714,7 @@ class CortexConfig:
                 "decode_incumbent_policy must be latent or vanilla_incumbent"
             )
 
-    def _validate_part_2(self, problems):
+    def _validate_part_2(self, problems: list[str]) -> None:
         if type(self.telemetry_enabled) is not bool:
             problems.append("telemetry_enabled must be boolean")
         if type(self.probe_cache_enabled) is not bool:
@@ -744,7 +744,7 @@ class CortexConfig:
         if type(self.local_repair_enabled) is not bool:
             problems.append("local_repair_enabled must be boolean")
 
-    def _validate_part_3(self, problems):
+    def _validate_part_3(self, problems: list[str]) -> None:
         if type(self.answer_replacement_enabled) is not bool:
             problems.append("answer_replacement_enabled must be boolean")
         if type(self.objective_program_enabled) is not bool:

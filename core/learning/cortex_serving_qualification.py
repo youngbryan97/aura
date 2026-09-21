@@ -832,7 +832,7 @@ def run_loaded_serving_qualification(
         nonce = f"AURA-{window}-CORTEX-9F3C"
         target = window - 64
 
-        def context_producer(contract_digest: str, *, _target=target, _nonce=nonce):
+        def context_producer(contract_digest: str, *, _target: Any=target, _nonce: Any=nonce) -> Any:
             prompt = _context_prompt_tokens(
                 tokenizer,
                 target_tokens=_target,

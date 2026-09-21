@@ -53,9 +53,9 @@ def select_compositional_program_candidate(
     examples: Sequence[SemanticTransducerTrainingExample],
     *,
     incumbent: str,
-    checkpoint_path=None,
-    progress=None,
-    scoring="register_indices_v1",
+    checkpoint_path: Any=None,
+    progress: Any=None,
+    scoring: str='register_indices_v1',
 ) -> dict[str, Any]:
     """Select on autonomous validation programs, never gold answers or test tasks."""
     from core.learning.semantic_validation_checkpoint import (
@@ -192,7 +192,7 @@ class CompositionalLeaveFamilyOutResult:
     report: dict[str, Any]
 
 
-def prepare_compositional_source_training(bundles):
+def prepare_compositional_source_training(bundles: Any) -> tuple[tuple[Any, ...], dict[str, Any]]:
     """Bind exact source cohorts, admitting training-only augmentation without test access."""
     manifests = {name: bundle.manifest for name, bundle in bundles.items()}
     compatibility = establish_semantic_training_representation_compatibility(manifests)
@@ -220,7 +220,12 @@ def prepare_compositional_source_training(bundles):
     return selected, {**body, "report_sha256": _sha(body)}
 
 
-def fit_compositional_source_campaign(bundles, *, input_grounding, progress=None):
+def fit_compositional_source_campaign(
+    bundles: Any,
+    *,
+    input_grounding: Any,
+    progress: Any=None,
+) -> Any:
     """Fit new coefficients on a measured representation, never relabel an older head."""
     examples, report = prepare_compositional_source_training(bundles)
     if progress:

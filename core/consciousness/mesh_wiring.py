@@ -250,7 +250,7 @@ class MeshWiring:
             added += 1
         return added
 
-    def _build_feedback_weights(self):
+    def _build_feedback_weights(self) -> None:
         """Build the explicit top-down (exec→sensory) feedback pathway.
 
         Lamme's RPT: consciousness arises specifically from recurrent feedback

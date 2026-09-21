@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections.abc import Iterable, Sequence
+from collections.abc import AsyncIterator, Iterable, Sequence
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -74,7 +74,7 @@ async def claim_all(
     *,
     context: Any = None,
     seconds: float = 0.0,
-):
+) -> AsyncIterator[tuple[Any, ...]]:
     """Hold all of ``wanted`` at once, or none of them.
 
     Acquired in :data:`THE_ORDER`, released in reverse, and the release runs

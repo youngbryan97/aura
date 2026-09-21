@@ -311,7 +311,7 @@ class _KeepsItsStateOnDisk:
         # read once rather than invent numbers.
         return self._state_snapshot()
 
-    def _save_state(self):
+    def _save_state(self) -> None:
         """Persist substrate state (atomic)."""
         import os
         import tempfile
@@ -337,7 +337,7 @@ class _KeepsItsStateOnDisk:
             record_degradation("liquid_substrate", e)
             logger.error("Failed to save substrate state: %s", e)
 
-    def _load_state(self):
+    def _load_state(self) -> None:
         from .liquid_substrate import (
             logger,
         )

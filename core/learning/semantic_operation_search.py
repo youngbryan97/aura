@@ -10,6 +10,7 @@ from fractions import Fraction
 from itertools import count
 
 from core.verify.invariants import invariant
+from typing import Any
 
 
 class OperationSearchIncompleteError(RuntimeError):
@@ -33,8 +34,15 @@ class OperationChartSearch(Iterator):
     must still be considered by the full graph selector.
     """
 
-    def __init__(self, nodes: Sequence, *, max_steps: int, length_penalty: float,
-                 feasible: Callable | None = None, max_expansions: int | None = None):
+    def __init__(
+        self,
+        nodes: Sequence,
+        *,
+        max_steps: int,
+        length_penalty: float,
+        feasible: Callable | None=None,
+        max_expansions: int | None=None,
+    ) -> None:
         if type(max_steps) is not int or max_steps < 1 or not math.isfinite(length_penalty):
             raise ValueError("operation search needs a positive step bound and finite penalty")
         if max_expansions is not None and (type(max_expansions) is not int or max_expansions < 1):
@@ -71,7 +79,7 @@ class OperationChartSearch(Iterator):
                 self._suffix[remaining][index] = take if skip is None else skip if take is None else max(skip, take)
             self._push(0, remaining, (), remaining)
 
-    def _push(self, index, remaining, selected, size):
+    def _push(self, index: int, remaining: Any, selected: tuple[Any, ...], size: Any) -> None:
         suffix = self._suffix[remaining][index]
         if suffix is None:
             return
@@ -84,10 +92,10 @@ class OperationChartSearch(Iterator):
     def remaining_operation_score_upper_bound(self) -> float:
         return _float_upper(-self._heap[0][0]) if self._heap else -math.inf
 
-    def __iter__(self):
+    def __iter__(self) -> Any:
         return self
 
-    def __next__(self):
+    def __next__(self) -> tuple[Any, ...]:
         while self._heap:
             if self.max_expansions is not None and self.expanded >= self.max_expansions:
                 raise OperationSearchIncompleteError(

@@ -9,6 +9,7 @@ inside its derated limit, a failure mode with nothing behind it.
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import Any
 
 from core.engineering.analysis import Finding, register
 from core.engineering.assurance import (
@@ -31,7 +32,7 @@ from core.engineering.units import Q
     domains=("structural",),
     discipline="assurance",
 )
-def structural_margins(design) -> Iterable[Finding]:
+def structural_margins(design: Any) -> Iterable[Finding]:
     factors = factor_set(design)
     yield Finding(
         id="assurance.factor_set",
@@ -105,7 +106,7 @@ def structural_margins(design) -> Iterable[Finding]:
     "What will it actually weigh once the design is finished?",
     discipline="assurance",
 )
-def mass_growth(design) -> Iterable[Finding]:
+def mass_growth(design: Any) -> Iterable[Finding]:
     basic = design.total_mass()
     if basic is None:
         return
@@ -144,7 +145,7 @@ def mass_growth(design) -> Iterable[Finding]:
     domains=("electrical",),
     discipline="assurance",
 )
-def part_derating(design) -> Iterable[Finding]:
+def part_derating(design: Any) -> Iterable[Finding]:
     for part in design.parts:
         for kind in DERATING:
             applied_key = f"{kind}_applied"
@@ -175,7 +176,7 @@ def part_derating(design) -> Iterable[Finding]:
     "What stops the whole thing when it fails on its own?",
     discipline="assurance",
 )
-def single_point_failures(design) -> Iterable[Finding]:
+def single_point_failures(design: Any) -> Iterable[Finding]:
     """Find the parts on a critical path with nothing in parallel.
 
     A part is a single point of failure when every path through the graph
@@ -282,7 +283,7 @@ def single_point_failures(design) -> Iterable[Finding]:
     "Is this a sketch, a prototype, or something proven?",
     discipline="assurance",
 )
-def readiness(design) -> Iterable[Finding]:
+def readiness(design: Any) -> Iterable[Finding]:
     known = [p for p in design.parts if p.sourcing.method != "unspecified"]
     if not design.parts:
         return

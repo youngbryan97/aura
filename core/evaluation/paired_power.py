@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 
 from core.verify.invariants import invariant
+from typing import Any
 
 
 def _probability(value: float, name: str) -> float:
@@ -33,7 +34,7 @@ def binomial_tail(k: int, n: int, probability: float) -> float:
     return float(binom.sf(k - 1, n, probability))
 
 
-def _critical_counts(counts, alpha: float):
+def _critical_counts(counts: Any, alpha: float) -> Any:
     import numpy as np
     from scipy.stats import binom
 

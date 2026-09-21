@@ -543,7 +543,11 @@ class UnifiedWill(_ReadsTheContext):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _decide_existential_stakes_check(domain, is_critical, source):
+    def _decide_existential_stakes_check(
+        domain: ActionDomain,
+        is_critical: bool,
+        source: str,
+    ) -> tuple[str, bool]:
         # ── 0. EXISTENTIAL STAKES CHECK: Is the system under severe resource threat? ──
         survival_veto = False
         survival_reason = ""
@@ -574,7 +578,17 @@ class UnifiedWill(_ReadsTheContext):
             )
         return survival_reason, survival_veto
 
-    def _decide_inject_scar_constraints(self, catatonia_relief, constraints, content, context, domain, outcome, reason, scar_constraints):
+    def _decide_inject_scar_constraints(
+        self,
+        catatonia_relief: Any,
+        constraints: Any,
+        content: str,
+        context: dict[str, Any] | None,
+        domain: ActionDomain,
+        outcome: Any,
+        reason: Any,
+        scar_constraints: Any,
+    ) -> tuple[Any, Any]:
         # ── 9b. Inject scar constraints (learned caution from experience) ─
         if scar_constraints:
             constraints.extend(scar_constraints)
@@ -638,7 +652,15 @@ class UnifiedWill(_ReadsTheContext):
             constraints.append("permission_model_failure")
         return outcome, reason
 
-    def _decide_part_3(self, decision, domain, latency_stages, outcome, reason, source):
+    def _decide_part_3(
+        self,
+        decision: Any,
+        domain: ActionDomain,
+        latency_stages: list[tuple[str, float]],
+        outcome: Any,
+        reason: Any,
+        source: str,
+    ) -> None:
         if decision.latency_ms > 250.0:
             logger.info(
                 "Will decision latency diagnostic: total_ms=%.1f domain=%s "

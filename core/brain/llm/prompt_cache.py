@@ -214,13 +214,13 @@ def _why_it_will_not_trim(prompt_cache: Any) -> str:
 class PromptCacheLRU:
     def __init__(
         self,
-        max_size: int = 12,
-        max_entry_tokens: int = 0,
-        max_total_tokens: int = 0,
-        kv_bytes_per_token: int = 0,
-        fixed_bytes_per_entry: int = 0,
-        max_total_bytes: int = 0,
-    ):
+        max_size: int=12,
+        max_entry_tokens: int=0,
+        max_total_tokens: int=0,
+        kv_bytes_per_token: int=0,
+        fixed_bytes_per_entry: int=0,
+        max_total_bytes: int=0,
+    ) -> None:
         self.max_size = max_size
         # 0 = uncapped. A positive cap refuses to RETAIN prompts longer than
         # this many tokens, bounding per-entry KV RAM on heavy models while

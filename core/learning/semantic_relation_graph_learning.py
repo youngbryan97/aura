@@ -6,6 +6,7 @@ from functools import cached_property
 
 import numpy as np
 from core.verify.invariants import invariant
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -14,7 +15,7 @@ class RelationEvidenceBank:
     definitions: np.ndarray
     base_logits: np.ndarray
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         reference = np.asarray(self.reference, dtype=np.float32)
         definitions = np.asarray(self.definitions, dtype=np.float32)
         base = np.asarray(self.base_logits, dtype=np.float64)
@@ -26,17 +27,17 @@ class RelationEvidenceBank:
         object.__setattr__(self, "definitions", definitions)
         object.__setattr__(self, "base_logits", base)
 
-    def score(self, selected, query, definition):
+    def score(self, selected: Any, query: Any, definition: Any) -> float:
         if type(selected) is not int or not 0 <= selected < len(self.base_logits):
             raise ValueError("selected relation hypothesis is invalid")
         logits = self.base_logits + (self.definitions @ definition) @ (self.reference @ query)
         return float(np.max(-np.logaddexp(0., -self.base_logits)) + logits[selected] - logits.max())
 
-    def scores(self, query, definition):
+    def scores(self, query: Any, definition: Any) -> Any:
         logits = self.base_logits + (self.definitions @ definition) @ (self.reference @ query)
         return np.max(-np.logaddexp(0., -self.base_logits)) + logits - logits.max()
 
-    def weighted_gradient(self, coefficients, query, definition):
+    def weighted_gradient(self, coefficients: Any, query: Any, definition: Any) -> tuple[Any, Any]:
         coefficients = np.asarray(coefficients, dtype=np.float64)
         if coefficients.shape != self.base_logits.shape or not np.all(np.isfinite(coefficients)):
             raise ValueError("relation choice coefficients differ")
@@ -47,14 +48,14 @@ class RelationEvidenceBank:
         delta = weights @ self.definitions
         return np.outer(self.reference, delta @ definition), np.outer(delta, q)
 
-    def directional_derivatives(self, query, definition, direction):
+    def directional_derivatives(self, query: Any, definition: Any, direction: Any) -> Any:
         q = self.reference @ query
         d = self.definitions @ definition
         logits = self.base_logits + d @ q
         slopes = (self.definitions @ direction[1]) @ q + d @ (self.reference @ direction[0])
         return slopes - slopes[int(np.argmax(logits))]
 
-    def score_gradient(self, selected, query, definition):
+    def score_gradient(self, selected: int, query: Any, definition: Any) -> tuple[float, Any, Any]:
         """Use the runtime categorical margin, including its moving maximum."""
         if type(selected) is not int or not 0 <= selected < len(self.base_logits):
             raise ValueError("selected relation hypothesis is invalid")
@@ -86,31 +87,31 @@ class GraphChoiceNormalizer:
     choices: tuple
     scale: float = 1.
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if (not self.choices or not np.isfinite(self.scale) or self.scale <= 0
                 or any(not isinstance(row, RelationGraphContrast) or row.normalizer_terms
                        for row in self.choices)):
             raise ValueError("choice normalizer needs nonrecursive graph evidence")
 
     @cached_property
-    def batch(self):
+    def batch(self) -> Any:
         from core.learning.semantic_graph_batch import GraphConstraintBatch
 
         return GraphConstraintBatch(self.choices, self.scale)
 
-    def score(self, parameters):
+    def score(self, parameters: Any) -> float:
         from scipy.special import logsumexp
 
         return float(logsumexp(self.batch.margins(parameters)))
 
-    def score_gradient(self, parameters):
+    def score_gradient(self, parameters: int) -> tuple[float, Any]:
         from scipy.special import logsumexp, softmax
 
         values = self.batch.margins(parameters)
         return float(logsumexp(values)), self.batch.weighted_gradient(parameters, softmax(values))
 
 
-def contrast_from_search(result, head, *, scale, weight=1.):
+def contrast_from_search(result: Any, head: Any, *, scale: Any, weight: float=1.0) -> Any:
     """Keep the exact decoder margin while exposing its relation contribution."""
     if result.negative is None or not result.positive_evidence or not result.negative_evidence:
         raise ValueError("relation contrast needs witnessed selected graph evidence")
@@ -120,7 +121,12 @@ def contrast_from_search(result, head, *, scale, weight=1.):
     return replace(row, fixed_margin=fsum((result.positive[0][0], -result.negative[0][0], -variable)))
 
 
-def graph_margin_gradient(parameters, row, *, scale=1.):
+def graph_margin_gradient(
+    parameters: tuple[Any, ...],
+    row: Any,
+    *,
+    scale: float=1.0,
+) -> tuple[Any, tuple[Any, ...]]:
     """Replay one complete-interpretation margin independently of an aggregate loss."""
     query, definition, *operations = parameters
     terms = [row.fixed_margin]
@@ -150,7 +156,7 @@ def graph_margin_gradient(parameters, row, *, scale=1.):
     return fsum(terms), tuple(gradients)
 
 
-def graph_margin(parameters, row, *, scale=1.):
+def graph_margin(parameters: tuple[Any, ...], row: Any, *, scale: float=1.0) -> Any:
     """Value-only replay avoids allocating one parameter gradient per witness."""
     query, definition, *operations = parameters
     terms = [row.fixed_margin]
@@ -165,8 +171,18 @@ def graph_margin(parameters, row, *, scale=1.):
     return fsum(terms)
 
 
-def relation_graph_loss(query, definition, contrasts, *, scale, initial, regularization,
-                        operation_parameters=(), source_supervision=None, source_weight=0.):
+def relation_graph_loss(
+    query: Any,
+    definition: Any,
+    contrasts: Any,
+    *,
+    scale: Any,
+    initial: Any,
+    regularization: Any,
+    operation_parameters: tuple[Any, ...]=(),
+    source_supervision: Any=None,
+    source_weight: float=0.0,
+) -> tuple[float, tuple[Any, ...]]:
     """Pairwise logistic loss on graph margins, with latent choices held fixed."""
     from scipy.special import expit
 
@@ -201,17 +217,33 @@ def relation_graph_loss(query, definition, contrasts, *, scale, initial, regular
     return float(loss), tuple(gradients)
 
 
-def fit_relation_graph_contrasts(head, contrasts, *, scale=1., steps=100, learning_rate=.001,
-                                regularization=.001):
+def fit_relation_graph_contrasts(
+    head: Any,
+    contrasts: tuple[Any, ...],
+    *,
+    scale: float=1.0,
+    steps: int=100,
+    learning_rate: float=0.001,
+    regularization: float=0.001,
+) -> tuple[Any, Any]:
     """Refit the shipped low-rank projections; base evidence stays unchanged."""
     candidate, _, receipt = fit_joint_graph_contrasts(head, None, contrasts, scale=scale,
         steps=steps, learning_rate=learning_rate, regularization=regularization)
     return candidate, receipt
 
 
-def fit_joint_graph_contrasts(head, operation_head, contrasts, *, scale=1., steps=100,
-                             learning_rate=.001, regularization=.001,
-                             source_supervision=None, source_weight=0.):
+def fit_joint_graph_contrasts(
+    head: Any,
+    operation_head: Any,
+    contrasts: Any,
+    *,
+    scale: float=1.0,
+    steps: int=100,
+    learning_rate: float=0.001,
+    regularization: float=0.001,
+    source_supervision: Any=None,
+    source_weight: float=0.0,
+) -> Any:
     """Update existing relation and optional operation heads under one graph loss."""
     if type(steps) is not int or steps < 1 or not np.isfinite(learning_rate) or learning_rate <= 0:
         raise ValueError("invalid relation graph optimizer settings")
@@ -223,7 +255,7 @@ def fit_joint_graph_contrasts(head, operation_head, contrasts, *, scale=1., step
     moments, squares = ([np.zeros_like(v) for v in values] for _ in range(2))
     kwargs = dict(scale=scale, initial=initial, regularization=regularization,
                   source_supervision=source_supervision, source_weight=source_weight)
-    def objective(parameters):
+    def objective(parameters: list[Any]) -> Any:
         return relation_graph_loss(*parameters[:2], contrasts, operation_parameters=parameters[2:], **kwargs)
 
     initial_loss = objective(values)[0]
@@ -262,8 +294,16 @@ def fit_joint_graph_contrasts(head, operation_head, contrasts, *, scale=1., step
         "serving_authority": False}
 
 
-def refit_compositional_graph_relations(model, examples, *, rounds=3, steps=100,
-                                       max_graphs=32, solve_time_limit_s=20., progress=None):
+def refit_compositional_graph_relations(
+    model: Any,
+    examples: Any,
+    *,
+    rounds: int=3,
+    steps: int=100,
+    max_graphs: int=32,
+    solve_time_limit_s: float=20.0,
+    progress: Any=None,
+) -> Any:
     """Mine witnessed graph errors and refit existing tissue against retained pairs."""
     from collections import Counter
     from core.learning.semantic_graph_margin import graph_refit_source_splits

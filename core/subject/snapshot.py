@@ -1759,7 +1759,7 @@ def _delegate_to_the_real_observer() -> None:
         if name == "provenance" or hasattr(_HeldObserver, name):
             continue
 
-        def make(method: str):
+        def make(method: str) -> Any:
             def call(self, *args: Any, **kwargs: Any) -> Any:
                 return self._held(method, args, kwargs)
 

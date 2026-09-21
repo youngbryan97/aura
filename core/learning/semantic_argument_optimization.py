@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 import time
 from collections import defaultdict
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 import numpy as np
 
@@ -31,7 +31,11 @@ class ArgumentOptimizationIncompleteError(RuntimeError):
     """A search limit or solver error is not a proof of graph infeasibility."""
 
 
-def _shortlist_mentions(options, definition_options, limit=4):
+def _shortlist_mentions(
+    options: Sequence[Sequence[Sequence[tuple[float, int, TokenSpan]]]],
+    definition_options: Sequence[Sequence[Sequence[TokenSpan]]] | None,
+    limit: int=4,
+) -> tuple[tuple[Any, ...], Any]:
     rows, labels = [], []
     for node, arguments in enumerate(options):
         row, names = [], []
@@ -50,8 +54,17 @@ def _shortlist_mentions(options, definition_options, limit=4):
     return tuple(rows), tuple(labels) if definition_options is not None else None
 
 
-def _dual_bound_screen(objective, matrix, lows, highs, upper, incumbent_cost, *, binary_count,
-                       time_limit_s=None):
+def _dual_bound_screen(
+    objective: Any,
+    matrix: Any,
+    lows: Any,
+    highs: Any,
+    upper: Any,
+    incumbent_cost: Any,
+    *,
+    binary_count: Any,
+    time_limit_s: Any=None,
+) -> Any:
     """Fix only binary choices whose dual lower bound exceeds a feasible cost."""
     from scipy.optimize import linprog
     from scipy.sparse import vstack
@@ -95,14 +108,14 @@ def optimize_argument_chart(
     *,
     n_inputs: int,
     contract: RegisterUseContract,
-    node_limit: int = 10000,
-    definition_options: Sequence[Sequence[Sequence[TokenSpan]]] | None = None,
-    definition_scores: Mapping[tuple[int, TokenSpan], float] | None = None,
-    prune_dominated: bool = False,
-    excluded_arguments: Sequence[Sequence[int]] | None = None,
-    excluded_graphs: Sequence[Sequence[Sequence[int]]] = (),
-    time_limit_s: float | None = None,
-    selection_observer=None,
+    node_limit: int=10000,
+    definition_options: Sequence[Sequence[Sequence[TokenSpan]]] | None=None,
+    definition_scores: Mapping[tuple[int, TokenSpan], float] | None=None,
+    prune_dominated: bool=False,
+    excluded_arguments: Sequence[Sequence[int]] | None=None,
+    excluded_graphs: Sequence[Sequence[Sequence[int]]]=(),
+    time_limit_s: float | None=None,
+    selection_observer: Any=None,
 ) -> ArgumentAssignment | None:
     """Return an optimal feasible assignment within solver precision, or none.
 
@@ -123,7 +136,7 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
         raise ValueError("argument optimization dimensions must be positive")
     deadline = None if time_limit_s is None else time.monotonic() + time_limit_s
 
-    def remaining():
+    def remaining() -> Any:
         if deadline is None:
             return None
         duration = deadline - time.monotonic()
@@ -214,7 +227,7 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
     row_indices, column_indices, coefficients = [], [], []
     lows, highs = [], []
 
-    def constraint(values, lo, hi):
+    def constraint(values: dict[str, Any], lo: float, hi: float) -> None:
         row = len(lows)
         for column, coefficient in values.items():
             if coefficient:

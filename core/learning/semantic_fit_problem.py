@@ -12,17 +12,25 @@ from core.learning.semantic_argument_graph_learning import ArgumentScoreTerm
 from core.learning.semantic_fit_checkpoint import fit_identity, write_fit_archive
 from core.learning.semantic_operation_graph_learning import OperationEvidenceBank
 from core.learning.semantic_relation_graph_learning import GraphChoiceNormalizer, RelationEvidenceBank, RelationGraphContrast
+from typing import Any
 
 _TYPES = {cls.__name__: cls for cls in (
     ArgumentScoreTerm, OperationEvidenceBank, RelationEvidenceBank, RelationGraphContrast, GraphChoiceNormalizer,
 )}
 
 
-def save_fit_problem(path, *, identity, initial, contrasts, options):
+def save_fit_problem(
+    path: Any,
+    *,
+    identity: Any,
+    initial: Any,
+    contrasts: Any,
+    options: Any,
+) -> dict[str, Any]:
     """Store shared evidence once; the archive grants no qualification authority."""
     arrays, nodes, seen, array_names = {}, [], {}, {}
 
-    def encode(value):
+    def encode(value: tuple[Any, ...]) -> dict[str, Any]:
         if isinstance(value, np.generic):
             value = value.item()
         shared = isinstance(value, (np.ndarray, tuple)) or type(value) in _TYPES.values()
@@ -59,7 +67,7 @@ def save_fit_problem(path, *, identity, initial, contrasts, options):
     write_fit_archive(path, body, arrays)
 
 
-def load_fit_problem(path, *, expected_identity):
+def load_fit_problem(path: Any, *, expected_identity: Any) -> Any:
     """Read only declared evidence classes and numeric arrays, never pickle."""
     with np.load(BytesIO(Path(path).read_bytes()), allow_pickle=False) as archive:
         metadata = json.loads(archive["metadata"].tobytes().decode())
@@ -73,7 +81,7 @@ def load_fit_problem(path, *, expected_identity):
     decoded = []
     remaining = Counter(node["array"] for node in body["nodes"] if set(node) == {"array"})
 
-    def decode(value):
+    def decode(value: Any) -> Any:
         if set(value) == {"literal"}:
             return value["literal"]
         if (set(value) != {"ref"} or type(value["ref"]) is not int

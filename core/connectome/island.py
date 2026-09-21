@@ -129,7 +129,7 @@ def _power_law_with_cutoff(exponent: float, cutoff: float) -> tuple[float, ...]:
     )
 
 
-def _solve(f, low: float, high: float, *, tolerance: float = 1e-12, steps: int = 200) -> float:
+def _solve(f: Any, low: float, high: float, *, tolerance: float=1e-12, steps: int=200) -> float:
     """Bisection. Written out rather than imported: this package must not need
     a numerical stack to say what it measured."""
     f_low = f(low)

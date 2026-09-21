@@ -15,9 +15,10 @@ from core.learning.semantic_program_transducer import (
 )
 from core.learning.semantic_span_set_learning import span_set_partition
 from core.verify.invariants import invariant
+from typing import Any
 
 
-def labeled_span_partition(scores, max_spans):
+def labeled_span_partition(scores: Any, max_spans: int) -> tuple[Any, Any]:
     """Sum every non-overlapping labeled set; background has one skip path."""
     scores = np.asarray(scores, dtype=np.float64)
     if scores.ndim != 3 or not all(scores.shape) or np.any(np.isnan(scores)) or np.any(np.isposinf(scores)):
@@ -32,7 +33,7 @@ def labeled_span_partition(scores, max_spans):
 
 @invariant("semantic.labeled_span_partition", scope="semantic_program",
            owner="core/learning/semantic_labeled_span_learning.py", observational=False)
-def _check_labeled_span_partition():
+def _check_labeled_span_partition() -> tuple[()]:
     scores = np.log(np.asarray([[[2., 3.]], [[5., 7.]]]))
     partition, marginal = labeled_span_partition(scores, 1)
     assert np.isclose(partition, np.log(18.))
@@ -40,7 +41,7 @@ def _check_labeled_span_partition():
     return ()
 
 
-def _runtime_odds(logits):
+def _runtime_odds(logits: Any) -> tuple[Any, Any]:
     """Match the existing scorer's clipped log probabilities with zero background."""
     all_logits = np.column_stack((logits, np.zeros(len(logits))))
     logp = all_logits - logsumexp(all_logits, axis=1, keepdims=True)
@@ -59,7 +60,7 @@ class MeanSpanEvidence:
     span_width: int
 
     @classmethod
-    def build(cls, hidden, span_width, excluded=()):
+    def build(cls, hidden: Any, span_width: Any, excluded: tuple[Any, ...]=()) -> Any:
         hidden = np.asarray(hidden, dtype=np.float32)
         if hidden.ndim != 2 or not all(hidden.shape) or not np.all(np.isfinite(hidden)):
             raise ValueError("invalid mean-span hidden representation")
@@ -84,12 +85,12 @@ class MeanSpanEvidence:
             norms[selected] = np.where(norm / length > 1e-8, norm, length)
         return cls(hidden, start, end, norms, width)
 
-    def project(self, weight):
+    def project(self, weight: Any) -> Any:
         projected = self.hidden @ weight.T
         prefix = np.vstack((np.zeros(weight.shape[0]), np.cumsum(projected, axis=0)))
         return (prefix[self.ends] - prefix[self.starts]) / self.norms[:, None]
 
-    def adjoint(self, residual):
+    def adjoint(self, residual: Any) -> Any:
         mass = np.zeros((len(self.hidden) + 1, residual.shape[1]))
         scaled = residual / self.norms[:, None]
         np.add.at(mass, self.starts, scaled)
@@ -105,7 +106,7 @@ class MeanTransitionSpanEvidence(MeanSpanEvidence):
     joint_norms: np.ndarray
 
     @classmethod
-    def build(cls, hidden, span_width, excluded=()):
+    def build(cls, hidden: Any, span_width: Any, excluded: tuple[Any, ...]=()) -> Any:
         mean = MeanSpanEvidence.build(hidden, span_width, excluded)
         prefix = np.vstack((np.zeros(mean.hidden.shape[1]),
                             np.cumsum(mean.hidden, axis=0, dtype=np.float64)))
@@ -125,7 +126,7 @@ class MeanTransitionSpanEvidence(MeanSpanEvidence):
         return cls(mean.hidden, mean.starts, mean.ends, mean.norms, mean.span_width,
                    transition_norms, joint_norms)
 
-    def project(self, weight):
+    def project(self, weight: Any) -> Any:
         width = self.hidden.shape[1]
         if weight.shape[1] != 2 * width:
             raise ValueError("mean-transition projection width differs")
@@ -135,7 +136,7 @@ class MeanTransitionSpanEvidence(MeanSpanEvidence):
         transition = (projected[self.ends - 1] - before) / self.transition_norms[:, None]
         return (super().project(weight[:, :width]) + transition) / self.joint_norms[:, None]
 
-    def adjoint(self, residual):
+    def adjoint(self, residual: Any) -> Any:
         scaled = residual / self.joint_norms[:, None]
         mean = super().adjoint(scaled)
         transition = scaled / self.transition_norms[:, None]
@@ -146,7 +147,7 @@ class MeanTransitionSpanEvidence(MeanSpanEvidence):
         return np.concatenate((mean, mass.T @ self.hidden), axis=1)
 
 
-def _labeled_span_evidence(model, item):
+def _labeled_span_evidence(model: Any, item: Any) -> Any:
     """Use the declared runtime view, including its actual channel coordinates."""
     channels = {
         "lexical_mean": "input_token_embedding",
@@ -171,7 +172,16 @@ def _labeled_span_evidence(model, item):
     return evidence_type.build(hidden, model.max_span_tokens, item.ir.input_spans)
 
 
-def _labeled_loss(parameters, rows, *, labels, width, max_spans, regularization, center):
+def _labeled_loss(
+    parameters: Any,
+    rows: Any,
+    *,
+    labels: Any,
+    width: Any,
+    max_spans: Any,
+    regularization: Any,
+    center: Any,
+) -> tuple[Any, Any]:
     weight = parameters[:labels * width].reshape(labels, width)
     bias = parameters[labels * width:]
     delta = parameters - center
@@ -196,7 +206,15 @@ def _labeled_loss(parameters, rows, *, labels, width, max_spans, regularization,
     return loss, gradient
 
 
-def _labeled_graph_loss(parameters, contrasts, *, labels, width, relation_parameters, scale):
+def _labeled_graph_loss(
+    parameters: Any,
+    contrasts: Any,
+    *,
+    labels: Any,
+    width: Any,
+    relation_parameters: Any,
+    scale: Any,
+) -> tuple[Any, Any, Any]:
     """Train operation evidence against the binding scores used in real selection."""
     from core.learning.semantic_relation_graph_learning import graph_margin_gradient
 
@@ -216,8 +234,15 @@ def _labeled_graph_loss(parameters, contrasts, *, labels, width, relation_parame
     return loss, gradient, margins
 
 
-def refit_compositional_labeled_spans(model, examples, *, max_iter=200, progress=None,
-                                     runtime_constraint_sources=(), solve_time_limit_s=20.):
+def refit_compositional_labeled_spans(
+    model: Any,
+    examples: tuple[Any, ...],
+    *,
+    max_iter: int=200,
+    progress: Any=None,
+    runtime_constraint_sources: tuple[Any, ...]=(),
+    solve_time_limit_s: float=20.0,
+) -> Any:
     """Fit source-only labeled sets and export through the existing odds scorer."""
     from scipy.optimize import minimize
 
@@ -290,7 +315,7 @@ def refit_compositional_labeled_spans(model, examples, *, max_iter=200, progress
                          scale=model.definition_relation_scale)
     options = dict(labels=len(labels), width=width, max_spans=model.max_steps,
                    regularization=1. / (10. * len(train)), center=initial)
-    def objective(value):
+    def objective(value: Any) -> tuple[Any, Any]:
         loss, gradient = _labeled_loss(value, rows, **options)
         if contrasts:
             graph_loss, graph_gradient, _ = _labeled_graph_loss(value, contrasts, **graph_options)
@@ -300,7 +325,7 @@ def refit_compositional_labeled_spans(model, examples, *, max_iter=200, progress
     initial_loss = objective(initial)[0]
     iterations = 0
 
-    def callback(_):
+    def callback(_: Any) -> None:
         nonlocal iterations
         iterations += 1
         if progress is not None:

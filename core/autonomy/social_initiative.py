@@ -218,7 +218,7 @@ class _StartsSomethingSocial:
             "I will follow up with the specific next step once I have checked the relevant context."
         )
 
-    async def _social_interaction_loop(self):
+    async def _social_interaction_loop(self) -> None:
         """Autonomous social presence: check email and Reddit."""
         from .autonomous_initiative_loop import (
             _passive_social_allowed,
@@ -258,7 +258,7 @@ class _StartsSomethingSocial:
 
             await asyncio.sleep(60)
 
-    async def _check_email_initiative(self):
+    async def _check_email_initiative(self) -> None:
         """Check for unread emails and potentially initiate a response."""
         from .autonomous_initiative_loop import (
             _record_initiative_degradation,
@@ -366,7 +366,7 @@ class _StartsSomethingSocial:
                 severity="warning",
             )
 
-    async def _check_reddit_initiative(self):
+    async def _check_reddit_initiative(self) -> None:
         """Browse Reddit and potentially find something to engage with."""
         from .autonomous_initiative_loop import (
             _record_initiative_degradation,

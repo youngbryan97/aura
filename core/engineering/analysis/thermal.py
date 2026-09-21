@@ -15,6 +15,7 @@ from collections.abc import Iterable
 
 from core.engineering.analysis import Finding, register
 from core.engineering.units import Q, Quantity
+from typing import Any
 
 #: Stefan-Boltzmann constant, CODATA.
 _SIGMA = 5.670374419e-8
@@ -32,7 +33,7 @@ _FORCED_AIR_H = 40.0
 _WATER_H = 1000.0
 
 
-def _heat_sources(design, findings: tuple[Finding, ...] = ()) -> list[tuple[object, Quantity]]:
+def _heat_sources(design: Any, findings: tuple[Finding, ...]=()) -> list[tuple[object, Quantity]]:
     sources = []
     for part in design.parts:
         for key in ("heat", "waste_heat", "dissipation"):
@@ -55,7 +56,7 @@ def _heat_sources(design, findings: tuple[Finding, ...] = ()) -> list[tuple[obje
     domains=("thermal",),
     discipline="thermal",
 )
-def heat_load(design) -> Iterable[Finding]:
+def heat_load(design: Any) -> Iterable[Finding]:
     sources = _heat_sources(design)
     if not sources:
         return
@@ -160,7 +161,7 @@ def _heat_comparison(watts: float) -> str:
     domains=("thermal",),
     discipline="thermal",
 )
-def conduction_path(design) -> Iterable[Finding]:
+def conduction_path(design: Any) -> Iterable[Finding]:
     for link in design.connections:
         if link.domain != "thermal" or link.through is None:
             continue
@@ -220,7 +221,7 @@ def conduction_path(design) -> Iterable[Finding]:
     domains=("thermal",),
     discipline="thermal",
 )
-def radiation_balance(design) -> Iterable[Finding]:
+def radiation_balance(design: Any) -> Iterable[Finding]:
     if "vacuum" not in str(design.environment.get("medium", "")).lower():
         return
     sources = _heat_sources(design)

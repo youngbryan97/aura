@@ -11,16 +11,22 @@ import numpy as np
 from core.learning.semantic_program_ir import TokenSpan
 from core.learning.semantic_program_shared_transducer import _geometry, _normalized_weights
 from core.learning.semantic_program_transducer import LinearPointerHead, _fit_binary_head, _sha
+from typing import Any
 
 
-def paired_boundary_feature(hidden, span):
+def paired_boundary_feature(hidden: Any, span: Any) -> Any:
     """Match the pointer's additive boundary and diagonal interaction scores."""
     span.validate_bound(len(hidden))
     start, end = hidden[span.start], hidden[span.end - 1]
     return np.concatenate((start, end, start * end * math.sqrt(hidden.shape[1])))
 
 
-def paired_boundary_training_spans(item, positives, pointer, max_span_tokens):
+def paired_boundary_training_spans(
+    item: Any,
+    positives: tuple[Any, ...],
+    pointer: Any,
+    max_span_tokens: Any,
+) -> Any:
     """Mine crossed endpoints and local boundary errors without false negatives."""
     positives = tuple(dict.fromkeys(positives))
     scores = pointer.score_sequence(item.hidden_states)
@@ -39,7 +45,14 @@ def paired_boundary_training_spans(item, positives, pointer, max_span_tokens):
     return tuple((span, 1) for span in positives) + tuple((span, 0) for span in negatives)
 
 
-def fit_paired_boundary_pointer(training, *, spans, pointer, max_span_tokens, ranking=False):
+def fit_paired_boundary_pointer(
+    training: tuple[Any, ...],
+    *,
+    spans: Any,
+    pointer: Any,
+    max_span_tokens: Any,
+    ranking: bool=False,
+) -> tuple[Any, dict[str, Any]]:
     """Fit one shared role from source training examples only."""
     counts = Counter(_geometry(item) for item in training)
     rows = [
@@ -96,7 +109,12 @@ def fit_paired_boundary_pointer(training, *, spans, pointer, max_span_tokens, ra
     return LinearPointerHead(start, bias / 2, end, bias / 2, pair), supervision
 
 
-def refit_compositional_paired_operation_pointer(model, examples, *, ranking=False):
+def refit_compositional_paired_operation_pointer(
+    model: Any,
+    examples: Any,
+    *,
+    ranking: bool=False,
+) -> Any:
     """Replace the operation pointer; calibrate length without fitting validation."""
     from core.learning.semantic_program_transducer_fitting import _select_operation_length_penalty
 

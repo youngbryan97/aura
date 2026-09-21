@@ -198,7 +198,7 @@ class MorphGraph:
     max_out_degree = 16
     max_in_degree = 16
 
-    def __init__(self, *, max_nodes: int = 256, max_edges: int = 1024):
+    def __init__(self, *, max_nodes: int=256, max_edges: int=1024) -> None:
         self.max_nodes = int(max_nodes)
         self.max_edges = int(max_edges)
         self._nodes: set[str] = set()
@@ -392,7 +392,12 @@ class MorphGraph:
     class _Scratch:
         """The mutable view handed to a transaction body."""
 
-        def __init__(self, nodes: set[str], edges: dict[tuple[str, str, str, str], MorphEdge], version: int):
+        def __init__(
+            self,
+            nodes: set[str],
+            edges: dict[tuple[str, str, str, str], MorphEdge],
+            version: int,
+        ) -> None:
             self.nodes = nodes
             self.edges = edges
             self.version = version
@@ -421,10 +426,10 @@ class MorphGraph:
 
     def transaction(
         self,
-        body,
+        body: Any,
         *,
-        cause: str = "",
-        port_contract: Mapping[str, tuple[frozenset[str], frozenset[str]]] | None = None,
+        cause: str='',
+        port_contract: Mapping[str, tuple[frozenset[str], frozenset[str]]] | None=None,
     ) -> GraphDiff:
         """Apply ``body`` to a scratch copy and commit it if it validates.
 

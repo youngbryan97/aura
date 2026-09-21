@@ -512,7 +512,7 @@ class _SalvagesWhatItCan:
             # Register shutdown hooks — save state on death for continuity across restarts
             from core.ops.graceful_shutdown import register_shutdown_hook
 
-            def _save_on_shutdown():
+            def _save_on_shutdown() -> None:
                 logger.info("💾 [SHUTDOWN] Saving substrate state and cognitive snapshot...")
                 try:
                     substrate = ServiceContainer.get("liquid_substrate", default=None)

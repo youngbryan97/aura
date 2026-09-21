@@ -20,6 +20,7 @@ from core.engineering.analysis import Finding, register
 from core.engineering.geometry import Capsule, Cylinder, Dome, Prism, Sphere, Tube
 from core.engineering.materials import STANDARD_GRAVITY
 from core.engineering.units import Q, Quantity
+from typing import Any
 
 #: Below this the thin-wall membrane equations are within a few per cent.
 #: Above it they under-report the bore stress and Lame's solution is used.
@@ -42,7 +43,7 @@ def _safety_words(factor: float) -> tuple[str, str]:
     return "pass", ""
 
 
-def _external_pressure(design) -> Quantity | None:
+def _external_pressure(design: Any) -> Quantity | None:
     """The outside pressure the design works against, from its environment."""
     environment = design.environment
     for key in ("external_pressure", "pressure", "ambient_pressure"):
@@ -61,7 +62,7 @@ def _external_pressure(design) -> Quantity | None:
     return None
 
 
-def _internal_pressure(part) -> Quantity | None:
+def _internal_pressure(part: Any) -> Quantity | None:
     for key in ("internal_pressure", "working_pressure", "pressure"):
         if key in part.ratings:
             return part.ratings[key]
@@ -77,7 +78,7 @@ def _internal_pressure(part) -> Quantity | None:
     "Does the wall hold the pressure, inside or out?",
     discipline="mechanical",
 )
-def pressure_vessel(design) -> Iterable[Finding]:
+def pressure_vessel(design: Any) -> Iterable[Finding]:
     outside = _external_pressure(design)
     for part in design.parts:
         if part.solid is None or part.material is None:
@@ -231,7 +232,7 @@ def _collapse_pressure(E: float, nu: float, radius: float, wall: float, length: 
     return 2.42 * E * ratio**2.5 / denominator
 
 
-def _section_properties(part) -> tuple[float, float, float] | None:
+def _section_properties(part: Any) -> tuple[float, float, float] | None:
     """Second moment, extreme fibre distance and area for a part's section."""
     solid = part.solid
     if isinstance(solid, Cylinder):
@@ -261,7 +262,7 @@ def _section_properties(part) -> tuple[float, float, float] | None:
     return None
 
 
-def _applied_load(design, part) -> tuple[Quantity, str] | None:
+def _applied_load(design: Any, part: Any) -> tuple[Quantity, str] | None:
     """The force on a part, from its ratings or a structural connection."""
     for key in ("load", "applied_load", "force", "thrust"):
         if key in part.ratings:
@@ -281,7 +282,7 @@ def _applied_load(design, part) -> tuple[Quantity, str] | None:
     domains=("structural",),
     discipline="mechanical",
 )
-def beam_bending(design) -> Iterable[Finding]:
+def beam_bending(design: Any) -> Iterable[Finding]:
     for part in design.parts:
         if part.solid is None or part.material is None:
             continue
@@ -378,7 +379,7 @@ def beam_bending(design) -> Iterable[Finding]:
     domains=("structural",),
     discipline="mechanical",
 )
-def column_buckling(design) -> Iterable[Finding]:
+def column_buckling(design: Any) -> Iterable[Finding]:
     for part in design.parts:
         if part.solid is None or part.material is None:
             continue
@@ -437,7 +438,7 @@ def column_buckling(design) -> Iterable[Finding]:
     domains=("thermal", "structural"),
     discipline="mechanical",
 )
-def thermal_stress(design) -> Iterable[Finding]:
+def thermal_stress(design: Any) -> Iterable[Finding]:
     swing = design.environment.get("temperature_swing")
     if swing is None:
         return
@@ -482,7 +483,7 @@ def thermal_stress(design) -> Iterable[Finding]:
     domains=("structural",),
     discipline="mechanical",
 )
-def natural_frequency(design) -> Iterable[Finding]:
+def natural_frequency(design: Any) -> Iterable[Finding]:
     for part in design.parts:
         if part.solid is None or part.material is None:
             continue

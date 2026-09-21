@@ -9,9 +9,17 @@ from collections import Counter
 from dataclasses import replace
 
 import numpy as np
+from typing import Any
 
 
-def _graph_margin_loss(scales, differences, offsets, weights, initial, regularization):
+def _graph_margin_loss(
+    scales: Any,
+    differences: Any,
+    offsets: Any,
+    weights: Any,
+    initial: Any,
+    regularization: Any,
+) -> tuple[float, Any]:
     from scipy.special import expit
 
     margins = differences @ scales + offsets
@@ -23,7 +31,12 @@ def _graph_margin_loss(scales, differences, offsets, weights, initial, regulariz
     )
 
 
-def graph_scale_feasibility(differences, offsets, *, required_margin=.1):
+def graph_scale_feasibility(
+    differences: Any,
+    offsets: Any,
+    *,
+    required_margin: float=0.1,
+) -> dict[str, Any]:
     """Test representability of retained inequalities by the existing scales.
 
     A feasible witness is checked independently. Infeasibility requires the
@@ -74,7 +87,14 @@ def graph_scale_feasibility(differences, offsets, *, required_margin=.1):
             "serving_authority": False}
 
 
-def fit_graph_score_scales(differences, offsets, weights, initial, *, regularization=.01):
+def fit_graph_score_scales(
+    differences: Any,
+    offsets: Any,
+    weights: Any,
+    initial: Any,
+    *,
+    regularization: float=0.01,
+) -> tuple[Any, dict[str, Any]]:
     """Fit positive role/relation/pointer scales; the proposal scale stays fixed."""
     from scipy.optimize import minimize
 
@@ -107,7 +127,7 @@ def fit_graph_score_scales(differences, offsets, weights, initial, *, regulariza
     }
 
 
-def graph_refit_source_splits(model, examples):
+def graph_refit_source_splits(model: Any, examples: Any) -> tuple[tuple[Any, ...], tuple[Any, ...]]:
     """Validate the source geometry shared by graph calibration and tissue fits."""
     training = tuple(item for item in examples if item.split == "train")
     validation = tuple(item for item in examples if item.split == "validation")
@@ -126,7 +146,7 @@ def graph_refit_source_splits(model, examples):
     return training, validation
 
 
-def refit_compositional_graph_scales(model, examples, *, progress=None):
+def refit_compositional_graph_scales(model: Any, examples: Any, *, progress: Any=None) -> Any:
     """Fit source graph contrasts, with explicit coverage and unchanged heads."""
     from core.learning.semantic_program_campaign import _sha
     from core.learning.semantic_program_shared_transducer import _geometry

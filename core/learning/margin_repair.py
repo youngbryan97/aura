@@ -10,6 +10,7 @@ from fractions import Fraction
 
 import numpy as np
 from scipy.optimize import minimize
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -19,9 +20,14 @@ class MarginRepair:
     receipt: dict
 
 
-def verify_exact_margin_repair(normals, required, displacement, multipliers):
+def verify_exact_margin_repair(
+    normals: Any,
+    required: Any,
+    displacement: Any,
+    multipliers: Any,
+) -> Any:
     """Check a supplied finite rational witness without solving or tolerances."""
-    def rational(value):
+    def rational(value: Any) -> Any:
         if isinstance(value, (bool, np.bool_)):
             raise ValueError("boolean is not a rational coefficient")
         return Fraction(float(value)) if isinstance(value, np.floating) else Fraction(value)
@@ -46,7 +52,14 @@ def verify_exact_margin_repair(normals, required, displacement, multipliers):
         raise ValueError("invalid rational margin repair witness") from exc
 
 
-def verify_margin_repair(normals, required, displacement, multipliers, *, tolerance=1e-8):
+def verify_margin_repair(
+    normals: Any,
+    required: Any,
+    displacement: Any,
+    multipliers: Any,
+    *,
+    tolerance: float=1e-08,
+) -> dict[str, Any]:
     """Replay weak duality for min 0.5*||d||^2 subject to A*d >= b."""
     a, b, d, lam = (np.asarray(value, dtype=np.float64)
                     for value in (normals, required, displacement, multipliers))
@@ -77,7 +90,13 @@ def verify_margin_repair(normals, required, displacement, multipliers, *, tolera
     }
 
 
-def _polish_nonnegative_dual(gram, target, initial, *, max_iterations):
+def _polish_nonnegative_dual(
+    gram: Any,
+    target: Any,
+    initial: Any,
+    *,
+    max_iterations: Any,
+) -> tuple[Any, Any]:
     """Refine a proposed active set, adding and removing complementary faces.
 
     An optimizer's positive support can contain inactive inequalities. Solving
@@ -111,7 +130,13 @@ def _polish_nonnegative_dual(gram, target, initial, *, max_iterations):
     return lam, iteration + 1
 
 
-def minimum_margin_repair(normals, required, *, max_iterations=1000, tolerance=1e-8):
+def minimum_margin_repair(
+    normals: Any,
+    required: Any,
+    *,
+    max_iterations: int=1000,
+    tolerance: float=1e-08,
+) -> Any:
     """Solve the nonnegative dual; return unresolved when replay does not verify."""
     a, b = np.asarray(normals, dtype=np.float64), np.asarray(required, dtype=np.float64)
     if (a.ndim != 2 or not all(a.shape) or b.shape != (len(a),)
@@ -124,7 +149,7 @@ def minimum_margin_repair(normals, required, *, max_iterations=1000, tolerance=1
     normalized, target = a / scales[:, None], b / scales
     gram = normalized @ normalized.T
 
-    def objective(lam):
+    def objective(lam: Any) -> tuple[float, Any]:
         product = gram @ lam
         return float(.5 * (lam @ product) - target @ lam), product - target
 
@@ -166,8 +191,16 @@ def minimum_margin_repair(normals, required, *, max_iterations=1000, tolerance=1
     return MarginRepair(displacement, lam, receipt)
 
 
-def minimum_stored_margin_repair(normals, required, anchor, *, max_rounding_rounds=8,
-                                 max_iterations=1000, tolerance=1e-7, store_point=None):
+def minimum_stored_margin_repair(
+    normals: Any,
+    required: Any,
+    anchor: Any,
+    *,
+    max_rounding_rounds: int=8,
+    max_iterations: int=1000,
+    tolerance: float=1e-07,
+    store_point: Any=None,
+) -> Any:
     """Repair affine margins in the precision that the model actually stores.
 
     For rounding error e, a_i*(d+e) >= a_i*d - |a_i|*|e|. Add
@@ -228,7 +261,13 @@ def minimum_stored_margin_repair(normals, required, anchor, *, max_rounding_roun
     return MarginRepair(stored, proposal.multipliers, receipt)
 
 
-def margin_neighborhood_bound(parameters, feature_difference, *, radius, offset=0.):
+def margin_neighborhood_bound(
+    parameters: Any,
+    feature_difference: Any,
+    *,
+    radius: Any,
+    offset: float=0.0,
+) -> dict[str, Any]:
     """Bound one affine comparison throughout an L2 feature neighborhood.
 
     The offset is fixed and the radius bounds the *difference* feature. A

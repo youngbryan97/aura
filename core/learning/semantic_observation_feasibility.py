@@ -12,9 +12,10 @@ from core.learning.semantic_graph_counterexamples import (
 from core.learning.semantic_joint_graph_learning import align_source_input_registers
 from core.learning.semantic_program_campaign import _sha
 from core.learning.semantic_program_transducer import _hidden_array
+from typing import Any
 
 
-def audit_observation_feasibility(examples):
+def audit_observation_feasibility(examples: Any) -> dict[str, Any]:
     """Audit development labels; no labels enter prediction or parameter fitting.
 
     Source hashes and family names are not decoder information. Model basis,

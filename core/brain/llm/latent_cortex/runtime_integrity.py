@@ -753,7 +753,17 @@ def _validate_measurement_pair(
         raise ValueError("runtime-integrity comparison does not reconstruct")
 
 
-def _validate_runtime_integrity_receipt_part_1(expected_checkpoint_file_count, expected_checkpoint_fingerprint, expected_checkpoint_method, expected_episode_id, expected_fast_weights_applied, expected_fast_weights_attach_attempted, expected_input_tokens_sha256, expected_worker_identity, value):
+def _validate_runtime_integrity_receipt_part_1(
+    expected_checkpoint_file_count: int | None,
+    expected_checkpoint_fingerprint: str | None,
+    expected_checkpoint_method: str | None,
+    expected_episode_id: str | None,
+    expected_fast_weights_applied: bool | None,
+    expected_fast_weights_attach_attempted: bool | None,
+    expected_input_tokens_sha256: str | None,
+    expected_worker_identity: Mapping[str, Any] | None,
+    value: Mapping[str, Any],
+) -> Any:
     if not isinstance(value, Mapping) or set(value) != _TOP_LEVEL_FIELDS:
         raise ValueError("runtime-integrity fields do not match schema")
     payload = {

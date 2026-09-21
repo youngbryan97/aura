@@ -129,7 +129,7 @@ def decode_public_greedy(
     last_tokens = None
     last_channels = None
 
-    def channels(values):
+    def channels(values: Any) -> Any:
         nonlocal last_tokens, last_channels
         if values == last_tokens:
             return last_channels
@@ -141,7 +141,7 @@ def decode_public_greedy(
         )
         return last_channels
 
-    def complete(values):
+    def complete(values: Any) -> bool:
         nonlocal completed
         current = channels(values)
         completed = bool(

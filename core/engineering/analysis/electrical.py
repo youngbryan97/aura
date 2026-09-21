@@ -18,6 +18,7 @@ from collections.abc import Iterable
 
 from core.engineering.analysis import Finding, register
 from core.engineering.units import Q, Quantity
+from typing import Any
 
 #: Copper resistivity at 20 C, and its temperature coefficient. A hot wire
 #: has more resistance than a cold one, by enough to matter over a run.
@@ -54,7 +55,7 @@ def wire_for(current: float, *, headroom: float = 1.25) -> tuple[int, float, flo
     return AWG_TABLE[0]
 
 
-def _supplies_and_loads(design) -> tuple[list, list]:
+def _supplies_and_loads(design: Any) -> tuple[list, list]:
     supplies = []
     loads = []
     for part in design.parts:
@@ -77,7 +78,7 @@ def _supplies_and_loads(design) -> tuple[list, list]:
     domains=("electrical",),
     discipline="electrical",
 )
-def power_budget(design) -> Iterable[Finding]:
+def power_budget(design: Any) -> Iterable[Finding]:
     supplies, loads = _supplies_and_loads(design)
     draw_terms = [value for _part, value in loads if value.dimension == Q(1, "W").dimension]
     if not draw_terms:
@@ -143,7 +144,7 @@ def power_budget(design) -> Iterable[Finding]:
     domains=("electrical",),
     discipline="electrical",
 )
-def battery_runtime(design) -> Iterable[Finding]:
+def battery_runtime(design: Any) -> Iterable[Finding]:
     _supplies, loads = _supplies_and_loads(design)
     draw_terms = [value for _p, value in loads if value.dimension == Q(1, "W").dimension]
     if not draw_terms:
@@ -191,7 +192,7 @@ def battery_runtime(design) -> Iterable[Finding]:
     domains=("electrical",),
     discipline="electrical",
 )
-def voltage_drop(design) -> Iterable[Finding]:
+def voltage_drop(design: Any) -> Iterable[Finding]:
     for link in design.connections:
         if link.domain != "electrical" or link.through is None:
             continue
@@ -270,7 +271,7 @@ def voltage_drop(design) -> Iterable[Finding]:
     domains=("electrical",),
     discipline="electrical",
 )
-def fuse_sizing(design) -> Iterable[Finding]:
+def fuse_sizing(design: Any) -> Iterable[Finding]:
     #: Standard fuse ratings, IEC 60269 / common automotive values.
     standard = (0.5, 1, 2, 3, 5, 7.5, 10, 15, 20, 25, 30, 40, 50, 60, 80, 100, 125, 150, 200)
     for link in design.connections:
@@ -312,7 +313,7 @@ def fuse_sizing(design) -> Iterable[Finding]:
     domains=("electrical", "thermal"),
     discipline="electrical",
 )
-def resistive_heating(design) -> Iterable[Finding]:
+def resistive_heating(design: Any) -> Iterable[Finding]:
     for part in design.parts:
         efficiency = part.ratings.get("efficiency")
         power = part.ratings.get("power") or part.ratings.get("power_draw")

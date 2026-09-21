@@ -105,7 +105,7 @@ def reach_utility(measurements: Sequence[tuple[int, bool]]) -> float:
 
 
 @invariant("cognition.sequence_reach_correctness_first", scope="cognition", owner=__name__)
-def reach_preserves_correctness():
+def reach_preserves_correctness() -> list[Any]:
     """No finite search saving outweighs a solved-family loss in the canary."""
     for size in (1, 2, 10, 100):
         if reach_utility([(10**12, True)] * size) <= reach_utility(

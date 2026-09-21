@@ -69,7 +69,7 @@ __all__ = [
 logger = logging.getLogger("Aura.TheRecordOfHerOwnWork")
 
 
-def _checked_lock(name: str, *, reentrant: bool = False):
+def _checked_lock(name: str, *, reentrant: bool=False) -> Any:
     """The repo's instrumented lock, so lockdep can see this one too.
 
     A raw threading.Lock is invisible to the ABBA detector, and a detector

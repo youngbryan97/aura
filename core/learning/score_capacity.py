@@ -29,7 +29,14 @@ def _identity(value: Any) -> str:
                                     allow_nan=False).encode()).hexdigest()
 
 
-def score_constraints(differences, offsets, *, margin=1.0, lower_bounds=None, strict=False):
+def score_constraints(
+    differences: Any,
+    offsets: Any,
+    *,
+    margin: float=1.0,
+    lower_bounds: Any=None,
+    strict: bool=False,
+) -> tuple[Any, ...]:
     """Represent d[i] @ weights + offset[i] >= margin with exact binary-float values."""
     matrix = np.asarray(differences, dtype=np.float64)
     offset = np.asarray(offsets, dtype=np.float64)
@@ -55,7 +62,7 @@ def score_constraints(differences, offsets, *, margin=1.0, lower_bounds=None, st
     return tuple(constraints)
 
 
-def _weights_satisfy(constraints, weights) -> bool:
+def _weights_satisfy(constraints: tuple[Any, ...], weights: dict[str, Any]) -> bool:
     for constraint in constraints:
         if any(name not in weights for name, _ in constraint.coeffs):
             return False
@@ -65,8 +72,16 @@ def _weights_satisfy(constraints, weights) -> bool:
     return True
 
 
-def assess_score_capacity(differences, offsets, *, margin=1.0, lower_bounds=None,
-                          comparison_ids=None, max_witness_constraints=32, strict=False) -> dict:
+def assess_score_capacity(
+    differences: list[Any],
+    offsets: list[Any],
+    *,
+    margin: float=1.0,
+    lower_bounds: Any=None,
+    comparison_ids: Any=None,
+    max_witness_constraints: int=32,
+    strict: bool=False,
+) -> dict:
     """Seek a checkable witness, preserving unknown when either search is inconclusive."""
     from scipy.optimize import linprog
 

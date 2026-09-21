@@ -389,11 +389,11 @@ class _ChecksTheReceiptContract:
 
     @staticmethod
     def _check_accounting_identity_and_verifiers(
-        receipt,
-        errors,
-        expected_worker_identity,
-        config,
-        runtime_controls,
+        receipt: Any,
+        errors: list[str],
+        expected_worker_identity: dict[str, Any] | None,
+        config: dict[str, Any],
+        runtime_controls: dict[str, Any] | None,
     ) -> tuple[Any, ...]:
         from .latent_cortex_service import (
             _integrity_verdict,
@@ -730,12 +730,12 @@ class _ChecksTheReceiptContract:
 
     @staticmethod
     def _check_request_input_and_runtime_identity(
-        claimed_request_sha256,
-        errors,
-        expected_request_payload_sha256,
-        information_accounting,
-        receipt,
-        config,
+        claimed_request_sha256: Any,
+        errors: list[str],
+        expected_request_payload_sha256: str,
+        information_accounting: Any,
+        receipt: Any,
+        config: dict[str, Any],
     ) -> None:
         if not _sha256(claimed_request_sha256):
             errors.append("request_payload_identity_unproven")
@@ -1059,15 +1059,15 @@ class _ChecksTheReceiptContract:
 
     @staticmethod
     def _check_uncertainty_halting_and_causal_receipts(
-        receipt,
-        config,
-        errors,
-        answer_replacement_private,
-        output_tokens,
-        expected_domain,
-        output_text,
-        information_accounting,
-        resource_accounting,
+        receipt: Any,
+        config: dict[str, Any],
+        errors: list[str],
+        answer_replacement_private: Any,
+        output_tokens: Any,
+        expected_domain: str,
+        output_text: Any,
+        information_accounting: Any,
+        resource_accounting: Any,
     ) -> None:
         try:
             from core.brain.llm.latent_cortex.neural_uncertainty import (
@@ -1397,17 +1397,17 @@ class _ChecksTheReceiptContract:
 
     @staticmethod
     def _check_search_memory_and_branch_exchange(
-        receipt,
-        resource_accounting,
-        config,
-        errors,
-        information_accounting,
-        answer_replacement_private,
-        output_text,
-        expected_objective,
-        output_tokens,
-        verified_generation,
-        verified_counterfactual,
+        receipt: Any,
+        resource_accounting: Any,
+        config: dict[str, Any],
+        errors: list[str],
+        information_accounting: Any,
+        answer_replacement_private: Any,
+        output_text: Any,
+        expected_objective: str,
+        output_tokens: Any,
+        verified_generation: Any,
+        verified_counterfactual: Any,
     ) -> Any:
         from .latent_cortex_service import (
             LatentCortexService,
@@ -1711,15 +1711,15 @@ class _ChecksTheReceiptContract:
 
     @staticmethod
     def _check_compute_and_decode_contracts(
-        allocated_budget,
-        budget,
-        errors,
-        receipt,
-        config,
-        expected_worker_identity,
-        resource_accounting,
-        output_text,
-        output_tokens,
+        allocated_budget: dict[str, Any] | None,
+        budget: Any,
+        errors: list[str],
+        receipt: Any,
+        config: dict[str, Any],
+        expected_worker_identity: dict[str, Any] | None,
+        resource_accounting: Any,
+        output_text: Any,
+        output_tokens: Any,
     ) -> None:
         from .latent_cortex_service import (
             LatentCortexService,

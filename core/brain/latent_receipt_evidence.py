@@ -62,7 +62,17 @@ class _ChecksTheReceiptEvidence:
         return errors
 
     @staticmethod
-    def _receipt_action_trace_errors(answer_replacement_private, config, errors, expected_objective, output_text, output_tokens, raw_action_trace, receipt, resource_accounting):
+    def _receipt_action_trace_errors(
+        answer_replacement_private: Any,
+        config: Any,
+        errors: Any,
+        expected_objective: Any,
+        output_text: Any,
+        output_tokens: Any,
+        raw_action_trace: Any,
+        receipt: Any,
+        resource_accounting: Any,
+    ) -> None:
         """Body lifted verbatim out of ``LatentCortexService._receipt_contract_errors``.
 
         Moved by tools/extract_seam.py, which refuses to write unless the
@@ -436,7 +446,13 @@ class _ChecksTheReceiptEvidence:
             errors.append("cognitive_operator_execution_unproven")
 
     @staticmethod
-    def _receipt_counterfactual_errors(config, errors, receipt, verified_counterfactual, verified_generation):
+    def _receipt_counterfactual_errors(
+        config: Any,
+        errors: Any,
+        receipt: Any,
+        verified_counterfactual: Any,
+        verified_generation: Any,
+    ) -> None:
         """Body lifted verbatim out of ``LatentCortexService._receipt_contract_errors``.
 
         Moved by tools/extract_seam.py, which refuses to write unless the
@@ -545,7 +561,18 @@ class _ChecksTheReceiptEvidence:
                 errors.append("blind_or_decoy_branch_review_unproven")
 
     @staticmethod
-    def _receipt_fast_weight_errors(config, errors, expected_worker_identity, finite_number_list, nonnegative_int, output_text, output_tokens, positive_int, receipt, resource_accounting):
+    def _receipt_fast_weight_errors(
+        config: Any,
+        errors: Any,
+        expected_worker_identity: Any,
+        finite_number_list: Any,
+        nonnegative_int: Any,
+        output_text: Any,
+        output_tokens: Any,
+        positive_int: Any,
+        receipt: Any,
+        resource_accounting: Any,
+    ) -> None:
         """Body lifted verbatim out of ``LatentCortexService._receipt_contract_errors``.
 
         Moved by tools/extract_seam.py, which refuses to write unless the

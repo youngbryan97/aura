@@ -109,7 +109,7 @@ async def _run_phase(
         return None
 
 
-def _init_cognitive_sensory_layer_learned_cognitive_systems():
+def _init_cognitive_sensory_layer_learned_cognitive_systems() -> tuple[dict[str, Any], int]:
     # Learned cognitive systems replace rigid if/else rules with adaptive,
     # data-driven systems. Each is optional, but every deferral is recorded.
     cognitive_services = {

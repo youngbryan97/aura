@@ -31,7 +31,7 @@ __all__ = ["contract_health_fragment", "install", "install_contract_health"]
 FRAGMENT_NAME = "cognitive_contracts"
 
 
-def _safe(label: str, fn) -> dict[str, Any]:
+def _safe(label: str, fn: Any) -> dict[str, Any]:
     """Ask one ledger for its numbers. A ledger that raises is reported, not fatal."""
     try:
         return fn()
@@ -100,7 +100,7 @@ def install_contract_health() -> bool:
     return _register(FRAGMENT_NAME, contract_health_fragment)
 
 
-def _register(name: str, provider) -> bool:
+def _register(name: str, provider: Any) -> bool:
     try:
         from core.runtime.health_fragments import register_health_fragment
 
