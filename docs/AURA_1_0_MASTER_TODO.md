@@ -1060,6 +1060,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Restored latent decode](evidence/G03_RESTORED_LATENT_DECODE_2026-09-20.md)
+  reaches 25/25 source-acquisition cases after retaining changed latent bindings,
+  but regresses from 99/100 to 94/100 on separate development validation.
+  No promotion; full source replay and remaining semantic repair continue.
   [Restoration working set](evidence/G03_RESTORATION_WORKING_SET_2026-09-20.md)
   repairs a reproduced correction cycle: one full-retention update changes
   20 wrong comparisons to zero without floor regression. Fresh decode remains.
