@@ -749,14 +749,38 @@ def test_a_goal_carries_what_leaving_it_costs_into_attention():
     assert costs[1] == 0.0, "a goal nothing owns is not threatened by time"
 
 
-def test_leaving_costs_more_the_further_in_she_is():
-    """The quantity has to be a reading, not a label."""
+def test_the_goal_that_is_slipping_asks_louder_than_the_one_that_is_safe():
+    """The quantity has to be a reading, not a label.
+
+    It used to assert the other direction, when the counterfactual for leaving
+    a goal alone was blocking it: a blocked goal is worth exactly zero, so the
+    cost was the goal's whole value and the further in she was the more of it
+    there was. That priced abandonment. Every owned goal lost everything, every
+    cost came out at the ceiling, and `D.goal_urgency` — the maximum over her
+    goals — read 1.0000 on all 5,280 frames of a probe.
+
+    What the workspace prices attention on is how much a thing is asking to be
+    thought about now, and the counterfactual for that is one more turn between
+    here and the payoff. A goal one step from done is not asking: it will land
+    whenever she gets to it. A goal still far off, with her runs ending where
+    they usually end, loses a real share of its chance to another turn's delay.
+    """
     from core.goals.goal_engine import what_leaving_each_costs
 
     started = {"plan_id": "p1", "steps_done": 1, "steps_total": 8, "priority": 0.5}
     nearly = {"plan_id": "p2", "steps_done": 7, "steps_total": 8, "priority": 0.5}
     costs = what_leaving_each_costs([started, nearly])
-    assert costs[1] > costs[0]
+    assert costs[0] > costs[1]
+    # And it is a reading rather than a label: neither sits at the ceiling.
+    assert max(costs) < 1.0, costs
+    assert min(costs) > 0.0, costs
+
+
+def test_a_goal_no_plan_is_holding_loses_nothing_to_a_turn():
+    from core.goals.goal_engine import what_leaving_each_costs
+
+    unowned = {"steps_done": 1, "steps_total": 8, "priority": 0.5}
+    assert what_leaving_each_costs([unowned]) == [0.0]
 
 
 def test_an_empty_docket_costs_nothing_and_does_not_raise():

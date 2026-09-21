@@ -285,8 +285,28 @@ def _how_a_goal_stands(
         return ("go stale",) if owned else ()
 
     def left_alone(one: dict[str, Any], _act: str) -> dict[str, Any]:
-        # What this engine already does to a goal left too long: blocks it.
-        return {**one, "steps_done": 0.0, "priority": 0.0}
+        """One more turn between here and the payoff, and nothing else.
+
+        This returned the goal with its progress and its priority set to zero
+        — what the engine does to a goal left too long, which is block it. But
+        the question here is what is lost by not spending *this turn* on it,
+        and the answer was the whole goal: `how_good` of a blocked goal is
+        exactly zero, so every owned goal lost everything and every cost came
+        out at the ceiling. `D.goal_urgency` is the maximum over her goals and
+        read 1.0000 on all 5,280 frames of the probe, and the choice of what to
+        get on with fell back to whichever was biggest — the one thing its own
+        docstring says must not decide it.
+
+        A turn not spent does not take her progress away. It puts the payoff
+        one turn further off, and what that costs is the extra chance she is
+        not still here when it lands, which `still_here_for` already prices
+        from how far her runs have actually got.
+        """
+        try:
+            total = float(one.get("steps_total") or 0.0)
+        except (TypeError, ValueError):
+            return dict(one)
+        return {**one, "steps_total": max(1.0, total) + 1.0}
 
     return how_good, what_time_does, left_alone
 
@@ -325,7 +345,23 @@ def what_leaving_each_costs(active: list[dict[str, Any]]) -> list[float]:
         except (TypeError, ValueError, ZeroDivisionError):
             costs.append(0.0)
             continue
-        costs.append(max(0.0, min(1.0, standing - after)))
+        # As a share of what the goal is worth, not as a difference clamped
+        # into [0, 1]. `how_good` is progress plus priority, discounted, so it
+        # spans zero to two; a difference of two such numbers passes one
+        # whenever a goal in flight would lose most of itself, and the clamp
+        # turned every one of those into exactly 1.0. `D.goal_urgency` is the
+        # maximum over her goals, so one goal at the ceiling pinned the column
+        # there: it read 1.0000 on all 5,280 frames of the probe, and
+        # deliberation's claim on attention was a constant again in a
+        # different way.
+        #
+        # The share is the quantity the sentence above means anyway — how much
+        # of what this goal is worth is lost by leaving it — and it cannot
+        # saturate, because a goal cannot lose more than it has.
+        if standing <= 0.0:
+            costs.append(0.0)
+            continue
+        costs.append(max(0.0, min(1.0, (standing - after) / standing)))
     return costs
 
 
