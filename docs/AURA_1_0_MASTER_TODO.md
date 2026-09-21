@@ -1120,6 +1120,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Cohort repair protocol](evidence/G03_COHORT_REPAIR_PROTOCOL_2026-09-20.md)
+  freezes further scoring changes pending a full failure map. The retention
+  pilot improves the expanded source cohort from 16/25 to 24/25, but retains
+  one validation regression (98/100 versus 99/100); no promotion.
   [Conditional pilot](evidence/G03_CONDITIONAL_PILOT_RESULT_2026-09-20.md)
   repairs 3/3 diagnostic source errors and retains 2/2 source controls, but
   scores 96/100 versus the parent's 99/100 on development validation.

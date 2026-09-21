@@ -184,6 +184,11 @@ def test_production_joint_refit_wires_round_checkpoints(tmp_path):
                    numerical_checkpoint=tmp_path / "round-1.npz")
     verified = load_round_candidate(saved_path, **options)
     assert verified.receipt_sha256 == restored.receipt_sha256
+    from tools.refit_semantic_argument_proposals import load_evaluation_candidate
+    assert load_evaluation_candidate(saved_path, model, round_index=1,
+        numerical_checkpoint=tmp_path / "round-1.npz").receipt_sha256 == restored.receipt_sha256
+    with pytest.raises(ValueError, match="requires its numerical checkpoint"):
+        load_evaluation_candidate(saved_path, model, round_index=1)
     for change in (dict(expected_parent="another-parent"), dict(expected_round=2), dict(expected_round=True)):
         with pytest.raises(ValueError, match="identity or checkpoint"):
             load_round_candidate(saved_path, **{**options, **change})
