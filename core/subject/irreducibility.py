@@ -262,6 +262,13 @@ def _basis(block: np.ndarray, train: slice, k: int) -> Any:
     return lambda values: ((values[:, keep] - centre) / scale) @ directions
 
 
+#: How much of the target a model has to explain before the share it explains
+#: is a denominator. Below this the intact model is predicting the training
+#: mean, so there is no transition law for a cut to damage and the ratio is two
+#: vanishing numbers over each other.
+_EXPLAINED_FLOOR: float = 0.01
+
+
 def phi_do(
     recording: Recording,
     *,
@@ -270,6 +277,7 @@ def phi_do(
     at: tuple[tuple[str, ...], tuple[str, ...]] | None = None,
     components: int = COMPONENTS,
     folds: int = FOLDS,
+    explained_share: bool = False,
 ) -> PartitionReport:
     """The minimum over bipartitions of the loss the cut costs.
 
@@ -378,6 +386,27 @@ def phi_do(
             return None
         loss_cut = float((sse_a + sse_b)[mask].sum()) / base
         loss_full = float((full_fit[side_a] + full_fit[side_b])[mask].sum()) / base
+        if explained_share:
+            # The cut's cost as a share of what the intact model can explain at
+            # all, rather than as a share of everything the target does.
+            #
+            # Write the target's variance as S, the part a model of the whole
+            # previous state can explain, plus N, the part nothing can. The
+            # intact model's error is E_full + N and the cut model's is
+            # E_cut + N, both over S + N. The published ratio is
+            # (E_cut - E_full) / (E_cut + N): every unpredictable column adds
+            # to N and shrinks it, and four noise columns per domain took the
+            # recurrent reference from 0.062 to 0.005 without changing the
+            # system at all. Dividing by 1 - loss_full instead gives
+            # (E_cut - E_full) / (S - E_full), in which N cancels exactly.
+            #
+            # A model that explains nothing has nothing to lose by being cut,
+            # and the answer there is that there is no transition law rather
+            # than a ratio of two vanishing numbers.
+            explained = 1.0 - loss_full
+            if explained <= _EXPLAINED_FLOOR:
+                return None
+            return (loss_cut - loss_full) / explained
         if loss_cut <= 0.0:
             return 0.0
         return (loss_cut - loss_full) / loss_cut

@@ -220,7 +220,7 @@ class ItemPreference:
         return payload
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ItemPreference":
+    def from_dict(cls, data: dict[str, Any]) -> ItemPreference:
         aliases = data.get("aliases", ())
         if isinstance(aliases, list):
             aliases = tuple(str(item) for item in aliases)
@@ -383,7 +383,17 @@ class SubjectiveChoiceEngine:
         *,
         context: str,
         record: bool = True,
+        influenced: bool = True,
     ) -> SubjectiveChoiceReceipt:
+        """``influenced`` is whether her own history of coming back to things
+        weighs on this choice and is added to by it.
+
+        A tournament asks the same question six times to see whether her
+        preferences are stable. If each asking moved what she is drawn to, the
+        instrument would be measuring its own effect: the preference tournament
+        read 0.97 consistency for exactly that reason. Asking is not living, so
+        a question set to measure her neither reads the pull nor feeds it.
+        """
         option_list = list(options)
         if not option_list:
             raise ValueError("subjective choice requires at least one option")
@@ -393,19 +403,36 @@ class SubjectiveChoiceEngine:
         final_scores: dict[str, float] = {}
         option_features: dict[str, dict[str, float]] = {}
         impulse = impulse_record(self.history())
+        intactness = self._intactness_cost()
         for option in option_list:
             features = _norm_features(option.features or infer_preference_features(
                 f"{option.label} {option.description}", option.metadata
             ))
             option_features[option.id] = features
-            risk_penalty = 0.35 * _clamp(option.risk) * self._impulse_cost(features, impulse)
+            risk_penalty = 0.35 * _clamp(option.risk) * self._impulse_cost(features, impulse) * intactness
             drive = _clamp(option.drive_score)
             item_bonus = self._item_preference_bonus(option, context=context)
             pref = _clamp(self.score_features(features) + item_bonus)
+            # And what she keeps coming back to after better things won it.
+            # The receipt below marks every loser as passed over, and this is
+            # the half that reads it: an option she returns to more often than
+            # she returns to anything gets that excess added, which is a share
+            # of occasions and sits on the scale the other terms use.
+            #
+            # It cannot run away. An option only counts as returned to when it
+            # was standing passed over, so choosing it clears the mark and the
+            # pull only grows if it loses again and is come back to again.
+            # See core/motivation/returning.py.
+            # Only on a choice she is actually making. A probe asks what she
+            # would pick on the merits, and a probe that read the ledger would
+            # make two independent runs depend on each other — which is what
+            # the preference tournament measures and what it caught.
+            pull = self._pull_toward(option.id) if (record and influenced) else 0.0
             final = (
                 ((1.0 - self.preference_latitude) * drive)
                 + (self.preference_latitude * pref)
                 + (0.30 * item_bonus)
+                + pull
                 - risk_penalty
             )
             drive_scores[option.id] = drive
@@ -474,13 +501,29 @@ class SubjectiveChoiceEngine:
         )
         if record:
             self._learn_item_preference_from_choice(chosen, context=context, receipt=receipt)
-            self._record(receipt)
+            self._record(receipt, influenced=influenced)
         return receipt
 
     def history(self) -> list[SubjectiveChoiceReceipt]:
         """Her choice receipts, oldest first, as a copy."""
         with self._lock:
             return list(self._history)
+
+    @staticmethod
+    def _intactness_cost() -> float:
+        """How much more, or less, risk costs after what hard things have cost her.
+
+        One until she has come through enough to say. Below one while she keeps
+        coming through better than she predicted, above it while she is hurt
+        more than she expected. See core/self/still_standing.py.
+        """
+        try:
+            from core.self.still_standing import get_intactness_ledger
+
+            return float(get_intactness_ledger().risk_weight())
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("subjective_choice", exc, action="charged risk without her intactness")
+            return 1.0
 
     @staticmethod
     def _impulse_cost(features: dict[str, float], impulse: Any) -> float:
@@ -499,6 +542,7 @@ class SubjectiveChoiceEngine:
         option_list = list(options)
         ranked: list[dict[str, Any]] = []
         impulse = impulse_record(self.history())
+        intactness = self._intactness_cost()
         for option in option_list:
             features = _norm_features(option.features or infer_preference_features(
                 f"{option.label} {option.description}", option.metadata
@@ -510,7 +554,7 @@ class SubjectiveChoiceEngine:
                 ((1.0 - self.preference_latitude) * drive)
                 + (self.preference_latitude * pref)
                 + (0.30 * item_bonus)
-                - (0.35 * _clamp(option.risk) * self._impulse_cost(features, impulse))
+                - (0.35 * _clamp(option.risk) * self._impulse_cost(features, impulse) * intactness)
             )
             ranked.append({
                 "id": option.id,
@@ -629,7 +673,7 @@ class SubjectiveChoiceEngine:
 
     status = get_status
 
-    def _record(self, receipt: SubjectiveChoiceReceipt) -> None:
+    def _record(self, receipt: SubjectiveChoiceReceipt, *, influenced: bool = True) -> None:
         with self._lock:
             self._history.append(receipt)
             if len(self._history) > MAX_HISTORY:
@@ -637,8 +681,22 @@ class SubjectiveChoiceEngine:
             self._save()
         if self._mirror_identity:
             self._mirror_choice_to_identity_ledger(receipt)
-        self._note_what_she_passed_over(receipt)
+        if influenced:
+            self._note_what_she_passed_over(receipt)
         logger.info("🧭 [SubjectiveChoice] %s", receipt.rationale)
+
+    @staticmethod
+    def _pull_toward(option_id: str) -> float:
+        """The excess rate at which she comes back to this one, or nothing."""
+        try:
+            from core.motivation.returning import get_returning_ledger
+
+            ledger = get_returning_ledger()
+            if not ledger.read().measured:
+                return 0.0
+            return float(ledger.pull_for(option_id))
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+            return 0.0
 
     @staticmethod
     def _note_what_she_passed_over(receipt: SubjectiveChoiceReceipt) -> None:

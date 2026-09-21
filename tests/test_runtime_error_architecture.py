@@ -2304,11 +2304,16 @@ def test_motivation_update_reads_through_the_registry_and_instantiates_once():
     import ast
     import inspect
 
+    import core.phases.motivation_signals as motivation_signals
     import core.phases.motivation_update as motivation_update
 
+    # The phase and the mixin its signal readers moved into, read together:
+    # the three observations now live in the mixin and the lifecycle call in
+    # the phase, and a count over one file would lose whichever half moved.
     source = inspect.getsource(motivation_update)
+    together = source + inspect.getsource(motivation_signals)
     assert "from core.runtime.service_registry import" in source
-    assert source.count("get_runtime_service(") >= 4
+    assert together.count("get_runtime_service(") >= 4
 
     tree = ast.parse(source)
     container_imports = [

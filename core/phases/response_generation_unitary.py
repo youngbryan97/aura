@@ -2929,6 +2929,14 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
                 get_convenience_ledger().note_reply(result.answer)
             except (ImportError, AttributeError, TypeError, ValueError) as exc:
                 _record_response_degradation(exc, "UnitaryResponse: reply not kept for distinctness: %s")
+            # And the regard it carried, as a form this person will take one
+            # way or another and as something given.
+            try:
+                from core.social.the_form_they_welcome import note_sent
+
+                note_sent(result.answer, objective, str(getattr(state.cognition, "current_partner", "") or ""))
+            except (ImportError, AttributeError, TypeError, ValueError) as exc:
+                _record_response_degradation(exc, "UnitaryResponse: reply forms not kept: %s")
             return result.answer.strip()
         return draft
 

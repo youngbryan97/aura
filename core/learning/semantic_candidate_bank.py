@@ -6,21 +6,29 @@ import math
 
 from core.learning.procedure_induction import Program
 from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
-from core.learning.semantic_graph_counterexamples import argument_graph_program
+from core.learning.semantic_graph_counterexamples import argument_graph_order, argument_graph_program
 from core.learning.semantic_operation_search import OperationChartSearch, OperationSearchIncompleteError
 from core.learning.semantic_program_campaign import _sha
 from core.learning.semantic_program_ir import TokenSpan, normalize_semantic_value
 from core.learning.semantic_program_transducer import SemanticTransductionOutcome, _hidden_array
 from core.learning.semantic_program_transducer_fitting import _assign_typed_arguments
+from core.verify.invariants import invariant
 
 
 @dataclass(frozen=True)
 class SemanticCandidate:
+    """A program and its operation spans, both in execution order."""
     program: Program
     joint_score: float | None
     operation_spans: tuple[TokenSpan, ...]
     chart_index: int | None
     graph_index: int | None
+
+    @classmethod
+    def from_argument_graph(cls, nodes, arguments, *, n_inputs, joint_score, chart_index, graph_index):
+        order = argument_graph_order(nodes, arguments, n_inputs=n_inputs)
+        return cls(argument_graph_program(nodes, arguments, n_inputs=n_inputs), joint_score,
+                   tuple(nodes[index].span for index in order), chart_index, graph_index)
 
     def to_dict(self):
         return {"program": self.program.to_dict(), "program_sha256": self.program.sha(),
@@ -81,8 +89,8 @@ def decode_semantic_candidates(model, *, source_token_ids, hidden_states, public
         progress({"stage": "ordinary_decode"})
     outcome = model.decode(source_token_ids=source_token_ids, hidden_states=hidden_states,
         public_inputs=public_inputs, source_text_sha256=source_text_sha256,
-        model_basis_sha256=model_basis_sha256)
-    body = {"schema": "aura.semantic_candidate_bank.v1", "source_text_sha256": source_text_sha256,
+        model_basis_sha256=model_basis_sha256, search_time_limit_s=solve_time_limit_s)
+    body = {"schema": "aura.semantic_candidate_bank.v2", "source_text_sha256": source_text_sha256,
             "model_basis_sha256": model_basis_sha256, "transducer_receipt_sha256": model.receipt_sha256,
             "expected_answer_available": False, "source_annotations_available": False,
             "serving_authority": False, "selection_changed": False,
@@ -163,8 +171,9 @@ def decode_semantic_candidates(model, *, source_token_ids, hidden_states, public
                     joint_score = score + sum(node.score for node in nodes) - model.operation_length_penalty * len(nodes)
                     if not math.isfinite(joint_score):
                         raise ValueError("candidate graph score is nonfinite")
-                    candidates.append(SemanticCandidate(program, joint_score,
-                        tuple(node.span for node in nodes), chart_index, graph_index))
+                    candidates.append(SemanticCandidate.from_argument_graph(nodes, arguments,
+                        n_inputs=len(inputs), joint_score=joint_score,
+                        chart_index=chart_index, graph_index=graph_index))
                     row["examined_graphs"] += 1
                     if progress:
                         progress({"stage": "candidate_retained", "chart": chart_index,
@@ -178,3 +187,17 @@ def decode_semantic_candidates(model, *, source_token_ids, hidden_states, public
     body["search_complete"] = body["operation_search_complete"] and all(
         row["search_complete"] for row in body["charts"])
     return finish(",".join(dict.fromkeys(reasons)) or None)
+
+
+@invariant("learning.semantic_candidate_spans_follow_program_order", scope="learning",
+           owner="core/learning/semantic_candidate_bank.py", observational=False)
+def _candidate_span_order() -> tuple:
+    from types import SimpleNamespace
+
+    nodes = (SimpleNamespace(operation="sub", span=TokenSpan(2, 3)),
+             SimpleNamespace(operation="add", span=TokenSpan(9, 10)))
+    candidate = SemanticCandidate.from_argument_graph(nodes, ((3, 0), (0, 1)),
+        n_inputs=2, joint_score=1., chart_index=0, graph_index=0)
+    assert candidate.program.instructions[0].op == "add"
+    assert candidate.operation_spans == (nodes[1].span, nodes[0].span)
+    return ()

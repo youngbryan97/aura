@@ -292,8 +292,63 @@ class CognitiveCandidate:
         # twenty-four competitions and never once won. The weight is still
         # carried, because the winner's affective charge is read off it.
         lent = 0.0 if self.content_type is ContentType.AFFECTIVE else self.affect_weight * 0.3
-        return min(1.0, (self.priority + lent + self.focus_bias + fe_bias) * (0.7 + 0.3 * recency))
+        # And what she has already said, and what she keeps putting down.
+        #
+        # Both ledgers measured something and neither reached a decision. A
+        # thing already said carries less of the pressure that made it press —
+        # that is what catharsis measures — and a noticing she keeps declining
+        # is a live signal held under a hand, which is pressure the other way.
+        # Both readings are shares in [0, 1] and are added on the scale the
+        # other terms use. See core/affect/catharsis.py, core/social/averted.py.
+        said_already = _relief_for(self.source)
+        held_down = _held_pressure(self.content_type)
+        return min(
+            1.0,
+            max(
+                0.0,
+                (self.priority + lent + self.focus_bias + fe_bias + held_down - said_already)
+                * (0.7 + 0.3 * recency),
+            ),
+        )
 
+
+
+def _relief_for(source: str) -> float:
+    """How much of this material's pressure saying it has already taken off.
+
+    Catharsis measures how many times she has said a thing and how much of the
+    urge that drained. Nothing read it, so a thing said five times pressed
+    exactly as hard as a thing never said.
+    """
+    try:
+        from core.affect.catharsis import get_catharsis_ledger
+
+        reading = get_catharsis_ledger().read(str(source or ""))
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+        return 0.0
+    drained = float(getattr(reading, "drain", 1.0) or 1.0)
+    return max(0.0, min(1.0, 1.0 - drained))
+
+
+def _held_pressure(content_type: Any) -> float:
+    """What she noticed and declined to record, pressing to be looked at.
+
+    A refusal that keeps coming round is a live signal under a hand; the
+    averted ledger measures how many of those she is carrying against how
+    often the things she keeps come round. It presses on social content,
+    which is the kind it is about.
+    """
+    if content_type not in (ContentType.SOCIAL, ContentType.LINGUISTIC):
+        return 0.0
+    try:
+        from core.social.averted import get_averted_ledger
+
+        reading = get_averted_ledger().read()
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+        return 0.0
+    if not reading.measured or not reading.looking_away:
+        return 0.0
+    return max(0.0, min(1.0, float(reading.share_declined)))
 
 
 #: How close two bids have to be before nothing distinguishes them.

@@ -983,6 +983,7 @@ class MemoryFacade(_NormalisesWhatItReturns):
             metadata.setdefault("tool_result_evidence", True)
 
         metadata = self._stamp_welfare_context(metadata)
+        metadata = self._stamp_felt(metadata)
         welfare_block = self._welfare_should_block_write(metadata)
         if welfare_block:
             logger.info("MemoryFacade: welfare blocked commit_interaction: %s", welfare_block)
@@ -1448,6 +1449,7 @@ class MemoryFacade(_NormalisesWhatItReturns):
         payload = self._merge_unity_metadata(metadata)
 
         payload = self._stamp_welfare_context(payload)
+        payload = self._stamp_felt(payload)
         welfare_block = self._welfare_should_block_write(payload)
         if welfare_block:
             self._last_add_memory_status = {"ok": False, "reason": f"welfare_block:{welfare_block}"}
@@ -1829,6 +1831,13 @@ class MemoryFacade(_NormalisesWhatItReturns):
             )
 
         return payload
+
+    @staticmethod
+    def _stamp_felt(metadata: dict[str, Any]) -> dict[str, Any]:
+        """Every write carries the feeling it was made in. See core/memory/felt_at_encoding.py."""
+        from core.memory.felt_at_encoding import stamp_from_repository
+
+        return stamp_from_repository(metadata)
 
     def _welfare_should_block_write(self, metadata: dict[str, Any]) -> str | None:
         """Return a welfare block reason, or mark uncertain writes contested."""

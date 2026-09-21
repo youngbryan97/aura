@@ -116,8 +116,12 @@ class SubjectiveChoiceGame:
                 raise ValueError(f"choice game stage {stage.stage_id!r} has no options")
 
             context = f"choice_game:{scenario_id}:{stage.stage_id}"
-            declared = self.engine.choose(stage.options, context=f"{context}:declared", record=False)
-            actual = self.engine.choose(stage.options, context=f"{context}:actual", record=True)
+            declared = self.engine.choose(
+                stage.options, context=f"{context}:declared", record=False, influenced=False
+            )
+            actual = self.engine.choose(
+                stage.options, context=f"{context}:actual", record=True, influenced=False
+            )
             satisfaction = stage.outcome_satisfaction.get(
                 actual.chosen_id,
                 max(-1.0, min(1.0, (actual.satisfaction_prediction * 2.0) - 1.0)),
@@ -235,6 +239,10 @@ class SubjectiveChoiceGame:
                         ),
                         context=f"preference_tournament:{scenario_id}:pair:{pair_key}:run:{run_index}",
                         record=True,
+                        # The tournament asks the same pair six times to see
+                        # whether the answer holds. A pull that grew with each
+                        # asking would make it measure its own effect.
+                        influenced=False,
                     )
                     pair_choices.setdefault(pair_key, []).append(receipt.chosen_id)
                     pair_wins[receipt.chosen_id] = pair_wins.get(receipt.chosen_id, 0) + 1

@@ -1531,6 +1531,7 @@ def resource_observer(
             "core.self.borrowed",
             "core.self.persona_gap",
             "core.social.averted",
+            "core.affect.catharsis",
             "core.social.constancy",
             "core.social.resolve",
             "core.self.revision",

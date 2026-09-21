@@ -245,6 +245,17 @@ class InitiativeArbiter:
 
         self._selection_history.append(best)
         self._record_choice_for_learning(best, scored)
+        # Which harder tasks lost to this one on cost alone. Each such loss
+        # moves that task's cost score toward free at the next arbitration.
+        # See core/agency/easier_loss.py.
+        try:
+            from core.agency.easier_loss import get_avoidance_ledger
+
+            get_avoidance_ledger().note_choice(
+                best, [item for item in scored if item is not best], self._compute_weighted_score
+            )
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("could not note what this choice passed over on cost: %s", exc)
         self._log_selection(best)
         return best
 
@@ -286,6 +297,14 @@ class InitiativeArbiter:
         scores["tension_resolution"] = self._score_tension_resolution(initiative)
         scores["expected_value"] = self._score_expected_value(initiative)
         scores["resource_cost"] = self._score_resource_cost(initiative)
+        # A task she keeps passing over for something cheaper and worth less
+        # costs less each time. See core/agency/easier_loss.py.
+        try:
+            from core.agency.easier_loss import get_avoidance_ledger
+
+            scores["resource_cost"] = get_avoidance_ledger().lift(initiative, scores["resource_cost"])
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("could not read what avoiding this task has cost: %s", exc)
         scores["social_appropriateness"] = self._score_social_appropriateness(initiative, state)
         scores["continuity"] = self._score_continuity(initiative)
 
