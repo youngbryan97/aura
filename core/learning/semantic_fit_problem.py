@@ -1,5 +1,6 @@
 """Replay retained numerical fit inputs without rerunning semantic mining."""
 
+from collections import Counter
 from dataclasses import fields
 from io import BytesIO
 import json
@@ -70,6 +71,7 @@ def load_fit_problem(path, *, expected_identity):
             or metadata.get("sha256") != fit_identity((body, arrays))):
         raise ValueError("fit problem identity or checksum differs")
     decoded = []
+    remaining = Counter(node["array"] for node in body["nodes"] if set(node) == {"array"})
 
     def decode(value):
         if set(value) == {"literal"}:
@@ -83,7 +85,9 @@ def load_fit_problem(path, *, expected_identity):
         if set(node) == {"array"}:
             # Equal values share storage, while distinct source arrays remain
             # distinct objects. Repeated references still resolve to one node.
-            value = arrays[node["array"]].copy()
+            name = node["array"]
+            remaining[name] -= 1
+            value = arrays.pop(name) if remaining[name] == 0 else arrays[name].copy()
         elif set(node) == {"tuple"}:
             value = tuple(decode(part) for part in node["tuple"])
         elif set(node) == {"type", "fields"} and node["type"] in _TYPES:

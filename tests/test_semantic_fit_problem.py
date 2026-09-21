@@ -21,6 +21,39 @@ def test_equal_arrays_share_archive_storage_without_changing_aliases(tmp_path):
     assert restored[0] is not restored[2]
     for value in restored:
         np.testing.assert_array_equal(value, shared)
+    restored[0][0] = -1
+    assert restored[1][0] == -1
+    assert restored[2][0] == 0
+
+
+def test_single_array_node_keeps_loaded_storage(tmp_path, monkeypatch):
+    from core.learning import semantic_fit_problem
+
+    path = tmp_path / "single.npz"
+    save_fit_problem(path, identity="single", initial=(np.arange(100),), contrasts=(), options={})
+    original_load = np.load
+    loaded = {}
+
+    class ObservedArchive:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            self.archive.close()
+
+        def __init__(self, *args, **kwargs):
+            self.archive = original_load(*args, **kwargs)
+            self.files = self.archive.files
+
+        def __getitem__(self, name):
+            value = self.archive[name]
+            if name != "metadata":
+                loaded[name] = value
+            return value
+
+    monkeypatch.setattr(semantic_fit_problem.np, "load", ObservedArchive)
+    restored = load_fit_problem(path, expected_identity="single")["initial"]
+    assert restored[0] is loaded["array_0"]
 
 
 def test_roundtrip_preserves_scores_gradients_and_shared_evidence(tmp_path):
