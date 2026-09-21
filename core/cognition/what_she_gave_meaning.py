@@ -154,7 +154,10 @@ def _words_she_derived() -> dict[str, Any]:
         machinery["order"] = written_order()
     if the_proposer_in_use() != THE_PROPOSER:
         machinery["proposer"] = the_proposer_written_down()
+    from core.cognition.an_operator_she_invents import the_kernel
+
     return {
+        "invented_operators": the_kernel().written_operators(),
         "machinery": machinery,
         "shapeless": shapeless,
         "addressings": addressings,
@@ -183,10 +186,14 @@ def keep() -> bool:
         }
         for kind, meaning in KINDS.items()
     }
-    words = _words_she_derived()
-    if not kinds and not any(words.values()):
+    try:
+        words = _words_she_derived()
+    except (TypeError, ValueError, RecursionError) as exc:
+        record_degradation("what_she_gave_meaning", exc, severity="info",
+                           action="serialize the learned language without losing operators")
         return False
-    _ = words.get("heads")
+    if not kinds and not any(words.values()) and not _kept_at().exists():
+        return False
     body: dict[str, Any] = {"kinds": kinds, "language": words}
     try:
         from core.governance_context import local_internal_governed_scope
@@ -211,8 +218,8 @@ def keep() -> bool:
         logger.info(
             "kept %d meaning(s) and %d derived word(s) in %d way(s) of building",
             len(kinds),
-            len(words["addressings"]) + len(words["operations"]),
-            len(words["ways"]),
+            len(words.get("addressings", {})) + len(words.get("operations", {})),
+            len(words.get("ways", [])),
         )
         return True
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
@@ -233,6 +240,14 @@ def _put_the_language_back(language: dict[str, Any]) -> int:
     )
 
     back = 0
+    if "invented_operators" in language:
+        from core.cognition.an_operator_she_invents import the_kernel
+
+        try:
+            back += the_kernel().recall_operators(language["invented_operators"])
+        except (TypeError, ValueError, RecursionError) as exc:
+            record_degradation("what_she_gave_meaning", exc, severity="info",
+                               action="restore retained operators without partial installation")
     from core.cognition.a_constructor_she_built import build as rebuild
     from core.cognition.a_constructor_she_built import read_back as read_recipe
 

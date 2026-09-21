@@ -1120,6 +1120,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Source neighborhood diagnostic](evidence/G03_OPERATION_NEIGHBORHOOD_2026-09-21.md)
+  finds all four nearest-training-feature rules below the existing classifier
+  on gold spans from exposed controls and failures. No model is exported.
   [Complete span-set objective](evidence/G03_SPAN_SET_OBJECTIVE_2026-09-21.md)
   trains boundary selection against an exact non-overlap partition. The first
   paired pilots, with 64 and 764 training rows, both preserve 16 controls but
@@ -1537,6 +1540,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   baseline-dependent task filtering in the retrieval/depth diagnostic. The
   68-test focused pass does not qualify a model or close campaign verification.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [Operator retention](evidence/G09_OPERATOR_RETENTION_2026-09-21.md) connects
+  invented terms to the existing language store and shared rollback boundary.
+  Recall preserves semantics without granting a new qualification; novelty
+  compares complete operator behaviors. Broad gain remains unmeasured.
   [Grounded operator invention](evidence/G09_GROUNDED_OPERATOR_INVENTION_2026-09-21.md)
   repairs example-output admission, retained-term reuse, actual search coverage,
   and outer transaction rollback. Same-function lesion/rescue passes; fresh

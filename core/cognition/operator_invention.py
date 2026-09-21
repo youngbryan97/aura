@@ -76,6 +76,8 @@ class Rejection(StrEnum):
     NO_COMPRESSION = "no_compression"
     FAILED_ADVERSARIAL = "failed_adversarial"
     RAISED = "raised"
+    NAME_CONFLICT = "name_conflict"
+    STATE_CHANGED = "state_changed"
 
 
 @dataclass
@@ -199,7 +201,7 @@ class Verdict:
         }
 
 
-@dataclass
+@dataclass(frozen=True)
 class Operator:
     """An installed operator, and where it came from."""
 
@@ -258,6 +260,77 @@ class OperatorKernel:
             self._operators = dict(state.operators)
             self._snapshots = [(name, dict(before)) for name, before in state.snapshots]
 
+    @staticmethod
+    def _written_operator(operator: Operator) -> dict[str, Any]:
+        from core.cognition.the_floor_she_stands_on import Code, read_back, written_down
+
+        if not isinstance(operator.term, Code):
+            raise ValueError(f"operator {operator.name!r} has no serializable floor term")
+        term = written_down(operator.term)
+        if read_back(term) != operator.term:
+            raise ValueError(f"operator {operator.name!r} has an unreadable floor term")
+        return {
+            "schema": "aura.retained_floor_operator.v1", "name": operator.name,
+            "body": operator.body, "built_from": list(operator.built_from),
+            "generation": operator.generation, "term": term,
+        }
+
+    def written_operators(self) -> list[dict[str, Any]]:
+        """Keep terms in install order; opaque Python functions cannot be retained."""
+        with self._lock:
+            return [self._written_operator(operator) for operator in self._operators.values()
+                    if operator.invented]
+
+    def recall_operators(self, rows: Any) -> int:
+        """Restore a complete recipe batch atomically, without granting new evidence.
+
+        Existing names must have identical recipes. Rollback snapshots are rebuilt
+        in installation order, so an ancestor rollback also removes descendants.
+        """
+        from core.cognition.the_floor_she_stands_on import read_back
+
+        if not isinstance(rows, list):
+            raise ValueError("retained operator batch must be a list")
+        with self._lock:
+            operators = dict(self._operators)
+            snapshots = list(self._snapshots)
+            seen = set()
+            restored = 0
+            for row in rows:
+                if not isinstance(row, dict):
+                    raise ValueError("invalid retained operator record")
+                name, generation = row.get("name"), row.get("generation")
+                dependencies = row.get("built_from")
+                if (row.get("schema") != "aura.retained_floor_operator.v1"
+                        or not isinstance(name, str) or not name or name in seen
+                        or not isinstance(row.get("body"), str)
+                        or type(generation) is not int or generation < 0
+                        or not isinstance(dependencies, list)
+                        or any(not isinstance(part, str) or part not in operators or part == name
+                               for part in dependencies)
+                        or len(set(dependencies)) != len(dependencies)):
+                    raise ValueError("invalid retained operator identity or lineage")
+                expected = 1 + max((operators[part].generation for part in dependencies), default=-1)
+                if generation != expected:
+                    raise ValueError("retained operator generation differs from its lineage")
+                term = read_back(row.get("term"))
+                if term is None:
+                    raise ValueError("retained operator has an unreadable floor term")
+                seen.add(name)
+                existing = operators.get(name)
+                if existing is not None:
+                    if not existing.invented or self._written_operator(existing) != row:
+                        raise ValueError(f"retained operator name conflict: {name!r}")
+                    continue
+                snapshots.append((name, dict(operators)))
+                operators[name] = Operator(
+                    name=name, fn=_the_term_as_a_function(term), body=row["body"],
+                    built_from=tuple(dependencies), invented=True, generation=generation, term=term,
+                )
+                restored += 1
+            self._operators, self._snapshots = operators, snapshots
+            return restored
+
     # ── residuals ─────────────────────────────────────────────────────
 
     def attempt(
@@ -295,6 +368,10 @@ class OperatorKernel:
             residual = self._residuals.get(family)
             existing = dict(self._operators)
 
+        if candidate.name in existing:
+            return self._record(Verdict(candidate.name, False, Rejection.NAME_CONFLICT,
+                                        detail="an invention cannot replace an installed name"))
+
         if residual is None or not residual.persistent:
             return self._record(Verdict(
                 candidate.name, False, Rejection.NOT_PERSISTENT,
@@ -330,28 +407,29 @@ class OperatorKernel:
                     detail=f"{type(exc).__name__}: {exc}",
                 ))
 
-        # Novelty: something no installed operator computes on these probes.
-        novel_on = []
-        for probe, output in zip(probes, outputs, strict=True):
-            matched = False
-            for operator in existing.values():
+        # Compare complete functions on the probes, not an output-wise mixture
+        # of different operators. Two constants do not already implement identity.
+        distinguishing = set()
+        for operator in existing.values():
+            differences = []
+            for index, (probe, output) in enumerate(zip(probes, outputs, strict=True)):
                 try:
-                    if operator.fn(probe, _Budget(STEP_BUDGET)) == output:
-                        matched = True
-                        break
+                    if operator.fn(probe, _Budget(STEP_BUDGET)) != output:
+                        differences.append(index)
                 except (TypeError, ValueError, ArithmeticError, LookupError,
                         RecursionError, TimeoutError):
-                    # An installed operator that cannot run on this probe does
-                    # not match it. Named, because an operator raising something
-                    # else is a defect in the kernel rather than a mismatch.
-                    continue
-            if not matched:
-                novel_on.append(probe)
-        if not novel_on:
+                    differences.append(index)
+            if not differences:
+                return self._record(Verdict(
+                    candidate.name, False, Rejection.NOT_NOVEL,
+                    detail=f"installed operator {operator.name!r} matches every probe",
+                ))
+            distinguishing.update(differences)
+        novel_on = tuple(probes[index] for index in sorted(distinguishing)) if existing else tuple(probes)
+        if not probes:
             return self._record(Verdict(
                 candidate.name, False, Rejection.NOT_NOVEL, detail=(
-                    "every probe is already computed by an installed operator; a renamed "
-                    "composition is not an invention"
+                    "novelty cannot be measured without probes"
                 ),
             ))
 
@@ -389,6 +467,9 @@ class OperatorKernel:
             ))
 
         with self._lock:
+            if self._operators != existing:
+                return self._record(Verdict(candidate.name, False, Rejection.STATE_CHANGED,
+                    detail="operator semantics changed while the candidate was being checked"))
             self._snapshots.append((candidate.name, dict(self._operators)))
             generation = 1 + max(
                 (self._operators[n].generation for n in candidate.built_from
@@ -416,7 +497,8 @@ class OperatorKernel:
             )
             if index is None:
                 raise KeyError(f"no install snapshot for {name!r}")
-            _, snapshot = self._snapshots.pop(index)
+            _, snapshot = self._snapshots[index]
+            del self._snapshots[index:]
             removed = sorted(set(self._operators) - set(snapshot))
             self._operators = dict(snapshot)
             return {"rolled_back": name, "removed": removed, "operators": sorted(self._operators)}

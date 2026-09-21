@@ -112,52 +112,18 @@ def _a_meaning_worked_out(question: SequenceQuestion) -> str | None:
     return _work_the_meaning_out(question)
 
 
-def _everything_she_can_say() -> dict[str, dict]:
-    """A copy of every registry a developmental action can add to.
+def _everything_she_can_say():
+    """Use the same complete snapshot as the developmental action wrapper."""
+    from core.cognition.what_she_can_take_back import as_it_stands
 
-    Not a list of what development is — a list of the places terms are kept, so
-    a change that turned out not to pay can be taken back out whole.
-    """
-    from core.cognition.a_kind_of_thing_she_named import KINDS_OF_THING
-    from core.cognition.a_rule_with_no_shape import RULES_WITH_NO_SHAPE
-    from core.cognition.an_invented_kind import (
-        WAYS_TO_BUILD,
-        WHAT_OF_IT,
-        WHERE_FROM,
-    )
-    from core.cognition.one_algebra import DERIVED_HEADS
-
-    return {
-        "ways to build": dict(WAYS_TO_BUILD),
-        "where from": dict(WHERE_FROM),
-        "what of it": dict(WHAT_OF_IT),
-        "kinds of thing": dict(KINDS_OF_THING),
-        "derived heads": dict(DERIVED_HEADS),
-        "rules with no shape": dict(RULES_WITH_NO_SHAPE),
-    }
+    return as_it_stands()
 
 
-def _put_back(held: dict[str, dict]) -> None:
+def _put_back(held) -> None:
     """Undo a change that did not pay."""
-    from core.cognition.a_kind_of_thing_she_named import KINDS_OF_THING
-    from core.cognition.a_rule_with_no_shape import RULES_WITH_NO_SHAPE
-    from core.cognition.an_invented_kind import (
-        WAYS_TO_BUILD,
-        WHAT_OF_IT,
-        WHERE_FROM,
-    )
-    from core.cognition.one_algebra import DERIVED_HEADS
-
-    for registry, was in (
-        (WAYS_TO_BUILD, held["ways to build"]),
-        (WHERE_FROM, held["where from"]),
-        (WHAT_OF_IT, held["what of it"]),
-        (KINDS_OF_THING, held["kinds of thing"]),
-        (DERIVED_HEADS, held["derived heads"]),
-        (RULES_WITH_NO_SHAPE, held["rules with no shape"]),
-    ):
-        registry.clear()
-        registry.update(was)
+    stubborn = held.restore()
+    if stubborn:
+        raise RuntimeError(f"developmental rollback did not restore: {stubborn}")
 
 
 def _what_it_costs_to_say(pairs: Sequence[tuple[Sequence[Any], Sequence[Any]]]) -> int:

@@ -51,21 +51,25 @@ WHAT_A_CHANGE_CAN_REACH: tuple[tuple[str, str], ...] = (
     # to what she can do, and a trial that does not cover it would leave the
     # new action behind after the change that wrote it was taken back.
     ("core.cognition.what_she_could_do_next", "WHAT_SHE_COULD_DO"),
+    ("core.cognition.the_order_she_tries_them_in", "_IN_USE"),
+    ("core.cognition.the_proposer_she_can_replace", "_IN_USE"),
+    ("core.cognition.what_counts_as_better", "_IN_USE"),
+    ("core.cognition.what_it_is_worth_doing", "_IN_USE"),
 )
 
 
-def _reach() -> list[tuple[str, dict]]:
+def _reach() -> list[tuple[str, dict | list]]:
     """The live registries, skipping any that will not import here."""
     from importlib import import_module
 
-    found: list[tuple[str, dict]] = []
+    found: list[tuple[str, dict | list]] = []
     for module_name, attr in WHAT_A_CHANGE_CAN_REACH:
         try:
             registry = getattr(import_module(module_name), attr)
         except (ImportError, AttributeError) as exc:
             logger.debug("cannot reach %s.%s: %s", module_name, attr, exc)
             continue
-        if isinstance(registry, dict):
+        if isinstance(registry, (dict, list)):
             found.append((f"{module_name}.{attr}", registry))
     return found
 
@@ -74,7 +78,7 @@ def _reach() -> list[tuple[str, dict]]:
 class HowItStood:
     """Every registry as it was, keyed by where it lives."""
 
-    held: dict[str, dict[Any, Any]]
+    held: dict[str, dict[Any, Any] | list[Any]]
     operator_state: Any = None
 
     def restore(self) -> tuple[str, ...]:
@@ -110,7 +114,7 @@ def as_it_stands() -> HowItStood:
     from core.cognition.an_operator_she_invents import the_kernel
 
     return HowItStood(
-        held={where: dict(reg) for where, reg in _reach()},
+        held={where: reg.copy() for where, reg in _reach()},
         operator_state=the_kernel().snapshot(),
     )
 
@@ -127,7 +131,10 @@ def put_it_back(was: HowItStood) -> tuple[str, ...]:
         if held is None:
             continue
         registry.clear()
-        registry.update(held)
+        if isinstance(registry, dict):
+            registry.update(held)
+        else:
+            registry.extend(held)
     if was.operator_state is not None:
         from core.cognition.an_operator_she_invents import the_kernel
 

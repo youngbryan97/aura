@@ -47,19 +47,17 @@ def _a_clean_registry(tmp_path, monkeypatch):
     """
     from core.cognition import sequence_induction, what_she_gave_meaning
     from core.cognition.an_invented_kind import UNSETTLED
+    from core.cognition.what_she_can_take_back import as_it_stands
 
     monkeypatch.setattr(what_she_gave_meaning, "_KEPT_AT", tmp_path / "meanings.json")
     monkeypatch.setattr(
         sequence_induction, "_language_path", lambda: tmp_path / "language.json"
     )
-    held, unsure = dict(KINDS), dict(UNSETTLED)
+    held = as_it_stands()
     KINDS.clear()
     UNSETTLED.clear()
     yield
-    KINDS.clear()
-    KINDS.update(held)
-    UNSETTLED.clear()
-    UNSETTLED.update(unsure)
+    held.restore()
 
 
 # ── she works one out rather than saying she cannot ──────────────────────
