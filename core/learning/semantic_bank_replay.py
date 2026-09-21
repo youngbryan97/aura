@@ -84,6 +84,7 @@ def rescore_semantic_candidate_bank(
             progress({"stage": "bank_candidate_replay", "index": index, "total": len(bank.candidates)})
         try:
             graph = score_annotated_graph(model, item, instructions, bank.input_spans,
+                                          source_token_ids=tokens,
                                           solve_time_limit_s=solve_time_limit_s)
         except ArgumentOptimizationIncompleteError as exc:
             incomplete = True
