@@ -1088,7 +1088,15 @@ def _install_runtime_audit_tests(suite) -> None:
             observation=Observation(
                 name="expected_splats",
                 value=0,
-                source="core/runtime/lockdep.py — a clean process has no splats",
+                source=(
+                    "core/runtime/lockdep.py — a clean process has no splats. "
+                    "PROCESS-global, and that is the whole claim: a boot asks "
+                    "whether this runtime orders its locks consistently. A test "
+                    "process is not a clean process, so anything asserting on "
+                    "this after a boot activation must reset the register "
+                    "first — see tests/test_runtime_boot_contracts.py, where "
+                    "not doing so cost a false failure in a batch of 405."
+                ),
                 units="violations",
             ),
             predict=lambda _m: _lockdep_splats(),
