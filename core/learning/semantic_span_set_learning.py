@@ -80,7 +80,7 @@ def _span_set_loss(weight, rows, *, width, max_spans, regularization, center):
 
 def fit_span_set_pointer(training, *, spans, pointer, max_span_tokens, max_spans,
                          length_penalty=0.0, inverse_regularization=10.0,
-                         max_iter=200, progress=None):
+                         max_iter=200, progress=None, excluded_spans=None):
     """Fit source span-set likelihood while retaining frozen pair interactions."""
     from scipy.optimize import minimize
 
@@ -92,13 +92,14 @@ def fit_span_set_pointer(training, *, spans, pointer, max_span_tokens, max_spans
         or type(max_iter) is not int or max_iter < 1
         or not np.isfinite(length_penalty)
         or not np.isfinite(inverse_regularization) or inverse_regularization <= 0
+        or (excluded_spans is not None and not callable(excluded_spans))
     ):
         raise ValueError("invalid source span-set training contract")
     ids = [item.ir.source_text_sha256 for item in training]
     if len(set(ids)) != len(ids):
         raise ValueError("span-set training sources must be unique")
     counts = Counter(_geometry(item) for item in training)
-    rows, targets = [], []
+    rows, targets, exclusions = [], [], []
     for item in training:
         hidden = item.hidden_states
         sequence = pointer.score_sequence(hidden)
@@ -112,9 +113,19 @@ def fit_span_set_pointer(training, *, spans, pointer, max_span_tokens, max_spans
                 raise ValueError("span-set target intervals overlap or exceed the span bound")
             previous_end = span.end
         n = len(hidden)
+        excluded = tuple(excluded_spans(item)) if excluded_spans is not None else ()
+        for span in excluded:
+            span.validate_bound(n)
+        if any(a.start < b.end and b.start < a.end for a in target for b in excluded):
+            raise ValueError("span-set target overlaps excluded evidence")
+        exclusions.append([item.ir.source_text_sha256, [span.to_dict() for span in excluded]])
         length = min(max_span_tokens, n)
         starts, columns = np.nonzero(np.arange(n)[:, None] + np.arange(1, length + 1) <= n)
         ends = starts + columns
+        allowed = np.ones(len(starts), dtype=bool)
+        for span in excluded:
+            allowed &= ~((starts < span.end) & (span.start <= ends))
+        starts, ends = starts[allowed], ends[allowed]
         fixed = np.full((n, length), -np.inf)
         for start, end in zip(starts, ends, strict=True):
             fixed[start, end - start] = (
@@ -158,6 +169,8 @@ def fit_span_set_pointer(training, *, spans, pointer, max_span_tokens, max_spans
         "length_penalty": float(length_penalty), "regularization": regularization,
         "regularization_center": "parent_boundary_coefficients",
         "pair_interaction": "frozen_parent", "geometry_balanced": True,
+        "excluded_spans_sha256": _sha(exclusions),
+        "negative_space": "all_bounded_intervals_excluding_declared_spans",
         "initial_loss": initial_loss, "exported_loss": exported_loss,
         "iterations": int(result.nit), "converged": True,
         "validation_used_for_fit": False, "test_examples_used": 0,
@@ -181,7 +194,7 @@ def refit_compositional_span_set_pointer(model, examples, *, max_iter=200, progr
         training, spans=lambda item: tuple(i.operation_span for i in item.ir.instructions),
         pointer=model.operation_pointer, max_span_tokens=model.max_span_tokens,
         max_spans=model.max_steps, length_penalty=model.operation_length_penalty,
-        max_iter=max_iter, progress=progress,
+        max_iter=max_iter, progress=progress, excluded_spans=lambda item: item.ir.input_spans,
     )
     coefficients = model._coefficient_body()
     coefficients["operation_pointer"] = pointer.to_dict()

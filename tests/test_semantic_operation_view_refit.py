@@ -246,3 +246,71 @@ def test_request_view_fits_only_training_features_and_excludes_test(parent, monk
         minus = tuple(p - epsilon * d for p, d in zip(parameters, direction, strict=True))
         measured = (bank.score(label, plus) - bank.score(label, minus)) / (2 * epsilon)
         assert measured == pytest.approx(sum(np.sum(g * d) for g, d in zip(gradient, direction, strict=True)), abs=1e-6)
+
+
+def test_conditional_labels_separate_endpoint_meaning_from_boundary_evidence(parent, monkeypatch):
+    from core.learning.semantic_operation_background import refit_compositional_operation_background
+    from core.learning.semantic_program_transducer import OPERATION_BACKGROUND_LABEL
+
+    examples = _examples()
+    base = refit_compositional_operation_background(parent, examples, background_log_odds=True)
+    body = {k: v for k, v in base.training_receipt.items() if k != "receipt_sha256"}
+    body.update(operation_search_policy="complete_bounded_v1", operation_label_limit=len(base.operation_head.labels),
+                operation_assignment_policy="joint_factor_score_v2")
+    base = replace(base, training_receipt={**body, "receipt_sha256": _sha(body)})
+    original = refit._fit_classifier
+    observed = []
+    expected = [(item, ins) for item in examples if item.split == "train" for ins in item.ir.instructions]
+
+    def fit(features, labels, **kwargs):
+        assert labels == [ins.op for _, ins in expected]
+        assert OPERATION_BACKGROUND_LABEL not in labels
+        np.testing.assert_array_equal(features, np.stack([
+            refit._operation_feature(item.hidden_states, ins.operation_span, mode="middle_last",
+                hidden_channels=base.hidden_channels, hidden_channel_widths=base.hidden_channel_widths)
+            for item, ins in expected]))
+        observed.append(len(labels))
+        return original(features, labels, **kwargs)
+
+    monkeypatch.setattr(refit, "_fit_classifier", fit)
+    fitted = refit.refit_compositional_operation_views(base, examples, candidate_modes=("middle_last",),
+                                                     conditional_labels=True)
+    assert observed == [len(expected)]
+    assert fitted.operation_pointer is base.operation_pointer
+    assert fitted.definition_relation_head is base.definition_relation_head
+    assert "operation_background_fit" not in fitted.training_receipt
+    assert "operation_background_fit" in base.training_receipt
+    assert set(fitted.operation_head.labels) == set(base.operation_head.labels) - {OPERATION_BACKGROUND_LABEL}
+    assert fitted.training_receipt["operation_label_limit"] == len(fitted.operation_head.labels)
+    assert fitted.training_receipt["operation_view_selection"]["label_conditioning"] == "operation_span"
+    restored = compositional_semantic_program_transducer_from_dict(fitted.to_dict())
+    assert restored.to_dict() == fitted.to_dict()
+    item = examples[0]
+    nodes = _operation_nodes(pointer=restored.operation_pointer, classifier=restored.operation_head,
+        hidden=item.hidden_states, input_spans=item.ir.input_spans, max_span_tokens=restored.max_span_tokens,
+        hidden_channels=restored.hidden_channels, hidden_channel_widths=restored.hidden_channel_widths)
+    assert nodes
+    for node in nodes:
+        assert node.score == pytest.approx(node.pointer_score + np.log(max(node.confidence, 1e-12)))
+
+
+@pytest.mark.parametrize("value", [None, 0, 1, "false"])
+def test_conditional_labels_reject_ambiguous_options_before_fit(parent, monkeypatch, value):
+    monkeypatch.setattr(refit, "_fit_classifier", lambda *a, **k: pytest.fail("invalid option reached fitting"))
+    with pytest.raises(ValueError, match="must be boolean"):
+        refit.refit_compositional_operation_views(parent, _examples(), conditional_labels=value)
+
+
+@pytest.mark.parametrize("mode", ["middle_last", "contextual_last"])
+def test_endpoint_features_cannot_identify_different_start_boundaries(mode):
+    from core.learning.semantic_program_ir import TokenSpan
+
+    hidden = np.random.default_rng(51).normal(size=(5, 9)).astype(np.float32)
+    options = dict(hidden_channels=("input_token_embedding", "middle_causal_hidden", "final_causal_hidden"),
+                   hidden_channel_widths=(2, 4, 3))
+    left, right = TokenSpan(0, 4), TokenSpan(2, 4)
+    np.testing.assert_array_equal(refit._operation_feature(hidden, left, mode=mode, **options),
+                                  refit._operation_feature(hidden, right, mode=mode, **options))
+    mean_mode = "middle_mean" if mode == "middle_last" else "contextual_mean"
+    assert not np.allclose(refit._operation_feature(hidden, left, mode=mean_mode, **options),
+                           refit._operation_feature(hidden, right, mode=mean_mode, **options))

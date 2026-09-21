@@ -104,8 +104,14 @@ def valid_operation_view_contract(head, receipt, channels, widths):
     )
 
 
-def refit_compositional_operation_views(model, examples, *, candidate_modes=None, progress=None):
+def refit_compositional_operation_views(model, examples, *, candidate_modes=None, progress=None,
+                                        conditional_labels=False):
     """Fit on source train, select views and chart length on source validation."""
+    from core.learning.semantic_operation_background import (
+        operation_background_receipt,
+        operation_background_training_spans,
+        valid_background_contract,
+    )
     from core.learning.semantic_program_transducer_fitting import (
         _OPERATION_CANDIDATES,
         _best_nonoverlapping_nodes,
@@ -113,12 +119,9 @@ def refit_compositional_operation_views(model, examples, *, candidate_modes=None
         _OperationNode,
         _overlap,
     )
-    from core.learning.semantic_operation_background import (
-        operation_background_receipt,
-        operation_background_training_spans,
-        valid_background_contract,
-    )
 
+    if type(conditional_labels) is not bool:
+        raise ValueError("conditional operation labels must be boolean")
     train = tuple(item for item in examples if item.split == "train")
     validation = tuple(item for item in examples if item.split == "validation")
     train_ids = [item.ir.source_text_sha256 for item in train]
@@ -150,7 +153,7 @@ def refit_compositional_operation_views(model, examples, *, candidate_modes=None
                                  hidden_channel_widths=model.hidden_channel_widths)
     if not valid_background_contract(model.operation_head, model.training_receipt):
         raise ValueError("operation view refit background evidence differs")
-    background = model.training_receipt.get("operation_background_fit")
+    background = None if conditional_labels else model.training_receipt.get("operation_background_fit")
     groups = tuple((item, operation_background_training_spans(
         item, model.operation_pointer, model.max_span_tokens,
     ) if background else tuple((instruction.operation_span, instruction.op)
@@ -160,7 +163,10 @@ def refit_compositional_operation_views(model, examples, *, candidate_modes=None
                             for item in validation for instruction in item.ir.instructions)
     labels = [label for _item, _span, label in train_rows]
     targets = [label for _item, _span, label in validation_rows]
-    if set(labels) != set(model.operation_head.labels):
+    expected_labels = set(model.operation_head.labels)
+    if conditional_labels:
+        expected_labels.discard(OPERATION_BACKGROUND_LABEL)
+    if set(labels) != expected_labels:
         raise ValueError("operation view refit must retain the source operation vocabulary")
     if not targets or not set(targets) <= set(labels):
         raise ValueError("operation view validation has no training label support")
@@ -245,6 +251,14 @@ def refit_compositional_operation_views(model, examples, *, candidate_modes=None
         body["operation_background_fit"] = operation_background_receipt(
             model, head, train, train_rows, score=background["score"],
         )
+    elif conditional_labels:
+        # Boundary evidence remains in the pointer. The label head is trained
+        # conditional on an operation span, not on incompatible background spans.
+        body.pop("operation_background_fit", None)
+    if body.get("operation_search_policy") == "complete_bounded_v1":
+        body["operation_label_limit"] = len(head.labels)
+    elif "operation_label_limit" in body:
+        body["operation_label_limit"] = min(body["operation_label_limit"], len(head.labels))
     body["operation_view_selection"] = {
         "schema": "aura.semantic_operation_view_selection.v2",
         "objective": "source_validation_predicted_chart_v2",
@@ -265,6 +279,8 @@ def refit_compositional_operation_views(model, examples, *, candidate_modes=None
             for item, span, label in validation_rows
         ]),
         "length_calibration": length_rows,
+        "label_conditioning": "operation_span" if conditional_labels else "parent_supervision",
+        "boundary_score": "pointer_plus_conditional_log_probability" if conditional_labels else "parent_score",
         "validation_used_for_fit": False, "test_examples_used": 0, "serving_authority": False,
     }
     return replace(model, operation_head=head, operation_length_penalty=penalty,

@@ -28,7 +28,7 @@ def _enumerate(scores, count):
     charts = [()]
     for k in range(1, count + 1):
         charts.extend(chart for chart in combinations(intervals, k)
-                      if all(a + b <= c for (a, b), (c, _) in zip(chart, chart[1:])))
+                      if all(a + b <= c for (a, b), (c, _) in zip(chart, chart[1:], strict=False)))
     values = np.asarray([sum(scores[s, length - 1] for s, length in chart) for chart in charts])
     partition = logsumexp(values)
     marginals = np.zeros_like(scores)
@@ -152,8 +152,54 @@ def test_source_representation_mismatch_rejected_before_fit(parent, monkeypatch)
 
 def test_nonconverged_fit_does_not_export(parent, monkeypatch):
     from types import SimpleNamespace
+
     import scipy.optimize
     monkeypatch.setattr(scipy.optimize, "minimize", lambda *args, **kwargs:
                         SimpleNamespace(success=False, status=1, message="iteration bound"))
     with pytest.raises(RuntimeError, match="incomplete"):
         learning.refit_compositional_span_set_pointer(parent, _examples())
+
+
+def test_training_span_inventory_matches_runtime_input_exclusions(parent, monkeypatch):
+    from core.learning.semantic_program_transducer_fitting import _operation_nodes
+
+    item = next(item for item in _examples() if item.split == "train")
+    original = learning._span_set_loss
+    inventories = []
+    def inspect(weight, rows, **kwargs):
+        inventory = {(int(start), int(end + 1)) for row in rows for start, end in zip(row[1], row[2], strict=True)}
+        inventories.append(inventory)
+        return original(weight, rows, **kwargs)
+    monkeypatch.setattr(learning, "_span_set_loss", inspect)
+    learning.fit_span_set_pointer((item,), spans=lambda item: tuple(ins.operation_span for ins in item.ir.instructions),
+        pointer=parent.operation_pointer, max_span_tokens=parent.max_span_tokens, max_spans=parent.max_steps,
+        excluded_spans=lambda item: item.ir.input_spans)
+    nodes = _operation_nodes(pointer=parent.operation_pointer, classifier=parent.operation_head,
+        hidden=item.hidden_states, input_spans=item.ir.input_spans, max_span_tokens=parent.max_span_tokens,
+        hidden_channels=parent.hidden_channels, hidden_channel_widths=parent.hidden_channel_widths,
+        complete_inventory=True)
+    expected = {(node.span.start, node.span.end) for node in nodes}
+    assert inventories and expected
+    assert all(inventory == expected for inventory in inventories)
+
+
+def test_excluded_target_is_rejected_before_optimization(parent):
+    item = next(item for item in _examples() if item.split == "train")
+    with pytest.raises(ValueError, match="target overlaps excluded"):
+        learning.fit_span_set_pointer((item,), spans=lambda item: (TokenSpan(0, 2),),
+            pointer=parent.operation_pointer, max_span_tokens=3, max_spans=2,
+            excluded_spans=lambda item: (TokenSpan(1, 2),))
+
+
+def test_conditional_label_partition_reduces_exactly_to_boundary_partition():
+    from core.learning.semantic_labeled_span_learning import labeled_span_partition
+
+    boundary = _scores(5, 3)
+    boundary[1, 1] = -np.inf
+    logits = np.random.default_rng(52).normal(size=(*boundary.shape, 4))
+    log_probability = logits - logsumexp(logits, axis=-1, keepdims=True)
+    actual_partition, actual_mass = labeled_span_partition(boundary[:, :, None] + log_probability, 3)
+    expected_partition, expected_mass = learning.span_set_partition(boundary, 3)
+    assert actual_partition == pytest.approx(expected_partition, abs=1e-12)
+    np.testing.assert_allclose(actual_mass.sum(axis=-1), expected_mass, atol=1e-12)
+    np.testing.assert_allclose(actual_mass, expected_mass[:, :, None] * np.exp(log_probability), atol=1e-12)

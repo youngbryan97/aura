@@ -1120,6 +1120,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Boundary and meaning separation](evidence/G03_FACTORED_BOUNDARY_MEANING_2026-09-21.md):
+  endpoint evidence classifies 1192/1192 supplied validation operation spans,
+  but its joint background-head pilot fails at 16/54. Conditional meaning
+  training now reuses the boundary pointer, with matching input-span exclusions.
+  Autonomous qualification remains required; no candidate is promoted.
   [Existing-channel recognition](evidence/G03_EXISTING_CHANNEL_RECOGNITION_2026-09-21.md):
   the complete coupled candidate reaches 764/764 training and 479/500 validation,
   with fourteen repairs and eleven regressions. It is not promoted. Source-only
