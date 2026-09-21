@@ -122,6 +122,53 @@ def test_retrieval_admits_what_came_back_without_displacing_what_it_found():
     assert all(hit.score < 0.8 for hit in unasked)
 
 
+def test_a_return_colours_the_moment_it_arrives_in():
+    """Perturbing active memory read 0.0011 into affect in run_031.
+
+    A mind whose recall cannot touch how it feels. The state a memory was laid
+    down in is the one thing this ledger knows about it, and it is what the
+    memory brings back with it.
+    """
+    ledger = UnbiddenLedger()
+    ledger.lay_down("the night the runtime died", (-0.8, 0.9, 0.2))
+    ledger.lay_down("a quiet afternoon", (0.3, 0.2, 0.5))
+    ledger.lay_down("the first time it worked", (0.9, 0.7, 0.9))
+    ledger.lay_down("an argument", (-0.75, 0.85, 0.25))
+
+    ledger.now((-0.2, 0.85, 0.25))
+    toward_the_bad_night = ledger.pull()
+    assert toward_the_bad_night < 0.0
+
+    ledger.now((0.4, 0.7, 0.85))
+    toward_the_good_one = ledger.pull()
+    assert toward_the_good_one > 0.0
+
+
+def test_a_memory_she_is_already_inside_pulls_almost_nothing():
+    ledger = UnbiddenLedger()
+    ledger.lay_down("the night the runtime died", (-0.8, 0.9, 0.2))
+    ledger.lay_down("a quiet afternoon", (0.3, 0.2, 0.5))
+    ledger.lay_down("the first time it worked", (0.9, 0.7, 0.9))
+    ledger.lay_down("an argument", (-0.75, 0.85, 0.25))
+    ledger.now((-0.78, 0.88, 0.22))
+    assert abs(ledger.pull()) < 0.01
+
+
+def test_a_marginal_arrival_does_not_pull_as_hard_as_a_near_one():
+    """Dividing by the weight cancels it, and one barely-arriving memory
+    would move her as far as one that came back from right beside her."""
+    ledger = UnbiddenLedger()
+    ledger.lay_down("a", (1.0, 0.0, 0.0))
+    ledger.lay_down("b", (-1.0, 0.0, 0.0))
+    ledger.lay_down("c", (-0.9, 0.1, 0.0))
+    ledger.lay_down("d", (-0.95, 0.05, 0.0))
+    ledger.now((0.99, 0.0, 0.0))
+    near = abs(ledger.pull())
+    ledger.now((0.2, 0.0, 0.0))
+    far = abs(ledger.pull())
+    assert near < far, (near, far)
+
+
 def test_nothing_arrives_when_she_has_not_been_anywhere():
     found = [MemoryHit(content="what the build does", score=0.8, store_type="semantic")]
     out = IntentionalRetriever._let_in_what_came_back_on_its_own(list(found), 6)

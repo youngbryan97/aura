@@ -224,6 +224,48 @@ class UnbiddenLedger:
             ),
         )
 
+    def pull(self) -> float:
+        """Where the returns are pulling the present, on the first axis.
+
+        A memory comes back because now resembles then, and the state it was
+        laid down in is the one thing this ledger knows about it. Being
+        reminded of something colours how the moment feels, and nothing in the
+        runtime carried that: perturbing active memory moved the workspace and
+        the world model and read 0.0011 into affect, which is a mind whose
+        recall cannot touch how it feels.
+
+        The pull is toward the remembered state and away from here, weighted
+        by how near each arrival is -- nearer memories pull harder, because
+        nearness is the only thing that brought them. Arrival is relative, so
+        in a state unlike anything she has been in the least unfamiliar memory
+        still comes back; it comes back weakly, and pulls in proportion.
+
+        The first axis is whatever the caller puts first, and the phase that
+        sets the state puts valence there.
+        """
+        seen = self.read(self._now)
+        if not seen.measured or not seen.arrivals or not self._now:
+            return 0.0
+        here = self._now[0]
+        weight = 0.0
+        total = 0.0
+        for arrival in seen.arrivals:
+            laid = self._laid.get(arrival.key)
+            if not laid:
+                continue
+            # How far inside the bar it came, relative to the bar itself, so
+            # the weights are shares of her own distribution and not distances
+            # in whatever units the caller's axes carry.
+            share = arrival.nearer_by / seen.typical if seen.typical > 0 else 0.0
+            weight += share
+            total += share * (laid[0] - here)
+        # Divided by a full share, not by the weight. Normalising by the
+        # weight makes one marginal arrival pull exactly as hard as one that
+        # came back from right beside her, because dividing by its own small
+        # share cancels it. A share below one pulls part of the way; several
+        # strong ones average instead of compounding.
+        return total / max(1.0, weight)
+
     def arrivals(self, now: Sequence[float]) -> tuple[str, ...]:
         """What came back, nearest first -- the closed side, read by retrieval
         as candidates the query did not ask for."""
