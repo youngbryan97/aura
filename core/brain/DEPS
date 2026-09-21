@@ -79,6 +79,8 @@ include_rules = [
     "+core.senses",
     "+core.service_names",
     "+core.skills",
+    # Candidate quality reads the existing unsolicited-regard ledger.
+    "+core.social.never_told",
     "+core.state",
     "+core.synthesis",
     "+core.thought_stream",

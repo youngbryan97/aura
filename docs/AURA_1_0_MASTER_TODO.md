@@ -1060,6 +1060,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Full source replay](evidence/G03_RESTORED_FULL_SOURCE_2026-09-20.md)
+  confirms 764/764 training programs, but 469/500 exact validation programs
+  versus the parent's 488/500. The incumbent remains selected.
   [Operation retention policy](evidence/G03_OPERATION_RETENTION_POLICY_2026-09-20.md)
   distinguishes auxiliary span labels from runtime program corrections.
   The prior candidate reaches 764/764 source-training cases; coefficient
