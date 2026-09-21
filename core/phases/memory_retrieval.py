@@ -184,8 +184,8 @@ def _candidate_pool(limit: int) -> int:
         return int(limit)
 
 
-def _percept_reading(state: Any) -> tuple[str, float]:
-    """The content and salience of the most salient percept memory has not taken yet.
+def _percept_reading(state: Any) -> tuple[str, float, str]:
+    """The content, salience and kind of the most salient percept memory has not taken yet.
 
     Every fresh percept is marked as taken by memory, so one percept cues one
     recall and the next turn is asked about what arrives next. What recall
@@ -206,15 +206,19 @@ def _percept_reading(state: Any) -> tuple[str, float]:
             if reading.content.strip() and (best is None or reading.salience > best.salience):
                 best = reading
         if best is None:
-            return "", 0.0
-        return _safe_text(best.content), max(0.0, min(1.0, float(best.salience)))
+            return "", 0.0, ""
+        return (
+            _safe_text(best.content),
+            max(0.0, min(1.0, float(best.salience))),
+            str(best.kind or ""),
+        )
     except _MEMORY_RECOVERABLE_ERRORS as exc:
         _record_memory_degradation(
             exc,
             action="searched without a percept as a cue",
             stage="percept_cue",
         )
-        return "", 0.0
+        return "", 0.0, ""
 
 class MemoryRetrievalPhase(BasePhase):
     """
@@ -272,7 +276,7 @@ class MemoryRetrievalPhase(BasePhase):
         return query
 
     @staticmethod
-    def _execute_metadata(affect_sources, content, effective_memory_salience, item, memory_candidates, partner_id, shared_texts, state):
+    def _execute_metadata(affect_sources, content, effective_memory_salience, item, memory_candidates, partner_id, shared_texts, state, felt_by_text=None):
         metadata = _safe_metadata(item.get("metadata", {}))
         emotional_valence = _safe_float(metadata.get("emotional_valence"))
         importance = _safe_float(metadata.get("importance"))
@@ -295,6 +299,10 @@ class MemoryRetrievalPhase(BasePhase):
         memory_candidates.append(
             (weighted_score, f"[memory score={weighted_score:.3f}] {content}")
         )
+        # The feeling it was made in, kept beside the candidate so the percept
+        # in front of her can find it. See core/memory/felt_at_encoding.py.
+        if felt_by_text is not None and metadata.get("felt"):
+            felt_by_text[f"[memory score={weighted_score:.3f}] {content}"] = metadata.get("felt")
         # Whether the person she is with now was part of it.
         # The principal a personal record was written for is
         # stored with it; a record written for somebody else
@@ -359,7 +367,7 @@ class MemoryRetrievalPhase(BasePhase):
         """
         # What just arrived is a cue in its own right, so a percept still asks
         # on a turn with nothing in working memory. See `_percept_cue`.
-        percept_cue, percept_salience = _percept_reading(state)
+        percept_cue, percept_salience, percept_kind = _percept_reading(state)
         if not state.cognition.working_memory and not percept_cue:
             return state
 
@@ -832,6 +840,8 @@ class MemoryRetrievalPhase(BasePhase):
         # Each candidate's feeling, kept beside it so the nudge below is taken
         # from the memories that came back rather than from everything searched.
         affect_sources: list[tuple[str, float, float]] = []
+        # And each candidate's whole feeling, where its store kept one.
+        felt_by_text: dict[str, Any] = {}
 
         if dual_res:
             memory_candidates.append(
@@ -861,6 +871,8 @@ class MemoryRetrievalPhase(BasePhase):
                         memory_candidates.append(
                             (weighted_score, f"[{km.get('type', 'fact')}] {content}")
                         )
+                        if metadata.get("felt"):
+                            felt_by_text[f"[{km.get('type', 'fact')}] {content}"] = metadata.get("felt")
 
                     affect_sources.append((content, emotional_valence, importance))
 
@@ -869,7 +881,7 @@ class MemoryRetrievalPhase(BasePhase):
                 if isinstance(item, dict):
                     content = _safe_text(item.get("content") or item.get("text"), max_chars=2_000)
                     if content:
-                        importance = self._execute_metadata(affect_sources, content, effective_memory_salience, item, memory_candidates, partner_id, shared_texts, state)
+                        importance = self._execute_metadata(affect_sources, content, effective_memory_salience, item, memory_candidates, partner_id, shared_texts, state, felt_by_text)
                 elif item:
                     memory_candidates.append(
                         (0.35, f"[memory] {_safe_text(item, max_chars=2_000)}")
@@ -964,13 +976,27 @@ class MemoryRetrievalPhase(BasePhase):
         # A recollection closes the gap to full relevance in proportion to how
         # much of the percept it carries and how salient the percept was, which
         # is attention's gain with the roles the other way round.
+        #
+        # A percept also arrives appraised: its kind names the emotions it
+        # moves. A recollection carries the percept in its words or in the
+        # feeling it was made in, whichever it carries more of, taken together
+        # the way two independent chances are. Without the second, a threat,
+        # an error and a disconnection brought back the same memories from the
+        # same moment whenever no stored text used their names. See
+        # core/memory/felt_at_encoding.py.
         if percept_cue and percept_salience > 0.0:
-            from core.state.percepts import word_overlap
+            from core.memory.felt_at_encoding import carries, distinctive
+            from core.state.percepts import PERCEPT_EMOTIONS, word_overlap
 
+            appraisal = tuple(PERCEPT_EMOTIONS.get(percept_kind, ()) or ())
+            set_apart = distinctive(felt_by_text) if appraisal else {}
             reread: list[tuple[float, str]] = []
             for score, text in memory_candidates:
                 bounded = max(0.0, min(1.0, float(score)))
-                updated = bounded + (1.0 - bounded) * word_overlap(percept_cue, text) * percept_salience
+                in_words = word_overlap(percept_cue, text)
+                in_feeling = carries(appraisal, set_apart.get(text)) if appraisal else 0.0
+                carried = 1.0 - (1.0 - in_words) * (1.0 - in_feeling)
+                updated = bounded + (1.0 - bounded) * carried * percept_salience
                 if updated != bounded and text.startswith("[memory score="):
                     text = f"[memory score={updated:.3f}]" + text.split("]", 1)[1]
                 reread.append((updated, text))
