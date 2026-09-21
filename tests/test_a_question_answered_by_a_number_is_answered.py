@@ -137,3 +137,52 @@ def test_a_continuation_that_starts_the_answer_again_replaces_nothing_complete()
         "refills at 3 L/min, so the net drain is 5 L/min and the tank empties in 240 minutes.",
     )
     assert merged.startswith("The valve drains") and merged.endswith("240 minutes.")
+
+
+def test_what_the_person_said_is_answered_by_saying_what_they_said() -> None:
+    """LIVE 2026-09-20, the recall battery's second turn: "What did I just
+    tell you I was working on, and what preference did I state?" was answered
+    "You're rewriting the retry logic in your payment service this week. And
+    you want answers short and concrete." — both parts, correctly. The
+    coverage gate looked for the question's own words, found neither
+    "preference" nor "state" in the reply, rejected it four times, and the
+    turn ended with nothing served.
+    """
+    from core.conversation.request_coverage import unanswered_question_parts
+    from core.runtime.structured_input import analyze_prompt_shape
+
+    shape = analyze_prompt_shape(
+        "What did I just tell you I was working on, and what preference did I state?"
+    )
+    assert len(shape.question_segments) == 2
+
+    answered = (
+        "You're rewriting the retry logic in your payment service this week. "
+        "And you want answers short and concrete."
+    )
+    assert unanswered_question_parts(answered, shape) == []
+
+    # Half an answer is still half: the preference part is genuinely missing.
+    half = "You're rewriting the retry logic in your payment service this week."
+    assert unanswered_question_parts(half, shape) == ["what preference did I state?"]
+
+    # And an attribution with nothing attributed has recalled nothing.
+    truncated = (
+        "You're rewriting the retry logic in your payment service this week. And you want"
+    )
+    assert unanswered_question_parts(truncated, shape) == ["what preference did I state?"]
+
+
+def test_only_a_question_about_the_person_takes_that_route() -> None:
+    from core.language.asking_clauses import (
+        asks_what_the_person_said,
+        recalls_what_the_person_said,
+    )
+
+    assert asks_what_the_person_said("what preference did I state?")
+    assert asks_what_the_person_said("What did I just tell you I was working on?")
+    assert not asks_what_the_person_said("what is the capital of France?")
+    assert not asks_what_the_person_said("what did you decide?")
+
+    assert recalls_what_the_person_said("You asked for short, concrete answers.")
+    assert not recalls_what_the_person_said("I didn't say anything before that.")
