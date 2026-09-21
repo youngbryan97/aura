@@ -599,6 +599,30 @@ class AffectUpdatePhase(Phase):
             state.response_modifiers["ontogenetic_novelty"] = round(float(reading.novelty), 4)
             state.response_modifiers["ontogenetic_displacement"] = round(weight, 4)
             self._ground_affect(state, affect, novelty=float(reading.novelty))
+            # And where she is, for the memories that come back because now
+            # resembles then. Retrieval is handed a query and not a mood.
+            # See core/memory/unbidden.py.
+            try:
+                from core.memory.unbidden import get_unbidden_ledger
+
+                get_unbidden_ledger().now(
+                    (
+                        float(getattr(affect, "valence", 0.0) or 0.0),
+                        float(getattr(affect, "arousal", 0.0) or 0.0),
+                        float(reading.novelty),
+                    )
+                )
+                # And where the returns pull it. Perturbing active memory
+                # moved the workspace and the world model and read 0.0011 into
+                # affect: recall could not touch how she feels. A memory comes
+                # back because now resembles then, and the state it was laid
+                # down in is what it brings with it.
+                pull = float(get_unbidden_ledger().pull())
+                if pull:
+                    affect.valence = max(-1.0, min(1.0, float(affect.valence) + pull))
+                    state.response_modifiers["unbidden_pull"] = round(pull, 4)
+            except (AttributeError, ImportError, TypeError, ValueError) as exc:
+                logger.debug("where she is went unrecorded for recall: %s", exc)
         except _AFFECT_UPDATE_ERRORS as exc:
             self._record_phase_degradation(
                 state,

@@ -214,8 +214,23 @@ class ConversationalDynamicsPhase(Phase):
             sittings = get_sitting_ledger()
             # With how strained things were around this message, so what their
             # long absences follow can be learned. See `Attribution` there.
-            sittings.message(partner, now, strain=ConversationalDynamicsPhase._strain_of(partner))
+            strain = ConversationalDynamicsPhase._strain_of(partner)
+            sittings.message(partner, now, strain=strain)
             state.cognition.closing_window = sittings.reading(partner).as_dict()
+            # What they were carrying, against how much of her came back. Every
+            # gate that shortens an answer looks at one turn, so nothing could
+            # see her giving least where there was most to carry.
+            # See core/conversation/presence_under_weight.py.
+            if strain is not None:
+                from core.conversation.presence_under_weight import get_weight_ledger
+
+                weights = get_weight_ledger()
+                weights.note(
+                    strain,
+                    len(ConversationalDynamicsPhase._last_said_by_her(state)),
+                )
+                state.cognition.presence_under_weight = weights.read().as_dict()
+            ConversationalDynamicsPhase._read_civility(state)
         except (AttributeError, ImportError, TypeError, ValueError) as exc:
             logger.debug("their regularity went unread: %s", exc)
 
@@ -291,6 +306,32 @@ class ConversationalDynamicsPhase(Phase):
             state.cognition.made_minor = reading.as_dict()
         except (AttributeError, ImportError, TypeError, ValueError) as exc:
             logger.debug("no account of a shared past compared: %s", exc)
+
+    @staticmethod
+    def _read_civility(state: AuraState) -> None:
+        """What she is in, against the warmth the reply performs.
+
+        Both numbers already existed and were never compared. `offering` is
+        the share of her clauses that hand over something of her own, which is
+        the surface; valence is what is under it, rescaled to the same range.
+        See core/social/civility.py.
+        """
+        try:
+            from core.expression.register import read
+            from core.social.civility import get_civility_ledger
+            from core.social.togetherness import last_said
+
+            history = list(getattr(state.cognition, "working_memory", []) or [])
+            said = last_said(history, ("assistant", "aura"))
+            if not said:
+                return
+            shown = float(read(said).offering)
+            valence = float(getattr(getattr(state, "affect", None), "valence", 0.0) or 0.0)
+            ledger = get_civility_ledger()
+            ledger.note((valence + 1.0) / 2.0, shown)
+            state.cognition.civility = ledger.read().as_dict()
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            logger.debug("what the surface was covering went unread: %s", exc)
 
     @staticmethod
     def _last_said_by_her(state: AuraState) -> str:

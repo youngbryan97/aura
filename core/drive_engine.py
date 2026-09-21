@@ -10,6 +10,10 @@ from typing import Any, Deque, Dict, List, Optional
 
 logger = logging.getLogger("Aura.DriveEngine")
 
+#: Readings before the middle of them is a middle. Below three there is no
+#: point above and below, so the shift would be about the last reading.
+_ENOUGH_SHORTFALLS = 3
+
 @dataclass
 class ResourceBudget:
     name: str
@@ -65,6 +69,9 @@ class DriveEngine:
         self._seek_novelty: bool = False        # raised when boredom threshold crossed
         self._last_boredom_relief: float = time.time()
         self._boredom_history: Deque[float] = deque(maxlen=600)  # 10 min of boredom levels
+        #: Shortfalls seen, so the shift above is centred on her own middle
+        #: rather than on a number chosen here.
+        self._shortfalls: Deque[float] = deque(maxlen=600)
 
         # Latent Interests (The "Subconscious" to pull from when bored)
         self.latent_interests = [
@@ -104,7 +111,50 @@ class DriveEngine:
             dt = min(300, now - b.last_tick)
             level = max(0.0, min(b.capacity, b.level + b.regen_rate_per_sec * dt))
             vector[name] = round(level / b.capacity, 4) if b.capacity > 0 else 0.0
+        # Competence, knowing whether she is behind. `core/self/growth.py`
+        # holds how far her development has been moving against the ordinary
+        # step the reservoir calibrates, and the only thing that reads it is
+        # the gate on her self-modification path — so a drive named for
+        # wanting to be good at things could not tell a stretch of developing
+        # below ordinary from a stretch of keeping up. run_031 measured N's
+        # reach at 0.222, the worst of the ten domains.
+        #
+        # Subtracted as a shift centred on her own middle, so it averages to
+        # nothing over a life and cannot drain the budget on its own.
+        shift = self._shortfall_shift()
+        if shift and "competence" in vector:
+            vector["competence"] = round(max(0.0, min(1.0, vector["competence"] - shift)), 4)
         return vector
+
+    def _shortfall_shift(self) -> float:
+        """How far her development is running below an ordinary step, against
+        how far below it usually runs. Zero until there are enough readings
+        for a middle, and zero while she is moving more than ordinarily.
+
+        The ordinary step is the reservoir's own calibration rather than a bar
+        set here, which is what makes this a measurement and not a judgement.
+        """
+        try:
+            from core.self.growth import ORDINARY_STEP, get_growth_ledger
+
+            reading = get_growth_ledger().read()
+            if not reading.measured:
+                return 0.0
+            shortfall = max(0.0, float(ORDINARY_STEP) - float(reading.score))
+        except (ImportError, AttributeError, TypeError, ValueError):
+            return 0.0
+        if shortfall != shortfall:
+            return 0.0
+        self._shortfalls.append(shortfall)
+        if len(self._shortfalls) < _ENOUGH_SHORTFALLS:
+            return 0.0
+        ordered = sorted(self._shortfalls)
+        middle = len(ordered) // 2
+        centre = (
+            ordered[middle] if len(ordered) % 2
+            else (ordered[middle - 1] + ordered[middle]) / 2.0
+        )
+        return shortfall - centre
 
     def get_arbiter_weight_modifiers(self) -> Dict[str, float]:
         """Return weight modifiers for InitiativeArbiter based on drive state.

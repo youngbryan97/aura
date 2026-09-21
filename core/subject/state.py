@@ -1582,14 +1582,24 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
 
 
 def _urgency_of(items: Any) -> float:
-    """The hardest any of these intentions is pressing, or nothing."""
+    """The hardest any of these intentions is pressing, or nothing.
+
+    `decided_urgency` first. What a proposer declares is a constant chosen at
+    its branch, and what the arbiter decides is that proposal shifted by how
+    hard the state is actually pressing — so the declared value is a proposal
+    and the decided one is the quantity this column is named for. Reading the
+    proposal left deliberation with one measured cause in the whole system.
+    See core/agency/initiative_arbiter.py `_read_pressure_shift`.
+    """
     if not isinstance(items, list):
         return 0.0
     best = 0.0
     for item in items:
         if not isinstance(item, Mapping):
             continue
-        stated = item.get("urgency")
+        stated = item.get("decided_urgency")
+        if stated is None:
+            stated = item.get("urgency")
         if stated is None:
             continue
         best = max(best, _f(stated))

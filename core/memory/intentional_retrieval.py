@@ -255,9 +255,54 @@ class IntentionalRetriever:
                 missing.append(store)
 
         merged = self._merge(hits, intent.limit)
+        merged = self._let_in_what_came_back_on_its_own(merged, intent.limit)
         self._grade_breadth(breadth_episode, merged)
         return RetrievalResult(hits=merged, plan=plan, stores_queried=queried,
                                stores_missing=missing)
+
+    @staticmethod
+    def _let_in_what_came_back_on_its_own(
+        merged: list[MemoryHit], limit: int
+    ) -> list[MemoryHit]:
+        """Record the state each recall happened in, and admit the ones this
+        state brings back without being asked.
+
+        Every path into memory here is a query, so the only pasts that reach
+        her are the ones already close enough to mind to ask for. These are
+        the other kind: near because now resembles then, scored below
+        everything the query actually found so they add rather than displace.
+        See core/memory/unbidden.py.
+        """
+        try:
+            from core.memory.unbidden import get_unbidden_ledger
+
+            ledger = get_unbidden_ledger()
+            here = ledger.here()
+            if not here:
+                return merged
+            known = {hit.content for hit in merged}
+            arrivals = [key for key in ledger.arrivals_now() if key not in known]
+            for hit in merged:
+                ledger.lay_down(hit.content, here)
+            if not arrivals:
+                return merged
+            floor = min((hit.score for hit in merged), default=0.0)
+            room = max(0, limit - len(merged))
+            for key in arrivals[: room or len(arrivals)]:
+                merged.append(
+                    MemoryHit(
+                        content=key,
+                        score=max(0.0, floor * 0.5),
+                        store_type="unbidden",
+                        source="unbidden",
+                        metadata={"unasked": True},
+                    )
+                )
+            return merged
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("intentional_retrieval", exc, severity="debug",
+                               action="what came back on its own was not admitted")
+            return merged
 
     # ── ontogeny: how wide to cast the net ────────────────────────────────
 
