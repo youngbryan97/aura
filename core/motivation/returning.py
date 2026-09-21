@@ -156,6 +156,23 @@ class ReturningLedger:
             row.margins.append(max(0.0, winning - value))
             row.waiting = True
 
+    def pull_for(self, option_id: str) -> float:
+        """How much more often she comes back to this one than to anything.
+
+        In her own units: a rate minus a rate, so it is a share of occasions
+        and sits on the same scale as the other terms the chooser adds. Zero
+        until the option has been passed over enough times for its rate to be a
+        rate, and zero while her own base rate cannot be read.
+        """
+        row = self._book.get(str(option_id))
+        if row is None or row.passes < MIN_PASSES:
+            return 0.0
+        passes = sum(item.passes for item in self._book.values())
+        returns = sum(item.returns for item in self._book.values())
+        if passes <= 0:
+            return 0.0
+        return max(0.0, (row.returns / row.passes) - (returns / passes))
+
     def read(self) -> Returning:
         passes = sum(row.passes for row in self._book.values())
         returns = sum(row.returns for row in self._book.values())
