@@ -134,6 +134,22 @@ def get_contract_tracker() -> ContractTracker:
     return _tracker
 
 
+
+def _holds(check: Any, *args: Any, **kwargs: Any) -> tuple[bool, str]:
+    """Whether a contract check passed, and what to say when it did not.
+
+    A check that RAISES is treated as failed, which is right — a contract
+    nobody can evaluate is not one anybody has met. But the violation it
+    then reports said the contract was broken, and eight of these handlers
+    reported that about a check that never ran. Those are different
+    diagnoses and the operator sees only the message.
+    """
+    try:
+        return bool(check(*args, **kwargs)), ""
+    except _GUARDED_CALLABLE_ERRORS as exc:
+        return False, f" [the check itself raised {type(exc).__name__}: {exc}]"
+
+
 def _handle_violation(kind: str, message: str, func_name: str) -> None:
     """Central violation handler."""
     violation = ViolationRecord(kind=kind, function=func_name, message=message)
@@ -174,23 +190,21 @@ def precondition(
         if inspect.iscoroutinefunction(func):
             @functools.wraps(func)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-                try:
-                    ok = check(*args, **kwargs) if args else check(**kwargs)
-                except _GUARDED_CALLABLE_ERRORS:
-                    ok = False
+                ok, why = (
+                    _holds(check, *args, **kwargs) if args else _holds(check, **kwargs)
+                )
                 if not ok:
-                    _handle_violation("precondition", message, func_name)
+                    _handle_violation("precondition", message + why, func_name)
                 return await func(*args, **kwargs)
             return async_wrapper
         else:
             @functools.wraps(func)
             def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-                try:
-                    ok = check(*args, **kwargs) if args else check(**kwargs)
-                except _GUARDED_CALLABLE_ERRORS:
-                    ok = False
+                ok, why = (
+                    _holds(check, *args, **kwargs) if args else _holds(check, **kwargs)
+                )
                 if not ok:
-                    _handle_violation("precondition", message, func_name)
+                    _handle_violation("precondition", message + why, func_name)
                 return func(*args, **kwargs)
             return sync_wrapper
     return decorator
@@ -211,24 +225,18 @@ def postcondition(
             @functools.wraps(func)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 result = await func(*args, **kwargs)
-                try:
-                    ok = check(result)
-                except _GUARDED_CALLABLE_ERRORS:
-                    ok = False
+                ok, why = _holds(check, result)
                 if not ok:
-                    _handle_violation("postcondition", message, func_name)
+                    _handle_violation("postcondition", message + why, func_name)
                 return result
             return async_wrapper
         else:
             @functools.wraps(func)
             def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 result = func(*args, **kwargs)
-                try:
-                    ok = check(result)
-                except _GUARDED_CALLABLE_ERRORS:
-                    ok = False
+                ok, why = _holds(check, result)
                 if not ok:
-                    _handle_violation("postcondition", message, func_name)
+                    _handle_violation("postcondition", message + why, func_name)
                 return result
             return sync_wrapper
     return decorator
@@ -266,19 +274,13 @@ def invariant(
                                        _orig: Any = attr,
                                        _fn: str = func_name,
                                        **kwargs: Any) -> Any:
-                    try:
-                        ok = check(self)
-                    except _GUARDED_CALLABLE_ERRORS:
-                        ok = False
+                    ok, why = _holds(check, self)
                     if not ok:
-                        _handle_violation("invariant", f"pre-{message}", _fn)
+                        _handle_violation("invariant", f"pre-{message}{why}", _fn)
                     result = await _orig(self, *args, **kwargs)
-                    try:
-                        ok = check(self)
-                    except _GUARDED_CALLABLE_ERRORS:
-                        ok = False
+                    ok, why = _holds(check, self)
                     if not ok:
-                        _handle_violation("invariant", f"post-{message}", _fn)
+                        _handle_violation("invariant", f"post-{message}{why}", _fn)
                     return result
                 setattr(cls, attr_name, async_method)
             else:
@@ -287,19 +289,13 @@ def invariant(
                                 _orig: Any = attr,
                                 _fn: str = func_name,
                                 **kwargs: Any) -> Any:
-                    try:
-                        ok = check(self)
-                    except _GUARDED_CALLABLE_ERRORS:
-                        ok = False
+                    ok, why = _holds(check, self)
                     if not ok:
-                        _handle_violation("invariant", f"pre-{message}", _fn)
+                        _handle_violation("invariant", f"pre-{message}{why}", _fn)
                     result = _orig(self, *args, **kwargs)
-                    try:
-                        ok = check(self)
-                    except _GUARDED_CALLABLE_ERRORS:
-                        ok = False
+                    ok, why = _holds(check, self)
                     if not ok:
-                        _handle_violation("invariant", f"post-{message}", _fn)
+                        _handle_violation("invariant", f"post-{message}{why}", _fn)
                     return result
                 setattr(cls, attr_name, sync_method)
 

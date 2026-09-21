@@ -43,6 +43,7 @@ class MetricsCollector:
         self._boot_time = time.time()
         self._tick_count = 0
         self._tick_durations: Deque[float] = deque(maxlen=100)
+        self._unsampled: Dict[str, int] = {}
         self._last_tick_time = 0.0
         self._substrate_resets = 0
         self._will_decisions: Dict[str, int] = {
@@ -71,8 +72,8 @@ class MetricsCollector:
         try:
             from slo.slo_monitor import get_slo_monitor
             get_slo_monitor().record("tick_duration_p95_ms", duration_ms)
-        except (ImportError, AttributeError, RuntimeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            self._sample_unavailable("slo_tick_duration", exc)
 
     def record_will_decision(self, outcome: str) -> None:
         outcome_key = outcome.lower()
@@ -131,6 +132,20 @@ class MetricsCollector:
 
 
     # ── Collection ────────────────────────────────────────────────
+
+    def _sample_unavailable(self, name: str, exc: BaseException) -> None:
+        """Record that a metric could not be sampled this scrape.
+
+        not a failure: a source that is not loaded yet, or a process that
+        has gone, leaves a gap in the series rather than an error. But eight
+        collectors dropped that gap in silence, so a metrics surface could
+        go blind — psutil missing, the substrate unloaded — and look exactly
+        like a healthy one reporting nothing. The gap is a metric now, and
+        the first one of each kind is logged once.
+        """
+        self._unsampled[name] = self._unsampled.get(name, 0) + 1
+        if self._unsampled[name] == 1:
+            logger.info("Metric %s cannot be sampled here: %s", name, exc)
 
     def collect(self) -> list[MetricSample]:
         """Collect all current metrics."""
@@ -248,8 +263,8 @@ class MetricsCollector:
                 value=float(vm.percent),
                 help_text="System memory usage percentage",
             ))
-        except (ImportError, OSError, AttributeError):
-            pass  # psutil unavailable or process gone
+        except (ImportError, OSError, AttributeError) as exc:
+            self._sample_unavailable("aura_system_memory_percent", exc)
 
         # CPU
         try:
@@ -259,8 +274,8 @@ class MetricsCollector:
                 value=float(psutil.cpu_percent(interval=0)),
                 help_text="Current CPU usage percentage",
             ))
-        except (ImportError, OSError, AttributeError):
-            pass  # psutil unavailable
+        except (ImportError, OSError, AttributeError) as exc:
+            self._sample_unavailable("aura_cpu_percent", exc)
 
         # Substrate state
         try:
@@ -281,8 +296,8 @@ class MetricsCollector:
                     metric_type="counter",
                     help_text="Substrate ODE step count",
                 ))
-        except (ImportError, AttributeError, TypeError, ValueError):
-            pass  # Substrate not available
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            self._sample_unavailable("aura_substrate", exc)
 
         # Will status
         try:
@@ -304,8 +319,8 @@ class MetricsCollector:
                 value=float(status.get("refuse_rate", 0)),
                 help_text="Will refuse rate (0-1)",
             ))
-        except (ImportError, AttributeError, TypeError, ValueError):
-            pass  # Will not available
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            self._sample_unavailable("aura_will", exc)
 
         # Drive levels
         try:
@@ -322,8 +337,8 @@ class MetricsCollector:
                             labels={"drive": str(drive_name)},
                             help_text="Current drive level",
                         ))
-        except (ImportError, AttributeError, TypeError, ValueError):
-            pass  # Drive engine not available
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            self._sample_unavailable("aura_drive_level", exc)
 
         # DB size
         try:
@@ -339,8 +354,8 @@ class MetricsCollector:
                     value=float(self._db_size_bytes),
                     help_text="SQLite database file size in bytes",
                 ))
-        except (OSError, AttributeError):
-            pass  # DB path not accessible
+        except (OSError, AttributeError) as exc:
+            self._sample_unavailable("aura_db_size_bytes", exc)
 
         # Custom gauges
         for name, value in self._custom_gauges.items():
@@ -357,6 +372,15 @@ class MetricsCollector:
                 value=float(value),
                 metric_type="counter",
                 help_text=f"Custom counter: {name}",
+            ))
+
+        for name, count in sorted(self._unsampled.items()):
+            samples.append(MetricSample(
+                name="aura_metric_unsampled_total",
+                value=float(count),
+                metric_type="counter",
+                labels={"metric": name},
+                help_text="Scrapes in which this metric's source could not be read",
             ))
 
         return samples
@@ -512,7 +536,9 @@ def check_readiness() -> Dict[str, Any]:
                 issues.append("substrate_nan_inf")
                 ready = False
     except (ImportError, AttributeError, TypeError, ValueError):
-        pass  # Substrate not loaded yet is OK during boot
+        # not a failure: the substrate is not loaded yet during boot, and a
+        # readiness probe that refused on that would never report ready.
+        pass
 
     # Check DB
     try:

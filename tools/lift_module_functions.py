@@ -52,6 +52,34 @@ def _annotate_what_moved(out: "pathlib.Path", source: "pathlib.Path") -> None:
     )
 
 
+
+def _keep_the_strict_allowlist(out: "pathlib.Path", source: "pathlib.Path") -> None:
+    """A module lifted out of a strictly-typed one is strictly typed too.
+
+    `config/mypy_strict_files.txt` is the set mypy runs in strict mode over.
+    A lift moves a class out of a module on that list into one that is not,
+    and mypy then sees the parent subclassing `Any` — which is exactly what
+    `core/container.py` did after `_SealsItsKeys` moved to
+    `core/container_seal.py`: `make typecheck` red, and the class it was
+    strictest about became untyped in one move.
+    """
+    listing = pathlib.Path("config/mypy_strict_files.txt")
+    if not listing.exists():
+        return
+    try:
+        root = pathlib.Path.cwd()
+        source_rel = str(source.resolve().relative_to(root))
+        out_rel = str(out.resolve().relative_to(root))
+    except ValueError:
+        return
+    lines = listing.read_text(encoding="utf-8").splitlines()
+    if source_rel not in lines or out_rel in lines:
+        return
+    lines.insert(lines.index(source_rel) + 1, out_rel)
+    listing.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"   added {out_rel} to the mypy strict allowlist, beside {source_rel}")
+
+
 def run(src_path, names, out_path, doc):
     p = pathlib.Path(src_path)
     src = p.read_text(encoding="utf-8")
@@ -135,6 +163,7 @@ def run(src_path, names, out_path, doc):
               + "\n\n")
     out.write_text(header + "".join(moved), encoding="utf-8")
     _annotate_what_moved(out, p)
+    _keep_the_strict_allowlist(out, p)
 
     for start, end in sorted(blocks, key=lambda b: -b[0]):
         del lines[start:end]

@@ -3,7 +3,7 @@
 # Do not edit by hand: run `make lockfiles`.
 #
 #   source-lock: requirements_lock.txt
-#   source-lock-sha256: 843a71855c79c42aad442f6bf7eb523b4d91d32e6bd642d52182226df374204c
+#   source-lock-sha256: c0e226a4e41c8bda2b5d5c35fe9c20ff60822a1a143b7d607a7523143ddf97e7
 #
 # Versions only. A constraint file may carry neither extras nor hashes,
 # which is why this is not the lockfile itself.
@@ -288,6 +288,7 @@ sentencepiece==0.2.1
 setuptools==83.0.0
 shellingham==1.5.4
 six==1.17.0
+snowballstemmer==3.0.1
 sortedcontainers==2.4.0
 soundfile==0.14.0
 soxr==1.1.0

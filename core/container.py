@@ -1,8 +1,8 @@
 import asyncio
 import contextvars
 import functools
-import hashlib  # noqa: F401  (read at call time by the lifted module)
-import hmac  # noqa: F401  (read at call time by the lifted module)
+import hashlib as hashlib  # re-exported: the lifted seal reads it off this module
+import hmac as hmac  # re-exported: the lifted seal reads it off this module
 import importlib
 import inspect
 import json
@@ -23,19 +23,19 @@ from core.exceptions import (
     ServiceNotFoundError,
 )
 from core.governance_context import (
-    local_internal_governed_scope,  # noqa: F401  (read at call time by the lifted module)
+    local_internal_governed_scope as local_internal_governed_scope,
 )
 from core.health.degraded_events import record_degraded_event
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import (
-    record_degradation,  # noqa: F401  (read at call time by the lifted module)
+    record_degradation as record_degradation,
 )
 from core.runtime.file_write_gateway import (
-    get_file_write_gateway,  # noqa: F401  (read at call time by the lifted module)
+    get_file_write_gateway as get_file_write_gateway,
 )
 from core.runtime.shutdown_execution import run_sync_shutdown_callable
 from core.runtime.state_ownership import (
-    state_root,  # noqa: F401  (read at call time by the lifted module)
+    state_root as state_root,
 )
 from core.utils.concurrency import RobustLock
 

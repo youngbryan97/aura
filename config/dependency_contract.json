@@ -69,7 +69,7 @@
     }
   },
   "source_digests": {
-    "requirements.txt": "d805a373391401a9869d39cc007b40a885a235d95542e360a8b884bc5f63e768",
+    "requirements.txt": "055e7412530eb0cfc54f57e9bde6b695a7b56e721ba993bc994419350d8d5da5",
     "requirements/core.txt": "0884f2c08e9b98d643311e0db008913f40ba4def2713afca225780476d52e136",
     "requirements/dev.txt": "908be975e30bf4ce74f81ae592d39f7de28f0fff29f191a736c946b70cf27c2d",
     "requirements/sandbox.txt": "8d1b4cd7227cc0f545dcbcad0beb87f6e924d9b7b3c063300125348df5f67ba6"

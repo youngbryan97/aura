@@ -11,6 +11,7 @@ core/consciousness/recursive_tom.py
 core/consciousness/theory_of_mind.py
 core/consciousness/unified_cognitive_bias.py
 core/container.py
+core/container_seal.py
 core/context/conversation_log.py
 core/conversation/apply_response_patches.py
 core/conversational/humor_engine.py

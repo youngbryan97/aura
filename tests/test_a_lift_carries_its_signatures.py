@@ -173,3 +173,64 @@ def test_names_in_scope_sees_what_the_module_imports() -> None:
     assert "c" in scope
     assert _annotation_is_writable("Thing | None", scope)
     assert not _annotation_is_writable("Missing", scope)
+
+
+def test_a_lift_out_of_a_strict_module_stays_strict(tmp_path: Path, monkeypatch) -> None:
+    """mypy runs strict over a list, and a lift can walk a class off it.
+
+    `core/container.py` is on that list. `_SealsItsKeys` moved to
+    `core/container_seal.py`, which was not, so mypy saw the container
+    subclassing `Any` and `make typecheck` went red on the class the list
+    exists to be strictest about.
+    """
+    import importlib
+    import sys as _sys
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config").mkdir()
+    listing = tmp_path / "config" / "mypy_strict_files.txt"
+    listing.write_text("core/other.py\ncore/parent.py\ncore/zzz.py\n")
+    (tmp_path / "core").mkdir()
+    parent = tmp_path / "core" / "parent.py"
+    parent.write_text("x = 1\n")
+    lifted = tmp_path / "core" / "parent_lifted.py"
+    lifted.write_text("y = 2\n")
+
+    _sys.path.insert(0, str(ROOT / "tools"))
+    module = importlib.import_module("lift_methods")
+    module._keep_the_strict_allowlist(lifted, parent)
+
+    lines = listing.read_text().splitlines()
+    assert lines == [
+        "core/other.py",
+        "core/parent.py",
+        "core/parent_lifted.py",
+        "core/zzz.py",
+    ]
+
+
+def test_a_lift_out_of_an_unlisted_module_adds_nothing(tmp_path: Path, monkeypatch) -> None:
+    """The null. The list is not a place to put everything that moves."""
+    import importlib
+    import sys as _sys
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config").mkdir()
+    listing = tmp_path / "config" / "mypy_strict_files.txt"
+    listing.write_text("core/other.py\n")
+    (tmp_path / "core").mkdir()
+    parent = tmp_path / "core" / "parent.py"
+    parent.write_text("x = 1\n")
+    lifted = tmp_path / "core" / "parent_lifted.py"
+    lifted.write_text("y = 2\n")
+
+    _sys.path.insert(0, str(ROOT / "tools"))
+    module = importlib.import_module("lift_methods")
+    module._keep_the_strict_allowlist(lifted, parent)
+    assert listing.read_text().splitlines() == ["core/other.py"]
+
+
+def test_both_lift_tools_keep_the_allowlist() -> None:
+    for name in ("lift_methods.py", "lift_module_functions.py"):
+        body = (ROOT / "tools" / name).read_text()
+        assert "_keep_the_strict_allowlist(out, p)" in body

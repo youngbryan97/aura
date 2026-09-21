@@ -33,7 +33,6 @@
       "core/knowledge/local_corpus.py": 2,
       "core/phases/response_generation.py": 1,
       "core/phases/response_generation_amplifiers.py": 1,
-      "core/resilience/stall_watchdog.py": 1,
       "core/runtime/boot_profile.py": 1,
       "core/security/user_recognizer.py": 1,
       "core/self_improvement/program_dna.py": 1,
@@ -49,7 +48,7 @@
       "tools/proof/run_rsi_challenge_proof.py": 1,
       "tools/run_rlc_reconciliation_sweep.py": 1
     },
-    "total": 61
+    "total": 60
   },
   "front": {
     "per_file": {

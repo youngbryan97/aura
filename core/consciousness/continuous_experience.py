@@ -545,6 +545,12 @@ class ContinuousExperienceStream:
         behind_the_loop(f"continuous_experience:{self.persist_path}", self._save_now)
 
     def _save_now(self) -> None:
+        # save() guards before scheduling this, and this is also called
+        # directly — from shutdown and from tests. A stream with no path
+        # persists nowhere, and writing to None is the alternative.
+        path = self.persist_path
+        if path is None:
+            return
         with self._lock:
             pending = list(self._pending_journal_frames)
             snapshot_frames = list(self._frames)[-self._snapshot_frame_limit :]
@@ -584,7 +590,7 @@ class ContinuousExperienceStream:
                         maxlen=self._pending_journal_frames.maxlen,
                     )
             atomic_write_json(
-                self.persist_path,
+                path,
                 payload,
                 schema_name="continuous_experience_stream",
                 schema_version=STREAM_SCHEMA_VERSION,
