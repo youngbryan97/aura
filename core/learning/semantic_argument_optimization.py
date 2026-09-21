@@ -7,6 +7,7 @@ The caller supplies the existing floor-typed options and validates the result.
 from __future__ import annotations
 
 import math
+import time
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
@@ -49,7 +50,8 @@ def _shortlist_mentions(options, definition_options, limit=4):
     return tuple(rows), tuple(labels) if definition_options is not None else None
 
 
-def _dual_bound_screen(objective, matrix, lows, highs, upper, incumbent_cost, *, binary_count):
+def _dual_bound_screen(objective, matrix, lows, highs, upper, incumbent_cost, *, binary_count,
+                       time_limit_s=None):
     """Fix only binary choices whose dual lower bound exceeds a feasible cost."""
     from scipy.optimize import linprog
     from scipy.sparse import vstack
@@ -69,7 +71,7 @@ def _dual_bound_screen(objective, matrix, lows, highs, upper, incumbent_cost, *,
     pricing_upper[:binary_count] = np.inf
     relaxation = linprog(objective, A_ub=inequalities, b_ub=limits,
         A_eq=equations, b_eq=right, bounds=np.column_stack((np.zeros(len(upper)), pricing_upper)),
-        method="highs-ds")
+        method="highs-ds", options={"time_limit": time_limit_s} if time_limit_s is not None else {})
     if not relaxation.success:
         return upper
     # Clipping signs and pricing the remaining stationarity residual against
@@ -119,6 +121,16 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
         or (time_limit_s is not None and (not math.isfinite(time_limit_s) or time_limit_s <= 0))
     ):
         raise ValueError("argument optimization dimensions must be positive")
+    deadline = None if time_limit_s is None else time.monotonic() + time_limit_s
+
+    def remaining():
+        if deadline is None:
+            return None
+        duration = deadline - time.monotonic()
+        if duration <= 0.:
+            raise ArgumentOptimizationIncompleteError("argument_optimizer_budget_exhausted")
+        return duration
+
     excluded = tuple(excluded_graphs) + (() if excluded_arguments is None else (excluded_arguments,))
     if any(
         len(graph) != operation_count
@@ -152,7 +164,7 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
         try:
             incumbent = optimize_argument_chart(short, n_inputs=n_inputs, contract=contract,
                 node_limit=node_limit, definition_options=names, definition_scores=definition_scores,
-                excluded_graphs=excluded, time_limit_s=time_limit_s)
+                excluded_graphs=excluded, time_limit_s=remaining())
         except ArgumentOptimizationIncompleteError:
             incumbent = None
     for node, arguments in enumerate(options):
@@ -257,12 +269,13 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
     ).tocsc()
     if incumbent is not None:
         upper = _dual_bound_screen(objective, matrix, lows, highs, upper, -incumbent[0],
-                                  binary_count=order_offset)
+                                  binary_count=order_offset, time_limit_s=remaining())
+    duration = remaining()
     result = milp(
         objective, integrality=integrality, bounds=Bounds(lower, upper),
         constraints=LinearConstraint(matrix, lows, highs),
         options={"node_limit": node_limit, "mip_rel_gap": 0.0,
-                 **({"time_limit": time_limit_s} if time_limit_s is not None else {})},
+                 **({"time_limit": duration} if duration is not None else {})},
     )
     if result.status == 2:
         return None

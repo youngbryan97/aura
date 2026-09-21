@@ -113,6 +113,36 @@ def test_shared_bank_is_retained_once_and_invalid_configuration_rejected():
         GraphConstraintBatch(rows, max_feature_bytes=0)
 
 
+def test_relation_choices_share_projection_and_accumulate_before_gradient(monkeypatch):
+    from core.learning.semantic_relation_graph_learning import RelationEvidenceBank
+
+    rng = np.random.default_rng(291)
+    bank = RelationEvidenceBank(rng.normal(size=5), rng.normal(size=(7, 5)), rng.normal(size=7))
+    parameters = (rng.normal(size=(5, 3)), rng.normal(size=(5, 3)))
+    rows = tuple(RelationGraphContrast(((bank, label),), ((bank, (label + 1) % 7),), .2)
+                 for label in range(7))
+    coefficients = rng.normal(size=7)
+    expected = [graph_margin_gradient(parameters, row, scale=1.7) for row in rows]
+    calls = []
+    original = RelationEvidenceBank.scores
+
+    def scores(self, *args):
+        calls.append(self)
+        return original(self, *args)
+
+    monkeypatch.setattr(RelationEvidenceBank, 'scores', scores)
+    batch = GraphConstraintBatch(rows, scale=1.7)
+    assert len(batch.relations) == 1
+    np.testing.assert_allclose(batch.margins(parameters), [value for value, _ in expected], atol=1e-12)
+    assert len(calls) == 1
+    for index, value in enumerate(batch.weighted_gradient(parameters, coefficients)):
+        np.testing.assert_allclose(value, sum(weight * row[1][index]
+            for weight, row in zip(coefficients, expected, strict=True)), atol=1e-12)
+    direction = tuple(rng.normal(size=value.shape) for value in parameters)
+    np.testing.assert_allclose(batch.directional_derivative(parameters, direction),
+        [sum(np.sum(a * b) for a, b in zip(row[1], direction, strict=True)) for row in expected], atol=1e-12)
+
+
 @pytest.mark.parametrize("adaptive", [False, True])
 def test_optimizer_preserves_reference_objective_and_retention(adaptive):
     from core.learning.semantic_graph_constraints import fit_graph_constraints

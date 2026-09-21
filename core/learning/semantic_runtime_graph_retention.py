@@ -32,13 +32,15 @@ def mine_runtime_graph_constraints(model, item, *, weight=1., max_charts=32, max
     step_limit = model.inference_step_limit(len(item.public_inputs))
     if step_limit is None:
         return (), {**record, "status": "public_input_count_unsupported"}
+    argument_evidence_cache = {}
     try:
         spans, _, argument_scores, candidates = model._runtime_operation_charts(
             item.ir.source_token_ids, item.hidden_states, item.public_inputs, step_limit)
         instructions, mapping = align_source_input_registers(item, spans)
         positive = score_annotated_graph(model, item, instructions, spans,
             solve_time_limit_s=solve_time_limit_s, learn_arguments=learn_arguments,
-            learn_operation_pointer=learn_operation_pointer)
+            learn_operation_pointer=learn_operation_pointer,
+            argument_evidence_cache=argument_evidence_cache)
     except (ValueError, ArgumentOptimizationIncompleteError) as exc:
         return (), {**record, "status": "source_graph_unavailable", "reason": str(exc)}
     if positive is None:
@@ -77,16 +79,25 @@ def mine_runtime_graph_constraints(model, item, *, weight=1., max_charts=32, max
                 max_graphs=max_graphs, solve_time_limit_s=solve_time_limit_s,
                 observation_cache=observation_cache)
             row.update(result.receipt)
+            normalizers = None
+            if (model.training_receipt.get("argument_choice_normalization") == "local_categorical_v1"
+                    and (result.positive is not None or result.negative is not None)):
+                from core.learning.semantic_choice_evidence import argument_choice_normalizers
+
+                normalizers = argument_choice_normalizers(model, item.hidden_states, nodes, charts[0],
+                    learn_arguments=learn_arguments, argument_evidence_cache=argument_evidence_cache)
             if result.positive is not None:
                 alternative = scored_graph_evidence(model, item, nodes, result.positive,
                     result.positive_evidence, learn_arguments=learn_arguments,
-                    learn_operation_pointer=learn_operation_pointer, chart=charts[0])
+                    learn_operation_pointer=learn_operation_pointer, chart=charts[0],
+                    choice_normalizers=normalizers)
                 if preferred_semantic_graph(model, alternative, positive):
                     positive = alternative
             if result.negative is not None:
                 negative = scored_graph_evidence(model, item, nodes, result.negative,
                     result.negative_evidence, learn_arguments=learn_arguments,
-                    learn_operation_pointer=learn_operation_pointer, chart=charts[0])
+                    learn_operation_pointer=learn_operation_pointer, chart=charts[0],
+                    choice_normalizers=normalizers)
                 row["negative_index"] = len(negatives)
                 negatives.append(negative)
     except (ArgumentOptimizationIncompleteError, OperationSearchIncompleteError) as exc:

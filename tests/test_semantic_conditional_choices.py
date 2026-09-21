@@ -102,6 +102,30 @@ def test_batched_conditional_margin_and_derivative_match_scalar():
         np.testing.assert_allclose(a, b, atol=1e-12)
 
 
+def test_denominator_batches_keep_independent_scales_and_pool_boundaries():
+    from core.learning.semantic_relation_graph_learning import RelationEvidenceBank
+
+    parameters, choices, normalizer, selected = evidence()
+    relation = RelationEvidenceBank(np.ones(1), np.array([[1.], [-1.]]), np.array([.1, -.3]))
+    alternatives = tuple(replace(row, positive=((relation, index % 2),)) for index, row in enumerate(choices))
+    other = GraphChoiceNormalizer(alternatives, scale=2.)
+    shared_scale = GraphChoiceNormalizer(choices[:2])
+    rows = (selected, replace(selected, normalizer_terms=((1., other), (-1., shared_scale))),
+            replace(selected, normalizer_terms=((1., normalizer), (-1., other))))
+    batch = GraphConstraintBatch(rows)
+    assert len(batch.choice_batches) == 2
+    assert sorted(len(groups) for _, groups in batch.choice_batches) == [1, 2]
+    coefficients = np.array([.4, -.3, .8])
+    direction = tuple(np.full_like(part, .2) for part in parameters)
+    expected = [graph_margin_gradient(parameters, row) for row in rows]
+    np.testing.assert_allclose(batch.margins(parameters), [row[0] for row in expected], atol=1e-12)
+    for index, actual in enumerate(batch.weighted_gradient(parameters, coefficients)):
+        np.testing.assert_allclose(actual, sum(c * row[1][index]
+            for c, row in zip(coefficients, expected, strict=True)), atol=1e-12)
+    np.testing.assert_allclose(batch.directional_derivative(parameters, direction),
+        [sum(np.sum(a * b) for a, b in zip(row[1], direction, strict=True)) for row in expected], atol=1e-12)
+
+
 def test_choice_evidence_archive_roundtrips_shared_denominators(tmp_path):
     from core.learning.semantic_fit_problem import load_fit_problem, save_fit_problem
     from core.learning.semantic_fit_checkpoint import fit_identity
@@ -147,6 +171,26 @@ def test_runtime_policy_is_identity_bound_and_serializable(source):
     restored = compositional_semantic_program_transducer_from_dict(model.to_dict())
     assert restored.receipt_sha256 == model.receipt_sha256
     assert restored.training_receipt['argument_choice_normalization'] == 'local_categorical_v1'
+
+
+def test_register_alternatives_share_their_identical_argument_features(source):
+    from core.learning.semantic_joint_graph_learning import score_annotated_graph
+
+    model, examples = source
+    item = next(row for row in examples if row.split == 'train')
+    cache = {}
+    a = score_annotated_graph(model, item, item.ir.instructions, item.ir.input_spans,
+        learn_arguments=True, argument_evidence_cache=cache)
+    b = score_annotated_graph(model, item, item.ir.instructions, item.ir.input_spans,
+        learn_arguments=True, argument_evidence_cache=cache)
+    assert a is not None and b is not None
+    terms_a = [term for normalizer in a['normalizers'] for row in normalizer.choices
+               for _sign, term in row.argument_terms]
+    terms_b = [term for normalizer in b['normalizers'] for row in normalizer.choices
+               for _sign, term in row.argument_terms]
+    assert terms_a and len({id(term) for term in terms_a}) < len(terms_a)
+    assert all(left is right for left, right in zip(terms_a, terms_b, strict=True))
+    assert a['score'] == b['score']
 
 
 def test_complete_source_chart_replays_the_normalized_runtime_score(source):
