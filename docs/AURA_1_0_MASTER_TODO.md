@@ -1060,6 +1060,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Search-phase repair](evidence/G03_CONDITIONAL_SEARCH_BOUND_2026-09-20.md)
+  closes an optional LP screen that ignored the diagnostic's declared allowance.
+  The interrupted conditional fit produced no accuracy result and must rerun.
   [Conditional selection](evidence/G03_CONDITIONAL_SELECTION_2026-09-20.md)
   gives decode and learning one shift-invariant argument-choice score. The
   unchanged-coefficient replay scores 98/100 versus raw joint 91/100 and
