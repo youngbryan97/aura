@@ -443,9 +443,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   `tests/test_degradation_habituation.py` bans the sort rather than timing
   the call, because a timing threshold on a loaded host is what produced
   this defect's report in the first place.
-  Still open: the health snapshot refresh exceeding 8s; the streak of 1.5–11s lags between
-  22:49 and 22:51Z that produced no dump because each was under the 5s
-  watchdog line. Resident replay on this build follows.
+  The health snapshot refresh exceeding 8s is closed, and was closed under
+  R08 on 2026-09-19 without this line being updated: twenty incidents in
+  forty minutes were an integrity audit still running its lines past 8s of
+  WALL on a host at load 23, so the budget bounds a stall in the refresh
+  thread's own CPU now and reads the audit's age only where that clock is
+  unreadable. `tests/test_health_read_model.py::test_a_collection_that_is_
+  still_working_is_not_a_timeout` holds it; 32 tests in that file pass.
+  Still open: the streak of 1.5–11s lags between 22:49 and 22:51Z that
+  produced no dump because each was under the 5s watchdog line. Resident
+  replay on this build follows.
   2026-09-16, a loaded host (load 34 to 124 on 18 cores, other agents' jobs).
   A day of stalls that were not the loop's: the loop thread was getting 2% of
   a core. Every monitor now tells starved from stuck by the thread's own CPU
