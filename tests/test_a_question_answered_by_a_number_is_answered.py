@@ -186,3 +186,25 @@ def test_only_a_question_about_the_person_takes_that_route() -> None:
 
     assert recalls_what_the_person_said("You asked for short, concrete answers.")
     assert not recalls_what_the_person_said("I didn't say anything before that.")
+
+
+def test_a_recall_answered_in_its_own_words_counts_as_two_things() -> None:
+    """The answer's words come from what the person said, which this gate has
+    never seen — so word overlap can only be wrong. What it can see is whether
+    the reply says as many things as were asked for.
+
+    LIVE 2026-09-20, the same battery on the next build: "Payment service
+    retry logic, this week. And short, concrete answers — got it pinned."
+    answers both parts and shares no word with either question segment.
+    """
+    from core.conversation.request_coverage import unanswered_question_parts
+    from core.runtime.structured_input import analyze_prompt_shape
+
+    shape = analyze_prompt_shape(
+        "What did I just tell you I was working on, and what preference did I state?"
+    )
+    both = "Payment service retry logic, this week. And short, concrete answers — got it pinned."
+    assert unanswered_question_parts(both, shape) == []
+
+    one = "Payment service retry logic, this week."
+    assert unanswered_question_parts(one, shape) == ["what preference did I state?"]

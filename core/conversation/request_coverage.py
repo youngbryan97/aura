@@ -1048,6 +1048,30 @@ def _strong_segment_obligations_are_covered(segment: Any, body: Any) -> bool:
     return True
 
 
+def _a_clause_for_every_part(body: Any, parts: int) -> bool:
+    """Whether the reply says as many things as the question asked for.
+
+    For a question about what the PERSON said, the answer's words come from
+    what they said — which this gate has never seen, so word overlap can only
+    be wrong. What it can see is whether the reply says more than one thing.
+    LIVE 2026-09-20: "Payment service retry logic, this week. And short,
+    concrete answers — got it pinned." answers both parts and shares no word
+    with either question segment.
+
+    A clause counts when it carries at least two content words, so an
+    attribution the generator never finished — "And you want" — is not a
+    second answer.
+    """
+    if parts < 2:
+        return False
+    clauses = [
+        clause
+        for clause in re.split(r"(?<=[.!?;])\s+|\s+—\s+|\n+", str(body or ""))
+        if len(coverage_tokens(clause)) >= 2
+    ]
+    return len(clauses) >= parts
+
+
 def unanswered_question_parts(body: Any, contract: object | None) -> list[str]:
     """Return substantive asks a reply never engages with at all.
 
@@ -1130,7 +1154,10 @@ def unanswered_question_parts(body: Any, contract: object | None) -> list[str]:
         # answers short and concrete", which contains neither "preference"
         # nor "state" (LIVE 2026-09-20: a correct two-part recall rejected
         # four times, and the turn ended with nothing served).
-        if asks_what_the_person_said(segment) and recalls_what_the_person_said(local_body):
+        if asks_what_the_person_said(segment) and (
+            recalls_what_the_person_said(local_body)
+            or _a_clause_for_every_part(local_body, len(segments))
+        ):
             continue
         # Measured on what was ASKED, not on how the answer was to be
         # presented. A segment that is a delivery instruction wearing a
