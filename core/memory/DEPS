@@ -6,7 +6,7 @@
 # `make deps-generate`; replace this file with a written one when this
 # package earns a real architectural rule, the way core/runtime/DEPS has.
 #
-# 25 outbound edges when this was generated.
+# 26 outbound edges when this was generated.
 
 description = "core.memory: may import only what it already imports; every new edge is an edit here."
 
@@ -37,13 +37,9 @@ include_rules = [
     "+core.runtime",
     "+core.security",
     "+core.social",
+    "+core.soma",
     "+core.utils",
     "+core.values",
-
-    # How wide to cast the net follows what she is carrying: active memory had
-    # one measured cause, and what she is trying to do was not among them.
-    # core/soma/carrying.py holds the load against her own middle.
-    "+core.soma",
 
     # Everything else.
     "-core",
