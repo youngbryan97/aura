@@ -80,13 +80,13 @@ def mine_runtime_graph_constraints(model, item, *, weight=1., max_charts=32, max
             if result.positive is not None:
                 alternative = scored_graph_evidence(model, item, nodes, result.positive,
                     result.positive_evidence, learn_arguments=learn_arguments,
-                    learn_operation_pointer=learn_operation_pointer)
+                    learn_operation_pointer=learn_operation_pointer, chart=charts[0])
                 if preferred_semantic_graph(model, alternative, positive):
                     positive = alternative
             if result.negative is not None:
                 negative = scored_graph_evidence(model, item, nodes, result.negative,
                     result.negative_evidence, learn_arguments=learn_arguments,
-                    learn_operation_pointer=learn_operation_pointer)
+                    learn_operation_pointer=learn_operation_pointer, chart=charts[0])
                 row["negative_index"] = len(negatives)
                 negatives.append(negative)
     except (ArgumentOptimizationIncompleteError, OperationSearchIncompleteError) as exc:

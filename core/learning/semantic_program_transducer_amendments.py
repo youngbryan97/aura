@@ -118,6 +118,15 @@ class _CarriesItsAmendments:
         body["operation_assignment_policy"] = "joint_factor_score_v2"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
+    def with_conditional_argument_choices(self) -> CompositionalSemanticProgramTransducer:
+        """Compare complete graphs using categorical evidence from each choice pool."""
+        from .semantic_program_compositional_transducer import _sha, replace
+
+        body = {key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"}
+        body.update(operation_assignment_policy="joint_factor_score_v2",
+                    argument_choice_normalization="local_categorical_v1")
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
     def with_typed_operation_charts(self) -> CompositionalSemanticProgramTransducer:
         """Preserve type-demand states before pruning the operation chart beam."""
         from .semantic_program_compositional_transducer import (
@@ -241,4 +250,3 @@ class _CarriesItsAmendments:
         body["argument_search_strategy"] = "global_constraint_v1"
         body["definition_selection_policy"] = "joint_graph_v1"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
-

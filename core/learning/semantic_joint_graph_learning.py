@@ -60,10 +60,10 @@ def score_annotated_graph(model, item, instructions, input_spans, *, solve_time_
     if result is None:
         return None
     return scored_graph_evidence(model, item, nodes, result, evidence[0], learn_arguments=learn_arguments,
-                                 learn_operation_pointer=learn_operation_pointer)
+                                 learn_operation_pointer=learn_operation_pointer, chart=charts[0])
 
 
-def scored_graph_evidence(model, item, nodes, result, relations, *, learn_arguments=False, learn_operation_pointer=False):
+def scored_graph_evidence(model, item, nodes, result, relations, *, learn_arguments=False, learn_operation_pointer=False, chart=None):
     """Retain differentiable terms for the same latent graph the solver selected."""
     operation_score = sum(node.score for node in nodes) - model.operation_length_penalty * len(nodes)
     score = result[0][0] + operation_score
@@ -78,7 +78,13 @@ def scored_graph_evidence(model, item, nodes, result, relations, *, learn_argume
         )
         pointer_terms = operation_pointer_graph_evidence(model, item.hidden_states, nodes)
         terms += pointer_terms
-    return {"score": score, "operation_score": operation_score,
+    normalizers = ()
+    if model.training_receipt.get("argument_choice_normalization") == "local_categorical_v1":
+        from core.learning.semantic_choice_evidence import argument_choice_normalizers
+
+        normalizers = argument_choice_normalizers(model, item.hidden_states, nodes, chart,
+                                                   learn_arguments=learn_arguments)
+    return {"score": score, "operation_score": operation_score, "normalizers": normalizers,
             "argument_score": result[0][0], "relations": relations, "argument_terms": terms,
             "operation_pointer_terms": pointer_terms,
             "binding_terms": binding_terms,
@@ -99,7 +105,9 @@ def joint_graph_contrast(model, positive, negative, *, weight=1.):
     terms = tuple((sign, term) for sign, graph in ((1., positive), (-1., negative))
                   for term in graph.get("argument_terms", ()))
     row = RelationGraphContrast(positive["relations"], negative["relations"], 0., weight,
-        positive["operations"], negative["operations"], terms)
+        positive["operations"], negative["operations"], terms,
+        tuple((-sign, normalizer) for sign, graph in ((1., positive), (-1., negative))
+              for normalizer in graph.get("normalizers", ())))
     variable = graph_margin(parameters, row, scale=model.definition_relation_scale)
     return replace(row, fixed_margin=math.fsum((positive["score"], -negative["score"], -variable)))
 

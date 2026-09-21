@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 import math
@@ -46,8 +46,11 @@ class ScoredArgumentChart:
     prune_dominated: bool = False
     option_factors: tuple | None = None
     option_relation_evidence: tuple | None = None
+    choice_log_normalizer: float = 0.
 
     def __post_init__(self) -> None:
+        if not math.isfinite(self.choice_log_normalizer):
+            raise ValueError("argument choice normalizer must be finite")
         object.__setattr__(self, "options", tuple(
             tuple(tuple(tuple(option) for option in slot) for slot in node)
             for node in self.options
@@ -91,10 +94,25 @@ class ScoredArgumentChart:
         per_register = {}
         for (register, _span), score in (self.definition_scores or {}).items():
             per_register[register] = max(per_register.get(register, 0.0), score)
-        return math.fsum((*maxima, *per_register.values()))
+        return math.fsum((*maxima, *per_register.values(), -self.choice_log_normalizer))
+
+    def with_conditional_choices(self):
+        """Normalize the full local choice pools before restricting any target.
+
+        This is a product of local categorical factors, not the partition
+        function of the globally constrained graph. Constraints still select
+        the highest-scoring valid assignment under that product.
+        """
+        from scipy.special import logsumexp
+
+        slots = [slot for node in self.options for slot in node]
+        if not slots or any(not slot for slot in slots):
+            raise ValueError("conditional argument choices require nonempty slots")
+        normalizer = math.fsum(float(logsumexp([option[0] for option in slot])) for slot in slots)
+        return replace(self, choice_log_normalizer=normalizer)
 
     def solve(self, *, excluded_arguments=None, excluded_graphs=(), selection_observer=None, time_limit_s=None):
-        return semantic_argument_optimization.optimize_argument_chart(
+        result = semantic_argument_optimization.optimize_argument_chart(
             self.options, n_inputs=self.n_inputs, contract=self.contract,
             definition_options=self.definition_options, definition_scores=self.definition_scores,
             prune_dominated=self.prune_dominated,
@@ -103,6 +121,7 @@ class ScoredArgumentChart:
             time_limit_s=time_limit_s,
             selection_observer=selection_observer,
         )
+        return (result[0] - self.choice_log_normalizer, *result[1:]) if result is not None else None
 
     def solve_with_factors(self, *, excluded_arguments=None, excluded_graphs=(), time_limit_s=None,
                            relation_observer=None):
@@ -152,7 +171,8 @@ class ScoredArgumentChart:
             tuple(definitions) if self.definition_options is not None else None,
             self.definition_scores, self.prune_dominated,
             tuple(factors) if self.option_factors is not None else None,
-            tuple(evidence) if self.option_relation_evidence is not None else None)
+            tuple(evidence) if self.option_relation_evidence is not None else None,
+            self.choice_log_normalizer)
 
     def diagnose_target(self, targets: Sequence[Sequence[int]]) -> dict:
         """Measure target reachability without altering the production choice.
@@ -190,6 +210,7 @@ but outranked. These cases need different repairs.
             tuple(restricted), self.n_inputs, self.contract,
             tuple(labels) if self.definition_options is not None else None, self.definition_scores,
             prune_dominated=self.prune_dominated,
+            choice_log_normalizer=self.choice_log_normalizer,
         ).solve()
         without_definition_consistency = None
         if not missing and target is None and self.definition_options is not None:
