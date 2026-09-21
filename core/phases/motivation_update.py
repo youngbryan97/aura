@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from .motivation_signals import _ReadsTheDriveSignals
 import logging
 import random
 import time
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from core.consciousness.executive_authority import (
     get_executive_authority as get_executive_authority,
@@ -13,11 +12,21 @@ from core.kernel.bridge import Phase
 from core.runtime.background_policy import background_activity_allowed
 from core.runtime.errors import record_degradation
 from core.runtime.proposal_governance import propose_governed_initiative_to_state
-from core.runtime.service_registry import get_runtime_service, has_runtime_service  # noqa: F401  (read at call time by the lifted module)
+from core.runtime.service_registry import (  # noqa: F401  (read at call time by the lifted module)
+    get_runtime_service,
+    has_runtime_service,
+)
 from core.state.aura_state import AuraState  # noqa: F401  (read at call time by the lifted module)
+
+from .motivation_signals import _ReadsTheDriveSignals
 
 if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
+from core.runtime.cognitive_contract import (
+    BranchSpec,
+    CognitiveTransformContract,
+    register_contract,
+)
 
 logger = logging.getLogger("Aura.MotivationPhase")
 
@@ -45,10 +54,10 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
     spontaneous intention generation.
     """
     
-    def __init__(self, kernel: "AuraKernel"):
+    def __init__(self, kernel: AuraKernel):
         self.kernel = kernel
 
-    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         """
         Updates resource budgets and generates autonomous intentions.
         """
@@ -58,7 +67,8 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         # 1. Budget Ticking (Metabolism)
         now = time.time()
         dt = now - mot.last_tick
-        if dt > 300: dt = 300 # Cap delta
+        if dt > 300:
+            dt = 300  # Cap delta
         
         # Conversation energy slows social drive decay — active engagement satisfies social need
         conv_energy = getattr(state.cognition, "conversation_energy", 0.0)
@@ -84,6 +94,9 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         # 0..1, so drives press between once and twice as fast and never
         # faster. See `_surprise_pressure`.
         pressure = 1.0 + self._surprise_pressure(state)
+        # And somebody else rising while she stands still presses on her growth
+        # the same way, between once and twice. See core/social/their_rise.py.
+        stasis = self._stasis_beside_their_rise()
         borrowed_resolve = bool(
             (getattr(state.cognition, "borrowed_resolve", {}) or {}).get("borrowed")
         )
@@ -111,6 +124,8 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
             if name == "integrity" and borrowed_resolve:
                 effective_decay = 0.0
             effective_decay *= pressure
+            if name == "growth":
+                effective_decay *= 1.0 + stasis
 
             # Decay: level = current - (decay * dt)
             new_level = max(0.0, min(capacity, level - (effective_decay * dt)))
@@ -195,6 +210,9 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         # was closed on almost every turn she was thinking carefully: the guard
         # tested a mode that means she is concentrating and read it as meaning
         # she is already busy with herself.
+        # What this turn's doing was worth to her, before anything closes.
+        # See `_note_doing`.
+        self._note_doing(next_state)
         # An intention whose need has been met is finished, and nothing else
         # ever said so. See `_close_met_intentions`.
         self._close_met_intentions(next_state)
@@ -341,6 +359,30 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
                         logger.debug("could not read whether there is still something to pass on: %s", exc)
                         telling_urge = 1.0
                 met = telling_urge <= 0.0
+            if met and drive:
+                # The reward arrived. Recorded once per intention, so an
+                # intention kept open past it does not keep reporting a
+                # result of nothing. And one whose act she does for its own
+                # sake stays open while the doing still pays.
+                # See core/motivation/for_its_own_sake.py.
+                try:
+                    from core.motivation.for_its_own_sake import get_doing_ledger
+
+                    ledger = get_doing_ledger()
+                    if not metadata.get("reward_arrived"):
+                        budget = budgets[drive]
+                        ledger.note_met(
+                            drive,
+                            float(budget.get("level", 0.0) or 0.0),
+                            float(budget.get("capacity", 100.0) or 100.0),
+                        )
+                        metadata["reward_arrived"] = True
+                        item["metadata"] = metadata
+                    if ledger.survives(drive):
+                        kept.append(item)
+                        continue
+                except (ImportError, AttributeError, KeyError, TypeError, ValueError) as exc:
+                    logger.debug("could not ask whether the act outlives its reward: %s", exc)
             if met:
                 closed += 1
                 continue
@@ -620,6 +662,43 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         return moved
 
     @staticmethod
+    def _stasis_beside_their_rise() -> float:
+        """How far somebody else's rise outruns hers while she stands still. Never raises."""
+        try:
+            from core.social.their_rise import get_rise_ledger
+
+            return max(0.0, min(1.0, float(get_rise_ledger().read().stasis)))
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("could not read which way the others are going: %s", exc)
+            return 0.0
+
+    @staticmethod
+    def _note_doing(state: AuraState) -> None:
+        """How engaged she is this turn, and which of her drives' acts she is at.
+
+        The drive of her most recent open intention, or none. Never raises.
+        See core/motivation/for_its_own_sake.py.
+        """
+        try:
+            from core.motivation.for_its_own_sake import get_doing_ledger
+
+            doing, level = "", None
+            for item in reversed(list(getattr(state.cognition, "pending_initiatives", []) or [])):
+                if not isinstance(item, dict) or str(item.get("source", "")) != "motivation_update":
+                    continue
+                metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+                drive = str(metadata.get("drive") or "")
+                budget = state.motivation.budgets.get(drive) if drive else None
+                if isinstance(budget, dict):
+                    doing, level = drive, float(budget.get("level", 0.0) or 0.0)
+                    break
+            get_doing_ledger().note_turn(
+                doing, float(getattr(state.affect, "engagement", 0.0) or 0.0), level=level
+            )
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("could not note what the doing was worth: %s", exc)
+
+    @staticmethod
     def _own_intention_is_open(state: AuraState) -> bool:
         """Whether one of her own motivational intentions is still waiting.
 
@@ -665,7 +744,7 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, KeyError):
             return 0.0
 
-    def _conative_spike(self) -> Optional[dict]:
+    def _conative_spike(self) -> dict | None:
         """A spontaneous goal only when something is actually interesting.
 
         Returns ``None`` when no target carries epistemic value, which is the
@@ -706,7 +785,7 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
             return None
 
     @staticmethod
-    def _worth_passing_on(state: AuraState) -> Optional[dict]:
+    def _worth_passing_on(state: AuraState) -> dict | None:
         """Something that moved her, while there is somebody there to tell.
 
         The urge is the reading that moved her rather than how long since
@@ -770,7 +849,7 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
             logger.debug("what she has already said did not reach the intention: %s", exc)
         return intention
 
-    def _assess_needs(self, state: AuraState) -> Optional[dict]:
+    def _assess_needs(self, state: AuraState) -> dict | None:
         """Ported logic from MotivationEngine._assess_needs."""
         mot = state.motivation
         
@@ -1127,7 +1206,7 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
 
             origin = str(getattr(state.cognition, "current_origin", "") or "").lower()
             drive = str(
-                (getattr(state.cognition, "last_action_source", "") or "")
+                getattr(state.cognition, "last_action_source", "") or ""
             ).lower()
             if origin.startswith("user"):
                 source = ASKED
@@ -1189,11 +1268,6 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
 # `writes` is MEASURED — tools/observe_phase_writes.py ran this phase against a
 # real AuraState and recorded which fields moved. It is not a reading of the
 # code, which is how a declaration ends up describing what the author believed.
-from core.runtime.cognitive_contract import (
-    BranchSpec,
-    CognitiveTransformContract,
-    register_contract,
-)
 
 register_contract(
     CognitiveTransformContract(

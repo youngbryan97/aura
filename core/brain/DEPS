@@ -79,8 +79,13 @@ include_rules = [
     "+core.senses",
     "+core.service_names",
     "+core.skills",
-    # Candidate quality reads the existing unsolicited-regard ledger.
+    # Candidate quality reads three social ledgers, each for one feature of
+    # a reply: the regard she has gone without (never_told), the form of
+    # regard this person welcomes (the_form_they_welcome), and what giving
+    # back to somebody she owes is worth (what_passes_between).
     "+core.social.never_told",
+    "+core.social.the_form_they_welcome",
+    "+core.social.what_passes_between",
     "+core.state",
     "+core.synthesis",
     "+core.thought_stream",

@@ -130,7 +130,16 @@ class AgencyLedger:
         See core/agency/capacity.py.
         """
         attempts, successes = self.by_capability.get(what, [0, 0])
-        return confidence_with_capacity(attempts, successes, capacity_of(self.by_capability, excluding=what))
+        # From the class she measures herself against, which is whichever has
+        # predicted her own attempts better. See core/agency/reference_class.py.
+        try:
+            from core.agency.reference_class import get_reference_ledger
+
+            capacity = get_reference_ledger().capacity_for(self.by_capability, what)
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("measured against everything, the class could not be chosen: %s", exc)
+            capacity = capacity_of(self.by_capability, excluding=what)
+        return confidence_with_capacity(attempts, successes, capacity)
 
     def snapshot(self) -> dict[str, Any]:
         return {
@@ -150,6 +159,14 @@ class AgencyLedger:
         """Record it, and update only what its authorship licenses."""
         self.last_event = event
         if event.mine:
+            # Each class's prediction of this attempt, scored before it counts.
+            # See core/agency/reference_class.py.
+            try:
+                from core.agency.reference_class import get_reference_ledger
+
+                get_reference_ledger().score(self.by_capability, event.what, bool(event.verified))
+            except (ImportError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug("the classes could not be scored on this attempt: %s", exc)
             self.acted += 1
             self.succeeded += int(event.verified)
             row = self.by_capability.setdefault(event.what, [0, 0])
@@ -158,6 +175,17 @@ class AgencyLedger:
         else:
             self.observed += 1
             self.observed_succeeded += int(event.verified)
+
+        # And which way each actor is going, herself included. Her own event
+        # went well when it was verified; somebody else's when the caller says
+        # so. See core/social/their_rise.py.
+        try:
+            from core.social.their_rise import get_rise_ledger
+
+            went_well = event.verified if event.mine else bool(event.detail.get("went_well", False))
+            get_rise_ledger().note(event.actor, went_well)
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("which way %s is going went unrecorded: %s", event.actor, exc)
 
         updated = False
         if event.mine and self_model is not None:

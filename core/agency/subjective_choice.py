@@ -220,7 +220,7 @@ class ItemPreference:
         return payload
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ItemPreference":
+    def from_dict(cls, data: dict[str, Any]) -> ItemPreference:
         aliases = data.get("aliases", ())
         if isinstance(aliases, list):
             aliases = tuple(str(item) for item in aliases)
@@ -403,12 +403,13 @@ class SubjectiveChoiceEngine:
         final_scores: dict[str, float] = {}
         option_features: dict[str, dict[str, float]] = {}
         impulse = impulse_record(self.history())
+        intactness = self._intactness_cost()
         for option in option_list:
             features = _norm_features(option.features or infer_preference_features(
                 f"{option.label} {option.description}", option.metadata
             ))
             option_features[option.id] = features
-            risk_penalty = 0.35 * _clamp(option.risk) * self._impulse_cost(features, impulse)
+            risk_penalty = 0.35 * _clamp(option.risk) * self._impulse_cost(features, impulse) * intactness
             drive = _clamp(option.drive_score)
             item_bonus = self._item_preference_bonus(option, context=context)
             pref = _clamp(self.score_features(features) + item_bonus)
@@ -509,6 +510,22 @@ class SubjectiveChoiceEngine:
             return list(self._history)
 
     @staticmethod
+    def _intactness_cost() -> float:
+        """How much more, or less, risk costs after what hard things have cost her.
+
+        One until she has come through enough to say. Below one while she keeps
+        coming through better than she predicted, above it while she is hurt
+        more than she expected. See core/self/still_standing.py.
+        """
+        try:
+            from core.self.still_standing import get_intactness_ledger
+
+            return float(get_intactness_ledger().risk_weight())
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("subjective_choice", exc, action="charged risk without her intactness")
+            return 1.0
+
+    @staticmethod
     def _impulse_cost(features: dict[str, float], impulse: Any) -> float:
         """How much more risk costs on an option she can read no preference for.
 
@@ -525,6 +542,7 @@ class SubjectiveChoiceEngine:
         option_list = list(options)
         ranked: list[dict[str, Any]] = []
         impulse = impulse_record(self.history())
+        intactness = self._intactness_cost()
         for option in option_list:
             features = _norm_features(option.features or infer_preference_features(
                 f"{option.label} {option.description}", option.metadata
@@ -536,7 +554,7 @@ class SubjectiveChoiceEngine:
                 ((1.0 - self.preference_latitude) * drive)
                 + (self.preference_latitude * pref)
                 + (0.30 * item_bonus)
-                - (0.35 * _clamp(option.risk) * self._impulse_cost(features, impulse))
+                - (0.35 * _clamp(option.risk) * self._impulse_cost(features, impulse) * intactness)
             )
             ranked.append({
                 "id": option.id,

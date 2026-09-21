@@ -17,7 +17,7 @@ import time
 import uuid
 from dataclasses import dataclass
 
-from core.brain.taste_model import get_taste_model
+from core.brain.taste_model import FEATURE_PRIORS, get_taste_model
 from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.ConversationOutcome")
@@ -54,6 +54,19 @@ class _Pending:
     text: str
     features: dict[str, float]
     sent_at: float
+    #: What she thought of it before anyone's regard taught her anything.
+    own: float = 0.0
+
+
+def own_rating(features: dict[str, float]) -> float:
+    """Her persona priors applied to a reply's features.
+
+    The learned weights are what regard has already moved, so they cannot be
+    what regard is measured against. See core/self/valued_for.py.
+    """
+    return float(
+        sum(FEATURE_PRIORS.get(name, 0.0) * float(value) for name, value in (features or {}).items())
+    )
 
 
 _lock = threading.RLock()
@@ -98,6 +111,7 @@ def record_pending_response(
             text=str(text or ""),
             features=dict(features or {}),
             sent_at=time.monotonic(),
+            own=own_rating(features or {}),
         )
         _stats["recorded"] += 1
         while len(_pending) > _MAX_PENDING:
@@ -159,8 +173,20 @@ def register_reaction(
     if reward == 0.0:
         _stats["neutral"] += 1
         return None
+    # Regard that goes to what she values in a reply teaches her taste at the
+    # full rate; regard that goes to something else about it teaches less, so
+    # she is not remade around the token. See core/self/valued_for.py.
     try:
-        get_taste_model().update(features, reward)
+        from core.self.valued_for import get_valued_for_ledger
+
+        ledger = get_valued_for_ledger()
+        ledger.note(pending.own, reward)
+        lesson = reward * ledger.weight()
+    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        record_degradation("conversation_outcome_valued_for", exc, action="taught the full reaction")
+        lesson = reward
+    try:
+        get_taste_model().update(features, lesson)
     except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
         record_degradation("conversation_outcome_update", exc)
         return None

@@ -177,6 +177,27 @@ def extract_features(
     except (ImportError, AttributeError, TypeError, ValueError):
         distinctness = 0.0
 
+    # And whether the regard in it is in the form this person has welcomed:
+    # said outright or not, naming what they told her or not. Learned per
+    # person from how they took the replies before. See
+    # core/social/the_form_they_welcome.py.
+    form_fit = 0.0
+    gives_back = 0.0
+    try:
+        from core.social.the_form_they_welcome import forms_of, get_form_ledger
+
+        forms = get_form_ledger()
+        form_fit = forms.form_fit(t, user_message)
+        # And regard to somebody she owes, by how much of her world reaches her
+        # through them. See core/social/what_passes_between.py.
+        from core.social.what_passes_between import get_between_ledger
+
+        gives_back = get_between_ledger().gives_back(
+            forms_of(t, user_message).get("shown", 0.0), forms.partner
+        )
+    except (ImportError, AttributeError, TypeError, ValueError):
+        form_fit = 0.0
+
     return {
         "specificity": specificity,
         "stance": stance,
@@ -188,6 +209,8 @@ def extract_features(
         "dignity": dignity,
         "unasked_regard": unasked_regard,
         "distinct": distinctness,
+        "form_fit": form_fit,
+        "gives_back": gives_back,
         "perspective_getting": perspective_getting,
         "anti_generic": anti_generic,
         "hedge_penalty": hedge_penalty,

@@ -1,9 +1,9 @@
 {
   "organs": 123,
-  "cross_package_edges": 2040,
-  "dependency_entropy": 9.1609,
-  "kernel_lines": 618673,
-  "at_commit": "ee2588832da03153b63ee1ccb86f776acf3123c7",
+  "cross_package_edges": 2042,
+  "dependency_entropy": 9.1653,
+  "kernel_lines": 619169,
+  "at_commit": "56b02f1c213d532d97f1abb17ae93e5d0b0676ad",
   "history": [
     {
       "raised": [
@@ -481,6 +481,75 @@
         "commits_by_author": {
           "Claude": 77,
           "Codex": 49
+        }
+      }
+    },
+    {
+      "raised": [
+        "cross_package_edges",
+        "dependency_entropy",
+        "kernel_lines"
+      ],
+      "from": {
+        "cross_package_edges": 2040,
+        "dependency_entropy": 9.1609,
+        "kernel_lines": 618673
+      },
+      "to": {
+        "cross_package_edges": 2042,
+        "dependency_entropy": 9.1653,
+        "kernel_lines": 619169
+      },
+      "because": "Two windows. Committed since ee2588832: felt_at_encoding (+179), the recall fix that lets a percept find the memories made in its feeling; and four organ and chat fixes from the same days, inference_gate (+78), global_workspace (+55), multiple_drafts (+38) and intentional_retrieval (+32). In this commit, the last nine processes from the fourth seven: eight ledgers in agency, self, social and motivation, outside the kernel packages, and the lines in brain that read them as features of a reply. The two new cross-package edges are those readers: agency reads self.still_standing for the risk charge, and brain reads two social ledgers for the reply's form and what it gives back.",
+      "landed": {
+        "since": "ee2588832da03153b63ee1ccb86f776acf3123c7",
+        "net_kernel_lines": 432,
+        "files_touched": 9,
+        "per_package": {
+          "memory": 244,
+          "consciousness": 98,
+          "brain": 90
+        },
+        "largest_files": [
+          {
+            "path": "core/memory/felt_at_encoding.py",
+            "net_lines": 179
+          },
+          {
+            "path": "core/brain/inference_gate.py",
+            "net_lines": 78
+          },
+          {
+            "path": "core/consciousness/global_workspace.py",
+            "net_lines": 55
+          },
+          {
+            "path": "core/consciousness/multiple_drafts.py",
+            "net_lines": 38
+          },
+          {
+            "path": "core/memory/intentional_retrieval.py",
+            "net_lines": 32
+          },
+          {
+            "path": "core/memory/memory_facade.py",
+            "net_lines": 24
+          },
+          {
+            "path": "core/brain/llm/mlx_client.py",
+            "net_lines": 12
+          },
+          {
+            "path": "core/memory/episodic_memory.py",
+            "net_lines": 9
+          },
+          {
+            "path": "core/consciousness/DEPS",
+            "net_lines": 5
+          }
+        ],
+        "commits_by_author": {
+          "Claude": 5
         }
       }
     }

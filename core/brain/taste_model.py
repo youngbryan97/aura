@@ -73,6 +73,17 @@ FEATURE_PRIORS["unasked_regard"] = FEATURE_PRIORS["dignity"]
 # so it carries that prior. See core/cognition/convenience.py.
 FEATURE_PRIORS["distinct"] = FEATURE_PRIORS["anti_generic"]
 
+# Whether the regard in a reply comes in the form this person has welcomed is
+# the shape of the reply measured against the person, the same kind of fit as
+# asking while offering, so the same prior. See
+# core/social/the_form_they_welcome.py.
+FEATURE_PRIORS["form_fit"] = FEATURE_PRIORS["dignity"]
+
+# Giving back to somebody she owes, by how much of her world reaches her
+# through them, is the reply measured against the person again, so the same
+# prior. See core/social/what_passes_between.py.
+FEATURE_PRIORS["gives_back"] = FEATURE_PRIORS["dignity"]
+
 _LR = 0.05            # online learning rate
 _WEIGHT_CLAMP = 4.0   # keep any single feature from dominating
 _MIN_REWARD = -1.0
