@@ -179,6 +179,24 @@ def test_production_joint_refit_wires_round_checkpoints(tmp_path):
     assert any(row["stage"] == "constraint_fit_resumed" and row["round"] == 1 for row in resumed)
     assert not any(row["stage"] == "constraint_fit_step" for row in resumed)
     assert saved_path.read_bytes() == saved_bytes
+    from core.learning.semantic_fit_checkpoint import load_round_candidate
+    options = dict(expected_parent=model.receipt_sha256, expected_round=1,
+                   numerical_checkpoint=tmp_path / "round-1.npz")
+    verified = load_round_candidate(saved_path, **options)
+    assert verified.receipt_sha256 == restored.receipt_sha256
+    for change in (dict(expected_parent="another-parent"), dict(expected_round=2), dict(expected_round=True)):
+        with pytest.raises(ValueError, match="identity or checkpoint"):
+            load_round_candidate(saved_path, **{**options, **change})
+    for field, value in (("serving_authority", True), ("validation_used_for_selection", True), ("round", True)):
+        altered = {**saved, field: value}
+        altered['sha256'] = fit_identity({k: v for k, v in altered.items() if k != 'sha256'})
+        invalid = tmp_path / f"invalid-{field}.json"
+        invalid.write_text(json.dumps(altered))
+        with pytest.raises(ValueError, match="identity or checkpoint"):
+            load_round_candidate(invalid, **options)
+    (tmp_path / "round-1.npz").write_bytes(b"different numerical state")
+    with pytest.raises(ValueError, match="identity or checkpoint"):
+        load_round_candidate(saved_path, **options)
 
 
 def test_round_candidate_survives_interruption_before_next_round(tmp_path):
