@@ -48,6 +48,8 @@ def response_satisfies_artifact_contract(prompt: str, response: str) -> bool:
         try:
             json.loads(match.group(1).strip())
         except (TypeError, ValueError, json.JSONDecodeError):
+            # not a failure: the question is whether the fence holds valid
+            # JSON, and "no" is an answer to it.
             return False
         return True
     if "```csv" in prompt_l:
@@ -57,6 +59,8 @@ def response_satisfies_artifact_contract(prompt: str, response: str) -> bool:
         try:
             rows = list(csv.reader(io.StringIO(match.group(1).strip())))
         except csv.Error:
+            # not a failure: the question is whether the fence holds a CSV
+            # table, and "no" is an answer to it.
             return False
         return bool(rows and rows[0] and any(cell.strip() for cell in rows[0]))
     return True
@@ -233,6 +237,8 @@ def _synthesize_inventory_reconciliation(prompt: str) -> ArtifactSynthesisResult
             if sku:
                 counts[sku] = int(str(row.get("count", "0")).strip())
     except (TypeError, ValueError, csv.Error):
+        # not a failure: a starting table this synthesiser cannot read is not
+        # the artifact it builds, and None says so to the caller.
         return None
 
     box_size = 1
@@ -265,6 +271,8 @@ def _synthesize_inventory_reconciliation(prompt: str) -> ArtifactSynthesisResult
             multiplier = box_size if unit == "box" else 1
             counts[sku] = counts.get(sku, 0) + quantity * multiplier
     except csv.Error:
+        # not a failure: an event table that will not parse is not the
+        # artifact this builds.
         return None
 
     output = io.StringIO()
@@ -318,6 +326,8 @@ def _synthesize_schedule(prompt: str) -> ArtifactSynthesisResult | None:
         try:
             duration = int(str(row.get("duration", "0")).strip())
         except ValueError:
+            # not a failure: a duration that is not a number means this is
+            # not the schedule table, and None hands the task on.
             return None
         tasks[name] = {"duration": duration, "prereqs": prereqs}
     if not tasks:
@@ -403,6 +413,8 @@ def _synthesize_budget_selection(prompt: str) -> ArtifactSynthesisResult | None:
                 )
             )
         except ValueError:
+            # not a failure: weights and values that are not numbers mean
+            # this is not the knapsack table.
             return None
     best_selected: list[str] = []
     best_value = -1
@@ -455,6 +467,8 @@ def _synthesize_policy_decision(prompt: str) -> ArtifactSynthesisResult | None:
             reliability = float(str(row.get("reliability", "0")).strip())
             delivery = float(str(row.get("delivery_days", "0")).strip())
         except ValueError:
+            # not a failure: a vendor row whose figures are not numbers means
+            # this is not the vendor table.
             return None
         if not vendor:
             continue
@@ -505,6 +519,8 @@ def _synthesize_device_model(prompt: str) -> ArtifactSynthesisResult | None:
             y_val = Fraction(int(str(row.get("y", "0")).strip()))
             output_val = Fraction(int(str(row.get("output", "0")).strip()))
         except ValueError:
+            # not a failure: readings that are not integers mean this is not
+            # the catalyst table.
             return None
         matrix.append(
             [
@@ -561,6 +577,8 @@ def _synthesize_transfer_reconciliation(prompt: str) -> ArtifactSynthesisResult 
         try:
             counts[str(row.get("node", "")).strip()] = int(str(row.get("count", "0")).strip())
         except ValueError:
+            # not a failure: a count that is not a number means this is not
+            # the node table.
             return None
     seen: set[str] = set()
     duplicates: list[str] = []
@@ -610,6 +628,8 @@ def _synthesize_simulator_prediction(prompt: str) -> ArtifactSynthesisResult | N
         v_val = int(target_match.group(2))
         prediction = int(params[0]) * u_val + int(params[1]) * v_val + int(params[2])
     except (TypeError, ValueError, json.JSONDecodeError, UnicodeDecodeError):
+        # not a failure: the blob decoded to something that is not this
+        # puzzle's parameters, so there is no prediction to make.
         return None
     reply = (
         f"Hypothesis: simulator output is linear, output = {params[0]}*u + "
@@ -841,6 +861,8 @@ def _synthesize_triage_order(prompt: str) -> ArtifactSynthesisResult | None:
                 str(row.get("urgency", "0")).strip()
             )
         except ValueError:
+            # not a failure: severity and urgency that are not numbers mean
+            # this is not the triage table.
             return None
         scored.append((score, case))
     order = [case for _, case in sorted(scored, key=lambda item: (-item[0], item[1]))]
@@ -863,6 +885,8 @@ def _synthesize_category_totals(prompt: str) -> ArtifactSynthesisResult | None:
         try:
             value = int(str(row.get("value", "0")).strip())
         except ValueError:
+            # not a failure: a value that is not a number means this is not
+            # the totals table.
             return None
         totals[category] = totals.get(category, 0) + value
     csv_text = _rows_to_csv(
@@ -952,6 +976,8 @@ def _synthesize_vendor_memory_choice(prompt: str) -> ArtifactSynthesisResult | N
             vendor = str(row.get("vendor", "")).strip()
             cost = int(str(row.get("cost", "0")).strip())
         except ValueError:
+            # not a failure: a cost that is not a number means this is not
+            # the options table.
             return None
         if vendor.lower() != banned.lower():
             options.append((cost, vendor))
@@ -1241,6 +1267,8 @@ def _json_list_after_label(text: str, label: str) -> Any | None:
 
             return ast.literal_eval(raw)
         except (SyntaxError, ValueError):
+            # not a failure: text that is neither JSON nor a Python literal
+            # holds no structure to read, which is what None reports.
             return None
 
 

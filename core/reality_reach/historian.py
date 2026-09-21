@@ -16,6 +16,7 @@ import os
 import re
 import secrets
 import sqlite3
+import sys
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -29,6 +30,24 @@ from core.runtime.audit_chain import canonical_json, sha256_hex
 from core.runtime.lockdep import checked_lock
 from core.runtime.resource_observation import get_resource_observer
 from core.runtime.state_ownership import state_root
+
+
+def _roll_back(connection: Any) -> None:
+    """Undo the open transaction on the way out of a failed write.
+
+    A rollback that itself fails must not replace the exception on its way
+    up: that one says what actually went wrong. Its reason is attached to
+    that exception instead, so it travels with the failure rather than
+    nowhere. Written once because it was written fourteen times, and each of
+    the fourteen was an empty handler.
+    """
+    try:
+        connection.execute("ROLLBACK")
+    except sqlite3.Error as exc:
+        unwinding = sys.exception()
+        if unwinding is not None:
+            unwinding.add_note(f"the rollback after this also failed: {exc}")
+
 
 _SCHEMA_VERSION = 2
 _LEGACY_SCHEMA_VERSION = 1
@@ -700,6 +719,7 @@ class RealityHistorian:
         self._last_success_at = 0.0
         self._last_failure_at = 0.0
         self._last_probe_at = 0.0
+        self._last_probe_error = ""
         self._last_maintenance_at = 0.0
         try:
             self._initialize()
@@ -862,10 +882,7 @@ class RealityHistorian:
                 )
             connection.execute("COMMIT")
         except Exception:
-            try:
-                connection.execute("ROLLBACK")
-            except sqlite3.Error:
-                pass
+            _roll_back(connection)
             raise
         finally:
             connection.close()
@@ -941,10 +958,7 @@ class RealityHistorian:
                 )
             connection.execute("COMMIT")
         except Exception:
-            try:
-                connection.execute("ROLLBACK")
-            except sqlite3.Error:
-                pass
+            _roll_back(connection)
             raise
 
     @staticmethod
@@ -1709,10 +1723,7 @@ class RealityHistorian:
                 superseded_delivery_ids=delivery_admission.superseded_ids,
             )
         except Exception:
-            try:
-                connection.execute("ROLLBACK")
-            except sqlite3.Error:
-                pass
+            _roll_back(connection)
             raise
         finally:
             connection.close()
@@ -2087,10 +2098,7 @@ class RealityHistorian:
             connection.execute("PRAGMA incremental_vacuum(256)")
             connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         except Exception:
-            try:
-                connection.execute("ROLLBACK")
-            except sqlite3.Error:
-                pass
+            _roll_back(connection)
             raise
         finally:
             connection.close()
@@ -2115,10 +2123,7 @@ class RealityHistorian:
             connection.execute("COMMIT")
         except (HistorianError, OSError, sqlite3.Error):
             if connection is not None:
-                try:
-                    connection.execute("ROLLBACK")
-                except sqlite3.Error:
-                    pass
+                _roll_back(connection)
         finally:
             if connection is not None:
                 connection.close()
@@ -2442,10 +2447,7 @@ class RealityHistorian:
                 raise HistorianCorruptionError("Reality delivery admission disappeared")
             return self._delivery_from_row(row)
         except Exception:
-            try:
-                connection.execute("ROLLBACK")
-            except sqlite3.Error:
-                pass
+            _roll_back(connection)
             raise
         finally:
             connection.close()
@@ -2486,10 +2488,7 @@ class RealityHistorian:
             connection.execute("COMMIT")
             return int(recovered)
         except Exception:
-            try:
-                connection.execute("ROLLBACK")
-            except sqlite3.Error:
-                pass
+            _roll_back(connection)
             raise
         finally:
             connection.close()
@@ -2544,10 +2543,7 @@ class RealityHistorian:
             connection.execute("COMMIT")
             return delivery
         except Exception:
-            try:
-                connection.execute("ROLLBACK")
-            except sqlite3.Error:
-                pass
+            _roll_back(connection)
             raise
         finally:
             connection.close()
@@ -2609,10 +2605,7 @@ class RealityHistorian:
             connection.execute("COMMIT")
             return tuple(deliveries)
         except Exception:
-            try:
-                connection.execute("ROLLBACK")
-            except sqlite3.Error:
-                pass
+            _roll_back(connection)
             raise
         finally:
             connection.close()
@@ -2750,10 +2743,7 @@ class RealityHistorian:
             connection.execute("COMMIT")
             return True
         except Exception:
-            try:
-                connection.execute("ROLLBACK")
-            except sqlite3.Error:
-                pass
+            _roll_back(connection)
             raise
         finally:
             connection.close()
@@ -2915,10 +2905,7 @@ class RealityHistorian:
             connection.execute("COMMIT")
             return True
         except Exception:
-            try:
-                connection.execute("ROLLBACK")
-            except sqlite3.Error:
-                pass
+            _roll_back(connection)
             raise
         finally:
             connection.close()
@@ -2980,10 +2967,7 @@ class RealityHistorian:
             connection.execute("COMMIT")
             return state
         except Exception:
-            try:
-                connection.execute("ROLLBACK")
-            except sqlite3.Error:
-                pass
+            _roll_back(connection)
             raise
         finally:
             connection.close()
@@ -3435,10 +3419,7 @@ class RealityHistorian:
             connection.execute("COMMIT")
             return receipt_id
         except Exception:
-            try:
-                connection.execute("ROLLBACK")
-            except sqlite3.Error:
-                pass
+            _roll_back(connection)
             raise
         finally:
             connection.close()
@@ -3623,10 +3604,7 @@ class RealityHistorian:
                 "event_id": event_id,
             }
         except Exception:
-            try:
-                connection.execute("ROLLBACK")
-            except sqlite3.Error:
-                pass
+            _roll_back(connection)
             raise
         finally:
             connection.close()
@@ -3821,6 +3799,8 @@ class RealityHistorian:
             try:
                 sizes[label] = int(path.stat().st_size)
             except OSError:
+                # not a failure: a WAL or shm file that is not there occupies
+                # no bytes, which is what this sum is asking.
                 sizes[label] = 0
         return sizes
 
@@ -3868,6 +3848,7 @@ class RealityHistorian:
                 "consecutive_failures": self._consecutive_failures,
                 "last_success_at": self._last_success_at,
                 "last_failure_at": self._last_failure_at,
+                "last_probe_error": self._last_probe_error,
                 "storage_bytes": sum(self._storage_file_bytes().values()),
                 "max_storage_bytes": self._max_storage_bytes,
             }
@@ -3876,6 +3857,8 @@ class RealityHistorian:
         try:
             stat = self.db_path.stat()
         except OSError:
+            # not a failure: a database file that cannot be stat'd is not a
+            # live historian, and that verdict is the question asked.
             return False
         return stat.st_uid == os.getuid() and not bool(stat.st_mode & 0o077)
 
@@ -3888,7 +3871,12 @@ class RealityHistorian:
     async def probe_health(self) -> bool:
         try:
             await asyncio.to_thread(self._run_serialized, self._probe_sync)
-        except HistorianError:
+        except HistorianError as exc:
+            # The probe's whole job is to answer healthy or not, and the
+            # caller gets only the verdict. The cause is attached where a
+            # later reader can still find it.
+            exc.add_note("reported by probe_health as not healthy")
+            self._last_probe_error = str(exc)[:200]
             return False
         with self._health_lock:
             self._last_probe_at = float(self._clock())

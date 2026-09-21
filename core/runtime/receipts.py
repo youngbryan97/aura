@@ -388,6 +388,20 @@ AnyReceipt = (
 )
 
 
+
+def _close_quietly(ledger: Any) -> None:
+    """Drop a ledger handle that is being replaced or unwound.
+
+    A close that fails must not replace the reason the handle is being
+    dropped, which the caller already has. It is logged, because a handle
+    that will not close is how a file descriptor leaks.
+    """
+    try:
+        ledger.close()
+    except sqlite3.Error as exc:
+        logger.debug("Receipt ledger handle would not close: %s", exc)
+
+
 class ReceiptStore:
     """Durable receipt store backed by the canonical AtomicWriter.
 
@@ -426,7 +440,10 @@ class ReceiptStore:
         self._chain: AuditChain | None = None
         try:
             self._chain = AuditChain(self.root)
-        except (RuntimeError, AttributeError, TypeError, ValueError):
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            # The chain is the tamper-evidence. Losing it silently leaves a
+            # store that looks the same and proves nothing.
+            logger.warning("Receipt chain unavailable; receipts are unchained: %s", exc)
             self._chain = None
 
     @property
@@ -444,10 +461,7 @@ class ReceiptStore:
         ):
             return self._ledger
         if self._ledger is not None:
-            try:
-                self._ledger.close()
-            except sqlite3.Error:
-                pass
+            _close_quietly(self._ledger)
         # WAL's shared-memory index is a same-machine mechanism. On a network
         # filesystem it is not coherent between hosts and the failure mode is
         # silent corruption, not an error — see core/runtime/store_locality.py,
@@ -494,10 +508,7 @@ class ReceiptStore:
             return True
         except (OSError, sqlite3.Error, TypeError, ValueError) as exc:
             if self._ledger is not None:
-                try:
-                    self._ledger.close()
-                except sqlite3.Error:
-                    pass
+                _close_quietly(self._ledger)
                 self._ledger = None
                 self._ledger_pid = 0
             logger.error(
@@ -546,13 +557,18 @@ class ReceiptStore:
                 "SELECT body_json FROM receipt_ledger WHERE receipt_id = ? AND kind = ?",
                 (str(receipt_id), str(kind)),
             ).fetchone()
-        except sqlite3.Error:
+        except sqlite3.Error as exc:
+            # A read that fails and a receipt that is absent both arrive as
+            # None, and only one of them is a working store.
+            logger.debug("Receipt ledger read failed for %s: %s", receipt_id, exc)
             return None
         if row is None:
+            # not a failure: no row is the answer to "is this receipt here?".
             return None
         try:
             body = json.loads(str(row[0]))
-        except (json.JSONDecodeError, TypeError, ValueError):
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            logger.warning("Receipt %s holds a body that will not parse: %s", receipt_id, exc)
             return None
         return body if isinstance(body, dict) else None
 
@@ -565,7 +581,10 @@ class ReceiptStore:
         payload.pop("kind", None)
         try:
             receipt = cls(**payload)
-        except TypeError:
+        except TypeError as exc:
+            # A stored body whose fields no longer match its class is a
+            # schema drift, not an absent receipt.
+            logger.warning("Stored %s receipt does not fit its class: %s", kind, exc)
             return None
         receipt.kind = kind
         return cast(AnyReceipt, receipt)
@@ -613,10 +632,7 @@ class ReceiptStore:
                         exc,
                     )
                     if self._ledger is not None:
-                        try:
-                            self._ledger.close()
-                        except sqlite3.Error:
-                            pass
+                        _close_quietly(self._ledger)
                     self._ledger = None
                     self._ledger_pid = 0
                     self._ledger_available = False
@@ -706,13 +722,16 @@ class ReceiptStore:
                     "SELECT kind, body_json FROM receipt_ledger WHERE receipt_id = ?",
                     (str(receipt_id),),
                 ).fetchone()
-            except sqlite3.Error:
+            except sqlite3.Error as exc:
+                logger.debug("Receipt ledger read failed for %s: %s", receipt_id, exc)
                 return None
             if row is None:
+                # not a failure: no row answers "is this receipt here?".
                 return None
             try:
                 body = json.loads(str(row[1]))
-            except (json.JSONDecodeError, TypeError, ValueError):
+            except (json.JSONDecodeError, TypeError, ValueError) as exc:
+                logger.warning("Receipt %s holds a body that will not parse: %s", receipt_id, exc)
                 return None
             receipt = self._receipt_from_body(str(row[0]), body)
             if receipt is not None:
@@ -895,7 +914,11 @@ class ReceiptStore:
         if path.exists():
             try:
                 env = read_json_envelope(path)
-            except (RuntimeError, AttributeError, TypeError, ValueError):
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                # Chain verification reads this. An envelope that will not
+                # open is a verification that cannot run, not a receipt that
+                # was never written.
+                logger.warning("Receipt envelope at %s will not open: %s", path, exc)
                 return None
             payload = env.get("payload") if isinstance(env, dict) else None
             if not isinstance(payload, dict):

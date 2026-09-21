@@ -160,6 +160,37 @@
     "name": "tests/test_dns_rebinding_auth.py",
     "why": "The requirement is that tokenless DNS rebinding is blocked before the local, public, internal and desktop exceptions, and that duplicate Host and Origin authorities are parsed strictly. This file is 38 tests over exactly that boundary; if it fails the requirement is not met."
    }
+  ],
+  "BOOT-HEALTH-001": [
+   {
+    "kind": "test",
+    "name": "tests/test_runtime_health_contract.py",
+    "why": "The requirement is one phased desired-state contract instead of a permanently unhealthy aggregate. This suite runs that contract: it fails closed on a critical liveness failure, refuses to report healthy while the runtime is shutting down, separates degraded from failed, and holds the required probe groups. If it goes red, the aggregate no longer converges and the requirement is not met."
+   }
+  ],
+  "CHAT-DELIVERY-001": [
+   {
+    "kind": "test",
+    "name": "tests/test_chat_delivery_journal.py",
+    "why": "CP91's named mechanism is a principal/session/request-bound SQLite admission and terminal-response journal. This suite runs that journal: private file permissions, a malformed database that fails closed without overwriting, identities that cannot alias or poison storage, the v1 migration, and a request contract bound to method and path. It decides the admission half of the requirement, not the shell-handoff half."
+   }
+  ],
+  "CLAIMS-001": [
+   {
+    "kind": "make",
+    "name": "claim-lexicon",
+    "why": "Operational means the name says what it measures. This gate counts the loaded names that define their measure and holds a baseline that only goes down."
+   },
+   {
+    "kind": "make",
+    "name": "evidence-integrity",
+    "why": "Bounded by causal evidence means no claim outranks the evidence behind it. This gate checks all 33 registered claims against their bundles and fails when one does."
+   },
+   {
+    "kind": "make",
+    "name": "claim-constants",
+    "why": "Falsifiable means the numbers a claim cites can still be checked. This gate re-reads every constant a claim quotes and fails when the value has moved."
+   }
   ]
  }
 }

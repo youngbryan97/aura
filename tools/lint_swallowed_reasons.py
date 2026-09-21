@@ -48,8 +48,14 @@ import sys
 from pathlib import Path
 
 #: Where a reason is allowed to go: a log, the degradation sink, a re-raise, a
-#: returned value that mentions it.
-_CARRIERS = ("log", "record_degradation", "raise", "logger", "print", "warn")
+#: returned value that mentions it, or a note on the exception already on its
+#: way up. That last one is the right carrier for a cleanup step that fails
+#: while unwinding another failure — a rollback that will not roll back must
+#: not replace the error that describes what actually went wrong, and a log
+#: line separates the two.
+_CARRIERS = (
+    "log", "record_degradation", "raise", "logger", "print", "warn", "add_note"
+)
 
 
 class _Swallowed(ast.NodeVisitor):
@@ -85,8 +91,19 @@ class _Swallowed(ast.NodeVisitor):
 
 
     def _claims_it_is_an_answer(self, handler: ast.ExceptHandler) -> bool:
-        """Whether the handler says, in words, that this is not a failure."""
-        first = handler.body[0].lineno if handler.body else handler.lineno
+        """Whether the handler says, in words, that this is not a failure.
+
+        The span runs from the ``except`` line through the END of the first
+        statement, so a marker written as a trailing comment counts. It was
+        read only up to the start of that statement, and eighteen handlers in
+        one file explained themselves on the ``pass`` line itself — the claim
+        was there, reviewable, in the place a person writes it, and the gate
+        looked one line above it.
+        """
+        if handler.body:
+            first = handler.body[0].end_lineno or handler.body[0].lineno
+        else:
+            first = handler.lineno
         for line in self._lines[handler.lineno - 1 : first]:
             # Case-insensitive. The marker opens a sentence, so a writer
             # capitalises it, and a gate that matches only the lowercase form

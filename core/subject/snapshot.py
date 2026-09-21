@@ -311,8 +311,9 @@ def _put_back(owner: Any, name: str, saved: Any, seen: set[int]) -> None:
         TypeError,
         ValueError,
     ):
-        # A field that will not be written stays as it was. The kinds are
-        # named so an interrupt still stops the restore.
+        # not a failure: a field that will not be written stays as it was,
+        # which is the restore's contract. The kinds are named so an
+        # interrupt still stops it.
         return
 
 
@@ -830,6 +831,8 @@ def _stamp(path: Path) -> tuple[int, int] | None:
     try:
         stat = path.stat()
     except OSError:
+        # not a failure: a path with no stamp is one the caller has not
+        # written yet, and None is how it asks.
         return None
     return (int(stat.st_size), int(stat.st_mtime_ns))
 
@@ -858,6 +861,8 @@ def _is_sqlite(path: Path) -> bool:
         with path.open("rb") as handle:
             return handle.read(16) == _SQLITE_MAGIC
     except OSError:
+        # not a failure: a file that cannot be opened is not one this reader
+        # can call a database, which is the question asked.
         return False
 
 
@@ -1065,7 +1070,8 @@ def _intentions_state(loop: Any) -> dict[str, Any] | None:
         try:
             rows = list(connection.execute("SELECT * FROM intentions"))
         except sqlite3.Error:
-            # A database that will not read is not carried across the fork.
+            # not a failure: a database that will not read is not carried
+            # across the fork, and the caller plans for an empty table.
             return None
         return {
             "rows": rows,
@@ -1300,6 +1306,8 @@ def _effort_state() -> dict[str, float] | None:
 
         return dict(get_effort_ledger().peek())
     except (ImportError, RuntimeError):
+        # not a failure: a runtime without the effort ledger has no effort
+        # state to snapshot.
         return None
 
 
@@ -1314,6 +1322,8 @@ def _restore_effort(saved: dict[str, float] | None) -> None:
         for kind, amount in saved.items():
             ledger.note(kind, amount)
     except (ImportError, RuntimeError):
+        # not a failure: a runtime without the effort ledger has nowhere to
+        # put the saved state, and the rest of the restore continues.
         return
 
 
@@ -1593,10 +1603,13 @@ def _torch_random_state() -> Any:
     try:
         import torch
     except ImportError:
+        # not a failure: a run without torch has no torch RNG to carry.
         return None
     try:
         return torch.get_rng_state().clone()
     except (AttributeError, RuntimeError):
+        # not a failure: a torch build that will not hand over its RNG state
+        # leaves that arm unseeded, which the caller records as absent.
         return None
 
 
@@ -1608,6 +1621,8 @@ def _restore_torch_random(saved: Any) -> None:
 
         torch.set_rng_state(saved)
     except (ImportError, AttributeError, RuntimeError, TypeError):
+        # not a failure: nothing to restore into, and the rest of the
+        # restore continues.
         return
 
 
@@ -1626,6 +1641,8 @@ def _lifetime_last() -> Any:
         with lifetime._lock:
             return lifetime._last
     except (ImportError, AttributeError):
+        # not a failure: a run without the lifetime module has no last step
+        # to carry across the fork.
         return None
 
 
@@ -1636,6 +1653,8 @@ def _restore_lifetime_last(saved: Any) -> None:
         with lifetime._lock:
             lifetime._last = saved
     except (ImportError, AttributeError):
+        # not a failure: nowhere to put the saved step, and the rest of the
+        # restore continues.
         return
 
 
@@ -1733,6 +1752,8 @@ def _delegate_to_the_real_observer() -> None:
     try:
         from core.runtime.resource_observation import ResourceObserver
     except (ImportError, AttributeError):  # pragma: no cover - shipped together
+        # not a failure: with no protocol to read, there are no members to
+        # install on the face.
         return
     for name in getattr(ResourceObserver, "__protocol_attrs__", ()):  # type: ignore[attr-defined]
         if name == "provenance" or hasattr(_HeldObserver, name):

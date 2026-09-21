@@ -120,6 +120,8 @@ def _service(name: str) -> Any:
     try:
         return container.get(name)
     except (*_RECOVERABLE, *_absent_service_errors()):
+        # not a failure: every caller asks "is this organ here?" and acts on
+        # None by leaving its channels unwritten.
         return None
 
 
@@ -201,7 +203,11 @@ def sample() -> dict[str, float]:
         try:
             write(name, float(value))
             written[name] = float(value)
-        except _RECOVERABLE:
+        except _RECOVERABLE as exc:
+            # A channel that refuses a reading is not the same as an organ
+            # with none to give: the caller reads `written` and cannot tell
+            # those apart, so the channel says which one it was.
+            logger.debug("Channel %s refused the reading: %s", name, exc)
             return
 
     identity = _service("constitutive_identity")
@@ -215,7 +221,9 @@ def sample() -> dict[str, float]:
                 put(ch.CHANNEL_UNSUPPORTED,
                     sum(len(identity.get(n).unsupported_declarations()) for n in names))
         except _RECOVERABLE:
-            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
+            # not a failure: the organ has not started, so it has no
+            # reading; see _WHY_A_MISSING_READING_IS_FINE.
+            pass
 
     expression = _service("expressive_dynamics")
     if expression is not None:
@@ -233,7 +241,9 @@ def sample() -> dict[str, float]:
             put(ch.CHANNEL_CARE_OWN_UNMET, strain.get("own_unmet"))
             put(ch.CHANNEL_CARE_DEPLETED, 1.0 if strain.get("depleted") else 0.0)
         except _RECOVERABLE:
-            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
+            # not a failure: the organ has not started, so it has no
+            # reading; see _WHY_A_MISSING_READING_IS_FINE.
+            pass
 
     receptivity = _service("receptivity")
     if receptivity is not None:
@@ -242,7 +252,9 @@ def sample() -> dict[str, float]:
             put(ch.CHANNEL_ACCEPTANCE, isolation.get("acceptance_rate"))
             put(ch.CHANNEL_REGARD, isolation.get("mean_regard"))
         except _RECOVERABLE:
-            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
+            # not a failure: the organ has not started, so it has no
+            # reading; see _WHY_A_MISSING_READING_IS_FINE.
+            pass
 
     arbiter = _service("dual_process_arbiter")
     if arbiter is not None:
@@ -255,7 +267,9 @@ def sample() -> dict[str, float]:
                 led = sum(1 for row in domains.values() if row.get("leads") == "affective")
                 put(ch.CHANNEL_AFFECT_LED, led / len(domains))
         except _RECOVERABLE:
-            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
+            # not a failure: the organ has not started, so it has no
+            # reading; see _WHY_A_MISSING_READING_IS_FINE.
+            pass
 
     positions = _service("prospect_refuge")
     if positions is not None:
@@ -267,7 +281,9 @@ def sample() -> dict[str, float]:
                     put(ch.CHANNEL_ASYMMETRY,
                         sum(p.asymmetry for p in scored) / len(scored))
         except _RECOVERABLE:
-            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
+            # not a failure: the organ has not started, so it has no
+            # reading; see _WHY_A_MISSING_READING_IS_FINE.
+            pass
 
     craft = _service("craft_practice")
     if craft is not None:
@@ -277,7 +293,9 @@ def sample() -> dict[str, float]:
                 skill = craft.status()["skills"].get(target) or {}
                 put(ch.CHANNEL_IMPROVEMENT, skill.get("improvement_rate"))
         except _RECOVERABLE:
-            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
+            # not a failure: the organ has not started, so it has no
+            # reading; see _WHY_A_MISSING_READING_IS_FINE.
+            pass
 
     novelty = _service("novelty_value")
     if novelty is not None:
@@ -287,14 +305,18 @@ def sample() -> dict[str, float]:
                 put(ch.CHANNEL_NOVELTY_VALUE, novelty.value(
                     responses[-1].key, responses[-1].payload).value)
         except _RECOVERABLE:
-            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
+            # not a failure: the organ has not started, so it has no
+            # reading; see _WHY_A_MISSING_READING_IS_FINE.
+            pass
 
     ledger = _service("reversibility_ledger")
     if ledger is not None:
         try:
             put(ch.CHANNEL_PREMIUM, ledger.status().get("premium_paid"))
         except _RECOVERABLE:
-            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
+            # not a failure: the organ has not started, so it has no
+            # reading; see _WHY_A_MISSING_READING_IS_FINE.
+            pass
 
     channel = _service("signal_channel")
     if channel is not None:
@@ -305,7 +327,9 @@ def sample() -> dict[str, float]:
                 put(ch.CHANNEL_INFORMATIVE,
                     status.get("informative_readings", 0) / signals)
         except _RECOVERABLE:
-            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
+            # not a failure: the organ has not started, so it has no
+            # reading; see _WHY_A_MISSING_READING_IS_FINE.
+            pass
 
     reciprocity = _service("reciprocity")
     if reciprocity is not None:
@@ -318,7 +342,9 @@ def sample() -> dict[str, float]:
             if continuations:
                 put(ch.CHANNEL_CONTINUATION, sum(continuations) / len(continuations))
         except _RECOVERABLE:
-            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
+            # not a failure: the organ has not started, so it has no
+            # reading; see _WHY_A_MISSING_READING_IS_FINE.
+            pass
 
     empathy = _service("empathic_coupling")
     if empathy is not None:
@@ -329,7 +355,9 @@ def sample() -> dict[str, float]:
                 put(ch.CHANNEL_AUTONOMY, min(own))
             put(ch.CHANNEL_MERGED, len(status.get("merged") or []))
         except _RECOVERABLE:
-            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
+            # not a failure: the organ has not started, so it has no
+            # reading; see _WHY_A_MISSING_READING_IS_FINE.
+            pass
 
     stamina = _service("social_stamina")
     if stamina is not None:
@@ -338,6 +366,8 @@ def sample() -> dict[str, float]:
             put(ch.CHANNEL_STAMINA, reading.stamina)
             put(ch.CHANNEL_BELONGING, reading.belonging)
         except _RECOVERABLE:
+            # not a failure: the organ has not started, so it has no
+            # reading; see _WHY_A_MISSING_READING_IS_FINE.
             pass
 
     aesthetic = _service("aesthetic_response")
@@ -347,7 +377,9 @@ def sample() -> dict[str, float]:
             if last:
                 put(ch.CHANNEL_PLEASURE, last.get("pleasure"))
         except _RECOVERABLE:
-            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
+            # not a failure: the organ has not started, so it has no
+            # reading; see _WHY_A_MISSING_READING_IS_FINE.
+            pass
 
     conventions = _service("conventions")
     if conventions is not None:
@@ -356,7 +388,9 @@ def sample() -> dict[str, float]:
             put(ch.CHANNEL_MARKERS,
                 sum(1 for row in markers.values() if row.get("arbitrary")))
         except _RECOVERABLE:
-            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
+            # not a failure: the organ has not started, so it has no
+            # reading; see _WHY_A_MISSING_READING_IS_FINE.
+            pass
 
     return written
 
@@ -642,7 +676,10 @@ def _price(organ_name: str, effect: str, payload: Any, service: Any) -> Contribu
                 organ_name, effect, whole.r - without.r, "coherence",
                 "coherence this practice is holding up",
             )
-    except _RECOVERABLE:
+    except _RECOVERABLE as exc:
+        # A contribution that cannot be computed and one that is zero both
+        # arrive as None here, and the attribution report shows neither.
+        logger.debug("No contribution readable from %s: %s", organ_name, exc)
         return None
     return None
 

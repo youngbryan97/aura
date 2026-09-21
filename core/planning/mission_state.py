@@ -563,8 +563,23 @@ class MissionState:
                     if decision.requires_confirmation:
                         return {"success": False, "error": f"Needs user approval: {decision.reason}"}
                     return {"success": False, "error": f"Permission denied: {decision.reason}"}
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # No permission model — proceed
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            # A permission model that is ABSENT means proceed. One that is
+            # present and raises meant the same thing here, so an action ran
+            # unchecked and the reason for that went nowhere. Fail closed and
+            # say which it was.
+            if perm_model is not None:
+                record_degradation(
+                    "mission_state.permission_model",
+                    exc,
+                    severity="warning",
+                    action="refused the step rather than running it unchecked",
+                )
+                return {
+                    "success": False,
+                    "error": f"Permission model could not decide: {exc}",
+                }
+            logger.debug("No permission model; the step proceeds: %s", exc)
 
         try:
             host = ServiceContainer.get("host_automation", default=None)
@@ -630,8 +645,11 @@ class MissionState:
                             get_document_service,
                         )
                         doc_service = get_document_service()
-                    except ImportError:
-                        return {"success": False, "error": "PDF service not available"}
+                    except ImportError as exc:
+                        return {
+                            "success": False,
+                            "error": f"PDF service not available: {exc}",
+                        }
                 body = params.get("body", "")
                 if not str(body).strip():
                     # Refuse rather than write an empty PDF and report success.
@@ -658,8 +676,14 @@ class MissionState:
                     if browser:
                         receipt = await browser.search_and_open(params.get("query", ""), params.get("count", 3))
                         return {"success": receipt.success, "result": receipt.result, "receipt_id": receipt.receipt_id}
-                except (ImportError, AttributeError):
-                    pass
+                except (ImportError, AttributeError) as exc:
+                    # An adapter that RAISED is not an adapter that is
+                    # missing, and the line below said the second about
+                    # both.
+                    return {
+                        "success": False,
+                        "error": f"Browser controller failed: {exc}",
+                    }
                 return {"success": False, "error": "Browser controller not available"}
 
             elif action == "open_url":
@@ -668,8 +692,8 @@ class MissionState:
                     if browser:
                         receipt = await browser.open_url(params.get("url", ""))
                         return {"success": receipt.success, "receipt_id": receipt.receipt_id}
-                except (ImportError, AttributeError):
-                    pass
+                except (ImportError, AttributeError) as exc:
+                    logger.debug("Browser controller could not open the URL: %s", exc)
                 # Fallback: use system open
                 receipt = await host.run_command(f"open {params.get('url', '')}")
                 return {"success": receipt.success, "receipt_id": receipt.receipt_id}
@@ -680,8 +704,14 @@ class MissionState:
                     if asset_handler:
                         results = await asset_handler.search_images(params.get("query", ""))
                         return {"success": bool(results), "result": results}
-                except (ImportError, AttributeError):
-                    pass
+                except (ImportError, AttributeError) as exc:
+                    # An adapter that RAISED is not an adapter that is
+                    # missing, and the line below said the second about
+                    # both.
+                    return {
+                        "success": False,
+                        "error": f"Web asset handler failed: {exc}",
+                    }
                 return {"success": False, "error": "Web asset handler not available"}
 
             elif action == "download_image":
@@ -690,8 +720,14 @@ class MissionState:
                     if asset_handler:
                         path = await asset_handler.download_image(params.get("url", ""), params.get("save_dir", ""))
                         return {"success": bool(path), "result": path, "artifacts": [path] if path else []}
-                except (ImportError, AttributeError):
-                    pass
+                except (ImportError, AttributeError) as exc:
+                    # An adapter that RAISED is not an adapter that is
+                    # missing, and the line below said the second about
+                    # both.
+                    return {
+                        "success": False,
+                        "error": f"Web asset handler failed: {exc}",
+                    }
                 return {"success": False, "error": "Web asset handler not available"}
 
             elif action == "set_wallpaper":
@@ -700,8 +736,14 @@ class MissionState:
                     if os_settings:
                         receipt = await os_settings.set_wallpaper(params.get("image_path", ""))
                         return {"success": receipt.success, "receipt_id": receipt.receipt_id}
-                except (ImportError, AttributeError):
-                    pass
+                except (ImportError, AttributeError) as exc:
+                    # An adapter that RAISED is not an adapter that is
+                    # missing, and the line below said the second about
+                    # both.
+                    return {
+                        "success": False,
+                        "error": f"OS settings adapter failed: {exc}",
+                    }
                 return {"success": False, "error": "OS settings adapter not available"}
 
             elif action == "get_wallpaper":
@@ -710,8 +752,14 @@ class MissionState:
                     if os_settings:
                         path = await os_settings.get_wallpaper()
                         return {"success": bool(path), "result": path}
-                except (ImportError, AttributeError):
-                    pass
+                except (ImportError, AttributeError) as exc:
+                    # An adapter that RAISED is not an adapter that is
+                    # missing, and the line below said the second about
+                    # both.
+                    return {
+                        "success": False,
+                        "error": f"OS settings adapter failed: {exc}",
+                    }
                 return {"success": False, "error": "OS settings adapter not available"}
 
             elif action == "get_screen_text":
@@ -880,8 +928,18 @@ class MissionState:
                 router.think(prompt, priority=0.8, prefer_tier=LLMTier.PRIMARY),
                 timeout=float(params.get("timeout_s", 180.0)),
             )
-        except TimeoutError:
-            return {"success": False, "error": "Synthesis timed out"}
+        except TimeoutError as exc:
+            budget = float(params.get("timeout_s", 180.0))
+            record_degradation(
+                "mission_state.summarize_sources",
+                exc,
+                severity="warning",
+                action="reported the synthesis as timed out to the mission",
+            )
+            return {
+                "success": False,
+                "error": f"Synthesis timed out after {budget:g}s",
+            }
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
             record_degradation("mission_state.summarize_sources", e)
             return {"success": False, "error": f"Synthesis failed: {e}"}
@@ -1053,8 +1111,15 @@ class MissionState:
                 action_taken={"mission_id": mission_id},
                 result=data,
             )
-        except (ImportError, AttributeError, RuntimeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            # The life trace is the record of what the mission did. A write
+            # that does not land leaves no other trace of itself.
+            record_degradation(
+                "mission_state.life_trace",
+                exc,
+                severity="warning",
+                action="continued the mission without recording this event",
+            )
 
     def update_mission_status(self, mission_id: str, status: MissionStatus) -> None:
         mission = self._active_missions.get(mission_id)
