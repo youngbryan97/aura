@@ -325,6 +325,8 @@ def _engine_token(engine: Any) -> tuple[str, str, int, int]:
     try:
         width = int(getattr(engine, "VECTOR_DIM", 0) or 0)
     except (TypeError, ValueError):
+        # not a failure: an engine that does not declare a width is
+        # identified by the rest of the tuple.
         width = 0
     return kind, model, width, id(engine)
 
@@ -363,6 +365,8 @@ def _embedder() -> Any | None:
         memory = get_container().get("vector_memory_engine", default=None)
         engine = getattr(memory, "embedder", None)
     except (ImportError, AttributeError, RuntimeError, LookupError):
+        # not a failure: no memory engine to borrow one from, so the shared
+        # lease below is tried instead.
         pass
     if engine is None:
         with _LOCK:
@@ -373,6 +377,8 @@ def _embedder() -> Any | None:
 
                 candidate = acquire_shared_embedding_engine("evidence-relevance")
             except (ImportError, AttributeError, RuntimeError):
+                # not a failure: no shared engine to lease, and the caller
+                # falls back to lexical relevance.
                 return None
             with _LOCK:
                 if _SHARED_ENGINE_LEASE is None:
@@ -442,7 +448,11 @@ def warm_semantic_routing() -> bool:
             return False
         _prewarm_anchor_vectors()
         return anchors_warm()
-    except (AttributeError, RuntimeError, OSError, ValueError, TypeError):
+    except (AttributeError, RuntimeError, OSError, ValueError, TypeError) as exc:
+        # This runs on a background task, and False is the only signal it
+        # gives. A warm that keeps failing looks the same as one nobody
+        # asked for.
+        logger.debug("Semantic routing did not warm: %s", exc)
         return False
 
 
@@ -456,6 +466,7 @@ def _ask_for_a_warm() -> None:
 
         loop = asyncio.get_running_loop()
     except RuntimeError:
+        # not a failure: no loop to warm on, and warming is never required.
         return
     loop.run_in_executor(None, warm_semantic_routing)
 
@@ -475,14 +486,17 @@ def semantic_routing_available() -> bool:
     try:
         embedder._checkout_model()  # noqa: SLF001 - availability probe
     except (AttributeError, RuntimeError, OSError):
+        # not a failure: a model that cannot be checked out is not available,
+        # which is what this probe reports.
         return False
     try:
         model = getattr(embedder, "_model", None)
     finally:
         try:
             embedder._return_model()  # noqa: SLF001
-        except (AttributeError, RuntimeError):
-            pass
+        except (AttributeError, RuntimeError) as exc:
+            # A model checked out and not returned is a lease that leaks.
+            logger.warning("Probe did not return the embedding model: %s", exc)
     return model is not None
 
 
@@ -549,6 +563,8 @@ def _cosine(left: Any, right: Any) -> float:
         left_norm = math.sqrt(sum(float(a) * float(a) for a in left))
         right_norm = math.sqrt(sum(float(b) * float(b) for b in right))
     except (TypeError, ValueError):
+        # not a failure: vectors that are not numbers have no cosine, and
+        # zero is the no-similarity the caller already handles.
         return 0.0
     if left_norm <= 0.0 or right_norm <= 0.0:
         return 0.0
@@ -839,6 +855,9 @@ def wants_evidence(
         try:
             floor = bool(lexical_floor(text))
         except (RuntimeError, TypeError, ValueError):
+            # not a failure: a floor that cannot be evaluated does not raise
+            # the bar, which is the permissive side and the one the caller
+            # already takes when no floor is supplied.
             floor = False
     if floor:
         return True

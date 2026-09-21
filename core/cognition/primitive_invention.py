@@ -213,6 +213,9 @@ class IndexProgram:
         try:
             args = tuple(int(value) for value in (raw.get("args") or ()))
         except (TypeError, ValueError):
+            # not a failure: arguments that are not integers are not a
+            # program this reader recognises, which the comment above
+            # says is what None means here.
             return None
         parts: list[IndexProgram] = []
         for item in raw.get("parts") or ():
@@ -297,7 +300,10 @@ def explains(
         seen = True
         try:
             produced = tuple(operator(tuple(transition.before)))
-        except Exception:  # noqa: BLE001 - foreign code: an operator that throws does not explain
+        except Exception:  # noqa: BLE001 - foreign code
+            # not a failure: an invented operator that throws has not
+            # explained the transition, and not explaining it is the
+            # verdict this returns.
             return False
         if produced != tuple(transition.after):
             return False
@@ -339,13 +345,16 @@ def _possible_sources(
     for index, value in enumerate(before):
         try:
             where.setdefault(value, []).append(index)
-        except TypeError:  # an unhashable cell is not a value we can trace
+        except TypeError:
+            # not a failure: an unhashable cell is not a value this can
+            # trace, so there is no index map to build.
             return None
     options: list[tuple[int, ...]] = []
     for value in after:
         try:
             found = where.get(value)
         except TypeError:
+            # not a failure: an unhashable value has no entry to look up.
             return None
         if not found:
             return None
@@ -882,6 +891,8 @@ def _how_much_it_gets_right(
             1 for index in range(size) if rule(index, size) in options[index]
         )
     except (IndexError, TypeError, ZeroDivisionError):
+        # not a failure: a rule that does not fit this size agrees with
+        # nothing, and zero is the count of what it explained.
         return 0
 
 
@@ -903,6 +914,8 @@ def _fits(
     try:
         return all(rule(index, size) in wanted[index] for index in range(size))
     except (IndexError, TypeError, ZeroDivisionError):
+        # not a failure: a rule that does not fit this size does not hold
+        # for it, which is what this asks.
         return False
 
 
@@ -1350,7 +1363,9 @@ def _note_a_step() -> None:
         from core.cognition.the_record_of_her_own_work import note_a_step
 
         note_a_step()
-    except ImportError:  # no-op: counting is not what this module is for
+    except ImportError:
+        # not a failure: counting is not what this module is for, and the
+        # record is optional to it.
         pass
 
 
@@ -1663,6 +1678,8 @@ def _map_then_move(
             went_in = sorted(item.before)
             came_out = sorted(item.after)
         except TypeError:
+            # not a failure: cells that will not sort cannot be compared
+            # before and after, so there is no change to read.
             return None
         if len(went_in) != len(came_out):
             return None

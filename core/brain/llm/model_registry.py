@@ -394,6 +394,8 @@ def _read_active_cortex_spec(
             ),
         )
     except FileNotFoundError:
+        # not a failure: no descriptor on disk means no spec to read, which
+        # is what every caller checks None for.
         return None
     except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
         logger.error("Active cortex pointer is invalid: %s", exc)
@@ -466,7 +468,8 @@ def _refresh_active_cortex_spec_off_loop(manifest: Path) -> bool:
 
         asyncio.get_running_loop().run_in_executor(None, refresh)
     except RuntimeError:
-        # No running loop on this thread after all: validate here.
+        # not a failure: no running loop on this thread after all, so the
+        # validation runs here instead of off it.
         with _active_cortex_spec_lock:
             _active_cortex_spec_refreshing = False
         return False
@@ -504,6 +507,8 @@ def get_active_cortex_serving_limits(
             try:
                 native_context = int(artifact_profile.get("native_context_window") or 0)
             except (TypeError, ValueError, OverflowError):
+                # not a failure: a profile without a readable window has
+                # none to declare, and zero is how the limits say so.
                 native_context = 0
         return CortexServingLimits(
             model_path=active_path,
@@ -533,6 +538,8 @@ def get_active_cortex_serving_limits(
                 max_output_tokens=int(raw_limits.get("max_output_tokens") or 0),
             )
         except (TypeError, ValueError, OverflowError):
+            # not a failure: limits that are not numbers are not limits, and
+            # the guard below rejects the same shape when they parse to zero.
             return None
         if not lane.name or lane.max_input_tokens <= 0 or lane.max_output_tokens <= 0:
             return None
@@ -541,6 +548,8 @@ def get_active_cortex_serving_limits(
         served_context = int(profile.get("served_context_tokens") or 0)
         prefill_chunk = int(profile.get("prefill_chunk_tokens") or 0)
     except (TypeError, ValueError, OverflowError):
+        # not a failure: a profile without readable serving numbers declares
+        # no limits, which the guard below treats the same way.
         return None
     if served_context <= 0 or prefill_chunk <= 0 or not lanes:
         return None
@@ -899,6 +908,8 @@ def _safe_positive_int(value: Any) -> int:
     try:
         parsed = int(value or 0)
     except (TypeError, ValueError, OverflowError):
+        # not a failure: the docstring says non-negative from arbitrary JSON,
+        # never raising, and zero is what arbitrary JSON is worth.
         return 0
     return parsed if parsed > 0 else 0
 
@@ -1185,7 +1196,12 @@ def get_model_runtime_assignment(
             if profile.measured and profile.fingerprint:
                 artifact_identity = profile.fingerprint
                 artifact_identity_kind = "artifact_profile_fingerprint"
-        except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            # The identity is what the health surface reports the cortex AS.
+            # An empty one falls through to the weaker locator below, and
+            # nothing else would say the measured fingerprint was available
+            # and could not be read.
+            logger.warning("Artifact fingerprint unavailable for %s: %s", locator, exc)
             artifact_identity = ""
     if not artifact_identity:
         artifact_identity = locator_identity(locator)
@@ -1645,17 +1661,22 @@ def resident_model_identity() -> dict[str, Any]:
     label = resident_model_label()
     try:
         spec = get_active_cortex_spec()
-    except Exception:  # noqa: BLE001 - see resident_model_label
+    except Exception as exc:  # noqa: BLE001 - see resident_model_label
+        # This report is what health, logs and the UI all read. A spec that
+        # could not be loaded leaves them agreeing on nothing.
+        logger.warning("No active cortex spec for the runtime report: %s", exc)
         spec = None
     profile = {}
     if spec is not None:
         try:
             profile = (spec.artifact_descriptor() or {}).get("artifact_profile") or {}
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("No artifact profile for the runtime report: %s", exc)
             profile = {}
     try:
         limits = get_active_cortex_serving_limits()
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("No serving limits for the runtime report: %s", exc)
         limits = None
     return {
         "label": label,

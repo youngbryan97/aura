@@ -219,6 +219,8 @@ def _estimate_parameters_from_config(config: dict) -> int:
         heads = int(text.get("num_attention_heads") or 0)
         kv_heads = int(text.get("num_key_value_heads") or heads or 1)
     except (TypeError, ValueError):
+        # not a failure: a config whose geometry is not numbers declares no
+        # parameter count, and the guard below rejects the same shape.
         return 0
     if hidden <= 0 or layers <= 0 or vocab <= 0 or heads <= 0:
         return 0
@@ -254,6 +256,8 @@ def _estimate_parameters_from_config(config: dict) -> int:
             try:
                 value = int(text.get(name) or 0)
             except (TypeError, ValueError):
+                # not a failure: a required field that is not a number is a
+                # geometry this cannot measure, same as one that is zero.
                 return 0
             if value <= 0:
                 # A hybrid whose recurrent geometry is not declared cannot be
@@ -333,6 +337,8 @@ def _quantization_bits(config: dict) -> int:
         try:
             bits = int(quant.get("bits") or 0)
         except (TypeError, ValueError):
+            # not a failure: no readable bit width means unquantised as far
+            # as this can tell, which the range check below also returns.
             return 0
         return bits if 0 < bits <= 32 else 0
     return 0
@@ -400,6 +406,8 @@ def _cache_key_stamp(config_path: Path, index_path: Path) -> tuple[float, float]
         try:
             return p.stat().st_mtime
         except OSError:
+            # not a failure: a file with no mtime is one that is not there,
+            # and the stamp only has to CHANGE when the file does.
             return 0.0
 
     return (_mtime(config_path), _mtime(index_path))
@@ -497,6 +505,8 @@ def _build_profile(
     try:
         exists = root.exists()
     except OSError:
+        # not a failure: a root that cannot be stat'd is not one this can
+        # profile, which is what the guard below does with False.
         exists = False
     if not exists or not root.is_dir():
         # Single-file or absent artifacts: declared naming is the only
@@ -507,6 +517,8 @@ def _build_profile(
             try:
                 weight_bytes = int(root.stat().st_size)
             except OSError:
+                # not a failure: no readable size, and zero is the profile's
+                # own "unmeasured" for this field.
                 weight_bytes = 0
         return ModelArtifactProfile(
             path=resolved,
@@ -547,8 +559,10 @@ def _build_profile(
                 continue
             weight_files.append((child.name, size))
             summed_weight_bytes += size
-    except OSError:
-        pass
+    except OSError as exc:
+        # A partial walk gives a partial weight total, and the profile that
+        # comes out of it is measured against the real checkpoint.
+        logger.warning("Could not walk %s for weight files: %s", root, exc)
 
     total_parameters = 0
     weight_bytes = 0
@@ -557,6 +571,8 @@ def _build_profile(
         total_parameters = int(index_metadata.get("total_parameters") or 0)
         weight_bytes = int(index_metadata.get("total_size") or 0)
     except (TypeError, ValueError):
+        # not a failure: an index whose totals are not numbers supplies no
+        # measurement, and the walk below takes over.
         total_parameters = 0
         weight_bytes = 0
     if total_parameters > 0:

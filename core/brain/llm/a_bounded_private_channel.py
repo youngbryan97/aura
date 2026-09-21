@@ -79,6 +79,8 @@ def the_channel_budget_for(
     try:
         total = int(max_tokens or 0)
     except (TypeError, ValueError):
+        # not a failure: the docstring says zero is a real answer — this
+        # turn cannot afford to think privately.
         return 0
     if total <= 0:
         return 0
@@ -86,6 +88,8 @@ def the_channel_budget_for(
     try:
         named = int(asked_for or 0)
     except (TypeError, ValueError):
+        # not a failure: nobody named a budget this can read, so the clock
+        # below decides instead.
         named = 0
     if named > 0:
         return min(named, max(0, total - TOO_SMALL_TO_THINK_IN))
@@ -93,6 +97,8 @@ def the_channel_budget_for(
     try:
         seconds = float(seconds_left or 0.0)
     except (TypeError, ValueError):
+        # not a failure: no readable deadline is not permission to think for
+        # a whole turn, which is the line just below.
         return 0
     if seconds <= 0.0:
         # No stated deadline is not permission to think for a whole turn.
@@ -101,10 +107,14 @@ def the_channel_budget_for(
     try:
         from core.brain.llm.thinking_reserve import tokens_decodable_in
     except ImportError:
+        # not a failure: without a decode clock there is no measured room,
+        # and zero is what an unmeasured channel gets.
         return 0
     try:
         needed = int(answer_floor or 0)
     except (TypeError, ValueError):
+        # not a failure: no readable floor, and the line below raises it to
+        # the minimum worth thinking in either way.
         needed = 0
     needed = max(needed, TOO_SMALL_TO_THINK_IN)
     # The channel sits on top of the answer, not inside its budget. The
@@ -159,6 +169,8 @@ def _the_token_that_closes_it(tokenizer: Any) -> int | None:
             try:
                 table = table()
             except (TypeError, ValueError, RuntimeError):
+                # not a failure: a tokenizer that will not hand over its
+                # added-token map has not got the closing token in one.
                 table = None
         if isinstance(table, dict) and _CLOSES_THE_CHANNEL in table:
             return int(table[_CLOSES_THE_CHANNEL])
@@ -178,6 +190,8 @@ def close_the_channel_after(
     try:
         budget = int(budget_tokens)
     except (TypeError, ValueError):
+        # not a failure: the docstring says None is the honest answer when
+        # the bound cannot be enforced, and an unreadable budget is that.
         return None
     if budget <= _A_FEW_TOKENS_TO_FINISH_THE_THOUGHT:
         return None
@@ -188,6 +202,8 @@ def close_the_channel_after(
     try:
         import mlx.core as mx
     except ImportError:
+        # not a failure: no MLX, no logits processor, and the caller is told
+        # the bound is not held rather than assuming it is.
         return None
 
     state = {"closed": False, "forced_at": 0}
@@ -206,6 +222,8 @@ def close_the_channel_after(
                 state["closed"] = True
                 return logits
         except (TypeError, ValueError, IndexError):
+            # not a failure: a last token this cannot read is not the
+            # closing one, and the budget check below still runs.
             pass
         if produced < budget - _A_FEW_TOKENS_TO_FINISH_THE_THOUGHT:
             return logits

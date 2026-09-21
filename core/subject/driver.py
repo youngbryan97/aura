@@ -573,7 +573,11 @@ class SubjectRuntime:
             return
         try:
             vault._current = self.state
-        except (AttributeError, TypeError):
+        except (AttributeError, TypeError) as exc:
+            # The run's state is meant to BE the vault's current one. A
+            # vault that will not take it goes on serving a different state
+            # than the arm is measuring.
+            logger.warning("The vault would not take the run's state: %s", exc)
             return
 
     def _refresh_health(self) -> None:
@@ -608,7 +612,11 @@ class SubjectRuntime:
                 ),
                 temperature_c=self.frozen_host.get("temperature"),
             )
-        except (AttributeError, TypeError, ValueError):
+        except (AttributeError, TypeError, ValueError) as exc:
+            # The frozen host is what keeps an arm from reading the real
+            # machine. One that does not install leaves the guards reading
+            # live load, which is the defect the freeze exists to prevent.
+            logger.warning("The declared host was not installed: %s", exc)
             return
 
     def thaw_host(self) -> None:
@@ -633,6 +641,8 @@ class SubjectRuntime:
                 set_resource_observer_for_test,
             )
         except (ImportError, AttributeError):
+            # not a failure: no observer module, so there is nothing to
+            # hold and nothing reading it either.
             return
         if self._held_observer is not None:
             return
@@ -649,8 +659,11 @@ class SubjectRuntime:
             from core.runtime.resource_observation import set_resource_observer_for_test
 
             set_resource_observer_for_test(self._previous_observer)
-        except (ImportError, AttributeError):
-            pass
+        except (ImportError, AttributeError) as exc:
+            # The held observer is cleared below either way, so a release
+            # that did not land leaves the run's observer installed over
+            # whatever runs next.
+            logger.warning("The previous observer was not put back: %s", exc)
         self._held_observer = None
         self._previous_observer = None
 
@@ -1087,6 +1100,8 @@ class SubjectRuntime:
 
             step = last_reading()
         except ImportError:
+            # not a failure: no lifetime module, so no last step to carry,
+            # and the guard below already handles None.
             step = None
         if step is None or self.ontogeny is None:
             return
@@ -1648,7 +1663,11 @@ def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectR
         from core.ontogeny.service import get_ontogeny
 
         ontogeny_service = get_ontogeny()
-    except Exception:  # noqa: BLE001 - an absent organ is an absent organ
+    except Exception as exc:  # noqa: BLE001 - an absent organ is an absent organ
+        # The comment above is right about an absent organ. A PRESENT one
+        # that raised is a different thing, and the accumulators it holds
+        # are what the fork was supposed to carry.
+        logger.warning("Ontogeny state will not cross the fork: %s", exc)
         ontogeny_service = None
 
     runtime = SubjectRuntime(
@@ -1711,6 +1730,8 @@ def install_declared_host(runtime: Any) -> Any:
             set_resource_observer_for_test,
         )
     except (ImportError, AttributeError):
+        # not a failure: no observer module means no observer to install
+        # one over, and the docstring says None is that answer.
         return None
     if getattr(runtime, "declared_host", None) is not None:
         return runtime.declared_host
@@ -1728,6 +1749,8 @@ def release_declared_host(runtime: Any) -> None:
     try:
         from core.runtime.resource_observation import set_resource_observer_for_test
     except (ImportError, AttributeError):
+        # not a failure: nothing was installed, so there is nothing to put
+        # back — the install above took the same path.
         return
     set_resource_observer_for_test(getattr(runtime, "previous_observer", None))
     runtime.declared_host = None
@@ -1870,6 +1893,8 @@ def _build_retriever(runtime: SubjectRuntime) -> Any:
     try:
         from core.memory.intentional_retrieval import IntentionalRetriever, MemoryStoreType
     except ImportError:  # pragma: no cover - the retriever is optional to the rest
+        # not a failure: the comment says the retriever is optional, and
+        # the caller plans without one.
         return None
 
     retriever = IntentionalRetriever()

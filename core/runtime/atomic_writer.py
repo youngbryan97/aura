@@ -122,9 +122,11 @@ def _fsync_file(fd: int, *, full: bool = False) -> None:
         if not used_full:
             try:
                 os.fsync(fd)
-            except (AttributeError, OSError):
-                # Best-effort on platforms where fsync is unavailable.
-                pass  # no-op: intentional
+            except (AttributeError, OSError) as exc:
+                # The warning above already said the write is no longer
+                # power-loss safe. This says the weaker fsync did not land
+                # either, which is a different and worse thing.
+                logger.warning("Neither full nor plain fsync reached the disk: %s", exc)
     try:
         from core.observability.histograms import record
 
@@ -143,7 +145,10 @@ def _fsync_dir(directory: Path, *, full: bool = False) -> None:
         return
     try:
         dir_fd = os.open(str(directory), os.O_DIRECTORY)
-    except (FileNotFoundError, PermissionError, OSError):
+    except (FileNotFoundError, PermissionError, OSError) as exc:
+        # A directory entry that is never synced is a rename that can be
+        # lost on power failure, which is the whole claim of this module.
+        logger.warning("Directory %s was not synced after a rename: %s", directory, exc)
         return
     try:
         _fsync_file(dir_fd, full=full)
@@ -286,8 +291,10 @@ def atomic_write_bytes(
         try:
             if tmp_path.exists():
                 tmp_path.unlink()
-        except OSError:
-            pass  # no-op: intentional
+        except OSError as exc:
+            # The write is failing and its error is re-raised below; this
+            # names the temporary file that is now left behind.
+            logger.warning("Temporary %s could not be removed: %s", tmp_path, exc)
         raise
 
 
@@ -323,6 +330,8 @@ def atomic_write_bytes_if_absent(
             os.link(tmp_path, target, follow_symlinks=False)
             published = True
         except FileExistsError:
+            # not a failure: this publishes only if the name is free, and
+            # False is how the caller hears that it was taken.
             published = False
         if durable:
             _fsync_dir(parent)
@@ -331,6 +340,8 @@ def atomic_write_bytes_if_absent(
         try:
             tmp_path.unlink()
         except FileNotFoundError:
+            # not a failure: the link above consumed it, which is the
+            # ordinary path through here.
             pass
 
 
@@ -508,6 +519,8 @@ def atomic_hardlink_replace(
             if os.path.samefile(source_path, target_path):
                 return False
         except OSError:
+            # not a failure: two paths that cannot be compared are not
+            # known to be the same file, and the link below decides.
             pass
 
     parent = target_path.parent
@@ -533,6 +546,8 @@ def atomic_hardlink_replace(
         try:
             temporary.unlink()
         except FileNotFoundError:
+            # not a failure: the rename above consumed it, which is the
+            # ordinary path through here.
             pass
 
 
@@ -637,8 +652,11 @@ def atomic_append_text(path: PathLike, text: str, *, encoding: str = "utf-8") ->
         finally:
             try:
                 fcntl.flock(fd, fcntl.LOCK_UN)
-            except OSError:
-                pass
+            except OSError as exc:
+                # The descriptor is closed below, which releases the lock
+                # anyway. A flock that refuses before that says the file
+                # state is not what this thought it was.
+                logger.warning("Append lock would not release on %s: %s", target, exc)
             os.close(fd)
         _fsync_dir(target.parent)
 

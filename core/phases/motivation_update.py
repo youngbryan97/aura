@@ -334,6 +334,8 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
             budgets = state.motivation.budgets
             threshold = cls._need_threshold(state.motivation)
         except (AttributeError, KeyError, TypeError, ValueError):
+            # not a failure: a state without budgets or pending initiatives
+            # has no urge to raise, and zero is how this counts that.
             return 0
         telling_urge = None
         kept: list[Any] = []
@@ -487,6 +489,9 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
             try:
                 share = max(0.0, min(1.0, float(reading.get("closing", 0.0) or 0.0)))
             except (TypeError, ValueError):
+                # not a failure: a reading marked measured whose number is
+                # not one leaves the window fully open, which is the
+                # default the line above already set.
                 share = 0.0
         from core.state.aura_state import _origin_is_user_anchored
 
@@ -519,6 +524,8 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         try:
             share = max(0.0, min(1.0, float(getattr(affect, "decline_press", 0.0) or 0.0)))
         except (TypeError, ValueError):
+            # not a failure: no readable decline press is no press, which
+            # moves nothing below.
             share = 0.0
         moved = 0
         for bucket in ("pending_initiatives", "active_goals"):
@@ -682,6 +689,8 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
             budget["level"] = min(capacity, float(budget.get("level", 0.0)) + gain)
             return gain
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, KeyError):
+            # not a failure: a budget this cannot read gains nothing this
+            # tick, and the caller sums the gains.
             return 0.0
 
     def _conative_spike(self) -> dict | None:
@@ -906,6 +915,8 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
             current = getattr(repo, "_current", None) if repo is not None else None
             exertion = float(getattr(getattr(current, "soma", None), "exertion", 0.0) or 0.0)
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            # not a failure: the comment above says this is an observer, so
+            # no reading means no exertion to spend energy on.
             exertion = 0.0
         rate = MotivationUpdatePhase._ENERGY_PER_DAY_AT_FULL_EXERTION / 86400.0
         moved = level - (exertion - 0.5) * 2.0 * rate * capacity * dt / 100.0
@@ -1039,6 +1050,8 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
             levels = drive_levels(getattr(mot, "budgets", None))
             return float(sum(levels.values()))
         except (ImportError, AttributeError, TypeError, ValueError):
+            # not a failure: budgets this cannot read total nothing, and
+            # the difference of two such totals is the zero it should be.
             return 0.0
 
     @staticmethod
@@ -1065,6 +1078,8 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         try:
             step = float(dt)
         except (TypeError, ValueError):
+            # not a failure: a step that is not a number is no elapsed
+            # time, which the guard below treats the same way.
             return 0.0
         if step <= 0.0:
             return 0.0
@@ -1107,6 +1122,8 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         try:
             share = float(reading.get("share_self", 0.0) or 0.0)
         except (TypeError, ValueError):
+            # not a failure: no readable share, and the range guard below
+            # refuses the same values this skips.
             return
         if not 0.0 < share <= 1.0:
             return
@@ -1129,7 +1146,10 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
             from core.motivation.returning import get_returning_ledger
 
             state.cognition.returning = get_returning_ledger().read().as_dict()
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            # The returning ledger is what the turn reads to know she came
+            # back to something. Leaving it unset reads as never having.
+            logger.debug("The returning ledger was not read this turn: %s", exc)
             return
 
     @staticmethod
@@ -1157,7 +1177,10 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
             after = MotivationUpdatePhase._budget_total(mot)
             get_fuel_ledger().note(source, max(0.0, before - after))
             state.cognition.fuel = get_fuel_ledger().read().as_dict()
-        except (ImportError, AttributeError, TypeError, ValueError):
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            # The fuel note is what says whose energy this turn spent. One
+            # that never lands attributes the spend to nobody.
+            logger.debug("Fuel spent this turn was not attributed: %s", exc)
             return
 
     @staticmethod

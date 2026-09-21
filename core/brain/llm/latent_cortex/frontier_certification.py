@@ -119,7 +119,7 @@ def _finite_number(value: Any, *, positive: bool = False) -> bool:
     try:
         number = float(value)
     except (TypeError, ValueError, OverflowError):
-        return False
+        return False  # not a failure: not a float is not a finite number
     return math.isfinite(number) and (number > 0.0 if positive else True)
 
 
@@ -429,7 +429,7 @@ def _validate_timestamp_anchor(
     try:
         pin = trusted_logs.get(log_id) if trusted_logs is not None else None
     except (AttributeError, TypeError, ValueError):
-        pin = None
+        pin = None  # not a failure: no pin for this signer; see the guard below
     if not isinstance(pin, Mapping):
         reasons.append(f"{event}_transparency_log_untrusted")
         return None
@@ -464,8 +464,8 @@ def _validate_timestamp_anchor(
             tree_size=tree_size,
             proof=[str(item) for item in proof],
         )
-    except (TypeError, ValueError):
-        reasons.append(f"{event}_inclusion_proof_invalid")
+    except (TypeError, ValueError) as exc:  # the type names which field
+        reasons.append(f"{event}_inclusion_proof_invalid:{type(exc).__name__}")
         return None
     if root != pinned_root:
         reasons.append(f"{event}_inclusion_proof_does_not_reach_pinned_root")
@@ -589,8 +589,8 @@ def _reconcile_compute_profile(
         reasons.append("resident_compute_profile_not_preregistered")
     try:
         profile = ModelComputeProfile.from_receipt(profile_receipt)
-    except (TypeError, ValueError):
-        reasons.append("resident_compute_profile_invalid")
+    except (TypeError, ValueError) as exc:  # the type names which field
+        reasons.append(f"resident_compute_profile_invalid:{type(exc).__name__}")
         return
     declared = resident.get("parameter_count")
     if type(declared) is not int or declared <= 0:
@@ -761,8 +761,8 @@ def _trial_information(
     trial_id = str(trial.get("trial_id") or "unknown")
     try:
         receipt = validate_information_receipt(trial.get(f"{arm}_information"))
-    except (TypeError, ValueError):
-        reasons.append(f"{trial_id}:{arm}_information_accounting_invalid")
+    except (TypeError, ValueError) as exc:  # the type names which field
+        reasons.append(f"{trial_id}:{arm}_information_accounting_invalid:{type(exc).__name__}")
         return None
     if receipt["accounting_complete"] is not True:
         reasons.append(f"{trial_id}:{arm}_information_accounting_incomplete")
@@ -1326,7 +1326,7 @@ def _validate_task_commitment(
             else None
         )
     except (AttributeError, TypeError, ValueError):
-        pin = None
+        pin = None  # not a failure: no pin for this signer; see the guard below
     if not isinstance(pin, Mapping) or set(pin) != _TRUST_PIN_FIELDS:
         reasons.append("task_issuer_trust_pin_missing")
         return "", ""
@@ -1517,7 +1517,7 @@ def _validate_producer_identity(
     try:
         pin = trusted_producers.get(signer_id) if trusted_producers is not None else None
     except (AttributeError, TypeError, ValueError):
-        pin = None
+        pin = None  # not a failure: no pin for this signer; see the guard below
     if not isinstance(pin, Mapping) or set(pin) != _TRUST_PIN_FIELDS:
         reasons.append("producer_trust_pin_missing")
         return "", ""
@@ -1580,7 +1580,7 @@ def _validate_independent_attestation(
     try:
         pin = trusted_verifiers.get(signer_id) if trusted_verifiers is not None else None
     except (AttributeError, TypeError, ValueError):
-        pin = None
+        pin = None  # not a failure: no pin for this signer; see the guard below
     if not isinstance(pin, Mapping) or set(pin) != _TRUST_PIN_FIELDS:
         reasons.append("independent_verifier_trust_pin_missing")
         return "", "", ""

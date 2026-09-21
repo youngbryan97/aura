@@ -257,7 +257,10 @@ class StallWatchdog(threading.Thread):
             path = Path(raw)
             path.parent.mkdir(parents=True, exist_ok=True)
             return path
-        except OSError:
+        except OSError as exc:
+            # This is where stall dumps go. Without it the watchdog still
+            # fires and leaves nothing for anyone to read afterwards.
+            logger.warning("Stall dumps have nowhere to go (%s): %s", raw, exc)
             return None
 
     def _write_liveness_heartbeat(self, *, loop_state: str = "alive", force: bool = False) -> None:
@@ -470,11 +473,15 @@ class StallWatchdog(threading.Thread):
             try:
                 return max(0.0, float(explicit or 0.0))
             except (TypeError, ValueError):
+                # not a failure: a grace that is not a number is no grace,
+                # which is the strictest reading of an explicit flag.
                 return 0.0
         if "AURA_WATCHDOG_BOOT_GRACE_S" in os.environ:
             try:
                 inherited = max(0.0, float(os.getenv("AURA_WATCHDOG_BOOT_GRACE_S") or 0.0))
             except (TypeError, ValueError):
+                # not a failure: an inherited value that is not a number is
+                # no grace, same as the explicit flag above.
                 inherited = 0.0
             if _FLAG_SAFE_BOOT_DESKTOP.value() == "1" or _FLAG_EXTERNAL_GUI_OWNER.value() == "1":
                 return max(inherited, 1200.0)
@@ -592,6 +599,9 @@ class StallWatchdog(threading.Thread):
             if is_shutdown_requested():
                 return False
         except (ImportError, RuntimeError):
+            # not a failure: no coordinator to ask means no shutdown was
+            # requested, and the watchdog stays armed, which is the safe
+            # side for a watchdog.
             pass
         return True
 
@@ -670,7 +680,7 @@ class StallWatchdog(threading.Thread):
             )
             if foreground_active:
                 # BOUNDED suppression. During the Jul 9 48%-wedge the lane
-                # sat perpetually 'warming', so every 5-10s loop stall was
+                # sat perpetually 'warming', so every loop stall past 5s was
                 # suppressed and the forensic record went silent for the
                 # exact window that mattered (hours-old last dump while the
                 # health contract failed on 8s lags). A lane continuously
@@ -946,7 +956,10 @@ class StallWatchdog(threading.Thread):
 
         try:
             self.loop.call_soon_threadsafe(_schedule_recovery)
-        except RuntimeError:
+        except RuntimeError as exc:
+            # A closed loop is the ordinary reason, and it means the
+            # recovery this watchdog exists to schedule will not run.
+            logger.warning("Stall recovery could not be scheduled: %s", exc)
             return
         except (AttributeError, TypeError, ValueError) as exc:
             _record_watchdog_degradation(
@@ -977,7 +990,10 @@ class StallWatchdog(threading.Thread):
         cancelled = 0
         try:
             tasks = asyncio.all_tasks(self.loop)
-        except RuntimeError:
+        except RuntimeError as exc:
+            # not a failure: no running loop to enumerate, so there are no
+            # hung tasks to cancel on it.
+            logger.debug("No tasks to sweep on a loop that is not running: %s", exc)
             return
 
         aggressive_cancel = _FLAG_WATCHDOG_CANCEL_HUNG_TASKS.value().strip().lower() in {
@@ -1031,6 +1047,8 @@ class StallWatchdog(threading.Thread):
             mlx_client_module = import_module("core.brain.llm.mlx_client")
             live_mlx_clients = getattr(mlx_client_module, "_LIVE_MLX_CLIENTS", None)
         except (ImportError, AttributeError, RuntimeError):
+            # not a failure: no MLX clients to self-check, and the comment
+            # above says the recycling happens inside them.
             live_mlx_clients = None
 
         if live_mlx_clients:
@@ -1080,7 +1098,9 @@ def start_watchdog(loop: asyncio.AbstractEventLoop | None = None, threshold: flo
         from core.container import ServiceContainer
 
         ServiceContainer.register_instance("stall_watchdog", dog, required=False)
-    except (ImportError, RuntimeError, TypeError, ValueError, AttributeError):
-        pass
+    except (ImportError, RuntimeError, TypeError, ValueError, AttributeError) as exc:
+        # The watchdog starts below either way; what is lost is every
+        # caller that finds it through the container.
+        logger.warning("Stall watchdog is running but not registered: %s", exc)
     dog.start()
     return dog
