@@ -7961,20 +7961,20 @@
       "scope": "<module>.ComputerUseSkill._execute_action"
     },
     {
-      "callee": "pyautogui.click",
-      "canonical_owner": false,
-      "category": "raw_desktop",
-      "count": 1,
-      "path": "core/skills/computer_use.py",
-      "scope": "<module>.ComputerUseSkill._focus_web_editor_surface"
-    },
-    {
       "callee": "pyautogui.hotkey",
       "canonical_owner": false,
       "category": "raw_desktop",
       "count": 1,
       "path": "core/skills/computer_use.py",
       "scope": "<module>.ComputerUseSkill._send_hotkey_pyautogui"
+    },
+    {
+      "callee": "pyautogui.click",
+      "canonical_owner": false,
+      "category": "raw_desktop",
+      "count": 1,
+      "path": "core/skills/computer_use_browser.py",
+      "scope": "<module>._ReadsAndDrivesTheBrowser._focus_web_editor_surface"
     },
     {
       "callee": "pyautogui.click",
@@ -15964,14 +15964,6 @@
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
       "canonical_owner": false,
       "category": "subprocess_gateway",
-      "count": 1,
-      "path": "core/skills/computer_use.py",
-      "scope": "<module>.ComputerUseSkill._active_browser_location"
-    },
-    {
-      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
-      "canonical_owner": false,
-      "category": "subprocess_gateway",
       "count": 3,
       "path": "core/skills/computer_use.py",
       "scope": "<module>.ComputerUseSkill._execute_action"
@@ -15991,6 +15983,14 @@
       "count": 1,
       "path": "core/skills/computer_use.py",
       "scope": "<module>.ComputerUseSkill._set_clipboard"
+    },
+    {
+      "callee": "computer_use.get_subprocess_gateway().run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "core/skills/computer_use_browser.py",
+      "scope": "<module>._ReadsAndDrivesTheBrowser._active_browser_location"
     },
     {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_async",
@@ -16570,6 +16570,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "7c7b24384fdbdd5156aef6c95f2e2cc473ca6910bbb42083035a73dfa4c594b9",
+  "inventory_sha256": "551af6240ec8a105907e6c705f787ceb5d035776421b5173c2ce07293eeee27a",
   "schema_version": 1
 }
