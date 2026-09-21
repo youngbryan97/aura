@@ -1060,6 +1060,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Operation retention policy](evidence/G03_OPERATION_RETENTION_POLICY_2026-09-20.md)
+  distinguishes auxiliary span labels from runtime program corrections.
+  The prior candidate reaches 764/764 source-training cases; coefficient
+  interventions attribute its five validation regressions to the classifier.
   [Restored latent decode](evidence/G03_RESTORED_LATENT_DECODE_2026-09-20.md)
   reaches 25/25 source-acquisition cases after retaining changed latent bindings,
   but regresses from 99/100 to 94/100 on separate development validation.

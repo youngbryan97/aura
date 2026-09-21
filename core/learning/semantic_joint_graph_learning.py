@@ -297,14 +297,25 @@ def mine_source_binding_constraint(model, item, *, weight=1., max_graphs=32, sol
     return contrast, record
 
 
-def source_operation_constraints(model, supervision, *, weight=1.):
-    """Retain every competing label, not just the currently second-ranked label."""
+def source_operation_constraints(model, supervision, *, weight=1., policy="supervised", required_margin=.1):
+    """Compare all labels, separating auxiliary targets from retained evidence."""
+    if (policy not in {"supervised", "retain_existing"} or not math.isfinite(required_margin)
+            or required_margin <= 0 or not math.isfinite(weight) or weight <= 0):
+        raise ValueError("operation retention configuration is invalid")
+    parameters = tuple(np.asarray(value, dtype=np.float64)
+        for head in model.operation_head.heads for value in (head.weight, head.bias))
     constraints = []
     for row, label in enumerate(supervision.labels):
         bank = OperationEvidenceBank(tuple(view[row] for view in supervision.features))
         for alternative in range(len(model.operation_head.labels)):
             if alternative != label:
-                constraints.append(RelationGraphContrast((), (), 0., weight * supervision.weights[row],
+                offset = 0.
+                if policy == "retain_existing":
+                    margin = bank.score(int(label), parameters) - bank.score(alternative, parameters)
+                    # A local annotation need not be the runtime's selected
+                    # span. Preserve its evidence without forcing a new label.
+                    offset = max(required_margin - margin, 0.)
+                constraints.append(RelationGraphContrast((), (), offset, weight * supervision.weights[row],
                     ((bank, int(label)),), ((bank, alternative),)))
     return constraints
 
@@ -365,7 +376,7 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
                                     learn_operation_pointer=False, update_rule="working_face",
                                     boundary_policy="supervised", learn_operations=True,
                                     relation_metric="coefficient_euclidean",
-                                    source_retention_examples=None):
+                                    source_retention_examples=None, operation_policy="supervised"):
     """Remine source-training predictions after each joint operation/relation update."""
     from core.learning.semantic_graph_margin import graph_refit_source_splits
     from core.learning.semantic_program_campaign import _sha
@@ -384,6 +395,9 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         raise ValueError("minimum-change graph learning requires retained constraints")
     if boundary_policy not in {"supervised", "retain_existing"}:
         raise ValueError("unknown graph boundary policy")
+    if operation_policy not in {"supervised", "retain_existing"} or (
+            operation_policy != "supervised" and not constraint_learning):
+        raise ValueError("operation retention policy requires retained constraints")
     if type(learn_arguments) is not bool or (learn_arguments and not constraint_learning):
         raise ValueError("argument graph learning requires retained constraints")
     if type(learn_operation_pointer) is not bool or (learn_operation_pointer and not constraint_learning):
@@ -421,7 +435,8 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
     supervision = source_operation_supervision(model, retention) if source_weight else None
     candidate, retained, history = model, [], []
     if constraint_learning and supervision is not None:
-        retained.extend(source_operation_constraints(model, supervision, weight=source_weight))
+        retained.extend(source_operation_constraints(model, supervision, weight=source_weight,
+                                                    policy=operation_policy))
         if learn_operation_pointer:
             retained.extend(source_operation_pointer_constraints(
                 model, retention, weight=source_weight, policy=boundary_policy,
@@ -530,6 +545,7 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         "operation_head_trainable": learn_operations,
         "update_rule": update_rule,
         "boundary_policy": boundary_policy,
+        "operation_policy": operation_policy,
         "relation_metric": relation_metric,
         "already_correct_binding_competitors_retained": constraint_learning,
         "runtime_operation_competitors_retained": constraint_learning,
