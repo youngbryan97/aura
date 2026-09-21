@@ -140,3 +140,23 @@ def test_typed_state_top_k_matches_exhaustive_overlapping_inventory(seed):
                                      tuple((n.span.start, n.span.end) for n in chart)))
     assert _operation_chart_candidates(nodes, max_steps=3, length_penalty=.2, limit=3,
         feasible=feasible, preserve_type_states=True) == tuple(expected[:3])
+
+
+@pytest.mark.parametrize('typed', [False, True])
+def test_repeated_labels_reuse_states_without_losing_span_alternatives(monkeypatch, typed):
+    from core.learning import semantic_program_transducer_fitting as fitting
+
+    original = fitting.semantic_primitive_type_signature
+    calls = []
+    def signature(operation):
+        calls.append(operation)
+        return original(operation)
+    monkeypatch.setattr(fitting, 'semantic_primitive_type_signature', signature)
+    nodes = tuple(_OperationNode(TokenSpan(i, i + 1), 'add', float(i), 0., 1.) for i in range(12))
+    actual = fitting._best_nonoverlapping_node_charts(nodes, 3, limit=4,
+        preserve_arity_states=not typed, preserve_type_states=typed)
+    expected = sorted(((sum(n.score for n in chart), chart) for chart in itertools.combinations(nodes, 3)),
+        key=lambda item: (-item[0], tuple((n.span.start, n.span.end) for n in item[1])))[:4]
+    assert actual == tuple(expected)
+    # One inventory check per node, then signatures for lengths one, two, three.
+    assert len(calls) == len(nodes) + 6

@@ -106,6 +106,27 @@ def test_registered_replacement_invariant():
     assert _mention_pruning_preserves_feasible_replacement()
 
 
+@pytest.mark.parametrize('seed', range(20))
+def test_indexed_dominance_matches_exhaustive_rule_and_order(seed):
+    rng = np.random.default_rng(seed)
+    candidates = [(float(rng.integers(-10, 11)), TokenSpan(int(start), int(start + width)))
+                  for start, width in zip(rng.integers(0, 100, 250), rng.integers(1, 25, 250))]
+    expected = []
+    for score, span in sorted(candidates, key=lambda item:
+            (-item[0], item[1].end-item[1].start, item[1].start, item[1].end)):
+        if not any(previous >= score and span.start <= other.start and other.end <= span.end
+                   for previous, other in expected):
+            expected.append((score, span))
+    assert _retain(candidates) == expected
+    assert _retain(reversed(candidates)) == expected
+
+
+def test_dominance_index_handles_empty_and_disjoint_inventories():
+    assert _retain([]) == []
+    candidates = [(1., TokenSpan(i*2, i*2+1)) for i in range(1000)]
+    assert _retain(candidates) == candidates
+
+
 def test_dual_bound_removes_only_binary_choices_that_cannot_match_incumbent():
     from scipy.sparse import csc_matrix
 

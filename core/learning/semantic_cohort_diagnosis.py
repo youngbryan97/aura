@@ -14,9 +14,12 @@ from core.runtime.atomic_writer import atomic_write_bytes_if_absent
 
 
 def audit_semantic_cohort(model, examples, *, directory, max_charts=16,
-                         max_graphs_per_chart=16, solve_time_limit_s=3., progress=None):
+                         max_graphs_per_chart=16, solve_time_limit_s=3., progress=None,
+                         diagnose_failures=True):
     """Audit a fixed cohort; annotated targets never enter candidate generation."""
     examples = tuple(examples)
+    if type(diagnose_failures) is not bool:
+        raise ValueError('diagnose_failures must be boolean')
     if (any(type(value) is not int or value < 1 for value in (max_charts, max_graphs_per_chart))
             or type(solve_time_limit_s) not in (int, float)
             or not math.isfinite(solve_time_limit_s) or solve_time_limit_s <= 0):
@@ -27,9 +30,13 @@ def audit_semantic_cohort(model, examples, *, directory, max_charts=16,
     implementation = validation_implementation_identity()
     options = dict(max_charts=max_charts, max_graphs_per_chart=max_graphs_per_chart,
                    solve_time_limit_s=solve_time_limit_s)
+    policy = 'completed_prefix_then_expand_v1' if diagnose_failures else 'ordinary_observation_only_v1'
+    membership = [{'source': item.ir.source_text_sha256, 'split': item.split,
+                   'construction_id': item.construction_id, 'topology_id': item.topology_id}
+                  for item in examples]
     identity = _sha({'observations': validation_identity({'candidate': model}, examples,
         scoring='source_anchors_v2', implementation=implementation), 'options': options,
-        'diagnostic_policy': 'completed_prefix_then_expand_v1'})
+        'diagnostic_policy': policy, 'membership': membership})
     directory = Path(directory)
     rows = []
     for item in examples:
@@ -38,7 +45,10 @@ def audit_semantic_cohort(model, examples, *, directory, max_charts=16,
             document = json.loads(path.read_text())
             body = {k: v for k, v in document.items() if k != 'receipt_sha256'}
             if (document.get('receipt_sha256') != _sha(body) or body.get('identity') != identity
-                    or body.get('source_text_sha256') != item.ir.source_text_sha256):
+                    or body.get('source_text_sha256') != item.ir.source_text_sha256
+                    or body.get('split') != item.split
+                    or body.get('construction_id') != item.construction_id
+                    or body.get('topology_id') != item.topology_id):
                 raise ValueError('cohort audit checkpoint identity differs')
         else:
             if progress:
@@ -53,6 +63,9 @@ def audit_semantic_cohort(model, examples, *, directory, max_charts=16,
                 stage = 'grounding'
             elif observation['semantic_status'] == 'decode_refused':
                 stage = 'decode_unavailable'
+            elif not diagnose_failures:
+                stage = ('semantic_failure_unattributed' if observation['semantic_status'] == 'different'
+                         else 'semantic_comparison_unresolved')
             else:
                 # One equivalent alternative proves reachability. Complete each
                 # target-blind bank before deciding whether diagnostics need more.
@@ -87,12 +100,21 @@ def audit_semantic_cohort(model, examples, *, directory, max_charts=16,
                       'failure_stage': document['failure_stage']})
     if implementation != validation_implementation_identity():
         raise ValueError('cohort audit implementation changed')
+    split_counts = {}
+    for split in sorted({item.split for item in examples}):
+        subset = [row for row in rows if row['split'] == split]
+        split_counts[split] = {
+            'expected_count': sum(item.split == split for item in examples),
+            'observed_count': len(subset),
+            'stages': dict(Counter(row['failure_stage'] for row in subset)),
+        }
     body = {'schema': 'aura.semantic_cohort_diagnosis.v2', 'identity': identity,
             'implementation': implementation, 'candidate': model.receipt_sha256,
-            'diagnostic_policy': 'completed_prefix_then_expand_v1', 'search_allowances': options,
-            'diagnostic_budget_uses_targets_after_bank_completion': True,
+            'diagnostic_policy': policy, 'search_allowances': options,
+            'diagnostic_budget_uses_targets_after_bank_completion': diagnose_failures,
             'expected_count': len(examples), 'observed_count': len(rows), 'coverage_complete': True,
             'stages': dict(Counter(row['failure_stage'] for row in rows)),
+            'splits': split_counts,
             'rows': rows, 'test_examples_used': 0, 'serving_authority': False,
             'fresh_transfer_claim': False, 'learning_performed': False}
     return {**body, 'receipt_sha256': _sha(body)}

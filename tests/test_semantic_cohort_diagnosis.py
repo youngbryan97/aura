@@ -136,3 +136,78 @@ def test_invalid_search_contract_is_rejected_even_for_correct_rows(tmp_path, mon
     model, examples = setup(monkeypatch)
     with pytest.raises(ValueError, match='positive and finite'):
         audit.audit_semantic_cohort(model, examples, directory=tmp_path, **options)
+
+
+@pytest.mark.parametrize('status,stage', [
+    ('different', 'semantic_failure_unattributed'),
+    ('unmeasured', 'semantic_comparison_unresolved'),
+    ('equivalent', 'semantic_success_downstream_unmeasured'),
+])
+def test_observation_only_finishes_cohort_without_claiming_attribution(tmp_path, monkeypatch, status, stage):
+    model, examples = setup(monkeypatch)
+    monkeypatch.setattr(audit, '_observe', lambda *a, **k:
+        {'semantic_status': status, 'source_grounding_aligned': True})
+    monkeypatch.setattr(audit, 'decode_semantic_candidates', lambda *a, **k:
+        pytest.fail('ordinary measurement searched diagnostic alternatives'))
+    result = audit.audit_semantic_cohort(model, examples, directory=tmp_path, diagnose_failures=False)
+    assert result['stages'] == {stage: 2}
+    assert result['coverage_complete'] and not result['serving_authority']
+    assert result['diagnostic_policy'] == 'ordinary_observation_only_v1'
+    assert result['diagnostic_budget_uses_targets_after_bank_completion'] is False
+    assert all(row['diagnosis'] is None and row['diagnostic_attempts'] == [] for row in result['rows'])
+    monkeypatch.setattr(audit, '_observe', lambda *a, **k: pytest.fail('cached row decoded again'))
+    assert audit.audit_semantic_cohort(model, examples, directory=tmp_path, diagnose_failures=False) == result
+    with pytest.raises(ValueError, match='identity differs'):
+        audit.audit_semantic_cohort(model, examples, directory=tmp_path)
+
+
+def test_observation_policy_requires_boolean(tmp_path, monkeypatch):
+    model, examples = setup(monkeypatch)
+    with pytest.raises(ValueError, match='boolean'):
+        audit.audit_semantic_cohort(model, examples, directory=tmp_path, diagnose_failures='false')
+
+
+def test_split_denominators_include_unresolved_observations(tmp_path, monkeypatch):
+    model, examples = setup(monkeypatch)
+    examples[1].split = 'validation'
+    monkeypatch.setattr(audit, '_observe', lambda model, item, **kwargs: {
+        'semantic_status': 'equivalent' if item.split == 'train' else 'unmeasured',
+        'source_grounding_aligned': True,
+    })
+    result = audit.audit_semantic_cohort(model, examples, directory=tmp_path,
+                                        diagnose_failures=False)
+    assert result['splits'] == {
+        'train': {'expected_count': 1, 'observed_count': 1,
+                  'stages': {'semantic_success_downstream_unmeasured': 1}},
+        'validation': {'expected_count': 1, 'observed_count': 1,
+                       'stages': {'semantic_comparison_unresolved': 1}},
+    }
+    assert sum(row['observed_count'] for row in result['splits'].values()) == result['observed_count']
+
+
+@pytest.mark.parametrize('field,value', [('split','validation'), ('construction_id','other'),
+                                       ('topology_id','other')])
+def test_cohort_membership_labels_are_part_of_cache_identity(tmp_path, monkeypatch, field, value):
+    model, examples = setup(monkeypatch)
+    monkeypatch.setattr(audit, '_observe', lambda *a, **k: {'semantic_status':'equivalent'})
+    audit.audit_semantic_cohort(model, examples, directory=tmp_path)
+    setattr(examples[0], field, value)
+    monkeypatch.setattr(audit, '_observe', lambda *a, **k: pytest.fail('changed membership reused'))
+    with pytest.raises(ValueError, match='identity differs'):
+        audit.audit_semantic_cohort(model, examples, directory=tmp_path)
+
+
+def test_resealed_row_cannot_change_its_bound_split(tmp_path, monkeypatch):
+    import json
+
+    model, examples = setup(monkeypatch)
+    monkeypatch.setattr(audit, '_observe', lambda *a, **k: {'semantic_status':'equivalent'})
+    audit.audit_semantic_cohort(model, examples, directory=tmp_path)
+    path = tmp_path/'source0.json'
+    body = json.loads(path.read_text())
+    body.pop('receipt_sha256')
+    body['split'] = 'validation'
+    path.chmod(0o600)
+    path.write_text(json.dumps({**body,'receipt_sha256':audit._sha(body)}))
+    with pytest.raises(ValueError, match='identity differs'):
+        audit.audit_semantic_cohort(model, examples, directory=tmp_path)
