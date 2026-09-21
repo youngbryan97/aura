@@ -22,9 +22,11 @@ GATE = Path(__file__).resolve().parents[1] / "core" / "brain" / "inference_gate.
 
 
 def _handoff_body() -> str:
-    source = GATE.read_text(encoding="utf-8")
-    body = source[source.index("async def _tool_grounded_answer") :]
-    return body[: body.index("\n    async def ", 10)]
+    """The tool-grounded answer as it runs: the size sweep cut blocks out of
+    it and a lift moved them into `inference_gate_living_context`."""
+    from source_support import inlined_function_source
+
+    return inlined_function_source(GATE, "InferenceGate._tool_grounded_answer")
 
 
 def test_the_permission_model_is_told_what_was_asked_for() -> None:

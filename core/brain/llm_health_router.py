@@ -1276,6 +1276,12 @@ def _is_transient_local_runtime_failure(error: str) -> bool:
         return False
     if _only_still_coming_up(normalized):
         return True
+    # Admission said "not now". Nothing about the endpoint is in that answer,
+    # and counting it opened the brainstem's circuit on event-loop lag.
+    from core.runtime.control_plane import is_an_admission_reason
+
+    if is_an_admission_reason(normalized):
+        return True
     return normalized in {
         "client_returned_no_text",
         "heartbeat_stalled_during_generation",
@@ -1308,6 +1314,10 @@ def _only_warming(reason: str) -> bool:
 
 def _background_error_is_quiet(error: str) -> bool:
     normalized = str(error or "")
+    from core.runtime.control_plane import is_an_admission_reason
+
+    if is_an_admission_reason(normalized):
+        return True
     return normalized in {
         "foreground_busy",
         "foreground_quiet_window",

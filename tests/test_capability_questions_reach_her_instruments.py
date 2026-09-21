@@ -147,7 +147,9 @@ def test_a_registry_that_raises_still_says_unknown(monkeypatch):
 )
 def test_the_prompt_paths_use_the_wider_predicate(module_path):
     """Wiring: the fix is worthless if the callers still ask the narrow one."""
-    source = Path(module_path).read_text(encoding="utf-8")
+    from tests.source_contract import family_text_at
+
+    source = family_text_at(Path(module_path))
 
     assert "asks_about_own_capabilities" in source, module_path
 
