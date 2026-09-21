@@ -23,14 +23,20 @@ def audit_observation_feasibility(examples):
     that same information, not correctness of every possible public answer.
     """
     groups = defaultdict(list)
-    count = 0
+    population = []
     for item in examples:
         if item.split not in {"train", "validation"}:
             raise ValueError("feasibility audit excludes sealed test observations")
         observation = candidate_observation_identity(item.ir.source_token_ids,
             item.public_inputs, _hidden_array(item.hidden_states))
         groups[(item.ir.model_basis_receipt_sha256, observation)].append(item)
-        count += 1
+        population.append({"observation": observation,
+            "basis": item.ir.model_basis_receipt_sha256,
+            "source": item.ir.source_text_sha256, "split": item.split,
+            "target": item.ir.to_program().sha(),
+            "input_spans": [span.to_dict() for span in item.ir.input_spans]})
+    if not population:
+        raise ValueError("feasibility audit requires observations")
     comparisons = []
     for (basis, observation), items in groups.items():
         for left, right in combinations(items, 2):
@@ -46,8 +52,9 @@ def audit_observation_feasibility(examples):
             comparisons.append({"observation": observation, "basis": basis,
                 "sources": [left.ir.source_text_sha256, right.ir.source_text_sha256],
                 "comparison": comparison})
-    body = {"schema": "aura.semantic_observation_feasibility.v1",
-        "observations": count, "distinct_observations": len(groups),
+    body = {"schema": "aura.semantic_observation_feasibility.v2",
+        "population": population, "population_sha256": _sha(population),
+        "observations": len(population), "distinct_observations": len(groups),
         "duplicate_groups": sum(len(items) > 1 for items in groups.values()),
         "comparisons": comparisons,
         "contradictions": sum(row["comparison"]["status"] == "different" for row in comparisons),

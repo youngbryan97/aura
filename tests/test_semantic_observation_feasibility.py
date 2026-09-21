@@ -51,3 +51,18 @@ def test_unknown_comparison_is_not_a_pass(monkeypatch):
 def test_sealed_test_rows_are_excluded():
     with pytest.raises(ValueError, match="sealed"):
         audit_observation_feasibility([example(split="test")])
+
+
+def test_empty_population_cannot_report_no_contradictions():
+    with pytest.raises(ValueError, match="requires observations"):
+        audit_observation_feasibility([])
+
+
+@pytest.mark.parametrize("change", [{"hidden": 2.}, {"op": "sub"}, {"split": "validation"},
+                                     {"source": "different"}, {"basis": "different"}])
+def test_receipt_binds_noncolliding_observations_and_targets(change):
+    baseline = audit_observation_feasibility([example()])
+    candidate = audit_observation_feasibility([example(**change)])
+    assert baseline["observations"] == candidate["observations"] == 1
+    assert baseline["population_sha256"] != candidate["population_sha256"]
+    assert baseline["receipt_sha256"] != candidate["receipt_sha256"]
