@@ -1090,7 +1090,8 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Literal grammar identity](evidence/G03_LITERAL_GRAMMAR_IDENTITY_2026-09-21.md):
   the division reversal used a whitespace-wrapped literal to bypass input
   ownership. Grammar-equivalent forms now share occurrence identity, opt-in,
-  through decoding and learning callers. Development replay remains pending.
+  through decoding and learning callers. Paired replay improves 30/54 to 31/54
+  and 39/54 to 40/54 without regressions; full development replay remains pending.
   [Paired span-set objective](evidence/G03_PAIRED_SPAN_SET_OBJECTIVE_2026-09-21.md):
   all fourteen conditional span failures lose on operation evidence. The exact
   source objective can now learn the existing pointer's paired-boundary term;
