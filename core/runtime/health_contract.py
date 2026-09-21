@@ -1895,6 +1895,9 @@ def _integrity_of_taint_locks_and_custody(block: dict[str, Any]) -> None:
         from core.verify.turn_receipt import recent_receipts
 
         receipts = recent_receipts(limit=16)
+        from core.verify.turn_receipt import latency_by_component
+
+        block["turn_latency"] = latency_by_component(limit=16)
         block["turn_paths"] = {
             "recent": receipts,
             "full_pipeline_turns": sum(

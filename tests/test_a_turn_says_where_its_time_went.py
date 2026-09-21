@@ -87,3 +87,58 @@ async def test_a_skill_writes_its_tool_time_on_the_turn() -> None:
         await _Sleeps().safe_execute({}, {})
     assert receipt.latency_s.get("tool", 0.0) >= 0.05
     assert receipt.latency_samples.get("tool") == 1
+
+
+def test_the_split_can_be_read_from_outside_the_process() -> None:
+    """R11 asks for the five measured SEPARATELY — which is only true if the
+    split can be read. Each had a recorder and none of it left the process:
+    the health route publishes a curated payload and this was not in it
+    (2026-09-20), so the measurement existed and nobody outside could see it.
+    """
+    from core.verify.turn_receipt import (
+        LATENCY_COMPONENTS,
+        latency_by_component,
+        record_latency,
+        recording_turn,
+        reset_turn_receipts_for_test,
+    )
+
+    reset_turn_receipts_for_test()
+    with recording_turn("turn-a", phases_available=["P"]):
+        record_latency("queue", 0.5)
+        record_latency("retrieval", 1.0)
+        record_latency("prefill", 2.0)
+    with recording_turn("turn-b", phases_available=["P"]):
+        record_latency("queue", 1.5)
+        record_latency("decode", 4.0)
+
+    said = latency_by_component()
+    assert said["turns_read"] == 2
+    # Each component reports on its own turns, not averaged over every turn.
+    assert said["components"]["queue"] == {
+        "turns": 2, "median_s": 1.0, "slowest_s": 1.5, "total_s": 2.0
+    }
+    assert said["components"]["prefill"]["turns"] == 1
+    assert said["components"]["decode"]["slowest_s"] == 4.0
+    # A component nobody measured is named as never measured, not shown as zero.
+    assert set(said["never_measured"]) == LATENCY_COMPONENTS - {
+        "queue", "retrieval", "prefill", "decode"
+    }
+    assert "tool" not in said["components"]
+    reset_turn_receipts_for_test()
+
+
+def test_the_health_payload_carries_the_split() -> None:
+    """The route's payload is a whitelist; a measurement missing from it is
+    unreadable however carefully it was taken."""
+    import inspect
+
+    from interface.routes import system
+
+    source = inspect.getsource(system._runtime_integrity_public_payload)
+    assert '"turn_latency"' in source
+
+    from core.runtime import health_contract
+
+    block = inspect.getsource(health_contract._integrity_of_taint_locks_and_custody)
+    assert "latency_by_component" in block

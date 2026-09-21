@@ -41,6 +41,7 @@ from typing import Any
 from core.runtime.lockdep import checked_lock
 
 __all__ = [
+    "latency_by_component",
     "TurnReceipt",
     "recording_turn",
     "record_phase",
@@ -231,6 +232,52 @@ def recent_receipts(limit: int = 16) -> list[dict[str, Any]]:
 
     with _RECENT_LOCK:
         return [r.as_dict() for r in _RECENT[-max(0, limit) :]]
+
+
+def latency_by_component(limit: int = 16) -> dict[str, Any]:
+    """The last few turns' latency, split by the thing that measured it.
+
+    R11 asks for prefill, decode, tool, retrieval and queue measured
+    SEPARATELY. Each has a recorder and each writes into the turn's receipt;
+    what nobody outside the process could do was read the split back — the
+    health route publishes a curated payload and this was not in it, so a
+    measurement that exists was unreadable from outside (2026-09-20).
+
+    A component nobody measured on a turn is absent, not zero, so an unread
+    lane cannot look instant. `unattributed_s` is the rest of the wall clock:
+    what the turn spent outside every component that reported.
+    """
+    receipts = recent_receipts(limit=limit)
+    per_component: dict[str, list[float]] = {}
+    for receipt in receipts:
+        for name, seconds in (receipt.get("latency_s") or {}).items():
+            per_component.setdefault(str(name), []).append(float(seconds))
+    summary: dict[str, Any] = {}
+    for name, values in sorted(per_component.items()):
+        ordered = sorted(values)
+        middle = len(ordered) // 2
+        median = (
+            ordered[middle]
+            if len(ordered) % 2
+            else (ordered[middle - 1] + ordered[middle]) / 2.0
+        )
+        summary[name] = {
+            "turns": len(ordered),
+            "median_s": round(median, 4),
+            "slowest_s": round(ordered[-1], 4),
+            "total_s": round(sum(ordered), 4),
+        }
+    unattributed = [
+        float(receipt["unattributed_s"])
+        for receipt in receipts
+        if receipt.get("unattributed_s") is not None
+    ]
+    return {
+        "turns_read": len(receipts),
+        "components": summary,
+        "never_measured": sorted(LATENCY_COMPONENTS - set(summary)),
+        "unattributed_s_total": round(sum(unattributed), 4) if unattributed else None,
+    }
 
 
 def reset_turn_receipts_for_test() -> None:

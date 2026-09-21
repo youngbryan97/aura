@@ -5973,6 +5973,12 @@ def _runtime_integrity_public_payload(report: dict[str, Any] | None) -> dict[str
         "caa_readiness": report.get("caa_readiness") or {},
         "at": report.get("at"),
         "read_model": report.get("integrity_read_model") or {},
+        # Where a turn's time went, split by the thing that measured it.
+        # R11 asks for prefill, decode, tool, retrieval and queue measured
+        # separately; each had a recorder and none of it left the process,
+        # so the split existed and could not be read (2026-09-20). A
+        # component nobody measured is absent rather than zero.
+        "turn_latency": report.get("turn_latency") or {},
         # The compiled shape of a turn, the one working memory, and the
         # runtime boundary. Additive and read-only: each is a fact about how
         # this build is put together, and each was previously reachable only
