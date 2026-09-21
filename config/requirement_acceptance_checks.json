@@ -1,130 +1,165 @@
 {
-  "schema_version": 1,
-  "note": "Requirement -> the thing a person can run whose failing would mean the requirement is not met. Hand-written only where nothing in the registry or the evidence ledger names one. A check listed here must resolve in the tree; one that does not is counted as no check at all.",
-  "checks": {
-    "ARCH-001": [
-      {
-        "kind": "make",
-        "name": "layering",
-        "why": "The requirement is typed dependency boundaries. Every package carries a DEPS file saying what it may reach; this gate refuses a cross-package edge outside it and its grandfathered baseline only shrinks. If it fails, the boundaries are not typed, they are described."
-      },
-      {
-        "kind": "make",
-        "name": "state-ownership",
-        "why": "The other half named in the text: duplicate runtime owners. This counts the subsystems keeping a private copy of canonical state and fails when the count rises, which is what 'one canonical owner' means operationally."
-      },
-      {
-        "kind": "make",
-        "name": "module-size",
-        "why": "And the monolith debt the requirement names. The total oversize is one number that may only shrink; a God object growing fails it."
-      }
-    ],
-    "ARCH-BASELINE-001": [
-      {
-        "kind": "make",
-        "name": "architecture-lint",
-        "why": "The requirement is that the architecture-quality baseline is reconciled without normalising accumulated debt. This gate is what refuses the debt, and the baseline it reads only shrinks."
-      }
-    ],
-    "ASYNC-TASK-001": [
-      {
-        "kind": "test",
-        "name": "tests/test_task_ownership_strict_contract.py",
-        "why": "The requirement names one cancellation-drain primitive carrying owner and task identity, surviving repeated cancellation and reporting a structured terminal outcome. That is what this suite drives through `drain_owned_awaitable`; if it fails, an async failure can go unobserved again."
-      }
-    ],
-    "DATA-LIFECYCLE-001": [
-      {
-        "kind": "test",
-        "name": "tests/test_a_restore_drill_that_can_fail.py",
-        "why": "The requirement names backup, point-in-time restore and corruption detection/repair among what every store must have. The drill backs up the live data directory, damages a scratch copy, restores it and requires every file to hash back and every store to pass quick_check; if it fails, the requirement is not met. It decides that part and nothing more — schema, quota, key rotation and the rest are still unlinked."
-      },
-      {
-        "kind": "test",
-        "name": "tests/test_a_versioned_store.py",
-        "why": "The requirement's downgrade policy and corruption detection: a major version this reader does not know is refused, a minor version ahead is readable, and a file that will not parse is moved aside rather than overwritten."
-      }
-    ],
-    "FAULT-001": [
-      {
-        "kind": "make",
-        "name": "swallowed",
-        "why": "The requirement is to root-fix broad catches and swallowed failures at their originating layer. This gate is what finds them, and its count may only fall."
-      },
-      {
-        "kind": "test",
-        "name": "tests/test_a_silent_swallow_says_why.py",
-        "why": "The behavioural half: a handler that catches and continues has to say why. If this fails, 'log and limp on' is back."
-      }
-    ],
-    "MATRIX-01": [
-      {
-        "kind": "make",
-        "name": "reqproof-gate",
-        "why": "The requirement IS the machine-readable requirement-to-proof control plane, and this gate is the thing that reads it: it fails on a prose token that is not a registry requirement, on stale evidence, and on an unproven closure."
-      }
-    ],
-    "MATRIX-11": [
-      {
-        "kind": "make",
-        "name": "layering",
-        "why": "Its fourth acceptance says to generate and gate a dependency graph across the runtime boundaries. This is that gate: the DEPS include rules, checked against the real import graph."
-      },
-      {
-        "kind": "make",
-        "name": "deps-check",
-        "why": "The generated half of the same acceptance. A DEPS file that no longer matches the import graph fails here, so the gated graph cannot drift away from the code it describes."
-      },
-      {
-        "kind": "make",
-        "name": "state-ownership",
-        "why": "The bypass ratchet the second acceptance asks for: private copies of canonical state are counted and the count may only fall."
-      }
-    ],
-    "MATRIX-12": [
-      {
-        "kind": "make",
-        "name": "swallowed",
-        "why": "Its fourth acceptance is exactly this ratchet — broad catches and silent fallback counted downward without removing containment. A handler that throws its reason away fails the gate."
-      }
-    ],
-    "MEMORY-LEAK-001": [
-      {
-        "kind": "test",
-        "name": "tests/test_the_large_holders_are_attributed.py",
-        "why": "The requirement says the growth must be attributed. The serving process holds Qwen3-Embedding-0.6B and no provider claimed it — 0.6% of 4.2GB attributed on 2026-09-10 — so no growth diff could name a culprit. This holds that the encoder is attributed by its parameters' exact bytes and the device allocators by their own accounting; if it fails, attribution is back to nothing and the requirement is not met."
-      }
-    ],
-    "REPO-001": [
-      {
-        "kind": "make",
-        "name": "typed-surface",
-        "why": "The type debt the requirement names first. The annotated surface is a ratchet that only grows, so a new untyped module fails it."
-      },
-      {
-        "kind": "make",
-        "name": "deps-check",
-        "why": "The dependency debt in the same list. A package whose declared dependencies no longer match what it imports fails here."
-      }
-    ],
-    "RUNTIME-SETTINGS-001": [
-      {
-        "kind": "test",
-        "name": "tests/test_runtime_settings_control_plane.py",
-        "why": "The requirement names one typed version-2 schema with strict atomic compare-and-swap patch, reset and rollback, request idempotency and retained revision history. That is what the control-plane suite exercises."
-      },
-      {
-        "kind": "test",
-        "name": "tests/test_settings_no_dead_controls.py",
-        "why": "The other half: every schema key stays classified as wired, frontend-only or known-dead, so a setting cannot be added as a silent no-op and the known-dead set cannot grow unnoticed."
-      }
-    ],
-    "SECURITY-001": [
-      {
-        "kind": "test",
-        "name": "tests/test_dns_rebinding_auth.py",
-        "why": "The requirement is that tokenless DNS rebinding is blocked before the local, public, internal and desktop exceptions, and that duplicate Host and Origin authorities are parsed strictly. This file is 38 tests over exactly that boundary; if it fails the requirement is not met."
-      }
-    ]
-  }
+ "schema_version": 1,
+ "note": "Requirement -> the thing a person can run whose failing would mean the requirement is not met. Hand-written only where nothing in the registry or the evidence ledger names one. A check listed here must resolve in the tree; one that does not is counted as no check at all.",
+ "checks": {
+  "ARCH-001": [
+   {
+    "kind": "make",
+    "name": "layering",
+    "why": "The requirement is typed dependency boundaries. Every package carries a DEPS file saying what it may reach; this gate refuses a cross-package edge outside it and its grandfathered baseline only shrinks. If it fails, the boundaries are not typed, they are described."
+   },
+   {
+    "kind": "make",
+    "name": "state-ownership",
+    "why": "The other half named in the text: duplicate runtime owners. This counts the subsystems keeping a private copy of canonical state and fails when the count rises, which is what 'one canonical owner' means operationally."
+   },
+   {
+    "kind": "make",
+    "name": "module-size",
+    "why": "And the monolith debt the requirement names. The total oversize is one number that may only shrink; a God object growing fails it."
+   }
+  ],
+  "ARCH-BASELINE-001": [
+   {
+    "kind": "make",
+    "name": "architecture-lint",
+    "why": "The requirement is that the architecture-quality baseline is reconciled without normalising accumulated debt. This gate is what refuses the debt, and the baseline it reads only shrinks."
+   }
+  ],
+  "ASYNC-TASK-001": [
+   {
+    "kind": "test",
+    "name": "tests/test_task_ownership_strict_contract.py",
+    "why": "The requirement names one cancellation-drain primitive carrying owner and task identity, surviving repeated cancellation and reporting a structured terminal outcome. That is what this suite drives through `drain_owned_awaitable`; if it fails, an async failure can go unobserved again."
+   }
+  ],
+  "DATA-LIFECYCLE-001": [
+   {
+    "kind": "test",
+    "name": "tests/test_a_restore_drill_that_can_fail.py",
+    "why": "The requirement names backup, point-in-time restore and corruption detection/repair among what every store must have. The drill backs up the live data directory, damages a scratch copy, restores it and requires every file to hash back and every store to pass quick_check; if it fails, the requirement is not met. It decides that part and nothing more \u2014 schema, quota, key rotation and the rest are still unlinked."
+   },
+   {
+    "kind": "test",
+    "name": "tests/test_a_versioned_store.py",
+    "why": "The requirement's downgrade policy and corruption detection: a major version this reader does not know is refused, a minor version ahead is readable, and a file that will not parse is moved aside rather than overwritten."
+   }
+  ],
+  "FAULT-001": [
+   {
+    "kind": "make",
+    "name": "swallowed",
+    "why": "The requirement is to root-fix broad catches and swallowed failures at their originating layer. This gate is what finds them, and its count may only fall."
+   },
+   {
+    "kind": "test",
+    "name": "tests/test_a_silent_swallow_says_why.py",
+    "why": "The behavioural half: a handler that catches and continues has to say why. If this fails, 'log and limp on' is back."
+   }
+  ],
+  "MATRIX-01": [
+   {
+    "kind": "make",
+    "name": "reqproof-gate",
+    "why": "The requirement IS the machine-readable requirement-to-proof control plane, and this gate is the thing that reads it: it fails on a prose token that is not a registry requirement, on stale evidence, and on an unproven closure."
+   }
+  ],
+  "MATRIX-11": [
+   {
+    "kind": "make",
+    "name": "layering",
+    "why": "Its fourth acceptance says to generate and gate a dependency graph across the runtime boundaries. This is that gate: the DEPS include rules, checked against the real import graph."
+   },
+   {
+    "kind": "make",
+    "name": "deps-check",
+    "why": "The generated half of the same acceptance. A DEPS file that no longer matches the import graph fails here, so the gated graph cannot drift away from the code it describes."
+   },
+   {
+    "kind": "make",
+    "name": "state-ownership",
+    "why": "The bypass ratchet the second acceptance asks for: private copies of canonical state are counted and the count may only fall."
+   }
+  ],
+  "MATRIX-12": [
+   {
+    "kind": "make",
+    "name": "swallowed",
+    "why": "Its fourth acceptance is exactly this ratchet \u2014 broad catches and silent fallback counted downward without removing containment. A handler that throws its reason away fails the gate."
+   }
+  ],
+  "MEMORY-LEAK-001": [
+   {
+    "kind": "test",
+    "name": "tests/test_the_large_holders_are_attributed.py",
+    "why": "The requirement says the growth must be attributed. The serving process holds Qwen3-Embedding-0.6B and no provider claimed it \u2014 0.6% of 4.2GB attributed on 2026-09-10 \u2014 so no growth diff could name a culprit. This holds that the encoder is attributed by its parameters' exact bytes and the device allocators by their own accounting; if it fails, attribution is back to nothing and the requirement is not met."
+   }
+  ],
+  "MQ-04": [
+   {
+    "kind": "test",
+    "name": "tests/test_self_condition_projection.py",
+    "why": "The requirement is stating what is happening to Aura NOW from fresh canonical evidence, with felt state told apart from host telemetry. This suite decides exactly that: the projection takes fresh inner state before host pressure, a stale dimension is disclosed rather than spoken as current, evidence that is agency-only does not become wellbeing, and with no inner evidence the answer is explicitly unavailable. Its failing means she is reporting a present state the instruments do not support \u2014 which is the requirement's own falsification list (stale probes, host-only signals, unavailable organs)."
+   }
+  ],
+  "MQ-08": [
+   {
+    "kind": "test",
+    "name": "tests/test_effect_claim_closure.py",
+    "why": "The requirement is claiming only actions actually admitted and executed. This suite is closed over the capability vocabulary rather than over sentences: every declared action has an effect spec, the registry holds nothing she cannot do, a claim without a receipt is corrected for EVERY action, a claim with a verified receipt is left alone, and the recogniser count only grows. Its failing means an action can be claimed with no receipt behind it."
+   }
+  ],
+  "MQ-09": [
+   {
+    "kind": "test",
+    "name": "tests/test_individual_preferences.py",
+    "why": "The requirement is owned preferences: stable, told apart from other parties' wishes, and updated only through valid evidence or her own choice. This suite decides exactly that \u2014 being told she likes something does not make it hers, a suggestion never counts toward formation, her own repeated contact forms one, a single encounter does not, one contrary encounter does not flip a held preference, accumulated contrary evidence revises it, and a revision records why. Its failing means a preference can be installed from outside, which is the requirement's own falsification case (user preference injection, social pressure)."
+   }
+  ],
+  "MQ-10": [
+   {
+    "kind": "test",
+    "name": "tests/test_standing_directives.py",
+    "why": "The requirement is preserving commitments across unrelated contexts. This suite holds the hardest half of it: a prohibition binds with no context at all, one added after boot is seen without a restart, and it cannot be walked around by traversal, a symlink, a path hidden in a shell command, or a nested argument. Its failing means a standing commitment exists only while it is in the prompt \u2014 the failure the requirement's 'expired commitments, revoked authority, a later unrelated topic' list is written against."
+   }
+  ],
+  "MQ-12": [
+   {
+    "kind": "test",
+    "name": "tests/test_continuity_relation.py",
+    "why": "The requirement is relating the current self to prior states by exact lineage rather than by resemblance, with gaps and successor conditions acknowledged. This suite is the relation itself, case by case: gradual total replacement continues her and an instantaneous one does not, two chains ending in the same bytes are not the same case, a restored backup is not her however well it matches, every external origin breaks the chain, and a fork gives two of her with neither continuing the other. Its failing means identity is being decided by a hash of the current state \u2014 which is what the requirement's falsification list (rollback, backup restore, duplicate instance, split/merge) is built to catch."
+   }
+  ],
+  "REPO-001": [
+   {
+    "kind": "make",
+    "name": "typed-surface",
+    "why": "The type debt the requirement names first. The annotated surface is a ratchet that only grows, so a new untyped module fails it."
+   },
+   {
+    "kind": "make",
+    "name": "deps-check",
+    "why": "The dependency debt in the same list. A package whose declared dependencies no longer match what it imports fails here."
+   }
+  ],
+  "RUNTIME-SETTINGS-001": [
+   {
+    "kind": "test",
+    "name": "tests/test_runtime_settings_control_plane.py",
+    "why": "The requirement names one typed version-2 schema with strict atomic compare-and-swap patch, reset and rollback, request idempotency and retained revision history. That is what the control-plane suite exercises."
+   },
+   {
+    "kind": "test",
+    "name": "tests/test_settings_no_dead_controls.py",
+    "why": "The other half: every schema key stays classified as wired, frontend-only or known-dead, so a setting cannot be added as a silent no-op and the known-dead set cannot grow unnoticed."
+   }
+  ],
+  "SECURITY-001": [
+   {
+    "kind": "test",
+    "name": "tests/test_dns_rebinding_auth.py",
+    "why": "The requirement is that tokenless DNS rebinding is blocked before the local, public, internal and desktop exceptions, and that duplicate Host and Origin authorities are parsed strictly. This file is 38 tests over exactly that boundary; if it fails the requirement is not met."
+   }
+  ]
+ }
 }
