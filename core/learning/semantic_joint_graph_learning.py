@@ -24,7 +24,8 @@ from core.learning.semantic_relation_graph_learning import (
 )
 
 
-def score_annotated_graph(model, item, instructions, input_spans, *, solve_time_limit_s=20., learn_arguments=False, learn_operation_pointer=False):
+def score_annotated_graph(model, item, instructions, input_spans, *, solve_time_limit_s=20., learn_arguments=False,
+                          learn_operation_pointer=False, argument_evidence_cache=None):
     """Score a supplied graph with the runtime's latent mention and definition choices."""
     from core.learning.semantic_program_transducer_fitting import (
         _assign_typed_arguments,
@@ -60,10 +61,13 @@ def score_annotated_graph(model, item, instructions, input_spans, *, solve_time_
     if result is None:
         return None
     return scored_graph_evidence(model, item, nodes, result, evidence[0], learn_arguments=learn_arguments,
-                                 learn_operation_pointer=learn_operation_pointer, chart=charts[0])
+                                 learn_operation_pointer=learn_operation_pointer, chart=charts[0],
+                                 argument_evidence_cache=argument_evidence_cache)
 
 
-def scored_graph_evidence(model, item, nodes, result, relations, *, learn_arguments=False, learn_operation_pointer=False, chart=None):
+def scored_graph_evidence(model, item, nodes, result, relations, *, learn_arguments=False,
+                          learn_operation_pointer=False, chart=None, argument_evidence_cache=None,
+                          choice_normalizers=None):
     """Retain differentiable terms for the same latent graph the solver selected."""
     operation_score = sum(node.score for node in nodes) - model.operation_length_penalty * len(nodes)
     score = result[0][0] + operation_score
@@ -82,8 +86,9 @@ def scored_graph_evidence(model, item, nodes, result, relations, *, learn_argume
     if model.training_receipt.get("argument_choice_normalization") == "local_categorical_v1":
         from core.learning.semantic_choice_evidence import argument_choice_normalizers
 
-        normalizers = argument_choice_normalizers(model, item.hidden_states, nodes, chart,
-                                                   learn_arguments=learn_arguments)
+        normalizers = (choice_normalizers if choice_normalizers is not None else
+            argument_choice_normalizers(model, item.hidden_states, nodes, chart,
+                learn_arguments=learn_arguments, argument_evidence_cache=argument_evidence_cache))
     return {"score": score, "operation_score": operation_score, "normalizers": normalizers,
             "argument_score": result[0][0], "relations": relations, "argument_terms": terms,
             "operation_pointer_terms": pointer_terms,

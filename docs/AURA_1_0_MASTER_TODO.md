@@ -1068,6 +1068,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Shared choice evidence](evidence/G03_SHARED_CHOICE_EVIDENCE_2026-09-20.md)
+  removes duplicated argument vectors and repeated relation projections from
+  conditional training while preserving every option. The preceding run exited
+  before fitting; no accuracy result is inferred from it.
   [Search-phase repair](evidence/G03_CONDITIONAL_SEARCH_BOUND_2026-09-20.md)
   closes an optional LP screen that ignored the diagnostic's declared allowance.
   The interrupted conditional fit produced no accuracy result and must rerun.

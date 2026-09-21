@@ -3,7 +3,7 @@
 from math import fsum
 
 import numpy as np
-from scipy.special import softmax
+from scipy.special import logsumexp, softmax
 
 from core.verify.invariants import invariant
 
@@ -29,8 +29,9 @@ class GraphConstraintBatch:
                         entries.append((row_index, bank_indices[id(bank)], bank.normalizer_label, -sign))
             for sign, choices in ((1., row.positive), (-1., row.negative)):
                 for bank, label in choices:
-                    key = (id(bank), label)
-                    self.relations.setdefault(key, (bank, label, []))[2].append((row_index, sign))
+                    if type(label) is not int or not 0 <= label < len(bank.base_logits):
+                        raise ValueError("selected relation hypothesis is invalid")
+                    self.relations.setdefault(id(bank), (bank, []))[1].append((row_index, label, sign))
             for sign, term in row.argument_terms:
                 self.arguments.setdefault(id(term), (term, []))[1].append((row_index, sign))
             for sign, term in row.normalizer_terms:
@@ -48,6 +49,17 @@ class GraphConstraintBatch:
                 lookup = {index: local for local, index in enumerate(selected)}
                 terms = [(row, lookup[bank], label, sign) for row, bank, label, sign in entries if bank in lookup]
                 self.chunks.append((tuple(selected), tuple(terms)))
+        by_scale = {}
+        for normalizer, occurrences in self.normalizers.values():
+            choices, groups = by_scale.setdefault(normalizer.scale, ([], []))
+            start = len(choices)
+            choices.extend(normalizer.choices)
+            groups.append((slice(start, len(choices)), occurrences))
+        # One cotangent per nested choice pool avoids a full parameter-gradient
+        # allocation for every local denominator in the retained graph bank.
+        self.choice_batches = tuple((GraphConstraintBatch(choices, inner_scale,
+            max_feature_bytes=max_feature_bytes), groups)
+            for inner_scale, (choices, groups) in by_scale.items())
 
     def _operations(self, parameters):
         for selected, terms in self.chunks:
@@ -74,18 +86,20 @@ class GraphConstraintBatch:
         # Sum each complete contrast once. Adding a small retained floor before
         # cancelling large shared scores can manufacture a margin violation.
         values = [[row.fixed_margin] for row in self.rows]
-        for bank, label, terms in self.relations.values():
-            score = self.scale * bank.score(label, *parameters[:2])
-            for row, sign in terms:
-                values[row].append(sign * score)
+        for bank, terms in self.relations.values():
+            scores = self.scale * bank.scores(*parameters[:2])
+            for row, label, sign in terms:
+                values[row].append(sign * scores[label])
         for term, occurrences in self.arguments.values():
             score = term.score(parameters)
             for row, sign in occurrences:
                 values[row].append(sign * score)
-        for term, occurrences in self.normalizers.values():
-            score = term.score(parameters)
-            for row, sign in occurrences:
-                values[row].append(sign * score)
+        for batch, groups in self.choice_batches:
+            choices = batch.margins(parameters)
+            for selected, occurrences in groups:
+                score = float(logsumexp(choices[selected]))
+                for row, sign in occurrences:
+                    values[row].append(sign * score)
         for terms, _, _, _, probability in self._operations(parameters):
             scores = np.log(np.maximum(probability, 1e-12))
             for row, bank, label, sign in terms:
@@ -97,24 +111,30 @@ class GraphConstraintBatch:
         if coefficients.shape != (len(self.rows),) or not np.all(np.isfinite(coefficients)):
             raise ValueError("graph batch coefficients differ")
         gradients = [np.zeros_like(value, dtype=np.float64) for value in parameters]
-        for bank, label, terms in self.relations.values():
-            coefficient = sum(coefficients[row] * sign for row, sign in terms) * self.scale
-            if coefficient:
-                _, query, definition = bank.score_gradient(label, *parameters[:2])
-                gradients[0] += coefficient * query
-                gradients[1] += coefficient * definition
+        for bank, terms in self.relations.values():
+            weighted = np.zeros(len(bank.base_logits))
+            for row, label, sign in terms:
+                weighted[label] += coefficients[row] * sign * self.scale
+            if np.any(weighted):
+                query, definition = bank.weighted_gradient(weighted, *parameters[:2])
+                gradients[0] += query
+                gradients[1] += definition
         for term, occurrences in self.arguments.values():
             coefficient = sum(coefficients[row] * sign for row, sign in occurrences)
             if coefficient:
                 _, weight, bias = term.score_gradient(parameters)
                 gradients[term.parameter_index] += coefficient * weight
                 gradients[term.parameter_index + 1] += coefficient * bias
-        for term, occurrences in self.normalizers.values():
-            coefficient = sum(coefficients[row] * sign for row, sign in occurrences)
-            if coefficient:
-                _, derivatives = term.score_gradient(parameters)
-                for gradient, derivative in zip(gradients, derivatives, strict=True):
-                    gradient += coefficient * derivative
+        for batch, groups in self.choice_batches:
+            choices = batch.margins(parameters)
+            cotangent = np.zeros(len(batch.rows))
+            for selected, occurrences in groups:
+                coefficient = fsum(coefficients[row] * sign for row, sign in occurrences)
+                if coefficient:
+                    cotangent[selected] += coefficient * softmax(choices[selected])
+            if np.any(cotangent):
+                for gradient, derivative in zip(gradients, batch.weighted_gradient(parameters, cotangent), strict=True):
+                    gradient += derivative
         for terms, features, distributions, mass, probability in self._operations(parameters):
             cotangent = np.zeros_like(mass)
             for row, bank, label, sign in terms:
@@ -131,21 +151,22 @@ class GraphConstraintBatch:
         if len(parameters) != len(direction) or any(a.shape != b.shape for a, b in zip(parameters, direction, strict=True)):
             raise ValueError("graph batch direction geometry differs")
         values = np.zeros(len(self.rows))
-        for bank, label, terms in self.relations.values():
-            _, query, definition = bank.score_gradient(label, *parameters[:2])
-            slope = self.scale * (np.sum(query * direction[0]) + np.sum(definition * direction[1]))
-            for row, sign in terms:
-                values[row] += sign * slope
+        for bank, terms in self.relations.values():
+            slopes = self.scale * bank.directional_derivatives(*parameters[:2], direction[:2])
+            for row, label, sign in terms:
+                values[row] += sign * slopes[label]
         for term, occurrences in self.arguments.values():
             _, weight, bias = term.score_gradient(parameters)
             slope = np.sum(weight * direction[term.parameter_index]) + np.sum(bias * direction[term.parameter_index + 1])
             for row, sign in occurrences:
                 values[row] += sign * slope
-        for term, occurrences in self.normalizers.values():
-            _, derivatives = term.score_gradient(parameters)
-            slope = sum(np.sum(a * b) for a, b in zip(derivatives, direction, strict=True))
-            for row, sign in occurrences:
-                values[row] += sign * slope
+        for batch, groups in self.choice_batches:
+            choices = batch.margins(parameters)
+            slopes = batch.directional_derivative(parameters, direction)
+            for selected, occurrences in groups:
+                slope = float(softmax(choices[selected]) @ slopes[selected])
+                for row, sign in occurrences:
+                    values[row] += sign * slope
         for terms, features, distributions, mass, probability in self._operations(parameters):
             derivative = np.zeros_like(mass)
             for view, (feature, distribution) in enumerate(zip(features, distributions, strict=True)):

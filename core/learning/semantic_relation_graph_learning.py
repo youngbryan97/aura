@@ -32,6 +32,28 @@ class RelationEvidenceBank:
         logits = self.base_logits + (self.definitions @ definition) @ (self.reference @ query)
         return float(np.max(-np.logaddexp(0., -self.base_logits)) + logits[selected] - logits.max())
 
+    def scores(self, query, definition):
+        logits = self.base_logits + (self.definitions @ definition) @ (self.reference @ query)
+        return np.max(-np.logaddexp(0., -self.base_logits)) + logits - logits.max()
+
+    def weighted_gradient(self, coefficients, query, definition):
+        coefficients = np.asarray(coefficients, dtype=np.float64)
+        if coefficients.shape != self.base_logits.shape or not np.all(np.isfinite(coefficients)):
+            raise ValueError("relation choice coefficients differ")
+        q = self.reference @ query
+        logits = self.base_logits + (self.definitions @ definition) @ q
+        weights = coefficients.copy()
+        weights[int(np.argmax(logits))] -= fsum(coefficients)
+        delta = weights @ self.definitions
+        return np.outer(self.reference, delta @ definition), np.outer(delta, q)
+
+    def directional_derivatives(self, query, definition, direction):
+        q = self.reference @ query
+        d = self.definitions @ definition
+        logits = self.base_logits + d @ q
+        slopes = (self.definitions @ direction[1]) @ q + d @ (self.reference @ direction[0])
+        return slopes - slopes[int(np.argmax(logits))]
+
     def score_gradient(self, selected, query, definition):
         """Use the runtime categorical margin, including its moving maximum."""
         if type(selected) is not int or not 0 <= selected < len(self.base_logits):
