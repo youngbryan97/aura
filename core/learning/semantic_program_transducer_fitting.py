@@ -617,6 +617,9 @@ preserves the feasible top-k. Pruning across states before checking does not.
         [() for _ in range(count + 1)] for _ in range(len(ordered) + 1)
     ]
     table[0][0] = ((0.0, ()),)
+    # Repeated prefixes differ in spans and scores, but feasibility depends
+    # only on their operation signatures. Keep this cache local to the search.
+    feasibility_states = {}
     for index, node in enumerate(ordered, start=1):
         for size in range(count + 1):
             candidates = list(table[index - 1][size])
@@ -646,12 +649,16 @@ preserves the feasible top-k. Pruning across states before checking does not.
                 buckets = Counter()
                 retained = []
                 for candidate in ranked:
-                    arities = [len(semantic_primitive_type_signature(n.operation)[0]) for n in candidate[1]]
-                    state = (sum(arities), max(arities, default=0))
-                    if preserve_type_states:
-                        signatures = [semantic_primitive_type_signature(n.operation) for n in candidate[1]]
-                        state += (tuple(sorted(Counter(t for args, _ in signatures for t in args).items())),
-                                  tuple(sorted(Counter(result for _, result in signatures).items())))
+                    operations = tuple(n.operation for n in candidate[1])
+                    state = feasibility_states.get(operations)
+                    if state is None:
+                        signatures = [semantic_primitive_type_signature(op) for op in operations]
+                        arities = [len(args) for args, _ in signatures]
+                        state = (sum(arities), max(arities, default=0))
+                        if preserve_type_states:
+                            state += (tuple(sorted(Counter(t for args, _ in signatures for t in args).items())),
+                                      tuple(sorted(Counter(result for _, result in signatures).items())))
+                        feasibility_states[operations] = state
                     if buckets[state] < limit:
                         retained.append(candidate)
                         buckets[state] += 1
