@@ -9677,7 +9677,7 @@ class MLXLocalClient(_WaitsForTheResult, _KeepsTheWorkerAlive, _KnowsWhichWorker
             try:
                 return await _await_shared_future(fut, timeout_s=period)
             except TimeoutError:
-                pass
+                pass  # not a failure: a look, not a deadline
             progress = self.worker_load_progress()
             if progress is None:
                 # No process to read: nothing can advance, so the wait is
@@ -9713,9 +9713,9 @@ class MLXLocalClient(_WaitsForTheResult, _KeepsTheWorkerAlive, _KnowsWhichWorker
             times = handle.cpu_times()
             return rss, float(times.user) + float(times.system)
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, OSError):
-            return None
+            return None  # not a failure: no sample from an unseen worker
         except (AttributeError, TypeError, ValueError):
-            return None
+            return None  # not a failure: psutil without these fields
 
     def is_alive(self) -> bool:
         """Returns True if the worker process is running and initialized."""
@@ -11309,7 +11309,7 @@ class MLXLocalClient(_WaitsForTheResult, _KeepsTheWorkerAlive, _KnowsWhichWorker
             return None
         except asyncio.CancelledError:
             await self._generate_inner_origin_label(foreground_request, kwargs, req_id)
-        except TimeoutError:
+        except TimeoutError:  # not a failure: the turn's own budget, named below
             self._generate_inner_person_turn_losing(foreground_request, fut, req_id)
             return None
         finally:
@@ -12323,7 +12323,7 @@ def _record_an_empty_generation(
     try:
         decoded = max(0, int((res or {}).get("tokens_used") or 0))
     except (AttributeError, TypeError, ValueError):
-        decoded = 0
+        decoded = 0  # not a failure: no readable count means none decoded
     name = os.path.basename(client.model_path)
     if foreground_request and decoded > 0:
         client._record_degraded_event(

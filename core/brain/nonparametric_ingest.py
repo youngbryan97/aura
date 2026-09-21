@@ -95,6 +95,8 @@ def _decode_token(encoder: Any, token_id: int) -> str:
             if isinstance(text, str) and text:
                 return text
         except (RuntimeError, AttributeError, TypeError, ValueError, IndexError):
+            # not a failure: a token this tokenizer will not decode has no
+            # text, which is the empty string below.
             pass
     return ""
 
@@ -113,6 +115,8 @@ def _valid_key(key: Any, expected_dim: Any = None) -> bool:
     try:
         arr = np.asarray(key, dtype=np.float32)
     except (TypeError, ValueError):
+        # not a failure: a key that is not an array is not a valid one,
+        # which is what the docstring above says this refuses.
         return False
     if arr.ndim != 1 or arr.size == 0:
         return False
@@ -122,6 +126,8 @@ def _valid_key(key: Any, expected_dim: Any = None) -> bool:
         if expected_dim is not None and int(expected_dim) > 0 and arr.size != int(expected_dim):
             return False
     except (TypeError, ValueError):
+        # not a failure: an unreadable expected width cannot narrow the
+        # check, and the shape and finiteness guards above still ran.
         pass
     return True
 
@@ -131,6 +137,8 @@ def _valid_token_id(token_id: Any, vocab_size: Any = None) -> bool:
     try:
         value = int(token_id)
     except (TypeError, ValueError, OverflowError):
+        # not a failure: an id that is not an integer is not a valid one,
+        # which the docstring says was going straight through.
         return False
     if value < 0:
         return False
@@ -138,6 +146,8 @@ def _valid_token_id(token_id: Any, vocab_size: Any = None) -> bool:
         if vocab_size is not None and int(vocab_size) > 0 and value >= int(vocab_size):
             return False
     except (TypeError, ValueError):
+        # not a failure: an unreadable vocabulary size cannot narrow the
+        # check, and the negative guard above still ran.
         pass
     return True
 

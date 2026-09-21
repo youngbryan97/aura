@@ -83,10 +83,23 @@ async def test_agent_delegator_concurrency(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_agent_delegator_debate_synthesis():
-    engine = _RecordingCognitiveEngine("Consensus result")
-    orchestrator = SimpleNamespace(cognitive_engine=engine)
-    delegator = AgentDelegator(orchestrator)
+async def test_agent_delegator_debate_synthesis(monkeypatch):
+    """The synthesis is one request for words, through the router.
+
+    It used to go through the cognitive engine, and that made it a
+    cognitive TURN: memory retrieval searched for "You are the Master
+    Synthesizer" (5.2s, over budget) and the kernel answered it as
+    conversation until the loop detector fired, four times in an hour
+    (LIVE 2026-09-19). This test stubbed the engine and went on asserting
+    against a seam the synthesis no longer uses.
+    """
+    router = _RecordingCognitiveEngine("Consensus result")
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: router if name == "llm_router" else default),
+        raising=False,
+    )
+    delegator = AgentDelegator(SimpleNamespace(cognitive_engine=object()))
 
     async def complete_delegate(specialty, prompt, **kwargs):
         agent_id = f"role-{specialty}"
@@ -102,9 +115,40 @@ async def test_agent_delegator_debate_synthesis():
     result = await delegator.delegate_debate("Test topic", roles=["architect", "critic"])
 
     assert "Consensus result" in result
-    assert len(engine.calls) == 1
-    assert "Result for architect" in engine.calls[0]["prompt"]
-    assert "Result for critic" in engine.calls[0]["prompt"]
+    assert len(router.calls) == 1
+    call = router.calls[0]
+    prompt = call["prompt"] or call["kwargs"].get("prompt", "")
+    assert "Result for architect" in prompt
+    assert "Result for critic" in prompt
+    assert "Test topic" in prompt
+
+
+@pytest.mark.asyncio
+async def test_agent_delegator_debate_without_a_router(monkeypatch):
+    """The null. With no router the debate still returns every claim."""
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: default),
+        raising=False,
+    )
+    delegator = AgentDelegator(SimpleNamespace(cognitive_engine=object()))
+
+    async def complete_delegate(specialty, prompt, **kwargs):
+        agent_id = f"role-{specialty}"
+        agent = SwarmAgent(agent_id, specialty)
+        agent.status = "COMPLETED"
+        agent.result = f"Result for {specialty}"
+        agent.done_event.set()
+        delegator.active_agents[agent_id] = agent
+        return agent_id
+
+    delegator.delegate = complete_delegate
+
+    result = await delegator.delegate_debate("Test topic", roles=["architect", "critic"])
+
+    assert "Test topic" in result
+    assert "Result for architect" in result
+    assert "Result for critic" in result
 
 
 @pytest.mark.asyncio

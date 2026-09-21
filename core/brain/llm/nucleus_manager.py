@@ -111,6 +111,8 @@ def _await_sentinel_idle(timeout_s: float) -> bool:
         sentinel.release()
         return True
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        # not a failure: a sentinel this cannot reach cannot be shown free,
+        # and the acquire branch above returns the same False.
         return False
 
 
@@ -286,6 +288,8 @@ def _internal_execution_scope() -> bool:
 
         return bool(is_governed())
     except (ImportError, AttributeError, RuntimeError):
+        # not a failure: no governance context to be inside, so this is
+        # not a governed call, which is the question.
         return False
 _NUCLEUS_RECOVERABLE_ERRORS = (
     ImportError,
@@ -371,6 +375,8 @@ class NucleusManager(LLMProvider):
             from core.event_bus import get_event_bus
             self.bus = get_event_bus()
         except (ImportError, AttributeError, RuntimeError):
+            # not a failure: the comment above says subscription is
+            # deferred, and every use checks the name first.
             self.bus = None
 
     async def ensure_listener_started(self) -> bool:
@@ -402,6 +408,8 @@ class NucleusManager(LLMProvider):
                 try:
                     error = finished.exception()
                 except (asyncio.CancelledError, RuntimeError):
+                    # not a failure: a cancelled listener has no exception
+                    # to report, and cancellation is how it stops.
                     return
                 if error is not None:
                     _record_nucleus_degradation(
@@ -431,7 +439,12 @@ class NucleusManager(LLMProvider):
             try:
                 await asyncio.wait_for(asyncio.shield(task), timeout=_LISTENER_STOP_TIMEOUT_S)
             except (TimeoutError, asyncio.CancelledError):
-                pass  # the handle is released either way; the task is cancelled
+                # The task we just cancelled, or this caller cancelled
+                # underneath it. Swallowing the second keeps a teardown
+                # running after its own turn was abandoned.
+                mine = asyncio.current_task()
+                if mine is not None and mine.cancelling() > 0:
+                    raise
             except _NUCLEUS_RECOVERABLE_ERRORS as exc:
                 _record_nucleus_degradation(
                     exc,
@@ -1432,6 +1445,8 @@ class NucleusManager(LLMProvider):
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
+            # not a failure: called off the loop, which the branch below
+            # handles by taking the synchronous path.
             loop = None
 
         if loop is not None and loop.is_running():

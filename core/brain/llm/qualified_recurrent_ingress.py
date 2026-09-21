@@ -357,11 +357,14 @@ def admit_qualified_recurrent_objective(
         try:
             return _admit_khop(prompt, khop)
         except ValueError:
+            # not a failure: a prompt whose shape matched but whose values
+            # do not admit is not qualified, which is what this decides.
             return None
     if register is not None:
         try:
             return _admit_register(prompt, register)
         except ValueError:
+            # not a failure: matched the shape, did not admit — see above.
             return None
     try:
         from core.learning.public_frontier_action_compiler import (
@@ -372,6 +375,8 @@ def admit_qualified_recurrent_objective(
         )
 
     except ImportError:
+        # not a failure: no semantic compiler here, so this prompt has no
+        # family, and the else branch below is skipped.
         semantic_family = None
     else:
         semantic_family = classify_public_semantic_objective(prompt)
@@ -379,6 +384,8 @@ def admit_qualified_recurrent_objective(
             try:
                 program = compile_public_frontier_actions(prompt, semantic_family)
             except (TypeError, ValueError):
+                # not a failure: a family that will not compile is not an
+                # admission, and the length guard below refuses the same.
                 return None
             if not 1 <= len(program.values) <= 64:
                 return None
@@ -405,6 +412,8 @@ def admit_qualified_recurrent_objective(
             SCIENTIFIC_FAMILY,
         )
     except (ImportError, RuntimeError, TypeError, ValueError):
+        # not a failure: not a scientific surface, and the modular
+        # compiler below is tried next.
         pass
     else:
         if not 1 <= len(canonical_program.values) <= 64:
@@ -425,6 +434,8 @@ def admit_qualified_recurrent_objective(
 
         program = compile_public_transition_program(prompt)
     except (ImportError, ValueError):
+        # not a failure: the last compiler declined too, so this prompt is
+        # not qualified for the recurrent lane.
         return None
     if program.family != "modular" or not 1 <= program.depth <= 64:
         return None
