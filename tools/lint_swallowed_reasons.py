@@ -93,18 +93,26 @@ class _Swallowed(ast.NodeVisitor):
     def _claims_it_is_an_answer(self, handler: ast.ExceptHandler) -> bool:
         """Whether the handler says, in words, that this is not a failure.
 
-        The span runs from the ``except`` line through the END of the first
-        statement, so a marker written as a trailing comment counts. It was
-        read only up to the start of that statement, and eighteen handlers in
-        one file explained themselves on the ``pass`` line itself — the claim
-        was there, reviewable, in the place a person writes it, and the gate
-        looked one line above it.
+        The span runs from the comment block immediately ABOVE the ``except``
+        line through the END of the first statement, because those are the
+        two places a person writes the sentence and the gate read neither.
+        Eighteen handlers in one file explained themselves on the ``pass``
+        line itself; others explain themselves in a comment above the
+        ``except``, which is where it goes when the handler is one line. The
+        claim was there and reviewable in both, and the gate was looking at
+        the one line between them.
         """
         if handler.body:
             first = handler.body[0].end_lineno or handler.body[0].lineno
         else:
             first = handler.lineno
-        for line in self._lines[handler.lineno - 1 : first]:
+        # Walk back over an unbroken run of comment lines. A blank line or
+        # any code ends it, so this cannot reach a comment about something
+        # else further up.
+        begin = handler.lineno - 1
+        while begin > 0 and self._lines[begin - 1].lstrip().startswith("#"):
+            begin -= 1
+        for line in self._lines[begin : first]:
             # Case-insensitive. The marker opens a sentence, so a writer
             # capitalises it, and a gate that matches only the lowercase form
             # reads eighteen explained handlers as eighteen silent ones.

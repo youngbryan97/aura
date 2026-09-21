@@ -156,6 +156,8 @@ def _finite_float(
     try:
         candidate = float(value)
     except (TypeError, ValueError):
+        # not a failure: a value that is not a float is not a finite one,
+        # which the isfinite check below also answers with None.
         return None
     if not math.isfinite(candidate):
         return None
@@ -688,6 +690,8 @@ class ReallocateFlowActuator(BaseActuator):
             }
             return params if self.validate_params(params) else None
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            # not a failure: no params this actuator could run with, which
+            # the validate_params branch above returns None for too.
             return None
 
     def execute(self, params: dict[str, Any]) -> ActuatorResult:

@@ -31,6 +31,8 @@ from core.runtime.subprocess_gateway import get_subprocess_gateway
 try:  # POSIX-only; guarded so the module imports on every platform.
     import resource as _resource
 except ImportError:  # pragma: no cover - non-POSIX
+    # not a failure: the comment above says POSIX-only, and every use
+    # checks the name before calling into it.
     _resource = None  # type: ignore[assignment]
 
 logger = logging.getLogger("Aura.ProcessSupervisor")
@@ -442,11 +444,15 @@ class ProcessSupervisorActuator(BaseActuator):
                     os.killpg(os.getpgid(proc.pid), sig)
                     sent = True
                 except (ProcessLookupError, PermissionError, OSError):
+                    # not a failure: the group signal is the first rung, and
+                    # `if not sent` below signals the process directly.
                     sent = False
             if not sent:
                 try:
                     proc.send_signal(sig)
                 except (ProcessLookupError, OSError):
+                    # not a failure: a process already gone needs no signal,
+                    # and the poll loop below is what decides it ended.
                     pass
 
         _signal(signal.SIGTERM)
@@ -459,8 +465,10 @@ class ProcessSupervisorActuator(BaseActuator):
             _signal(signal.SIGKILL)
             try:
                 proc.wait(timeout=5.0)
-            except (subprocess.TimeoutExpired, OSError):
-                pass
+            except (subprocess.TimeoutExpired, OSError) as exc:
+                # SIGKILL was the last rung. A child that does not reap
+                # after it is a zombie this supervisor left behind.
+                logger.warning("Process %s did not reap after SIGKILL: %s", proc.pid, exc)
 
     # ── Lifecycle bookkeeping ───────────────────────────────────────────
 

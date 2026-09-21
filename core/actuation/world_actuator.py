@@ -183,8 +183,14 @@ class WorldActuator:
         try:
             if len(json.dumps(params, default=str).encode()) > _MAX_PARAM_BYTES:
                 return {"ok": False, "error": "params_too_large", "operation_id": operation_id}
-        except (TypeError, ValueError):
-            return {"ok": False, "error": "params_not_serializable", "operation_id": operation_id}
+        except (TypeError, ValueError) as exc:
+            # not a failure: the error string IS the reason, and it joins
+            # the three refusals above it. The type narrows which.
+            return {
+                "ok": False,
+                "error": f"params_not_serializable:{type(exc).__name__}",
+                "operation_id": operation_id,
+            }
         source = (str(source) or "world_actuator").strip()[:128]
 
         is_high_risk = self._param_aware_high_risk(action_name, params) or high_risk_flag is True
@@ -227,6 +233,10 @@ class WorldActuator:
                 timeout=deadline_s + _COORDINATOR_GRACE_S,
             )
         except TimeoutError:
+            # not a failure: the coordinator did not answer inside the
+            # deadline, which the record and the reply both name, and
+            # "uncertain" is the honest outcome for an action that may
+            # have landed.
             self._update(record, status="uncertain_timeout", error="coordinator_deadline_exceeded",
                          result_digest="", ended_at=time.time())
             return {"ok": False, "error": "coordinator_deadline_exceeded", "operation_id": operation_id, "outcome": "uncertain"}

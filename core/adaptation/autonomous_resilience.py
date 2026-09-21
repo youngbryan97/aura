@@ -678,6 +678,8 @@ class RuntimeWatchdogAuditor:
                 if not bool(getattr(task, "_aura_supervised", False)):
                     unsupervised += 1
         except RuntimeError:
+            # not a failure: no running loop means no tasks on it, so none
+            # of them are unsupervised.
             unsupervised = 0
         except (AttributeError, TypeError) as exc:
             record_degradation(
@@ -960,7 +962,9 @@ class VerifierGuidedRepairPipeline:
                 try:
                     raw_path = raw_path.resolve()
                 except (RuntimeError, AttributeError, TypeError, ValueError):
-                    pass  # no-op: intentional
+                    # not a failure: the unresolved path is still tried
+                    # against base_dir below, which is what decides.
+                    pass
                 try:
                     rel = raw_path.relative_to(self.base_dir)
                     candidates.append((str(rel), line_number))

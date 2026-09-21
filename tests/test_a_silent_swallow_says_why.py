@@ -259,3 +259,83 @@ def test_a_file_the_test_wrote_itself_is_not_the_repo_module(tmp_path):
         encoding="utf-8",
     )
     assert look([probe]) == []
+
+
+def test_the_marker_is_read_above_the_except_line_too() -> None:
+    """A one-line handler explains itself in the comment above it.
+
+    The gate read the marker from the `except` line forward, so a handler
+    whose sentence sat above the `except` — which is where it goes when the
+    handler is a single `pass` — was counted as silent. Two in the actuators
+    said "Not a failure:" in full, in the right place, and were counted
+    anyway.
+    """
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+    from lint_swallowed_reasons import look
+
+    source = (
+        "def f():\n"
+        "    try:\n"
+        "        return g()\n"
+        "    # Not a failure: the caller reads None as absent.\n"
+        "    except OSError:\n"
+        "        return None\n"
+    )
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "explained.py"
+        path.write_text(source)
+        assert look([path]) == []
+
+        path.write_text(source.replace("    # Not a failure: the caller reads None as absent.\n", ""))
+        assert len(look([path])) == 1
+
+
+def test_a_comment_further_up_does_not_count() -> None:
+    """The null. A blank line ends the run, so this cannot reach upward."""
+    import sys
+    import tempfile
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+    from lint_swallowed_reasons import look
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "unexplained.py"
+        path.write_text(
+            "def f():\n"
+            "    # not a failure: this is about something else entirely\n"
+            "\n"
+            "    try:\n"
+            "        return g()\n"
+            "    except OSError:\n"
+            "        return None\n"
+        )
+        assert len(look([path])) == 1
+
+
+def test_add_note_carries_the_reason() -> None:
+    """A cleanup that fails while unwinding must not replace the error."""
+    import sys
+    import tempfile
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+    from lint_swallowed_reasons import look
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "noted.py"
+        path.write_text(
+            "def f(conn):\n"
+            "    try:\n"
+            "        conn.rollback()\n"
+            "    except OSError as exc:\n"
+            "        unwinding = sys.exception()\n"
+            "        if unwinding is not None:\n"
+            "            unwinding.add_note(str(exc))\n"
+        )
+        assert look([path]) == []

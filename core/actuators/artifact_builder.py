@@ -154,6 +154,9 @@ def _write(path: Path, text: str) -> bool:
     try:
         return path.exists() and path.stat().st_size >= 0
     except OSError:
+        # not a failure: the comment above says the builder must not claim
+        # success from control flow alone, and a file it cannot stat is not
+        # one it may claim.
         return False
 
 
