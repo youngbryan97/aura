@@ -37,20 +37,25 @@ async def test_eternal_growth_returns_without_waiting_for_slow_model():
 
 @pytest.mark.asyncio
 async def test_eternal_growth_applies_completed_result_on_canonical_tick():
+    from core.self.growth import get_growth_ledger, reset_for_test
+
+    reset_for_test()
     kernel = SimpleNamespace(organs={})
     engine = EternalGrowthEngine(kernel)
     state = AuraState()
-    before = state.identity.evolution_score
 
     completed = asyncio.get_running_loop().create_future()
     completed.set_result({"milestone": "", "upgrade": True})
     engine._growth_task = completed
     engine.last_growth = 1e20
 
-    result = await engine.execute(state)
+    await engine.execute(state)
 
-    assert result.identity.evolution_score == pytest.approx(before + 0.05)
+    # The verdict is evidence in the growth ledger, which the affect update
+    # turns into the score, rather than a step added to a score it rewrites.
+    assert list(get_growth_ledger()._steps) == [1.0]
     assert engine._growth_task is None
+    reset_for_test()
 
 
 @pytest.mark.parametrize(

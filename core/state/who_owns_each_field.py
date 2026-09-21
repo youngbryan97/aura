@@ -59,10 +59,42 @@ THE_DECLARED_OWNERS: dict[str, dict[str, str]] = {
         "same list trimmed to what they can hold, and memory_consolidation "
         "clears it with the memories it consolidated",
     },
+    "affect.markers": {
+        "owner": "core/phases/affect_update.py",
+        "others": "the affect update builds the marker dict each turn; "
+        "affect_readings writes the song organs' readings into the same dict "
+        "and hands it back; the emotional tick in upgrades_10x makes the dict "
+        "only when it is missing, then adds the hardware stress marker",
+    },
+    "cognition.rolling_summary": {
+        "owner": "core/state/aura_state.py",
+        "others": "the state folds each new summary into the earlier one; "
+        "continuity restores the subject thread on boot only when the summary "
+        "is empty",
+    },
+    "identity.bonding_level": {
+        "owner": "core/phases/bonding_phase.py",
+        "others": "the bonding phase settles and raises it; canonical_self "
+        "restores the saved value when the self is loaded",
+    },
+    "identity.personality_growth": {
+        "owner": "core/phases/bonding_phase.py",
+        "others": "the bonding phase writes what the bond grew; canonical_self "
+        "restores the saved traits when the self is loaded",
+    },
+    "motivation.forces": {
+        "owner": "core/phases/motivation_update.py",
+        "others": "written through a local alias the assignment scan cannot "
+        "follow; the subject schema reads it into deliberation and nothing "
+        "else writes it",
+    },
     "cognition.last_action_source": {
-        "owner": "core/subject/driver.py",
-        "others": "the driver names which proposal won the tick; subject/state "
-        "and clamp hash it into the subject vector and never write it",
+        "owner": "core/kernel/turn_door.py",
+        "others": "the tick stamps the turn's origin when its phases finish, "
+        "through the door the subject driver also closes its turns with; the "
+        "driver then names the actor when she acts; motivation_update reads it "
+        "for which drive spent the fuel; subject/state and clamp hash it into "
+        "the subject vector and never write it",
     },
     "soma.effort": {
         "owner": "core/phases/proprioceptive_loop.py",
@@ -192,6 +224,13 @@ def _who_assigns(root: Path) -> dict[str, frozenset[str]]:
                 while isinstance(cursor, ast.Attribute):
                     parts.append(cursor.attr)
                     cursor = cursor.value
+                # The organ held in a local of its own name. `affect =
+                # state.affect` and then `affect.borrowed_feeling = ...` is how
+                # every reading in the affect phase is written, and a chain
+                # that stopped at the attribute counted none of them: eighteen
+                # fields that one module assigns read as assigned by nothing.
+                if isinstance(cursor, ast.Name):
+                    parts.append(cursor.id)
                 parts.reverse()
                 if len(parts) < 2:
                     continue

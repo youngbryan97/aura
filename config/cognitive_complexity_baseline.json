@@ -1,9 +1,9 @@
 {
   "organs": 123,
-  "cross_package_edges": 2044,
-  "dependency_entropy": 9.1661,
+  "cross_package_edges": 2045,
+  "dependency_entropy": 9.167,
   "kernel_lines": 620423,
-  "at_commit": "ec117b44ec34e6afb9ac63cdbbd65381dde41e3a",
+  "at_commit": "82ac54a32abdd3dfb554a711b7898f254f6bffaf",
   "history": [
     {
       "raised": [
@@ -813,6 +813,38 @@
         "commits_by_author": {
           "Claude": 5,
           "Codex": 1
+        }
+      }
+    },
+    {
+      "raised": [
+        "cross_package_edges",
+        "dependency_entropy"
+      ],
+      "from": {
+        "cross_package_edges": 2044,
+        "dependency_entropy": 9.1661
+      },
+      "to": {
+        "cross_package_edges": 2045,
+        "dependency_entropy": 9.167
+      },
+      "because": "One edge, core.kernel -> core.self.growth: the eternal growth engine enters its language organ's verdict into the growth ledger as a step instead of adding 0.05 to a score the affect update rewrote every turn, so both organs' readings of her growth now last.",
+      "landed": {
+        "since": "ec117b44ec34e6afb9ac63cdbbd65381dde41e3a",
+        "net_kernel_lines": -4,
+        "files_touched": 1,
+        "per_package": {
+          "memory": -4
+        },
+        "largest_files": [
+          {
+            "path": "core/memory/DEPS",
+            "net_lines": -4
+          }
+        ],
+        "commits_by_author": {
+          "Claude": 1
         }
       }
     }

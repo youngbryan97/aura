@@ -18,14 +18,13 @@ from core.cognition.the_same_problem_one_size_down import solve_by_the_size_belo
 from core.cognition.what_it_is_worth_by_the_time_it_comes import HowFarSheUsuallyGets
 from core.cognition.where_to_spend_the_next_one import where_to_spend_it
 from core.container import ServiceContainer
+from core.goals.goal_engine_reconciliation import _GoalReconciliationMixin
 from core.goals.goal_text import is_actionable_goal_text, is_intrinsic_goal_text
 from core.goals.objective_lifecycle import is_transient_foreground_projection
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.state_ownership import state_root
 from core.state.aura_state import _origin_is_user_anchored
-
-from .goal_engine_reconciliation import _GoalReconciliationMixin
 
 logger = logging.getLogger("Aura.GoalEngine")
 

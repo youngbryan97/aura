@@ -41,6 +41,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
+from core.kernel.turn_door import admit_message, note_presence
 from core.runtime import service_access
 from core.runtime.errors import (
     DependencyUnavailable,
@@ -48,7 +49,9 @@ from core.runtime.errors import (
     Severity,
     record_degradation,
 )
-from core.runtime.service_access import resolve_orchestrator
+from core.runtime.service_access import (
+    resolve_orchestrator,  # noqa: F401  (read at call time by core/kernel/turn_door.py)
+)
 
 if TYPE_CHECKING:
     from core.consciousness.unified_audit import AuditReport
@@ -76,9 +79,6 @@ _KERNEL_RECOVERABLE_ERRORS = (
     OSError,
     TimeoutError,
     ConnectionError,
-)
-_USER_ORIGINS = frozenset(
-    {"user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external", "test"}
 )
 MAX_KERNEL_MESSAGE_CHARS = 60_000
 MAX_ORIGIN_CHARS = 80
@@ -406,56 +406,13 @@ class KernelInterface:
             # foreground lane instead of showing a canned robot message.
             return ""
 
-        # Update the orchestrator's user-interaction timestamp so idle
-        # detectors (substrate decay, sleep triggers, proactive presence)
-        # know the user is present. Without this, the kernel path bypasses
-        # the orchestrator entirely and the system thinks it's been idle
-        # for the entire session.
-        if origin in _USER_ORIGINS:
-            try:
-
-                orch = resolve_orchestrator()
-                if orch is not None:
-                    orch._last_user_interaction_time = time.time()
-            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-                _emit_kernel_fault(
-                    exc,
-                    action="continued kernel processing without orchestrator idle timestamp update",
-                    severity="warning",
-                    stage="process.touch_orchestrator",
-                )
-            # Signal the subcortical core that a stimulus has arrived.
-            # This raises arousal, opens the thalamic gate, and restores
-            # full mesh/substrate gain for the duration of user interaction.
-            try:
-                from core.consciousness.subcortical_core import get_subcortical_core
-
-                get_subcortical_core().receive_stimulus(intensity=1.0, source=origin)
-            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-                _emit_kernel_fault(
-                    exc,
-                    action="continued kernel processing without subcortical stimulus side-effect",
-                    severity="warning",
-                    stage="process.subcortical_stimulus",
-                )
-            # Taste loop: read this message as Bryan's reaction to the response we sent
-            # last turn, and nudge the personalized TasteModel (inference-time alignment).
-            try:
-                from core.brain.conversation_outcome import register_reaction
-
-                # Same key the amplifier recorded under, so a reaction is
-                # matched to the response it is actually replying to.
-                register_reaction(
-                    message,
-                    conversation_id=getattr(self, "session_id", None) or "user",
-                )
-            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-                _emit_kernel_fault(
-                    exc,
-                    action="continued kernel processing without taste-loop reaction update",
-                    severity="warning",
-                    stage="process.taste_reaction",
-                )
+        # Somebody is here, when a person sent it: the idle clock, the
+        # subcortical stimulus and the taste loop. core/kernel/turn_door.py.
+        note_presence(
+            message,
+            origin,
+            conversation_id=getattr(self, "session_id", None) or "user",
+        )
 
         try:
             # Inject user turn into working memory before tick so history builds.
@@ -474,28 +431,7 @@ class KernelInterface:
                 )
 
             if durable_working_memory_turn and kernel.state is not None:
-                cognition = getattr(kernel.state, "cognition", None)
-                if cognition is None:
-                    raise AttributeError("kernel state has no cognition")
-                wm = getattr(cognition, "working_memory", None)
-                if wm is None:
-                    wm = []
-                    cognition.working_memory = wm
-                if not isinstance(wm, list):
-                    raise TypeError("kernel working_memory must be a list")
-                # Avoid duplicating if routing phase or upstream already added it.
-                last = wm[-1] if wm else {}
-                if not isinstance(last, dict):
-                    last = {}
-                if last.get("role") != "user" or last.get("content") != message:
-                    wm.append(
-                        {
-                            "role": "user",
-                            "content": message,
-                            "timestamp": time.time(),
-                            "origin": origin,
-                        }
-                    )
+                admit_message(kernel.state, message, origin)
 
             # Propagate origin to kernel state so phases can distinguish
             # user-facing vs autonomous/background ticks and route to the

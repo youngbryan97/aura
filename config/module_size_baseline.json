@@ -206,7 +206,7 @@
       "max_class_methods": 43
     },
     "core/kernel/aura_kernel.py": {
-      "lines": 1565,
+      "lines": 1553,
       "max_class_methods": 38
     },
     "core/learning/recurrence_native_objective_v2.py": {

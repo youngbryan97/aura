@@ -17,18 +17,11 @@ class _TicksAndShutsDown:
     def _tick_body_part_1(self, bound_objective: Any, priority: Any, state: Any) -> tuple[Any, Any]:
         from .aura_kernel import (
             _begin_pass_run,
-            get_executive_authority,
             open_tick,
         )
+        from .turn_door import bind_objective
 
-        state.cognition.current_objective = bound_objective
-        get_executive_authority().record_objective_binding(
-            state,
-            bound_objective,
-            source="aura_kernel.tick",
-            mode="unitary_tick",
-            reason="kernel_tick_bound",
-        )
+        bind_objective(state, bound_objective)
 
         # Linear Pipeline execution
         volition = self.volition_level
@@ -64,6 +57,7 @@ class _TicksAndShutsDown:
             close_tick,
             logger,
         )
+        from .turn_door import stamp_closure
 
         close_tick(_provenance)
 
@@ -98,36 +92,7 @@ class _TicksAndShutsDown:
         # ── CONSTITUTIONAL CLOSURE ──────────────────────────────────────
         # Stamp this tick's arbitration into the canonical state before commit.
         # Every committed state is self-documenting about the decision chain.
-        try:
-            self.state.cognition.last_kernel_cycle_id = entry.tick_id if entry else None
-            self.state.cognition.last_action_source = (
-                self.state.cognition.current_origin or "kernel"
-            )
-
-            from core.executive.executive_core import get_executive_core
-
-            _exec = get_executive_core()
-            if _exec is not None:
-                _exec_stats = _exec.get_stats() if hasattr(_exec, "get_stats") else {}
-                self.state.cognition.kernel_decision_count = int(
-                    _exec_stats.get("approved", 0) or 0
-                )
-                self.state.cognition.kernel_veto_count = int(
-                    _exec_stats.get("rejected", 0) or 0
-                )
-                _recent = _exec_stats.get("recent_decisions", []) or []
-                self.state.cognition.last_veto_reasons = [
-                    str(d.get("reason", ""))
-                    for d in _recent
-                    if isinstance(d, dict) and d.get("outcome") == "rejected"
-                ][-5:]
-        except (ImportError, AttributeError, RuntimeError) as _cc_err:
-            _record_kernel_degradation(
-                _cc_err,
-                action="continued tick without constitutional closure state stamp",
-                severity="error",
-            )
-            logger.error("Constitutional closure stamp failed: %s", _cc_err, exc_info=True)
+        stamp_closure(self.state, entry.tick_id if entry else None)
         # ────────────────────────────────────────────────────────────────
 
         # A foreground objective is a live turn, not a durable autonomous
@@ -236,6 +201,7 @@ class _TicksAndShutsDown:
             logger,
             sys,
         )
+        from .turn_door import clear_last_turn, objective_to_bind
 
         try:
             # Priority request acquired the lock — clear the pending flag
@@ -259,52 +225,7 @@ class _TicksAndShutsDown:
             # must happen before phase provenance starts; doing it inside
             # AuraState.derive() falsely attributed the cleanup to whichever
             # phase happened to derive next.
-            state.prepare_tick_boundary()
-            # Clear per-turn prompt/runtime modifiers from previous ticks so
-            # stale tool results, open social-thread directives, recovery
-            # flags, or proof contracts cannot leak into an unrelated turn.
-            try:
-                from core.runtime.proof_policy import (
-                    clear_transient_response_modifiers,
-                    is_proof_repair_prompt,
-                    proof_persistent_objective,
-                    proof_run_active,
-                )
-
-                proof_active = proof_run_active(origin=turn_origin)
-                bound_proof_objective = proof_persistent_objective(
-                    objective,
-                    origin=turn_origin,
-                )
-                clear_transient_response_modifiers(
-                    state.response_modifiers,
-                    strict=proof_active,
-                )
-                if proof_active:
-                    state.response_modifiers["proof_turn_objective"] = bound_proof_objective
-                    if is_proof_repair_prompt(objective, origin=turn_origin):
-                        state.response_modifiers["proof_repair_turn"] = True
-            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-                _record_kernel_degradation(
-                    exc,
-                    action="continued tick after transient response-modifier scrub failed",
-                    severity="error",
-                )
-                for _stale_key in (
-                    "last_skill_run",
-                    "last_skill_ok",
-                    "last_skill_result_payload",
-                    "matched_skills",
-                    "intent_type",
-                    "precomputed_grounded_reply",
-                    "last_task_outcome",
-                    "last_task_id",
-                    "auto_browse_urls",
-                    "conversational_dynamics",
-                    "conv_dynamics_state",
-                    "response_contract",
-                ):
-                    state.response_modifiers.pop(_stale_key, None)
+            clear_last_turn(state, objective, turn_origin)
             self.state = state
 
             # CASIE: Score user objective for strategy
@@ -320,20 +241,7 @@ class _TicksAndShutsDown:
                     "🎭 [SEVERANCE] Executing in %s partition. Field masking ACTIVE.", partition
                 )
 
-            try:
-                from core.runtime.proof_policy import proof_persistent_objective
-
-                bound_objective = proof_persistent_objective(
-                    objective,
-                    origin=turn_origin,
-                )
-            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-                _record_kernel_degradation(
-                    exc,
-                    action="continued tick after proof objective binding normalization failed",
-                    severity="error",
-                )
-                bound_objective = objective
+            bound_objective = objective_to_bind(objective, turn_origin)
             _provenance, volition = self._tick_body_part_1(bound_objective, priority, state)
             for phase in self._phases:
                 phase_name = phase.__class__.__name__

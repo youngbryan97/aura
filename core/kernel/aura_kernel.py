@@ -355,21 +355,9 @@ class AuraKernel(_TicksAndShutsDown):
         )
 
     def _finalize_foreground_turn_state(self, *, objective: str, turn_origin: str) -> None:
-        from core.goals.objective_lifecycle import finalize_foreground_turn_state
+        from core.kernel.turn_door import finish_foreground
 
-        receipt = finalize_foreground_turn_state(
-            self.state,
-            objective=objective,
-            origin=turn_origin,
-        )
-        closure = ServiceContainer.get("executive_closure", default=None)
-        if closure is not None and hasattr(closure, "complete_foreground_turn"):
-            closure.complete_foreground_turn(objective, turn_origin)
-        if receipt.get("preserved_background"):
-            logger.debug(
-                "Kernel: preserved a post-turn background objective after closing %s.",
-                receipt.get("objective_digest") or "foreground turn",
-            )
+        finish_foreground(self.state, objective=objective, turn_origin=turn_origin)
 
     def _phase_timeout_seconds(self, phase_name: str, *, priority: bool) -> float:
         """Give foreground response generation enough headroom without letting background stalls monopolize the lock.

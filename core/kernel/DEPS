@@ -40,6 +40,9 @@ include_rules = [
     "+core.resilience",
     "+core.runtime",
     "+core.security",
+    # The growth engine enters its language organ's verdict into the growth
+    # ledger as a step; it takes nothing else from core.self.
+    "+core.self.growth",
     "+core.self_modification",
     "+core.senses",
     "+core.somatic",

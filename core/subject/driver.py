@@ -282,6 +282,16 @@ CONDITIONS: tuple[Condition, ...] = (
 # The fork’s state machinery lives in core/subject/snapshot.py. It is
 # imported rather than reachable only through it, because 29 call sites
 # already ask the driver for these names.
+from core.kernel.turn_door import (
+    USER_ORIGINS,
+    admit_message,
+    bind_objective,
+    clear_last_turn,
+    finish_foreground,
+    note_presence,
+    objective_to_bind,
+    stamp_closure,
+)
 from core.subject.snapshot import (  # noqa: E402
     _UNFORKED_SERVICES,
     SUBSTRATE_BODY,
@@ -833,8 +843,24 @@ class SubjectRuntime:
             env["percepts_replayed"] = float(
                 self.tape.play(self.state.world, self.turn, now=now)
             )
-        self.state.cognition.current_objective = condition.objective or None
         self.state.cognition.current_origin = condition.origin
+        # The turn arrives the way one arrives in the desktop runtime, through
+        # the same functions. Without this no campaign ever had a partner in
+        # working memory; see core/kernel/turn_door.py.
+        try:
+            if condition.objective and condition.origin in USER_ORIGINS:
+                note_presence(condition.objective, condition.origin, conversation_id="user")
+                admit_message(self.state, condition.objective, condition.origin)
+            clear_last_turn(self.state, condition.objective, condition.origin)
+            if condition.objective:
+                bind_objective(
+                    self.state, objective_to_bind(condition.objective, condition.origin)
+                )
+            else:
+                self.state.cognition.current_objective = None
+        except Exception as exc:  # noqa: BLE001 - a door that fails is a reading
+            self.failures["turn_door.open"] = self.failures.get("turn_door.open", 0) + 1
+            self.failure_notes["turn_door.open"] = f"{type(exc).__name__}: {exc}"[:200]
         env["objective_len"] = float(len(condition.objective))
 
         frames: list[CoreState] = []
@@ -911,6 +937,16 @@ class SubjectRuntime:
         # were constants because of it, and the deliberation phase's reading of
         # how badly the moment was going was reading two of them.
         self._refresh_health()
+        # And closed the way the tick closes it.
+        try:
+            stamp_closure(self.state, None)
+            finish_foreground(
+                self.state, objective=condition.objective, turn_origin=condition.origin
+            )
+        except Exception as exc:  # noqa: BLE001 - a door that fails is a reading
+            self.failures["turn_door.close"] = self.failures.get("turn_door.close", 0) + 1
+            self.failure_notes["turn_door.close"] = f"{type(exc).__name__}: {exc}"[:200]
+        self._publish_state()
 
         if condition.after == "retrieve":
             self._retrieve(condition.objective)

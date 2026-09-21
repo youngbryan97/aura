@@ -119,7 +119,7 @@ def test_the_top_level_scalars_are_named_out_of_reach_rather_than_guessed():
 
 
 @pytest.mark.parametrize(
-    "path", ["motivation.latent_interests", "world.known_entities"]
+    "path", ["motivation.latent_interests", "soma.expressive"]
 )
 def test_the_known_unowned_are_mutated_in_place_not_missing(path):
     """A field mutated through a container reference has no assignment site.

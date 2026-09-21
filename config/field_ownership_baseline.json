@@ -3,9 +3,7 @@
   "unclassified": [
     "affect.momentum",
     "affect.mood_baselines",
-    "affect.updated_at",
     "cognition.active_thread_id",
-    "cognition.contradiction_count",
     "cold.concept_graph",
     "cold.known_entities",
     "cold.long_term_memory",
@@ -18,12 +16,9 @@
     "soma.motors",
     "soma.qpos",
     "soma.qvel",
-    "soma.sensors",
-    "world.known_entities",
-    "world.spatial_context",
-    "world.user_preferences"
+    "world.spatial_context"
   ],
-  "count": 21,
+  "count": 16,
   "owned": 59,
   "out_of_reach": 18
 }

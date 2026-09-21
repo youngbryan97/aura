@@ -1685,11 +1685,16 @@ class EternalGrowthEngine(Phase):
                 triggered_by="evolution_score",
                 metadata={"phase": "EternalGrowthEngine"},
             )
-        if bool(result.get("upgrade", False)):
-            state.identity.evolution_score = min(
-                1.0,
-                max(0.0, float(state.identity.evolution_score) + 0.05),
-            )
+        # Her language organ's reading of whether she has grown, on the
+        # growth ledger's own scale: an ordinary step is its calibrated half
+        # and an upgrade is a step at the top. It used to add 0.05 to the score
+        # directly, and the affect update rewrites the score from the ledger
+        # every turn, so the step was gone by the next one. Entered as
+        # evidence, it stays in the window like every other step she took.
+        # See core/self/growth.py.
+        from core.self.growth import ORDINARY_STEP, get_growth_ledger
+
+        get_growth_ledger().note(1.0 if bool(result.get("upgrade", False)) else ORDINARY_STEP)
         return state
 
     async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
