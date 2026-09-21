@@ -116,7 +116,7 @@ class IntactnessLedger:
         every = [cost for costs in self._costs.values() for cost in costs]
         return sum(every) / len(every) if every else None
 
-    def open(self, kind: str, reading: tuple[float, float]) -> None:
+    def begin_event(self, kind: str, reading: tuple[float, float]) -> None:
         """An event of this kind has just arrived, with her as she was before it landed."""
         name = str(kind or "").strip()
         if not name:
@@ -184,7 +184,7 @@ def note_turn(state: Any, percepts: list[Any]) -> None:
             default=None,
         )
         if strongest is not None and strongest.kind in PERCEPT_EMOTIONS:
-            ledger.open(strongest.kind, reading)
+            ledger.begin_event(strongest.kind, reading)
     except (ImportError, AttributeError, TypeError, ValueError) as exc:
         logger.debug("could not note what the last event cost her: %s", exc)
 
