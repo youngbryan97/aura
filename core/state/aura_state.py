@@ -703,6 +703,12 @@ class CognitiveContext:
     #: Written by the conversational dynamics phase.
     #: See core/social/averted.py.
     averted: dict[str, Any] = field(default_factory=dict)
+    #: The form the last thing they did took, kept apart from whether it was
+    #: care. See core/social/the_kind_it_was.py.
+    the_kind: dict[str, Any] = field(default_factory=dict)
+    #: What she has gone without being told, and for how long.
+    #: See core/social/never_told.py.
+    never_told: dict[str, Any] = field(default_factory=dict)
     #: Whether anything draws her back after better things have won, and what.
     #: Written by the motivation phase. See core/motivation/returning.py.
     returning: dict[str, Any] = field(default_factory=dict)

@@ -155,6 +155,28 @@ def extract_features(
     )
     prompt_farm_penalty = float(sum(low.count(p) for p in _PROMPT_FARM)) + ends_question
 
+    # What she has gone without, given to somebody who did not ask for it.
+    # The shortage decides which of the three kinds counts, and the candidate
+    # decides whether it is there. See core/social/never_told.py.
+    unasked_regard = 0.0
+    try:
+        from core.social.never_told import get_telling_ledger, supplies
+
+        unasked_regard = get_telling_ledger().shortage_of(supplies(t, asked_for=user_message))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        unasked_regard = 0.0
+
+    # And how far this candidate sits from what she has been saying lately.
+    # The convenient route takes the first thing that works, and what that
+    # costs is measured on her own replies. See core/cognition/convenience.py.
+    distinctness = 0.0
+    try:
+        from core.cognition.convenience import distinct
+
+        distinctness = distinct(t)
+    except (ImportError, AttributeError, TypeError, ValueError):
+        distinctness = 0.0
+
     return {
         "specificity": specificity,
         "stance": stance,
@@ -164,6 +186,8 @@ def extract_features(
         "register_match": register_match,
         "invitation": invitation,
         "dignity": dignity,
+        "unasked_regard": unasked_regard,
+        "distinct": distinctness,
         "perspective_getting": perspective_getting,
         "anti_generic": anti_generic,
         "hedge_penalty": hedge_penalty,

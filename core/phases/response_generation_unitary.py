@@ -2869,6 +2869,21 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
 
         budget = float(min(10.0, max(3.0, (request_timeout or 20.0) * 0.25)))
         n_candidates = 2 if budget < 8.0 else 3
+        # A draft given up for some seconds is a trade, and the series of them
+        # has a price. While that price is falling she stops taking it: the
+        # third draft is kept, and the turns that follow are the pairs the
+        # next reading is taken from. See core/self/what_it_cost_her.py.
+        try:
+            from core.self.what_it_cost_her import get_price_ledger
+
+            prices = get_price_ledger()
+            if n_candidates < 3:
+                if prices.holding():
+                    n_candidates = 3
+                else:
+                    prices.note_concession(gave_up=1.0, got=max(0.0, 8.0 - float(budget)))
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            _record_response_degradation(exc, "UnitaryResponse: price of a dropped draft unread: %s")
         # How much of what they said her own memory has anything like, from
         # this turn's recall. Asking beats assuming where she has not lived it.
         # See `lived_analogue` in core/brain/response_quality.py.
@@ -2906,6 +2921,14 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
                     state.metadata["conversation_amplification"] = result.to_dict()
             except (AttributeError, TypeError):
                 pass
+            # The one that won is what the next candidate is measured against.
+            # See core/cognition/convenience.py.
+            try:
+                from core.cognition.convenience import get_convenience_ledger
+
+                get_convenience_ledger().note_reply(result.answer)
+            except (ImportError, AttributeError, TypeError, ValueError) as exc:
+                _record_response_degradation(exc, "UnitaryResponse: reply not kept for distinctness: %s")
             return result.answer.strip()
         return draft
 
