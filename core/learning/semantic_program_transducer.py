@@ -20,7 +20,6 @@ import json
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
-from itertools import combinations
 from typing import Any, Final
 
 import numpy as np
@@ -136,7 +135,7 @@ _OPERATION_FEATURE_MODES_V3: Final = (
 )
 _OPERATION_FEATURE_MODES: Final = tuple(
     dict.fromkeys((*_OPERATION_FEATURE_MODES_V2, *_OPERATION_FEATURE_MODES_V3,
-                  "contextual_span_request_interaction"))
+                  "contextual_span_request_interaction", "contextual_mean_transition"))
 )
 _MAX_OPERATION_VIEWS: Final = 3
 
@@ -408,6 +407,7 @@ def _operation_feature_width(
         "contextual_mean": contextual,
         "contextual_last": contextual,
         "contextual_span_request_interaction": 3 * contextual,
+        "contextual_mean_transition": 2 * contextual,
         "lexical_mean_contextual_last": lexical + contextual,
         "lexical_mean_contextual_mean_contextual_last": lexical + 2 * contextual,
     }
@@ -460,6 +460,11 @@ def _operation_feature(
         value = np.mean(contextual_span, axis=0, dtype=np.float32)
     elif mode == "contextual_last":
         value = contextual_span[-1]
+    elif mode == "contextual_mean_transition":
+        local = _normalized_feature(np.mean(contextual_span, axis=0, dtype=np.float32))
+        before = contextual[span.start - 1] if span.start else np.zeros_like(contextual[0])
+        transition = _normalized_feature(contextual_span[-1] - before)
+        value = np.concatenate((local, transition))
     elif mode == "contextual_span_request_interaction":
         # A causal span cannot see a disambiguating suffix; the request end can.
         local = _normalized_feature(np.mean(contextual_span, axis=0, dtype=np.float32))

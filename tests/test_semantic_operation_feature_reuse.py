@@ -5,7 +5,9 @@ import pytest
 
 from core.learning.semantic_program_ir import TokenSpan
 from core.learning.semantic_program_transducer import (
-    _operation_feature, _normalized_feature, _OPERATION_FEATURE_MODES,
+    _OPERATION_FEATURE_MODES,
+    _normalized_feature,
+    _operation_feature,
 )
 
 CHANNELS = ('input_token_embedding', 'middle_causal_hidden', 'final_causal_hidden')
@@ -17,13 +19,16 @@ WIDTHS = (3, 5, 4)
 def test_requested_view_is_bit_identical_to_eager_definition(mode, dtype):
     hidden = np.random.default_rng(19).normal(size=(15, sum(WIDTHS))).astype(dtype)
     lexical, middle, contextual = hidden[2:9, :3], hidden[2:9, 3:8], hidden[2:9, 8:]
-    mean = lambda array: np.mean(array, axis=0, dtype=np.float32)
+    def mean(array):
+        return np.mean(array, axis=0, dtype=np.float32)
     local = _normalized_feature(mean(contextual))
     request = _normalized_feature(hidden[-1, 8:])
     expected = {
         'span_mean': mean(hidden[2:9]), 'lexical_mean': mean(lexical),
         'middle_mean': mean(middle), 'middle_last': middle[-1],
         'contextual_mean': mean(contextual), 'contextual_last': contextual[-1],
+        'contextual_mean_transition': np.concatenate((local,
+            _normalized_feature(contextual[-1] - hidden[1, 8:]))),
         'contextual_span_request_interaction': np.concatenate((local, request, _normalized_feature(local * request))),
         'lexical_mean_contextual_last': np.concatenate((mean(lexical), contextual[-1])),
         'lexical_mean_contextual_mean_contextual_last': np.concatenate(
@@ -76,3 +81,34 @@ def test_request_interaction_can_separate_context_dependent_span_meaning():
     assert _operation_feature_width(mode, hidden_channels=channels, hidden_channel_widths=widths) == 3
     head = _fit_classifier(np.stack(features), labels)
     assert [head.predict(row)[0] for row in features] == labels
+
+
+@pytest.mark.parametrize('start', [0, 1])
+def test_transition_view_declares_geometry_and_zero_prefix(start):
+    from core.learning.semantic_program_transducer import _operation_feature_width
+
+    mode = 'contextual_mean_transition'
+    hidden = np.zeros((4, sum(WIDTHS)), dtype=np.float32)
+    value = _operation_feature(hidden, TokenSpan(start, 3), mode=mode,
+        hidden_channels=CHANNELS, hidden_channel_widths=WIDTHS)
+    assert _operation_feature_width(mode, hidden_channels=CHANNELS, hidden_channel_widths=WIDTHS) == 8
+    np.testing.assert_array_equal(value, np.zeros(8, dtype=np.float32))
+    hidden[2, 8:] = [1., 2., 3., 4.]
+    value = _operation_feature(hidden, TokenSpan(start, 3), mode=mode,
+        hidden_channels=CHANNELS, hidden_channel_widths=WIDTHS)
+    expected = _normalized_feature(np.r_[
+        _normalized_feature(hidden[start:3, 8:].mean(axis=0)),
+        _normalized_feature(hidden[2, 8:])])
+    np.testing.assert_array_equal(value, expected)
+
+
+def test_transition_sees_prefix_distinction_hidden_by_identical_span_means():
+    mode = 'contextual_mean_transition'
+    hidden = np.ones((4, sum(WIDTHS)), dtype=np.float32)
+    changed = hidden.copy()
+    changed[0, 8:] = [2., 3., 4., 5.]
+    def view(array, selected):
+        return _operation_feature(array, TokenSpan(1, 3), mode=selected,
+            hidden_channels=CHANNELS, hidden_channel_widths=WIDTHS)
+    np.testing.assert_array_equal(view(hidden, 'contextual_mean'), view(changed, 'contextual_mean'))
+    assert not np.array_equal(view(hidden, mode), view(changed, mode))

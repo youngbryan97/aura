@@ -1120,6 +1120,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Joint transition-feature pilot](evidence/G03_JOINT_TRANSITION_PILOT_2026-09-21.md)
+  reaches 29/40 versus incumbent 16/40: 13 known failures repaired and all 16
+  correct controls retained. The full development audit follows; the selected
+  pilot is not a transfer result or a qualification.
+  [Prefix-differenced recognition](evidence/G03_PREFIX_DIFFERENCED_RECOGNITION_2026-09-21.md)
+  confirms complete training-label fit at gold boundaries and measures a new
+  opt-in view. The paired pilot moves 16/40 to 22/40, but includes one regression;
+  the equal-data span-only refit is 21/40. No promotion or closure follows.
   [Feasibility audit](G_LEDGER_FEASIBILITY_AUDIT.md) separates protocol defects
   from representation, search and learning limits without relaxing acceptance.
   [Boundary intervention](evidence/G03_BOUNDARY_INTERVENTION_2026-09-21.md)

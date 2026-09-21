@@ -163,14 +163,14 @@ def test_legacy_combined_view_candidates_are_supported(parent):
 
 
 @pytest.mark.parametrize("log_odds", [False, True])
-def test_new_view_preserves_background_supervision_and_runtime_scores(parent, monkeypatch, log_odds):
+@pytest.mark.parametrize("mode", ["contextual_span_request_interaction", "contextual_mean_transition"])
+def test_new_view_preserves_background_supervision_and_runtime_scores(parent, monkeypatch, log_odds, mode):
+    from core.learning import semantic_program_transducer_fitting as fitting
     from core.learning.semantic_operation_background import refit_compositional_operation_background
     from core.learning.semantic_program_transducer import OPERATION_BACKGROUND_LABEL
-    from core.learning import semantic_program_transducer_fitting as fitting
 
     examples = _examples()
     base = refit_compositional_operation_background(parent, examples, background_log_odds=log_odds)
-    mode = "contextual_span_request_interaction"
     original = fitting._calibrate_operation_charts
     observations = []
     def capture(cached):
@@ -209,9 +209,9 @@ def test_invalid_candidate_inventory_refuses_before_fitting(parent, monkeypatch,
         refit.refit_compositional_operation_views(parent, _examples(), candidate_modes=modes)
 
 
-def test_request_view_fits_only_training_features_and_excludes_test(parent, monkeypatch):
+@pytest.mark.parametrize("mode", ["contextual_span_request_interaction", "contextual_mean_transition"])
+def test_request_view_fits_only_training_features_and_excludes_test(parent, monkeypatch, mode):
     examples = _examples()
-    mode = "contextual_span_request_interaction"
     expected = np.stack([refit._operation_feature(item.hidden_states, ins.operation_span,
         mode=mode, hidden_channels=parent.hidden_channels, hidden_channel_widths=parent.hidden_channel_widths)
         for item in examples if item.split == "train" for ins in item.ir.instructions])

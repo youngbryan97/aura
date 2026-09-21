@@ -97,6 +97,55 @@ class MeanSpanEvidence:
         return np.cumsum(mass, axis=0)[:-1].T @ self.hidden
 
 
+@dataclass(frozen=True)
+class MeanTransitionSpanEvidence(MeanSpanEvidence):
+    """Project two normalized views without retaining spans x hidden-width arrays."""
+
+    transition_norms: np.ndarray
+    joint_norms: np.ndarray
+
+    @classmethod
+    def build(cls, hidden, span_width, excluded=()):
+        mean = MeanSpanEvidence.build(hidden, span_width, excluded)
+        prefix = np.vstack((np.zeros(mean.hidden.shape[1]),
+                            np.cumsum(mean.hidden, axis=0, dtype=np.float64)))
+        transition_norms, joint_norms = np.empty(len(mean.starts)), np.empty(len(mean.starts))
+        for length in range(1, mean.span_width + 1):
+            selected = mean.ends - mean.starts == length
+            starts, ends = mean.starts[selected], mean.ends[selected]
+            before = mean.hidden[np.maximum(starts - 1, 0)].copy()
+            before[starts == 0] = 0.
+            transition = mean.hidden[ends - 1] - before
+            raw_norm = np.linalg.norm(transition, axis=1)
+            denominator = np.where(raw_norm > 1e-8, raw_norm, 1.)
+            transition_norms[selected] = denominator
+            local_norm = np.linalg.norm(prefix[ends] - prefix[starts], axis=1) / mean.norms[selected]
+            joint = np.sqrt(local_norm ** 2 + (raw_norm / denominator) ** 2)
+            joint_norms[selected] = np.where(joint > 1e-8, joint, 1.)
+        return cls(mean.hidden, mean.starts, mean.ends, mean.norms, mean.span_width,
+                   transition_norms, joint_norms)
+
+    def project(self, weight):
+        width = self.hidden.shape[1]
+        if weight.shape[1] != 2 * width:
+            raise ValueError("mean-transition projection width differs")
+        projected = self.hidden @ weight[:, width:].T
+        before = projected[np.maximum(self.starts - 1, 0)].copy()
+        before[self.starts == 0] = 0.
+        transition = (projected[self.ends - 1] - before) / self.transition_norms[:, None]
+        return (super().project(weight[:, :width]) + transition) / self.joint_norms[:, None]
+
+    def adjoint(self, residual):
+        scaled = residual / self.joint_norms[:, None]
+        mean = super().adjoint(scaled)
+        transition = scaled / self.transition_norms[:, None]
+        mass = np.zeros((len(self.hidden), residual.shape[1]))
+        np.add.at(mass, self.ends - 1, transition)
+        present = self.starts > 0
+        np.add.at(mass, self.starts[present] - 1, -transition[present])
+        return np.concatenate((mean, mass.T @ self.hidden), axis=1)
+
+
 def _labeled_loss(parameters, rows, *, labels, width, max_spans, regularization, center):
     weight = parameters[:labels * width].reshape(labels, width)
     bias = parameters[labels * width:]
@@ -133,8 +182,8 @@ def refit_compositional_labeled_spans(model, examples, *, max_iter=200, progress
             or set(ids) & {item.ir.source_text_sha256 for item in examples if item.split != "train"}
             or type(max_iter) is not int or max_iter < 1):
         raise ValueError("labeled span fitting needs unique disjoint source training")
-    if model.operation_head.modes != ("contextual_mean",):
-        raise ValueError("labeled span fitting requires one contextual mean view")
+    if model.operation_head.modes not in {("contextual_mean",), ("contextual_mean_transition",)}:
+        raise ValueError("labeled span fitting requires a supported single contextual view")
     if any(item.ir.model_basis_receipt_sha256 != model.model_basis_sha256
            or item.tokenizer_identity_sha256 != model.input_grounding.tokenizer_identity_sha256
            or (item.hidden_channels, item.hidden_channel_widths) != (model.hidden_channels, model.hidden_channel_widths)
@@ -145,11 +194,14 @@ def refit_compositional_labeled_spans(model, examples, *, max_iter=200, progress
         raise ValueError("labeled span training must retain every source operation")
     channel = model.hidden_channels.index("final_causal_hidden")
     begin = sum(model.hidden_channel_widths[:channel])
-    width = model.hidden_channel_widths[channel]
+    channel_width = model.hidden_channel_widths[channel]
+    width = model.operation_head.heads[0].width
+    evidence_type = (MeanSpanEvidence if model.operation_head.modes == ("contextual_mean",)
+                     else MeanTransitionSpanEvidence)
     counts, rows, targets = Counter(_geometry(item) for item in train), [], []
     for item in train:
-        evidence = MeanSpanEvidence.build(item.hidden_states[:, begin:begin + width],
-                                          model.max_span_tokens, item.ir.input_spans)
+        evidence = evidence_type.build(item.hidden_states[:, begin:begin + channel_width],
+                                       model.max_span_tokens, item.ir.input_spans)
         target = tuple(sorted((i.operation_span.start, i.operation_span.end - i.operation_span.start,
                                labels.index(i.op)) for i in item.ir.instructions))
         available = set(zip(evidence.starts, evidence.ends, strict=True))
@@ -185,7 +237,7 @@ def refit_compositional_labeled_spans(model, examples, *, max_iter=200, progress
     if not fitted.success or not np.all(np.isfinite(fitted.x)):
         raise RuntimeError(f"labeled span fit incomplete: {fitted.status}: {fitted.message}")
     value = fitted.x.astype(np.float32)
-    operation_head = MultiViewClassifierHead(("contextual_mean",), (LinearClassifierHead(
+    operation_head = MultiViewClassifierHead(model.operation_head.modes, (LinearClassifierHead(
         (*labels, OPERATION_BACKGROUND_LABEL),
         np.vstack((value[:len(labels) * width].reshape(len(labels), width), np.zeros(width, dtype=np.float32))),
         np.append(value[len(labels) * width:], np.float32(0))),))

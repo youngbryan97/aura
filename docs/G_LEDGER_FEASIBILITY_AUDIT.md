@@ -72,3 +72,15 @@ feature projections; this result does not establish selector capacity.
 The current audit is partial. Still required are full candidate-constraint
 coverage, shared selector capacity analysis and grader
 positive controls for the next frozen broad task population.
+
+The v1 receipt's cohort identity omission is corrected by the
+[v2 population audit](evidence/G03_OBSERVATION_IDENTITY_AND_FEATURE_OVERLAP_2026-09-21.md).
+The historical v1 result above is preserved. The current v2 receipt includes all
+observations, not only duplicate groups, and rejects an empty population.
+
+The [operation-head capacity diagnostic](evidence/G03_PREFIX_DIFFERENCED_RECOGNITION_2026-09-21.md)
+finds all 1,720 training operation labels already correct at annotated spans.
+Training-label separation is therefore not the remaining problem for that head.
+Joint boundary/label ranking, binding, and transfer to different language remain
+separate obligations. A feature experiment improves exposed label accuracy but
+regresses one complete-program control; it is not a qualified replacement.

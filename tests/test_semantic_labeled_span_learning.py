@@ -10,6 +10,7 @@ from scipy.special import logsumexp
 
 from core.learning.semantic_labeled_span_learning import (
     MeanSpanEvidence,
+    MeanTransitionSpanEvidence,
     _labeled_loss,
     _runtime_odds,
     labeled_span_partition,
@@ -47,27 +48,33 @@ def test_an_excluded_grammar_has_only_the_empty_set_and_finite_zero_gradient():
     assert partition == 0 and np.count_nonzero(gradient) == 0
 
 
-def test_prefix_projection_and_adjoint_equal_explicit_runtime_features():
+@pytest.mark.parametrize("mode,evidence_type", [
+    ("contextual_mean", MeanSpanEvidence),
+    ("contextual_mean_transition", MeanTransitionSpanEvidence),
+])
+def test_prefix_projection_and_adjoint_equal_explicit_runtime_features(mode, evidence_type):
     hidden = np.random.default_rng(5).normal(size=(7, 8)).astype(np.float32)
-    evidence = MeanSpanEvidence.build(hidden[:, 4:], 3, (TokenSpan(3, 4),))
-    features = np.stack([_operation_feature(hidden, TokenSpan(int(a), int(b)), mode="contextual_mean",
+    evidence = evidence_type.build(hidden[:, 4:], 3, (TokenSpan(3, 4),))
+    features = np.stack([_operation_feature(hidden, TokenSpan(int(a), int(b)), mode=mode,
         hidden_channels=("input_token_embedding", "final_causal_hidden"), hidden_channel_widths=(4, 4))
         for a, b in zip(evidence.starts, evidence.ends, strict=True)])
-    weight = np.random.default_rng(6).normal(size=(3, 4))
+    weight = np.random.default_rng(6).normal(size=(3, features.shape[1]))
     residual = np.random.default_rng(7).normal(size=(len(features), 3))
     np.testing.assert_allclose(evidence.project(weight), features @ weight.T, atol=2e-7)
     np.testing.assert_allclose(evidence.adjoint(residual), residual.T @ features, atol=3e-7)
 
 
 @pytest.mark.parametrize("magnitude", [1., 80.])
-def test_joint_loss_gradient_includes_competing_spans_labels_count_and_runtime_clipping(magnitude):
+@pytest.mark.parametrize("evidence_type,multiplier", [(MeanSpanEvidence, 1), (MeanTransitionSpanEvidence, 2)])
+def test_joint_loss_gradient_includes_competing_spans_labels_count_and_runtime_clipping(magnitude, evidence_type, multiplier):
     hidden = np.random.default_rng(9).normal(size=(5, 3))
-    evidence = MeanSpanEvidence.build(hidden, 3, (TokenSpan(4, 5),))
+    evidence = evidence_type.build(hidden, 3, (TokenSpan(4, 5),))
     rows = [(evidence, ((0, 2, 1), (2, 1, 0)), 1.)]
-    parameters = np.random.default_rng(12).normal(size=8) * magnitude
+    size = 6 * multiplier + 2
+    parameters = np.random.default_rng(12).normal(size=size) * magnitude
     def objective(value):
-        return _labeled_loss(value, rows, labels=2, width=3, max_spans=2,
-                             regularization=.01, center=np.zeros(8))
+        return _labeled_loss(value, rows, labels=2, width=3 * multiplier, max_spans=2,
+                             regularization=.01, center=np.zeros(size))
     _, gradient = objective(parameters)
     for index in range(len(parameters)):
         plus, minus = parameters.copy(), parameters.copy()
@@ -86,7 +93,8 @@ def test_odds_match_shipped_background_probability_clipping():
         np.testing.assert_allclose(_runtime_odds(np.asarray([logits]))[0][0], expected, atol=2e-6)
 
 
-def test_fit_serializes_existing_heads_and_never_uses_validation_for_fit():
+@pytest.mark.parametrize("mode", ["contextual_mean", "contextual_mean_transition"])
+def test_fit_serializes_existing_heads_and_never_uses_validation_for_fit(mode):
     from core.learning.semantic_program_compositional_transducer import (
         compositional_semantic_program_transducer_from_dict,
         fit_compositional_semantic_program_transducer,
@@ -96,7 +104,11 @@ def test_fit_serializes_existing_heads_and_never_uses_validation_for_fit():
     examples = _examples()
     parent = fit_compositional_semantic_program_transducer(examples, input_grounding=_grounding())
     assert parent.operation_head.modes == ("contextual_mean",)
+    if mode != "contextual_mean":
+        from core.learning.semantic_operation_view_refit import refit_compositional_operation_views
+        parent = refit_compositional_operation_views(parent, examples, candidate_modes=(mode,))
     fitted = refit_compositional_labeled_spans(parent, examples)
+    assert fitted.operation_head.modes == (mode,)
     record = fitted.training_receipt["labeled_span_fit"]
     assert record["exported_loss"] < record["initial_loss"]
     assert not fitted.training_receipt["operation_background_fit"]["validation_used_for_fit"]
@@ -149,3 +161,12 @@ def test_declared_partition_invariant_runs():
     from core.learning.semantic_labeled_span_learning import _check_labeled_span_partition
 
     assert _check_labeled_span_partition() == ()
+
+
+def test_transition_evidence_zero_states_and_start_boundary_remain_finite():
+    evidence = MeanTransitionSpanEvidence.build(np.zeros((4, 3)), 3)
+    assert 0 in evidence.starts
+    np.testing.assert_array_equal(evidence.project(np.ones((2, 6))), np.zeros((len(evidence.starts), 2)))
+    np.testing.assert_array_equal(evidence.adjoint(np.ones((len(evidence.starts), 2))), np.zeros((2, 6)))
+    with pytest.raises(ValueError, match="width differs"):
+        evidence.project(np.ones((2, 3)))
