@@ -42,10 +42,12 @@ def select_trial_examples(examples, *, split, count):
     return tuple(selected)
 
 
-def _observe(model, item):
+def _observe(model, item, *, solve_time_limit_s=None):
+    decode_options = {} if solve_time_limit_s is None else {"search_time_limit_s": solve_time_limit_s}
+    score_options = {} if solve_time_limit_s is None else {"solve_time_limit_s": solve_time_limit_s}
     outcome = model.decode(source_token_ids=item.ir.source_token_ids, hidden_states=item.hidden_states,
         public_inputs=item.public_inputs, source_text_sha256=item.ir.source_text_sha256,
-        model_basis_sha256=item.ir.model_basis_receipt_sha256)
+        model_basis_sha256=item.ir.model_basis_receipt_sha256, **decode_options)
     row = {"source_text_sha256": item.ir.source_text_sha256, "split": item.split,
            "geometry": _geometry(item), "accepted": outcome.ir is not None, "refusal": outcome.refusal,
            "source_grounding_aligned": None, "annotated_graph_feasible": None,
@@ -59,8 +61,8 @@ def _observe(model, item):
     row["source_grounding_aligned"] = True
     from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
     try:
-        target = score_annotated_graph(model, item, instructions, outcome.ir.input_spans)
-        selected = score_annotated_graph(model, item, outcome.ir.instructions, outcome.ir.input_spans)
+        target = score_annotated_graph(model, item, instructions, outcome.ir.input_spans, **score_options)
+        selected = score_annotated_graph(model, item, outcome.ir.instructions, outcome.ir.input_spans, **score_options)
     except ArgumentOptimizationIncompleteError as exc:
         return {**row, "failure": str(exc)}
     # Scoring with annotated operations does not establish runtime search coverage.

@@ -81,7 +81,7 @@ def decode_semantic_candidates(model, *, source_token_ids, hidden_states, public
         progress({"stage": "ordinary_decode"})
     outcome = model.decode(source_token_ids=source_token_ids, hidden_states=hidden_states,
         public_inputs=public_inputs, source_text_sha256=source_text_sha256,
-        model_basis_sha256=model_basis_sha256)
+        model_basis_sha256=model_basis_sha256, search_time_limit_s=solve_time_limit_s)
     body = {"schema": "aura.semantic_candidate_bank.v1", "source_text_sha256": source_text_sha256,
             "model_basis_sha256": model_basis_sha256, "transducer_receipt_sha256": model.receipt_sha256,
             "expected_answer_available": False, "source_annotations_available": False,

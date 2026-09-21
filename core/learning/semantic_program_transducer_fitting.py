@@ -1406,7 +1406,11 @@ def _assign_typed_arguments(
     retain_score_factors: bool = False,
     retain_relation_evidence: bool = False,
     build_only: bool = False,
+    time_limit_s: float | None = None,
 ) -> _TypedArgumentAssignment | None:
+    import time
+
+    deadline = None if time_limit_s is None else time.monotonic() + time_limit_s
     if retain_relation_evidence and (
         not retain_score_factors or chart_observer is None
         or model.training_receipt.get("definition_selection_policy") != "joint_graph_v1"
@@ -1700,7 +1704,12 @@ def _assign_typed_arguments(
             return None
         if minimum_score is not None and chart.score_upper_bound() < minimum_score - 1e-8:
             return None
-        optimized = chart.solve()
+        remaining = None if deadline is None else deadline - time.monotonic()
+        if remaining is not None and remaining <= 0:
+            from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
+
+            raise ArgumentOptimizationIncompleteError("argument_chart_construction_budget_exhausted")
+        optimized = chart.solve(time_limit_s=remaining)
         states = [optimized] if optimized is not None else []
     valid: list[_TypedArgumentAssignment] = []
     for score, arguments, spans, dependencies in states:

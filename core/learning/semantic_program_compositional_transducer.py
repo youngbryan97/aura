@@ -25,6 +25,7 @@ from .semantic_program_transducer_amendments import _CarriesItsAmendments
 import hashlib
 import json
 import math
+import time
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace  # noqa: F401  (read at call time by the lifted module)
@@ -962,7 +963,14 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
         public_inputs: Sequence[SemanticValue],
         source_text_sha256: str,
         model_basis_sha256: str,
+        search_time_limit_s: float | None = None,
     ) -> SemanticTransductionOutcome:
+        if search_time_limit_s is not None and (
+            type(search_time_limit_s) not in (int, float)
+            or not math.isfinite(search_time_limit_s) or search_time_limit_s <= 0
+        ):
+            raise ValueError("decode search allowance must be positive and finite")
+        deadline = None if search_time_limit_s is None else time.monotonic() + search_time_limit_s
         if model_basis_sha256 != self.model_basis_sha256:
             return SemanticTransductionOutcome(None, "model_basis_mismatch", {}, {})
         if not _is_sha256(source_text_sha256):
@@ -986,6 +994,15 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
         from core.learning.semantic_operation_search import OperationSearchIncompleteError
         from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
         from core.learning.semantic_argument_chart import select_operation_argument_graph
+
+        def remaining():
+            if deadline is None:
+                return None
+            duration = deadline - time.monotonic()
+            if duration <= 0:
+                raise ArgumentOptimizationIncompleteError("decode_search_budget_exhausted")
+            return duration
+
         relation_score_cache = {}
         relation_vector_cache = {}
         definition_pointer_scores = self.definition_pointer.score_sequence(hidden)
@@ -999,6 +1016,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
                     relation_score_cache=relation_score_cache,
                     relation_vector_cache=relation_vector_cache,
                     definition_pointer_scores=definition_pointer_scores,
+                    time_limit_s=remaining(),
                 ),
                 length_penalty=self.operation_length_penalty,
                 joint=self.training_receipt.get("operation_assignment_policy") == "joint_factor_score_v2",
@@ -1009,6 +1027,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
                     relation_score_cache=relation_score_cache,
                     relation_vector_cache=relation_vector_cache,
                     definition_pointer_scores=definition_pointer_scores,
+                    time_limit_s=remaining(),
                 ),
             )
         except (ArgumentOptimizationIncompleteError, OperationSearchIncompleteError) as exc:

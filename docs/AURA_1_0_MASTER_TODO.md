@@ -1120,6 +1120,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Diagnostic search cost](evidence/G03_DIAGNOSTIC_SEARCH_COST_2026-09-21.md)
+  bounds optional diagnostic solves and stops reachability diagnosis after a
+  witnessed equivalent alternative. Serving defaults and selection stay
+  unchanged; partial cohort evidence does not close G03.
   [Cohort repair protocol](evidence/G03_COHORT_REPAIR_PROTOCOL_2026-09-20.md)
   freezes further scoring changes pending a full failure map. The retention
   pilot improves the expanded source cohort from 16/25 to 24/25, but retains
