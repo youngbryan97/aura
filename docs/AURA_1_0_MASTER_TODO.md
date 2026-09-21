@@ -2138,6 +2138,31 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,
   governance, production, enterprise, documentation, and release gates.
+  2026-09-21. Every named gate is green again, and three were not for
+  reasons that were not bookkeeping.
+  `make deps-gate` had been red since 10 September, and what it was saying is
+  that `snowballstemmer==3.0.1` went into requirements.txt that day and never
+  reached requirements_lock.txt. The release lane installs the LOCK under
+  `--require-hashes`, so the signed bundle did not contain it, and
+  `core/language/word_forms.py` imports it at module scope from two files on
+  the chat path. The shipped app raises ImportError at import where this
+  checkout runs fine. Locked with both artifact hashes, digests refreshed,
+  derived locks regenerated, and
+  `tests/test_the_signed_build_installs_what_the_code_imports.py` now holds
+  the thing rather than the digest.
+  `make typecheck` was red because a lift walked a class off the mypy strict
+  list: `_SealsItsKeys` moved out of `core/container.py` into
+  `core/container_seal.py`, so mypy saw the container subclassing Any. Both
+  lift tools carry allowlist membership forward now.
+  `make typed-surface` was red on 174 modules and 724 definitions, all of
+  them the same lifts moving debt out of grandfathered God objects into
+  modules that are not. `tools/annotate_extracted_seams.py` reads the types
+  back off the call sites the lifts left behind — 829 parameters from
+  evidence, 1,385 `Any`, 547 return types — and both lift tools run it before
+  they write. 71.1% of production modules annotated, up from 66.5%.
+  `make module-size` and `make epistemic-independence` were each one over
+  their baseline and are at it. The swallowed-reason ratchet went 2,262 to
+  1,984 over the same day.
   IN FLIGHT 2026-09-18, 00:10. The chunked full suite is running at 40 chunks
   of 100 files, `--continue-on-failure --min-free-gb 6`, on an idle host with
   the live instance down. Green as it goes: compile, lint, layering (37
