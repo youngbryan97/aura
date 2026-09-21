@@ -227,7 +227,7 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   PID 99362 replaced 96426; revision matched, the 27B model was unchanged,
   persisted state survived, and three readiness samples passed.
   Evidence: [R02 receipt](evidence/R02_SUCCESSOR_IDENTITY_2026-09-06.md).
-- [ ] R03 Live-validate native-thinking public sentence grace (d472d2268).
+- [x] R03 Live-validate native-thinking public sentence grace (d472d2268).
   OBSERVED 2026-09-16. The first live turn with native thinking on since
   d472d2268 (see R05, b5ccbba06): a bounded 96-token channel, then a public
   answer that ended at a sentence boundary with the budget not exhausted. One
@@ -246,6 +246,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   pronoun with its set in the same message is not a challenge. The count
   reading carries every file's size, largest first. Re-ask pending on the
   build that carries all four.
+  CLOSED 2026-09-20, live on 3525a4686, desktop surface, window open. The
+  same question: "171 Python files, and `phi_core.py` is the largest at
+  125,814 bytes." Both exact — 171 is the recursive count under
+  core/consciousness and phi_core.py is 125,814 bytes on disk. One answer,
+  from the cortex, ending at a sentence boundary with no channel leaking
+  into it; no fallback footer, no context-repair template, and the word
+  "consciousness" in a path did not read as a claim about her. The grace
+  path and all four routings hold on one build.
 - [ ] R04 Live-validate progress-aware owner cleanup (2aefb6f46); audit other
   eviction paths and cross-client ownership, not only the patched function.
 - [ ] R05 Resolve empty latent answers without exposing private reasoning.

@@ -85,3 +85,31 @@ def test_the_apology_it_replaces_is_longer_than_what_it_was_refusing() -> None:
     answer = "You asked what it's actually like in here right now."
     assert len(apology) > len(answer) * 2
     assert _worth_more_than_a_refusal(answer)
+
+
+def test_a_finished_sentence_is_served_at_any_length():
+    """The rule the docstring states, applied.
+
+    Underneath it sat a length floor — four words and twenty characters —
+    which is the check the docstring says was never the property being
+    tested. LIVE 2026-09-07: a 26-character cortex reply at confidence=high
+    was discarded here, and the turn said the cortex was unavailable while
+    the cortex had just answered.
+    """
+    from interface.routes.chat_lane_bookkeeping import _worth_more_than_a_refusal
+
+    asked = "does the cache survive a restart?"
+    assert _worth_more_than_a_refusal("Yes, it does.", asked)
+    assert _worth_more_than_a_refusal("It survives a restart.", asked)
+    # a fragment still needs substance to stand without its ending
+    assert not _worth_more_than_a_refusal("because the cache", asked)
+    assert _worth_more_than_a_refusal(
+        "because the cache is written before the process exits and read back on the next boot",
+        asked,
+    )
+    # and punctuation alone is not an answer
+    assert not _worth_more_than_a_refusal("...", asked)
+    assert not _worth_more_than_a_refusal("", asked)
+    # with no question in hand, a two-word sentence cannot be shown to answer
+    # anything, and the floor is the honest default
+    assert not _worth_more_than_a_refusal("Both red.", "")
