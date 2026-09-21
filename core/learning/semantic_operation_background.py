@@ -61,6 +61,24 @@ def operation_background_training_spans(item, pointer, max_span_tokens):
     return tuple(rows)
 
 
+def operation_background_receipt(model, head, train, rows, *, score):
+    """Bind a fitted background head to the actual source span supervision."""
+    labels = [label for _, _, label in rows]
+    return {
+        "schema": "aura.semantic_operation_background_fit.v1",
+        "parent_transducer_receipt_sha256": model.receipt_sha256,
+        "background_label": OPERATION_BACKGROUND_LABEL,
+        "modes": list(head.modes), "labels": list(head.labels), "score": score,
+        "training_examples": len(train),
+        "training_ids_sha256": _sha(sorted(item.ir.source_text_sha256 for item in train)),
+        "positive_spans": sum(label != OPERATION_BACKGROUND_LABEL for label in labels),
+        "background_spans": labels.count(OPERATION_BACKGROUND_LABEL),
+        "targets_sha256": _sha([[item.ir.source_text_sha256, span.start, span.end, label]
+                                for item, span, label in rows]),
+        "validation_used_for_fit": False, "test_examples_used": 0, "serving_authority": False,
+    }
+
+
 def refit_compositional_operation_background(model, examples, *, progress=None, background_log_odds=False):
     """Fit one shared head on source training spans, including non-operation spans."""
     if type(background_log_odds) is not bool:
@@ -102,20 +120,11 @@ def refit_compositional_operation_background(model, examples, *, progress=None, 
     coefficient["operation_length_penalty"] = penalty
     body = {key: value for key, value in model.training_receipt.items() if key != "receipt_sha256"}
     body["coefficient_sha256"] = _sha(coefficient)
-    body["operation_background_fit"] = {
-        "schema": "aura.semantic_operation_background_fit.v1",
-        "parent_transducer_receipt_sha256": model.receipt_sha256,
-        "background_label": OPERATION_BACKGROUND_LABEL,
-        "modes": list(head.modes), "labels": list(head.labels),
-        "score": "joint_operation_background_log_odds_v2" if background_log_odds
+    body["operation_background_fit"] = operation_background_receipt(
+        model, head, train, rows,
+        score="joint_operation_background_log_odds_v2" if background_log_odds
         else "pointer_plus_log_joint_operation_probability_v1",
-        "training_examples": len(train), "training_ids_sha256": _sha(sorted(ids)),
-        "positive_spans": sum(label != OPERATION_BACKGROUND_LABEL for label in labels),
-        "background_spans": labels.count(OPERATION_BACKGROUND_LABEL),
-        "targets_sha256": _sha([[item.ir.source_text_sha256, span.start, span.end, label]
-                                for item, span, label in rows]),
-        "validation_used_for_fit": False, "test_examples_used": 0, "serving_authority": False,
-    }
+    )
     if body.get("operation_search_policy") == "complete_bounded_v1":
         body["operation_label_limit"] = len(head.labels)
     return replace(model, operation_head=head, operation_length_penalty=penalty,

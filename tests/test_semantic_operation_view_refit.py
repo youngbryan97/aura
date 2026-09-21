@@ -114,6 +114,7 @@ def test_refit_uses_training_weights_and_validation_selection(parent, monkeypatc
     before, after = parent._coefficient_body(), model._coefficient_body()
     assert {k for k in before if before[k] != after[k]} <= {"operation_head", "operation_length_penalty"}
     receipt = model.training_receipt["operation_view_selection"]
+    assert all("contextual_span_request_interaction" not in row["modes"] for row in receipt["candidates"])
     assert receipt["validation_used_for_fit"] is False
     assert receipt["test_examples_used"] == 0
     assert sum(row["selected"] for row in receipt["candidates"]) == 1
@@ -159,3 +160,89 @@ def test_legacy_combined_view_candidates_are_supported(parent):
         "correct": 0, "total": 1, "cross_entropy": 1.0,
     })
     assert refit.valid_operation_view_contract(model.operation_head, body, model.hidden_channels, model.hidden_channel_widths)
+
+
+@pytest.mark.parametrize("log_odds", [False, True])
+def test_new_view_preserves_background_supervision_and_runtime_scores(parent, monkeypatch, log_odds):
+    from core.learning.semantic_operation_background import refit_compositional_operation_background
+    from core.learning.semantic_program_transducer import OPERATION_BACKGROUND_LABEL
+    from core.learning import semantic_program_transducer_fitting as fitting
+
+    examples = _examples()
+    base = refit_compositional_operation_background(parent, examples, background_log_odds=log_odds)
+    mode = "contextual_span_request_interaction"
+    original = fitting._calibrate_operation_charts
+    observations = []
+    def capture(cached):
+        for _item, charts in cached:
+            for _score, nodes in charts:
+                for node in nodes:
+                    assert node.operation != OPERATION_BACKGROUND_LABEL
+                    observations.append(node)
+        return original(cached)
+    monkeypatch.setattr(fitting, "_calibrate_operation_charts", capture)
+    fitted = refit.refit_compositional_operation_views(base, examples, candidate_modes=(mode,))
+    assert observations
+    assert fitted.operation_head.modes == (mode,)
+    assert fitted.operation_head.labels == base.operation_head.labels
+    record = fitted.training_receipt["operation_background_fit"]
+    old = base.training_receipt["operation_background_fit"]
+    for field in ("targets_sha256", "score", "positive_spans", "background_spans", "training_ids_sha256"):
+        assert record[field] == old[field]
+    assert record["parent_transducer_receipt_sha256"] == base.receipt_sha256
+    assert record["modes"] == [mode]
+    assert compositional_semantic_program_transducer_from_dict(fitted.to_dict()).to_dict() == fitted.to_dict()
+    runtime_nodes = []
+    for item in (item for item in examples if item.split == "validation"):
+        runtime_nodes.extend(_operation_nodes(pointer=fitted.operation_pointer,
+            classifier=fitted.operation_head, hidden=item.hidden_states,
+            input_spans=item.ir.input_spans, max_span_tokens=fitted.max_span_tokens,
+            hidden_channels=fitted.hidden_channels, hidden_channel_widths=fitted.hidden_channel_widths,
+            background_log_odds=log_odds))
+    assert all(any(node == runtime for runtime in runtime_nodes) for node in observations)
+
+
+@pytest.mark.parametrize("modes", [(), ("unknown",), ("contextual_mean", "contextual_mean"), "contextual_mean"])
+def test_invalid_candidate_inventory_refuses_before_fitting(parent, monkeypatch, modes):
+    monkeypatch.setattr(refit, "_fit_classifier", lambda *a, **k: pytest.fail("invalid inventory reached fit"))
+    with pytest.raises(ValueError, match="unique supported"):
+        refit.refit_compositional_operation_views(parent, _examples(), candidate_modes=modes)
+
+
+def test_request_view_fits_only_training_features_and_excludes_test(parent, monkeypatch):
+    examples = _examples()
+    mode = "contextual_span_request_interaction"
+    expected = np.stack([refit._operation_feature(item.hidden_states, ins.operation_span,
+        mode=mode, hidden_channels=parent.hidden_channels, hidden_channel_widths=parent.hidden_channel_widths)
+        for item in examples if item.split == "train" for ins in item.ir.instructions])
+    original_fit, original_feature = refit._fit_classifier, refit._operation_feature
+    seen = []
+    def fit(features, labels, **kwargs):
+        np.testing.assert_array_equal(features, expected)
+        seen.append(len(labels))
+        return original_fit(features, labels, **kwargs)
+    forbidden = {id(item.hidden_states) for item in examples if item.split == "test"}
+    def feature(hidden, *args, **kwargs):
+        assert id(hidden) not in forbidden
+        return original_feature(hidden, *args, **kwargs)
+    monkeypatch.setattr(refit, "_fit_classifier", fit)
+    monkeypatch.setattr(refit, "_operation_feature", feature)
+    model = refit.refit_compositional_operation_views(parent, examples, candidate_modes=(mode,))
+    assert seen == [len(expected)]
+    from core.learning.semantic_operation_graph_learning import operation_graph_evidence
+    item = examples[0]
+    nodes = _operation_nodes(pointer=model.operation_pointer, classifier=model.operation_head,
+        hidden=item.hidden_states, input_spans=item.ir.input_spans,
+        max_span_tokens=model.max_span_tokens, hidden_channels=model.hidden_channels,
+        hidden_channel_widths=model.hidden_channel_widths)
+    parameters = tuple(value.astype(np.float64) for head in model.operation_head.heads
+                       for value in (head.weight, head.bias))
+    for node, (bank, label) in zip(nodes[:3], operation_graph_evidence(model, item.hidden_states, nodes[:3]), strict=True):
+        value, gradient = bank.score_gradient(label, parameters)
+        assert value + node.pointer_score == pytest.approx(node.score, abs=1e-6)
+        direction = tuple(np.random.default_rng(12).normal(size=p.shape) for p in parameters)
+        epsilon = 1e-5
+        plus = tuple(p + epsilon * d for p, d in zip(parameters, direction, strict=True))
+        minus = tuple(p - epsilon * d for p, d in zip(parameters, direction, strict=True))
+        measured = (bank.score(label, plus) - bank.score(label, minus)) / (2 * epsilon)
+        assert measured == pytest.approx(sum(np.sum(g * d) for g, d in zip(gradient, direction, strict=True)), abs=1e-6)

@@ -1120,6 +1120,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Complete-request operation pilot](evidence/G03_REQUEST_CONTEXT_PILOT_2026-09-21.md):
+  runtime and training share an opt-in request-conditioned feature; background
+  refits preserve their supervision and score. The 64-example fit regresses
+  and is not promoted. Full-source paired refitting is a separate experiment.
   Sealed shadow drifted (2026-09-21): the frozen-path activation at
   `artifacts/rlc/semantic_program_27b_frozen_path_v1/activation.json` pins ten
   source symbols, and four of them — `execute_compositional_semantic_shadow`,
