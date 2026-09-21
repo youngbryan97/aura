@@ -30,6 +30,24 @@ def _restore_the_container():
     ServiceContainer.register("free_energy", had)
 
 
+class _Cognition:
+    working_memory: list = []
+    active_goals: list = []
+    pending_initiatives: list = []
+    current_origin = ""
+
+
+class _MinimalState:
+    """Enough of a state for the arbiter to score one initiative."""
+
+    def __init__(self) -> None:
+        self.cognition = _Cognition()
+        self.identity = type("I", (), {"values": [], "traits": {}})()
+        self.affect = type("A", (), {"valence": 0.0, "arousal": 0.5, "emotions": {}})()
+        self.motivation = type("M", (), {"budgets": {}})()
+        self.response_modifiers: dict = {}
+
+
 class _FreeEnergy:
     """Stands in for the engine, returning whatever it is set to."""
 
@@ -104,6 +122,54 @@ def test_the_shift_is_centred_on_her_own_middle_and_not_on_a_number():
         arbiter._read_pressure_shift()
     engine.value = 0.4
     assert arbiter._read_pressure_shift() == 0.0
+
+
+def test_what_decided_is_what_the_recorder_reads():
+    """The arbiter's score lived in its own receipt and reached nothing.
+
+    `core/subject/state.py` reads `cognition.pending_initiatives[*].urgency`,
+    which is the proposer's constant, so a shift applied in the arbiter moved
+    the ranking and left the recorded column exactly where it was.
+    """
+    from core.subject.state import _urgency_of
+
+    engine = _FreeEnergy()
+    ServiceContainer.register("free_energy", engine)
+    arbiter = InitiativeArbiter()
+    _settled(arbiter, engine)
+    engine.value = 0.9
+    arbiter._shift = arbiter._read_pressure_shift()
+
+    initiative = {"urgency": 0.6, "timestamp": 0}
+    arbiter._score_urgency(initiative, None)
+    assert _urgency_of([initiative]) == 0.6
+
+    import asyncio
+
+    asyncio.run(arbiter.score_initiative(initiative, _MinimalState()))
+    assert initiative["urgency"] == 0.6, "the proposal must stay the proposal"
+    assert initiative["decided_urgency"] > 0.6
+    assert _urgency_of([initiative]) == initiative["decided_urgency"]
+
+
+def test_the_proposal_is_never_overwritten_so_the_shift_cannot_compound():
+    """`_explicit_urgency` reads `urgency`. Writing the decided value back
+    would make the next pass treat this pass's shift as a declaration."""
+    import asyncio
+
+    engine = _FreeEnergy()
+    ServiceContainer.register("free_energy", engine)
+    arbiter = InitiativeArbiter()
+    _settled(arbiter, engine)
+    initiative = {"urgency": 0.5, "timestamp": 0}
+    decided = []
+    for _ in range(4):
+        engine.value = 0.9
+        arbiter._shift = arbiter._read_pressure_shift()
+        asyncio.run(arbiter.score_initiative(initiative, _MinimalState()))
+        decided.append(initiative["decided_urgency"])
+    assert initiative["urgency"] == 0.5
+    assert max(decided) - min(decided) < 0.5, decided
 
 
 def test_two_readings_are_not_a_middle():

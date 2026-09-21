@@ -307,6 +307,13 @@ class InitiativeArbiter:
         scores: dict[str, float] = {}
 
         scores["urgency"] = self._score_urgency(initiative, state)
+        # What actually decided, written where the recorder looks. The dict's
+        # own `urgency` is the proposal and stays untouched: `_explicit_urgency`
+        # reads it, so writing the decided value back would make the next pass
+        # treat this pass's shift as a declaration and compound it.
+        # See core/subject/state.py `_urgency_of`.
+        if isinstance(initiative, dict):
+            initiative["decided_urgency"] = scores["urgency"]
         scores["novelty"] = self._score_novelty(initiative)
         scores["identity_relevance"] = self._score_identity_relevance(initiative, state)
         scores["tension_resolution"] = self._score_tension_resolution(initiative)
