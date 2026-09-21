@@ -1,15 +1,15 @@
 """Persist accepted constraint updates with their exact evidence identity."""
 
-from dataclasses import fields, is_dataclass
 import hashlib
-from io import BytesIO
 import json
+from dataclasses import fields, is_dataclass
+from io import BytesIO
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
 from core.runtime.file_write_gateway import get_file_write_gateway
-from typing import Any
 
 
 def fit_identity(value: dict[str, Any]) -> Any:
@@ -57,6 +57,52 @@ def write_fit_archive(path: Any, body: dict[str, Any], arrays: dict[str, Any]) -
     get_file_write_gateway().write_bytes(path, output.getvalue(), source="semantic_fit_checkpoint")
 
 
+def read_fit_archive(path: Any, names: tuple[str, ...]) -> Any:
+    """Read an exact array inventory and verify its shared archive checksum."""
+    with np.load(BytesIO(Path(path).read_bytes()), allow_pickle=False) as archive:
+        if set(archive.files) != {*names, "metadata"}:
+            raise ValueError("fit checkpoint fields differ")
+        metadata = json.loads(archive["metadata"].tobytes().decode("utf-8"))
+        arrays = {name: archive[name] for name in names}
+    body = {name: value for name, value in metadata.items() if name != "sha256"}
+    if metadata.get("sha256") != fit_identity((body, arrays)):
+        raise ValueError("fit checkpoint checksum differs")
+    return body, arrays
+
+
+class ObjectiveFitCheckpoint:
+    """Resume accepted optimizer iterates without rebasing the objective."""
+
+    def __init__(self, path: Any, identity: str, center: Any) -> None:
+        self.path, self.identity = Path(path), identity
+        self.center = np.asarray(center, dtype=np.float64).copy()
+
+    def load(self) -> Any:
+        if not self.path.exists():
+            return None
+        body, arrays = read_fit_archive(self.path, ("weight", "center"))
+        if (body.get("schema") != "aura.objective_fit_checkpoint.v1"
+                or body.get("identity") != self.identity
+                or type(body.get("iterations")) is not int or body["iterations"] < 0
+                or body.get("status") not in {"iterating", "converged"}
+                or any(a.dtype != np.float64 or a.shape != self.center.shape
+                       or not np.all(np.isfinite(a)) for a in arrays.values())
+                or not np.array_equal(arrays["center"], self.center)):
+            raise ValueError("objective fit checkpoint identity or geometry differs")
+        return {**body, **arrays}
+
+    def save(self, weight: Any, iterations: int, *, converged: bool=False) -> None:
+        weight = np.asarray(weight, dtype=np.float64)
+        if (weight.shape != self.center.shape or not np.all(np.isfinite(weight))
+                or type(iterations) is not int or iterations < 0):
+            raise ValueError("invalid objective fit checkpoint iterate")
+        write_fit_archive(self.path, {
+            "schema": "aura.objective_fit_checkpoint.v1", "identity": self.identity,
+            "iterations": iterations, "status": "converged" if converged else "iterating",
+            "optimizer_resume": "accepted_iterate_with_fresh_lbfgs_history",
+        }, {"weight": weight, "center": self.center})
+
+
 def save_round_candidate(
     path: Any,
     *,
@@ -89,7 +135,9 @@ def load_round_candidate(
     numerical_checkpoint: Any,
 ) -> Any:
     """Verify the complete snapshot before exposing its model for evaluation."""
-    from core.learning.semantic_program_compositional_transducer import compositional_semantic_program_transducer_from_dict
+    from core.learning.semantic_program_compositional_transducer import (
+        compositional_semantic_program_transducer_from_dict,
+    )
 
     document = json.loads(Path(path).read_text("utf-8"))
     body = {key: value for key, value in document.items() if key != "sha256"}
