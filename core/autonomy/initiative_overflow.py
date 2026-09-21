@@ -168,8 +168,10 @@ class InitiativeOverflowManager:
                     importance=0.6 + min(0.3, gap.occurrences * 0.05),
                     tags=["skill_gap", "self_development", gap.skill_name],
                 )
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # Best-effort
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            # The skill gap is what would become a development goal. One
+            # that never reaches memory is a gap she does not learn from.
+            logger.warning("Skill gap %s was not stored: %s", gap.skill_name, exc)
 
     def resolve_skill_gap(self, skill_name: str) -> bool:
         """Mark a skill gap as resolved."""

@@ -27,6 +27,8 @@ class ReflectiveCookie:
             from core.event_bus import get_event_bus
             self._event_bus = get_event_bus()
         except ImportError:
+            # not a failure: no bus to publish on, and every use checks
+            # the name before publishing.
             self._event_bus = None
             
         logger.info("🍪 [COOKIE] Reflective Substrate ONLINE. Temporal Dilation READY.")

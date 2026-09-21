@@ -219,7 +219,12 @@ class ProactiveCommunicationManager:
             try:
                 await task
             except asyncio.CancelledError:
-                pass
+                # The task we just cancelled, or this caller cancelled
+                # underneath it — and swallowing the second is how a
+                # teardown keeps running after its own turn was abandoned.
+                mine = asyncio.current_task()
+                if mine is not None and mine.cancelling() > 0:
+                    raise
             finally:
                 self._background_task = None
 

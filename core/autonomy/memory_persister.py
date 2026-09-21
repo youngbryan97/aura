@@ -208,7 +208,11 @@ class MemoryPersister:
             return 0
         try:
             lines = self._queue_path.read_text(encoding="utf-8").splitlines()
-        except (RuntimeError, AttributeError, TypeError, ValueError):
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            # The queue holds writes that already failed once. A queue that
+            # cannot be read is those writes lost for good, and the caller
+            # is told zero succeeded either way.
+            logger.warning("The retry queue at %s could not be read: %s", self._queue_path, exc)
             return 0
 
         successful = 0
@@ -486,8 +490,10 @@ class MemoryPersister:
                     "payload": payload,
                     "queued_at": time.time(),
                 }) + "\n")
-        except (json.JSONDecodeError, TypeError, ValueError):
-            pass  # no-op: intentional
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            # This IS the queue that catches a failed write. One that
+            # cannot be queued is a memory lost with nothing saying so.
+            logger.warning("A failed %s write was not queued for retry: %s", kind, exc)
 
     def _load_dedup(self) -> Dict[str, float]:
         if not self._dedup_path.exists():

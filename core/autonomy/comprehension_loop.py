@@ -369,7 +369,9 @@ def _safe_json_object(text: str) -> Optional[Dict[str, Any]]:
         if isinstance(obj, dict):
             return obj
     except json.JSONDecodeError:
-        pass  # no-op: intentional
+        # not a failure: the snippet is not an object, and None is how this
+        # reports that there was none to find.
+        pass
     return None
 
 

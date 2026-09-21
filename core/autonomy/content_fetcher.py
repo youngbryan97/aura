@@ -864,6 +864,8 @@ class ContentFetcher:
         try:
             age = time.time() - float(stored_at)
         except (TypeError, ValueError):
+            # not a failure: a record with no readable timestamp has no
+            # age, and the guard below treats that as stale.
             age = None
         if age is None or age < 0 or age > self._cache_ttl_seconds:
             logger.debug("cache entry %s expired (age=%s); refetching.", key, age)
@@ -948,6 +950,8 @@ async def _terminate_subprocess(proc: Any, cmd: list[str], *, reason: str) -> No
             # leader; fall back to the direct child otherwise.
             pgid = os.getpgid(proc.pid) if hasattr(os, "getpgid") else None
         except (ProcessLookupError, OSError, AttributeError):
+            # not a failure: the comment above says fall back to the direct
+            # child, and None is how the check below chooses that.
             pgid = None
         if pgid is not None and pgid != os.getpgid(os.getpid()):
             try:

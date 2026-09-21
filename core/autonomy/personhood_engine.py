@@ -249,4 +249,6 @@ class PersonhoodEngine:
             kernel_interface = service_access.resolve_kernel_interface(default=None)
             return kernel_interface.kernel.state if kernel_interface and kernel_interface.is_ready() else None
         except (RuntimeError, AttributeError, TypeError, ValueError):
+            # not a failure: a kernel that is not ready has no state, which
+            # the conditional above already returns None for.
             return None

@@ -362,6 +362,8 @@ class AutonomousInitiativeLoop(_StartsSomethingSocial):
                 try:
                     exc = task.exception()
                 except (asyncio.InvalidStateError, RuntimeError):
+                    # not a failure: a task still running has no exception
+                    # to read, and the `if exc is not None` below skips it.
                     exc = None
                 if exc is not None:
                     error = f"{type(exc).__name__}: {exc}"
@@ -840,6 +842,8 @@ class AutonomousInitiativeLoop(_StartsSomethingSocial):
             )
             from core.cognition.the_record_of_her_own_work import the_record
         except ImportError:
+            # not a failure: with no record of her own work there is no
+            # development to decide on, and the caller does without.
             return False
         if not the_record().kept:
             return False
@@ -1145,6 +1149,8 @@ class AutonomousInitiativeLoop(_StartsSomethingSocial):
 
             _emit_thought = get_emitter().emit
         except (ImportError, AttributeError, RuntimeError):
+            # not a failure: no thought stream to emit into, and every
+            # caller checks the name before using it.
             _emit_thought = None
 
         if _emit_thought:
@@ -1382,12 +1388,15 @@ class AutonomousInitiativeLoop(_StartsSomethingSocial):
         try:
             failure_pressure = float(failure_state.get("pressure", 0.0) or 0.0)
         except (OSError, ConnectionError, TimeoutError):
+            # not a failure: no readable pressure is no pressure, the same
+            # zero the line above already set.
             failure_pressure = 0.0
 
         continuity_pressure = 0.0
         try:
             continuity_pressure = float(live_continuity.get("continuity_pressure", 0.0) or 0.0)
         except (OSError, ConnectionError, TimeoutError):
+            # not a failure: no readable pressure is no pressure.
             continuity_pressure = 0.0
         continuity_reentry_required = bool(
             live_continuity.get("continuity_reentry_required", False)

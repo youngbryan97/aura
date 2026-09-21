@@ -251,6 +251,8 @@ class AutonomousBehaviorController:
         try:
             running = asyncio.get_running_loop()
         except RuntimeError:
+            # not a failure: called off the loop, which the branch below
+            # handles by running the tool synchronously.
             running = None
 
         target_loop = getattr(self.orchestrator, "loop", None)

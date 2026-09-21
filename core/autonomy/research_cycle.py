@@ -347,6 +347,8 @@ class ResearchCycle:
         try:
             task.result()
         except asyncio.CancelledError:
+            # not a failure: a cancelled research task is how the cycle
+            # ends at shutdown, and there is no result to consume.
             return
         except RESEARCH_RECOVERABLE_ERRORS as exc:
             _record_research_degradation(

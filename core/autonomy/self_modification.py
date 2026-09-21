@@ -1127,8 +1127,10 @@ class AutonomousSelfModification:
         try:
             from core.event_bus import get_event_bus
             get_event_bus().publish_threadsafe(topic, payload)
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # no-op: intentional
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            # These are self-modification events. One that never reaches
+            # the bus is a change to her own code nothing downstream hears.
+            logger.warning("Self-modification event %s was not published: %s", topic, exc)
 
     # ── Public API ──────────────────────────────────────────────────────
 
@@ -1189,6 +1191,8 @@ def _is_truthy_constant(node: ast.AST) -> bool:
         try:
             return bool(node.value)
         except (TypeError, ValueError):
+            # not a failure: a literal whose truth cannot be taken is not
+            # one a `while` treats as always-true, which is the question.
             return False
     return False
 

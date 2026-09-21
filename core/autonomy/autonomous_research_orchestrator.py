@@ -288,6 +288,8 @@ class AutonomousResearchOrchestrator:
 
                 await asyncio.sleep(self._loop_interval)
         except asyncio.CancelledError:
+            # not a failure: this loop is cancelled at shutdown, which is
+            # how every ordinary run of it ends.
             return
 
     # ── Single engagement ─────────────────────────────────────────────────

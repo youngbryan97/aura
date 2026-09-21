@@ -177,6 +177,8 @@ class AutonomousSleepTrigger:
         try:
             return get_runtime_service("orchestrator", default=None)
         except (ImportError, AttributeError, RuntimeError):
+            # not a failure: no orchestrator registered, which the default
+            # on the lookup above already returns None for.
             return None
 
     @staticmethod

@@ -47,6 +47,8 @@ def _have_whisper() -> bool:
             importlib.util.find_spec("whisper")
             return True
         except (ImportError, AttributeError, RuntimeError):
+            # not a failure: neither transcriber is here, and the router
+            # is asking whether one is.
             return False
 
 
@@ -56,6 +58,7 @@ def _have_browser_executor() -> bool:
         importlib.util.find_spec("core.executors.browser_executor")
         return True
     except (ImportError, AttributeError, RuntimeError):
+        # not a failure: no browser executor here, which is the question.
         return False
 
 

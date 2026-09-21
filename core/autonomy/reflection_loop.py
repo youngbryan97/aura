@@ -643,6 +643,8 @@ def _safe_json_object(text: str) -> Optional[Dict[str, Any]]:
         if isinstance(obj, dict):
             return obj
     except json.JSONDecodeError:
+        # not a failure: the candidate span is not an object, which is what
+        # the None below reports for finding none.
         return None
     return None
 
