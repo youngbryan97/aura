@@ -203,3 +203,115 @@ def test_conditional_label_partition_reduces_exactly_to_boundary_partition():
     assert actual_partition == pytest.approx(expected_partition, abs=1e-12)
     np.testing.assert_allclose(actual_mass.sum(axis=-1), expected_mass, atol=1e-12)
     np.testing.assert_allclose(actual_mass, expected_mass[:, :, None] * np.exp(log_probability), atol=1e-12)
+
+
+def test_paired_span_set_gradient_matches_numerical_derivative_with_exclusions():
+    hidden = np.random.default_rng(83).normal(size=(5, 3))
+    fixed = _scores(5, 3)
+    fixed[1, 1] = -np.inf
+    starts, columns = np.nonzero(np.isfinite(fixed))
+    rows = [(hidden, starts, starts + columns, fixed, ((0, 2), (3, 1)), .7)]
+    weight = np.random.default_rng(21).normal(size=10)
+    def evaluate(value):
+        return learning._span_set_loss(value, rows, width=3, max_spans=3,
+            regularization=.03, center=weight / 2, learn_pair=True)
+    loss, gradient = evaluate(weight)
+    assert np.isfinite(loss)
+    for index in range(len(weight)):
+        plus, minus = weight.copy(), weight.copy()
+        plus[index] += 1e-5
+        minus[index] -= 1e-5
+        assert (evaluate(plus)[0] - evaluate(minus)[0]) / 2e-5 == pytest.approx(gradient[index], abs=1e-7)
+
+
+def test_pair_interaction_can_distinguish_crossed_boundaries_additive_scores_cannot():
+    from core.learning.semantic_program_transducer import LinearPointerHead
+
+    hidden = np.array([[-1.], [1.], [-1.], [1.]], dtype=np.float32)
+    diagonal = (TokenSpan(0, 3), TokenSpan(1, 4))
+    crossed = (TokenSpan(0, 4), TokenSpan(1, 3))
+    additive = LinearPointerHead(np.array([2.]), .2, np.array([3.]), .4)
+    scores = additive.score_sequence(hidden)
+    assert sum(map(scores.score_span, diagonal)) == pytest.approx(sum(map(scores.score_span, crossed)))
+    paired = replace(additive, pair_weight=np.array([1.])).score_sequence(hidden)
+    assert min(map(paired.score_span, diagonal)) > min(map(scores.score_span, diagonal))
+    assert sum(map(paired.score_span, diagonal)) > sum(map(paired.score_span, crossed))
+
+
+def test_learned_pair_export_matches_runtime_and_retains_other_heads(parent):
+    model = learning.refit_compositional_span_set_pointer(parent, _examples(), learn_pair=True)
+    assert model.operation_pointer.pair_weight is not None
+    fit = model.training_receipt["span_set_pointer_refit"]["fit"]
+    assert fit["pair_interaction"] == "learned_sqrt_width_diagonal_product"
+    assert fit["exported_loss"] < fit["initial_loss"]
+    restored = compositional_semantic_program_transducer_from_dict(model.to_dict())
+    assert restored.to_dict() == model.to_dict()
+    assert model.operation_head.to_dict() == parent.operation_head.to_dict()
+    assert model.argument_pointer.to_dict() == parent.argument_pointer.to_dict()
+    item = next(item for item in _examples() if item.split == "train")
+    from core.learning.semantic_paired_pointer_refit import paired_boundary_feature
+    pointer = model.operation_pointer
+    weight = np.concatenate((pointer.start_weight, pointer.end_weight, pointer.pair_weight))
+    for ins in item.ir.instructions:
+        expected = paired_boundary_feature(item.hidden_states, ins.operation_span) @ weight
+        expected += pointer.start_bias + pointer.end_bias
+        assert pointer.score_sequence(item.hidden_states).score_span(ins.operation_span) == pytest.approx(expected, abs=1e-5)
+
+
+def test_invalid_pair_learning_switch_is_rejected(parent):
+    with pytest.raises(ValueError, match="source span-set"):
+        learning.refit_compositional_span_set_pointer(parent, _examples(), learn_pair=1)
+
+
+def test_pair_objective_equals_enumerated_runtime_pointer_scores():
+    from core.learning.semantic_program_transducer import LinearPointerHead
+
+    hidden = np.random.default_rng(21).normal(size=(5, 3)).astype(np.float32)
+    hidden /= np.linalg.norm(hidden, axis=1, keepdims=True)
+    weight = np.random.default_rng(17).normal(size=10).astype(np.float32)
+    pointer = LinearPointerHead(weight[:3], float(weight[-1]) / 2,
+        weight[3:6], float(weight[-1]) / 2, weight[6:9])
+    sequence = pointer.score_sequence(hidden)
+    fixed = np.full((5, 3), -np.inf)
+    runtime = fixed.copy()
+    for start in range(5):
+        for length in range(1, min(3, 5 - start) + 1):
+            if (start, length) != (1, 2):
+                fixed[start, length - 1] = -.7
+                runtime[start, length - 1] = sequence.score_span(TokenSpan(start, start + length)) - .7
+    starts, columns = np.nonzero(np.isfinite(fixed))
+    target = ((0, 2), (3, 1))
+    rows = [(hidden, starts, starts + columns, fixed, target, 1.)]
+    loss, _ = learning._span_set_loss(weight.astype(np.float64), rows, width=3,
+        max_spans=3, regularization=0., center=weight, learn_pair=True)
+    expected = _enumerate(runtime, 3)[0] - sum(runtime[start, length - 1] for start, length in target)
+    assert loss == pytest.approx(expected, abs=2e-6)
+
+
+@pytest.mark.parametrize("objective,valid", [("span_set_pointer", True), ("operation_views", False)])
+def test_standard_refit_routes_pair_learning_switch(parent, tmp_path, monkeypatch, capsys, objective, valid):
+    import json
+    import sys
+
+    from tools import refit_semantic_argument_proposals as command
+
+    model_path, report_path = tmp_path / "parent.json", tmp_path / "source.json"
+    model_path.write_text(json.dumps(parent.to_dict()))
+    report_path.write_text("{}")
+    monkeypatch.setattr(command, "configure_refit_environment", lambda path: None)
+    monkeypatch.setattr(command, "load_source_examples", lambda *args: _examples())
+    def capture(model, examples, **options):
+        assert options["learn_pair"] is True
+        raise RuntimeError("pair fitter reached")
+    monkeypatch.setattr(learning, "refit_compositional_span_set_pointer", capture)
+    monkeypatch.setattr(sys, "argv", ["refit", "--transducer", str(model_path),
+        "--source-report", str(report_path), "--bundle", "source=unused",
+        "--output", str(tmp_path / "candidate.json"), "--objective", objective, "--learn-span-pairs"])
+    if valid:
+        with pytest.raises(RuntimeError, match="pair fitter reached"):
+            command.main()
+    else:
+        with pytest.raises(SystemExit) as exc:
+            command.main()
+        assert exc.value.code == 2
+        assert "span pair learning requires span_set_pointer" in capsys.readouterr().err
