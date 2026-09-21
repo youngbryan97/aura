@@ -212,7 +212,31 @@ class IntentionalRetriever:
             boost(_T.SOCIAL, 0.1)
             rationale.append(f"values of '{intent.whose_values}' matter → boost value/social")
 
-        selected = {t.value: w for t, w in weights.items() if w >= self._threshold}
+        # How wide to cast the net, against what she is carrying.
+        #
+        # Active memory had one cause in the last two runs: perturb affect and
+        # what is in mind moves, perturb deliberation and the arms come back
+        # bit-identical. What she is trying to do did not decide what came
+        # back to her, which is the wrong way round — under pressure a mind
+        # casts wider, because it needs more to work with.
+        #
+        # The threshold moves against the middle of what she usually carries,
+        # so steady pressure reads as none and only a change opens or closes
+        # the net. See core/soma/carrying.py.
+        threshold = self._threshold
+        try:
+            from core.soma.carrying import get_carrying_ledger
+
+            shift = float(get_carrying_ledger().shift())
+            if shift:
+                threshold = max(0.0, min(1.0, self._threshold * (1.0 - shift)))
+                rationale.append(
+                    f"carrying {shift:+.2f} against her middle → store threshold "
+                    f"{self._threshold:.2f} → {threshold:.2f}"
+                )
+        except (ImportError, AttributeError, TypeError, ValueError):
+            threshold = self._threshold
+        selected = {t.value: w for t, w in weights.items() if w >= threshold}
         selected = dict(sorted(selected.items(), key=lambda kv: kv[1], reverse=True))
         allocations = self._allocate(selected, intent.limit)
         return RetrievalPlan(intent=intent, weights=selected, allocations=allocations,

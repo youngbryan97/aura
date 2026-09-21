@@ -89,3 +89,35 @@ def test_a_pressing_intention_reaches_the_pulse_that_affect_set():
 
 def test_the_body_is_left_alone_when_nothing_has_been_weighed():
     assert get_carrying_ledger().shift() == 0.0
+
+
+def test_what_she_is_carrying_decides_how_wide_she_casts():
+    """Active memory had one cause too: perturb affect and what is in mind
+    moves, perturb deliberation and the arms come back bit-identical. What she
+    is trying to do did not decide what came back to her."""
+    from core.memory.intentional_retrieval import IntentionalRetriever, RetrievalIntent
+
+    retriever = IntentionalRetriever()
+    intent = RetrievalIntent(task="what did we decide", kind="general")
+    ledger = get_carrying_ledger()
+    unpressed = len(retriever.plan(intent).weights)
+
+    for value in (0.3, 0.4, 0.35):
+        ledger.note(value)
+    ledger.note(pressure_of([{"id": "probe", "urgency": 0.95}]))
+    pressed = retriever.plan(intent)
+
+    assert len(pressed.weights) > unpressed
+    assert any("carrying" in line for line in pressed.rationale)
+
+
+def test_the_net_is_unchanged_while_nothing_has_a_middle():
+    from core.memory.intentional_retrieval import IntentionalRetriever, RetrievalIntent
+
+    retriever = IntentionalRetriever()
+    intent = RetrievalIntent(task="what did we decide", kind="general")
+    before = retriever.plan(intent)
+    get_carrying_ledger().note(0.99)
+    after = retriever.plan(intent)
+    assert after.weights == before.weights
+    assert not any("carrying" in line for line in after.rationale)

@@ -40,6 +40,11 @@ include_rules = [
     "+core.utils",
     "+core.values",
 
+    # How wide to cast the net follows what she is carrying: active memory had
+    # one measured cause, and what she is trying to do was not among them.
+    # core/soma/carrying.py holds the load against her own middle.
+    "+core.soma",
+
     # Everything else.
     "-core",
     "-interface",
