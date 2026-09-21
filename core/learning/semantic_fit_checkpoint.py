@@ -73,6 +73,26 @@ def save_round_candidate(path, *, candidate, parent, round_index, numerical_chec
         raise ValueError("saved round candidate differs from resumed numerical fit")
 
 
+def load_round_candidate(path, *, expected_parent, expected_round, numerical_checkpoint):
+    """Verify the complete snapshot before exposing its model for evaluation."""
+    from core.learning.semantic_program_compositional_transducer import compositional_semantic_program_transducer_from_dict
+
+    document = json.loads(Path(path).read_text("utf-8"))
+    body = {key: value for key, value in document.items() if key != "sha256"}
+    if (type(expected_round) is not int or expected_round < 1
+            or set(body) != {"schema", "parent", "round", "candidate",
+                             "numerical_checkpoint_sha256", "serving_authority", "validation_used_for_selection"}
+            or body.get("schema") != "aura.semantic_graph_round_candidate.v1"
+            or body.get("parent") != expected_parent
+            or type(body.get("round")) is not int or body["round"] != expected_round
+            or body.get("serving_authority") is not False
+            or body.get("validation_used_for_selection") is not False
+            or document.get("sha256") != fit_identity(body)
+            or body.get("numerical_checkpoint_sha256") != hashlib.sha256(Path(numerical_checkpoint).read_bytes()).hexdigest()):
+        raise ValueError("round candidate identity or checkpoint differs")
+    return compositional_semantic_program_transducer_from_dict(body["candidate"])
+
+
 class SemanticFitCheckpoint:
     """Crash-atomic numerical state; no model publication or serving authority."""
 
