@@ -61,6 +61,8 @@ def _morphogenesis_health_check():
     try:
         from core.resilience.stability_guardian import HealthCheckResult
     except ImportError:
+        # not a failure: with no guardian to report to, there is no result
+        # shape to fill in, and the caller skips this check.
         return None
 
     try:
@@ -208,8 +210,10 @@ def heartbeat_self_healing() -> None:
     try:
         from core.runtime.self_healing import get_healer
         get_healer().heartbeat("morphogenesis_runtime")
-    except (ImportError, AttributeError, RuntimeError):
-        pass  # no-op: intentional
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        # A heartbeat that does not land is how SelfHealing decides the
+        # morphogenesis runtime died, so the silence would be read as death.
+        logger.debug("Morphogenesis heartbeat did not reach the healer: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -263,10 +267,13 @@ def modulate_metabolic_energy() -> float | None:
             try:
                 coord._morphogenesis_base_refill_rate = base
             except (AttributeError, TypeError):
+                # not a failure: a coordinator that will not hold the base
+                # rate cannot be modulated, and None means unmodulated.
                 return None
         try:
             setattr(coord, attribute, base * modifier)
         except (AttributeError, TypeError):
+            # not a failure: see above — None means the rate was left alone.
             return None
         return modifier
     except (ImportError, AttributeError, RuntimeError) as exc:
@@ -369,8 +376,10 @@ def observe_orchestrator_exception(
                 source=source,
                 danger=0.65,
             )
-    except (ImportError, AttributeError, RuntimeError):
-        pass  # no-op: intentional
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        # The field's danger reading is what raises inhibition after a
+        # failure. An exception nobody observed leaves the field flat.
+        logger.debug("Morphogenesis did not observe %s: %s", subsystem, exc)
 
 
 def emit_task_signal(
@@ -401,8 +410,10 @@ def emit_task_signal(
             payload={"task": task_description[:200]},
             ttl_ticks=6,
         ))
-    except (ImportError, AttributeError, RuntimeError):
-        pass  # no-op: intentional
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        # not a failure while the field is not up; worth naming because a
+        # task signal that never arrives looks exactly like an idle system.
+        logger.debug("Task signal for %s was not emitted: %s", subsystem, exc)
 
 
 # ---------------------------------------------------------------------------
@@ -422,6 +433,8 @@ async def record_organ_formation_episode(organ_data: dict[str, Any]) -> None:
                 from core.memory.episodic_memory import get_episodic_memory
                 mem = get_episodic_memory()
             except (ImportError, AttributeError, RuntimeError):
+                # not a failure: with no episodic memory there is nowhere to
+                # record this, and the caller wants nothing back.
                 return
 
         if not hasattr(mem, "record_episode_async"):
@@ -485,6 +498,8 @@ def should_suppress_autonomous_initiative() -> bool:
         # Suppress if danger or resource pressure is elevated
         return (danger > 0.6 or resource_pressure > 0.7 or inhibition > 0.5)
     except (ImportError, AttributeError, RuntimeError):
+        # not a failure: with no field to sample, nothing is suppressed,
+        # which is the behaviour before morphogenesis was wired in.
         return False
 
 
@@ -516,6 +531,8 @@ def get_cell_capability_boost(tool_name: str) -> float:
                 boost = max(boost, min(0.5, health * 0.3 + confidence * 0.2))
         return boost
     except (ImportError, AttributeError, RuntimeError):
+        # not a failure: with no cells to read, no capability earns a boost,
+        # and zero leaves the caller's own ranking untouched.
         return 0.0
 
 
@@ -541,6 +558,8 @@ async def wire_all_hooks() -> dict[str, bool]:
         coord = ServiceContainer.get("metabolic_coordinator", default=None)
         results["metabolic_modulation"] = coord is not None
     except (ImportError, AttributeError, RuntimeError):
+        # not a failure: this reports whether the coordinator is there, and
+        # a container that cannot answer means it is not reachable.
         results["metabolic_modulation"] = False
 
     # Routing advice is pulled on-demand by InferenceGate, no registration needed.

@@ -5857,8 +5857,7 @@ def _camera_perception_is_live() -> bool:
 
         age = camera_observation_age_seconds()
     except (ImportError, RuntimeError, AttributeError):
-        # not a failure: no readable observation age means no recent frame
-        # behind the claim.
+        # not a failure: no readable observation age means no recent frame behind the claim.
         return False
     if age is None:
         return False
@@ -6921,8 +6920,7 @@ def _is_structured_payload(body: str) -> bool:
 
         json.loads(text)
     except (ValueError, TypeError):
-        # not a failure: text that will not parse is not JSON, which is the
-        # question this answers.
+        # not a failure: text that will not parse is not JSON, which is the question this answers.
         return False
     return True
 
@@ -6966,9 +6964,8 @@ def _has_internal_task_prompt_leak(reply_text: Any, asked: Any = "") -> bool:
 
         return has_private_planning_prefix(body)
     except (ImportError, RuntimeError, TypeError, ValueError):
-        # not a failure: the literal protocol detector remains authoritative
-        # if the language substrate is unavailable, and unknown is not
-        # permission to cut prose.
+        # not a failure: the literal protocol detector remains authoritative if the language
+        # substrate is unavailable, and unknown is not permission to cut prose.
         return False
 
 
@@ -8689,9 +8686,8 @@ def _assess_user_facing_reply(
         if SymbolicBridge().check_arithmetic_claims(raw):
             reasons.append("false_checkable_arithmetic_claim")
     except (ImportError, RuntimeError, TypeError, ValueError):
-        # not a failure: a verifier outage is not evidence that the prose is
-        # false, and the response transaction records subsystem failures
-        # separately.
+        # not a failure: a verifier outage is not evidence that the prose is false, and the response
+        # transaction records subsystem failures separately.
         pass
     if _has_low_signal_acknowledgement_placeholder(user_message, raw):
         reasons.append("low_signal_acknowledgement_placeholder")

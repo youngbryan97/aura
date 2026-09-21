@@ -1483,8 +1483,7 @@ def _store_conversation_resume_handle(
             reason="; ".join(reasons),
         )
     except (ImportError, AttributeError, TypeError, ValueError) as exc:
-        # The decision record is the audit trail for whether a resume handle
-        # was honoured. Losing it leaves the admission unexplained.
+        # The decision record is the audit trail for whether a resume handle was honoured.
         logger.debug("Resume-handle decision was not recorded: %s", exc)
     with _conversation_quality_lock:
         state = _conversation_quality_state_locked(
@@ -5684,9 +5683,8 @@ def _schedule_recent_response_reasoning_audit(text: str) -> None:
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        # not a failure: synchronous tools and tests still update repetition
-        # state, and the live symbolic audit needs a supervised loop, which
-        # no running loop means there is not one of.
+        # not a failure: synchronous tools and tests still update repetition state, and the live
+        # symbolic audit needs a supervised loop, which no running loop means there is not one of.
         return
     active = {task for task in _reasoning_audit_tasks if not task.done()}
     _reasoning_audit_tasks.clear()
@@ -8516,9 +8514,8 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         try:
             await asyncio.wait_for(task, timeout=2.0)
         except asyncio.CancelledError:
-            # The task we just cancelled, or this caller being cancelled
-            # underneath it — and swallowing the second is how a teardown
-            # keeps running after its own turn was abandoned.
+            # The task we just cancelled, or this caller being cancelled underneath it — and
+            # swallowing the second is how a teardown keeps running after its own turn was.
             mine = asyncio.current_task()
             if mine is not None and mine.cancelling() > 0:
                 raise
@@ -9016,9 +9013,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         reason,
                     )
             except _CHAT_RECOVERABLE_ERRORS as exc:
-                # The warning above is the only place a gate veto over a
-                # real generation is visible. Losing it leaves the turn
-                # looking like the model produced nothing.
+                # The warning above is the only place a gate veto over a real generation is visible.
                 logger.debug("Could not report the gate veto: %s", exc)
 
             salvaged = _servable_draft_or_none(
@@ -11524,9 +11519,8 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         recent_user_messages=recent_user_messages,
                     )
                 except _CHAT_RECOVERABLE_ERRORS as exc:
-                    # An assessment that did not run is read below as "not
-                    # judged", which lets a repaired reply through. Worth
-                    # knowing which repairs were never checked.
+                    # An assessment that did not run is read below as "not judged", which lets a
+                    # repaired reply through. Worth knowing which repairs were never checked.
                     logger.debug("Repaired reply was not assessed: %s", exc)
                     repaired_assessment = None
                 repaired_recall_contract_failed = False

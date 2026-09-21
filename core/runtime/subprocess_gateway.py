@@ -182,8 +182,7 @@ def python_process_role(process: Any) -> ProcessRole | None:
     try:
         return ProcessRole[role]
     except KeyError:
-        # not a failure: the contract names a role this enum does not carry,
-        # and "no declared role" is the answer to the question asked.
+        # not a failure: no declared role is the answer to the question.
         return None
 
 
@@ -268,8 +267,7 @@ def _python_source_for_command(command: Sequence[str]) -> str | None:
         try:
             spec = importlib.util.find_spec(module_name)
         except (ImportError, AttributeError, ModuleNotFoundError, ValueError):
-            # not a failure: a module name that does not resolve has no
-            # source for this reader to return.
+            # not a failure: a name that does not resolve has no source.
             return None
         origin = str(getattr(spec, "origin", "") or "")
         if not origin or origin in {"built-in", "frozen"}:
@@ -287,9 +285,7 @@ def _python_source_for_command(command: Sequence[str]) -> str | None:
             return None
         return path.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as exc:
-        # A path this reader built and then could not read is worth knowing
-        # about: every caller treats None as "nothing to inspect" and no
-        # other record of the attempt survives.
+        # Callers read None as "nothing to inspect", so this is the trace.
         logger.debug("Could not read %s as source: %s", path, exc)
         return None
 
@@ -354,8 +350,8 @@ def _dynamic_command_accelerator_use(command: Sequence[str]) -> bool | None:
         try:
             script_text = payload.decode("utf-8")
         except UnicodeError:
-            # not a failure: a shebang on bytes that are not UTF-8 is not a
-            # Python script, which is what the caller asked.
+            # not a failure: a shebang on non-UTF-8 bytes is not a Python
+            # script, which is what the caller asked.
             return None
         return _source_declares_accelerator_import(script_text)
     accelerator_markers = (
@@ -570,14 +566,13 @@ def _terminate_and_reap_python_process(
         try:
             process.terminate()
         except (AttributeError, OSError, RuntimeError, ValueError):
-            # not a failure: every rung of this ladder is allowed to fail,
-            # the next one is harder, and the is_alive() below is the verdict.
+            # not a failure: every rung may fail, the next is harder, and
+            # the is_alive() below is the verdict.
             pass
     try:
         process.join(timeout=max(0.0, float(terminate_timeout_s)))
     except (AssertionError, AttributeError, OSError, RuntimeError, ValueError):
-        # not a failure: see the rung above.
-        pass
+        pass  # not a failure: see the rung above.
     try:
         alive = bool(process.is_alive())
     except (AssertionError, AttributeError, OSError, RuntimeError, ValueError):
@@ -586,18 +581,16 @@ def _terminate_and_reap_python_process(
         try:
             process.kill()
         except (AttributeError, OSError, RuntimeError, ValueError):
-            # not a failure: see the rung above.
-            pass
+            pass  # not a failure: see the rung above.
         try:
             process.join(timeout=max(0.0, float(kill_timeout_s)))
         except (AssertionError, AttributeError, OSError, RuntimeError, ValueError):
-            # not a failure: see the rung above.
-            pass
+            pass  # not a failure: see the rung above.
     try:
         return not bool(process.is_alive())
     except (AssertionError, AttributeError, OSError, RuntimeError, ValueError) as exc:
-        # This one IS a failure: the ladder has run and the verdict cannot be
-        # read, so the caller is told the process may still be alive.
+        # A failure: the ladder ran and the verdict cannot be read, so the
+        # caller is told the process may still be alive.
         logger.warning("Could not confirm the process ended: %s", exc)
         return False
 
@@ -622,9 +615,7 @@ async def _terminate_async_process_group(
         else:
             process.terminate()
     except (OSError, ProcessLookupError):
-        # not a failure: a group that is already gone needs no signal, and
-        # the SIGKILL rung below covers one that ignored this.
-        pass
+        pass  # not a failure: the SIGKILL rung below covers a live group.
     try:
         return await asyncio.wait_for(process.communicate(), timeout=max(0.1, grace_s))
     except TimeoutError:
@@ -634,8 +625,7 @@ async def _terminate_async_process_group(
             else:
                 process.kill()
         except (OSError, ProcessLookupError):
-            # not a failure: see the SIGTERM rung above.
-            pass
+            pass  # not a failure: see the SIGTERM rung above.
         try:
             return await asyncio.wait_for(process.communicate(), timeout=max(0.1, grace_s))
         except TimeoutError:
@@ -693,17 +683,15 @@ def _child_cpu_seconds(pid: int) -> float | None:
 
         observed = get_resource_observer().process(int(pid))
     except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
-        # not a failure: a process the observer cannot see has no CPU figure,
-        # and the stall watcher reads None as "no progress signal this tick".
+        # not a failure: an unseen process has no CPU figure, and the stall
+        # watcher reads None as no progress signal this tick.
         return None
     if observed is None:
         return None
     try:
         return float(observed.cpu_user_seconds) + float(observed.cpu_system_seconds)
     except (AttributeError, TypeError, ValueError):
-        # not a failure: an observation without the two CPU fields carries no
-        # figure to add, which is the same "no signal this tick".
-        return None
+        return None  # not a failure: no CPU fields, no figure to add.
 
 
 class WorkBoundExpired(subprocess.TimeoutExpired):
@@ -779,8 +767,7 @@ def _run_bounded_by_its_work(
                 out, err = proc.communicate(pending_input, timeout=period)
                 break
             except subprocess.TimeoutExpired:
-                # not a failure: the timeout IS the watch period, and the
-                # loop below decides whether the child is still working.
+                # not a failure: the timeout IS the watch period.
                 pending_input = None  # delivered on the first call
             now = time.monotonic()
             cpu = _child_cpu_seconds(proc.pid)
@@ -993,9 +980,8 @@ class SubprocessGateway:
                     try:
                         process.close()
                     except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
-                        # The admission event above already recorded the
-                        # outcome; this names the handle that would not close
-                        # under the exception being re-raised below.
+                        # The admission event recorded the outcome; this
+                        # names the handle that would not close.
                         logger.debug("Reaped handle would not close: %s", exc)
             raise
         return process
@@ -1147,9 +1133,7 @@ class SubprocessGateway:
                 stdout, stderr = proc.communicate(timeout=watch_period_s)
                 break
             except subprocess.TimeoutExpired:
-                # not a failure: the timeout IS the watch period, and the
-                # stall check below decides whether the child is working.
-                pass
+                pass  # not a failure: the timeout IS the watch period.
             now = time.monotonic()
             cpu = _child_cpu_seconds(proc.pid)
             if cpu is None:
@@ -1227,9 +1211,7 @@ class SubprocessGateway:
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            # not a failure: no running loop is the condition this blocking
-            # call requires, so the absence of one is the pass case.
-            pass
+            pass  # not a failure: this blocking call requires no loop.
         else:
             raise RuntimeError(
                 "run_model_blocking cannot block an active event loop; await run_async"
@@ -1777,10 +1759,9 @@ class SubprocessGateway:
                 process_group_id = int(os.getpgid(proc.pid))
                 process_session_id = int(os.getsid(proc.pid))
             except (OSError, ProcessLookupError, ValueError) as exc:
-                # Zero means "no group to govern", and the lane controller
-                # below acts on that. A child that exited between spawn and
-                # this call reaches the same zero as a platform that refused
-                # the query, so the reason is worth having.
+                # Zero means no group to govern, and the lane controller
+                # acts on that. A child that exited between spawn and this
+                # call reaches the same zero as a refused query.
                 logger.debug("No process group for pid %s: %s", proc.pid, exc)
                 process_group_id = 0
                 process_session_id = 0

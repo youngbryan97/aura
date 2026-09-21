@@ -222,9 +222,8 @@ async def _keep_the_cycle_open_while_it_is_working(
                                 time.monotonic() + clock.when() - loop.time()
                             )
                     except (AttributeError, RuntimeError):
-                        # not a failure: a clock that will not reschedule
-                        # leaves the deadline where it was, and the cycle
-                        # below runs against that one.
+                        # not a failure: a clock that will not reschedule leaves the deadline where
+                        # it was, and the cycle below runs against that one.
                         return
                 continue
             if now >= ceiling_at:

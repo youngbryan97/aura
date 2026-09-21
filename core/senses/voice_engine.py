@@ -89,14 +89,12 @@ except ImportError:
 try:
     import pyttsx3
 except ImportError:
-    # not a failure: optional; the speech path checks the name first.
-    pyttsx3 = None
+    pyttsx3 = None  # not a failure: optional; the speech path checks the name first.
 
 try:
     from piper import PiperVoice
 except ImportError:
-    # not a failure: optional; the speech path checks the name first.
-    PiperVoice = None
+    PiperVoice = None  # not a failure: optional; the speech path checks the name first.
 
 logger = logging.getLogger("Aura.VoiceEngine")
 
@@ -406,8 +404,7 @@ class SovereignVoiceEngine:
             self.loop = asyncio.get_running_loop()
             self._owner_loop_thread_id: int | None = threading.get_ident()
         except RuntimeError:
-            # not a failure: built off the loop, so there is no owner loop to
-            # record yet; the interrupt path checks for one before using it.
+            # not a failure: built off the loop, so there is no owner loop to record yet.
             self.loop = None
             self._owner_loop_thread_id = None
 
@@ -803,9 +800,8 @@ class SovereignVoiceEngine:
                         RuntimeError,
                         subprocess.SubprocessError,
                     ):
-                        # not a failure: a player that already exited needs no
-                        # terminate, and the interrupt flag above is what the
-                        # speech loop actually reads.
+                        # not a failure: a player that already exited needs no terminate, and the
+                        # interrupt flag above is what the speech loop actually reads.
                         pass
             finally:
                 completed.set()
@@ -1712,9 +1708,7 @@ class SovereignVoiceEngine:
         try:
             stream = task.result()
         except (asyncio.CancelledError, RuntimeError, OSError, TypeError, ValueError) as exc:
-            # A cancelled late start is ordinary; a start that RAISED means
-            # the microphone never opened, and the recovery scheduled below
-            # is the only sign of it.
+            # A cancelled late start is ordinary.
             if not isinstance(exc, asyncio.CancelledError):
                 logger.warning("Late microphone start did not produce a stream: %s", exc)
             if authority is not None:
@@ -2001,9 +1995,8 @@ class SovereignVoiceEngine:
                 try:
                     avg_prob = sum(seg.avg_logprob for seg in segments) / len(segments)
                 except (AttributeError, ZeroDivisionError):
-                    # not a failure: segments without a logprob carry no
-                    # confidence to average, and zero is the gate's own
-                    # "no evidence" value.
+                    # not a failure: segments without a logprob carry no confidence to average, and
+                    # zero is the gate's own "no evidence" value.
                     avg_prob = 0.0
                 
                 # Homeostatic Gating: Irritable (high gate) vs. Curious (low gate)

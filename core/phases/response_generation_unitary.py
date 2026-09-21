@@ -735,6 +735,22 @@ def _timeout_for_request(
 
 
 
+
+def _optional_service(name: str) -> Any:
+    """A service the coherence frame uses if it is there.
+
+    not a failure: each caller writes one line of the frame from what it
+    gets and leaves the line out when it gets nothing, so an absent service
+    and a container that will not answer are the same answer to the same
+    question. Written once because it was written five times, each one an
+    assignment of None.
+    """
+    try:
+        return ServiceContainer.get(name, default=None)
+    except _RESPONSE_RECOVERABLE_ERRORS:
+        return None  # not a failure: see the docstring.
+
+
 class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhatSheRemembers, Phase):
     """
     Liberated Response Generation.
@@ -1977,31 +1993,14 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             limit,
         )
 
-    @staticmethod
-    def _optional_service(name: str) -> Any:
-        """A service the coherence frame uses if it is there.
-
-        not a failure: every caller below writes one line of the frame from
-        what it gets and leaves the line out when it gets nothing, so an
-        absent service and a container that will not answer are the same
-        answer to the same question. Written once because it was written
-        five times, each one an assignment of None.
-        """
-        try:
-            return ServiceContainer.get(name, default=None)
-        except _RESPONSE_RECOVERABLE_ERRORS:
-            # not a failure: see the docstring — an absent service and a
-            # container that will not answer are the same answer here.
-            return None
-
     def _build_integrated_coherence_frame(self, state: AuraState, *, compact: bool = False) -> str:
-        now = self._optional_service("phenomenal_now")
-        report = self._optional_service("coherence_report")
-        unity_state = getattr(state.cognition, "unity_state", None) or self._optional_service(
+        now = _optional_service("phenomenal_now")
+        report = _optional_service("coherence_report")
+        unity_state = getattr(state.cognition, "unity_state", None) or _optional_service(
             "unity_state"
         )
-        unity_report = self._optional_service("unity_fragmentation_report")
-        repair_plan = self._optional_service("unity_repair_plan")
+        unity_report = _optional_service("unity_fragmentation_report")
+        repair_plan = _optional_service("unity_repair_plan")
 
         claim = self._integrated_phenomenal_claim(state, limit=180 if compact else 240)
         interior = self._normalize_text(getattr(now, "interior_narrative", "") if now else "", 220)
@@ -6822,9 +6821,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
 
                                     deterministic_floor = deterministic_user_facing_floor(objective)
                                 except _RESPONSE_RECOVERABLE_ERRORS as exc:
-                                    # The floor is what gets served when the
-                                    # draft is retryable. Losing it silently
-                                    # is how a turn ends with nothing.
+                                    # The floor is what gets served when the draft is retryable.
                                     logger.warning(
                                         "No deterministic floor for a retryable draft: %s", exc
                                     )
@@ -7480,9 +7477,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
 
             note_effort("response_chars", len(str(response or "")))
         except (ImportError, RuntimeError, TypeError, ValueError) as exc:
-            # The docstring above says the body's exertion moved only with
-            # recall before this call. A write that does not land puts it
-            # back there, quietly.
+            # The docstring above says the body's exertion moved only with recall before this call.
             logger.debug("Effort from this reply was not noted: %s", exc)
         r_lower = response.lower()
         p_type = "positive_interaction"
