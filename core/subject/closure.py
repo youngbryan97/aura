@@ -33,14 +33,20 @@ predicts K's future for the same reason any monotone series predicts any other
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 
 from core.subject.estimate import fit_predict, split_rows
 from core.subject.recording import Recording
+
+# How an array is summarised, shared with the core's own readers so the two
+# describe a recurrent state with the same numbers. See core/subject/sketch.py.
+from core.subject.sketch import SKETCH_SEED, SKETCH_WIDTH  # noqa: F401
+from core.subject.sketch import is_array as _is_array
+from core.subject.sketch import sketch as _sketch_array
 
 __all__ = [
     "PeripheryAccumulator",
@@ -91,52 +97,19 @@ def _is_clock(value: float) -> bool:
     return abs(value) >= EPOCH_FLOOR
 
 
-#: How many projections an array is summarised into, beyond its four moments.
-#: Fixed, so a reservoir of a thousand units and a vector of three cost the
-#: same, and drawn from a frozen seed so two runs sketch the same directions.
-SKETCH_WIDTH: int = 4
-SKETCH_SEED: int = 20250911
-
-
-def _is_array(value: Any) -> bool:
-    """A numpy array, or something that will become one without side effects."""
-    if isinstance(value, np.ndarray):
-        return True
-    # Torch and MLX tensors both answer to these and neither imports cleanly
-    # here; going through the array protocol keeps this from knowing which.
-    return (
-        hasattr(value, "shape")
-        and hasattr(value, "dtype")
-        and not callable(value)
-        and not isinstance(value, type)
-    )
-
-
 def _sketch(value: Any, name: str, out: dict[str, float]) -> None:
-    """An array as a fixed number of columns: four moments and a projection.
-
-    The projection is a seeded Gaussian, which preserves distances in
-    expectation, so two peripheral states that differ differ in the sketch. The
-    moments are there because a projection of a constant array is a constant
-    and the moments say it was one.
-    """
+    """An array as a fixed number of columns: four moments and a projection."""
     try:
-        flat = np.asarray(value, dtype=np.float64).reshape(-1)
+        size = int(np.isfinite(np.asarray(value, dtype=np.float64)).sum())
     except (TypeError, ValueError):
         return
-    flat = flat[np.isfinite(flat)]
-    if flat.size == 0:
+    summary = _sketch_array(value)
+    if summary is None:
         out[f"{name}#"] = 0.0
         return
-    out[f"{name}#"] = float(flat.size)
-    out[f"{name}.mean"] = float(flat.mean())
-    out[f"{name}.sd"] = float(flat.std())
-    out[f"{name}.min"] = float(flat.min())
-    out[f"{name}.max"] = float(flat.max())
-    rng = np.random.default_rng(SKETCH_SEED)
-    directions = rng.normal(size=(SKETCH_WIDTH, flat.size)) / math.sqrt(flat.size)
-    for index, column in enumerate(directions @ flat):
-        out[f"{name}.p{index}"] = float(column)
+    out[f"{name}#"] = float(size)
+    for field, number in summary.items():
+        out[f"{name}.{field}"] = number
 
 
 def _numbers(

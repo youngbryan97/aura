@@ -78,7 +78,15 @@ def test_the_product_is_lost_in_the_drift_when_read_on_the_level() -> None:
 
 
 def test_an_additive_gain_is_not_established_by_one_positive_split() -> None:
-    """The defect: information bars cleared, a single-split gain at zero."""
+    """The defect: information bars cleared, a single-split gain at zero.
+
+    An additive target gave a positive single-split gain on some seeds, a few
+    millionths either side of zero, and the fold lower bound is what refused
+    it. Since ed76a8273 the fit takes the most-shrunk candidate within one
+    standard error of the best, so an interaction that is not measurably
+    better is switched off and the gain reads exactly zero on every seed. The
+    lower bound still has to hold whatever the point estimate does.
+    """
     reports = [_report("additive", seed, "change") for seed in range(1, 21)]
     assert all(report.interaction_lower_bound <= 0.0 for report in reports)
-    assert any(report.interaction_gain > 0.0 for report in reports)
+    assert all(report.interaction_gain <= 0.0 for report in reports)

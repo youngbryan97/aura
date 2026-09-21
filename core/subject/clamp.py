@@ -128,6 +128,10 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "loop_cycle",
     ),
     "S": (
+        # Being met as a type, and relief resting on an untested belief, which
+        # the self-state reads since 743c2a208.
+        "identity.met_as_a_type",
+        "identity.unchecked_relief",
         "identity.stability",
         "identity.evolution_score",
         "identity.bonding_level",
@@ -187,6 +191,11 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "cognition.made_minor",
     ),
     "D": (
+        # The kind of act that arrived and the regard she has gone without,
+        # which deliberation reads since 743c2a208. A clamp that left them free
+        # let D's columns move inside D's own lesion.
+        "cognition.the_kind",
+        "cognition.never_told",
         "cognition.active_goals",
         "cognition.pending_initiatives",
         "cognition.current_origin",
