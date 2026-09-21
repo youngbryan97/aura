@@ -2242,6 +2242,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   matching reads an underscore-joined identifier as one word.
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
+  2026-09-21, 61, and this one poisons every test that runs after it.
+  `tests/test_routing_consults_what_actually_ran.py` called
+  `logging.disable(logging.CRITICAL)` at MODULE level, which is
+  process-wide and permanent — nothing restores it. From the moment that
+  file is imported, `assertLogs` in any later test sees nothing.
+  `test_memory_watchdog`'s lethal-reclaim test failed with "no logs of
+  level CRITICAL or higher triggered" in a batch of 570 and passed alone,
+  because the line it asserts on was emitted into a disabled logger. It is
+  an autouse fixture now, and restores the level in its own teardown.
+  A second one was mine, made this afternoon and found the same way: a new
+  watchdog test patched `time.monotonic` onto the `time` module to advance
+  its window, so every thread in the process read the fake clock.
+  `_note_lateness` takes the moment as an argument now, the way the
+  habituation store does.
   2026-09-21, 60 of the 130, and this one IS order dependence rather than
   source drift. `test_foundation_cognition_validation_samples_new_diagnostics_first`
   passed alone and failed in a batch of 405, on

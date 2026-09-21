@@ -185,7 +185,9 @@ class ShutdownCoordinator:
             try:
                 self._lifecycle.transition(to_state)
             except IllegalTransitionError:
-                pass  # already recorded as F17 by the machine
+                # not a failure here: the machine already recorded it as
+                # F17, and recording it twice is not two facts.
+                pass
         except ImportError as exc:
             logger.debug("Lifecycle transition skipped: %s", exc)
 
@@ -869,7 +871,10 @@ def _prune_shutdown_verdict_history(history_dir: Path, *, keep: int = 128) -> No
             key=lambda path: path.stat().st_mtime,
             reverse=True,
         )
-    except OSError:
+    except OSError as exc:
+        # This prunes the shutdown history. A directory that cannot be
+        # listed is a history that grows without bound, silently.
+        logger.warning("Shutdown history at %s could not be listed: %s", history_dir, exc)
         return
     for artifact in artifacts[max(1, keep):]:
         try:
@@ -940,7 +945,9 @@ def publish_shutdown_verdict(
                     if not task.done() and task is not current
                 )
             except RuntimeError:
-                loop_pending = 0  # no running loop: sync teardown context
+                # not a failure: a synchronous teardown context has no
+                # running loop, so nothing is pending on one.
+                loop_pending = 0
             if not isinstance(final_task_count, int):
                 blockers.append("final_task_snapshot_unavailable")
             else:
@@ -1155,6 +1162,8 @@ def _write_grace_flag(*, reason: str, created_at_unix: float) -> None:
 
             real_home = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve()
         except (ImportError, KeyError, OSError):
+            # not a failure: with no real home to compare against, the
+            # check below cannot find a write into it.
             real_home = None
         try:
             writing_into_real_home = bool(
@@ -1162,6 +1171,9 @@ def _write_grace_flag(*, reason: str, created_at_unix: float) -> None:
                 and grace_file.resolve().is_relative_to(real_home / ".aura")
             )
         except (OSError, ValueError):
+            # not a failure: a path that will not resolve is not shown to
+            # be inside the real home, and the comment above says only a
+            # test writing into the actual user's ~/.aura is refused.
             writing_into_real_home = False
         if writing_into_real_home and os.environ.get("AURA_ALLOW_LIVE_RUNTIME_WRITES") != "1":
             logger.warning(

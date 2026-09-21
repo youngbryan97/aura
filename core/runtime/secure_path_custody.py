@@ -204,6 +204,9 @@ class DirectoryCustody:
         try:
             self.close()
         except OSError:
+            # not a failure: a finalizer cannot raise anywhere useful, and
+            # the descriptor is being reclaimed by the interpreter either
+            # way. __exit__ above is where a close is reported.
             pass
 
     def verify(self) -> None:
@@ -409,6 +412,8 @@ class DirectoryCustody:
                 )
                 published = True
             except FileExistsError:
+                # not a failure: write-once means the name was taken, and
+                # False is how the caller hears that.
                 published = False
             self._verify_open_parent(relative, parent_fd)
             os.fsync(parent_fd)
@@ -418,7 +423,7 @@ class DirectoryCustody:
                 try:
                     os.unlink(name, dir_fd=parent_fd)
                 except FileNotFoundError:
-                    pass
+                    pass  # not a failure: the publish this is undoing did not land
             raise
         except OSError as exc:
             raise SecurePathCustodyError("secure_path_write_once_failed") from exc
@@ -427,7 +432,7 @@ class DirectoryCustody:
                 try:
                     os.unlink(temp_name, dir_fd=parent_fd)
                 except FileNotFoundError:
-                    pass
+                    pass  # not a failure: the rename above consumed it
             os.close(parent_fd)
             self.verify()
 
@@ -451,7 +456,7 @@ class DirectoryCustody:
                 try:
                     os.unlink(name, dir_fd=parent_fd)
                 except FileNotFoundError:
-                    pass
+                    pass  # not a failure: the publish this is undoing did not land
             raise
         except OSError as exc:
             raise SecurePathCustodyError("secure_path_atomic_write_failed") from exc
@@ -460,7 +465,7 @@ class DirectoryCustody:
                 try:
                     os.unlink(temp_name, dir_fd=parent_fd)
                 except FileNotFoundError:
-                    pass
+                    pass  # not a failure: the rename above consumed it
             os.close(parent_fd)
             self.verify()
 

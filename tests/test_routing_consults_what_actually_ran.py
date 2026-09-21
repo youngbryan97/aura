@@ -23,7 +23,24 @@ from core.language.label_mining import (
     mine_desktop_actuation_labels,
 )
 
-logging.disable(logging.CRITICAL)
+
+@pytest.fixture(autouse=True)
+def _quiet_logging():
+    """Silence this module's noisy surfaces, and only this module's.
+
+    ORDER DEPENDENCE, found 2026-09-21: this was a module-level
+    `logging.disable(logging.CRITICAL)`, which is process-wide and
+    permanent. Every test that ran after this module was imported lost
+    `assertLogs` — `test_memory_watchdog`'s lethal-reclaim test failed with
+    "no logs of level CRITICAL or higher triggered" in a batch of 570 and
+    passed alone, because the line it asserts on was emitted into a
+    disabled logger.
+    """
+    logging.disable(logging.CRITICAL)
+    try:
+        yield
+    finally:
+        logging.disable(logging.NOTSET)
 
 
 def test_a_receipt_records_what_happened_not_what_should_have() -> None:

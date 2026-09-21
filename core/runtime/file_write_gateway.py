@@ -140,6 +140,8 @@ def _not_on_the_loop(what: str) -> Iterator[None]:
     try:
         from core.runtime.which_thread_may_do_this import AKindOfWork, this_is
     except ImportError:  # pragma: no cover - foundation import order
+        # not a failure: the docstring says recorded, never raised, and a
+        # write that reaches here has already passed governance.
         yield
         return
     with this_is(AKindOfWork.NEVER_ON_THE_LOOP, what):
@@ -607,8 +609,14 @@ class FileWriteGateway:
                                 directory_fd,
                                 name,
                             )
-                        except FileWriteTransactionError:
-                            pass
+                        except FileWriteTransactionError as exc:
+                            # A transaction file left in the directory is
+                            # what the next transaction trips over, and
+                            # this runs in a finally with nothing else
+                            # reporting it.
+                            logger.warning(
+                                "Transaction file %s was not removed: %s", name, exc
+                            )
                     if lock_fd is not None:
                         fcntl.flock(lock_fd, fcntl.LOCK_UN)
         finally:
@@ -1072,6 +1080,8 @@ class FileWriteGateway:
         try:
             return durable_unlink(target, missing_ok=True)
         except FileNotFoundError:
+            # not a failure: nothing there to delete, which is what False
+            # reports and what missing_ok already allows for.
             return False
 
     def delete_path(
@@ -1298,8 +1308,11 @@ class FileWriteGateway:
                 if not quarantine_moved:
                     try:
                         os.fchmod(target_descriptor, stat.S_IMODE(initial.st_mode))
-                    except OSError:
-                        pass
+                    except OSError as exc:
+                        # The mode is being put back after a write that did
+                        # not quarantine. Leaving it changed is a file whose
+                        # permissions this gateway silently altered.
+                        logger.warning("Could not restore the mode on %s: %s", target, exc)
                 os.close(target_descriptor)
             os.close(parent_descriptor)
             if quarantine_descriptor is not None:
@@ -1462,6 +1475,8 @@ class FileWriteGateway:
             try:
                 drain_path.unlink()
             except FileNotFoundError:
+                # not a failure: the read above is the drain, and a file
+                # already gone has drained.
                 pass
 
     def write_json(
