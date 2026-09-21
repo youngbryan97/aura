@@ -2993,7 +2993,7 @@
       "scope": "<module>.BryanModelEngine._write_now"
     },
     {
-      "callee": "core.runtime.atomic_writer.atomic_write_text",
+      "callee": "core.runtime.atomic_writer.atomic_write_text_behind",
       "canonical_owner": false,
       "category": "direct_atomic_file_write",
       "count": 1,
@@ -3001,7 +3001,7 @@
       "scope": "<module>.HobbyEngine._save_entertainment_log"
     },
     {
-      "callee": "core.runtime.atomic_writer.atomic_write_text",
+      "callee": "core.runtime.atomic_writer.atomic_write_text_behind",
       "canonical_owner": false,
       "category": "direct_atomic_file_write",
       "count": 1,
@@ -16570,6 +16570,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "9147525b3b9a46ffc3a333346ca77672efb739e1ab382bdb7b40655574ed7b78",
+  "inventory_sha256": "7c7b24384fdbdd5156aef6c95f2e2cc473ca6910bbb42083035a73dfa4c594b9",
   "schema_version": 1
 }

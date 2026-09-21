@@ -43,12 +43,12 @@ clause and the thing that makes the loop recursive rather than a single step.
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
-import threading
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "Residual",
@@ -86,6 +86,7 @@ class Residual:
     attempts: int = 0
     solved: int = 0
     probes: tuple[Any, ...] = ()
+    cases: tuple[tuple[Any, Any], ...] = ()
 
     @property
     def persistent(self) -> bool:
@@ -130,16 +131,39 @@ def _the_term_as_a_function(term: Any) -> Callable[..., Any]:
     counts calls rather than reductions. A term that runs out is a term that
     does not compute here, which is the same answer the budget already gives.
     """
-    from core.cognition.the_floor_she_stands_on import Code, OutOfFuel, Stuck
+    from core.cognition.the_floor_she_stands_on import (
+        NOTHING,
+        Code,
+        OutOfFuel,
+        Pair,
+        Stuck,
+        as_list,
+        from_list,
+    )
     from core.cognition.the_floor_she_stands_on import run as run_on_the_floor
+
+    def to_floor(value: Any) -> Any:
+        if type(value) is int:
+            return value
+        if isinstance(value, (tuple, list)):
+            return from_list([to_floor(part) for part in value])
+        raise TypeError("operator examples require integers or nested sequences")
+
+    def from_floor(value: Any) -> Any:
+        if type(value) is int:
+            return value
+        if value is NOTHING or isinstance(value, Pair):
+            return tuple(from_floor(part) for part in as_list(value))
+        raise TypeError("operator returned neither an integer nor a sequence")
 
     def computes(one: Any, budget: Any = None) -> Any:
         if budget is not None:
             budget.step()
         try:
-            return int(
+            return from_floor(
                 run_on_the_floor(
-                    Code("of", parts=(term, Code("a number", value=int(one))))
+                    Code("of", parts=(term, Code("the one it was given", value=0))),
+                    env=(to_floor(one),),
                 )
             )
         except (OutOfFuel, Stuck) as exc:
@@ -185,6 +209,7 @@ class Operator:
     built_from: tuple[str, ...] = ()
     invented: bool = False
     generation: int = 0
+    term: Any = None
 
 
 class _Budget:
@@ -200,6 +225,14 @@ class _Budget:
             raise TimeoutError(f"exceeded {self.limit} steps")
 
 
+@dataclass(frozen=True)
+class OperatorState:
+    """Installed semantics and their rollback lineage, without audit history."""
+
+    operators: dict[str, Operator]
+    snapshots: tuple[tuple[str, dict[str, Operator]], ...]
+
+
 class OperatorKernel:
     """The evaluator's operator set, and the only way to extend it."""
 
@@ -212,15 +245,33 @@ class OperatorKernel:
         self._verdicts: list[Verdict] = []
         self._residuals: dict[str, Residual] = {}
 
+    def snapshot(self) -> OperatorState:
+        with self._lock:
+            return OperatorState(
+                dict(self._operators),
+                tuple((name, dict(before)) for name, before in self._snapshots),
+            )
+
+    def restore(self, state: OperatorState) -> None:
+        """Restore semantics; observations and attempted verdicts stay in history."""
+        with self._lock:
+            self._operators = dict(state.operators)
+            self._snapshots = [(name, dict(before)) for name, before in state.snapshots]
+
     # ── residuals ─────────────────────────────────────────────────────
 
-    def attempt(self, family: str, *, solved: bool, probes: Sequence[Any] = ()) -> Residual:
+    def attempt(
+        self, family: str, *, solved: bool, probes: Sequence[Any] = (),
+        cases: Sequence[tuple[Any, Any]] = (),
+    ) -> Residual:
         with self._lock:
             residual = self._residuals.setdefault(family, Residual(family=family))
             residual.attempts += 1
             residual.solved += 1 if solved else 0
             if probes:
                 residual.probes = tuple(probes)
+            # A coarse family key must not mix incompatible demonstrations.
+            residual.cases = tuple(cases)
             return residual
 
     def residuals(self) -> list[Residual]:
@@ -347,6 +398,7 @@ class OperatorKernel:
             self._operators[candidate.name] = Operator(
                 name=candidate.name, fn=computes, body=candidate.body,
                 built_from=candidate.built_from, invented=True, generation=generation,
+                term=candidate.term,
             )
         return self._record(Verdict(
             candidate.name, True, None, novel_on=tuple(novel_on), reach_gained=(family,),

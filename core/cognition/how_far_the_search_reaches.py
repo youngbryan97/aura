@@ -13,12 +13,9 @@ from generating them: five one-place heads, seven two-place ones, and a
 three-place ``if``, over however many leaves there are. Against that goes what
 a run actually examined, what computed a number, and what the kernel accepted.
 
-The second number is the one worth having. Shortest-first over a universal
-language reaches a few dozen symbols and stops, which is Levin's bound rather
-than a defect, and the only thing that moves the horizon is her own library
-offered as leaves. :func:`what_the_library_buys` says by how much: the same
-depth with L leaves against L + k of them, which is the difference between
-inventing a bigger budget and inventing a better vocabulary.
+Library leaves change the representable search space, not necessarily the
+probability of finding a correct answer within a budget. Actual coverage must
+come from the iterator; a configured limit is not a measurement.
 """
 from __future__ import annotations
 
@@ -44,12 +41,9 @@ THREE_PLACE = 1
 
 
 def _two_place() -> int:
-    try:
-        from core.cognition.the_floor_she_stands_on import ARITHMETIC
+    from core.cognition.the_floor_she_stands_on import ARITHMETIC
 
-        return 2 + len(ARITHMETIC)
-    except (ImportError, AttributeError):
-        return 6
+    return 2 + len(ARITHMETIC)
 
 
 def how_many_at(size: int, *, leaves: int, twos: int | None = None) -> int:
@@ -104,24 +98,28 @@ class AReach:
     computed: int
     #: How many were offered to the kernel.
     offered: int
+    #: None means no observed walk was supplied.
+    examined: int | None = None
+
+    def __post_init__(self) -> None:
+        if min(self.would_examine, self.computed, self.offered) < 0:
+            raise ValueError("search counters must be nonnegative")
+        if self.examined is not None:
+            if not 0 <= self.offered <= self.computed <= self.examined <= min(
+                self.would_examine, self.there_were
+            ):
+                raise ValueError("observed search counters are inconsistent")
 
     @property
-    def examined(self) -> int:
-        """What it actually walked: the ceiling or the whole space, whichever
-        is smaller. A cap of four thousand over three hundred and eighty terms
-        examines three hundred and eighty, and reporting the cap as the count
-        is how a search that exhausted its space reads as a search that
-        sampled it."""
-        return min(self.would_examine, self.there_were)
-
-    @property
-    def share_examined(self) -> float:
+    def share_examined(self) -> float | None:
+        if self.examined is None:
+            return None
         return (self.examined / self.there_were) if self.there_were else 0.0
 
     @property
-    def exhausted(self) -> bool:
-        """Whether the ceiling was never the binding constraint."""
-        return self.would_examine >= self.there_were
+    def exhausted(self) -> bool | None:
+        """Whether every term was actually visited, not merely affordable."""
+        return None if self.examined is None else self.examined == self.there_were
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -132,7 +130,9 @@ class AReach:
             "examined": self.examined,
             "computed": self.computed,
             "offered": self.offered,
-            "share_examined": round(self.share_examined, 6),
+            "share_examined": (
+                None if self.share_examined is None else round(self.share_examined, 6)
+            ),
             "exhausted": self.exhausted,
             "one_in": (
                 round(self.there_were / self.examined) if self.examined else None
@@ -147,6 +147,7 @@ def what_the_search_reached(
     would_examine: int,
     computed: int = 0,
     offered: int = 0,
+    examined: int | None = None,
 ) -> AReach:
     """One run's reach, with the denominator beside it."""
     return AReach(
@@ -156,6 +157,7 @@ def what_the_search_reached(
         would_examine=int(would_examine),
         computed=int(computed),
         offered=int(offered),
+        examined=examined,
     )
 
 
@@ -187,14 +189,16 @@ def what_the_library_buys(
 
 
 def how_far_it_reaches(
-    *, deepest: int = 3, leaves: int, would_examine: int, from_her_library: int = 0
+    *, deepest: int = 3, leaves: int, would_examine: int, from_her_library: int = 0,
+    examined: int | None = None, computed: int = 0, offered: int = 0,
 ) -> dict[str, Any]:
     """For the health report: the search's reach and what widens it."""
     reached = what_the_search_reached(
-        deepest=deepest, leaves=leaves, would_examine=would_examine
+        deepest=deepest, leaves=leaves, would_examine=would_examine,
+        examined=examined, computed=computed, offered=offered,
     )
     return {
-        "schema": "aura.operator_search.reach.v1",
+        "schema": "aura.operator_search.reach.v2",
         "reach": reached.to_dict(),
         "library": what_the_library_buys(
             deepest=deepest,

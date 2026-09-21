@@ -1537,6 +1537,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   baseline-dependent task filtering in the retrieval/depth diagnostic. The
   68-test focused pass does not qualify a model or close campaign verification.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [Grounded operator invention](evidence/G09_GROUNDED_OPERATOR_INVENTION_2026-09-21.md)
+  repairs example-output admission, retained-term reuse, actual search coverage,
+  and outer transaction rollback. Same-function lesion/rescue passes; fresh
+  cross-family gain and persistent recovery are not established by this work.
   [September 21 screenshot review](evidence/G_LEDGER_SCREENSHOT_REVIEW_2026-09-21.md)
   adopts measured held-out search benefit and abstraction lesion/rescue, with
   acquisition cost included. Algebraic and unconditional speedup claims are

@@ -22,7 +22,8 @@ from __future__ import annotations
 
 import itertools
 import logging
-from typing import Any, Callable, Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 from core.cognition.operator_invention import Candidate, OperatorKernel
 
@@ -43,13 +44,16 @@ def the_kernel() -> OperatorKernel:
     return _KERNEL
 
 
-def note_how_it_went(family: str, *, solved: bool, probes: Sequence[Any] = ()) -> Any:
+def note_how_it_went(
+    family: str, *, solved: bool, probes: Sequence[Any] = (),
+    cases: Sequence[tuple[Any, Any]] = (),
+) -> Any:
     """Tell the kernel what happened. Called from the answering path.
 
     Without this every residual is empty, every family is transient, and the
     kernel refuses everything for the right reason and the wrong cause.
     """
-    return _KERNEL.attempt(family, solved=solved, probes=probes)
+    return _KERNEL.attempt(family, solved=solved, probes=probes, cases=cases)
 
 
 #: What the last enumeration covered. Written by the proposer, read by the
@@ -65,10 +69,13 @@ def how_far_the_last_search_reached() -> dict[str, Any]:
     if not _NOTE_THE_REACH:
         return {"searched": False, "why": "no operator search has run this process"}
     said = how_far_it_reaches(
-        deepest=3,
+        deepest=int(_NOTE_THE_REACH.get("deepest", 3)),
         leaves=int(_NOTE_THE_REACH.get("leaves", 5)),
         would_examine=int(_NOTE_THE_REACH.get("would_examine", 0)),
         from_her_library=int(_NOTE_THE_REACH.get("from_her_library", 0)),
+        examined=int(_NOTE_THE_REACH.get("examined", 0)),
+        computed=int(_NOTE_THE_REACH.get("offered", 0)),
+        offered=int(_NOTE_THE_REACH.get("offered", 0)),
     )
     said["searched"] = True
     said["reach"]["offered"] = int(_NOTE_THE_REACH.get("offered", 0))
@@ -113,12 +120,16 @@ def _computes_a_number(body: Any, probes: Sequence[Any]) -> bool:
         return False
     run = _the_term_as_a_function(body)
     try:
-        return isinstance(run(probes[0]), int)
+        run(probes[0])
+        return True
     except Exception:  # noqa: BLE001 - foreign code: anything else is not arithmetic
         return False
 
 
-def _a_candidate_for(family: str, probes: Sequence[Any], *, how_many: int = 4000):
+def _a_candidate_for(
+    family: str, probes: Sequence[Any], *, how_many: int = 4000,
+    deepest: int = 3, max_offered: int | None = 64,
+):
     """Terms to offer, shortest first, over the floor.
 
     The proposer here is enumeration, and that is the honest description: the
@@ -145,14 +156,15 @@ def _a_candidate_for(family: str, probes: Sequence[Any], *, how_many: int = 4000
     # terms as leaves are the only thing that moves it.
     _NOTE_THE_REACH.clear()
     _NOTE_THE_REACH.update(
-        {"leaves": 5 + len(hers), "would_examine": how_many, "from_her_library": len(hers)}
+        {"leaves": 5 + len(hers), "would_examine": how_many,
+         "from_her_library": len(hers), "deepest": deepest}
     )
     offered = 0
     examined = 0
     for at, body in enumerate(
         itertools.islice(
             every_code(
-                deepest=3,
+                deepest=deepest,
                 variables=1,
                 constants=(0, 1, 2),
                 also=hers,
@@ -161,6 +173,7 @@ def _a_candidate_for(family: str, probes: Sequence[Any], *, how_many: int = 4000
         )
     ):
         examined = at + 1
+        _NOTE_THE_REACH["examined"] = examined
         if how_long(body) < 2 or not _computes_a_number(body, probes):
             continue
         offered += 1
@@ -176,7 +189,7 @@ def _a_candidate_for(family: str, probes: Sequence[Any], *, how_many: int = 4000
             arity=1,
             term=body,
         )
-        if offered >= 64:
+        if max_offered is not None and offered >= max_offered:
             _NOTE_THE_REACH["examined"] = examined
             return
     _NOTE_THE_REACH["examined"] = examined
@@ -192,28 +205,46 @@ def offer_inventing_an_operator(
     )
 
     def invent(situation: Any = None) -> str | None:
-        stuck = [one for one in _KERNEL.residuals() if one.persistent]
+        stuck = [one for one in _KERNEL.residuals() if one.cases]
         if not stuck:
             return None
         residual = stuck[0]
-        probes = list(residual.probes) or [1, 2, 3, 5, 8]
+        cases = residual.cases
+        probes = [before for before, _ in cases] or list(residual.probes)
+
+        def comparable(value: Any) -> Any:
+            if isinstance(value, (tuple, list)):
+                return tuple(comparable(part) for part in value)
+            return value
 
         def it_solves(run: Callable[..., Any], family: str) -> bool:
-            # Solving means answering every probe without raising, and the
-            # kernel checks compression and adversarial behaviour after this.
             try:
-                return all(run(one) is not None for one in probes)
+                return bool(cases) and all(
+                    run(before) == comparable(expected) for before, expected in cases
+                )
             except Exception:  # noqa: BLE001 - foreign code: a candidate that raises has not solved
                 return False
 
-        judge = solves or it_solves
-        for candidate in _a_candidate_for(residual.family, probes):
+        def judge(run: Callable[..., Any], family: str) -> bool:
+            return it_solves(run, family) and (solves is None or solves(run, family))
+        from core.cognition.library_compression import REFERENCE_COST
+        from core.cognition.the_floor_she_stands_on import how_long
+
+        # Depth three cannot express the binder and expression of x + x.
+        # The examined-term budget bounds this walk; returning constants must
+        # not consume a second offer cap before a correct candidate is reached.
+        for candidate in _a_candidate_for(
+            residual.family, probes, deepest=4, max_offered=None
+        ):
+            size = how_long(candidate.term)
+            uses = len({repr(comparable(before)) for before, _ in cases})
+            compression = uses * (size - REFERENCE_COST) - (size + REFERENCE_COST)
             verdict = _KERNEL.consider(
                 candidate,
                 family=residual.family,
                 probes=probes,
                 solves=judge,
-                compression=1,
+                compression=compression,
             )
             if verdict.installed:
                 logger.info(

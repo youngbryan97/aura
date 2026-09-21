@@ -51,6 +51,13 @@ def what_she_already_knows_how_to_say(*, most: int = _HOW_MANY_LEAVES) -> tuple[
 
     found: list[Any] = []
 
+    from core.cognition.an_operator_she_invents import the_kernel
+
+    found.extend(
+        operator.term for operator in the_kernel().operators().values()
+        if operator.invented and isinstance(operator.term, Code)
+    )
+
     try:
         from core.cognition.one_algebra import DERIVED_HEADS
 

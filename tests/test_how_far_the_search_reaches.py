@@ -41,7 +41,7 @@ def test_the_whole_space_at_depth_three_is_the_number_the_code_already_knew() ->
 def test_a_cap_above_the_space_is_a_search_that_exhausted_it() -> None:
     """Reporting the cap as the count reads as sampling when it was exhaustive."""
     reached = what_the_search_reached(
-        deepest=3, leaves=FLOOR_LEAVES, would_examine=4000
+        deepest=3, leaves=FLOOR_LEAVES, would_examine=4000, examined=380
     )
     assert reached.there_were == 380
     assert reached.examined == 380, "it cannot walk more terms than exist"
@@ -51,7 +51,7 @@ def test_a_cap_above_the_space_is_a_search_that_exhausted_it() -> None:
 
 def test_a_cap_below_the_space_is_a_sample_and_says_so() -> None:
     reached = what_the_search_reached(
-        deepest=4, leaves=FLOOR_LEAVES, would_examine=4000
+        deepest=4, leaves=FLOOR_LEAVES, would_examine=4000, examined=4000
     )
     assert reached.there_were > reached.would_examine
     assert not reached.exhausted
@@ -107,7 +107,7 @@ def test_what_her_library_actually_offers_is_reported_rather_than_assumed() -> N
     assert said["reach"]["there_were"] >= 380
 
 
-def test_the_proposer_reports_the_walk_it_actually_took() -> None:
+def test_the_proposer_reports_the_walk_it_actually_took(monkeypatch) -> None:
     """Wired, not beside it: measured on the walk rather than recomputed.
 
     A reach recomputed from the parameters says what the walk should have
@@ -119,15 +119,64 @@ def test_the_proposer_reports_the_walk_it_actually_took() -> None:
         how_far_the_last_search_reached,
     )
 
+    monkeypatch.setattr(
+        "core.cognition.what_she_already_knows_how_to_say.what_she_already_knows_how_to_say",
+        lambda: (),
+    )
     list(_a_candidate_for("a family", probes=(1, 2, 3), how_many=500))
     said = how_far_the_last_search_reached()
     assert said["searched"] is True
     assert said["reach"]["there_were"] == 380
     assert said["reach"]["walked"] > 0
     assert said["reach"]["walked"] <= said["reach"]["there_were"]
-    assert said["reach"]["exhausted"] is True, (
-        "a cap of 500 over 380 terms exhausts the space"
+    assert said["reach"]["examined"] == said["reach"]["walked"]
+    assert said["reach"]["exhausted"] == (said["reach"]["walked"] == 380)
+
+
+def test_capacity_without_a_walk_is_unmeasured():
+    reached = what_the_search_reached(leaves=5, would_examine=4000)
+    assert reached.examined is None
+    assert reached.exhausted is None
+    assert reached.to_dict()["share_examined"] is None
+
+
+def test_early_consumer_stop_cannot_claim_exhaustion(monkeypatch):
+    from core.cognition import an_operator_she_invents as proposer
+
+    monkeypatch.setattr(
+        "core.cognition.what_she_already_knows_how_to_say.what_she_already_knows_how_to_say",
+        lambda: (),
     )
+    candidates = proposer._a_candidate_for("early", (1,), how_many=4000)
+    next(candidates)
+    candidates.close()
+    reach = proposer.how_far_the_last_search_reached()["reach"]
+    assert 0 < reach["examined"] < reach["there_were"]
+    assert not reach["exhausted"]
+    assert reach["offered"] == reach["computed"] == 1
+
+
+def test_offer_limit_is_not_exhaustion(monkeypatch):
+    from core.cognition import an_operator_she_invents as proposer
+
+    monkeypatch.setattr(
+        "core.cognition.what_she_already_knows_how_to_say.what_she_already_knows_how_to_say",
+        lambda: (),
+    )
+    monkeypatch.setattr(proposer, "_computes_a_number", lambda *_: True)
+    assert len(list(proposer._a_candidate_for("capped", (1,)))) == 64
+    reach = proposer.how_far_the_last_search_reached()["reach"]
+    assert not reach["exhausted"]
+    assert reach["examined"] == reach["walked"] < 380
+
+
+@pytest.mark.parametrize("examined,computed,offered", [(381, 0, 0), (2, 3, 0), (2, 1, 2)])
+def test_inconsistent_observed_counters_are_rejected(examined, computed, offered):
+    with pytest.raises(ValueError, match="inconsistent"):
+        what_the_search_reached(
+            leaves=5, would_examine=4000, examined=examined,
+            computed=computed, offered=offered,
+        )
 
 
 def test_a_process_that_has_not_searched_says_so_rather_than_reporting_zero() -> None:

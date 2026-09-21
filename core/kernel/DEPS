@@ -8,7 +8,7 @@
 #
 # 27 outbound edges when this was generated.
 
-description = "core.kernel: may import only what it already imports; every new edge is an edit here."
+description = "core.kernel: declared orchestration dependencies, including the shared embedding lifecycle for memory-organ warmup; no other memory internals."
 
 include_rules = [
     "+core.kernel",
@@ -29,6 +29,8 @@ include_rules = [
     "+core.health",
     "+core.introspection",
     "+core.learning",
+    # Organ startup warms the existing shared encoder; it does not own a second model.
+    "+core.memory.embedding_runtime",
     "+core.ops",
     "+core.perception",
     "+core.phases",

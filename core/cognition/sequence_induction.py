@@ -853,7 +853,8 @@ def _a_word_the_language_was_missing(
     from core.cognition.what_she_could_do_next import the_actions_she_has
 
     _register_what_she_could_do()
-    sayable = lambda: induce_from(pairs) is not None
+    def sayable() -> bool:
+        return induce_from(pairs) is not None
     situation = _Situation(
         pairs=tuple((tuple(before), tuple(after)) for before, after in pairs),
         sayable=sayable,
@@ -876,9 +877,6 @@ def _a_word_the_language_was_missing(
         if decided.action is None:
             logger.info("she is not developing: %s", decided.grounds)
             note_an_episode(family, route=None, walked=costs_now, about=pairs)
-            from core.cognition.an_operator_she_invents import note_how_it_went
-
-            note_how_it_went(family, solved=False, probes=tuple(pairs[0][0]))
             return None
         from core.cognition.she_decides_to_develop import (
             _ALREADY_DECIDING,  # noqa: PLC2701
@@ -946,8 +944,11 @@ def _which_kind_of_growth_this_head_is(
 ) -> str:
     """Shorter name, longer reach, or a new distinction — decided, not assumed."""
     from core.cognition.an_invented_kind import addressings
-    from core.cognition.one_algebra import DERIVED_HEADS, Head
-    from core.cognition.one_algebra import _where_each_came_from  # noqa: PLC2701
+    from core.cognition.one_algebra import (
+        DERIVED_HEADS,
+        Head,
+        _where_each_came_from,  # noqa: PLC2701
+    )
     from core.cognition.what_an_invention_buys import the_horizon_of
     from core.cognition.which_kind_of_growth import UNDECIDED, which_kind_of_growth
 
@@ -1219,8 +1220,6 @@ def answer_sequence_question(text: Any) -> str:
     start_counting_again()
     said = _the_sequence_answer(text)
     walked = max(0, how_many_were_walked())
-    if not said:
-        return said
     pairs = [(one.before, one.after) for one in question.shown]
     family = _what_family_this_is(pairs)
     note_an_episode(family, route="an answer", walked=walked, about=pairs)
@@ -1232,9 +1231,12 @@ def answer_sequence_question(text: Any) -> str:
 
     note_how_it_went(
         family,
-        solved="I cannot answer this one yet" not in said,
+        solved=bool(said) and "I cannot answer this one yet" not in said,
         probes=tuple(question.asked),
+        cases=tuple((tuple(before), tuple(after)) for before, after in pairs),
     )
+    if not said:
+        return said
     # What is still open, kept where the asking action can find it.
     #
     # Several readings fitting everything shown and disagreeing about the case

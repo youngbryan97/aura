@@ -25,9 +25,10 @@ reporting a rollback it did not perform.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Iterator
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,7 @@ class HowItStood:
     """Every registry as it was, keyed by where it lives."""
 
     held: dict[str, dict[Any, Any]]
+    operator_state: Any = None
 
     def restore(self) -> tuple[str, ...]:
         """Put every registry back. Named so a holder needs no import of us.
@@ -92,12 +94,25 @@ class HowItStood:
             if was is None or registry == was:
                 continue
             moved[where] = (len(was), len(registry))
+        if self.operator_state is not None:
+            from core.cognition.an_operator_she_invents import the_kernel
+
+            now = the_kernel().snapshot()
+            if now != self.operator_state:
+                moved["core.cognition.operator_invention"] = (
+                    len(self.operator_state.operators), len(now.operators)
+                )
         return moved
 
 
 def as_it_stands() -> HowItStood:
     """Snapshot the registries. Cheap: one shallow copy per registry."""
-    return HowItStood(held={where: dict(reg) for where, reg in _reach()})
+    from core.cognition.an_operator_she_invents import the_kernel
+
+    return HowItStood(
+        held={where: dict(reg) for where, reg in _reach()},
+        operator_state=the_kernel().snapshot(),
+    )
 
 
 def put_it_back(was: HowItStood) -> tuple[str, ...]:
@@ -113,6 +128,10 @@ def put_it_back(was: HowItStood) -> tuple[str, ...]:
             continue
         registry.clear()
         registry.update(held)
+    if was.operator_state is not None:
+        from core.cognition.an_operator_she_invents import the_kernel
+
+        the_kernel().restore(was.operator_state)
     return tuple(sorted(was.what_changed()))
 
 
