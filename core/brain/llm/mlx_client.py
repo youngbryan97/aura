@@ -11433,7 +11433,30 @@ class MLXLocalClient(_WaitsForTheResult, _KeepsTheWorkerAlive, _KnowsWhichWorker
                             owner_label=owner_label,
                             **inline_kwargs,
                         )
-                    if foreground_request:
+                    try:
+                        decoded = max(0, int(res.get("tokens_used") or 0))
+                    except (TypeError, ValueError):
+                        decoded = 0
+                    if foreground_request and decoded > 0:
+                        # The worker decoded, and what it decoded did not
+                        # survive to a surface: it ended its turn inside the
+                        # private channel, or the quality gate refused the
+                        # draft. That is a live worker with a shaping problem.
+                        # LIVE 2026-09-20: 123 tokens and then 46, read as a
+                        # dead lane, and the parent reloaded twenty gigabytes
+                        # of weights and served the turn from the small model
+                        # while it did.
+                        self._record_degraded_event(
+                            "empty_surface_after_decode",
+                            detail=(
+                                f"{os.path.basename(self.model_path)}:"
+                                f"attempt={empty_count}:decoded={decoded}"
+                            ),
+                            severity="warning",
+                            foreground_request=True,
+                            classification="non_critical_fallback",
+                        )
+                    elif foreground_request:
                         self._record_degraded_event(
                             "empty_generation_exhausted",
                             detail=(
@@ -11454,7 +11477,12 @@ class MLXLocalClient(_WaitsForTheResult, _KeepsTheWorkerAlive, _KnowsWhichWorker
                             severity="info",
                             foreground_request=False,
                         )
-                    if foreground_request and self._is_primary_or_deep_lane() and empty_count >= 3:
+                    if (
+                        foreground_request
+                        and decoded == 0
+                        and self._is_primary_or_deep_lane()
+                        and empty_count >= 3
+                    ):
                         self._set_lane_state("recovering", "repeated_empty_generation")
                     return None
                 self._consecutive_empty = 0

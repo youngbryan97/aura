@@ -110,3 +110,57 @@ def test_hybrid_continuation_cache_matches_full_token_ledger():
     expected = model(mx.array([[31]]), cache=reference)
     mx.eval(continued, expected)
     assert mx.array_equal(continued, expected).item()
+
+
+def test_a_pass_that_ends_on_its_own_is_asked_before_the_stream_gives_up():
+    """LIVE 2026-09-20: the model ended its turn inside the private channel.
+
+    The budget path continues only when the channel's budget is spent. A
+    decoder that stops on its own with the channel open reached nothing, so
+    the passes now ask before they give up, and only then: a consumer's
+    ``break`` never reaches the hook.
+    """
+    asked = []
+
+    def generate(tap, prompt, kwargs):
+        for token in kwargs["tokens"]:
+            yield SimpleNamespace(token=token)
+
+    def when_a_pass_ends(passes):
+        asked.append(len(asked))
+        if len(asked) == 1:
+            passes.continue_with("</think>", {"tokens": [9]})
+
+    passes = _GenerationPasses(
+        generate, None, "q", {"tokens": [1, 2]}, when_a_pass_ends=when_a_pass_ends
+    )
+    consumed = [response.token for response in passes]
+    assert consumed == [1, 2, 9]
+    assert asked == [0, 1], "asked once per pass that ended on its own"
+
+
+def test_a_consumer_that_breaks_is_not_continued_from():
+    asked = []
+
+    def generate(tap, prompt, kwargs):
+        for token in kwargs["tokens"]:
+            yield SimpleNamespace(token=token)
+
+    passes = _GenerationPasses(
+        generate, None, "q", {"tokens": [1, 2, 3]}, when_a_pass_ends=lambda _p: asked.append(1)
+    )
+    for response in passes:
+        if response.token == 2:
+            break
+    assert asked == [], "a cancel or a stop sequence must not be continued from"
+
+
+def test_the_loop_continues_into_the_answer_after_an_end_of_turn():
+    """The wiring: the hook exists in the loop and both paths share one move."""
+    from pathlib import Path
+
+    source = Path("core/brain/llm/mlx_worker.py").read_text(encoding="utf-8")
+    assert "when_a_pass_ends=_when_a_pass_ends" in source
+    assert source.count("ended_by=\"end of turn\"") == 1
+    assert source.count("ended_by=\"budget\"") == 1
+    assert source.count("def _continue_into_the_answer(") == 1

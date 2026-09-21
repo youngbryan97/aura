@@ -249,3 +249,40 @@ def test_a_hold_on_the_loop_names_the_coroutine_that_reached_it(caplog):
     assert said, "the hold was not reported"
     assert "reached from the coroutine" in said[0]
     assert "the_coroutine_that_reached_it" in said[0]
+
+
+def test_a_hold_with_no_coroutine_over_it_still_names_a_caller(caplog):
+    """A callback on the loop awaits nothing, and used to name nothing.
+
+    LIVE 2026-09-20: 'vector_memory_engine.encode' held the loop for 531ms
+    five times over one session, and every report carried the same leaf line
+    and no caller at all, because the frame walk looked only for a coroutine.
+    """
+    import logging
+    import time
+
+    from core.runtime.lockdep import checked_lock, note_event_loop_thread
+
+    lock = checked_lock("probe.a_callback_that_blocks_the_loop")
+
+    def a_leaf_that_takes_the_lock():
+        with lock:
+            end = time.time() + 0.12
+            while time.time() < end:
+                sum(index * index for index in range(2000))
+
+    def the_callback_the_loop_ran():
+        a_leaf_that_takes_the_lock()
+
+    async def main():
+        note_event_loop_thread()
+        asyncio.get_running_loop().call_soon(the_callback_the_loop_ran)
+        await asyncio.sleep(0.3)
+
+    with caplog.at_level(logging.ERROR, logger="Aura.Lockdep"):
+        asyncio.run(main())
+
+    said = [r.getMessage() for r in caplog.records if "loop_blocking_hold" in r.getMessage()]
+    assert said, "the hold was not reported"
+    assert "with no coroutine over it" in said[0], said[0]
+    assert "the_callback_the_loop_ran" in said[0], said[0]
