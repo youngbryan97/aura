@@ -1158,7 +1158,7 @@
       "category": "direct_atomic_file_write",
       "count": 1,
       "path": "core/governance/capability_chain.py",
-      "scope": "<module>._KeyMaterial._write_public"
+      "scope": "<module>._KeyMaterial._write_public.publish"
     },
     {
       "callee": "core.runtime.atomic_writer.atomic_write_text",
@@ -16570,6 +16570,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "87018849cc03eb991ea15d8ed8ca6c5a28309e3083ddb085474918f66d9d4bf4",
+  "inventory_sha256": "9147525b3b9a46ffc3a333346ca77672efb739e1ab382bdb7b40655574ed7b78",
   "schema_version": 1
 }

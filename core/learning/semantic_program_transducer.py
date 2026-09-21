@@ -450,34 +450,26 @@ def _operation_feature(
         raise ValueError("semantic multiview evidence channels are incomplete")
     lexical_span = lexical[span.start : span.end]
     contextual_span = contextual[span.start : span.end]
-    values = {
-        "span_mean": np.mean(hidden[span.start : span.end], axis=0, dtype=np.float32),
-        "lexical_mean": np.mean(lexical_span, axis=0, dtype=np.float32),
-        "contextual_mean": np.mean(contextual_span, axis=0, dtype=np.float32),
-        "contextual_last": contextual_span[-1],
-        "lexical_mean_contextual_last": np.concatenate(
-            (np.mean(lexical_span, axis=0, dtype=np.float32), contextual_span[-1])
-        ),
-        "lexical_mean_contextual_mean_contextual_last": np.concatenate(
-            (
-                np.mean(lexical_span, axis=0, dtype=np.float32),
-                np.mean(contextual_span, axis=0, dtype=np.float32),
-                contextual_span[-1],
-            )
-        ),
-    }
-    if middle is not None:
-        middle_span = middle[span.start : span.end]
-        values.update(
-            {
-                "middle_mean": np.mean(middle_span, axis=0, dtype=np.float32),
-                "middle_last": middle_span[-1],
-            }
-        )
-    try:
-        return _normalized_feature(values[mode])
-    except KeyError as exc:
-        raise ValueError("semantic operation feature mode is unsupported") from exc
+    if mode == "span_mean":
+        value = np.mean(hidden[span.start : span.end], axis=0, dtype=np.float32)
+    elif mode == "lexical_mean":
+        value = np.mean(lexical_span, axis=0, dtype=np.float32)
+    elif mode == "contextual_mean":
+        value = np.mean(contextual_span, axis=0, dtype=np.float32)
+    elif mode == "contextual_last":
+        value = contextual_span[-1]
+    elif mode == "lexical_mean_contextual_last":
+        value = np.concatenate((np.mean(lexical_span, axis=0, dtype=np.float32), contextual_span[-1]))
+    elif mode == "lexical_mean_contextual_mean_contextual_last":
+        value = np.concatenate((np.mean(lexical_span, axis=0, dtype=np.float32),
+            np.mean(contextual_span, axis=0, dtype=np.float32), contextual_span[-1]))
+    elif mode == "middle_mean" and middle is not None:
+        value = np.mean(middle[span.start : span.end], axis=0, dtype=np.float32)
+    elif mode == "middle_last" and middle is not None:
+        value = middle[span.end - 1]
+    else:
+        raise ValueError("semantic operation feature mode is unsupported")
+    return _normalized_feature(value)
 
 
 def _valid_feature_selection_receipts(
