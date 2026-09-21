@@ -898,7 +898,18 @@ class CognitiveContext:
 
         while len(self.pending_intents) > 20:
             self.pending_intents.pop(0)
-        while len(self.pending_initiatives) > 10:
+        # How many she may hold open at once, scaled by how much of what she
+        # knows how to do she can actually do now.
+        #
+        # "Why perceive what I am worth by what you need" is the other half of
+        # this; the reach half is plainer. `cognition.scale` measures usable
+        # capability over known capability and was published every turn and
+        # read by nothing. Holding ten open while a third of her is reachable
+        # spends attention on work that cannot start, so the declared cap is
+        # multiplied by the measured reach and nothing new is chosen.
+        # See core/self/scale.py.
+        open_at_once = self._how_many_she_can_carry(10)
+        while len(self.pending_initiatives) > open_at_once:
             self.pending_initiatives.pop(0)
         while len(self.active_goals) > 10:
             self.active_goals.pop(0)
@@ -1034,6 +1045,23 @@ class CognitiveContext:
         # mode this exists to end, under another name.
         self.current_mode = CognitiveMode.REACTIVE
         return True
+
+    def _how_many_she_can_carry(self, declared: int) -> int:
+        """The declared cap, narrowed to the share of herself she can reach.
+
+        At least one: a reach of zero is a reading about her capabilities, not
+        a reason to drop every intention she has.
+        """
+        reading = getattr(self, "scale", None)
+        if not isinstance(reading, dict) or not reading.get("measured"):
+            return declared
+        try:
+            reach = float(reading.get("reach", 1.0) or 0.0)
+        except (TypeError, ValueError):
+            return declared
+        if not 0.0 <= reach <= 1.0:
+            return declared
+        return max(1, int(round(declared * reach)))
 
     def salience_prune(self, target: int) -> None:
         """Prune working memory to target size using salience ranking.
