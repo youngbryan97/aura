@@ -217,6 +217,38 @@ def _is_user_facing_origin(origin: Any) -> bool:
     return is_user_facing_origin(origin)
 
 
+
+def _only_fields_it_has(cls: Any, saved: Any, *, where: str) -> dict[str, Any]:
+    """The saved fields this dataclass still declares, and a word about the rest.
+
+    LIVE, 2026-09-21 boot: `IdentityKernel.__init__() got an unexpected
+    keyword argument 'met_as_a_type'`. A field was removed from the class
+    and the state on disk still carried it, so the WHOLE identity kernel
+    failed to rehydrate and the runtime came up with a default one, reported
+    only as one degradation line among many.
+
+    Removing a field is an ordinary thing to do. Making every saved state
+    unloadable is not what it should cost. A field the class no longer
+    declares is a field nothing reads, so it is dropped — by name, in the
+    log, because a state quietly losing values is the other way to get this
+    wrong.
+    """
+    if not isinstance(saved, dict):
+        return {}
+    known = {field.name for field in dataclasses.fields(cls)}
+    dropped = sorted(set(saved) - known)
+    if dropped:
+        logger.warning(
+            "[STATE] %s carries %d field(s) %s no longer declares: %s. "
+            "Dropped so the rest of the state loads.",
+            where,
+            len(dropped),
+            cls.__name__,
+            ", ".join(dropped),
+        )
+    return {name: value for name, value in saved.items() if name in known}
+
+
 class StateRepository:
     """
     Persists and retrieves AuraState.
@@ -2124,8 +2156,12 @@ class StateRepository:
 
         data = json.loads(json_str)
         # Reconstruct nested dataclasses with safety defaults
-        data["identity"] = IdentityKernel(**data.get("identity", {}))
-        data["affect"] = AffectVector(**data.get("affect", {}))
+        data["identity"] = IdentityKernel(
+            **_only_fields_it_has(IdentityKernel, data.get("identity"), where="identity")
+        )
+        data["affect"] = AffectVector(
+            **_only_fields_it_has(AffectVector, data.get("affect"), where="affect")
+        )
 
         cog = data.get("cognition", {})
         legacy_pending_intents = data.pop("pending_intents", None)
@@ -2133,23 +2169,42 @@ class StateRepository:
             cog["current_mode"] = CognitiveMode(cog["current_mode"])
         phenomenal = cog.get("phenomenal_state")
         if isinstance(phenomenal, dict):
-            cog["phenomenal_state"] = PhenomenalField(**phenomenal)
+            cog["phenomenal_state"] = PhenomenalField(
+                **_only_fields_it_has(
+                    PhenomenalField, phenomenal, where="cognition.phenomenal_state"
+                )
+            )
         unity_state = cog.get("unity_state")
         if isinstance(unity_state, dict):
             cog["unity_state"] = UnityState.from_dict(unity_state)
         if legacy_pending_intents and "pending_intents" not in cog:
             cog["pending_intents"] = legacy_pending_intents
-        data["cognition"] = CognitiveContext(**cog)
+        data["cognition"] = CognitiveContext(
+            **_only_fields_it_has(CognitiveContext, cog, where="cognition")
+        )
 
-        data["world"] = WorldModel(**data.get("world", {}))
-        data["soma"] = SomaState(**data.get("soma", {}))
-        data["motivation"] = MotivationState(**data.get("motivation", {}))
+        data["world"] = WorldModel(
+            **_only_fields_it_has(WorldModel, data.get("world"), where="world")
+        )
+        data["soma"] = SomaState(
+            **_only_fields_it_has(SomaState, data.get("soma"), where="soma")
+        )
+        data["motivation"] = MotivationState(
+            **_only_fields_it_has(MotivationState, data.get("motivation"), where="motivation")
+        )
 
         # ColdStore hydration (including CurriculumItems)
         cold_data = data.get("cold", {})
         curriculum_data = cold_data.get("training_curriculum", [])
-        cold_data["training_curriculum"] = [CurriculumItem(**item) for item in curriculum_data]
-        data["cold"] = ColdStore(**cold_data)
+        cold_data["training_curriculum"] = [
+            CurriculumItem(
+                **_only_fields_it_has(CurriculumItem, item, where="cold.training_curriculum")
+            )
+            for item in curriculum_data
+        ]
+        data["cold"] = ColdStore(
+            **_only_fields_it_has(ColdStore, cold_data, where="cold")
+        )
 
         # Health field reconstruction
         data["health"] = data.get(
@@ -2160,4 +2215,4 @@ class StateRepository:
         data.pop("_bus_id", None)
         data.pop("_transport_snapshot_kind", None)
 
-        return AuraState(**data)
+        return AuraState(**_only_fields_it_has(AuraState, data, where="state"))
