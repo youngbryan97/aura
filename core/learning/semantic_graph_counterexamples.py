@@ -46,8 +46,8 @@ def counterfactual_inputs(inputs, *, count=32, seed=0):
     return tuple(dict.fromkeys(probes))
 
 
-def argument_graph_program(nodes, arguments, *, n_inputs: int) -> Program:
-    """Normalize a selected DAG using the decoder's existing topological rule."""
+def argument_graph_order(nodes, arguments, *, n_inputs: int) -> tuple[int, ...]:
+    """Keep execution and source attribution on one topological permutation."""
     if len(nodes) != len(arguments) or any(
         type(register) is not int or not 0 <= register < n_inputs + len(nodes)
         for row in arguments for register in row
@@ -57,6 +57,12 @@ def argument_graph_program(nodes, arguments, *, n_inputs: int) -> Program:
     order = _operation_order(dependencies, nodes, require_connected=True)
     if order is None:
         raise ValueError("argument graph has no connected topological schedule")
+    return tuple(order)
+
+
+def argument_graph_program(nodes, arguments, *, n_inputs: int) -> Program:
+    """Normalize a selected DAG using the decoder's existing topological rule."""
+    order = argument_graph_order(nodes, arguments, n_inputs=n_inputs)
     remap = {n_inputs + old: n_inputs + new for new, old in enumerate(order)}
     return Program(n_inputs, tuple(Instruction(nodes[index].operation,
         tuple(r if r < n_inputs else remap[r] for r in arguments[index])) for index in order))

@@ -1119,6 +1119,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Six-report review](G_LEDGER_REVIEW_DISPOSITION_2026-09-21.md) records all
+  105 pages read, 42 mechanism-level dispositions, mathematical corrections
+  and their existing runtime owners. Recommendations do not close any G item.
+  [Fixed-bank replay](evidence/G03_FIXED_BANK_REPLAY_2026-09-21.md) repairs
+  diagnostic program/span ordering and compares two scorers on unchanged
+  target-blind banks; 112 focused tests pass. Full development evidence remains
+  required before selecting a new fit or claiming G03 complete.
   tasks using the existing language and computational substrates.
   [Diagnostic search cost](evidence/G03_DIAGNOSTIC_SEARCH_COST_2026-09-21.md)
   bounds optional diagnostic solves and stops reachability diagnosis after a
