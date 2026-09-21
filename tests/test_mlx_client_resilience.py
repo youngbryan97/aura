@@ -2188,6 +2188,56 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         self.assertIn("no_visible_text", terminal.kwargs["detail"])
         self.assertEqual(client._deferred_reboot_reason, "recoverable_empty_generation")
 
+    async def test_a_worker_that_decoded_and_served_nothing_is_not_rebooted(self):
+        """LIVE 2026-09-20: 123 tokens of reasoning, end of turn, no surface.
+
+        The worker was alive and decoding. Reading that as a dead lane cost a
+        reload of the weights and the turn was served from the small model
+        while they loaded.
+        """
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
+        client._process = ProcessProbe(alive=True)
+        client._init_done = True
+        self._attach_local_ipc_queues(client)
+        client._set_lane_state("ready")
+        client._recurrent_depth_status = {
+            "active": True,
+            "config": {"n_loops": 2},
+            "expected_loops": 2,
+            "required": True,
+        }
+        recorded = SyncCallProbe()
+
+        with ReplaceAttr(client, "_record_degraded_event", recorded):
+            with ReplaceAttr(
+                client,
+                "_wait_for_generation_result",
+                AsyncCallProbe(
+                    side_effect=[
+                        {"status": "ok", "text": "", "tokens_used": 123},
+                        {"status": "ok", "text": "", "tokens_used": 46},
+                    ]
+                ),
+            ):
+                result = await client._generate_inner(
+                    "hello",
+                    _retry=True,
+                    foreground_request=True,
+                    owner_label="test",
+                    deadline=get_deadline(30.0),
+                )
+
+        self.assertIsNone(result)
+        self.assertEqual(
+            [call.args[0] for call in recorded.call_args_list],
+            ["empty_generation_retry", "empty_surface_after_decode"],
+        )
+        terminal = recorded.call_args_list[-1]
+        self.assertEqual(terminal.kwargs["severity"], "warning")
+        self.assertIn("decoded=46", terminal.kwargs["detail"])
+        self.assertIsNone(client._deferred_reboot_reason)
+        self.assertEqual(client.get_lane_status()["state"], "ready")
+
     async def test_generate_reboots_recoverable_empty_generation_without_failed_lane(self):
         client = MLXLocalClient(model_path=QWEN32_MODEL)
 

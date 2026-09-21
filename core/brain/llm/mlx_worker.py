@@ -2267,10 +2267,14 @@ def _runtime_prefill_step_size(model_path: str) -> int:
 class _GenerationPasses:
     """Resume a decoder through the same consumer and close each old stream."""
 
-    def __init__(self, generate, tap, prompt, kwargs):
+    def __init__(self, generate, tap, prompt, kwargs, *, when_a_pass_ends=None):
         self.generate = generate
         self.pending = (tap, prompt, kwargs)
         self.final_responses = []
+        #: Asked when the decoder stops on its own, before this gives up. It
+        #: may call ``continue_with``; the consumer's ``break`` never reaches
+        #: it, so a cancel or a stop sequence is never continued from.
+        self.when_a_pass_ends = when_a_pass_ends
 
     def continue_with(self, prompt, kwargs):
         if self.pending is not None:
@@ -2293,6 +2297,8 @@ class _GenerationPasses:
                 responses.close()
                 if final is not None:
                     self.final_responses.append(final)
+            if self.pending is None and self.when_a_pass_ends is not None:
+                self.when_a_pass_ends(self)
 
 
 def _generation_pass_performance(
@@ -8113,11 +8119,138 @@ def _mlx_worker_loop(
                                     )
                                     final_generation_response = None
 
+                                    the_whole_budget = _safe_int(kwargs.get("max_tokens"), max_tokens)
+
+                                    def _continue_into_the_answer(
+                                        passes,
+                                        *,
+                                        ended_by,
+                                        at_token,
+                                        # Fixed for the generation, so bound here.
+                                        answer_budget=the_whole_budget,
+                                        decode_kwargs=clean_kwargs,
+                                        rendered_prompt=prompt,
+                                        tokenizer=tokenizer,
+                                        cache=cache,
+                                    ):
+                                        """Close the private channel and decode the answer.
+
+                                        Shared by the two ways a generation can be
+                                        inside the channel with no answer: the
+                                        channel's budget ran out, and the model
+                                        ended its turn in there.
+                                        """
+                                        nonlocal thinking_overran, tokens, current_response
+                                        nonlocal previous_cache_rollback, continuation_cache_rollback
+                                        thinking_overran = True
+                                        answer_kwargs = dict(decode_kwargs)
+                                        answer_kwargs["max_tokens"] = max(64, answer_budget - at_token)
+                                        boundary = "</think>\n"
+                                        boundary_tokens = tokenizer.encode(
+                                            boundary, add_special_tokens=False
+                                        )
+                                        if cache is not None:
+                                            answer_prompt = boundary_tokens
+                                            tokens.extend(boundary_tokens)
+                                        else:
+                                            answer_prompt = tokenizer.encode(
+                                                f"{rendered_prompt}{current_response}{boundary}"
+                                            )
+                                            tokens = list(answer_prompt)
+                                        current_response += boundary
+                                        # The next pass prefills a channel boundary.
+                                        # A rollback from before that boundary is stale.
+                                        previous_cache_rollback = None
+                                        continuation_cache_rollback = None
+                                        logger.info(
+                                            "[WORKER] Continuing from private channel at "
+                                            "token %d (%s) with %d answer tokens available.",
+                                            at_token,
+                                            ended_by,
+                                            answer_kwargs["max_tokens"],
+                                        )
+                                        passes.continue_with(answer_prompt, answer_kwargs)
+
+                                    answered_after_end_of_turn = False
+
+                                    def _when_a_pass_ends(
+                                        passes,
+                                        *,
+                                        thinking=(native_thinking is True),
+                                        deadline_unix=job_deadline_unix,
+                                        cache=cache,
+                                        prompt_cache=final_prompt_cache,
+                                    ):
+                                        """The model ended its turn inside the private channel.
+
+                                        LIVE 2026-09-20, twice on one question: 123 tokens
+                                        of reasoning, then end-of-turn, no ``</think>``,
+                                        no answer. The budget path above never fired,
+                                        because the budget was not spent; the surface was
+                                        empty; the parent read empty as a dead lane and
+                                        reloaded twenty gigabytes of weights. The
+                                        reasoning is in the cache. Closing the channel and
+                                        decoding on from it is what the budget path does,
+                                        and it is the same one move here.
+
+                                        Only a pass that stopped on its own reaches here:
+                                        a cancel, a deadline, a sentinel or a stop
+                                        sequence breaks out of the consumer, and the
+                                        passes never ask after a break.
+                                        """
+                                        nonlocal answered_after_end_of_turn
+                                        if not thinking or answered_after_end_of_turn:
+                                            return
+                                        # These three move with every token, and this is
+                                        # called inside the pass they belong to; binding
+                                        # them at definition would read the empty start.
+                                        so_far = current_response  # noqa: B023
+                                        spent = token_count  # noqa: B023
+                                        rollback = previous_cache_rollback  # noqa: B023
+                                        channels = split_native_thinking_generation(
+                                            so_far, native_thinking=True
+                                        )
+                                        if channels.boundary_closed or not str(
+                                            channels.reasoning or ""
+                                        ).strip():
+                                            return
+                                        if deadline_unix > 0.0 and time.time() >= deadline_unix:
+                                            return
+                                        answered_after_end_of_turn = True
+                                        # ``generate_step`` ran the model on the end-of-turn
+                                        # token before the stream stopped, so the cache is
+                                        # one token past the last one yielded. Rewind it
+                                        # where a rewind exists; where none does, the
+                                        # boundary follows that token, which reads worse
+                                        # than a clean cache and better than nothing.
+                                        if cache is not None and prompt_cache is not None:
+                                            if _can_trim(prompt_cache):
+                                                _do_trim(prompt_cache, 1)
+                                            else:
+                                                from core.brain.llm.prompt_cache import (
+                                                    rewind_hybrid_prompt_cache_one_token,
+                                                )
+
+                                                rewound, why = rewind_hybrid_prompt_cache_one_token(
+                                                    prompt_cache, rollback
+                                                )
+                                                if not rewound:
+                                                    logger.info(
+                                                        "[WORKER] Could not rewind the end-of-turn "
+                                                        "token before the channel boundary (%s); "
+                                                        "continuing past it.",
+                                                        why,
+                                                    )
+                                        _continue_into_the_answer(
+                                            passes, ended_by="end of turn", at_token=spent
+                                        )
+
                                     generation_passes = _GenerationPasses(
                                         _gen_stream,
                                         _np_tap,
                                         gen_prompt,
                                         clean_kwargs,
+                                        when_a_pass_ends=_when_a_pass_ends,
                                     )
                                     for response in generation_passes:
                                         final_generation_response = response
@@ -8270,38 +8403,10 @@ def _mlx_worker_loop(
                                             and not _channels_now.boundary_closed
                                             and token_count >= thinking_allowance
                                         ):
-                                            thinking_overran = True
-                                            answer_kwargs = dict(clean_kwargs)
-                                            answer_kwargs["max_tokens"] = max(
-                                                64,
-                                                _safe_int(kwargs.get("max_tokens"), max_tokens)
-                                                - token_count,
-                                            )
-                                            boundary = "</think>\n"
-                                            boundary_tokens = tokenizer.encode(
-                                                boundary, add_special_tokens=False
-                                            )
-                                            if cache is not None:
-                                                answer_prompt = boundary_tokens
-                                                tokens.extend(boundary_tokens)
-                                            else:
-                                                answer_prompt = tokenizer.encode(
-                                                    f"{prompt}{current_response}{boundary}"
-                                                )
-                                                tokens = list(answer_prompt)
-                                            current_response += boundary
-                                            # The next pass prefills a channel boundary.
-                                            # A rollback from before that boundary is stale.
-                                            previous_cache_rollback = None
-                                            continuation_cache_rollback = None
-                                            logger.info(
-                                                "[WORKER] Continuing from private channel at "
-                                                "token %d with %d answer tokens available.",
-                                                token_count,
-                                                answer_kwargs["max_tokens"],
-                                            )
-                                            generation_passes.continue_with(
-                                                answer_prompt, answer_kwargs
+                                            _continue_into_the_answer(
+                                                generation_passes,
+                                                ended_by="budget",
+                                                at_token=token_count,
                                             )
                                             continue
 
