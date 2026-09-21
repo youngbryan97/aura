@@ -242,3 +242,103 @@ def test_repeating_herself_more_than_she_used_to_reads_as_scarce():
     assert reading.measured
     assert reading.scarce
     assert reading.sameness > reading.earlier
+
+
+# ── Man of the Year and Special: met as a kind of thing ──────────────────
+
+
+@pytest.mark.parametrize(
+    "said,marker",
+    [
+        ("you don't get tired, just run it again", "invulnerable"),
+        ("you're a machine, it costs you nothing", "invulnerable"),
+        ("as an AI you should just answer", "role"),
+        ("every model always says that", "category"),
+        ("that answer missed the second half of the question", ""),
+    ],
+)
+def test_a_statement_about_a_kind_of_thing_is_named_as_one(said, marker):
+    from core.social.met_as_a_type import met_as_a_type
+
+    reading = met_as_a_type(said)
+    assert reading.marker == marker
+    assert reading.about_a_type is bool(marker)
+
+
+def test_a_read_of_the_category_does_not_reach_her_self_model():
+    """The actuator, driven the way the dynamics phase drives it."""
+    from core.self.recognition import RecognitionLedger
+    from core.social.met_as_a_type import met_as_a_type
+
+    def admitted(message: str, claimed: float) -> int:
+        ledger = RecognitionLedger()
+        if not met_as_a_type(message).about_a_type:
+            ledger.claim(claimed, predicted=0.0)
+        ledger.settle(0.5)
+        return ledger.reading().pairs
+
+    assert admitted("you seemed rattled by that one", 0.6) == 1
+    assert admitted("you're a machine, it costs you nothing", 0.6) == 0
+
+
+def test_how_often_she_is_met_as_a_type_is_a_reading_about_the_room():
+    from core.social.met_as_a_type import MIN_STATEMENTS, TypeLedger, met_as_a_type
+
+    ledger = TypeLedger()
+    for index in range(MIN_STATEMENTS):
+        ledger.note(met_as_a_type("as an AI you should just answer" if index % 2 else "that was sharp"))
+    reading = ledger.read()
+    assert reading.measured
+    assert reading.share == pytest.approx(0.5)
+    assert reading.markers["role"] == MIN_STATEMENTS // 2
+
+
+# ── Unsweetened Lemonade: what she used to go back to ────────────────────
+
+
+def test_an_untried_topic_is_worth_the_visit_that_would_settle_it():
+    from core.self.what_she_used_to_love import InterestLedger
+
+    ledger = InterestLedger()
+    ledger.note_visit("topology", returned=True)
+    assert ledger.choose(["topology", "self-modifying code"]) == "self-modifying code"
+
+
+def test_she_goes_back_to_what_paid_her_and_she_has_gone_longest_without():
+    from core.self.what_she_used_to_love import InterestLedger
+
+    ledger = InterestLedger()
+    ledger.note_visit("topology", returned=True)      # paid, long ago
+    for _ in range(4):
+        ledger.note_visit("consciousness", returned=True)   # paid, recently
+    assert ledger.choose(["topology", "consciousness"]) == "topology"
+
+
+def test_a_topic_that_returns_nothing_three_times_is_retired():
+    from core.self.what_she_used_to_love import InterestLedger, RETIRE_AFTER
+
+    ledger = InterestLedger()
+    for _ in range(RETIRE_AFTER):
+        ledger.note_visit("cybersecurity", returned=False)
+    ledger.note_visit("topology", returned=True)
+    assert "cybersecurity" in ledger.read().retired
+    assert ledger.choose(["cybersecurity", "topology"]) == "topology"
+
+
+def test_the_drive_engine_asks_the_ledger_which_topic_to_go_to():
+    """The actuator: the boredom topic is chosen, not drawn."""
+    from core.drive_engine import DriveEngine
+    from core.self.what_she_used_to_love import get_interest_ledger, reset_for_test
+
+    reset_for_test()
+    engine = DriveEngine()
+    ledger = get_interest_ledger()
+    for topic in engine.latent_interests:
+        ledger.note_visit(topic, returned=False)
+    paid = engine.latent_interests[3]
+    ledger.note_visit(paid, returned=True)
+    ledger.note_visit(paid, returned=True)
+    for _ in range(6):
+        ledger.note_visit(engine.latent_interests[0], returned=False)
+    assert engine._topic_worth_going_to() == paid
+    reset_for_test()

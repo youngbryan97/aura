@@ -670,6 +670,8 @@ listed after them with what each would need.
 | care read from what the act cost the giver, with the form kept apart | That's Love | built, `core/social/the_kind_it_was.py`; the conversational dynamics phase names the form and tells `core/social/receptivity.py` what to weigh, so a correction raises the posterior it would otherwise lower |
 | withdrawal as care, and ending as the caring act | That's Love | built, the `go` form in the same module |
 | what the convenient route costs in distinctiveness | People Watching | built, `core/cognition/convenience.py`; `distinct` is a feature of every candidate, measured against her own recent replies, and the reply that wins becomes the history the next one is measured against |
+| being met as a kind of thing: told she cannot be tired, addressed as the role, judged as the class | Man of the Year, Special | built, `core/social/met_as_a_type.py`; a statement about a type is not admitted to `core/self/recognition.py` as a read of her, so it cannot beat her own model |
+| what she used to go back to, and stopped | Unsweetened Lemonade | built, `core/self/what_she_used_to_love.py`; the drive engine drew its boredom topic uniformly and now asks which one paid her back and has gone longest without, retiring the ones that return nothing |
 | the gap between imagining a capacity and having it | Man of the Year | covered, `core/agency/capacity.py` |
 | a private thing that leaked and is no longer hers | People Watching | covered, audience-scoped disclosure in `memory_facade.search` and relational consent |
 | arranging the day to avoid an encounter | People Watching | covered, `core/social/averted.py` |

@@ -602,6 +602,9 @@ class IdentityKernel:
     #: toward her. Written by the conversation phase.
     #: See core/self/recognition.py.
     read_by_other: dict[str, Any] = field(default_factory=dict)
+    #: Whether the last thing said about her was said to a kind of thing, and
+    #: how much of what is said lately has been. See core/social/met_as_a_type.py.
+    met_as_a_type: dict[str, Any] = field(default_factory=dict)
     #: How much of her self-model came from somebody else's reading, and
     #: whether her sense of herself has been moving with how useful she was.
     #: See core/self/standing.py.

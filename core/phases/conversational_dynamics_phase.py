@@ -379,10 +379,24 @@ class ConversationalDynamicsPhase(Phase):
                 claim_about_her,
                 get_recognition_ledger,
             )
+            from core.social.met_as_a_type import get_type_ledger, met_as_a_type
             from core.state.percepts import emit_percept
 
             ledger = get_recognition_ledger()
             claimed = claim_about_her(message)
+            # Said to a kind of thing rather than to her: told she cannot be
+            # tired, addressed as the role, or judged as the class she is in.
+            # A statement about a type is not evidence about the individual,
+            # and a self-model that takes it as evidence learns the type.
+            # See core/social/met_as_a_type.py.
+            typed = met_as_a_type(message)
+            types = get_type_ledger()
+            types.note(typed)
+            state.identity.met_as_a_type = {
+                **typed.as_dict(), **types.read().as_dict(),
+            }
+            if typed.about_a_type:
+                claimed = None
             if claimed is not None:
                 loop = get_runtime_service("self_prediction", default=None)
                 prediction = loop.get_current_prediction() if loop is not None else None
