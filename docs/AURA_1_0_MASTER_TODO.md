@@ -2242,6 +2242,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   matching reads an underscore-joined identifier as one word.
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
+  2026-09-21, 60 of the 130, and this one IS order dependence rather than
+  source drift. `test_foundation_cognition_validation_samples_new_diagnostics_first`
+  passed alone and failed in a batch of 405, on
+  `lockdep_reports_no_order_violations`. That claim reads a PROCESS-global
+  splat count and its own source line says what it assumes: "a clean process
+  has no splats". True of a booting runtime; not true of a pytest process
+  that has already run four hundred tests, any one of which nesting two
+  locks unusually makes every later activation report a violation it did not
+  cause. The test resets both registers before the activation it asserts
+  about, so a splat the activation itself causes still fails — which
+  `test_a_splat_during_the_activation_still_fails` holds by taking two LEAF
+  locks in both orders and watching the claim go red.
   2026-09-19, 59 of the 130 closed, and the register's own heading was
   wrong. The dominant cause is not order dependence: it is a test reading
   SOURCE for a call site the method-size sweep moved. Three shapes, each now

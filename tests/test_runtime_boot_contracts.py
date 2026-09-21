@@ -191,10 +191,26 @@ def test_memory_provider_migrates_legacy_knowledge_graph_file(tmp_path, monkeypa
 
 @pytest.mark.asyncio
 async def test_foundation_cognition_validation_samples_new_diagnostics_first():
+    """The activation this test runs is what the assertions are about.
+
+    ORDER DEPENDENCE, found 2026-09-21: passed alone and failed in a batch of
+    405, on `lockdep_reports_no_order_violations`. That claim reads a
+    PROCESS-global splat count, and its own source line says "a clean process
+    has no splats" — true of a booting runtime and not of a pytest process
+    that has already run four hundred tests. Any one of them nesting two
+    locks unusually makes every later activation in that process report a
+    violation it did not cause.
+
+    Both registers are scoped to this activation, and scoped BEFORE it, so a
+    splat the activation itself causes still fails — which is what
+    `test_a_splat_during_the_activation_still_fails` holds.
+    """
     import core.runtime.foundations as foundations
     from core.organism.model_validation import reset_validation_for_test
+    from core.runtime.lockdep import reset_lockdep_for_test
 
     reset_validation_for_test()
+    reset_lockdep_for_test()
     middleware = await foundations._activate_middleware(foreground_only=True)
     cognition = await foundations._activate_cognition(foreground_only=True)
 
@@ -202,6 +218,33 @@ async def test_foundation_cognition_validation_samples_new_diagnostics_first():
     assert cognition.ok is True
     assert cognition.data["suite_outcome"]["failed"] == 0
     assert cognition.data["problem_tests"] == []
+
+
+@pytest.mark.asyncio
+async def test_a_splat_during_the_activation_still_fails():
+    """The null for the reset above: it must not make the claim unfailable."""
+    import core.runtime.foundations as foundations
+    from core.organism.model_validation import reset_validation_for_test
+    from core.runtime.lockdep import LockRank, checked_lock, reset_lockdep_for_test
+
+    reset_validation_for_test()
+    reset_lockdep_for_test()
+
+    # Two LEAF locks nested in both orders is the shape lockdep exists to
+    # find, and taking it here stands in for an activation that takes it.
+    first = checked_lock("test.splat.first", rank=LockRank.LEAF)
+    second = checked_lock("test.splat.second", rank=LockRank.LEAF)
+    with first, second:
+        pass
+    with second, first:
+        pass
+
+    cognition = await foundations._activate_cognition(foreground_only=True)
+    try:
+        assert cognition.ok is False
+        assert "lockdep_reports_no_order_violations" in cognition.data["problem_tests"]
+    finally:
+        reset_lockdep_for_test()
 
 
 @pytest.mark.asyncio
