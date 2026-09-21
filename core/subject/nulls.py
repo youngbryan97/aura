@@ -434,7 +434,15 @@ def _reference(
     the graph, one for closure and one for the rest of the suite. The copy is
     what callers get, because they set gains on it.
     """
-    key = (seed, strength, noise, tuple(sorted(widths.items())))
+    # The radius and the dose are settings of the solve, not of the caller, so
+    # they were left out of the key -- and a process that changed either got
+    # the reference built under the old one. A sweep over five radii read the
+    # same four numbers five times, which is a flat null with the rig as its
+    # cause rather than the system.
+    key = (
+        seed, strength, noise, tuple(sorted(widths.items())),
+        REFERENCE_RADIUS, REFERENCE_DOSE,
+    )
     built = _REFERENCES.get(key)
     if built is None:
         built = _solve_reference(widths, rng, strength, noise, seed)

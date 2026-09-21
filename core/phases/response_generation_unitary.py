@@ -166,6 +166,27 @@ def _record_response_degradation(
     logger.debug(message, *args, exc)
 
 
+def _lift_for_this_turn() -> float:
+    """What the answer budget for a heavy turn has earned, and 1.0 otherwise.
+
+    Her own light turns are the baseline, so this restores her to herself
+    rather than to a chosen length.
+    See core/conversation/presence_under_weight.py.
+    """
+    try:
+        from core.conversation.presence_under_weight import get_weight_ledger
+
+        reading = get_weight_ledger().read()
+        if not reading.measured or not reading.withdraws:
+            return 1.0
+        logger.info(
+            "🫱 [Presence] answer budget lifted x%.2f: %s", reading.lift, reading.why
+        )
+        return max(1.0, reading.lift)
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return 1.0
+
+
 def _breath_in_words(state: Any, draft: str) -> int:
     """How many words one breath holds, read off this draft's own words.
 
@@ -5930,7 +5951,15 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
             except (TypeError, ValueError, OverflowError):
                 foreground_cap = 0
             if foreground_cap > 0 and is_user_facing:
-                capped_tokens = max(64, min(foreground_cap, 2048))
+                # A turn this heavy gets back what her own record says she
+                # takes off it. Every gate that shortens an answer reads one
+                # turn; across turns she gave least where there was most to
+                # carry, and this is the only place that can put it back.
+                # One for everybody with no such record.
+                # See core/conversation/presence_under_weight.py.
+                capped_tokens = max(
+                    64, min(int(foreground_cap * _lift_for_this_turn()), 2048)
+                )
                 llm_kwargs["max_tokens"] = capped_tokens
                 llm_kwargs["num_predict"] = capped_tokens
                 # Memory-pressure shaping must not silently undo the answer

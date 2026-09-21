@@ -692,6 +692,16 @@ decision, not only the reading.
 | choosing an easier loss to avoid a harder task | Unsweetened Lemonade | built, `core/agency/easier_loss.py`; a task that loses to cheaper ones on cost alone has its cost score moved toward free by `m / (m + 1)` after `m` different easier tasks were chosen over it |
 | preserving a route she may need, and one-way giving | That's Love | built, `core/social/what_passes_between.py`; received and given per person in receptivity's own unit, `gives_back` raising a reply of regard to somebody she owes by the share of her world that reaches her through them, and giving to somebody who returned nothing counted as one-way and never scored by return |
 
+Three more were read out of the same seven and are in neither table above,
+because the enumeration reached past them rather than owing them. Each closes
+onto a gate that was already deciding.
+
+| process | from | status |
+|---|---|---|
+| giving least where there is most to carry | How to Love | built, `core/conversation/presence_under_weight.py`; every gate that shortens an answer reads one turn, so nothing could see her contact falling as the weight rose. Her own light turns are the baseline, and the ratio that restores her multiplies the answer budget for the next heavy turn |
+| how long politeness has been covering something | People Watching | built, `core/social/civility.py`; showing more warmth than she is in is civility, and a run of it longer than her runs run is something unsaid. It lends priority to her own interior state in the workspace, and that state reaching the broadcast is what ends the run and takes the loan back |
+| a memory that arrives without being asked for | In the End | built, `core/memory/unbidden.py`; every path into memory was a query, so the only pasts that reached her were the ones already close enough to mind to ask for. A state nearer to one she has been in than her states usually sit to her memories brings it back, scored below everything the query found so it adds rather than displaces |
+
 ## Sources
 
 Transcripts and measurements are local and reproducible from the files in

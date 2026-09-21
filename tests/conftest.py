@@ -1542,6 +1542,20 @@ def resource_observer(
             "core.motivation.returning",
             "core.self.converted",
             "core.self.never_taught",
+            "core.conversation.presence_under_weight",
+            "core.memory.unbidden",
+            "core.social.civility",
+            # The eight built for the nine the fourth seven enumerated. Each
+            # has a reset and none were listed, so one test's history was the
+            # next test's baseline -- which is how order-dependence starts.
+            "core.agency.easier_loss",
+            "core.agency.reference_class",
+            "core.motivation.for_its_own_sake",
+            "core.self.still_standing",
+            "core.self.valued_for",
+            "core.social.the_form_they_welcome",
+            "core.social.their_rise",
+            "core.social.what_passes_between",
         ):
             try:
                 __import__(module, fromlist=["reset_for_test"]).reset_for_test()

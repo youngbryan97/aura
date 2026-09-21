@@ -301,12 +301,22 @@ class CognitiveCandidate:
         # Both readings are shares in [0, 1] and are added on the scale the
         # other terms use. See core/affect/catharsis.py, core/social/averted.py.
         said_already = _relief_for(self.source)
+        # And what the surface has been covering. A run of showing more warmth
+        # than she is in is civility, which is not a fault; a run longer than
+        # her runs run is something not being said, and nothing measured how
+        # long one had been going on. It lends to her own interior state only,
+        # so saying it is what ends the run and takes the loan back.
+        # See core/social/civility.py.
+        covered = _civility_debt(self.content_type)
         held_down = _held_pressure(self.content_type)
         return min(
             1.0,
             max(
                 0.0,
-                (self.priority + lent + self.focus_bias + fe_bias + held_down - said_already)
+                (
+                    self.priority + lent + self.focus_bias + fe_bias
+                    + held_down + covered - said_already
+                )
                 * (0.7 + 0.3 * recency),
             ),
         )
@@ -349,6 +359,26 @@ def _held_pressure(content_type: Any) -> float:
     if not reading.measured or not reading.looking_away:
         return 0.0
     return max(0.0, min(1.0, float(reading.share_declined)))
+
+
+def _civility_debt(content_type: Any) -> float:
+    """How far past her own runs the surface has been ahead of the state.
+
+    Lent to her interior state and to nothing else: a run of politeness is a
+    reason for what is under it to compete, not a reason for a percept or a
+    memory to win. See core/social/civility.py.
+    """
+    if content_type not in (ContentType.AFFECTIVE, ContentType.SOMATIC):
+        return 0.0
+    try:
+        from core.social.civility import get_civility_ledger
+
+        reading = get_civility_ledger().read()
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+        return 0.0
+    if not reading.measured or not reading.covering:
+        return 0.0
+    return max(0.0, min(1.0, float(reading.lends)))
 
 
 #: How close two bids have to be before nothing distinguishes them.
@@ -1412,6 +1442,19 @@ class GlobalWorkspace:
             if winner is not None:
                 name = str(getattr(winner, "source", "") or "")
                 self._wins_by_source[name] = self._wins_by_source.get(name, 0) + 1
+                # Her own state reaching the broadcast is the run ending, which
+                # is what takes the lent priority back. A loan that survived
+                # being spent would keep paying itself.
+                # See core/social/civility.py.
+                if getattr(winner, "content_type", None) in (
+                    ContentType.AFFECTIVE, ContentType.SOMATIC
+                ):
+                    try:
+                        from core.social.civility import get_civility_ledger
+
+                        get_civility_ledger().said_it()
+                    except (AttributeError, ImportError, TypeError, ValueError):
+                        pass
 
         # --- Peripheral Awareness (Attention/Consciousness Dissociation) ---
         # Feed losers into the peripheral field so content that didn't win
