@@ -167,6 +167,24 @@ def test_observation_policy_requires_boolean(tmp_path, monkeypatch):
         audit.audit_semantic_cohort(model, examples, directory=tmp_path, diagnose_failures='false')
 
 
+def test_split_denominators_include_unresolved_observations(tmp_path, monkeypatch):
+    model, examples = setup(monkeypatch)
+    examples[1].split = 'validation'
+    monkeypatch.setattr(audit, '_observe', lambda model, item, **kwargs: {
+        'semantic_status': 'equivalent' if item.split == 'train' else 'unmeasured',
+        'source_grounding_aligned': True,
+    })
+    result = audit.audit_semantic_cohort(model, examples, directory=tmp_path,
+                                        diagnose_failures=False)
+    assert result['splits'] == {
+        'train': {'expected_count': 1, 'observed_count': 1,
+                  'stages': {'semantic_success_downstream_unmeasured': 1}},
+        'validation': {'expected_count': 1, 'observed_count': 1,
+                       'stages': {'semantic_comparison_unresolved': 1}},
+    }
+    assert sum(row['observed_count'] for row in result['splits'].values()) == result['observed_count']
+
+
 @pytest.mark.parametrize('field,value', [('split','validation'), ('construction_id','other'),
                                        ('topology_id','other')])
 def test_cohort_membership_labels_are_part_of_cache_identity(tmp_path, monkeypatch, field, value):

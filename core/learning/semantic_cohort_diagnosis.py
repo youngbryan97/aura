@@ -100,12 +100,21 @@ def audit_semantic_cohort(model, examples, *, directory, max_charts=16,
                       'failure_stage': document['failure_stage']})
     if implementation != validation_implementation_identity():
         raise ValueError('cohort audit implementation changed')
+    split_counts = {}
+    for split in sorted({item.split for item in examples}):
+        subset = [row for row in rows if row['split'] == split]
+        split_counts[split] = {
+            'expected_count': sum(item.split == split for item in examples),
+            'observed_count': len(subset),
+            'stages': dict(Counter(row['failure_stage'] for row in subset)),
+        }
     body = {'schema': 'aura.semantic_cohort_diagnosis.v2', 'identity': identity,
             'implementation': implementation, 'candidate': model.receipt_sha256,
             'diagnostic_policy': policy, 'search_allowances': options,
             'diagnostic_budget_uses_targets_after_bank_completion': diagnose_failures,
             'expected_count': len(examples), 'observed_count': len(rows), 'coverage_complete': True,
             'stages': dict(Counter(row['failure_stage'] for row in rows)),
+            'splits': split_counts,
             'rows': rows, 'test_examples_used': 0, 'serving_authority': False,
             'fresh_transfer_claim': False, 'learning_performed': False}
     return {**body, 'receipt_sha256': _sha(body)}
