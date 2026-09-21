@@ -288,6 +288,19 @@ def test_pair_objective_equals_enumerated_runtime_pointer_scores():
     assert loss == pytest.approx(expected, abs=2e-6)
 
 
+def test_pair_products_preserve_double_precision_for_projection_and_adjoint():
+    rng = np.random.default_rng(45)
+    hidden = rng.normal(size=(8, 17)).astype(np.float32)
+    weights, residual = rng.normal(size=17), rng.normal(size=8)
+    for column in range(5):
+        size = len(hidden) - column
+        paired = np.multiply(hidden[:size], hidden[column:], dtype=np.float64)
+        expected = np.einsum("ij,j,ij->i", hidden[:size], weights, hidden[column:], optimize=False)
+        np.testing.assert_allclose(paired @ weights, expected, rtol=1e-13, atol=1e-13)
+        expected_gradient = np.einsum("i,ij,ij->j", residual[:size], hidden[:size], hidden[column:], optimize=False)
+        np.testing.assert_allclose(residual[:size] @ paired, expected_gradient, rtol=1e-13, atol=1e-13)
+
+
 @pytest.mark.parametrize("objective,valid", [("span_set_pointer", True), ("operation_views", False)])
 def test_standard_refit_routes_pair_learning_switch(parent, tmp_path, monkeypatch, capsys, objective, valid):
     import json

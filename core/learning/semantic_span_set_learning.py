@@ -79,8 +79,8 @@ def _span_set_loss(
             # Stream one diagonal at a time; do not retain an intervals-by-width tensor.
             for column in range(scores.shape[1]):
                 size = len(hidden) - column
-                pair_score = np.einsum("ij,j,ij->i", hidden[:size], pair_weight, hidden[column:], optimize=False)
-                scores[:size, column] += pair_score
+                paired = np.multiply(hidden[:size], hidden[column:], dtype=np.float64)
+                scores[:size, column] += paired @ pair_weight
         partition, marginals = span_set_partition(scores, max_spans)
         loss += sample_weight * (partition - sum(scores[s, length - 1] for s, length in target))
         residual = marginals
@@ -94,8 +94,8 @@ def _span_set_loss(
         if learn_pair:
             for column in range(scores.shape[1]):
                 size = len(hidden) - column
-                gradient[2 * width:3 * width] += sample_weight * np.sqrt(width) * np.einsum(
-                    "i,ij,ij->j", residual[:size, column], hidden[:size], hidden[column:], optimize=False)
+                paired = np.multiply(hidden[:size], hidden[column:], dtype=np.float64)
+                gradient[2 * width:3 * width] += sample_weight * np.sqrt(width) * (residual[:size, column] @ paired)
         gradient[-1] += sample_weight * float(values.sum())
     return loss, gradient
 
