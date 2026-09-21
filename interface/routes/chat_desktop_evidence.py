@@ -337,6 +337,8 @@ def _should_collect_desktop_required_search_evidence(
 
         named_file = requested_file_read(user_message)
     except _CHAT_RECOVERABLE_ERRORS:
+        # not a failure: no resolvable filename found, so the comment above
+        # does not apply and the turn keeps looking for its evidence.
         named_file = None
     if named_file is not None and named_file.exists:
         return False, "", None
@@ -356,6 +358,8 @@ def _should_collect_desktop_required_search_evidence(
         if first_existing_path(user_message) is not None:
             return False, "", None
     except _CHAT_RECOVERABLE_ERRORS:
+        # not a failure: one signal of several that the evidence is local,
+        # and the checks below still run.
         pass
     # A directory named RELATIVE to her roots, and asked about as a count.
     #
@@ -372,6 +376,8 @@ def _should_collect_desktop_required_search_evidence(
 
         counted = requested_filesystem_count(user_message)
     except _CHAT_RECOVERABLE_ERRORS:
+        # not a failure: no count was asked for that this can read, and the
+        # checks below still run.
         counted = None
     if counted is not None and counted.exists:
         return False, "", None
@@ -390,6 +396,7 @@ def _should_collect_desktop_required_search_evidence(
         if first_named_url(user_message):
             return False, "", None
     except _CHAT_RECOVERABLE_ERRORS:
+        # not a failure: no named URL found, and the contract below decides.
         pass
     contract = _resolve_chat_response_contract(user_message)
     if not contract or not getattr(contract, "requires_search", False):
@@ -567,6 +574,8 @@ def _render_desktop_required_search_evidence(
         try:
             lines.append(f"contract_reason: {getattr(contract, 'reason', '')}")
         except _CHAT_RECOVERABLE_ERRORS:
+            # not a failure: a contract with no readable reason adds no line
+            # to an explanation that already has its own.
             pass
     return "\n".join(lines).strip()
 
@@ -617,6 +626,8 @@ def _recovered_search_result(query: str, exc: BaseException) -> dict[str, Any]:
     try:
         from core.search.gathered_sources import take_gathered
     except ImportError:
+        # not a failure: nothing was gathered because nothing gathers, and
+        # the line below already handles None.
         take_gathered = None  # type: ignore[assignment]
     held = take_gathered() if take_gathered is not None else None
     if held is None or not held.sources:
@@ -793,6 +804,8 @@ def _is_screen_perception_objective(user_message: str) -> bool:
         steps = DesktopTaskSkill()._derive_steps_from_objective(str(user_message or "").strip(), {})
         return bool(steps) and DesktopTaskSkill._primitive_steps_are_only_observational(steps)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        # not a failure: steps that cannot be derived cannot be shown to be
+        # observation-only, and this gate only ever withholds.
         return False
 
 
@@ -810,6 +823,8 @@ def _asks_what_is_on_the_screen(user_message: str) -> bool:
 
         return bool(_matches_screen(str(user_message or "")))
     except (ImportError, AttributeError, TypeError, ValueError):
+        # not a failure: with no registry to ask, this is not a screen
+        # objective as far as anything here can tell.
         return False
 
 
@@ -827,6 +842,8 @@ def _screen_perception_needs_her_answer(user_message: str) -> bool:
 
         return answer_shape_for(user_message) is not AnswerShape.DESCRIBE
     except (ImportError, AttributeError, TypeError, ValueError):
+        # not a failure: an unreadable answer shape is not evidence of a
+        # non-describing one, and this gate only ever withholds.
         return False
 
 
@@ -882,6 +899,7 @@ def _desktop_objective_self_sufficient_without_cognitive_text(user_message: str)
 
         steps = DesktopTaskSkill()._derive_steps_from_objective(text, {})
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        # not a failure: no steps derived means nothing here to classify.
         return False
 
     actions = {str(getattr(step, "action", "") or "") for step in steps}

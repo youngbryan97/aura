@@ -96,7 +96,15 @@ def _dual_bound_screen(
     if not np.all(np.isfinite(terms)) or not np.all(np.isfinite(residual)):
         return upper
     bound = math.fsum(terms)
-    tolerance = 1e-7 * (1. + abs(incumbent_cost) + float(np.sum(np.abs(terms))))
+    # The tolerance is the float-error bar on this comparison, and it must
+    # not be read off the bound it guards: a threshold derived from the
+    # value it judges is a threshold that moves with the answer, which is
+    # what `make epistemic-independence` refuses. Both sides of the
+    # comparison are bounded by the problem's own cost scale, so that is
+    # what it scales with — an input, fixed before the solve, and never
+    # smaller than the summation error it stands in for.
+    cost_scale = float(np.sum(np.abs(np.asarray(objective)) * np.abs(np.asarray(upper))))
+    tolerance = 1e-7 * (1. + abs(incumbent_cost) + cost_scale)
     fixed = upper.copy()
     binary = np.arange(len(upper)) < binary_count
     fixed[binary & (upper == 1.) & (bound + np.maximum(residual, 0.) > incumbent_cost + tolerance)] = 0.

@@ -554,8 +554,12 @@ class ResearchSearchPipeline:
             from core.search.gathered_sources import record_gathered
 
             record_gathered(cleaned_query, pages or hits[:max_pages])
-        except (ImportError, AttributeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            # The comment above is the live defect this record exists to
+            # prevent: five pages gathered and the turn answering "I
+            # couldn't get to an answer I'd stand behind". A record that
+            # does not land puts it back, silently.
+            logger.warning("Gathered sources were not recorded: %s", exc)
 
         if pages:
             emitter.emit("🧠 Synthesizing", f"Cross-referencing {len(pages)} sources to synthesize an accurate answer...", category="Research")
@@ -725,6 +729,8 @@ class ResearchSearchPipeline:
 
                 ddgs_cls = DDGS
             except ImportError:
+                # not a failure: neither package is installed, and the
+                # caller checks for None before searching.
                 ddgs_cls = None
 
         if ddgs_cls is None:
@@ -1450,6 +1456,8 @@ class ResearchSearchPipeline:
                 "confidence": max(0.0, min(1.0, confidence)),
             }
         except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            # not a failure: an answer that will not parse into the three
+            # fields is not one this can hand back, and None says so.
             return None
 
     def _deterministic_synthesis(
@@ -1636,8 +1644,10 @@ class ResearchSearchPipeline:
                             domain="learned_from_web",
                             source=f"web_search:{artifact.query[:40]}",
                         )
-                    except (RuntimeError, AttributeError, TypeError):
-                        pass  # no-op: intentional
+                    except (RuntimeError, AttributeError, TypeError) as exc:
+                        # `retained` is set True below either way, so a
+                        # belief that never landed is reported as learned.
+                        logger.warning("Fact was not retained as a belief: %s", exc)
                 retained = True
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation('research_pipeline', exc)
@@ -1653,8 +1663,10 @@ class ResearchSearchPipeline:
                 salience=0.4,
                 ttl=7200,
             )
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # no-op: intentional
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            # not a failure while the workspace is down; named because a
+            # research result that never reached it leaves no other trace.
+            logger.debug("Research result did not reach the workspace: %s", exc)
 
         # 5. Satisfy curiosity drive (learning something satisfies curiosity)
         try:
@@ -1666,10 +1678,12 @@ class ResearchSearchPipeline:
                         drive.satisfy("curiosity", 20.0),
                         name="research_pipeline.drive_curiosity",
                     )
-                except RuntimeError:
-                    pass  # no-op: intentional
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # no-op: intentional
+                except RuntimeError as exc:
+                    # not a failure: no running loop to satisfy the drive on.
+                    logger.debug("Curiosity was not satisfied here: %s", exc)
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            # not a failure: no drive engine, so nothing to satisfy.
+            logger.debug("No drive engine to satisfy curiosity: %s", exc)
 
         if not retained:
             # A deferral is a "not now", and research that already cost real
@@ -1862,6 +1876,8 @@ class ResearchSearchPipeline:
 
                 router = ServiceContainer.get("llm_router", default=None)
             except (ImportError, AttributeError):
+                # not a failure: the check below treats None as "no router",
+                # which is what a container that cannot answer means.
                 router = None
         if router is not None and hasattr(router, "think"):
             try:
@@ -1879,10 +1895,13 @@ class ResearchSearchPipeline:
                 try:
                     result = await asyncio.wait_for(router.think(prompt, **shape_kwargs), timeout=timeout_seconds)
                     return _normalize_text(str(result or ""), limit=4000)
-                except (TimeoutError, RuntimeError, AttributeError, TypeError):
-                    pass  # no-op: intentional
-            except (TimeoutError, RuntimeError, AttributeError):
-                pass  # no-op: intentional
+                except (TimeoutError, RuntimeError, AttributeError, TypeError) as exc:
+                    # Both arms of the shape retry failed, and the caller
+                    # gets an empty string either way. Which one it was
+                    # decides whether this is a slow model or a bad call.
+                    logger.debug("Router think retry failed: %s", exc)
+            except (TimeoutError, RuntimeError, AttributeError) as exc:
+                logger.debug("Router think failed: %s", exc)
 
         brain = context.get("brain")
         if brain is not None and hasattr(brain, "think"):
