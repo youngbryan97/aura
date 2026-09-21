@@ -284,7 +284,10 @@ def reached_from_a_finally(module: ModuleType, needle: str) -> bool:
     purpose rather than discovered here.
     """
 
-    source = inspect.getsource(module)
+    # The whole family: a lift moves the loop that holds the finally into a
+    # sibling mixin, and the guarantee goes with it (2026-09-20,
+    # `_run_thinking_loop` into `cognitive_engine_thinking_loop`).
+    source = family_text(module)
     tree = ast.parse(source)
     lines = source.splitlines()
 

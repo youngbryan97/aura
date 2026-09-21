@@ -41,6 +41,11 @@ include_rules = [
     "+core.evals",
     "+core.evaluation",
     "+core.event_bus",
+    # How a second voice answers a first rather than matching it. The drafts
+    # competition takes the first of a tie, and a tie is where a voice whose
+    # job is to answer belongs. Read only: the expression package never hears
+    # from consciousness. See core/expression/antiphony.py.
+    "+core.expression",
     "+core.exceptions",
     "+core.executive",
     "+core.ghost",

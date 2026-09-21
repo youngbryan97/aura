@@ -1,9 +1,9 @@
 {
   "organs": 123,
-  "cross_package_edges": 2029,
-  "dependency_entropy": 9.1562,
-  "kernel_lines": 616369,
-  "at_commit": "25521aea7ba3f8bbd4221c320fccfe036e692f03",
+  "cross_package_edges": 2040,
+  "dependency_entropy": 9.1609,
+  "kernel_lines": 618673,
+  "at_commit": "ee2588832da03153b63ee1ccb86f776acf3123c7",
   "history": [
     {
       "raised": [
@@ -392,6 +392,95 @@
         "commits_by_author": {
           "Claude": 191,
           "Codex": 34
+        }
+      }
+    },
+    {
+      "raised": [
+        "cross_package_edges",
+        "dependency_entropy",
+        "kernel_lines"
+      ],
+      "from": {
+        "cross_package_edges": 2029,
+        "dependency_entropy": 9.1562,
+        "kernel_lines": 616369
+      },
+      "to": {
+        "cross_package_edges": 2040,
+        "dependency_entropy": 9.1609,
+        "kernel_lines": 618673
+      },
+      "because": "Eight thousand kernel lines over 278 files since 25521aea7, and the top of the list is the lift mechanism moving code rather than writing it: mlx_client_worker_lifecycle (1660), llm_health_router_endpoint_call (1643), cognitive_engine_quick_reply (1445), inference_gate_living_context (1290) and cognitive_engine_thinking_loop (1248) are all extractions out of the God objects, and a split costs the import header and TYPE_CHECKING block it needs at both ends. Eleven more cross-package edges come with them, because a sibling that imports what it was lifted from is an edge the graph can now see. learning carries 1,870 of the net and brain 1,371. 77 commits by Claude and 49 by Codex in the window. The measurement is below rather than a sentence about it.",
+      "landed": {
+        "since": "25521aea7ba3f8bbd4221c320fccfe036e692f03",
+        "net_kernel_lines": 7991,
+        "files_touched": 278,
+        "per_package": {
+          "learning": 1870,
+          "brain": 1371,
+          "social": 820,
+          "self": 680,
+          "conversation": 500,
+          "runtime": 428,
+          "phases": 279,
+          "orchestrator": 241,
+          "cognition": 220,
+          "memory": 219
+        },
+        "largest_files": [
+          {
+            "path": "core/brain/llm/mlx_client_worker_lifecycle.py",
+            "net_lines": 1660
+          },
+          {
+            "path": "core/brain/llm_health_router_endpoint_call.py",
+            "net_lines": 1643
+          },
+          {
+            "path": "core/brain/cognitive_engine_quick_reply.py",
+            "net_lines": 1445
+          },
+          {
+            "path": "core/brain/inference_gate_living_context.py",
+            "net_lines": 1290
+          },
+          {
+            "path": "core/brain/cognitive_engine_thinking_loop.py",
+            "net_lines": 1248
+          },
+          {
+            "path": "core/learning/unified_intrinsic_recurrence_construction.py",
+            "net_lines": 1219
+          },
+          {
+            "path": "core/brain/inference_gate_turn_setup.py",
+            "net_lines": 1039
+          },
+          {
+            "path": "core/brain/llm/context_assembler_blocks.py",
+            "net_lines": 1034
+          },
+          {
+            "path": "core/brain/llm/mlx_client_waiting.py",
+            "net_lines": 911
+          },
+          {
+            "path": "core/resilience/stability_checks.py",
+            "net_lines": 812
+          },
+          {
+            "path": "core/orchestrator/mixins/boot/boot_autonomy_salvage.py",
+            "net_lines": 752
+          },
+          {
+            "path": "core/brain/inference_gate_turn_serving.py",
+            "net_lines": 713
+          }
+        ],
+        "commits_by_author": {
+          "Claude": 77,
+          "Codex": 49
         }
       }
     }

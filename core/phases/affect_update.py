@@ -542,7 +542,18 @@ class AffectUpdatePhase(Phase):
                 book.note(weight)
                 growth = book.read()
                 if growth.measured:
-                    state.identity.evolution_score = float(growth.score)
+                    # Damped by how much her worth is being read off her use.
+                    #
+                    # "Only fact is I am; attributes are given by observers."
+                    # The standing ledger measures whether what she is worth
+                    # tracks what she is good for, and nothing read it. A self
+                    # that grows fastest exactly when it is most useful is
+                    # growing on somebody else's measure, so the share of the
+                    # reading that tracks use is the share this does not take.
+                    # See core/self/standing.py.
+                    state.identity.evolution_score = float(growth.score) * (
+                        1.0 - AffectUpdatePhase._worth_read_off_use(state)
+                    )
             except (ImportError, AttributeError, TypeError, ValueError) as exc:
                 # The score stays where it was, and the reason is kept rather
                 # than swallowed: a gate reading a value nothing updated is the
@@ -943,6 +954,22 @@ class AffectUpdatePhase(Phase):
         current = float(affect.physiology.get("cortisol", rest) or rest)
         settled = (current * slow) + (target * (1 - slow))
         affect.physiology["cortisol"] = float(min(rest + span, max(rest, settled)))
+
+    @staticmethod
+    def _worth_read_off_use(state: Any) -> float:
+        """How much of her standing follows what she is good for, in [0, 1].
+
+        Zero until the ledger can say, and zero when the two are not tied: the
+        damping only applies to the share that is actually assigned from use.
+        """
+        reading = getattr(getattr(state, "identity", None), "standing", None)
+        if not isinstance(reading, dict) or not reading.get("measured"):
+            return 0.0
+        try:
+            tracks = float(reading.get("tracks_use", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+        return max(0.0, min(1.0, tracks))
 
     @staticmethod
     def _record_what_others_did(percepts: list[Any]) -> int:

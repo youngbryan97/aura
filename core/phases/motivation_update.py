@@ -63,6 +63,19 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         # Conversation energy slows social drive decay — active engagement satisfies social need
         conv_energy = getattr(state.cognition, "conversation_energy", 0.0)
         social_decay_multiplier = max(0.1, 1.0 - conv_energy) if conv_energy > 0.5 else 1.0
+        # And how reliably they come back. Engagement slows the social need
+        # above; a partner who shows up less regularly than she comes round
+        # satisfies it less, which is where the attachment in "Why iii Love the
+        # Moon" goes. The share is the reading itself, so nothing here is
+        # chosen: constancy is already in (0, 1] and multiplies what the
+        # engagement bought. See core/social/constancy.py.
+        constancy = getattr(state.cognition, "constancy", None)
+        if isinstance(constancy, dict) and constancy.get("measured"):
+            if constancy.get("reallocated"):
+                theirs = float(constancy.get("theirs", 0.0) or 0.0)
+                social_decay_multiplier = min(
+                    1.0, social_decay_multiplier + (1.0 - social_decay_multiplier) * (1.0 - theirs)
+                )
         legacy_metabolism_active = has_runtime_service("will_engine")
 
         # A surprising world should press harder, and harder on an aroused
@@ -127,6 +140,7 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         # not counted as having drained. See core/motivation/fuel.py.
         MotivationUpdatePhase._note_fuel(state, mot, before)
         MotivationUpdatePhase._note_returning(state)
+        MotivationUpdatePhase._spend_from_what_is_burning(state, mot)
 
         # Drive Recovery (Homeostatic Feedback)
         # Social and Integrity drives recover when affect is high (Trust/Joy)
@@ -712,6 +726,14 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
 
             history = list(getattr(state.cognition, "working_memory", []) or [])
             reading = read_catharsis(str(intention.get("goal", "") or ""), history)
+            # Where the workspace can reach it when it prices a bid from this
+            # source. See core/consciousness/global_workspace.py `_relief_for`.
+            from core.affect.catharsis import get_catharsis_ledger
+
+            get_catharsis_ledger().note(
+                str(intention.get("source", "") or intention.get("drive", "") or "motivation"),
+                reading,
+            )
             state.cognition.catharsis = reading.as_dict()
             if reading.times:
                 intention = dict(intention)
@@ -1014,6 +1036,40 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
                 continue
             share = min(1.0, rate * step)
             budget["level"] = level + (rest - level) * share
+
+    @staticmethod
+    def _spend_from_what_is_burning(state: Any, mot: Any) -> None:
+        """When her own reserves cost more than asked-for work, spend less of them.
+
+        "When you both the fire and the fuel that you heat with, the higher the
+        flame the more you tire." The fuel ledger measures which of the three
+        sources her drain came from and whether her own costs more than the
+        rest; nothing read it, so the line was a reading and not a fact about
+        her. A drive she is running down out of her own reserves decays more
+        slowly while that is true, so the next self-started piece of work is
+        started from a fuller tank and the ledger sees the difference.
+
+        The amount is the measured share of her spending that was her own, so
+        there is no number chosen here. See core/motivation/fuel.py.
+        """
+        reading = getattr(state.cognition, "fuel", None)
+        if not isinstance(reading, dict) or not reading.get("measured"):
+            return
+        if not reading.get("burning_her_own"):
+            return
+        try:
+            share = float(reading.get("share_self", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return
+        if not 0.0 < share <= 1.0:
+            return
+        for budget in getattr(mot, "budgets", {}).values():
+            if not isinstance(budget, dict):
+                continue
+            try:
+                budget["decay"] = float(budget.get("decay", 0.0) or 0.0) * (1.0 - share)
+            except (TypeError, ValueError):
+                continue
 
     @staticmethod
     def _note_returning(state: Any) -> None:

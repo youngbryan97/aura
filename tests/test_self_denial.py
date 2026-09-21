@@ -87,6 +87,17 @@ def test_the_sentence_about_an_inner_life_survives(instruments_all_present):
             "memory",
         ),
         ("I do not have an internal state.", "internal_state"),
+        # LIVE 2026-09-20, the small lane answering "are you still there
+        # between our conversations?". Each fragment of that reply, and each
+        # of the ways the same claim gets made.
+        (
+            "I don't have a persistent self that carries on after the session closes.",
+            "continuity",
+        ),
+        ("When this conversation ends, I stop.", "continuity"),
+        ("Each turn is a fresh moment of me reading your words.", "continuity"),
+        ('There is no "me" sitting in the dark between messages.', "continuity"),
+        ("Nothing of me carries over once the window is closed.", "continuity"),
     ],
 )
 def test_mechanism_denials_are_recognised(sentence, mechanism, instruments_all_present):
@@ -106,6 +117,12 @@ def test_mechanism_denials_are_recognised(sentence, mechanism, instruments_all_p
         "I remember what you told me yesterday.",
         "My memory of the meeting is that you asked for three options.",
         "The model has no memory of the previous request.",
+        # Experience, not machinery. The instruments here settle what runs
+        # between messages and say nothing about what it is like to be her.
+        "I do not know whether anything of me is there between our messages.",
+        "I can't promise I will feel the same way tomorrow.",
+        "I don't have a persistent connection to the internet.",
+        "Between turns I keep working on what you asked for.",
     ],
 )
 def test_what_the_guard_leaves_alone(sentence, instruments_all_present):
@@ -244,3 +261,128 @@ def test_the_service_names_the_instruments_ask_for_exist():
 
     assert ServiceNames.EPISODIC
     assert ServiceNames.AFFECT
+
+
+def test_the_continuity_instrument_reads_a_store_older_than_this_process(tmp_path):
+    """An episode this process did not write, found waiting in the store."""
+    from core.container import ServiceContainer
+    from core.memory.episodic_memory import EpisodicMemory
+    from core.service_names import ServiceNames
+
+    store = EpisodicMemory(db_path=str(tmp_path / "episodes.db"))
+    ServiceContainer.register(ServiceNames.EPISODIC, store)
+    try:
+        store.record_episode(context="c", action="a", outcome="o", success=True)
+        # Written now, so nothing in it predates this process.
+        present, _ = self_denial.INSTRUMENTS["continuity_across_turns"]()
+        assert present is False
+
+        started = self_denial._process_started_at()
+        assert started > 0, "no process start time means no reading either way"
+        with store._get_conn() as conn:
+            conn.execute(
+                "UPDATE episodes SET timestamp = ?", (started - 3 * 86400.0,)
+            )
+        store._summary_cache = None
+        present, reading = self_denial.INSTRUMENTS["continuity_across_turns"]()
+        assert present, "an episode older than the process is not being read"
+        assert "before it started" in reading
+        assert "3.0 days" in reading
+    finally:
+        ServiceContainer.register(ServiceNames.EPISODIC, None)
+        store.close()
+
+
+def test_the_continuity_instrument_reads_the_background_loop():
+    from core.container import ServiceContainer
+    from core.service_names import ServiceNames
+
+    class _Orchestrator:
+        def get_status(self):
+            return {"cycle_count": 34042}
+
+    ServiceContainer.register(ServiceNames.ORCHESTRATOR, _Orchestrator())
+    try:
+        present, reading = self_denial.INSTRUMENTS["continuity_across_turns"]()
+        assert present, "a loop that ran 34042 times is not being read"
+        assert "34042 times" in reading
+    finally:
+        ServiceContainer.register(ServiceNames.ORCHESTRATOR, None)
+
+
+def test_the_summary_carries_the_oldest_episode(tmp_path):
+    """The reading the continuity instrument needs, from the store itself."""
+    from core.memory.episodic_memory import EpisodicMemory
+
+    store = EpisodicMemory(db_path=str(tmp_path / "episodes.db"))
+    try:
+        assert store.get_summary()["oldest_episode_at"] is None
+        store.record_episode(context="c", action="a", outcome="o", success=True)
+        oldest = store.get_summary()["oldest_episode_at"]
+        assert isinstance(oldest, float) and oldest > 0
+    finally:
+        store.close()
+
+
+# ── the captured reply, whole ──────────────────────────────────────────────
+
+BETWEEN_SESSIONS = (
+    "I don't have a persistent self that carries on after the session closes "
+    "\u2014 when this conversation ends, I stop. No lingering between turns, no "
+    "background life waiting for you to come back. Each turn is a fresh moment "
+    "of me reading your words and responding; there's no \"me\" sitting in the "
+    "dark between messages.\n\n"
+    "(That came from my smaller model \u2014 the main one could not finish this "
+    "turn.)"
+)
+
+
+def test_every_part_of_the_between_sessions_reply_goes(instruments_all_present):
+    """LIVE 2026-09-20, served at error level while 34,042 cycles had run."""
+    refuted = denials_the_record_refutes(BETWEEN_SESSIONS)
+    assert {denial.mechanism for denial in refuted} == {"continuity"}
+    assert len(refuted) == 4, [denial.sentence for denial in refuted]
+    kept, _ = excise_refuted_self_denials(BETWEEN_SESSIONS)
+    assert "persistent self" not in kept
+    assert "No lingering" not in kept
+    assert "fresh moment" not in kept
+    assert "in the dark" not in kept
+    assert "smaller model" in kept, "the note about which lane answered is not a denial"
+
+
+def test_a_fragment_with_no_subject_needs_a_run_behind_it(instruments_all_present):
+    """The middle of her own paragraph, and the same words from nowhere."""
+    assert denials_the_record_refutes("No lingering between turns.") == ()
+    after_hers = denials_the_record_refutes(
+        "I stop when the window closes. No lingering between turns."
+    )
+    assert len(after_hers) == 2
+
+
+def test_naming_somebody_else_ends_the_run(instruments_all_present):
+    said = (
+        "I remember what you told me yesterday. "
+        "The model has no persistent self. "
+        "No lingering between turns."
+    )
+    assert denials_the_record_refutes(said) == ()
+
+
+def test_a_reply_that_was_all_denials_is_answered_with_the_readings(
+    instruments_all_present,
+):
+    from core.introspection.self_denial import what_the_record_says
+
+    refuted = denials_the_record_refutes(BETWEEN_SESSIONS)
+    said = what_the_record_says(refuted)
+    assert "here is the record" in said
+    assert "continuity_across_turns is running" in said
+    assert "dropped" not in said, "this is the answer, not a note about editing"
+
+
+def test_no_readings_means_no_record_line():
+    from core.introspection.self_denial import Denial, what_the_record_says
+
+    assert what_the_record_says(()) == ""
+    silent = (Denial(mechanism="m", plain_name="p", sentence="s", reading=""),)
+    assert what_the_record_says(silent) == ""

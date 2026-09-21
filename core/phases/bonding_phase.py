@@ -178,6 +178,20 @@ class BondingPhase(Phase):
                 multiplier += 0.5
             if len(subtext) > 10:
                 multiplier += 0.5
+            # And whether both of them are saying "we".
+            #
+            # The togetherness ledger measures a belonging floored at a we both
+            # of them are using, and nothing read it — so a bond built out of
+            # message length and subtext length moved at the same rate whether
+            # or not the exchange had any of that in it. The reading is a share
+            # in [0, 1] and is added on the scale the two length terms use.
+            # See core/social/togetherness.py.
+            together = getattr(cognition, "togetherness", None)
+            if isinstance(together, dict):
+                try:
+                    multiplier += max(0.0, min(1.0, float(together.get("together", 0.0) or 0.0)))
+                except (TypeError, ValueError):
+                    pass
 
             # This is Aura's own bounded social-plasticity state, not a claim
             # about rapport, intimacy, or trust with whichever user is cached.

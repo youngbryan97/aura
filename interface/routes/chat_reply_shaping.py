@@ -1645,20 +1645,31 @@ def _readable_result(raw: object) -> str:
     said = str(raw or "").strip()
     if not said:
         return ""
-    if said.startswith("{") and said.endswith("}"):
-        import json as _json
+    if not said.startswith("{"):
+        return said
+    import json as _json
 
-        try:
-            parsed = _json.loads(said)
-        except (TypeError, ValueError):
-            return said
-        try:
-            from core.brain.inference_gate import _what_a_tool_returned
-
-            return _what_a_tool_returned(parsed)
-        except (ImportError, AttributeError, TypeError, ValueError):
-            return said
-    return said
+    try:
+        from core.brain.inference_gate import (
+            _a_readable_field_of_broken_json,
+            _what_a_tool_returned,
+        )
+    except (ImportError, AttributeError):
+        return said
+    try:
+        parsed = _json.loads(said)
+    except (TypeError, ValueError):
+        # A receipt recorder that bounds an already-bounded envelope leaves
+        # JSON that does not close. LIVE 2026-09-20: the whole envelope went
+        # to the screen, `authority_closure` first, because the parse failed
+        # and there was no second way in.
+        # "" when nothing readable survived the cut: the caller drops an
+        # empty receipt, and an empty receipt beats a visible envelope.
+        return _a_readable_field_of_broken_json(said)
+    try:
+        return _what_a_tool_returned(parsed)
+    except (AttributeError, TypeError, ValueError):
+        return said
 
 
 def _correct_false_capability_denials(reply: object) -> object:
@@ -1812,6 +1823,7 @@ def _remove_self_denials_the_record_refutes(reply_text: object) -> object:
         from core.introspection.self_denial import (
             excise_refuted_self_denials,
             self_denial_correction,
+            what_the_record_says,
         )
 
         kept, refuted = excise_refuted_self_denials(reply_text)
@@ -1827,7 +1839,9 @@ def _remove_self_denials_the_record_refutes(reply_text: object) -> object:
         ", ".join(sorted({denial.mechanism for denial in refuted})),
     )
     if not kept.strip():
-        return correction or str(reply_text)
+        # Nothing of the reply survived, so a note about what was dropped is
+        # the whole answer and answers nothing. The readings do answer it.
+        return what_the_record_says(refuted) or correction or str(reply_text)
     return f"{kept.rstrip()}\n\n{correction}"
 
 

@@ -30,6 +30,8 @@ from dataclasses import dataclass
 from typing import Any
 
 __all__ = [
+    "CatharsisLedger",
+    "get_catharsis_ledger",
     "Catharsis",
     "content_words",
     "drain",
@@ -111,3 +113,45 @@ def read_catharsis(text: str, messages: Sequence[Any]) -> Catharsis:
             else f"said {times} time(s) already, so a {drain(times):.2f} share of it is left"
         ),
     )
+
+
+class CatharsisLedger:
+    """How much of each source's material saying it has already taken off.
+
+    `read_catharsis` needs the words and the conversation, which the workspace
+    does not have when it prices a bid. The phase that has both puts the
+    reading here under the source that produced it, and the workspace reads it
+    by name — so a thing already said presses less than a thing never said,
+    which is what the measurement was for.
+    """
+
+    def __init__(self) -> None:
+        self._drain: dict[str, float] = {}
+
+    def note(self, source: str, reading: Catharsis) -> None:
+        name = " ".join(str(source or "").split()).lower()[:80]
+        if not name:
+            return
+        self._drain[name] = float(reading.drain)
+
+    def read(self, source: str) -> Catharsis:
+        name = " ".join(str(source or "").split()).lower()[:80]
+        drained = self._drain.get(name)
+        if drained is None:
+            return Catharsis()
+        return Catharsis(drain=drained, why="read from what this source has already said")
+
+
+_LEDGER: CatharsisLedger | None = None
+
+
+def get_catharsis_ledger() -> CatharsisLedger:
+    global _LEDGER
+    if _LEDGER is None:
+        _LEDGER = CatharsisLedger()
+    return _LEDGER
+
+
+def reset_for_test() -> None:
+    global _LEDGER
+    _LEDGER = None

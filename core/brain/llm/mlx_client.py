@@ -12488,8 +12488,20 @@ def _record_tool_receipt_for_this_turn(
     """Attach one finished tool call to the turn that asked for it."""
 
     try:
+        from core.brain.inference_gate import _what_a_tool_returned
         from core.conversation.surface_disposition import record_tool_receipt
 
+        # What it returned, not the envelope the model was handed.
+        #
+        # LIVE 2026-09-20: asked to read CLAUDE.md and quote a rule from it,
+        # the read succeeded and the screen got `{"note":"Result exceeded the
+        # context budget; preview only.","preview":"{\"authority_closure\"…`.
+        # The serialized form is bounded for the model at 4000 characters as a
+        # valid envelope, and this cut it again at 2000, so it no longer
+        # parsed and the strip at display time had nothing to get hold of. The
+        # receipt carries the readable part of the result itself, which is
+        # what the fallback wants to serve.
+        observed = _what_a_tool_returned(raw_result) or str(serialized or "")
         record_tool_receipt(
             str(tool_name or "tool"),
             ok=bool(_tool_turn_outcome(raw_result) == "ok"),
@@ -12497,7 +12509,7 @@ def _record_tool_receipt_for_this_turn(
             object_ref=str(tool_args or "")[:200],
             effect_observed=True,
             verification="the tool returned a result during this turn",
-            observed_content=str(serialized or "")[:2000],
+            observed_content=observed[:2000],
         )
     except Exception as exc:  # noqa: BLE001 - a receipt must never end a turn
         logger.debug(

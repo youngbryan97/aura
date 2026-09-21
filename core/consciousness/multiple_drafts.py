@@ -301,6 +301,9 @@ class MultipleDraftsEngine:
         self._current_input = text
         self._input_time = time.time()
         self._current_drafts = []
+        # The statement the drafts are answers to, kept for the tie-break in
+        # `probe`: a reply answers when its register sits apart from this one's.
+        self._statement_text = text
         # A new input is a new decision; whatever the last one was waiting for
         # has been overtaken by it.
         self._extensions = 0
@@ -614,6 +617,8 @@ class MultipleDraftsEngine:
         # a choice and a coin landing.
         winner = max(self._current_drafts, key=lambda d: d.coherence)
         decisive, decision_z, decision_reason = self._winner_margin()
+        if not decisive:
+            winner = self._one_that_answers(getattr(self, "_statement_text", ""), winner)
 
         # Compute divergence: how much did the drafts disagree?
         coherences = [d.coherence for d in self._current_drafts]
@@ -778,6 +783,39 @@ class MultipleDraftsEngine:
     def last_spend_decision(self) -> Any:
         """The most recent answer to whether another round was worth it."""
         return self._last_judgement
+
+    def _one_that_answers(self, text: str, winner: Draft) -> Draft:
+        """Break a tie toward the draft that answers rather than continues.
+
+        A lead smaller than the spread among the drafts that lost is not a
+        decision, and this took the first of them. The council argues and the
+        drafts compete, and neither kept a second voice whose job was to carry
+        what the first could not — `core/expression/antiphony.py` measured that
+        and had no caller anywhere in the tree.
+
+        A reply answers when its register sits at least APART from the
+        statement's, on any axis: distance rather than direction, because a
+        reply can answer in more than one way and scoring it against the one
+        inversion `answer` computes would be scoring it against a way of
+        answering rather than against the thing that makes an answer one.
+
+        Only on a tie. A draft that won on coherence won.
+        """
+        try:
+            from core.expression.antiphony import answers
+            from core.expression.register import read
+
+            statement = read(str(text or ""))
+            if not statement.measured:
+                return winner
+            for draft in self._current_drafts:
+                if draft is winner:
+                    continue
+                if answers(statement, read(str(getattr(draft, "content", "") or ""))):
+                    return draft
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+            return winner
+        return winner
 
     def _winner_margin(self) -> tuple[bool, float, str]:
         """Measure whether the leading draft leads by more than the noise.

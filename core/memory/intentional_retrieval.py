@@ -301,6 +301,7 @@ class IntentionalRetriever:
             return None
 
         delta = BREADTH_THRESHOLD_DELTA.get(verdict.choice, 0.0)
+        delta += self._widen_for_a_person_she_holds_generically()
         if delta:
             threshold = max(0.05, min(0.9, self._threshold + delta))
             reweighted = {s: w for s, w in plan.weights.items() if w >= threshold}
@@ -316,6 +317,37 @@ class IntentionalRetriever:
                 plan.allocations = self._allocate(plan.weights, intent.limit)
                 plan.rationale.append(f"ontogeny breadth={verdict.choice}")
         return verdict.episode_id
+
+    @staticmethod
+    def _widen_for_a_person_she_holds_generically() -> float:
+        """Widen retrieval when what she holds about somebody is not theirs.
+
+        "Woman" names Nigeria, Jamaica, Ghana and what each one does. The
+        particularity ledger asks whether what she holds about a person is
+        theirs alone or the same handful she holds about everyone, and it was
+        published on every turn and read by nothing.
+
+        Reaching for a person she holds only in boilerplate should reach
+        wider, because what would make them particular is what she has not
+        got. The amount is the share that is not theirs, in the units the
+        breadth control point already moves the threshold in, so there is no
+        new quantity here. See core/social/particular.py.
+        """
+        try:
+            from core.memory.interpersonal_store import get_interpersonal_store
+            from core.ontogeny.control_points import BREADTH_THRESHOLD_DELTA
+            from core.social.particular import read_particularity
+
+            reading = read_particularity(get_interpersonal_store().models())
+            if not reading.measured or reading.unique_unreadable:
+                return 0.0
+            steps = [abs(value) for value in BREADTH_THRESHOLD_DELTA.values()]
+            widest = max(steps) if steps else 0.0
+            if widest <= 0.0:
+                return 0.0
+            return -widest * max(0.0, min(1.0, 1.0 - float(reading.unique)))
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+            return 0.0
 
     @staticmethod
     def _grade_breadth(episode_id: str | None, merged: list[MemoryHit]) -> None:
