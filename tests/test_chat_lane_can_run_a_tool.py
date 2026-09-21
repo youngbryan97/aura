@@ -244,6 +244,52 @@ def test_an_answer_with_no_tool_call_is_not_used(gate, monkeypatch):
     assert _answer(gate, client, "run some python") is None
 
 
+def test_an_answer_that_stands_on_a_read_the_turn_already_made_is_used(gate, monkeypatch):
+    """LIVE 2026-09-21: the chat preflight had loaded CLAUDE.md into the
+    prompt, the model quoted the rule it was asked for, and the gate threw
+    the answer away because no tool had been called."""
+    monkeypatch.setattr(
+        "core.phases.response_contract.derive_capability_set",
+        lambda _text, **_k: ["file_operation"],
+    )
+    monkeypatch.setattr(
+        "core.brain.llm.runtime_wiring.build_agentic_tool_map",
+        lambda *a, **k: {"file_operation": {"name": "file_operation"}},
+    )
+    monkeypatch.setattr(
+        "core.conversation.surface_disposition.turn_tool_receipts",
+        lambda: (
+            {
+                "tool": "file_operation",
+                "action": "read",
+                "ok": True,
+                "object_ref": "CLAUDE.md",
+                "observed_content": "0010: **Never kill, restart, or port-collide with it.**",
+            },
+        ),
+    )
+    quoted = "The first rule says: never kill, restart, or port-collide with it."
+    client = _Client({"content": quoted, "tool_calls": []})
+    assert _answer(gate, client, "read CLAUDE.md and tell me the first rule") == quoted
+
+
+def test_a_read_receipt_with_nothing_in_it_grounds_nothing(gate, monkeypatch):
+    monkeypatch.setattr(
+        "core.phases.response_contract.derive_capability_set",
+        lambda _text, **_k: ["file_operation"],
+    )
+    monkeypatch.setattr(
+        "core.brain.llm.runtime_wiring.build_agentic_tool_map",
+        lambda *a, **k: {"file_operation": {"name": "file_operation"}},
+    )
+    monkeypatch.setattr(
+        "core.conversation.surface_disposition.turn_tool_receipts",
+        lambda: ({"tool": "file_operation", "action": "read", "ok": True, "object_ref": "x"},),
+    )
+    client = _Client({"content": "The file says 7.", "tool_calls": []})
+    assert _answer(gate, client, "read x and tell me") is None
+
+
 def test_a_tool_that_ran_produces_the_answer(gate, monkeypatch):
     monkeypatch.setattr(
         "core.phases.response_contract.derive_capability_set", lambda _text, **_k: ["code_repl"]

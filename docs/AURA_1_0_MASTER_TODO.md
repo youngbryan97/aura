@@ -1124,6 +1124,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   runtime and training share an opt-in request-conditioned feature; background
   refits preserve their supervision and score. The 64-example fit regresses
   and is not promoted. Full-source paired refitting is a separate experiment.
+  Sealed shadow drifted (2026-09-21): the frozen-path activation at
+  `artifacts/rlc/semantic_program_27b_frozen_path_v1/activation.json` pins ten
+  source symbols, and four of them — `execute_compositional_semantic_shadow`,
+  `CompositionalSemanticProgramTransducer.decode`,
+  `compositional_semantic_program_transducer_from_dict`,
+  `execute_compositional_semantic_observation` — changed across ten G03
+  commits since the seal (`107bf6d6d6..e4f9f5c3e3`). The runtime refuses the
+  activation on `source_contract_drift`, which is correct, and
+  `tests/test_compositional_semantic_qualification.py::test_frozen_path_activation_reopens_cleanly`
+  is red until the shadow is re-materialised from a replication run on the
+  current symbols. Resealing without that run would assert a qualification
+  nobody measured; it belongs to the G03 close.
   [Source decision pilot](evidence/G03_SOURCE_DECISION_PILOT_2026-09-21.md):
   paired training replay improved 19/23 to 23/23, with no retained regressions.
   Full development coverage and fresh transfer remain unmeasured for this fit.

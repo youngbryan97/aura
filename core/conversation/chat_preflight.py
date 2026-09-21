@@ -504,6 +504,14 @@ def build_file_context_block(refs: list[str], *, query: str = "") -> str:
     files = load_referenced_files(refs, query=query)
     if not files:
         return ""
+    # A read is a read whichever lane did it. LIVE 2026-09-21: "Read the
+    # file CLAUDE.md and tell me what the first rule under 'The live instance
+    # is sacred' says" — this loaded the file into the prompt, the model
+    # quoted the rule exactly, and the tool gate threw the answer away because
+    # no tool had been called, then served "I don't have a record of any such
+    # file". The turn holds the receipt for this read now, so a gate that asks
+    # what the turn already knows finds it.
+    _record_the_reads(files)
     parts = [
         "[The user's message references files. Their contents are below, as "
         "numbered lines. Where a range is marked omitted it was NOT read: if "
@@ -513,6 +521,27 @@ def build_file_context_block(refs: list[str], *, query: str = "") -> str:
     for display_path, content in files:
         parts.append(f"\n=== FILE: {display_path} ===\n{content}\n=== END {display_path} ===\n")
     return "\n".join(parts)
+
+
+def _record_the_reads(files: list[tuple[str, str]]) -> None:
+    """Put the preflight's file reads on the turn as receipts."""
+    try:
+        from core.conversation.surface_disposition import record_tool_receipt
+    except ImportError:
+        return
+    for display_path, content in files:
+        try:
+            record_tool_receipt(
+                "file_operation",
+                ok=True,
+                action="read",
+                object_ref=str(display_path)[:500],
+                effect_observed=True,
+                verification="the chat preflight loaded the file the message names",
+                observed_content=str(content or "")[:16000],
+            )
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("preflight read receipt not recorded for %s: %s", display_path, exc)
 
 
 # ── Pending chat queue ────────────────────────────────────────────────────

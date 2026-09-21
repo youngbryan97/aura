@@ -27,6 +27,17 @@ SCANNED = (
     "scripts", "training", "aura_bench", "research",
 )
 
+#: Tools whose bytes are pinned by sealed evidence. The mathematics-memory
+#: canary's manifest and the decode certificates carry the SHA-256 of these
+#: two files, and the flag changed the bytes: every claim that rests on them
+#: read as unverified (2026-09-21). Their three git calls run in an offline
+#: campaign, where a wait on the daemon costs a minute of nobody's turn, and
+#: re-issuing sealed evidence to save that minute would be the wrong trade.
+SEALED = frozenset({
+    "tools/run_mathematics_memory_canary.py",
+    "tools/verify_mathematics_memory_decode_canary.py",
+})
+
 #: Subcommands that only read. A write is left alone deliberately.
 READ_ONLY = frozenset({
     "status", "rev-parse", "ls-files", "log", "diff", "show", "grep",
@@ -103,6 +114,7 @@ def test_no_read_only_git_call_waits_for_the_daemon() -> None:
         for root in SCANNED
         for path in sorted((ROOT / root).rglob("*.py"))
         if "__pycache__" not in str(path)
+        and str(path.relative_to(ROOT)) not in SEALED
         for line, subcommand in _read_only_git_calls(path)
     ]
 

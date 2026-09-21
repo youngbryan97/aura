@@ -40,9 +40,16 @@ _PUBLISHES = re.compile(r'"([a-z_]*sampling_bias)"\s*:', re.IGNORECASE)
 
 
 def _published_channels() -> set[str]:
-    """Every sampling bias the engine writes for a subsystem."""
+    """Every sampling bias the engine writes for a subsystem.
 
-    return set(_PUBLISHES.findall(_ENGINE.read_text()))
+    Read across the engine's family: the request literal that carries the
+    channels moved into `cognitive_engine_quick_reply` with the lift of
+    2026-09-20, and a read of one file found no writers at all — the failure
+    the docstring above describes, one more time.
+    """
+    from tests.source_contract import family_text_at
+
+    return set(_PUBLISHES.findall(family_text_at(_ENGINE)))
 
 
 def test_the_engine_publishes_the_channels_we_think_it_does() -> None:
@@ -81,6 +88,9 @@ def test_a_published_bias_is_read_by_the_gate(channel: str) -> None:
 def test_the_generation_phase_reads_the_same_set() -> None:
     """Three lists of the same thing is how one of them goes stale."""
 
-    body = Path("core/phases/response_generation.py").read_text()
+    from tests.source_contract import family_text_at
+
+    # The reads moved into `response_generation_steps` with the same lift.
+    body = family_text_at(Path("core/phases/response_generation.py"))
     for channel in _published_channels():
         assert channel in body, channel

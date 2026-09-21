@@ -88,11 +88,12 @@ def test_grounding_is_never_dropped_when_there_is_no_user_turn():
 
 def test_the_gate_actually_implements_this_placement():
     """Pin the production code, not just the rule."""
-    import inspect
-
     from core.brain import inference_gate
+    from tests.source_contract import family_text
 
-    source = inspect.getsource(inference_gate)
+    # The splice moved into a lifted sibling of the gate (2026-09-20); the
+    # family reader sees the parent and its siblings as one text.
+    source = family_text(inference_gate)
     assert "final_user_index" in source, "the gate must locate the final user turn"
     assert "*messages[:final_user_index]," in source, (
         "grounding must be spliced in AHEAD of the final user message"

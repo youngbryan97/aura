@@ -72,7 +72,7 @@ def _resident_semantic_neural_composition_decode_certificate_holds() -> bool:
     import json
 
     bundle = _canary_artifact_bundle(
-        "artifacts/closeout/latent_cortex/typed_composition_decode_canary_20260919",
+        "artifacts/closeout/latent_cortex/typed_composition_decode_canary_20260921",
         "tools/verify_semantic_neural_composition_decode_canary.py",
     )
     if bundle is None:
@@ -203,7 +203,7 @@ def _induced_neural_procedure_decode_certificate_holds() -> bool:
     import json
 
     bundle = _canary_artifact_bundle(
-        "artifacts/closeout/latent_cortex/induced_neural_procedure_decode_canary_20260919",
+        "artifacts/closeout/latent_cortex/induced_neural_procedure_decode_canary_20260921",
         "tools/verify_induced_neural_procedure_decode_canary.py",
     )
     if bundle is None:
