@@ -299,6 +299,10 @@ class MotivationState:
     """Aura's 'Digital Metabolism' and autonomous drives."""
     budgets: dict[str, dict[str, float]] = field(default_factory=clone_motivation_budget_defaults)
     last_tick: float = field(default_factory=lambda: time.time())
+    #: What moved the budgets this turn, rather than what they came to. The
+    #: levels move over minutes; these are the forces other domains apply
+    #: inside one turn. See core/phases/motivation_update.py.
+    forces: dict[str, float] = field(default_factory=dict)
     latent_interests: list[str] = field(default_factory=lambda: [
         "Post-Quantum Cryptography and Secure Multi-Party Computation",
         "Substrate-Independent Minds and Neural Topography Mapping",
