@@ -514,8 +514,17 @@ class AffectUpdatePhase(Phase):
 
             features = {
                 "perception": float(len(state.world.recent_percepts or [])),
+                # Her own exertion, not the host's load. This read
+                # `soma.hardware.cpu_usage`, which is the machine the run is
+                # on: the reservoir's body channel moved with whatever else
+                # was compiling, and a lesion of interoception could not reach
+                # it because a lesion does not change the CPU. The subject
+                # schema names the difference where it records both -- the
+                # host readings are the environment, and exertion is "what she
+                # spent thinking, the one body channel an experiment can hold
+                # the host still without also holding still".
                 "interoception": float(
-                    (getattr(state.soma, "hardware", {}) or {}).get("cpu_usage", 0.0) or 0.0
+                    getattr(state.soma, "exertion", 0.0) or 0.0
                 ),
                 "affect_valence": float(affect.valence),
                 "affect_arousal": float(affect.arousal),
