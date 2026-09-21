@@ -99,6 +99,12 @@ HANDWRITTEN = {
     # at the top of this block describes: a real rule written into a
     # generated file, one regeneration from being deleted.
     "organism",
+    # And the kernel. Organ startup warms the shared sentence encoder the
+    # memory organ uses, and takes nothing else from core.memory, so
+    # core/kernel names core.memory.embedding_runtime. The rule was written
+    # into a generated file, so `make deps-check` was red on it and the only
+    # command that turned it green widened it to the whole of core.memory.
+    "kernel",
     # The judge must not be able to reach the defendant. core/phenomenology
     # decides whether evidence supports a claim about this system, so its rule
     # is "imports nothing from core" rather than "what it imports today" — a

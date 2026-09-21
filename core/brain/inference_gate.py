@@ -1980,6 +1980,10 @@ _PLUMBING_FIELDS = frozenset(
         "expectation_receipt_id", "deliberation_receipts", "retries", "skill",
         "mode", "governance_route", "action_expectation", "expectation_verdict",
         "verification_evidence", "duration_ms", "ok",
+        # The call's outcome, which `ok` already carries and every receipt
+        # records apart. As the only named field it read as "status: ok" and
+        # stood in for what the tool actually returned.
+        "status",
     }
 )
 
