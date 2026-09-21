@@ -231,6 +231,7 @@ class EmbeddingEngine:
         self._query_vectors: OrderedDict[tuple[str, str], np.ndarray] = OrderedDict()
         self._query_inflight: dict[tuple[str, str], Future] = {}
         self._loader: threading.Thread | None = None
+        self._said_loading = False
         self._closing = False
         #: Encodes running right now, outside the lifecycle lock. Eviction
         #: reads this to decide whether the model is idle.
@@ -405,6 +406,22 @@ class EmbeddingEngine:
             # happens on a thread; this caller goes without, this once, and
             # says who it was so the sync call site can be moved.
             self._load_off_loop()
+            return None
+        loader = self._loader
+        if not self._initialized and loader is not None and loader.is_alive():
+            # The load is in flight on its thread and holds the lifecycle
+            # lock for the whole of it. LIVE 2026-09-21, boot: the retrieval
+            # phase asked from a worker thread nine seconds after the first
+            # caller, queued on the lock behind a 24-second load, and tripped
+            # its ten-second circuit; consolidation did the same. Nobody
+            # waits on a load: the answer is "nothing yet", once each.
+            if not self._said_loading:
+                self._said_loading = True
+                logger.info(
+                    "🧠 EmbeddingEngine: the encoder is still loading (%s); "
+                    "answering nothing rather than waiting on it.",
+                    _first_frame_outside(__file__),
+                )
             return None
         with self._lifecycle_lock:
             self._initialize_locked()

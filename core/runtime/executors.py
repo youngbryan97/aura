@@ -414,8 +414,15 @@ def behind_the_loop(key: str, fn: Callable[[], Any]) -> bool:
     try:
         submit_blocking_io(drain, label=f"behind_the_loop:{key}")
     except RuntimeError:
-        # Shutting down: nothing will run it later, so this call pays for it.
-        drain()
+        # Shutting down: the lane refuses new work once the fence is set, and
+        # the first thing to ask after setting it is the shutdown record
+        # itself. Paying for it inline put the fsync on the loop (LIVE
+        # 2026-09-20: reached from the GUI reaper). A thread of its own, not
+        # a daemon, so the interpreter waits for the write and the loop
+        # does not.
+        threading.Thread(
+            target=drain, name=f"behind_the_loop:{key}:shutdown", daemon=False
+        ).start()
     return False
 
 

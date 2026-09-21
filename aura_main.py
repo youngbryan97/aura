@@ -3566,9 +3566,12 @@ async def run_desktop(
                 supervisor.add_actor(spec)
                 pipe = supervisor.start_actor("desktop_gui")
             
-            # 4. Register GUI in ActorBus
+            # 4. Register GUI in ActorBus. On macOS the GUI is a subprocess
+            # the reaper loop supervises and has no actor pipe; the bus was
+            # asked to register nothing and refused, with a warning, on
+            # every boot.
             actor_bus = ServiceContainer.get("actor_bus", default=None)
-            if actor_bus and launch_gui:
+            if actor_bus and launch_gui and pipe is not None:
                 actor_bus.add_actor("desktop_gui", pipe, is_child=True)
 
             if launch_gui:

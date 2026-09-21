@@ -595,14 +595,39 @@ class _KeyMaterial:
 
     @classmethod
     def _write_public(cls, pub: Any) -> None:
+        """Publish the public key, once, and off the loop.
+
+        Every load rewrote it, fsync and all, and the load happens during
+        boot from a coroutine (LIVE 2026-09-21: `_async_init_subsystems`).
+        A key that is already on disk unchanged is not written again, and
+        one that is goes behind the loop.
+        """
         try:
             data = pub.public_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PublicFormat.SubjectPublicKeyInfo,
             )
-            atomic_write_bytes(_pub_path(), data, mode=0o644)
+        except (OSError, ValueError, TypeError) as exc:
+            logger.warning("Could not serialise capability public key: %s", exc)
+            return
+        path = _pub_path()
+        try:
+            if os.path.isfile(path):
+                with open(path, "rb") as handle:
+                    if handle.read(len(data) + 1) == data:
+                        return
         except OSError as exc:
-            logger.warning("Could not publish capability public key: %s", exc)
+            logger.debug("Could not compare the published capability key: %s", exc)
+
+        def publish() -> None:
+            try:
+                atomic_write_bytes(path, data, mode=0o644)
+            except OSError as exc:
+                logger.warning("Could not publish capability public key: %s", exc)
+
+        from core.runtime.executors import behind_the_loop
+
+        behind_the_loop("capability_chain.public_key", publish)
 
     @classmethod
     def _load_or_create_hmac(cls, storage: bool) -> tuple[bytes, bool]:

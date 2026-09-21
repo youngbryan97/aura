@@ -286,3 +286,39 @@ def test_a_hold_with_no_coroutine_over_it_still_names_a_caller(caplog):
     assert said, "the hold was not reported"
     assert "with no coroutine over it" in said[0], said[0]
     assert "the_callback_the_loop_ran" in said[0], said[0]
+
+
+def test_nobody_waits_on_a_load_in_flight(monkeypatch):
+    """Boot, 2026-09-21: the retrieval phase asked from a worker thread while
+    the encoder loaded on its own thread, queued on the lifecycle lock behind
+    a 24-second load, and tripped its ten-second circuit."""
+    engine = EmbeddingEngine.__new__(EmbeddingEngine)
+    EmbeddingEngine.__init__(engine)
+    loading = threading.Event()
+    release = threading.Event()
+
+    def slow_initialize_locked():
+        if engine._initialized:
+            return
+        loading.set()
+        release.wait(5.0)
+        engine._model = _SlowModel(0.0)
+        engine._initialized = True
+
+    monkeypatch.setattr(engine, "_initialize_locked", slow_initialize_locked)
+
+    async def first_from_the_loop():
+        assert engine._checkout_model() is None
+
+    asyncio.run(first_from_the_loop())
+    assert loading.wait(2.0), "the load never started on its thread"
+
+    # A second caller, off the loop, while the load is in flight.
+    t0 = time.monotonic()
+    assert engine._checkout_model() is None
+    waited = time.monotonic() - t0
+    assert waited < 0.5, f"the caller queued behind the load for {waited:.2f}s"
+
+    release.set()
+    engine._loader.join(2.0)
+    assert engine._checkout_model() is not None, "once loaded, the model is served"

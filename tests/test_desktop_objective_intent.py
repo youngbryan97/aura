@@ -185,3 +185,25 @@ def test_talking_about_a_screen_is_not_asking_to_read_one():
         "what is consciousness",
     ):
         assert _SCREEN_OBSERVATION_RE.search(remark) is None, remark
+
+
+def test_an_action_the_person_does_is_not_one_she_was_asked_for():
+    """LIVE 2026-09-21: "Are you still there between our conversations, or do
+    you stop when I close the window?" went to the desktop lane on "close" and
+    "window", and came back as os_automation's refusal to act on nothing."""
+    from core.runtime.desktop_objective_intent import looks_like_desktop_objective
+
+    for theirs in (
+        "Are you still there between our conversations, or do you stop when I close the window?",
+        "I'll open Notes myself, just tell me what to write",
+        "if I open the browser, will you see it?",
+    ):
+        assert not looks_like_desktop_objective(theirs), theirs
+    for hers in (
+        "close the window",
+        "please close the window",
+        "when I close the window, save my notes to Notes first",
+        "open Notes and write a haiku",
+        "Could you launch Safari?",
+    ):
+        assert looks_like_desktop_objective(hers), hers

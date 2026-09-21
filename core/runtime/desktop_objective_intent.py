@@ -353,6 +353,24 @@ _REPORTED_REQUEST_SPAN_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: An action the PERSON says they do, will do or might do. The verb is theirs,
+#: not an instruction to her. LIVE 2026-09-21: "Are you still there between
+#: our conversations, or do you stop when I close the window?" — a question
+#: about her — routed to the desktop lane on "close" + "window", os_automation
+#: was asked for an acceptance contract for an act nobody asked for, and the
+#: answer was a failure report. The mood substrate had already said no frame
+#: matched; the pattern did not ask it.
+_PERSONS_OWN_ACTION_SPAN_RE = re.compile(
+    r"\b(?:i|we)(?:'ll|'d|'ve)?\s+"
+    r"(?:(?:will|would|might|could|can|should|must|just|then|also|usually|"
+    r"often|always|never|have\s+to|need\s+to|want\s+to|tend\s+to)\s+){0,2}"
+    r"(?:open|create|write|save|export|search|google|type|paste|compose|"
+    r"download|navigate|click|arrange|resize|drag|focus|select|switch|close|"
+    r"minimi[sz]e|maximi[sz]e|organize|quit|launch|start|shut|reopen|restart)\b"
+    r"(?:[^.?!,;]|\.(?=[A-Za-z0-9])){0,60}",
+    re.IGNORECASE,
+)
+
 #: A question about what she DID, which is answered from memory rather than by
 #: doing it again. "what did you write to my Desktop earlier?" carries a write
 #: verb and a surface and is not a request to write anything.
@@ -535,6 +553,8 @@ def looks_like_desktop_objective(user_message: str) -> bool:
     # requests being made. Asking what she did is not asking her to do it
     # again, and answering it by doing it again leaves litter on a Desktop.
     sanitized_text = _REPORTED_REQUEST_SPAN_RE.sub(' ', sanitized_text)
+    # And an action the person says THEY do is not one she was asked for.
+    sanitized_text = _PERSONS_OWN_ACTION_SPAN_RE.sub(' ', sanitized_text)
     # And a question about what she did is answered from memory, not by doing
     # it again — unless the same turn also asks for it now.
     if _PAST_ACTION_QUESTION_RE.search(sanitized_text) and not _PRESENT_INSTRUCTION_RE.search(
@@ -630,9 +650,12 @@ def looks_like_desktop_objective(user_message: str) -> bool:
     try:
         from core.conversation.request_mood import assess_request_mood
 
+        # The target is read from the sanitised text: an app in a negated,
+        # reported or first-person clause ("if I open the browser, will you
+        # see it?") is not one she was asked to open.
         if (
             assess_request_mood(user_message).asks_for_action
-            and extract_direct_application_targets(user_message)
+            and extract_direct_application_targets(sanitized_text)
         ):
             return True
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
