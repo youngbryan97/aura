@@ -141,6 +141,29 @@ def test_joint_restoration_does_not_wait_for_all_faces_to_enter_working_set():
     assert min(receipt["stored_margins"][:count]) >= .1
 
 
+@pytest.mark.parametrize("seed", [0, 1])
+@pytest.mark.parametrize("batched", [False, True])
+def test_restoration_keeps_faces_repaired_by_earlier_corrections(seed, batched):
+    from core.learning.semantic_graph_constraints import _fit_graph_parameters
+    from tests.test_semantic_minimum_change import linear
+
+    rng = np.random.default_rng(seed)
+    features = rng.normal(size=(12, 3))
+    features[:, 2] = np.abs(features[:, 2]) + .05
+    # Positive z gives a feasible interior for every face. Repairing one face
+    # can cross a previously repaired face with the opposite x/y component.
+    rows = tuple(linear(feature, .1) for feature in features)
+    rows += (linear(np.array([1., 1., .1]), -.5),)
+    initial = (np.zeros((1, 1)), np.zeros((1, 1)), np.zeros(3), np.array(0.))
+    _, receipt = _fit_graph_parameters(initial, rows, steps=1,
+        update_rule="minimum_change", max_active=1, batched=batched)
+    assert receipt["accepted_steps"]
+    assert receipt["accepted_constraint_cut_rounds"] == 0
+    assert receipt["stored_loss"] < receipt["initial_loss"]
+    assert min(receipt["stored_margins"][:-1]) >= .1
+    assert receipt["all_constraints_checked_at_acceptance"]
+
+
 @pytest.mark.parametrize("magnitude", [1e-12, 1e-6, 1., 1e6])
 def test_projection_is_homogeneous_even_for_small_training_gradients(magnitude):
     result = _project_direction(magnitude * np.array([-2., -3., 5.]),
