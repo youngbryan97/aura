@@ -551,7 +551,7 @@ class LockdepValidator:
                     message=(
                         f"blocking lock {name!r} taken at {entry.site}"
                         + (
-                            f", reached from the coroutine {entry.reached_from},"
+                            f", reached from {entry.reached_from},"
                             if entry.reached_from
                             else ""
                         )
@@ -1233,11 +1233,40 @@ def _coroutine_above() -> str:
     coroutine = frame
     while coroutine is not None and not coroutine.f_code.co_flags & _CO_COROUTINE:
         coroutine = coroutine.f_back
-    if coroutine is None:
+    if coroutine is not None:
+        return f"the coroutine {_frame_name(coroutine)}"
+    # Nothing on the loop thread awaited this. A callback scheduled with
+    # call_soon or call_later reaches the same lock with no coroutine over it,
+    # and "" left the splat with only the line that takes the lock. LIVE
+    # 2026-09-20: 'vector_memory_engine.encode' held the loop for 531ms, five
+    # times, and every report named the same leaf and nothing that called it.
+    # The caller is the last frame of ours before the loop's own machinery
+    # takes over — walking past that reaches whatever started the loop.
+    callback = frame
+    walk = frame
+    while walk is not None and not walk.f_code.co_filename.endswith(_ASYNCIO_PLUMBING):
+        callback = walk
+        walk = walk.f_back
+    if callback is None or callback is frame:
         return ""
+    return f"{_frame_name(callback)}, with no coroutine over it"
+
+
+#: The loop's own machinery. A frame in here is asyncio running somebody
+#: else's callback, not the caller a fix belongs to.
+_ASYNCIO_PLUMBING = (
+    "asyncio/base_events.py",
+    "asyncio/events.py",
+    "asyncio/runners.py",
+    "asyncio/tasks.py",
+    "threading.py",
+)
+
+
+def _frame_name(frame: Any) -> str:
     return (
-        f"{coroutine.f_code.co_filename.rsplit('/', 1)[-1]}:{coroutine.f_lineno} "
-        f"in {coroutine.f_code.co_name}"
+        f"{frame.f_code.co_filename.rsplit('/', 1)[-1]}:{frame.f_lineno} "
+        f"in {frame.f_code.co_name}"
     )
 
 
