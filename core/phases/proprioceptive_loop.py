@@ -332,6 +332,32 @@ async def _execute_new_state_new_state(self, state):
         soma.expressive["current_expression"] = "neutral"
         soma.expressive["pulse_rate"] = 1.0
 
+    # And what she is carrying, which her body had no way of knowing.
+    #
+    # The five branches above are a function of affect and of nothing else, so
+    # a mind holding an urgent unfinished thing and a mind holding none had the
+    # same body as long as they felt the same about it. Interoception read with
+    # exactly one cause because of it: perturb affect and the body moves,
+    # perturb any of the other seven domains and the arms come back
+    # bit-identical. See core/soma/carrying.py.
+    try:
+        from core.soma.carrying import get_carrying_ledger, pressure_of
+
+        carrying = get_carrying_ledger()
+        carrying.note(
+            pressure_of(
+                list(getattr(new_state.cognition, "active_goals", []) or []),
+                list(getattr(new_state.cognition, "pending_initiatives", []) or []),
+            )
+        )
+        shift = carrying.shift()
+        if shift:
+            soma.expressive["pulse_rate"] = max(
+                0.1, min(3.0, float(soma.expressive["pulse_rate"]) * (1.0 + shift))
+            )
+    except (AttributeError, ImportError, KeyError, TypeError, ValueError) as exc:
+        logger.debug("what she is carrying did not reach the body: %s", exc)
+
     # ── 4. Homeostatic Modifiers ────────────────────────────
     homeo = self._get_service(
         "homeostatic_coupling",
