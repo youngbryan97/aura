@@ -53,7 +53,7 @@ def argument_parameters(model):
                  for head in pair for value in (head.weight, head.bias))
 
 
-def argument_graph_evidence(model, hidden, nodes, spans):
+def argument_slot_evidence(model, hidden, operation_span, position, mention):
     from core.learning.semantic_program_transducer_fitting import (
         _directional_relation_feature, _relation_span_vector,
     )
@@ -62,15 +62,18 @@ def argument_graph_evidence(model, hidden, nodes, spans):
         return _relation_span_vector(hidden, span, hidden_channels=model.hidden_channels,
                                      hidden_channel_widths=model.hidden_channel_widths)
 
-    terms = []
     offset = 2 + 2 * len(model.operation_head.heads)
     strategy = model.training_receipt.get("argument_score_strategy", "independent_positive_v1")
+    feature = _directional_relation_feature(vector(mention), vector(operation_span))
+    return (
+        ArgumentScoreTerm(offset + 4 * position, feature, model.argument_role_scale, strategy),
+        ArgumentScoreTerm(offset + 4 * position + 2, feature, model.argument_proposal_scale, strategy),
+    )
+
+
+def argument_graph_evidence(model, hidden, nodes, spans):
+    terms = []
     for node, mentions in zip(nodes, spans, strict=True):
-        operation = vector(node.span)
         for position, mention in enumerate(mentions):
-            feature = _directional_relation_feature(vector(mention), operation)
-            terms.extend((
-                ArgumentScoreTerm(offset + 4 * position, feature, model.argument_role_scale, strategy),
-                ArgumentScoreTerm(offset + 4 * position + 2, feature, model.argument_proposal_scale, strategy),
-            ))
+            terms.extend(argument_slot_evidence(model, hidden, node.span, position, mention))
     return tuple(terms)

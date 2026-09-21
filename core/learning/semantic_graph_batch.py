@@ -17,7 +17,7 @@ class GraphConstraintBatch:
         self.rows, self.scale = tuple(contrasts), scale
         self.max_feature_bytes = max_feature_bytes
         self.banks, bank_indices, entries = [], {}, []
-        self.relations, self.arguments = {}, {}
+        self.relations, self.arguments, self.normalizers = {}, {}, {}
         for row_index, row in enumerate(self.rows):
             for sign, choices in ((1., row.positive_operations), (-1., row.negative_operations)):
                 for bank, label in choices:
@@ -33,6 +33,8 @@ class GraphConstraintBatch:
                     self.relations.setdefault(key, (bank, label, []))[2].append((row_index, sign))
             for sign, term in row.argument_terms:
                 self.arguments.setdefault(id(term), (term, []))[1].append((row_index, sign))
+            for sign, term in row.normalizer_terms:
+                self.normalizers.setdefault(id(term), (term, []))[1].append((row_index, sign))
         self.entries = tuple(entries)
         groups = {}
         for index, bank in enumerate(self.banks):
@@ -80,6 +82,10 @@ class GraphConstraintBatch:
             score = term.score(parameters)
             for row, sign in occurrences:
                 values[row].append(sign * score)
+        for term, occurrences in self.normalizers.values():
+            score = term.score(parameters)
+            for row, sign in occurrences:
+                values[row].append(sign * score)
         for terms, _, _, _, probability in self._operations(parameters):
             scores = np.log(np.maximum(probability, 1e-12))
             for row, bank, label, sign in terms:
@@ -103,6 +109,12 @@ class GraphConstraintBatch:
                 _, weight, bias = term.score_gradient(parameters)
                 gradients[term.parameter_index] += coefficient * weight
                 gradients[term.parameter_index + 1] += coefficient * bias
+        for term, occurrences in self.normalizers.values():
+            coefficient = sum(coefficients[row] * sign for row, sign in occurrences)
+            if coefficient:
+                _, derivatives = term.score_gradient(parameters)
+                for gradient, derivative in zip(gradients, derivatives, strict=True):
+                    gradient += coefficient * derivative
         for terms, features, distributions, mass, probability in self._operations(parameters):
             cotangent = np.zeros_like(mass)
             for row, bank, label, sign in terms:
@@ -127,6 +139,11 @@ class GraphConstraintBatch:
         for term, occurrences in self.arguments.values():
             _, weight, bias = term.score_gradient(parameters)
             slope = np.sum(weight * direction[term.parameter_index]) + np.sum(bias * direction[term.parameter_index + 1])
+            for row, sign in occurrences:
+                values[row] += sign * slope
+        for term, occurrences in self.normalizers.values():
+            _, derivatives = term.score_gradient(parameters)
+            slope = sum(np.sum(a * b) for a, b in zip(derivatives, direction, strict=True))
             for row, sign in occurrences:
                 values[row] += sign * slope
         for terms, features, distributions, mass, probability in self._operations(parameters):

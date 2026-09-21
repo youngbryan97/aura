@@ -1692,6 +1692,8 @@ def _assign_typed_arguments(
             option_factors=chart_factors if retain_score_factors else None,
             option_relation_evidence=chart_relation_evidence if retain_relation_evidence else None,
         )
+        if model.training_receipt.get("argument_choice_normalization") == "local_categorical_v1":
+            chart = chart.with_conditional_choices()
         if chart_observer is not None:
             chart_observer(chart)
         if build_only:

@@ -201,7 +201,8 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         source_files = ("semantic_graph_constraints.py", "semantic_graph_batch.py", "semantic_relation_graph_learning.py",
                         "semantic_operation_graph_learning.py", "semantic_argument_graph_learning.py",
                         "semantic_operation_pointer_learning.py", "margin_repair.py", "bilinear_geometry.py",
-                        "affine_margin_polish.py", "semantic_fit_checkpoint.py", "affine_function_geometry.py")
+                        "affine_margin_polish.py", "semantic_fit_checkpoint.py", "affine_function_geometry.py",
+                        "semantic_choice_evidence.py")
         identity = fit_identity({
             "algorithm": [Path(__file__).with_name(name).read_text() for name in source_files],
             "owner": checkpoint_identity, "initial": initial, "contrasts": tuple(contrasts),

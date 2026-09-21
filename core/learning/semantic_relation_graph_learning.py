@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, replace
 from math import fsum
+from functools import cached_property
 
 import numpy as np
 from core.verify.invariants import invariant
@@ -53,6 +54,38 @@ class RelationGraphContrast:
     positive_operations: tuple = ()
     negative_operations: tuple = ()
     argument_terms: tuple = ()
+    normalizer_terms: tuple = ()
+
+
+@dataclass(frozen=True)
+class GraphChoiceNormalizer:
+    """Differentiate a complete local categorical denominator, including rivals."""
+
+    choices: tuple
+    scale: float = 1.
+
+    def __post_init__(self):
+        if (not self.choices or not np.isfinite(self.scale) or self.scale <= 0
+                or any(not isinstance(row, RelationGraphContrast) or row.normalizer_terms
+                       for row in self.choices)):
+            raise ValueError("choice normalizer needs nonrecursive graph evidence")
+
+    @cached_property
+    def batch(self):
+        from core.learning.semantic_graph_batch import GraphConstraintBatch
+
+        return GraphConstraintBatch(self.choices, self.scale)
+
+    def score(self, parameters):
+        from scipy.special import logsumexp
+
+        return float(logsumexp(self.batch.margins(parameters)))
+
+    def score_gradient(self, parameters):
+        from scipy.special import logsumexp, softmax
+
+        values = self.batch.margins(parameters)
+        return float(logsumexp(values)), self.batch.weighted_gradient(parameters, softmax(values))
 
 
 def contrast_from_search(result, head, *, scale, weight=1.):
@@ -87,6 +120,11 @@ def graph_margin_gradient(parameters, row, *, scale=1.):
         terms.append(sign * value)
         gradients[term.parameter_index] += sign * weight
         gradients[term.parameter_index + 1] += sign * bias
+    for sign, normalizer in row.normalizer_terms:
+        value, derivatives = normalizer.score_gradient(parameters)
+        terms.append(sign * value)
+        for gradient, derivative in zip(gradients, derivatives, strict=True):
+            gradient += sign * derivative
     return fsum(terms), tuple(gradients)
 
 
@@ -101,6 +139,7 @@ def graph_margin(parameters, row, *, scale=1.):
         terms.extend(sign * bank.score(index, operations[:2 * len(bank.features)])
                      for bank, index in op_choices)
     terms.extend(sign * term.score(parameters) for sign, term in row.argument_terms)
+    terms.extend(sign * term.score(parameters) for sign, term in row.normalizer_terms)
     return fsum(terms)
 
 
@@ -273,4 +312,21 @@ def _graph_relation_normalizer_gradient() -> tuple:
         0, np.array([[1.], [0.]]), np.array([[0.], [1.]]))
     assert np.array_equal(query_gradient, [[-1.], [0.]])
     assert np.array_equal(definition_gradient, [[1.], [-1.]])
+    return ()
+
+
+@invariant("learning.graph_choice_shared_offset_cancels", scope="learning",
+           owner="core/learning/semantic_relation_graph_learning.py", observational=False)
+def _graph_choice_shared_offset_cancels() -> tuple:
+    from core.learning.semantic_argument_graph_learning import ArgumentScoreTerm
+
+    parameters = (np.zeros((1, 1)), np.zeros((1, 1)), np.array([.2]), np.array(100.))
+    choices = tuple(RelationGraphContrast((), (), 0., argument_terms=(
+        (1., ArgumentScoreTerm(2, np.array([feature]), 1., "conditional_log_odds_v1")),))
+        for feature in (1., -1.))
+    row = replace(choices[0], normalizer_terms=((-1., GraphChoiceNormalizer(choices)),))
+    value, gradients = graph_margin_gradient(parameters, row)
+    shifted = (*parameters[:-1], np.array(-200.))
+    assert np.isclose(value, graph_margin(shifted, row), rtol=0., atol=1e-12)
+    assert abs(float(gradients[-1])) < 1e-12
     return ()

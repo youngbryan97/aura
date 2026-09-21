@@ -530,6 +530,10 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
             not in {"unfiltered_v1", "register_edge_bounds_v2", "arity_state_bounds_v3", "typed_state_bounds_v4"}
             or receipt.get("operation_assignment_policy", "first_feasible_v1")
             not in {"first_feasible_v1", "joint_factor_score_v2"}
+            or receipt.get("argument_choice_normalization", "none") not in {"none", "local_categorical_v1"}
+            or (receipt.get("argument_choice_normalization") == "local_categorical_v1" and (
+                receipt.get("operation_assignment_policy") != "joint_factor_score_v2"
+                or receipt.get("argument_search_strategy") != "global_constraint_v1"))
             or receipt.get("operation_search_policy", "ranked_beam_v1")
             not in {"ranked_beam_v1", "complete_bounded_v1"}
             or (

@@ -1060,6 +1060,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Conditional selection](evidence/G03_CONDITIONAL_SELECTION_2026-09-20.md)
+  gives decode and learning one shift-invariant argument-choice score. The
+  unchanged-coefficient replay scores 98/100 versus raw joint 91/100 and
+  first-feasible 99/100. Source-only learning of this selector remains to be
+  measured; neither this replay nor the preceding 96/100 metric trial qualifies.
   [Full source replay](evidence/G03_RESTORED_FULL_SOURCE_2026-09-20.md)
   confirms 764/764 training programs, but 469/500 exact validation programs
   versus the parent's 488/500. The incumbent remains selected.

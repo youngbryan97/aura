@@ -11,10 +11,10 @@ import numpy as np
 from core.learning.semantic_argument_graph_learning import ArgumentScoreTerm
 from core.learning.semantic_fit_checkpoint import fit_identity, write_fit_archive
 from core.learning.semantic_operation_graph_learning import OperationEvidenceBank
-from core.learning.semantic_relation_graph_learning import RelationEvidenceBank, RelationGraphContrast
+from core.learning.semantic_relation_graph_learning import GraphChoiceNormalizer, RelationEvidenceBank, RelationGraphContrast
 
 _TYPES = {cls.__name__: cls for cls in (
-    ArgumentScoreTerm, OperationEvidenceBank, RelationEvidenceBank, RelationGraphContrast,
+    ArgumentScoreTerm, OperationEvidenceBank, RelationEvidenceBank, RelationGraphContrast, GraphChoiceNormalizer,
 )}
 
 
@@ -92,7 +92,10 @@ def load_fit_problem(path, *, expected_identity):
             value = tuple(decode(part) for part in node["tuple"])
         elif set(node) == {"type", "fields"} and node["type"] in _TYPES:
             cls = _TYPES[node["type"]]
-            if set(node["fields"]) != {field.name for field in fields(cls)}:
+            names = set(node["fields"])
+            expected = {field.name for field in fields(cls)}
+            legacy_contrast = cls is RelationGraphContrast and names == expected - {"normalizer_terms"}
+            if names != expected and not legacy_contrast:
                 raise ValueError("fit problem fields differ")
             value = cls(**{name: decode(part) for name, part in node["fields"].items()})
         else:

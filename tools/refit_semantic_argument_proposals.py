@@ -90,6 +90,8 @@ def main() -> int:
     parser.add_argument("--background-log-odds", action="store_true")
     parser.add_argument("--runtime-mention-margin", action="store_true")
     parser.add_argument("--joint-operation-argument-scores", action="store_true")
+    parser.add_argument("--conditional-argument-choices", action="store_true",
+                        help="compare complete graphs with source-learned local categorical evidence")
     parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "graph_factors", "graph_relations", "joint_graphs", "operation_pointer", "argument_pointer", "definition_pointer", "operation_views", "paired_operation_pointer", "ranked_operation_pointer", "operation_background"),
                         default="binary_proposals")
     parser.add_argument("--graph-rounds", type=int, default=3)
@@ -168,7 +170,7 @@ def main() -> int:
     if args.fit_checkpoint_dir is not None and not args.retain_semantic_constraints:
         parser.error("fit checkpoints require a retained-constraint training run")
     if args.evaluate_existing and not args.compare_fit_start and (
-        args.starting_candidate or args.joint_operation_argument_scores
+        args.starting_candidate or args.joint_operation_argument_scores or args.conditional_argument_choices
     ):
         parser.error("evaluate-existing starting options require compare-fit-start")
     from core.learning.semantic_graph_margin import refit_compositional_graph_scales
@@ -215,6 +217,8 @@ def main() -> int:
             raise ValueError("starting candidate representation differs from incumbent")
     if args.joint_operation_argument_scores:
         starting = starting.with_joint_operation_argument_scores()
+    if args.conditional_argument_choices:
+        starting = starting.with_conditional_argument_choices()
     if args.relation_rank is not None:
         starting = starting.with_expanded_relation_rank(args.relation_rank, seed=args.relation_rank_seed)
     refit = {
