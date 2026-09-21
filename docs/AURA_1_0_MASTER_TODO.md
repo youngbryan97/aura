@@ -1123,6 +1123,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Source decision pilot](evidence/G03_SOURCE_DECISION_PILOT_2026-09-21.md):
   paired training replay improved 19/23 to 23/23, with no retained regressions.
   Full development coverage and fresh transfer remain unmeasured for this fit.
+  [Expanded-search regressions](evidence/G03_EXPANDED_SEARCH_REGRESSIONS_2026-09-21.md):
+  two exposed-validation regressions reproduce before coefficient training;
+  shorter spurious operation spans outrank the correct division chart.
+  Full-cohort measurement remains in progress; this is not a transfer verdict.
   [Full cohort attribution](evidence/G03_FULL_COHORT_ATTRIBUTION_2026-09-21.md):
   760/764 train and 477/500 validation semantically equivalent; 18 witnessed
   ranking failures and nine unresolved searches. Fixed-bank interventions
