@@ -387,6 +387,8 @@ def _load_enactment(record_id: str) -> dict[str, Any] | None:
             ).decode("utf-8")
         )
     except FileNotFoundError:
+        # not a failure: no record for this id, which the caller reads as
+        # nothing to roll back to.
         return None
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise EnactmentRecordError("enactment record is unreadable") from exc
@@ -401,10 +403,15 @@ def latest_enactment_for(target_file: str) -> dict[str, Any] | None:
     try:
         target = _confine_target(target_file)
     except ValueError:
+        # not a failure: a path outside the roots she may edit has no
+        # enactment to find, and confinement refusing is the point.
         return None
     try:
         records = sorted(_enactment_ledger_dir().glob("*.json"), reverse=True)
-    except OSError:
+    except OSError as exc:
+        # The ledger is what a rollback reads. A directory that cannot be
+        # listed reads as no enactments ever happened.
+        logger.warning("The enactment ledger could not be listed: %s", exc)
         return None
     for record_path in records:
         try:
@@ -754,6 +761,8 @@ def _extract_function_source(source: str, func_name: str) -> tuple[str, int, int
     try:
         tree = ast.parse(source)
     except SyntaxError:
+        # not a failure: source that will not parse holds no function to
+        # extract, which is what None reports.
         return None
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == func_name:
@@ -852,6 +861,8 @@ async def _research(goal: str, max_notes: int = 4) -> list[str]:
             if s:
                 notes.append("[corpus] " + s[:300])
     except (ImportError, RuntimeError, OSError, TypeError, ValueError):
+        # not a failure: the corpus is one source of notes among several,
+        # and the web search below still runs.
         pass
     try:
         from core.skills.web_search import EnhancedWebSearchSkill
@@ -865,6 +876,8 @@ async def _research(goal: str, max_notes: int = 4) -> list[str]:
             if t.strip():
                 notes.append("[web] " + t.strip()[:300])
     except (ImportError, RuntimeError, AttributeError, TypeError, ValueError, KeyError):
+        # not a failure: notes are optional context for the rewrite, and
+        # this returns whatever was gathered.
         pass
     return notes[:max_notes]
 
@@ -887,6 +900,8 @@ async def _generate(prompt: str, *, max_tokens: int = 1200) -> str:
                 )
             )
     except (ImportError, RuntimeError, OSError):
+        # not a failure: one candidate generator of several, and the next
+        # try block offers another.
         pass
     try:
         from core.brain.llm.code_generator import LLMCodeGenerator

@@ -70,6 +70,8 @@ def _evidence_lineage() -> Iterator[Violation]:
 
         report = get_atomspace().evidence_report()
     except (ImportError, RuntimeError, AttributeError):
+        # not a failure: an organ that is not here has not broken
+        # the invariant, and yielding no Violation says exactly that.
         return
     total = report["unattributed_assertions"] + report["duplicate_assertions_refused"]
     if total < 50:
@@ -101,6 +103,8 @@ def _action_consequence() -> Iterator[Violation]:
 
         report = get_receipt_ledger().report()
     except (ImportError, RuntimeError, AttributeError):
+        # not a failure: an organ that is not here has not broken
+        # the invariant, and yielding no Violation says exactly that.
         return
     for learner, counts in report.get("by_learner", {}).items():
         qualified = counts.get("qualified", 0)
@@ -131,6 +135,8 @@ def _silent_learner() -> Iterator[Violation]:
 
         report = get_coordinator().report()
     except (ImportError, RuntimeError, AttributeError):
+        # not a failure: an organ that is not here has not broken
+        # the invariant, and yielding no Violation says exactly that.
         return
     for name, row in report.get("subscribers", {}).items():
         if not row.get("kinds"):
@@ -167,18 +173,24 @@ def _bounded_stores() -> Iterator[Violation]:
         report = get_event_graph().report()
         probes.append(("cognitive_event_graph", (report["events"], report["capacity"])))
     except (ImportError, RuntimeError, AttributeError):
+        # not a failure: an organ that is not here has not broken
+        # the invariant, and yielding no Violation says exactly that.
         pass
     try:
         from core.cognition.concept_handle import get_concept_registry
 
         probes.append(("concept_registry", (get_concept_registry().report()["handles"], None)))
     except (ImportError, RuntimeError, AttributeError):
+        # not a failure: an organ that is not here has not broken
+        # the invariant, and yielding no Violation says exactly that.
         pass
     try:
         from core.cognition.entity_track import get_track_store
 
         probes.append(("entity_tracks", (get_track_store().report()["tracks"], None)))
     except (ImportError, RuntimeError, AttributeError):
+        # not a failure: an organ that is not here has not broken
+        # the invariant, and yielding no Violation says exactly that.
         pass
 
     for name, (size, capacity) in probes:
@@ -208,6 +220,8 @@ def _one_authority_path() -> Iterator[Violation]:
             resolve,
         )
     except (ImportError, AttributeError):
+        # not a failure: no preference semantics to probe, so nothing here
+        # can be shown to violate the invariant.
         return
 
     try:

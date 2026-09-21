@@ -153,6 +153,8 @@ class BoundedPriorityQueue(asyncio.PriorityQueue):
             try:
                 new_p = float(item[0]) if isinstance(item, (tuple, list)) else 0.0
             except (IndexError, TypeError, ValueError):
+                # not a failure: an item with no readable priority takes the
+                # highest logical one, which is what zero means here.
                 new_p = 0.0
                 
             if new_p < max_p:
@@ -341,8 +343,9 @@ class AuraEventBus:
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            # No loop here to bind to and none bound already. Asked from a
-            # plain thread, this cannot be answered in the affirmative.
+            # not a failure: no loop here to bind to and none bound
+            # already, so asked from a plain thread this cannot be
+            # answered in the affirmative.
             return False
         return True
 
@@ -378,6 +381,8 @@ class AuraEventBus:
         try:
             current_loop = asyncio.get_running_loop()
         except RuntimeError:
+            # not a failure: no loop to bind the pubsub reader to, and the
+            # guard above already returned when redis is not in use.
             return
 
         # ONLY perform loop mismatch check on the main loop.
@@ -558,6 +563,8 @@ class AuraEventBus:
             try:
                 task_loop = pubsub_task.get_loop()
             except _EVENT_BUS_RECOVERABLE_ERRORS:
+                # not a failure: a task whose loop cannot be read is not
+                # cancelled across loops, which the check below decides.
                 task_loop = None
             if task_loop is not None and task_loop is not current_loop:
                 try:
@@ -699,6 +706,8 @@ class AuraEventBus:
             if self._loop is None or not self._loop.is_running():
                 self._loop = current_loop
         except RuntimeError:
+            # not a failure: published from a plain thread, which the
+            # thread-safe path below handles.
             current_loop = None
 
         # Redis clients are loop-bound, so their path must return to the owner
@@ -824,6 +833,8 @@ class AuraEventBus:
         try:
             current_loop = asyncio.get_running_loop()
         except RuntimeError:
+            # not a failure: called from a plain thread, so there is no
+            # current loop and the comparison below says so.
             current_loop = None
         
         stale_subscribers = []
@@ -989,6 +1000,8 @@ class AuraEventBus:
             try:
                 current_loop = asyncio.get_running_loop()
             except RuntimeError:
+                # not a failure: called from a plain thread, so there is no
+                # current loop and the comparison below says so.
                 current_loop = None
             if current_loop is target_loop:
                 self._publish_local_now(topic, data, priority)

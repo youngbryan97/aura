@@ -47,7 +47,9 @@ class InternalSimulator:
         try:
             hypothetical.state_id = f"sim_{hypothetical.state_id[:8]}"
         except (AttributeError, TypeError):
-            pass  # no-op: intentional
+            # not a failure: the copy keeps the original id, which only
+            # affects how this hypothetical reads in a log.
+            pass
 
         if variation:
             try:
@@ -60,12 +62,15 @@ class InternalSimulator:
                             0.0, hypothetical.motivation.budgets["energy"]["level"] - val
                         )
             except (AttributeError, KeyError, TypeError):
-                pass  # no-op: intentional
+                # not a failure: a variation this state cannot take is not
+                # applied, and the hypothetical is the unvaried one.
+                pass
 
         try:
             hypothetical.version += 1
         except (AttributeError, TypeError):
-            pass  # no-op: intentional
+            # not a failure: a state with no version counter keeps none.
+            pass
 
         return hypothetical
 
@@ -90,7 +95,9 @@ class InternalSimulator:
             valence = predicted_state.affect.valence
             score += valence * 0.3
         except (AttributeError, TypeError):
-            pass  # no-op: intentional
+            # not a failure: a term this state cannot supply contributes
+            # nothing, and the other five still score.
+            pass
 
         # 2. Energy
         try:
@@ -104,7 +111,8 @@ class InternalSimulator:
             cortisol = predicted_state.affect.physiology.get("cortisol", 0.0) / 50.0
             score -= cortisol * 0.15
         except (AttributeError, TypeError):
-            pass  # no-op: intentional
+            # not a failure: an unsupplied term contributes nothing.
+            pass
 
         # 4. Identity alignment
         try:
@@ -125,7 +133,8 @@ class InternalSimulator:
             world_score = self._check_world_state_fit(action_content, action_source)
             score += world_score * 0.1
         except (RuntimeError, AttributeError, TypeError, ValueError):
-            pass  # no-op: intentional
+            # not a failure: an unsupplied term contributes nothing.
+            pass
 
         return round(score, 4)
 
@@ -234,6 +243,8 @@ class InternalSimulator:
 
             return max(-0.3, min(0.3, score))
         except (ImportError, AttributeError, RuntimeError):
+            # not a failure: no world state to fit against, so this term
+            # neither favours nor penalises the action.
             return 0.0
 
     @staticmethod

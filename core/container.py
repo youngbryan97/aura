@@ -185,6 +185,8 @@ def _callable_attr(instance: Any, attr_name: str) -> Callable[..., Any] | None:
     try:
         inspect.getattr_static(instance, attr_name)
     except (AttributeError, TypeError):
+        # not a failure: the docstring says absence is not failure, and
+        # this is the lookup that finds out.
         return None
     try:
         attr = getattr(instance, attr_name)
@@ -376,6 +378,8 @@ class ServiceContainer(_SealsItsKeys):
             )
             return True
         except ImportError:
+            # not a failure: with no shutdown coordinator there is no
+            # latch, so the registration below is not suppressed.
             return False
 
     @classmethod
@@ -414,6 +418,7 @@ class ServiceContainer(_SealsItsKeys):
 
             return bool(is_shutdown_requested())
         except (ImportError, RuntimeError):
+            # not a failure: no coordinator means no latch is active.
             return False
 
     @classmethod
@@ -436,6 +441,8 @@ class ServiceContainer(_SealsItsKeys):
                 f"runtime shutdown is active: cannot initialize service '{name}'"
             )
         except ImportError:
+            # not a failure: with no shutdown coordinator there is no latch
+            # to refuse against, so initialization goes ahead.
             return
 
     @classmethod
@@ -575,8 +582,9 @@ class ServiceContainer(_SealsItsKeys):
                 enforce_failure_policy=False,
             )
         except (ImportError, RuntimeError, TypeError, ValueError):
-            # The log line above is still emitted; never let audit plumbing
-            # stop an unlock a booting runtime may depend on.
+            # not a failure: the log line above is still emitted, and audit
+            # plumbing must never stop an unlock a booting runtime depends
+            # on.
             pass
 
     @classmethod
@@ -948,6 +956,8 @@ class ServiceContainer(_SealsItsKeys):
             importlib.import_module(name)
             available = True
         except ImportError:
+            # not a failure: this asks whether a package is importable, and
+            # no is one of the two answers.
             available = False
         except Exception as exc:  # noqa: BLE001 - a package __init__ may raise anything
             # Installed but unimportable: the silent-decay state. It is a
@@ -1313,6 +1323,9 @@ class ServiceContainer(_SealsItsKeys):
                     incompatible_hooks.append(candidate_name)
                     continue
                 except (ValueError, AttributeError):
+                    # not a failure: a callable whose signature cannot be
+                    # read is not shown to be incompatible, and the branch
+                    # above is where incompatible ones are recorded.
                     pass
                 selected_hook = (candidate_name, candidate)
                 break

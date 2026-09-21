@@ -248,7 +248,7 @@ def _live_skill_names() -> set[str] | None:
             return None
         return {str(name) for name in skills}
     except (ImportError, AttributeError, RuntimeError, TypeError):
-        return None
+        return None  # not a failure: no registry, so no skill names to give
 
 
 def _unit_reading(value: Any) -> float | None:
@@ -334,8 +334,8 @@ def _calling_site() -> str:
             if filename not in skip:
                 return f"{filename}:{frame.f_lineno}"
             frame = frame.f_back
-    except (AttributeError, ValueError):  # pragma: no cover - introspection guard
-        pass
+    except (AttributeError, ValueError):  # pragma: no cover - introspection
+        pass  # not a failure: "<unknown>" below IS the answer
     return "<unknown>"
 
 
@@ -810,7 +810,7 @@ def _drain_deferred_pulse_handoff_locked(network: "MycelialNetwork") -> None:
         try:
             key, successes, failures = network._deferred_pulse_handoff.get_nowait()
         except Empty:
-            return
+            return  # not a failure: the queue is drained, which is the exit
         prior_successes, prior_failures = pending.get(key, (0, 0))
         pending[key] = (
             prior_successes + successes,
@@ -1027,7 +1027,7 @@ class MycelialNetwork(_ReadsTheVault):
                 from core.soma.reflex_core import HardenedReflexCore
                 self.reflex = HardenedReflexCore()
             except ImportError:
-                self.reflex = None
+                self.reflex = None  # not a failure: optional; callers check
 
             # --- Platform Binding ---
             self._neural_roots: list[NeuralRoot] = []
@@ -1682,10 +1682,10 @@ class MycelialNetwork(_ReadsTheVault):
             self._log_route_signal(source, target, payload)
             if self.pulse_hypha(hypha_id, success=True):
                 return True
-            # The singleton may have been replaced between lookup and pulse.
-            self.establish_connection(source, target)
+            self.establish_connection(source, target)  # the singleton may have moved
             return self.pulse_hypha(hypha_id, success=True)
-        except RuntimeError:
+        except RuntimeError as exc:
+            logger.warning("Signal %s -> %s never carried: %s", source, target, exc)
             return False
 
     def _log_route_signal(self, source: str, target: str, payload: dict[str, Any]) -> None:
@@ -3365,7 +3365,7 @@ class MycelialNetwork(_ReadsTheVault):
 
             return bool(foreground_activity_reason())
         except (ImportError, RuntimeError, AttributeError):
-            return False
+            return False  # not a failure: no guard, so nothing to defer to
 
     async def _pulse_once(self):
         """One pulse pass: refresh critical hyphae, report weak pathways."""
@@ -4557,7 +4557,7 @@ class MycelialNetwork(_ReadsTheVault):
                             ("topology_v3",),
                         ).fetchone()
                     except sqlite3.Error:
-                        # Vault written before attestation existed.
+                        # not a failure: written before attestation existed
                         attestation_row = None
                 if not row:
                     raise ValueError("versioned topology generation is missing")

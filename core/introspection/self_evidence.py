@@ -341,6 +341,8 @@ def _condition_surface() -> Any:
             features=embed_sentences,
         )
     except (ImportError, RuntimeError, TypeError, ValueError):
+        # not a failure: callers check for None and fall back to the
+        # written rules, which is what ran before this surface existed.
         _ASKS_AFTER_HER = None
     return _ASKS_AFTER_HER
 
@@ -554,12 +556,23 @@ def asks_about_own_operational_state(text: Any) -> bool:
     if settled:
         try:
             surface.observe(raw, holds=True)
-        except (RuntimeError, TypeError, ValueError):
-            pass
+        except (RuntimeError, TypeError, ValueError) as exc:
+            # The verdict is settled either way; what is lost is the
+            # observation this surface learns from, so it is recorded
+            # where the module already records.
+            from core.runtime.errors import record_degradation
+
+            record_degradation(
+                "self_evidence.condition_surface",
+                exc,
+                severity="warning",
+                action="answered from the settled verdict without learning from it",
+            )
         return True
     try:
         return bool(surface.decide_without_waiting(raw))
     except (RuntimeError, TypeError, ValueError):
+        # not a failure: undecided leaves the written rules in charge.
         return False
 
 
@@ -742,6 +755,8 @@ def _failing_jobs(report: dict[str, Any]) -> list[dict[str, Any]]:
         try:
             failures = int(job.get("failures") or 0)
         except (TypeError, ValueError):
+            # not a failure: a job whose failure count is not a number is
+            # not shown to be failing, and the guard below skips it.
             failures = 0
         if failures <= 0:
             continue
@@ -994,6 +1009,8 @@ def _signal_reading(channel: str, signals: dict[str, Any], key: str) -> Reading:
     try:
         updated_at = float(block.get("updated_at") or 0.0)
     except (TypeError, ValueError):
+        # not a failure: no readable timestamp is read as never updated,
+        # which the guard below turns into an absent reading.
         updated_at = 0.0
     if updated_at <= 0.0:
         return Reading(
@@ -1379,6 +1396,8 @@ def _window_named(query: Any) -> float:
 
         return float(seconds_named(query) or 0.0)
     except (ImportError, TypeError, ValueError):
+        # not a failure: the docstring says zero for no window, and a
+        # question this cannot read names none.
         return 0.0
 
 
@@ -1459,6 +1478,8 @@ def resolve_past_actions(limit: int = 12, query: Any = "") -> EvidenceBundle:
         try:
             return float(entry.get("at") or 0.0)
         except (TypeError, ValueError):
+            # not a failure: an entry with no readable time sorts oldest,
+            # which the comment above says is the end recall must not take.
             return 0.0
 
     actions.sort(key=_at, reverse=True)

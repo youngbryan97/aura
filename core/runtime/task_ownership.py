@@ -32,6 +32,8 @@ def _raw_asyncio_create_task(awaitable: Awaitable[Any], *, name: str | None, con
         if context is not None:
             return create_task(awaitable, name=name, context=context)
     except TypeError:
+        # not a failure: an event loop whose create_task has no `context`
+        # keyword takes the two-argument call below instead.
         pass
     if name is not None:
         return create_task(awaitable, name=name)
@@ -43,6 +45,8 @@ def _get_tracker() -> Any:
         from core.utils.task_tracker import get_task_tracker
         return get_task_tracker()
     except (ImportError, AttributeError, RuntimeError):
+        # not a failure: no tracker to register with, and every caller
+        # checks for None before registering.
         return None
 
 
@@ -186,6 +190,8 @@ def runtime_shutdown_requested() -> bool:
 
         return bool(is_shutdown_requested())
     except (ImportError, AttributeError, RuntimeError):
+        # not a failure: the docstring says without cold construction, and
+        # no coordinator means no shutdown has been requested.
         return False
 
 
@@ -207,8 +213,11 @@ def runtime_shutdown_blocks_new_work(
             outcome="suppressed",
             detail="new work refused after runtime shutdown request",
         )
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        pass
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        # The work is refused below either way. What is lost is the
+        # admission event saying so, which is the only record that this
+        # shutdown turned work away.
+        logger.warning("A shutdown refusal was not recorded: %s", exc)
     return True
 
 
@@ -226,8 +235,11 @@ def fire_and_forget(
         try:
             exc = task.exception()
         except asyncio.CancelledError:
+            # not a failure: a cancelled task has no exception to log, and
+            # cancellation is how most owned tasks end.
             return
         except (RuntimeError, AttributeError, TypeError, ValueError):
+            # not a failure: a task still running has none to read either.
             return
         if exc is not None:
             logger.warning("Background task %s failed: %s", name or task.get_name(), exc, exc_info=exc)
@@ -241,6 +253,9 @@ def fire_and_forget(
             on_done=_log_done,
         )
     except RuntimeError:
+        # not a failure: no running loop to schedule on. The coroutine is
+        # closed rather than left unawaited, which is the whole reason this
+        # wrapper exists.
         close_awaitable(awaitable)
         return None
     except (AttributeError, TypeError, ValueError) as exc:

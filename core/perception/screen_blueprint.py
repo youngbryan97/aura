@@ -303,6 +303,8 @@ def _is_real_window(entry: Any) -> bool:
         if int(bounds.get("Height", 0) or 0) < _MIN_REAL_WINDOW_EDGE:
             return False
     except (AttributeError, TypeError, ValueError):
+        # not a failure: an entry whose bounds are unreadable is not one
+        # this can call a real window, which is the question.
         return False
     return True
 
@@ -314,6 +316,8 @@ def blueprint_is_available() -> bool:
     try:
         import Quartz  # noqa: F401
     except (ImportError, OSError):
+        # not a failure: no Quartz means this machine cannot produce a
+        # blueprint, which is exactly what the docstring asks.
         return False
     return True
 
@@ -325,6 +329,8 @@ def _raw_window_list() -> list[Any]:
     try:
         options |= Quartz.kCGWindowListExcludeDesktopElements
     except AttributeError:  # pragma: no cover - older bindings
+        # not a failure: older bindings have no such flag, and the list
+        # then includes desktop elements the caller filters anyway.
         pass
     return list(Quartz.CGWindowListCopyWindowInfo(options, Quartz.kCGNullWindowID) or [])
 
@@ -503,8 +509,11 @@ def read_window_elements(app: str, *, timeout: float = _ELEMENT_READ_TIMEOUT_S) 
             source="perception.screen_blueprint.accessibility_read",
             accelerator_capability="none",
         )
-    except subprocess.TimeoutExpired:
-        return {"ok": False, "error": "the accessibility read timed out"}
+    except subprocess.TimeoutExpired as exc:
+        return {
+            "ok": False,
+            "error": f"the accessibility read timed out after {exc.timeout:g}s",
+        }
     except OSError as exc:
         return {"ok": False, "error": f"accessibility read failed ({exc})"}
 
@@ -516,8 +525,11 @@ def read_window_elements(app: str, *, timeout: float = _ELEMENT_READ_TIMEOUT_S) 
         return {"ok": False, "error": stderr[:200] or "no accessibility data"}
     try:
         payload = json.loads(raw)
-    except (TypeError, ValueError):
-        return {"ok": False, "error": f"unreadable accessibility data: {raw[:120]}"}
+    except (TypeError, ValueError) as exc:
+        return {
+            "ok": False,
+            "error": f"unreadable accessibility data ({exc}): {raw[:120]}",
+        }
     if isinstance(payload, dict) and payload.get("error"):
         return {"ok": False, "error": str(payload["error"])}
     elements = payload.get("elements") if isinstance(payload, dict) else None
@@ -579,8 +591,8 @@ def read_browser_document(
             source="perception.screen_blueprint.browser_document_read",
             accelerator_capability="none",
         )
-    except subprocess.TimeoutExpired:
-        return {"ok": False, "error": "the page read timed out"}
+    except subprocess.TimeoutExpired as exc:
+        return {"ok": False, "error": f"the page read timed out after {exc.timeout:g}s"}
     except OSError as exc:
         return {"ok": False, "error": f"page read failed ({exc})"}
 
@@ -597,8 +609,8 @@ def read_browser_document(
         return {"ok": False, "error": stderr[:200] or "the browser returned nothing"}
     try:
         payload = json.loads(raw)
-    except (TypeError, ValueError):
-        return {"ok": False, "error": f"unreadable page data: {raw[:120]}"}
+    except (TypeError, ValueError) as exc:
+        return {"ok": False, "error": f"unreadable page data ({exc}): {raw[:120]}"}
     if not isinstance(payload, dict):
         return {"ok": False, "error": "the page data was not an object"}
     payload["ok"] = True
