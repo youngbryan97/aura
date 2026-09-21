@@ -32,8 +32,8 @@ def rig(monkeypatch):
     decided_at: dict[tuple[str, int], bool] = {}
     unreached_lags: set[int] = set()
 
-    async def collect(runtime, anchors, conditions, *, left, right, turns, lags):
-        calls.append(("".join(left) + "|" + "".join(right), tuple(lags), len(anchors)))
+    async def collect(runtime, anchors, conditions, *, left, right, turns, lags, offset=0, untouched=None):
+        calls.append(("".join(left) + "|" + "".join(right), tuple(lags), len(anchors), offset))
         n = len(anchors)
         out = {}
         for lag in lags:
@@ -71,7 +71,7 @@ async def test_rollouts_do_not_multiply_with_the_ladder(rig) -> None:
         frame_seconds=0.03, rounds=1, domains=DOMAINS,
     )
     assert len(rig.calls) == 3, "one collection per cut, not one per cut per horizon"
-    assert all(lags == (1, 2, 4, 8) for _, lags, _ in rig.calls)
+    assert all(lags == (1, 2, 4, 8) for _, lags, _, _ in rig.calls)
     assert sorted(reports) == [1, 2, 4, 8]
     assert all(len(report.verdicts) == 3 for report in reports.values())
 
@@ -98,8 +98,8 @@ async def test_a_cut_keeps_drawing_while_any_horizon_is_open(rig) -> None:
         None, _anchors(OPENING_ANCHORS + ANCHOR_STEP), [], lags=(1, 2),
         frame_seconds=0.03, rounds=2, domains=DOMAINS,
     )
-    second_round = [call for call in rig.calls if call[2] == OPENING_ANCHORS + ANCHOR_STEP]
-    assert [name for name, _, _ in second_round] == ["AB|C"]
+    second_round = [call for call in rig.calls if call[3] == OPENING_ANCHORS]
+    assert [name for name, _, _, _ in second_round] == ["AB|C"]
     # And the horizon that was already decided is not scored again.
     assert rig.decisions.count(("AB|C", 1)) == 1
 
@@ -133,3 +133,19 @@ async def test_an_empty_ladder_refuses(rig) -> None:
             None, _anchors(OPENING_ANCHORS), [], lags=(),
             frame_seconds=0.03, domains=DOMAINS,
         )
+
+
+@pytest.mark.asyncio
+async def test_a_later_round_collects_only_the_anchors_it_adds(rig) -> None:
+    """Every round used to run the whole bank up to its budget again."""
+    await sweep_cuts_over_lags(
+        None, _anchors(OPENING_ANCHORS + 2 * ANCHOR_STEP), [], lags=(1,),
+        frame_seconds=0.03, rounds=3, domains=DOMAINS,
+    )
+    for name in ("A|BC", "AB|C", "AC|B"):
+        mine = [(count, offset) for cut, _, count, offset in rig.calls if cut == name]
+        assert mine == [
+            (OPENING_ANCHORS, 0),
+            (ANCHOR_STEP, OPENING_ANCHORS),
+            (ANCHOR_STEP, OPENING_ANCHORS + ANCHOR_STEP),
+        ]

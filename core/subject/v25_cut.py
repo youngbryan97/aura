@@ -29,8 +29,9 @@ from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any
 
 import numpy as np
 
@@ -261,6 +262,38 @@ def merge_sweeps(shards: Sequence[dict[str, Any]], *, cuts_in_full: int) -> Swee
     )
 
 
+class _Gathered:
+    """One cut's samples so far, so a round collects only the anchors it adds.
+
+    Every round used to collect the whole bank up to its budget again, so a cut
+    that reached the ceiling had run its first eight anchors once per round and
+    the cost of a cut grew with the square of its budget. The rows an earlier
+    round collected are the same draws from the same snapshots, and a round
+    now appends to them.
+    """
+
+    def __init__(self) -> None:
+        self.have = 0
+        self._parts: dict[int, dict[str, list[np.ndarray]]] = {}
+
+    def add(self, fresh: dict[int, dict[str, np.ndarray]], take: int) -> dict[int, dict[str, np.ndarray]]:
+        for lag, slot in fresh.items():
+            into = self._parts.setdefault(int(lag), {})
+            for key, value in slot.items():
+                if isinstance(value, np.ndarray):
+                    into.setdefault(key, []).append(value)
+                else:
+                    into.setdefault(key, [value])
+        self.have = max(self.have, int(take))
+        return {
+            lag: {
+                key: (np.vstack(parts) if isinstance(parts[0], np.ndarray) else parts[-1])
+                for key, parts in slot.items()
+            }
+            for lag, slot in self._parts.items()
+        }
+
+
 def decide_cut(
     samples: dict[str, np.ndarray],
     *,
@@ -370,6 +403,8 @@ async def sweep_cuts(
 
     budget = OPENING_ANCHORS
     unscorable = 0
+    untouched: dict = {}
+    gathered: dict[str, _Gathered] = {}
     for round_index in range(max(1, rounds)):
         pending = [v for v in verdicts.values() if not v.decided]
         if not pending:
@@ -377,18 +412,24 @@ async def sweep_cuts(
         take = min(len(anchors), budget)
         if take < 2:
             break
-        chosen = list(anchors[:take])
         for position, verdict in enumerate(pending):
-            samples = await collect_partition_samples(
-                runtime,
-                chosen,
-                conditions,
-                left=verdict.left,
-                right=verdict.right,
-                turns=turns,
-                lags=(tau_frames,),
+            store = gathered.setdefault(verdict.name, _Gathered())
+            fresh = (
+                await collect_partition_samples(
+                    runtime,
+                    list(anchors[store.have:take]),
+                    conditions,
+                    left=verdict.left,
+                    right=verdict.right,
+                    turns=turns,
+                    lags=(tau_frames,),
+                    offset=store.have,
+                    untouched=untouched,
+                )
+                if take > store.have
+                else {}
             )
-            slot = samples[int(tau_frames)]
+            slot = store.add(fresh, take)[int(tau_frames)]
             report.anchors_spent += take
             verdict.anchors_used = take
             try:
@@ -503,6 +544,8 @@ async def sweep_cuts_over_lags(
         return not verdicts[lag][name].decided and name not in unreached[lag]
 
     budget = OPENING_ANCHORS
+    untouched: dict = {}
+    gathered: dict[str, _Gathered] = {}
     for _round in range(max(1, rounds)):
         pending = [name for name in names if any(open_at(name, lag) for lag in ladder)]
         if not pending:
@@ -510,22 +553,29 @@ async def sweep_cuts_over_lags(
         take = min(len(anchors), budget)
         if take < 2:
             break
-        chosen = list(anchors[:take])
         for name in pending:
             # Seeded by the cut's place in the full list rather than its place
             # in this round's queue, which shrinks as cuts are decided and is
             # different in every shard.
             position = place_of[name]
             cut = verdicts[ladder[0]][name]
-            samples = await collect_partition_samples(
-                runtime,
-                chosen,
-                conditions,
-                left=cut.left,
-                right=cut.right,
-                turns=turns,
-                lags=tuple(ladder),
+            store = gathered.setdefault(name, _Gathered())
+            fresh = (
+                await collect_partition_samples(
+                    runtime,
+                    list(anchors[store.have:take]),
+                    conditions,
+                    left=cut.left,
+                    right=cut.right,
+                    turns=turns,
+                    lags=tuple(ladder),
+                    offset=store.have,
+                    untouched=untouched,
+                )
+                if take > store.have
+                else {}
             )
+            samples = store.add(fresh, take)
             for lag in ladder:
                 if not open_at(name, lag):
                     continue

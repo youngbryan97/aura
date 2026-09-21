@@ -7,8 +7,9 @@ domain clamp, and clamp.compose instead of editing cognitive phases.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any
 
 import numpy as np
 
@@ -107,6 +108,12 @@ def lag_vector(rows: Sequence[Any], lag: int) -> np.ndarray:
     return np.asarray(rows[index].vector(), dtype=np.float64)
 
 
+#: What the two untouched forks from one anchor recorded, kept as the vectors
+#: each horizon reads and the length of each fork. A frame is about 284 KB and a
+#: sweep holds one pair per anchor for its whole length, so the frames are not.
+Untouched = dict[tuple[int, str, int], tuple[dict[int, np.ndarray], dict[int, np.ndarray], int]]
+
+
 async def collect_partition_samples(
     runtime: Any,
     anchors: Sequence[Anchor],
@@ -116,8 +123,19 @@ async def collect_partition_samples(
     right: Sequence[str],
     turns: int,
     lags: Sequence[int],
+    offset: int = 0,
+    untouched: Untouched | None = None,
 ) -> dict[int, dict[str, np.ndarray]]:
-    """Collect matched context/intact/cut/sham arrays for one physical cut."""
+    """Collect matched context/intact/cut/sham arrays for one physical cut.
+
+    `offset` is where `anchors` starts in the bank, so a later round that
+    collects only the anchors it has not seen pairs each one with the
+    condition it had when the whole bank was collected at once.
+
+    `untouched` holds the two untouched forks from each anchor across cuts.
+    Neither of them depends on the cut: two of every cut's four arms were the
+    same two runs from the same snapshot, repeated for each of 511 cuts.
+    """
     buckets: dict[int, dict[str, list[np.ndarray]]] = {
         int(lag): {
             "context": [], "intact": [], "cut": [], "sham_a": [], "sham_b": [],
@@ -139,21 +157,35 @@ async def collect_partition_samples(
     # conditions over the bank at a cost that is linear in the anchors, which
     # is what makes an exhaustive sweep affordable at all.
     pairs = [
-        (anchor, conditions[index % len(conditions)])
+        (offset + index, anchor, conditions[(offset + index) % len(conditions)])
         for index, anchor in enumerate(anchors)
     ]
-    for anchor, condition in pairs:
-        rows = await paired_partition_trajectories(
-            runtime,
-            anchor.snapshot,
-            condition,
-            left=left,
-            right=right,
-            turns=turns,
-        )
+    for position, anchor, condition in pairs:
+        condition_name = getattr(condition, "name", "")
+        key = (position, condition_name, int(turns))
+        if untouched is not None and key in untouched and all(int(lag) in untouched[key][0] for lag in lags):
+            intact_a, intact_b, untouched_length = untouched[key]
+        else:
+            runtime.restore(anchor.snapshot)
+            arm_a = await _run_turns(runtime, condition, turns)
+            runtime.restore(anchor.snapshot)
+            arm_b = await _run_turns(runtime, condition, turns)
+            intact_a = {int(lag): lag_vector(arm_a, int(lag)) for lag in lags}
+            intact_b = {int(lag): lag_vector(arm_b, int(lag)) for lag in lags}
+            untouched_length = min(len(arm_a), len(arm_b))
+            if untouched is not None:
+                untouched[key] = (intact_a, intact_b, untouched_length)
+        runtime.restore(anchor.snapshot)
+        with clamped(runtime, right):
+            left_free = await _run_turns(runtime, condition, turns)
+        runtime.restore(anchor.snapshot)
+        with clamped(runtime, left):
+            right_free = await _run_turns(runtime, condition, turns)
+        cut = compose(left_free, right_free, left)
         one_hot = np.zeros(len(conditions), dtype=np.float64)
-        one_hot[name_to_index[getattr(condition, "name", "")]] = 1.0
+        one_hot[name_to_index[condition_name]] = 1.0
         context = np.concatenate([anchor.current, one_hot])
+        shortest = min(untouched_length, len(cut))
         for lag in lags:
             slot = buckets[int(lag)]
             slot["context"].append(context)
@@ -162,11 +194,10 @@ async def collect_partition_samples(
             # untouched fork from the same snapshot. Two untouched forks are
             # not numerically identical in practice, and the third arm is what
             # measures how far apart they are.
-            slot["intact"].append(lag_vector(rows.intact_a, int(lag)))
-            slot["sham_a"].append(lag_vector(rows.intact_a, int(lag)))
-            slot["sham_b"].append(lag_vector(rows.intact_b, int(lag)))
-            slot["cut"].append(lag_vector(rows.cut, int(lag)))
-            shortest = min(len(rows.intact_a), len(rows.intact_b), len(rows.cut))
+            slot["intact"].append(intact_a[int(lag)])
+            slot["sham_a"].append(intact_a[int(lag)])
+            slot["sham_b"].append(intact_b[int(lag)])
+            slot["cut"].append(lag_vector(cut, int(lag)))
             slot["reached"].append(np.asarray([1.0 if int(lag) <= shortest else 0.0]))
 
     return {

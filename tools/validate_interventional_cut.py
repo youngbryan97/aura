@@ -12,9 +12,15 @@ right with the left held, and composes the two free halves, the way
 core/subject/v25_runtime.py cuts the organism. Every arm from one anchor draws
 the same noise and the same inputs, which is what restoring a snapshot does, so
 the input is common to both sides of every comparison and cancels. The decision
-is core.subject.v25_cut.decide_cut, unchanged.
+is core.subject.v25_cut.decide_cut, unchanged, and a cut is decided when its
+bootstrap lower bound clears the sham floor, as the runtime decides it.
 
-    python tools/validate_interventional_cut.py --anchors 12 --lag 2
+At twelve anchors the bound is about a quarter wide and decides nothing, the
+star included. At ninety-six anchors and a lag of four, four cuts separate the
+star and the reference, all decided, from the independent system and the
+common driver, none decided.
+
+    python tools/validate_interventional_cut.py --anchors 96 --lag 4
 """
 
 from __future__ import annotations
@@ -133,11 +139,18 @@ def sweep(step: Step, start: Callable, noise_width: int, *, anchors: int, lag: i
             samples["sham_b"].append(vec(intact) + 1e-6 * np.random.default_rng(len(samples["sham_b"])).normal(size=len(vec(intact))))
             samples["cut"].append(vec(cut))
         arrays = {k: np.vstack(v) for k, v in samples.items()}
-        estimate, lower, _p, _q = decide_cut(arrays, tau_seconds=float(lag), draws=60, permutation_draws=39)
+        # The bootstrap is drawn as many times as the runtime draws it, because
+        # the lower bound is that bootstrap's fifth percentile. The permutation
+        # p-value decides nothing, so it is drawn only as often as it must be.
+        _estimate, excess, lower, _p = decide_cut(
+            arrays, tau_seconds=float(lag), draws=200, permutation_draws=19
+        )
+        # The runtime's rule, core/subject/v25_cut.py: decided when the whole
+        # interval sits above the sham floor, not when the point estimate does.
         if lower > 0.0:
             decided += 1
-        if weakest is None or estimate.excess_rate < weakest[0]:
-            weakest = (estimate.excess_rate, lower, "".join(left) + "|" + "".join(right))
+        if weakest is None or lower < weakest[1]:
+            weakest = (excess, lower, "".join(left) + "|" + "".join(right))
     return {"decided": decided, "cuts": len(chosen), "weakest_excess": weakest[0], "weakest_lower": weakest[1], "weakest_cut": weakest[2]}
 
 
@@ -148,8 +161,8 @@ PIPELINES_CHECKED: tuple[str, ...] = ("additive", "modulated", "independent")
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--anchors", type=int, default=12)
-    parser.add_argument("--lag", type=int, default=2)
+    parser.add_argument("--anchors", type=int, default=96)
+    parser.add_argument("--lag", type=int, default=4)
     parser.add_argument("--systems", default="", help="comma-separated names; default is every control")
     args = parser.parse_args(argv)
     wanted = {name for name in args.systems.split(",") if name}
