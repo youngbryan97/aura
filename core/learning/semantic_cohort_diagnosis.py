@@ -31,9 +31,12 @@ def audit_semantic_cohort(model, examples, *, directory, max_charts=16,
     options = dict(max_charts=max_charts, max_graphs_per_chart=max_graphs_per_chart,
                    solve_time_limit_s=solve_time_limit_s)
     policy = 'completed_prefix_then_expand_v1' if diagnose_failures else 'ordinary_observation_only_v1'
+    membership = [{'source': item.ir.source_text_sha256, 'split': item.split,
+                   'construction_id': item.construction_id, 'topology_id': item.topology_id}
+                  for item in examples]
     identity = _sha({'observations': validation_identity({'candidate': model}, examples,
         scoring='source_anchors_v2', implementation=implementation), 'options': options,
-        'diagnostic_policy': policy})
+        'diagnostic_policy': policy, 'membership': membership})
     directory = Path(directory)
     rows = []
     for item in examples:
@@ -42,7 +45,10 @@ def audit_semantic_cohort(model, examples, *, directory, max_charts=16,
             document = json.loads(path.read_text())
             body = {k: v for k, v in document.items() if k != 'receipt_sha256'}
             if (document.get('receipt_sha256') != _sha(body) or body.get('identity') != identity
-                    or body.get('source_text_sha256') != item.ir.source_text_sha256):
+                    or body.get('source_text_sha256') != item.ir.source_text_sha256
+                    or body.get('split') != item.split
+                    or body.get('construction_id') != item.construction_id
+                    or body.get('topology_id') != item.topology_id):
                 raise ValueError('cohort audit checkpoint identity differs')
         else:
             if progress:

@@ -1247,14 +1247,27 @@ def _retained_argument_mentions(candidates, *, literal_anchor=None, overlap_comp
         ranked = sorted(candidates, key=lambda item: (
             -item[0], item[1].end - item[1].start, item[1].start, item[1].end,
         ))
+        # Prior scores are no lower. A suffix-start/prefix-min-end query
+        # therefore answers whether a retained interval is a subset.
+        starts = {start: index for index, start in enumerate(
+            sorted({span.start for _, span in ranked}, reverse=True), start=1)}
+        minimum_ends = [math.inf] * (len(starts) + 1)
         selected = []
         for score, span in ranked:
             if not math.isfinite(score):
                 raise ValueError("nonfinite argument mention score")
-            if any(other_score >= score and span.start <= other.start and other.end <= span.end
-                   for other_score, other in selected):
+            index = starts[span.start]
+            end = math.inf
+            while index:
+                end = min(end, minimum_ends[index])
+                index -= index & -index
+            if end <= span.end:
                 continue
             selected.append((score, span))
+            index = starts[span.start]
+            while index < len(minimum_ends):
+                minimum_ends[index] = min(minimum_ends[index], span.end)
+                index += index & -index
         return selected
     ranked = sorted(candidates, key=lambda item: (-item[0], item[1].start, item[1].end))
     selected = ranked[:_ARGUMENT_MENTIONS_PER_DEFINITION]

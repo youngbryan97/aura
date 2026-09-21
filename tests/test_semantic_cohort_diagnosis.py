@@ -165,3 +165,31 @@ def test_observation_policy_requires_boolean(tmp_path, monkeypatch):
     model, examples = setup(monkeypatch)
     with pytest.raises(ValueError, match='boolean'):
         audit.audit_semantic_cohort(model, examples, directory=tmp_path, diagnose_failures='false')
+
+
+@pytest.mark.parametrize('field,value', [('split','validation'), ('construction_id','other'),
+                                       ('topology_id','other')])
+def test_cohort_membership_labels_are_part_of_cache_identity(tmp_path, monkeypatch, field, value):
+    model, examples = setup(monkeypatch)
+    monkeypatch.setattr(audit, '_observe', lambda *a, **k: {'semantic_status':'equivalent'})
+    audit.audit_semantic_cohort(model, examples, directory=tmp_path)
+    setattr(examples[0], field, value)
+    monkeypatch.setattr(audit, '_observe', lambda *a, **k: pytest.fail('changed membership reused'))
+    with pytest.raises(ValueError, match='identity differs'):
+        audit.audit_semantic_cohort(model, examples, directory=tmp_path)
+
+
+def test_resealed_row_cannot_change_its_bound_split(tmp_path, monkeypatch):
+    import json
+
+    model, examples = setup(monkeypatch)
+    monkeypatch.setattr(audit, '_observe', lambda *a, **k: {'semantic_status':'equivalent'})
+    audit.audit_semantic_cohort(model, examples, directory=tmp_path)
+    path = tmp_path/'source0.json'
+    body = json.loads(path.read_text())
+    body.pop('receipt_sha256')
+    body['split'] = 'validation'
+    path.chmod(0o600)
+    path.write_text(json.dumps({**body,'receipt_sha256':audit._sha(body)}))
+    with pytest.raises(ValueError, match='identity differs'):
+        audit.audit_semantic_cohort(model, examples, directory=tmp_path)
