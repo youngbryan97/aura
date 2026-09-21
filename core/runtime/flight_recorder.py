@@ -146,6 +146,8 @@ def inspect_ring_file(path: Path, *, last_n: int = 240) -> RingInspection | None
     try:
         raw = Path(path).read_bytes()
     except FileNotFoundError:
+        # not a failure: the docstring says None means absent, and this is
+        # the read that finds out.
         return None
     except OSError as exc:
         record_degradation(
@@ -221,6 +223,8 @@ def _decode_slot(slot: bytes, slot_size: int) -> RecordedFrame | None:
             degradations,
         ) = struct.unpack_from(_SLOT_BODY_FMT, slot, 4)
     except struct.error:
+        # not a failure: a slot shorter than a record is one that was never
+        # written, and the caller skips it like any empty slot.
         return None
     if seq == 0 or used_len > slot_size - _SLOT_PREFIX_LEN:
         return None
@@ -486,14 +490,16 @@ class FlightRecorder:
         if self._file is not None:
             try:
                 self._file.close()
-            except OSError:
-                pass
+            except OSError as exc:
+                # The handle is dropped below either way, so a close that
+                # refuses is how the ring's descriptor leaks.
+                logger.warning("Flight recorder file would not close: %s", exc)
             self._file = None
         if self._lock_file is not None:
             try:
                 self._lock_file.close()
-            except OSError:
-                pass
+            except OSError as exc:
+                logger.warning("Flight recorder lock would not close: %s", exc)
             self._lock_file = None
         try:
             from core.container import ServiceContainer
@@ -639,6 +645,8 @@ class FlightRecorder:
             memory = get_resource_observer().memory(include_process_tree=False)
             return float(memory.process_rss_bytes) / (1024.0 * 1024.0)
         except (ImportError, OSError, RuntimeError, AttributeError):
+            # not a failure: an RSS this cannot read is written as zero, and
+            # a zero in the ring says the sample was not taken.
             return 0.0
 
     def _refresh_slow_fields(self) -> None:
@@ -664,6 +672,8 @@ class FlightRecorder:
                 get_degradation_tracker().status().get("total_degradations", 0)
             )
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            # not a failure: no tracker to count, and the ring records the
+            # zero as it would any unread sample.
             self._cached_degradations = 0
 
     # ── post-mortem ────────────────────────────────────────────────────
@@ -801,14 +811,20 @@ class FlightRecorder:
                 self._flight_dir.glob(_DEATH_ARTIFACT_GLOB),
                 key=lambda item: item.stat().st_mtime,
             )
-        except OSError:
+        except OSError as exc:
+            # This is the death-artifact reader. A directory it cannot walk
+            # is a crash report nobody will ever see.
+            logger.warning("Could not list %s for death artifacts: %s", self._flight_dir, exc)
             return None
         if not candidates:
             return None
         newest = candidates[-1]
         try:
             report = json.loads(newest.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        except (OSError, ValueError) as exc:
+            # The newest death artifact exists and will not open, which is
+            # the one case where returning None hides a real report.
+            logger.warning("Death artifact %s will not parse: %s", newest, exc)
             return None
         generated = float(report.get("generated_at") or 0.0)
         if time.time() - generated > _WAKING_NOTE_MAX_AGE_S:

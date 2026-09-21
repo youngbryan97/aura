@@ -171,7 +171,7 @@ def _chat_evidence_profile(user_message: str, *, bounded_surface: bool) -> tuple
         admission = admit_qualified_recurrent_objective(user_message)
         status = semantic_neural_default_serving_status() if admission is not None else None
     except (ImportError, OSError, RuntimeError, TypeError, ValueError):
-        admission = None
+        admission = None  # not a failure: the ordinary lane serves the turn
         status = None
     if admission is None or not isinstance(status, dict) or status.get("active") is not True:
         return _CHAT_EVIDENCE_PROFILE_CONTEXTUAL_LANGUAGE, None
@@ -241,8 +241,8 @@ async def _apply_camera_control(turn_on: bool) -> dict[str, Any]:
                 cause="failed",
                 detail=f"{type(exc).__name__}: {exc}"[:200],
             )
-        except _CHAT_RECOVERABLE_ERRORS:
-            pass
+        except _CHAT_RECOVERABLE_ERRORS as record_exc:
+            logger.warning("A camera failure went unrecorded, so silent: %s", record_exc)
         return {
             "ok": False,
             "enabled": not bool(turn_on),
@@ -1526,7 +1526,7 @@ def _collect_conversation_lane_status(
                 try:
                     lock_held = bool(kernel_lock.locked())
                 except _CHAT_RECOVERABLE_ERRORS:
-                    lock_held = False
+                    lock_held = False  # not a failure: unreported, not held
                 lane["kernel_lock_held"] = lock_held
                 lane["kernel_lock_held_s"] = (
                     round(
@@ -1701,7 +1701,7 @@ def _inventory_surface() -> object | None:
             features=embed_sentences,
         )
     except (ImportError, RuntimeError, TypeError, ValueError):
-        _ASKS_WHAT_SHE_CAN_DO = None
+        _ASKS_WHAT_SHE_CAN_DO = None  # not a failure: written rules serve
     return _ASKS_WHAT_SHE_CAN_DO
 
 
@@ -1712,7 +1712,7 @@ def _asks_what_is_different(user_message: str) -> bool:
 
         return bool(_NAMES_ANOTHER_TIME.search(str(user_message or "")))
     except (ImportError, AttributeError, TypeError, ValueError):
-        return False
+        return False  # not a failure: no pattern, no other time
 
 
 def _is_explicit_capability_inventory_request(user_message: str) -> bool:
@@ -1734,8 +1734,8 @@ def _is_explicit_capability_inventory_request(user_message: str) -> bool:
     if settled:
         try:
             surface.observe(str(user_message or ""), holds=True)
-        except (RuntimeError, TypeError, ValueError):
-            pass
+        except (RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("Inventory surface lost the observation it learns from: %s", exc)
         return True
     # An address is not a sentence, so the surface sees the words too.
     try:
@@ -1747,7 +1747,7 @@ def _is_explicit_capability_inventory_request(user_message: str) -> bool:
     try:
         return bool(surface.decide_without_waiting(asked))
     except (RuntimeError, TypeError, ValueError):
-        return False
+        return False  # not a failure: undecided leaves the written rules in charge
 
 
 def _capability_inventory_floor(user_message: str) -> bool:
@@ -1771,7 +1771,7 @@ def _capability_inventory_floor(user_message: str) -> bool:
 
         text = without_opaque_spans(text)
     except (ImportError, TypeError, ValueError):
-        pass
+        pass  # not a failure: the text keeps its spans
     if not text.strip():
         return False
     explicit_markers = (

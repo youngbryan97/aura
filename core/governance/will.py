@@ -68,7 +68,7 @@ def _bounded_delta(mapping: Any, key: str) -> float:
     try:
         value = float(mapping.get(key, 0.0))
     except (TypeError, ValueError):
-        return 0.0
+        return 0.0  # not a failure: a non-number delta moves nothing
     if not math.isfinite(value):
         return 0.0
     return max(-1.0, min(1.0, value))
@@ -78,7 +78,7 @@ def _score_memory_results(results: Any) -> float:
     try:
         items = list(results or [])
     except TypeError:
-        return 0.0
+        return 0.0  # not a failure: uniterable results are no results
     if not items:
         return 0.0
     best = 0.0
@@ -690,7 +690,7 @@ class UnifiedWill(_ReadsTheContext):
             from slo.slo_monitor import get_slo_monitor
             get_slo_monitor().record("will_decision_p95_ms", decision.latency_ms)
         except (ImportError, AttributeError, RuntimeError):
-            pass
+            pass  # not a failure: no SLO monitor here, so no sample
         if outcome == WillOutcome.REFUSE:
             try:
                 from core.observability.tracing import get_tracer
@@ -710,8 +710,8 @@ class UnifiedWill(_ReadsTheContext):
                         details=f"domain={domain.value} reason={reason[:80]}",
                         recovered=True,
                     )
-            except (ImportError, AttributeError, RuntimeError):
-                pass
+            except (ImportError, AttributeError, RuntimeError) as exc:  # untraceable
+                logger.debug("WILL-REFUSE was not recorded: %s", exc)
 
         if outcome == WillOutcome.REFUSE:
             logger.info("WILL REFUSED: %s/%s -- %s", source, domain.value, reason)
@@ -801,7 +801,7 @@ class UnifiedWill(_ReadsTheContext):
         try:
             aura_now_tick = int(aura_now_evidence.get("tick") or 0)
         except (TypeError, ValueError):
-            aura_now_tick = 0
+            aura_now_tick = 0  # not a failure: no readable tick, so no tick
         aura_now_policy = str(aura_now_packet.get("outcome") or "unknown")
         aura_now_constraints = [
             str(item)
@@ -1657,7 +1657,7 @@ class UnifiedWill(_ReadsTheContext):
                     dict(context or {}),
                 )
             except (ImportError, AttributeError, TypeError, ValueError):
-                internal_recovery = False
+                internal_recovery = False  # not a failure: judged ordinary, stricter
             if internal_recovery:
                 constraints.append("aura_now_internal_recovery_lane")
                 if outcome == WillOutcome.PROCEED:
@@ -2588,7 +2588,7 @@ class UnifiedWill(_ReadsTheContext):
         try:
             payload = json.loads(payload_text)
         except (json.JSONDecodeError, TypeError, ValueError):
-            return False
+            return False  # not a failure: an unparseable body is unverifiable
         if not isinstance(payload, dict) or payload.get("receipt_id") != receipt_id:
             return False
         try:
@@ -2601,7 +2601,8 @@ class UnifiedWill(_ReadsTheContext):
                 signature_key_id=str(value.get("signature_key_id") or ""),
                 require_durable=durable,
             )
-        except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.warning("Receipt verification could not run (not: failed): %s", exc)
             return False
 
     def get_receipt_verification_material(self, receipt_id: str) -> dict[str, Any]:
