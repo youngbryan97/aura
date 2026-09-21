@@ -19,7 +19,7 @@ _TYPES = {cls.__name__: cls for cls in (
 
 def save_fit_problem(path, *, identity, initial, contrasts, options):
     """Store shared evidence once; the archive grants no qualification authority."""
-    arrays, nodes, seen = {}, [], {}
+    arrays, nodes, seen, array_names = {}, [], {}, {}
 
     def encode(value):
         if isinstance(value, np.generic):
@@ -34,8 +34,12 @@ def save_fit_problem(path, *, identity, initial, contrasts, options):
         if isinstance(value, np.ndarray):
             if value.dtype.hasobject:
                 raise ValueError("object-valued fit evidence is unsupported")
-            name = f"array_{len(arrays)}"
-            arrays[name] = value
+            digest = fit_identity(value)
+            name = array_names.get(digest)
+            if name is None:
+                name = f"array_{len(arrays)}"
+                arrays[name] = value
+                array_names[digest] = name
             node = {"array": name}
         elif isinstance(value, tuple):
             node = {"tuple": [encode(part) for part in value]}
@@ -77,7 +81,9 @@ def load_fit_problem(path, *, expected_identity):
 
     for node in body["nodes"]:
         if set(node) == {"array"}:
-            value = arrays[node["array"]]
+            # Equal values share storage, while distinct source arrays remain
+            # distinct objects. Repeated references still resolve to one node.
+            value = arrays[node["array"]].copy()
         elif set(node) == {"tuple"}:
             value = tuple(decode(part) for part in node["tuple"])
         elif set(node) == {"type", "fields"} and node["type"] in _TYPES:

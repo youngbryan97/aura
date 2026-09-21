@@ -9,6 +9,20 @@ from core.learning.semantic_relation_graph_learning import graph_margin_gradient
 from tests.test_semantic_graph_batch import problem
 
 
+def test_equal_arrays_share_archive_storage_without_changing_aliases(tmp_path):
+    shared = np.arange(100, dtype=np.float64)
+    path = tmp_path / "deduplicated.npz"
+    save_fit_problem(path, identity="equal-evidence",
+        initial=(shared, shared, shared.copy()), contrasts=(), options={})
+    with np.load(path, allow_pickle=False) as archive:
+        assert set(archive.files) == {"metadata", "array_0"}
+    restored = load_fit_problem(path, expected_identity="equal-evidence")["initial"]
+    assert restored[0] is restored[1]
+    assert restored[0] is not restored[2]
+    for value in restored:
+        np.testing.assert_array_equal(value, shared)
+
+
 def test_roundtrip_preserves_scores_gradients_and_shared_evidence(tmp_path):
     initial, contrasts = problem()
     path = tmp_path / "problem.npz"
