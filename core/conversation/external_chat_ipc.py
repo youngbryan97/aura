@@ -181,11 +181,15 @@ class DurableChannelSpool:
         self.channel_dir = Path(channel_dir)
         self.codec = codec
         _validate_private_directory(self.channel_dir)
-        self.to_client = ensure_private_directory(self.channel_dir / "to_client")
-        self.to_server = ensure_private_directory(self.channel_dir / "to_server")
-        self.acks_to_client = ensure_private_directory(self.channel_dir / "acks_to_client")
-        self.acks_to_server = ensure_private_directory(self.channel_dir / "acks_to_server")
-        self.control = ensure_private_directory(self.channel_dir / "control")
+        # The five lanes of one channel, made from one place.
+        lanes: dict[str, Path] = {}
+        for name in ("to_client", "to_server", "acks_to_client", "acks_to_server", "control"):
+            lanes[name] = ensure_private_directory(self.channel_dir / name)
+        self.to_client = lanes["to_client"]
+        self.to_server = lanes["to_server"]
+        self.acks_to_client = lanes["acks_to_client"]
+        self.acks_to_server = lanes["acks_to_server"]
+        self.control = lanes["control"]
 
     @staticmethod
     def _frame_path(directory: Path, message_id: str) -> Path:

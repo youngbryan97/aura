@@ -1444,7 +1444,7 @@ class AffectUpdatePhase(Phase):
 register_contract(
     CognitiveTransformContract(
         name="AffectUpdatePhase",
-        version="1.0",
+        version="1.1",
         module=__name__,
         purpose=(
             "Advance the affect vector one tick from appraisal, decay and "
@@ -1468,6 +1468,12 @@ register_contract(
             "affect.social_hunger",
             "affect.valence",
             "cognition.modifiers",
+            # Re-measured 2026-09-21 after the organ readings landed: the
+            # ontogenetic reading, the broadcast ignition level and the
+            # substrate snapshot's age and share are published here for the
+            # phases that read them, and the contract said nothing of it —
+            # ten violations in thirty minutes of one live boot.
+            "response_modifiers",
         ),
         preconditions=("state carries an affect vector",),
         branches=(

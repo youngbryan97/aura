@@ -732,3 +732,41 @@ def test_private_material_refuses_path_replacement_during_read(tmp_path, monkeyp
     monkeypatch.setattr(chain.os, "read", _replace_path_during_read)
     with pytest.raises(RuntimeError, match="changed while reading"):
         chain._read_private_material(path)
+
+
+def test_the_public_key_is_published_once_and_never_from_the_loop(monkeypatch):
+    """LIVE 2026-09-21: every load rewrote the public key, fsync and all, from
+    a boot coroutine. A key already on disk unchanged is not written again."""
+    import asyncio
+    import threading
+
+    import core.governance.capability_chain as chain
+
+    if not chain._ED25519_AVAILABLE:
+        pytest.skip("Ed25519 is not available here")
+
+    writes: list[str] = []
+    real = chain.atomic_write_bytes
+
+    def counting(path, data, **kwargs):
+        writes.append(threading.current_thread().name)
+        return real(path, data, **kwargs)
+
+    monkeypatch.setattr(chain, "atomic_write_bytes", counting)
+
+    async def first_load():
+        chain._KeyMaterial.load()
+        # Behind the loop: give the lane a moment to land it.
+        for _ in range(200):
+            if writes:
+                break
+            await asyncio.sleep(0.01)
+        return threading.current_thread().name
+
+    loop_thread = asyncio.run(first_load())
+    assert len(writes) == 1, "a new key is published exactly once"
+    assert writes[0] != loop_thread, "the publish ran on the loop thread"
+
+    reset_capability_chain()
+    chain._KeyMaterial.load()
+    assert len(writes) == 1, "an unchanged key on disk was written again"

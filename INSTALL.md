@@ -7,8 +7,8 @@
 - 32 GB RAM to run it at all. 64 GB to run it the way it's built.
 
 That second line is the honest one. The tracked target is an M5-class Mac
-with 64 GB unified memory, which has room for the 27B Cortex plus the 9B
-Brainstem on demand. At 32 GB it works, but you're downshifting model lanes
+with 64 GB unified memory, which has room for the 27B Cortex plus the
+two-bit 27B Brainstem (8.6 GB) on demand. At 32 GB it works, but you're downshifting model lanes
 and you should not expect the latency numbers quoted elsewhere in this repo
 — those were measured on the 64 GB machine.
 
@@ -105,9 +105,9 @@ download. After that the cache is warm and boots are quick.
 
 State loads from SQLite. Nothing saved, and she starts fresh.
 
-The 9B Brainstem does not load at boot. That's deliberate — it's lazy so
-the 27B Cortex gets the memory it wants, and that's about 5 GB of
-difference on a machine where 5 GB decides whether the Cortex loads at all.
+The Brainstem does not load at boot. That's deliberate — it's lazy so the
+Cortex gets the memory it wants, and the Brainstem's 8.6 GB is the
+difference on a machine where 8 GB decides whether the Cortex loads at all.
 
 ## Optional: fine-tune personality
 
@@ -152,7 +152,7 @@ requests outright.
 | `AURA_LORA_PATH` | auto-detected | Path to the LoRA adapter directory |
 | `AURA_MODEL` | `Aura-Cortex` | Primary Cortex model (fused Qwen3.8-27B) |
 | `AURA_DEEP_MODEL` | auto-detected (72B) | Solver model for deep reasoning |
-| `AURA_BRAINSTEM_MODEL` | `Qwen3.5-9B-4bit` | Fast fallback (replaced Qwen2.5-7B on 2026-08-12) |
+| `AURA_BRAINSTEM_MODEL` | `Ternary-Bonsai-2-27B-mlx-2bit` | Fast fallback: Qwen3.5 27B at two bits, 8.6 GB (replaced the 9B on 2026-09-20; evidence in `docs/evidence/TERNARY_BONSAI_2_27B_2026-09-17.md`) |
 | `AURA_FALLBACK_MODEL` | `Qwen2.5-1.5B-Instruct-4bit` | CPU emergency fallback. Locked to the Cortex family — it is also the speculative draft and contrastive amateur, so it cannot drift from the Cortex distribution the way the Brainstem could |
 | `AURA_LOCAL_BACKEND` | `mlx` | Internal MLX runtime. Live Aura always uses this path. |
 | `AURA_SUBSTRATE_PRIMARY` | `1` | Try substrate token readout before transformer fallback |

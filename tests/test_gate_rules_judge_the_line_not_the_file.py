@@ -257,6 +257,29 @@ class TestADetectorMaySpellWhatItHunts:
         assert _scan_markers(source) == {2}
 
 
+class TestADetectorMaySayWhatItFound:
+    """A branch that tested for the stand-in is reporting, not pretending."""
+
+    def test_a_branch_that_read_the_marker_may_name_it(self) -> None:
+        source = (
+            "if first.stubbed != second.stubbed:\n"
+            '    out.append("one arm ran on the stub and the other on a cortex")\n'
+        )
+        assert _scan_markers(source) == set()
+
+    def test_a_branch_on_a_marker_variable_may_name_it(self) -> None:
+        source = 'if stubbed:\n    return "the pin reads the stub, so it says nothing"\n'
+        assert _scan_markers(source) == set()
+
+    def test_a_branch_that_tested_something_else_is_still_a_claim(self) -> None:
+        source = 'if ready:\n    return "placeholder"\n'
+        assert _scan_markers(source) == {2}
+
+    def test_the_word_in_the_test_string_is_not_a_read(self) -> None:
+        source = 'if mode == "stub":\n    return "placeholder"\n'
+        assert _scan_markers(source) == {1, 2}
+
+
 class TestTestsAreWhereDoublesBelong:
     def test_a_stub_in_a_test_is_the_implementation(self) -> None:
         source = 'model_dir.write_bytes(b"placeholder-bytes")\n'

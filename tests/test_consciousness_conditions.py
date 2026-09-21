@@ -141,7 +141,12 @@ def _read_source(relative_path: str) -> str:
             f"against a module that was retired. Point the test at the live "
             f"module or score the condition ABSENT."
         )
-    return fpath.read_text(errors="replace")
+    # The whole family: a lift moves a block into a sibling module, and a
+    # condition scored on one file read the lexicon as never reaching the
+    # prompt when it had moved to `inference_gate_living_context` (2026-09-21).
+    from tests.source_contract import family_text_at
+
+    return family_text_at(fpath)
 
 
 def _source_has_pattern(relative_path: str, *patterns: str) -> bool:

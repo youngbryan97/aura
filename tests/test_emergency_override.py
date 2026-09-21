@@ -14,6 +14,10 @@ import pytest
 
 from core.brain.llm import emergency_override as eo
 
+# The waiting loop was lifted out of mlx_client (2026-09-20); the family
+# reader sees the parent and its lifted siblings as one text.
+from tests.source_contract import family_text
+
 
 @pytest.fixture(autouse=True)
 def _clean_state():
@@ -194,7 +198,7 @@ class TestClientGuardsUseTheGovernedPath:
     def test_generation_refusal_consumes_an_override(self):
         from core.brain.llm import mlx_client
 
-        source = inspect.getsource(mlx_client)
+        source = family_text(mlx_client)
         assert "guard=\"critical_memory_generation_refusal\"" in source
         assert (
             "os.environ.get(\"AURA_MLX_ALLOW_CRITICAL_MEMORY_GENERATION\", \"\")"
@@ -204,7 +208,7 @@ class TestClientGuardsUseTheGovernedPath:
     def test_the_budget_is_only_spent_when_the_guard_would_fire(self):
         from core.brain.llm import mlx_client
 
-        source = inspect.getsource(mlx_client)
+        source = family_text(mlx_client)
         # Consumption is nested under the condition that the refusal applies.
         assert "override_applies = (" in source
         assert "if override_applies:" in source
@@ -212,7 +216,7 @@ class TestClientGuardsUseTheGovernedPath:
     def test_the_live_abort_guard_is_governed_too(self):
         from core.brain.llm import mlx_client
 
-        source = inspect.getsource(mlx_client)
+        source = family_text(mlx_client)
         assert 'guard="live_memory_pressure_abort"' in source
 
 
@@ -227,7 +231,7 @@ class TestAbortFailureIsNotAProbeFailure:
     def _source(self) -> str:
         from core.brain.llm import mlx_client
 
-        return inspect.getsource(mlx_client)
+        return family_text(mlx_client)
 
     def test_the_probe_has_its_own_try_block(self):
         source = self._source()

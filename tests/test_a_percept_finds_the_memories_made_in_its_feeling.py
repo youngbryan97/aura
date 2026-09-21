@@ -73,8 +73,10 @@ def test_every_facade_write_carries_the_feeling_it_was_made_in(monkeypatch) -> N
         "get",
         classmethod(lambda cls, name, default=None: repo if name == "state_repository" else real_get(name, default=default)),
     )
-    facade = MemoryFacade.__new__(MemoryFacade)
-    written = facade._stamp_felt({})
+    # Module-level since 2026-09-21: the facade was one method over its ratchet.
+    from core.memory.memory_facade import _stamp_felt
+
+    written = _stamp_felt({})
     assert decode(written["felt"])["fear"] == pytest.approx(0.6)
 
 

@@ -2,8 +2,8 @@
   "organs": 123,
   "cross_package_edges": 2042,
   "dependency_entropy": 9.1653,
-  "kernel_lines": 619169,
-  "at_commit": "56b02f1c213d532d97f1abb17ae93e5d0b0676ad",
+  "kernel_lines": 619395,
+  "at_commit": "b3eb87505ef1976b41c8eba4185c6a3e972f88ba",
   "history": [
     {
       "raised": [
@@ -551,6 +551,24 @@
         "commits_by_author": {
           "Claude": 5
         }
+      }
+    },
+    {
+      "raised": [
+        "kernel_lines"
+      ],
+      "from": {
+        "kernel_lines": 619169
+      },
+      "to": {
+        "kernel_lines": 619395
+      },
+      "because": "eleven commits since the last line (six Claude, five Codex): 2,188 insertions and 192 deletions across 42 files. Four social organs that were only written are now read by a decision, and their four readings entered K; the worker continues into the answer when the model ends its turn inside the private channel; the learning stack separates semantic search changes from fixed-bank scoring. core/social 466, core/self 342, core/agency 332, core/learning 297, core/brain 198 net lines.",
+      "landed": {
+        "commits": 11,
+        "files": 42,
+        "insertions": 2188,
+        "deletions": 192
       }
     }
   ]

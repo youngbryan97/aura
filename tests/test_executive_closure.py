@@ -354,7 +354,11 @@ async def test_executive_closure_preserves_task_commitment_before_routing(
     assert engine._commitment is not None
     assert engine._commitment.objective == prompt
     assert any(goal.get("description") == prompt for goal in result.cognition.active_goals)
-    goal_hierarchy.add_goal.assert_called_once()
+    # The commitment holds the person's task while they wait. It is not synced
+    # into her own goal hierarchy: a probe's "find out who wrote Solaris" sat
+    # there for two months and ran sixteen times in one uptime with nobody to
+    # reply to (2026-09-20).
+    goal_hierarchy.add_goal.assert_not_called()
     self_model.update_belief.assert_awaited_once()
 
 

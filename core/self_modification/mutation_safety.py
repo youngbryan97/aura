@@ -269,37 +269,22 @@ class QuarantineStore:
         entry_dir = self.root / entry_id
         entry_dir.mkdir(parents=True, exist_ok=False)
         file_gateway = get_file_write_gateway()
-        file_gateway.write_text(
-            entry_dir / "source.py",
-            source,
-            encoding="utf-8",
-            source="core.self_modification.mutation_safety.quarantine_source",
-        )
+        # One entry is five files, written from one place.
+        parts: list[tuple[str, str, str]] = [
+            ("source.py", source, "source"),
+            ("stdout.log", diagnostics.stdout, "stdout"),
+            ("stderr.log", diagnostics.stderr, "stderr"),
+            ("result.json", json.dumps(diagnostics.to_dict(), indent=2, default=str), "result"),
+        ]
         if test_source:
+            parts.insert(1, ("test.py", test_source, "test"))
+        for name, text, kind in parts:
             file_gateway.write_text(
-                entry_dir / "test.py",
-                test_source,
+                entry_dir / name,
+                text,
                 encoding="utf-8",
-                source="core.self_modification.mutation_safety.quarantine_test",
+                source=f"core.self_modification.mutation_safety.quarantine_{kind}",
             )
-        file_gateway.write_text(
-            entry_dir / "stdout.log",
-            diagnostics.stdout,
-            encoding="utf-8",
-            source="core.self_modification.mutation_safety.quarantine_stdout",
-        )
-        file_gateway.write_text(
-            entry_dir / "stderr.log",
-            diagnostics.stderr,
-            encoding="utf-8",
-            source="core.self_modification.mutation_safety.quarantine_stderr",
-        )
-        file_gateway.write_text(
-            entry_dir / "result.json",
-            json.dumps(diagnostics.to_dict(), indent=2, default=str),
-            encoding="utf-8",
-            source="core.self_modification.mutation_safety.quarantine_result",
-        )
         return entry_dir
 
     def list_entries(self) -> list[Path]:

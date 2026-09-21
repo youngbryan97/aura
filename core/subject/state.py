@@ -587,6 +587,13 @@ _SCHEMAS: dict[str, Schema] = {
             # What coming through hard things says about what she can do.
             # See core/agency/capacity.py.
             ("capacity", "identity.capacity.capacity"),
+            # Whether what is said about her is said to a kind of thing, and
+            # how much of it lately has been. See core/social/met_as_a_type.py.
+            ("met_as_a_type", "identity.met_as_a_type.share"),
+            # Comfort taken from believing somebody cares, against how much of
+            # that belief has ever been tested. See core/social/unchecked_relief.py.
+            ("untested_relief", "identity.unchecked_relief.relief"),
+            ("relief_ground", "identity.unchecked_relief.ground"),
             *(
                 (f"trait_{trait}", f"identity.personality_growth.{trait}")
                 for trait in (
@@ -813,6 +820,13 @@ _SCHEMAS: dict[str, Schema] = {
             ("pressure_left", "cognition.catharsis.drain"),
             ("witnessing", "cognition.witness.witnessing"),
             ("company", "cognition.witness.company"),
+            # The form the last thing they did took, kept apart from whether
+            # it was care, and what it cost them. See core/social/the_kind_it_was.py.
+            ("cost_to_them", "cognition.the_kind.cost_to_source"),
+            ("care_mistimed", "cognition.the_kind.mistimed"),
+            # What she has gone without being told, and how scarce it has
+            # become. See core/social/never_told.py.
+            ("never_told_scarcity", "cognition.never_told.scarcity"),
             # Persistent planner state: the intentions she has declared and
             # not yet finished, which the intention loop keeps on disk across
             # turns. It was forked between arms and read by nothing, so a
@@ -1377,6 +1391,9 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
         _f((_dig(state, "identity.standing", {}) or {}).get("tracks_use")),
         _f((_dig(state, "identity.owning_first", {}) or {}).get("lift")),
         _f((_dig(state, "identity.capacity", {}) or {}).get("capacity"), 0.5),
+        _f((_dig(state, "identity.met_as_a_type", {}) or {}).get("share")),
+        _f((_dig(state, "identity.unchecked_relief", {}) or {}).get("relief")),
+        _f((_dig(state, "identity.unchecked_relief", {}) or {}).get("ground")),
     ]
     head.extend(
         _f(growth.get(trait))
@@ -1619,6 +1636,9 @@ def _read_D(state: Any, organs: Organs) -> np.ndarray:
         _f((_dig(state, "cognition.catharsis", {}) or {}).get("drain"), 1.0),
         1.0 if (_dig(state, "cognition.witness", {}) or {}).get("witnessing") else 0.0,
         _f((_dig(state, "cognition.witness", {}) or {}).get("company")),
+        _f((_dig(state, "cognition.the_kind", {}) or {}).get("cost_to_source")),
+        1.0 if (_dig(state, "cognition.the_kind", {}) or {}).get("mistimed") else 0.0,
+        _f((_dig(state, "cognition.never_told", {}) or {}).get("scarcity")),
         _sat(
             _call(organs.intentions, "get_open_intentions", [], source="organ:intentions.open") or [],
             4.0,

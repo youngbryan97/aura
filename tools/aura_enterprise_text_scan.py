@@ -91,6 +91,9 @@ class FileTextContext:
     #: Lines where every such string is used as a NAME, a KEY or a PATTERN —
     #: a detector's vocabulary rather than a claim about this code.
     marker_vocabulary_lines: set[int] = field(default_factory=set)
+    #: Lines inside a branch whose test reads the marker — ``if arm.stubbed:``
+    #: — where the string is a detector reporting what it found.
+    marker_detection_lines: set[int] = field(default_factory=set)
     #: Lines calling ``pytest.skip()`` with nothing guarding the call.
     unconditional_skip_lines: set[int] = field(default_factory=set)
     #: Lines where a skip marker sits INSIDE a string — sample source in a
@@ -346,6 +349,42 @@ def _vocabulary_string_lines(tree: ast.AST) -> set[int]:
     return lines
 
 
+def _detection_string_lines(tree: ast.AST) -> set[int]:
+    """Lines of marker strings emitted by a branch that tested for the marker.
+
+    ``if first.stubbed != second.stubbed: out.append("one arm ran on the
+    stub and the other on a cortex")`` is a detector saying what it found.
+    The gate's own rule is that the defect is code which BEHAVES as though
+    it were complete; a branch that exists to notice the stand-in and say so
+    is the opposite of that, and flagging it puts the gate's weight behind
+    deleting the notice. The test has to read the marker as a NAME — an
+    attribute or a variable — not merely contain the word in a string.
+    """
+    marker = TEXT_PATTERNS["placeholder_stub_mock"]
+    # A name reads the marker as a stem: ``stubbed``, ``is_mock``,
+    # ``placeholder_count``. The word-boundary form is for prose.
+    named = re.compile(r"(?:placeholder|stub|mock|dummy)", re.IGNORECASE)
+    lines: set[int] = set()
+
+    def names_in(test: ast.AST) -> Iterator[str]:
+        for node in ast.walk(test):
+            if isinstance(node, ast.Name):
+                yield node.id
+            elif isinstance(node, ast.Attribute):
+                yield node.attr
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.If):
+            continue
+        if not any(named.search(name) for name in names_in(node.test)):
+            continue
+        for inner in node.body:
+            for constant in ast.walk(inner):
+                if isinstance(constant, ast.Constant) and marker.search(_marker_text(constant)):
+                    lines.add(int(getattr(constant, "lineno", 0) or 0))
+    return lines
+
+
 def _marker_string_lines(tree: ast.AST) -> set[int]:
     marker = TEXT_PATTERNS["placeholder_stub_mock"]
     lines: set[int] = set()
@@ -410,6 +449,7 @@ def file_text_context(tree: ast.AST | None) -> FileTextContext:
     )
     context.marker_string_lines = _marker_string_lines(tree)
     context.marker_vocabulary_lines = _vocabulary_string_lines(tree)
+    context.marker_detection_lines = _detection_string_lines(tree)
     context.unconditional_skip_lines = _unconditional_skip_lines(tree)
     context.quoted_skip_lines = _quoted_skip_lines(tree)
     return context
@@ -529,12 +569,19 @@ def _marker_is_not_a_claim(line_no: int, rel: str, context: FileTextContext) -> 
       that escape into product paths are caught where it can actually be
       proven: the sys.modules contamination guard in tests/conftest.py and
       the production-only sweep in tests/test_semantic_marker_audit.py.
+    * The string is emitted by a branch that tested for the marker by name.
+      ``if first.stubbed != second.stubbed:`` followed by "one arm ran on
+      the stub" is the detector reporting, which is the honesty mechanism
+      the first bullet protects, one level down (2026-09-21).
     """
     if rel.startswith("tests/"):
         return True
     if line_no not in context.marker_string_lines:
         return True
-    return line_no in context.marker_vocabulary_lines
+    return (
+        line_no in context.marker_vocabulary_lines
+        or line_no in context.marker_detection_lines
+    )
 
 
 def _skip_is_not_parked_debt(line: str, line_no: int, context: FileTextContext) -> bool:
