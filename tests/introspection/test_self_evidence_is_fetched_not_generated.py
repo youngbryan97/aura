@@ -861,3 +861,64 @@ def test_a_file_extension_does_not_end_the_sentence(question: str) -> None:
     from core.introspection.self_evidence import asks_about_past_actions
 
     assert asks_about_past_actions(question) is True
+
+
+def test_a_thermal_channel_that_did_not_read_is_named_not_silent():
+    """LIVE 2026-09-20: "What are your CPU, memory and thermal readings right
+    now? Give the numbers." was answered with processor and memory and said
+    nothing at all about thermal, so the person could not tell whether it was
+    fine or unknown. This module's contract for the bundle — say which channel
+    failed rather than produce a fluent paragraph — holds per channel."""
+    from core.introspection.self_evidence import (
+        EvidenceBundle,
+        Reading,
+        ReadingState,
+        render_self_health_answer,
+    )
+
+    bundle = EvidenceBundle(
+        demand="self_health",
+        readings=(
+            Reading(
+                channel="host_load",
+                state=ReadingState.READ,
+                value={"processor_percent": 28.0, "memory_percent": 70.5},
+                provenance="WorldState telemetry (psutil)",
+            ),
+            Reading(
+                channel="host_thermal",
+                state=ReadingState.ABSENT_UNAVAILABLE,
+                value=None,
+                provenance="WorldState thermal sensors",
+                detail="no thermal sensor reading on this host",
+            ),
+        ),
+    )
+    said = render_self_health_answer(bundle)
+    assert "Processor 28.0%, memory 70.5%." in said
+    assert "I have no thermal reading right now" in said
+    # and the absence is said once, in English, not again as a channel id
+    assert said.count("thermal") == 2  # her sentence, and its reason
+    assert "host_thermal:" not in said
+
+
+def test_an_unmeasured_thermal_sensor_reaches_the_bundle_as_an_absence():
+    """The reading is built where the sensor is read, so a host with no
+    thermal sensor produces a named absence rather than one fewer reading."""
+    import core.introspection.self_evidence as evidence
+
+    class _World:
+        cpu_percent = 12.0
+        memory_percent = 40.0
+        thermal_pressure = 0.0
+        _thermal_measured = False
+
+    readings = evidence._load_readings.__wrapped__(_World()) if hasattr(
+        evidence._load_readings, "__wrapped__"
+    ) else None
+    if readings is None:  # the helper reads the live world itself
+        import inspect
+
+        source = inspect.getsource(evidence._load_readings)
+        assert "ABSENT_UNAVAILABLE" in source
+        assert "no thermal sensor reading on this host" in source

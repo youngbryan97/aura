@@ -808,6 +808,21 @@ def _load_readings() -> list[Reading]:
             value=round(float(world.thermal_pressure), 3),
             provenance="WorldState thermal sensors",
         ))
+    else:
+        # A channel that did not read is a named absence, not silence. LIVE
+        # 2026-09-20: "What are your CPU, memory and thermal readings right
+        # now? Give the numbers." was answered with processor and memory and
+        # said nothing at all about thermal, so the person could not tell
+        # whether it was fine or unknown. This module's own contract for the
+        # whole bundle — say which channel failed rather than produce a
+        # fluent paragraph — applies per channel.
+        readings.append(Reading(
+            channel="host_thermal",
+            state=ReadingState.ABSENT_UNAVAILABLE,
+            value=None,
+            provenance="WorldState thermal sensors",
+            detail="no thermal sensor reading on this host",
+        ))
     return readings
 
 
@@ -819,6 +834,11 @@ def resolve_self_health() -> EvidenceBundle:
     readings.extend(_degradation_readings())
     readings.extend(_load_readings())
     return EvidenceBundle(demand="self_health", readings=tuple(readings))
+
+
+#: Channels the renderer names in plain English above, so the generic
+#: absent-channel list does not repeat them in debug form.
+_SPOKEN_ABSENCES = frozenset({"host_thermal"})
 
 
 def render_self_health_answer(bundle: EvidenceBundle) -> str:
@@ -845,6 +865,14 @@ def render_self_health_answer(bundle: EvidenceBundle) -> str:
         thermal = by_channel.get("host_thermal")
         if thermal is not None and thermal.present:
             lines.append(f"Thermal pressure {float(thermal.value):.2f} of 1.")
+        elif thermal is not None:
+            # Said in her own words rather than as a channel id and a state.
+            # A person who asked for a thermal reading is owed "I cannot read
+            # it", not silence (LIVE 2026-09-20) and not a debug line.
+            lines.append(
+                "I have no thermal reading right now"
+                + (f": {thermal.detail}." if thermal.detail else ".")
+            )
     elif load is not None:
         lines.append(f"I could not read processor or memory: {load.detail}.")
 
@@ -876,8 +904,12 @@ def render_self_health_answer(bundle: EvidenceBundle) -> str:
         else:
             lines.append("No degradations recorded recently.")
 
-    unreadable = [r for r in bundle.absent]
-    for reading in unreadable:
+    # A channel already said in her own words above is not said again as a
+    # channel id and a state — the reader would get the same absence twice,
+    # once in English and once in debug.
+    for reading in bundle.absent:
+        if reading.channel in _SPOKEN_ABSENCES:
+            continue
         lines.append(
             f"{reading.channel}: not readable right now "
             f"({reading.state}{': ' + reading.detail if reading.detail else ''})."
