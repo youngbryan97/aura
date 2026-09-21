@@ -145,7 +145,7 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
                              objective="squared_deficit", operation_retention_count=None,
                              learn_operation_pointer=False, update_rule="working_face",
                              boundary_policy="supervised", learn_operations=True,
-                             relation_metric="coefficient_euclidean"):
+                             relation_metric="coefficient_euclidean", operation_policy="supervised"):
     """Fit only selected source rows and independently replay both small cohorts.
 
     This returns no deployable candidate. Validation rows never enter mining
@@ -193,7 +193,7 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
         groups[name].extend(range(len(constraints), len(constraints) + len(rows)))
         constraints.extend(rows)
 
-    retain("operation_labels", source_operation_constraints(model, operation_supervision))
+    retain("operation_labels", source_operation_constraints(model, operation_supervision, policy=operation_policy))
     if learn_operation_pointer:
         # Pointer retention follows the full source-retention cohort, just as
         # operation-label retention does. The fitted candidate must not learn
@@ -275,6 +275,7 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
             "validation_sources": [item.ir.source_text_sha256 for item in validation],
             "validation_used_for_fit": False, "test_examples_used": 0,
             "boundary_policy": boundary_policy,
+            "operation_policy": operation_policy,
             "before": before, "after": after, "mining": records, "fit": fit,
             "constraint_groups": _constraint_group_summary(groups, fit),
             "summaries": summaries, "larger_development_run_ready": not blockers, "blockers": blockers}

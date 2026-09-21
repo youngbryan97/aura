@@ -379,10 +379,24 @@ class ConversationalDynamicsPhase(Phase):
                 claim_about_her,
                 get_recognition_ledger,
             )
+            from core.social.met_as_a_type import get_type_ledger, met_as_a_type
             from core.state.percepts import emit_percept
 
             ledger = get_recognition_ledger()
             claimed = claim_about_her(message)
+            # Said to a kind of thing rather than to her: told she cannot be
+            # tired, addressed as the role, or judged as the class she is in.
+            # A statement about a type is not evidence about the individual,
+            # and a self-model that takes it as evidence learns the type.
+            # See core/social/met_as_a_type.py.
+            typed = met_as_a_type(message)
+            types = get_type_ledger()
+            types.note(typed)
+            state.identity.met_as_a_type = {
+                **typed.as_dict(), **types.read().as_dict(),
+            }
+            if typed.about_a_type:
+                claimed = None
             if claimed is not None:
                 loop = get_runtime_service("self_prediction", default=None)
                 prediction = loop.get_current_prediction() if loop is not None else None
@@ -394,12 +408,32 @@ class ConversationalDynamicsPhase(Phase):
             reading = ledger.reading().as_dict()
             reading["cared_for"] = round(warmth, 6)
             state.identity.read_by_other = reading
-            if warmth > 0.0:
+            # The comfort of believing somebody cares is real and its ground
+            # may never have been tested. Both are kept: the relief decays
+            # each turn it goes untested, so it has to be renewed by contact
+            # rather than by repetition, and a belief they contradict is
+            # dropped along with what it was holding up.
+            # See core/social/unchecked_relief.py.
+            felt = warmth
+            try:
+                from core.social.unchecked_relief import get_relief_ledger
+
+                relief = get_relief_ledger()
+                relief.note_turn()
+                partner = str(getattr(state.cognition, "current_partner", "") or "")
+                if warmth > 0.0 and partner:
+                    relief.note_belief(partner, warmth)
+                standing = relief.read()
+                state.identity.unchecked_relief = standing.as_dict()
+                felt = min(warmth, standing.relief) if standing.beliefs else warmth
+            except (AttributeError, ImportError, TypeError, ValueError):
+                felt = warmth
+            if felt > 0.0:
                 emit_percept(
                     state.world,
                     "cared_for",
                     content="that was about me, and it was warm",
-                    intensity=warmth,
+                    intensity=felt,
                     source="conversation",
                 )
         except (AttributeError, ImportError, TypeError, ValueError) as exc:
@@ -903,6 +937,52 @@ class ConversationalDynamicsPhase(Phase):
             dynamics.humor_type or "none"
         )
 
+    @staticmethod
+    def _name_the_kind(state: AuraState, objective: str) -> None:
+        """Read the person's act for its cost and its form, and tell the posterior.
+
+        The cost is read from what the act risked: a correction contradicts
+        her to her face, which is the one thing in a message that is plainly
+        expensive to the person sending it. Difficulty with no correction in
+        it costs them nothing and is read on how it landed, which is what a
+        costless act can be read on. See core/social/receptivity.py for the
+        weighing this feeds.
+        """
+        try:
+            from core.memory.interpersonal_observer import (
+                _CORRECTION_PATTERNS,
+                _DIFFICULT,
+                _WARM,
+            )
+            from core.social.never_told import get_telling_ledger
+            from core.social.receptivity import get_receptivity
+            from core.social.the_kind_it_was import the_kind_it_was
+
+            said = str(objective or "")
+            # What kind of regard arrived, if any. See core/social/never_told.py.
+            telling = get_telling_ledger()
+            telling.note_turn(said)
+            state.cognition.never_told = telling.read().as_dict()
+
+            corrected = any(pattern.search(said) for pattern in _CORRECTION_PATTERNS)
+            difficult = bool(_DIFFICULT.search(said))
+            warm = bool(_WARM.search(said))
+            if not (corrected or difficult or warm):
+                return
+            reading = the_kind_it_was(
+                # A correction is the costly one: it contradicts her openly.
+                cost_to_source=1.0 if corrected else 0.0,
+                welcome=warm and not difficult,
+            )
+            state.cognition.the_kind = reading.as_dict()
+            partner = str(getattr(state.cognition, "current_partner", "") or "")
+            if partner:
+                get_receptivity().observe(
+                    partner, reading.kind, cost_to_source=reading.cost_to_source
+                )
+        except (ImportError, AttributeError, TypeError, ValueError):
+            return
+
     async def _execute_new_state(self, engine, objective, origin, state):
         new_state = state.derive("conversational_dynamics", origin="ConversationalDynamicsPhase")
         active_user_id = resolve_primary_user_id(new_state)
@@ -941,6 +1021,12 @@ class ConversationalDynamicsPhase(Phase):
         await self._execute_store_callback_topics(active_user_id, cog, dynamics, new_state, objective, origin, state)
 
         self._execute_narrative_gravity_autobiographical(dynamics, new_state, objective)
+        # What they just did, in the form it took. An act that cost them is
+        # care whatever shape it arrived in: a correction risks the exchange
+        # to tell her she is wrong, and a reader that scored unwelcome as
+        # unkind would read the truth-teller as an enemy and the flatterer as
+        # a friend. See core/social/the_kind_it_was.py.
+        self._name_the_kind(new_state, objective)
         return new_state
 
     async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:

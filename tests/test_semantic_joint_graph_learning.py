@@ -23,6 +23,35 @@ def operation_fixture():
     return head, OperationEvidenceBank(features), parameters
 
 
+@pytest.mark.parametrize("constructor", ["joint", "relation"])
+def test_constructed_contrast_preserves_margin_when_shared_scores_cancel(constructor):
+    from types import SimpleNamespace
+    from core.learning.semantic_joint_graph_learning import joint_graph_contrast
+    from core.learning.semantic_relation_graph_learning import RelationEvidenceBank, graph_margin
+
+    zero = np.zeros((1, 1))
+    model = SimpleNamespace(
+        definition_relation_head=SimpleNamespace(query_projection=zero, definition_projection=zero),
+        definition_relation_scale=1., operation_head=SimpleNamespace(heads=()),
+        argument_role_heads=(), argument_proposal_heads=(),
+        operation_pointer=SimpleNamespace(start_weight=np.zeros(1), end_weight=np.zeros(1),
+            pair_weight=None, start_bias=0., end_bias=0.),
+    )
+    shared = RelationEvidenceBank(np.zeros(1), zero, np.array([-1e16]))
+    small = RelationEvidenceBank(np.zeros(1), zero, np.zeros(1))
+    positive = {"score": .25, "relations": ((shared, 0), (small, 0)), "operations": ()}
+    negative = {"score": 0., "relations": ((shared, 0),), "operations": ()}
+    if constructor == "joint":
+        row = joint_graph_contrast(model, positive, negative)
+    else:
+        from core.learning.semantic_relation_graph_learning import contrast_from_search
+
+        result = SimpleNamespace(positive=((positive["score"],),), negative=((negative["score"],),),
+            positive_evidence=positive["relations"], negative_evidence=negative["relations"])
+        row = contrast_from_search(result, model.definition_relation_head, scale=1.)
+    assert graph_margin((zero, zero), row) == pytest.approx(.25, abs=1e-15)
+
+
 def test_operation_score_is_log_of_the_runtime_probability_mixture():
     head, bank, parameters = operation_fixture()
     for selected in range(len(head.labels)):

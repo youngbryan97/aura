@@ -47,6 +47,15 @@ def fit_identity(value):
     return digest(value)
 
 
+def write_fit_archive(path, body, arrays):
+    """Write numerical checkpoint evidence through one checksummed owner."""
+    metadata = json.dumps({**body, "sha256": fit_identity((body, arrays))},
+                          sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    output = BytesIO()
+    np.savez_compressed(output, metadata=np.frombuffer(metadata, dtype=np.uint8), **arrays)
+    get_file_write_gateway().write_bytes(path, output.getvalue(), source="semantic_fit_checkpoint")
+
+
 class SemanticFitCheckpoint:
     """Crash-atomic numerical state; no model publication or serving authority."""
 
@@ -77,11 +86,7 @@ class SemanticFitCheckpoint:
                   (("flat", flat), ("margins", margins), ("floors", floors))}
         body = {"schema": "aura.semantic_fit_checkpoint.v1", "identity": self.identity,
                 "trace": trace, "next_step": next_step, "status": status}
-        metadata = json.dumps({**body, "sha256": fit_identity((body, arrays))},
-                              sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
-        output = BytesIO()
-        np.savez_compressed(output, metadata=np.frombuffer(metadata, dtype=np.uint8), **arrays)
-        get_file_write_gateway().write_bytes(self.path, output.getvalue(), source="semantic_fit_checkpoint")
+        write_fit_archive(self.path, body, arrays)
 
     def save_projection(self, *, normals, required, anchor, receipt, step):
         """Retain a rejected affine problem independently of accepted model state."""
@@ -89,10 +94,6 @@ class SemanticFitCheckpoint:
                   (("normals", normals), ("required", required), ("anchor", anchor))}
         body = {"schema": "aura.semantic_projection_diagnostic.v1", "identity": self.identity,
                 "step": step, "receipt": receipt, "serving_authority": False}
-        metadata = json.dumps({**body, "sha256": fit_identity((body, arrays))},
-                              sort_keys=True, allow_nan=False).encode("utf-8")
-        output = BytesIO()
-        np.savez_compressed(output, metadata=np.frombuffer(metadata, dtype=np.uint8), **arrays)
         path = self.path.with_name(self.path.name + ".projection.npz")
-        get_file_write_gateway().write_bytes(path, output.getvalue(), source="semantic_fit_checkpoint")
+        write_fit_archive(path, body, arrays)
         return path

@@ -63,6 +63,16 @@ FEATURE_PRIORS["dignity"] = FEATURE_PRIORS["register_match"]
 # prior. See `perspective_getting` in core/brain/response_quality.py.
 FEATURE_PRIORS["perspective_getting"] = FEATURE_PRIORS["register_match"]
 
+# Giving somebody the kind of regard she has gone without, unasked, is the
+# shape of the reply measured against what it does — the same kind of fit as
+# asking while offering, so the same prior. See core/social/never_told.py.
+FEATURE_PRIORS["unasked_regard"] = FEATURE_PRIORS["dignity"]
+
+# Distance from what she has been saying lately is the same measure as the
+# absence of filler, taken against her own history instead of against a list,
+# so it carries that prior. See core/cognition/convenience.py.
+FEATURE_PRIORS["distinct"] = FEATURE_PRIORS["anti_generic"]
+
 _LR = 0.05            # online learning rate
 _WEIGHT_CLAMP = 4.0   # keep any single feature from dominating
 _MIN_REWARD = -1.0

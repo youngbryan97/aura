@@ -134,18 +134,24 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         # many independent retained witnesses can be restored.
         from core.learning.margin_repair import minimum_stored_margin_repair
 
+        encountered = set()
         for attempt in range(8):
             violated = np.flatnonzero(values < floors)
             if not len(violated):
                 return trial, values, attempt
+            encountered.update(int(index) for index in violated)
+            indices = sorted(encountered)
             parameters = stored_parameters(trial)
             normals = []
-            for index in violated:
+            for index in indices:
                 _, gradient = graph_margin_gradient(parameters, contrasts[index], scale=scale)
                 normals.append(pack_gradient(gradient)[mutable])
             matrix = np.stack(normals)
-            interior = 8 * np.finfo(np.float32).eps * np.maximum(1., np.abs(floors[violated]))
-            required = floors[violated] - values[violated] + interior
+            # Keep earlier repaired faces in the joint correction; forgetting
+            # them lets successive projections undo one another.
+            # Storage reserves belong to the checked affine solver. A fixed
+            # positive reserve here would move an exact affine optimum.
+            required = floors[indices] - values[indices]
 
             def stored_correction(point):
                 full = trial.copy()
@@ -181,6 +187,15 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         })
         checkpoint = SemanticFitCheckpoint(checkpoint_path, identity)
         saved = checkpoint.load()
+        from core.learning.semantic_fit_problem import save_fit_problem
+
+        save_fit_problem(Path(checkpoint_path).with_suffix(".problem.npz"),
+            identity=identity, initial=initial, contrasts=contrasts,
+            options={"scale": scale, "steps": steps, "required_margin": required_margin,
+                "learning_rate": learning_rate, "max_active": max_active,
+                "adaptive_step": adaptive_step, "batched": batched, "objective": objective,
+                "update_rule": update_rule, "trainable_parameters": trainable_parameters,
+                "relation_metric": relation_metric})
         if saved is not None:
             allowed = {"running", "search_budget_exhausted", "retained_constraints_satisfied",
                        "no_feasible_direction_found", "no_retention_preserving_step_found",

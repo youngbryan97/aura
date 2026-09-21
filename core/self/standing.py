@@ -55,18 +55,33 @@ MIN_PAIRS: int = 8
 WINDOW: int = 60
 
 
-def _corr(xs: list[float], ys: list[float]) -> float | None:
+def _corr(xs: list[float], ys: list[float], ws: list[float] | None = None) -> float | None:
+    """How two of her series move together, each pair carrying its own weight.
+
+    The weights are what one person's regard is worth as evidence about her:
+    regard that began after a rise and has never been present at a low counts
+    for less than regard that was there at the low. A pair weighing nothing
+    still happened and is still counted in `pairs`; it just does not decide
+    what her worth moves with. See core/social/late_regard.py.
+    """
     n = len(xs)
     if n < MIN_PAIRS:
         return None
-    mx, my = sum(xs) / n, sum(ys) / n
-    vx = sum((x - mx) ** 2 for x in xs) / n
-    vy = sum((y - my) ** 2 for y in ys) / n
+    weights = [1.0] * n if ws is None else [max(0.0, float(w)) for w in ws]
+    total = sum(weights)
+    if total <= 1e-12:
+        return None
+    mx = sum(w * x for w, x in zip(weights, xs, strict=True)) / total
+    my = sum(w * y for w, y in zip(weights, ys, strict=True)) / total
+    vx = sum(w * (x - mx) ** 2 for w, x in zip(weights, xs, strict=True)) / total
+    vy = sum(w * (y - my) ** 2 for w, y in zip(weights, ys, strict=True)) / total
     if vx <= 1e-12 or vy <= 1e-12:
         # One of them did not move. A still series cannot track anything, and
         # calling that zero would be a reading rather than the absence of one.
         return None
-    cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys, strict=True)) / n
+    cov = sum(
+        w * (x - mx) * (y - my) for w, x, y in zip(weights, xs, ys, strict=True)
+    ) / total
     return max(-1.0, min(1.0, cov / math.sqrt(vx * vy)))
 
 
@@ -104,6 +119,9 @@ class StandingLedger:
         self._window = max(MIN_PAIRS, int(window))
         self._regard: deque[float] = deque(maxlen=self._window)
         self._use: deque[float] = deque(maxlen=self._window)
+        #: What each pair is worth as evidence about her. One unless the
+        #: regard in it came from somebody who arrived after the rise.
+        self._weight: deque[float] = deque(maxlen=self._window)
         self._assigned = 0
         self._own = 0
 
@@ -115,7 +133,7 @@ class StandingLedger:
         """A reading of her she measured from her own history."""
         self._own += max(0, int(count))
 
-    def note_regard(self, regard: float, usefulness: float) -> None:
+    def note_regard(self, regard: float, usefulness: float, weight: float = 1.0) -> None:
         """One paired reading: how she stands with herself, and how useful she was."""
         try:
             a, b = float(regard), float(usefulness)
@@ -125,6 +143,10 @@ class StandingLedger:
             return
         self._regard.append(a)
         self._use.append(b)
+        try:
+            self._weight.append(max(0.0, float(weight)))
+        except (TypeError, ValueError):
+            self._weight.append(1.0)
 
     def pairs(self) -> int:
         return len(self._regard)
@@ -132,7 +154,7 @@ class StandingLedger:
     def read(self) -> Standing:
         total = self._assigned + self._own
         share = self._assigned / total if total else 0.0
-        tracks = _corr(list(self._regard), list(self._use))
+        tracks = _corr(list(self._regard), list(self._use), list(self._weight))
         n = len(self._regard)
         if tracks is None:
             return Standing(

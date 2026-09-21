@@ -1060,6 +1060,26 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Full source replay](evidence/G03_RESTORED_FULL_SOURCE_2026-09-20.md)
+  confirms 764/764 training programs, but 469/500 exact validation programs
+  versus the parent's 488/500. The incumbent remains selected.
+  [Operation retention policy](evidence/G03_OPERATION_RETENTION_POLICY_2026-09-20.md)
+  distinguishes auxiliary span labels from runtime program corrections.
+  The prior candidate reaches 764/764 source-training cases; coefficient
+  interventions attribute its five validation regressions to the classifier.
+  [Restored latent decode](evidence/G03_RESTORED_LATENT_DECODE_2026-09-20.md)
+  reaches 25/25 source-acquisition cases after retaining changed latent bindings,
+  but regresses from 99/100 to 94/100 on separate development validation.
+  No promotion; full source replay and remaining semantic repair continue.
+  [Restoration working set](evidence/G03_RESTORATION_WORKING_SET_2026-09-20.md)
+  repairs a reproduced correction cycle: one full-retention update changes
+  20 wrong comparisons to zero without floor regression. Fresh decode remains.
+  [Replayable fit inputs](evidence/G03_REPLAYABLE_FIT_INPUTS_2026-09-20.md)
+  retain the exact numerical problem before the first projection, including
+  interruption cases. Thirty-two tests pass; no transfer result is inferred.
+  [Construction replay](evidence/G03_CONTRAST_CONSTRUCTION_REPLAY_2026-09-20.md)
+  prevents shared-score cancellation from reversing a training margin.
+  Fifty-one tests pass; the full-source diagnostic has no completed candidate.
   [Early joint restoration](evidence/G03_EARLY_JOINT_RESTORATION_2026-09-20.md)
   removes twelve working-set retries in a constructed case while reaching
   identical stored margins. Seventy-four tests pass; transfer is unmeasured.

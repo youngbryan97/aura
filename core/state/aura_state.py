@@ -602,6 +602,12 @@ class IdentityKernel:
     #: toward her. Written by the conversation phase.
     #: See core/self/recognition.py.
     read_by_other: dict[str, Any] = field(default_factory=dict)
+    #: Whether the last thing said about her was said to a kind of thing, and
+    #: how much of what is said lately has been. See core/social/met_as_a_type.py.
+    met_as_a_type: dict[str, Any] = field(default_factory=dict)
+    #: Comfort taken from believing somebody cares, and how much of it has
+    #: ever been tested. See core/social/unchecked_relief.py.
+    unchecked_relief: dict[str, Any] = field(default_factory=dict)
     #: How much of her self-model came from somebody else's reading, and
     #: whether her sense of herself has been moving with how useful she was.
     #: See core/self/standing.py.
@@ -703,6 +709,12 @@ class CognitiveContext:
     #: Written by the conversational dynamics phase.
     #: See core/social/averted.py.
     averted: dict[str, Any] = field(default_factory=dict)
+    #: The form the last thing they did took, kept apart from whether it was
+    #: care. See core/social/the_kind_it_was.py.
+    the_kind: dict[str, Any] = field(default_factory=dict)
+    #: What she has gone without being told, and for how long.
+    #: See core/social/never_told.py.
+    never_told: dict[str, Any] = field(default_factory=dict)
     #: Whether anything draws her back after better things have won, and what.
     #: Written by the motivation phase. See core/motivation/returning.py.
     returning: dict[str, Any] = field(default_factory=dict)
