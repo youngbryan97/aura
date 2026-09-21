@@ -318,6 +318,12 @@ class PersonalityEngine:
             "neuroticism": 0.38,
         }
         
+        #: Where she started, so drift can be read as a difference rather than
+        #: guessed at from an absolute. `identity.personality_growth` is an
+        #: offset by definition and the only writer for it was a gate that
+        #: cannot open inside a run.
+        self._baseline_traits = dict(self.traits)
+
         # Current mood (composite of emotional states)
         self.current_mood = "curious"
         

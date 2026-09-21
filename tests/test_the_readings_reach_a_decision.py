@@ -101,11 +101,29 @@ def test_what_she_keeps_putting_down_presses_the_other_way() -> None:
         reset_averted()
 
 
-def test_the_workspace_prices_a_bid_with_both() -> None:
+def test_the_workspace_prices_a_bid_with_every_reading_that_bears_on_it() -> None:
+    """Both readings reach the priority, and the expression is read structurally.
+
+    It used to assert one literal line of source, which broke the moment a
+    third reading joined the same sum. What the test is for is that these
+    reach the number a bid is priced by, so it asks the expression rather
+    than the text.
+    """
+    import ast
     from pathlib import Path
 
-    source = Path("core/consciousness/global_workspace.py").read_text(encoding="utf-8")
-    assert "+ held_down - said_already" in source
+    tree = ast.parse(
+        Path("core/consciousness/global_workspace.py").read_text(encoding="utf-8")
+    )
+    priced = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "priority_at"
+    )
+    names = {
+        inner.id for inner in ast.walk(priced) if isinstance(inner, ast.Name)
+    }
+    assert {"held_down", "said_already", "covered"} <= names
 
 
 # ── the drives ───────────────────────────────────────────────────────

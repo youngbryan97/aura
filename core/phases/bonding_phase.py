@@ -106,6 +106,38 @@ class BondingPhase(Phase):
         self._exchanges_seen = 0.0
         self._last_exchange_at = 0.0
 
+    @staticmethod
+    def _mirror_the_drift(growth: dict) -> None:
+        """Carry the personality engine's accumulated drift into the offsets.
+
+        Read as a difference from the engine's own starting traits, so a
+        system that has not moved reports no growth and the column stays
+        honest where nothing has happened.
+        """
+        try:
+            from core.brain.personality_engine import get_personality_engine
+
+            engine = get_personality_engine()
+            traits = dict(getattr(engine, "traits", {}) or {})
+            baseline = dict(getattr(engine, "_baseline_traits", {}) or {})
+            if not traits or not baseline:
+                return
+            for key in _PERSONALITY_GROWTH_KEYS:
+                if key in traits and key in baseline:
+                    # Added to what bonding has already grown, not in place of
+                    # it. Both are real growth and this field is the sum of
+                    # her growth, so replacing one with the other would erase
+                    # whichever writer ran first.
+                    growth[key] = _bounded_float(
+                        _bounded_float(growth.get(key, 0.0), 0.0, lower=-1.0, upper=1.0)
+                        + (traits[key] - baseline[key]),
+                        0.0,
+                        lower=-1.0,
+                        upper=1.0,
+                    )
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+            return
+
     def _settle_toward(self, bonding: float, baseline: float) -> float:
         """Let an absence give back what the exchanges built.
 
@@ -218,6 +250,22 @@ class BondingPhase(Phase):
                 growth["extraversion"] = min(0.15, growth["extraversion"] + 0.001)
                 growth["agreeableness"] = min(0.15, growth["agreeableness"] + 0.0005)
                 growth["neuroticism"] = max(-0.1, growth["neuroticism"] - 0.0005)
+
+            # And the drift her personality engine has actually accumulated.
+            #
+            # There are two stores for one quantity. The engine moves
+            # `self.traits` every turn from what she has been thinking and how
+            # exchanges have gone, and `identity.personality_growth` — the one
+            # the subject schema records as `S.trait_*` — is written only here,
+            # behind a bonding gate at 0.3. Bonding rises by a ten-thousandth a
+            # turn, so that gate cannot open inside a run: all five trait
+            # columns read 0.0000 on every frame of a probe, and
+            # conscientiousness has no writer on this path at all.
+            #
+            # The offset from her baseline is what "growth" means, so the
+            # column carries the drift the engine has made rather than the one
+            # this gate has not.
+            BondingPhase._mirror_the_drift(growth)
 
             modifiers["bonding_phase"] = {
                 "increment": round(increment, 7),
