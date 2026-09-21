@@ -1657,9 +1657,23 @@ def _worth_more_than_a_refusal(candidate: str, user_message: Any = "") -> bool:
     # saved it, after the gates above had already agreed it was servable.
     if _short_closed_answer(text, user_message):
         return True
+    if not any(ch.isalnum() for ch in text):
+        return False
+    # The rule the docstring above states, applied: a sentence that FINISHES
+    # is worth serving at any length, and only a fragment needs substance.
+    # The floor underneath it — four words and twenty characters — was the
+    # length check the docstring says was never the property being tested,
+    # one layer down: "Yes, it does." is three words and thirteen characters
+    # and answers the question. LIVE 2026-09-07: a 26-character cortex reply
+    # at confidence=high was discarded here and the turn said the cortex was
+    # unavailable while the cortex had just answered.
+    finished = text[-1] in ".!?\"')"
+    if finished and str(user_message or "").strip():
+        # Finished, and there is a question it finished answering.
+        return True
     if len(words) < 4 or len(text) < 20:
         return False
-    return text[-1] in ".!?\"')" or len(words) >= 12
+    return finished or len(words) >= 12
 
 
 def _short_closed_answer(text: str, user_message: Any) -> bool:

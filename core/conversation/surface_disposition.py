@@ -428,9 +428,18 @@ def best_available_reply(*, minimum_words: int = 12, question: Any = "") -> str:
         if not body:
             continue
         # The word floor is a preference, not a verdict. A complete answer to
-        # a closed question clears nothing and is still the answer.
-        if len(body.split()) < minimum_words and not short_draft_answers_closed_question(
-            body, question
+        # a closed question clears nothing and is still the answer — and so
+        # does a sentence that finishes: what the floor is for is a fragment
+        # the generator dropped, and a fragment is what stops mid-thought
+        # (2026-09-20, the same rule one layer up in
+        # interface/routes/chat_lane_bookkeeping.py).
+        # With no question in hand, a two-word sentence cannot be shown to
+        # answer anything, and the floor is the honest default.
+        finished = bool(str(question or "").strip()) and body[-1] in ".!?\"')"
+        if (
+            len(body.split()) < minimum_words
+            and not finished
+            and not short_draft_answers_closed_question(body, question)
         ):
             continue
         try:
