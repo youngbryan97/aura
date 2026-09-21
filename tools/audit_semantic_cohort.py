@@ -18,6 +18,9 @@ def main():
     parser.add_argument('--source-report', type=Path, required=True)
     parser.add_argument('--bundle', action='append', required=True)
     parser.add_argument('--directory', type=Path, required=True)
+    parser.add_argument('--observe-only', action='store_true',
+                        help='measure ordinary decisions without searching diagnostic alternatives')
+    parser.add_argument('--solve-time-limit-s', type=float, default=3.)
     args = parser.parse_args()
     from tools.refit_semantic_argument_proposals import configure_refit_environment, load_source_examples
     configure_refit_environment(args.directory / 'report.json')
@@ -32,6 +35,7 @@ def main():
     examples = load_source_examples(parent, json.loads(args.source_report.read_text()), args.bundle)
     development = tuple(item for item in examples if item.split in {'train', 'validation'})
     report = audit_semantic_cohort(candidate, development, directory=args.directory / 'rows',
+        diagnose_failures=not args.observe_only, solve_time_limit_s=args.solve_time_limit_s,
         progress=lambda row: print(json.dumps(row), flush=True))
     path = args.directory / 'report.json'
     payload = (json.dumps(report, sort_keys=True) + '\n').encode()

@@ -1119,6 +1119,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Source decision pilot](evidence/G03_SOURCE_DECISION_PILOT_2026-09-21.md):
+  paired training replay improved 19/23 to 23/23, with no retained regressions.
+  Full development coverage and fresh transfer remain unmeasured for this fit.
   tasks using the existing language and computational substrates.
   [Full cohort attribution](evidence/G03_FULL_COHORT_ATTRIBUTION_2026-09-21.md):
   760/764 train and 477/500 validation semantically equivalent; 18 witnessed

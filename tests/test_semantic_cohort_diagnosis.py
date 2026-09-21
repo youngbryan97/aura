@@ -136,3 +136,32 @@ def test_invalid_search_contract_is_rejected_even_for_correct_rows(tmp_path, mon
     model, examples = setup(monkeypatch)
     with pytest.raises(ValueError, match='positive and finite'):
         audit.audit_semantic_cohort(model, examples, directory=tmp_path, **options)
+
+
+@pytest.mark.parametrize('status,stage', [
+    ('different', 'semantic_failure_unattributed'),
+    ('unmeasured', 'semantic_comparison_unresolved'),
+    ('equivalent', 'semantic_success_downstream_unmeasured'),
+])
+def test_observation_only_finishes_cohort_without_claiming_attribution(tmp_path, monkeypatch, status, stage):
+    model, examples = setup(monkeypatch)
+    monkeypatch.setattr(audit, '_observe', lambda *a, **k:
+        {'semantic_status': status, 'source_grounding_aligned': True})
+    monkeypatch.setattr(audit, 'decode_semantic_candidates', lambda *a, **k:
+        pytest.fail('ordinary measurement searched diagnostic alternatives'))
+    result = audit.audit_semantic_cohort(model, examples, directory=tmp_path, diagnose_failures=False)
+    assert result['stages'] == {stage: 2}
+    assert result['coverage_complete'] and not result['serving_authority']
+    assert result['diagnostic_policy'] == 'ordinary_observation_only_v1'
+    assert result['diagnostic_budget_uses_targets_after_bank_completion'] is False
+    assert all(row['diagnosis'] is None and row['diagnostic_attempts'] == [] for row in result['rows'])
+    monkeypatch.setattr(audit, '_observe', lambda *a, **k: pytest.fail('cached row decoded again'))
+    assert audit.audit_semantic_cohort(model, examples, directory=tmp_path, diagnose_failures=False) == result
+    with pytest.raises(ValueError, match='identity differs'):
+        audit.audit_semantic_cohort(model, examples, directory=tmp_path)
+
+
+def test_observation_policy_requires_boolean(tmp_path, monkeypatch):
+    model, examples = setup(monkeypatch)
+    with pytest.raises(ValueError, match='boolean'):
+        audit.audit_semantic_cohort(model, examples, directory=tmp_path, diagnose_failures='false')
