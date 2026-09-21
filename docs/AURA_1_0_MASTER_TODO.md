@@ -1120,6 +1120,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Feasibility audit](G_LEDGER_FEASIBILITY_AUDIT.md) separates protocol defects
+  from representation, search and learning limits without relaxing acceptance.
+  [Boundary intervention](evidence/G03_BOUNDARY_INTERVENTION_2026-09-21.md)
+  reproduces 24 failures; supplied boundaries and labels repair 23 diagnostically,
+  while one division-order binding remains wrong. No autonomous gain is claimed.
   [Joint labeled span objective](evidence/G03_LABELED_SPAN_OBJECTIVE_2026-09-21.md)
   learns operation labels and boundaries in one exact finite distribution.
   The 64-source fit regresses 16/18 to 14/18; all 764 source rows restore

@@ -3,8 +3,8 @@
 
 import argparse
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -20,12 +20,19 @@ def main():
     parser.add_argument('--directory', type=Path, required=True)
     parser.add_argument('--observe-only', action='store_true',
                         help='measure ordinary decisions without searching diagnostic alternatives')
+    parser.add_argument('--feasibility-only', action='store_true',
+                        help='check identical-observation supervision without decoding or fitting')
     parser.add_argument('--solve-time-limit-s', type=float, default=3.)
     args = parser.parse_args()
-    from tools.refit_semantic_argument_proposals import configure_refit_environment, load_source_examples
+    from tools.refit_semantic_argument_proposals import (
+        configure_refit_environment,
+        load_source_examples,
+    )
     configure_refit_environment(args.directory / 'report.json')
     from core.learning.semantic_cohort_diagnosis import audit_semantic_cohort
-    from core.learning.semantic_program_compositional_transducer import compositional_semantic_program_transducer_from_dict as restore
+    from core.learning.semantic_program_compositional_transducer import (
+        compositional_semantic_program_transducer_from_dict as restore,
+    )
     from core.runtime.atomic_writer import atomic_write_bytes_if_absent
     parent = restore(json.loads(args.parent.read_text()))
     candidate = restore(json.loads(args.candidate.read_text()))
@@ -34,6 +41,15 @@ def main():
         raise ValueError('audit candidate representation differs from source parent')
     examples = load_source_examples(parent, json.loads(args.source_report.read_text()), args.bundle)
     development = tuple(item for item in examples if item.split in {'train', 'validation'})
+    if args.feasibility_only:
+        from core.learning.semantic_observation_feasibility import audit_observation_feasibility
+        report = audit_observation_feasibility(development)
+        path = args.directory / 'feasibility.json'
+        payload = (json.dumps(report, sort_keys=True) + '\n').encode()
+        if not atomic_write_bytes_if_absent(path, payload, mode=0o400) and path.read_bytes() != payload:
+            raise ValueError('published feasibility audit differs')
+        print(json.dumps(report))
+        return
     report = audit_semantic_cohort(candidate, development, directory=args.directory / 'rows',
         diagnose_failures=not args.observe_only, solve_time_limit_s=args.solve_time_limit_s,
         progress=lambda row: print(json.dumps(row), flush=True))
