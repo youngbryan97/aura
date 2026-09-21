@@ -145,7 +145,8 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
                              objective="squared_deficit", operation_retention_count=None,
                              learn_operation_pointer=False, update_rule="working_face",
                              boundary_policy="supervised", learn_operations=True,
-                             relation_metric="coefficient_euclidean", operation_policy="supervised"):
+                             relation_metric="coefficient_euclidean", operation_policy="supervised",
+                             operation_metric="coefficient_euclidean"):
     """Fit only selected source rows and independently replay both small cohorts.
 
     This returns no deployable candidate. Validation rows never enter mining
@@ -223,7 +224,7 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
     candidate, fit = fit_complete_graph_constraints(model, tuple(constraints),
         scale=model.definition_relation_scale, steps=steps, adaptive_step=True, progress=progress,
         objective=objective, learn_operation_pointer=learn_operation_pointer, update_rule=update_rule,
-        learn_operations=learn_operations, relation_metric=relation_metric)
+        learn_operations=learn_operations, relation_metric=relation_metric, operation_metric=operation_metric)
     after = []
     for item in (*training, *validation):
         after.append(_observe(candidate, item))
@@ -276,6 +277,7 @@ def run_semantic_graph_trial(model, examples, *, training_count=8, validation_co
             "validation_used_for_fit": False, "test_examples_used": 0,
             "boundary_policy": boundary_policy,
             "operation_policy": operation_policy,
+            "operation_metric": operation_metric,
             "before": before, "after": after, "mining": records, "fit": fit,
             "constraint_groups": _constraint_group_summary(groups, fit),
             "summaries": summaries, "larger_development_run_ready": not blockers, "blockers": blockers}

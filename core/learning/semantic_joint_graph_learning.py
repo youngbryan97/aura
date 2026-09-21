@@ -376,7 +376,8 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
                                     learn_operation_pointer=False, update_rule="working_face",
                                     boundary_policy="supervised", learn_operations=True,
                                     relation_metric="coefficient_euclidean",
-                                    source_retention_examples=None, operation_policy="supervised"):
+                                    source_retention_examples=None, operation_policy="supervised",
+                                    operation_metric="coefficient_euclidean"):
     """Remine source-training predictions after each joint operation/relation update."""
     from core.learning.semantic_graph_margin import graph_refit_source_splits
     from core.learning.semantic_program_campaign import _sha
@@ -398,6 +399,9 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
     if operation_policy not in {"supervised", "retain_existing"} or (
             operation_policy != "supervised" and not constraint_learning):
         raise ValueError("operation retention policy requires retained constraints")
+    if operation_metric not in {"coefficient_euclidean", "source_function"} or (
+            operation_metric != "coefficient_euclidean" and not constraint_learning):
+        raise ValueError("operation function geometry requires retained constraints")
     if type(learn_arguments) is not bool or (learn_arguments and not constraint_learning):
         raise ValueError("argument graph learning requires retained constraints")
     if type(learn_operation_pointer) is not bool or (learn_operation_pointer and not constraint_learning):
@@ -488,6 +492,7 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
             fit_options["update_rule"] = update_rule
             fit_options["learn_operations"] = learn_operations
             fit_options["relation_metric"] = relation_metric
+            fit_options["operation_metric"] = operation_metric
             fit_options["progress"] = (lambda row, iteration=round_index + 1:
                                        progress({**row, "round": iteration})) if progress else None
             if checkpoint_dir is not None:
@@ -547,6 +552,7 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         "boundary_policy": boundary_policy,
         "operation_policy": operation_policy,
         "relation_metric": relation_metric,
+        "operation_metric": operation_metric,
         "already_correct_binding_competitors_retained": constraint_learning,
         "runtime_operation_competitors_retained": constraint_learning,
         "retention_operation_charts": retention_operation_charts if constraint_learning else None,
