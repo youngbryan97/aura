@@ -49,14 +49,14 @@ def _canonical_sha256(value: Any) -> str:
 
 def _source_identity() -> dict[str, Any]:
     commit = subprocess.run(
-        ("git", "-c", "core.fsmonitor=false", "rev-parse", "HEAD"),
+        ("git", "rev-parse", "HEAD"),
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,
         text=True,
     ).stdout.strip()
     status = subprocess.run(
-        ("git", "-c", "core.fsmonitor=false", "status", "--porcelain", "--", *SOURCE_FILES),
+        ("git", "status", "--porcelain", "--", *SOURCE_FILES),
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,

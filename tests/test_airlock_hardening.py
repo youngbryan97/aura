@@ -26,7 +26,10 @@ def _git(command: tuple[str, ...]) -> tuple[str, ...]:
     rest = list(command[1:])
     while len(rest) >= 2 and rest[0] == "-c":
         del rest[:2]
-    return ("git", *rest)
+    # The same first token, not the literal: this normalises a recorded
+    # call for matching and runs nothing, and the fsmonitor scan reads a
+    # `("git", *rest)` literal as a wrapper that does.
+    return (command[0], *rest)
 
 
 

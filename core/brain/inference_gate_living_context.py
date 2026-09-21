@@ -460,8 +460,20 @@ class _BuildsTheLivingContext:
         if not called:
             # The model was handed the tool and answered without it. That
             # answer is ungrounded by construction, and it is exactly how
-            # "Output: 7" reached the screen.
-            return None
+            # "Output: 7" reached the screen — unless the turn already holds
+            # the read the tool would have made. LIVE 2026-09-21: the chat
+            # preflight had loaded CLAUDE.md into the prompt, the model quoted
+            # the rule it was asked for, and this line discarded it; the
+            # generation that followed said no such file had been reported.
+            already = _what_the_turn_already_read(text)
+            if not already:
+                return None
+            logger.info(
+                "🔧 Tools offered and none called; the turn already holds a read "
+                "of %s and the answer stands on it.",
+                already,
+            )
+            return text or None
         self._tool_grounded_answer_model_path(called, client, text)
         from core.conversation.surface_disposition import record_tool_receipt
 
@@ -1288,3 +1300,25 @@ class _BuildsTheLivingContext:
         self._living_mind_receipt = receipt
         return rendered
 
+
+def _what_the_turn_already_read(answer: str) -> str:
+    """The object of a read receipt this turn already holds, or "".
+
+    Only a read that returned content counts, and only one the answer could
+    stand on: an empty receipt grounds nothing.
+    """
+    try:
+        from core.conversation.surface_disposition import turn_tool_receipts
+
+        receipts = turn_tool_receipts()
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return ""
+    for receipt in receipts:
+        if not isinstance(receipt, dict) or not receipt.get("ok"):
+            continue
+        if str(receipt.get("action") or "") != "read":
+            continue
+        if not str(receipt.get("observed_content") or "").strip():
+            continue
+        return str(receipt.get("object_ref") or receipt.get("tool") or "a file")
+    return ""

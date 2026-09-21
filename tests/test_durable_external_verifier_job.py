@@ -427,6 +427,15 @@ def test_runner_output_volume_is_distinguishable_from_runner_failure(
     job = _job(tmp_path, target)
     arguments = ["status", "--run-dir", str(tmp_path / "run")]
 
+    # The runner is spawned through the subprocess gateway (2c2db21b9f), so
+    # the stand-in sits on the gateway the module resolves at call time, not
+    # on `subprocess.run`, which the real spawn no longer reaches.
+    import core.learning.durable_external_verifier_job as module
+
+    class _Gateway:
+        def __init__(self, run: Any) -> None:
+            self.run = run
+
     def _stub(returncode: int, stdout: bytes, stderr: bytes) -> Any:
         def _run(*_args: Any, **_kwargs: Any) -> subprocess.CompletedProcess[bytes]:
             return subprocess.CompletedProcess(
@@ -438,7 +447,10 @@ def test_runner_output_volume_is_distinguishable_from_runner_failure(
 
         return _run
 
-    monkeypatch.setattr(subprocess, "run", _stub(2, b"", b"contract mismatch"))
+    def _use(run: Any) -> None:
+        monkeypatch.setattr(module, "get_subprocess_gateway", lambda: _Gateway(run))
+
+    _use(_stub(2, b"", b"contract mismatch"))
     with pytest.raises(DurableExternalVerifierJobError) as failed:
         job._runner_call(arguments)
     assert failed.value.code == "durable_verifier_detached_runner_failed"
@@ -447,12 +459,12 @@ def test_runner_output_volume_is_distinguishable_from_runner_failure(
     assert "contract mismatch" in failed.value.detail
 
     flood = b"x" * ((1 << 20) + 1)
-    monkeypatch.setattr(subprocess, "run", _stub(0, flood, b""))
+    _use(_stub(0, flood, b""))
     with pytest.raises(DurableExternalVerifierJobError) as flooded:
         job._runner_call(arguments)
     assert flooded.value.code == "durable_verifier_detached_runner_output_too_large"
 
-    monkeypatch.setattr(subprocess, "run", _stub(0, b"", flood))
+    _use(_stub(0, b"", flood))
     with pytest.raises(DurableExternalVerifierJobError) as noisy:
         job._runner_call(arguments)
     assert noisy.value.code == "durable_verifier_detached_runner_output_too_large"

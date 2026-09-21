@@ -157,6 +157,26 @@ class TestFileLoading(unittest.TestCase):
         self.assertIn("=== END", block)
         self.assertIn("references files", block)
 
+    def test_a_loaded_file_is_a_read_the_turn_holds(self):
+        """LIVE 2026-09-21: the preflight read CLAUDE.md into the prompt and
+        the tool gate, asking what the turn had read, found nothing."""
+        from unittest import mock
+
+        recorded = []
+        with mock.patch(
+            "core.conversation.surface_disposition.record_tool_receipt",
+            side_effect=lambda name, **fields: recorded.append((name, fields)) or True,
+        ):
+            block = build_file_context_block(["aura/knowledge/bryan-curated-media.md"])
+        self.assertIn("=== FILE:", block)
+        self.assertEqual(len(recorded), 1)
+        name, fields = recorded[0]
+        self.assertEqual(name, "file_operation")
+        self.assertEqual(fields["action"], "read")
+        self.assertTrue(fields["ok"])
+        self.assertIn("bryan-curated-media.md", fields["object_ref"])
+        self.assertTrue(fields["observed_content"].strip())
+
     def test_load_referenced_files_reads_only_budgeted_prefix(self):
         with tempfile.TemporaryDirectory() as root_dir:
             root = Path(root_dir)
