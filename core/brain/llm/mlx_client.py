@@ -30,6 +30,10 @@ from typing import TYPE_CHECKING, Any
 from core.runtime import resource_psutil as psutil
 from core.runtime.service_access import resolve_inference_gate
 
+from .mlx_client_artifacts import (  # noqa: F401  (re-exported: they were defined here)
+    _validate_adapter_artifact,
+    _validate_model_artifact,
+)
 from .mlx_client_waiting import _WaitsForTheResult
 
 if TYPE_CHECKING:
@@ -689,87 +693,6 @@ class ArtifactVerdict:
         }
 
 
-def _validate_model_artifact(resolved: Path, incumbent: str = "") -> ArtifactVerdict:
-    """Prove a directory is a servable model BEFORE the live worker is recycled.
-
-    CP126 a996d77f: this was ``is_dir()``. An empty, partial, half-copied, or
-    wrong-architecture directory passed, the healthy worker was torn down, and
-    the failure surfaced at the next load — by which time the lane that was
-    serving fine had been destroyed to make room for something that could not
-    load at all.
-
-    ``incumbent`` is the currently-served path. When both sides declare their
-    architectures, a mismatch is refused: promoting a Llama checkpoint onto a
-    lane whose callers, adapters and admission classes were built for Qwen is
-    a different model wearing the lane's name.
-    """
-    if not resolved.is_dir():
-        return ArtifactVerdict(False, f"artifact_missing:{resolved}")
-
-    config_path = resolved / _REQUIRED_ARTIFACT_CONFIG
-    if not config_path.is_file():
-        return ArtifactVerdict(False, f"artifact_missing_config:{_REQUIRED_ARTIFACT_CONFIG}")
-    try:
-        config = json.loads(config_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        return ArtifactVerdict(False, f"artifact_config_unreadable:{type(exc).__name__}")
-    if not isinstance(config, dict):
-        return ArtifactVerdict(False, "artifact_config_not_an_object")
-
-    if not any((resolved / name).is_file() for name in _TOKENIZER_CANDIDATES):
-        return ArtifactVerdict(False, "artifact_missing_tokenizer")
-
-    weights = list(_weight_files(resolved))
-    if not weights:
-        return ArtifactVerdict(False, "artifact_missing_weights")
-
-    architectures = tuple(
-        str(entry)
-        for entry in (config.get("architectures") or [])
-        if isinstance(entry, str)
-    )
-    profile = None
-    try:
-        from core.brain.llm.model_artifact_profile import get_model_artifact_profile
-
-        profile = get_model_artifact_profile(str(resolved))
-    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
-        logger.debug("Model artifact profile unavailable: %s", exc)
-        profile = None
-
-    verdict = ArtifactVerdict(
-        True,
-        architectures=architectures,
-        size_class=getattr(profile, "size_class", "unknown") or "unknown",
-        fingerprint=getattr(profile, "fingerprint", "") or "",
-        weight_files=len(weights),
-    )
-
-    incumbent_path = Path(str(incumbent or "")).expanduser()
-    incumbent_config = incumbent_path / _REQUIRED_ARTIFACT_CONFIG
-    if architectures and incumbent_config.is_file():
-        try:
-            current = json.loads(incumbent_config.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-            current = {}
-        current_arch = tuple(
-            str(entry)
-            for entry in (current.get("architectures") or [])
-            if isinstance(entry, str)
-        )
-        if current_arch and not set(current_arch) & set(architectures):
-            return ArtifactVerdict(
-                False,
-                f"artifact_architecture_mismatch:{'/'.join(current_arch)}"
-                f"->{'/'.join(architectures)}",
-                architectures=architectures,
-                size_class=verdict.size_class,
-                fingerprint=verdict.fingerprint,
-                weight_files=verdict.weight_files,
-            )
-    return verdict
-
-
 #: What an MLX LoRA adapter directory must actually contain to be attachable.
 _ADAPTER_WEIGHT_NAMES = ("adapters.safetensors", "adapter.safetensors")
 _ADAPTER_CONFIG_NAME = "adapter_config.json"
@@ -851,88 +774,6 @@ def _bounded_maintenance_counters(
         faults.append("pairs_ingested:exceeds_scanned")
         counters["pairs_ingested"] = None
     return counters, faults
-
-
-def _validate_adapter_artifact(
-    path: Path, *, expected_base_fingerprint: str = ""
-) -> AdapterVerdict:
-    """Prove a directory is an attachable adapter before live weights change.
-
-    CP126 d665aa64: admission was ``is_dir()``. Any directory — a
-    half-finished training output, an empty scratch folder, a symlink to
-    somewhere else entirely — was handed to the resident worker as an adapter,
-    and the failure surfaced inside the process holding twenty gigabytes of
-    live weights.
-
-    When the adapter names the base checkpoint it was trained against AND the
-    caller supplies the resident one, a mismatch is refused here: LoRA deltas
-    are only meaningful against the weights they were fitted to, and attaching
-    them to different ones does not fail loudly — it quietly degrades every
-    answer the model gives afterwards.
-
-    When the caller cannot supply the resident fingerprint, the verdict says
-    ``declared_unverified`` rather than passing quietly. An unchecked
-    compatibility claim recorded as a checked one is the failure this whole
-    remediation keeps finding, and writing it into a new validator to make the
-    validator look thorough would be the same mistake with a fresh coat.
-    """
-    if not path.is_dir():
-        return AdapterVerdict(False, f"adapter_missing:{path}")
-
-    weight_path: Path | None = None
-    for name in _ADAPTER_WEIGHT_NAMES:
-        candidate = path / name
-        if candidate.is_file():
-            weight_path = candidate
-            break
-    if weight_path is None:
-        return AdapterVerdict(False, "adapter_missing_weights")
-    try:
-        weight_bytes = int(weight_path.stat().st_size)
-    except OSError as exc:
-        return AdapterVerdict(False, f"adapter_weights_unreadable:{type(exc).__name__}")
-    if weight_bytes <= 0:
-        return AdapterVerdict(False, "adapter_weights_empty")
-    if weight_bytes > _ADAPTER_MAX_BYTES:
-        return AdapterVerdict(False, f"adapter_weights_oversized:{weight_bytes}")
-
-    config: dict[str, Any] = {}
-    config_path = path / _ADAPTER_CONFIG_NAME
-    if config_path.is_file():
-        try:
-            loaded = json.loads(config_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            return AdapterVerdict(False, f"adapter_config_unreadable:{type(exc).__name__}")
-        if not isinstance(loaded, dict):
-            return AdapterVerdict(False, "adapter_config_not_an_object")
-        config = loaded
-
-    base_fingerprint = str(config.get("base_checkpoint_fingerprint") or "")
-    expected = str(expected_base_fingerprint or "")
-    if not base_fingerprint:
-        compatibility = "not_declared"
-    elif not expected:
-        compatibility = "declared_unverified"
-    elif base_fingerprint != expected:
-        return AdapterVerdict(
-            False,
-            f"adapter_base_mismatch:{base_fingerprint[:12]}!={expected[:12]}",
-            weight_file=weight_path.name,
-            weight_bytes=weight_bytes,
-            base_checkpoint_fingerprint=base_fingerprint,
-            fine_tune_type=str(config.get("fine_tune_type") or ""),
-            base_compatibility="mismatch",
-        )
-    else:
-        compatibility = "verified"
-    return AdapterVerdict(
-        True,
-        weight_file=weight_path.name,
-        weight_bytes=weight_bytes,
-        base_checkpoint_fingerprint=base_fingerprint,
-        fine_tune_type=str(config.get("fine_tune_type") or ""),
-        base_compatibility=compatibility,
-    )
 
 
 class ModelLoadAdmissionRefused(RuntimeError):  # noqa: N818 - public API
@@ -11433,57 +11274,9 @@ class MLXLocalClient(_WaitsForTheResult, _KeepsTheWorkerAlive, _KnowsWhichWorker
                             owner_label=owner_label,
                             **inline_kwargs,
                         )
-                    try:
-                        decoded = max(0, int(res.get("tokens_used") or 0))
-                    except (TypeError, ValueError):
-                        decoded = 0
-                    if foreground_request and decoded > 0:
-                        # The worker decoded, and what it decoded did not
-                        # survive to a surface: it ended its turn inside the
-                        # private channel, or the quality gate refused the
-                        # draft. That is a live worker with a shaping problem.
-                        # LIVE 2026-09-20: 123 tokens and then 46, read as a
-                        # dead lane, and the parent reloaded twenty gigabytes
-                        # of weights and served the turn from the small model
-                        # while it did.
-                        self._record_degraded_event(
-                            "empty_surface_after_decode",
-                            detail=(
-                                f"{os.path.basename(self.model_path)}:"
-                                f"attempt={empty_count}:decoded={decoded}"
-                            ),
-                            severity="warning",
-                            foreground_request=True,
-                            classification="non_critical_fallback",
-                        )
-                    elif foreground_request:
-                        self._record_degraded_event(
-                            "empty_generation_exhausted",
-                            detail=(
-                                f"{os.path.basename(self.model_path)}:"
-                                f"attempt={empty_count}:no_visible_text"
-                            ),
-                            severity="error",
-                            foreground_request=True,
-                        )
-                        self._deferred_reboot_reason = "recoverable_empty_generation"
-                    else:
-                        self._record_degraded_event(
-                            "empty_generation",
-                            detail=(
-                                f"{os.path.basename(self.model_path)}:"
-                                f"attempt={empty_count}:background"
-                            ),
-                            severity="info",
-                            foreground_request=False,
-                        )
-                    if (
-                        foreground_request
-                        and decoded == 0
-                        and self._is_primary_or_deep_lane()
-                        and empty_count >= 3
-                    ):
-                        self._set_lane_state("recovering", "repeated_empty_generation")
+                    _record_an_empty_generation(
+                        self, res, empty_count, foreground_request=foreground_request
+                    )
                     return None
                 self._consecutive_empty = 0
                 if cooperative_stop:
@@ -12513,6 +12306,56 @@ _NATIVE_XML_PARAMETER_RE = re.compile(
 def _the_shape_named(kwargs: Any) -> str:
     """The output shape a caller asked for, as the worker spells it."""
     return str((kwargs or {}).get("output_shape") or "").strip().lower()
+
+
+def _record_an_empty_generation(
+    client: Any, res: Any, empty_count: int, *, foreground_request: bool
+) -> int:
+    """Say what kind of empty this was, and whether the lane is at fault.
+
+    The worker decoded, and what it decoded did not survive to a surface: it
+    ended its turn inside the private channel, or the quality gate refused
+    the draft. That is a live worker with a shaping problem, not a dead lane.
+    LIVE 2026-09-20: 123 tokens and then 46, read as a dead lane, and the
+    parent reloaded twenty gigabytes of weights and served the turn from the
+    small model while it did. Returns the decoded token count.
+    """
+    try:
+        decoded = max(0, int((res or {}).get("tokens_used") or 0))
+    except (AttributeError, TypeError, ValueError):
+        decoded = 0
+    name = os.path.basename(client.model_path)
+    if foreground_request and decoded > 0:
+        client._record_degraded_event(
+            "empty_surface_after_decode",
+            detail=f"{name}:attempt={empty_count}:decoded={decoded}",
+            severity="warning",
+            foreground_request=True,
+            classification="non_critical_fallback",
+        )
+    elif foreground_request:
+        client._record_degraded_event(
+            "empty_generation_exhausted",
+            detail=f"{name}:attempt={empty_count}:no_visible_text",
+            severity="error",
+            foreground_request=True,
+        )
+        client._deferred_reboot_reason = "recoverable_empty_generation"
+    else:
+        client._record_degraded_event(
+            "empty_generation",
+            detail=f"{name}:attempt={empty_count}:background",
+            severity="info",
+            foreground_request=False,
+        )
+    if (
+        foreground_request
+        and decoded == 0
+        and client._is_primary_or_deep_lane()
+        and empty_count >= 3
+    ):
+        client._set_lane_state("recovering", "repeated_empty_generation")
+    return decoded
 
 
 def _record_tool_receipt_for_this_turn(

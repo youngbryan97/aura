@@ -443,10 +443,43 @@ class EmbeddingEngine:
                 "loading the encoder on a thread and answering nothing this once.",
                 caller,
             )
-            self._loader = threading.Thread(
-                target=self._initialize, name="embedding-engine-load", daemon=True
-            )
-            self._loader.start()
+            self._start_loader()
+
+    def _start_loader(self) -> threading.Thread:
+        """Start the load on its own thread. Caller holds the lifecycle lock."""
+        self._loader = threading.Thread(
+            target=self._initialize, name="embedding-engine-load", daemon=True
+        )
+        self._loader.start()
+        return self._loader
+
+    def warm_in_background(self) -> threading.Thread | None:
+        """Start loading the weights now, on a thread; None when loaded.
+
+        Boot, 2026-09-21: the memory organ came up, the mind tick's retrieval
+        phase ran four seconds later from a worker thread, and its recall paid
+        for lane admission and the encoder load inline — 22 seconds against
+        a ten-second circuit, then consolidation tripped the same way. The
+        server's prewarm came a minute later, after the cortex. Warming from
+        the organ means a load is already in flight when the first phase
+        asks, and a caller that finds one in flight answers nothing rather
+        than queueing behind it.
+        """
+        # Read before the lock: the load holds the lifecycle lock for the
+        # whole of it, and asking under the lock is waiting on the load.
+        if self._initialized:
+            return None
+        loader = self._loader
+        if loader is not None and loader.is_alive():
+            return loader
+        with self._lifecycle_lock:
+            if self._initialized:
+                return None
+            loader = self._loader
+            if loader is not None and loader.is_alive():
+                return loader
+            return self._start_loader()
+
 
     def _return_model(self) -> None:
         with self._lifecycle_lock:

@@ -129,3 +129,43 @@ def test_what_is_inside_a_named_directory_is_authorised(
         raising=False,
     )
     assert _the_person_named_this_path(str(named / "lib.py")) is True
+
+
+def test_a_read_honours_the_range_it_was_asked_for(tmp_path: Path) -> None:
+    """LIVE 2026-09-21: `start_line`/`end_line` were declared for 'patch' and
+    ignored by 'read', so a model asking for lines 7-14 to get past a
+    truncated whole-file read got the same truncated whole file back, twice,
+    and concluded the section was empty."""
+    import asyncio
+
+    from core.skills.file_operation import FileOperationSkill
+
+    (tmp_path / "rules.md").write_text(
+        "\n".join(f"line {n}" for n in range(1, 21)) + "\n", encoding="utf-8"
+    )
+    skill = FileOperationSkill()
+    skill.root_dir = str(tmp_path.resolve())
+
+    def read(**extra):
+        return asyncio.run(
+            skill.execute(
+                {"action": "read", "path": "rules.md", **extra},
+                context={"origin": "unit_test"},
+            )
+        )
+
+    whole = read()
+    assert whole["ok"] and whole["content"].count("\n") == 20
+    assert "lines" not in whole
+
+    part = read(start_line=7, end_line=9)
+    assert part["ok"]
+    assert part["content"] == "0007: line 7\n0008: line 8\n0009: line 9\n"
+    assert part["lines"] == {"from": 7, "to": 9, "of": 20}
+
+    tail = read(start_line=18)
+    assert tail["content"].startswith("0018: ") and tail["content"].count("\n") == 3
+
+    past_the_end = read(start_line=30, end_line=40)
+    assert past_the_end["ok"] and past_the_end["content"] == ""
+    assert "no lines in that range" in past_the_end["note"]

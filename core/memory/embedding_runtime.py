@@ -249,6 +249,13 @@ def prewarm_shared_embedding_runtime() -> dict[str, Any]:
             lease = _RUNTIME.acquire("runtime-prewarm")
             _PREWARM_LEASE = lease
     try:
+        # A warm started by the memory organ is joined, not duplicated: an
+        # embed on a caller that finds a load in flight answers with the
+        # hash and the probe would measure the wrong space.
+        warm = getattr(lease, "warm_in_background", None)
+        loader = warm() if callable(warm) else None
+        if loader is not None:
+            loader.join()
         vector = lease.embed("Aura semantic memory readiness probe")
     except Exception:
         with _PREWARM_LOCK:
@@ -260,6 +267,23 @@ def prewarm_shared_embedding_runtime() -> dict[str, Any]:
     snapshot["prewarmed"] = True
     snapshot["vector_dimensions"] = int(getattr(vector, "size", len(vector)))
     return snapshot
+
+
+def warm_shared_embedding_runtime() -> bool:
+    """Start the shared encoder's load on its own thread, keeping the lease.
+
+    True when a load was started or is in flight; False when already loaded.
+    """
+    global _PREWARM_LEASE
+    with _PREWARM_LOCK:
+        lease = _PREWARM_LEASE
+        if lease is None:
+            lease = _RUNTIME.acquire("runtime-prewarm")
+            _PREWARM_LEASE = lease
+    warm = getattr(lease, "warm_in_background", None)
+    if not callable(warm):
+        return False
+    return warm() is not None
 
 
 def close_shared_embedding_runtime() -> None:

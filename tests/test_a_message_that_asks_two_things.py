@@ -170,3 +170,56 @@ def test_the_direction_of_the_trade_is_held(said):
     """
 
     assert len(shape(said).question_segments) <= 1
+
+
+# ── a part the turn did, rather than said ────────────────────────────────
+
+READ_AND_QUOTE = (
+    "Read the file CLAUDE.md and tell me what the first rule under "
+    "'The live instance is sacred' says."
+)
+QUOTED = "**Never kill, restart, or port-collide with it.**\n\nThat's the first rule."
+
+
+def test_a_read_the_turn_made_covers_the_part_that_asked_for_it(monkeypatch):
+    """LIVE 2026-09-21: the reply quoted the rule and was counted as missing
+    "Read the file CLAUDE.md", because it never said it had read the file.
+    The turn had: the receipt for the read was on it."""
+    monkeypatch.setattr(
+        "core.conversation.surface_disposition.turn_tool_receipts",
+        lambda: (
+            {
+                "tool": "file_operation",
+                "action": "read",
+                "ok": True,
+                "object_ref": "CLAUDE.md",
+                "observed_content": "0010: **Never kill, restart, or port-collide with it.**",
+            },
+        ),
+    )
+    assert unanswered_question_parts(QUOTED, shape(READ_AND_QUOTE)) == []
+
+
+def test_without_the_read_the_part_still_counts(monkeypatch):
+    monkeypatch.setattr(
+        "core.conversation.surface_disposition.turn_tool_receipts", lambda: ()
+    )
+    missed = unanswered_question_parts(QUOTED, shape(READ_AND_QUOTE))
+    assert any("Read the file" in part for part in missed), missed
+
+
+def test_a_read_of_another_file_covers_nothing(monkeypatch):
+    monkeypatch.setattr(
+        "core.conversation.surface_disposition.turn_tool_receipts",
+        lambda: (
+            {
+                "tool": "file_operation",
+                "action": "read",
+                "ok": True,
+                "object_ref": "README.md",
+                "observed_content": "# Aura",
+            },
+        ),
+    )
+    missed = unanswered_question_parts(QUOTED, shape(READ_AND_QUOTE))
+    assert any("Read the file" in part for part in missed), missed
