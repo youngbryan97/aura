@@ -181,6 +181,15 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         })
         checkpoint = SemanticFitCheckpoint(checkpoint_path, identity)
         saved = checkpoint.load()
+        from core.learning.semantic_fit_problem import save_fit_problem
+
+        save_fit_problem(Path(checkpoint_path).with_suffix(".problem.npz"),
+            identity=identity, initial=initial, contrasts=contrasts,
+            options={"scale": scale, "steps": steps, "required_margin": required_margin,
+                "learning_rate": learning_rate, "max_active": max_active,
+                "adaptive_step": adaptive_step, "batched": batched, "objective": objective,
+                "update_rule": update_rule, "trainable_parameters": trainable_parameters,
+                "relation_metric": relation_metric})
         if saved is not None:
             allowed = {"running", "search_budget_exhausted", "retained_constraints_satisfied",
                        "no_feasible_direction_found", "no_retention_preserving_step_found",
