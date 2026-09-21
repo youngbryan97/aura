@@ -244,6 +244,9 @@ class LiquidSubstrate(_KeepsItsStateOnDisk):
         # Metadata
         self.tick_count: int = 0
         self._integration_steps: int = 0
+        #: Mean absolute change per step over her life so far, the scale an
+        #: ordinary step's exertion is read against.
+        self._ordinary_work: float = 0.0
         self.start_time: float = 0.0
         self.soma: Any = None  # vResilience: Explicit initialization (BUG-018 focus)
 
@@ -616,7 +619,20 @@ class LiquidSubstrate(_KeepsItsStateOnDisk):
             new_x_np = new_x_torch.detach().cpu().numpy()
             new_x_np = np.nan_to_num(new_x_np, nan=0.0, posinf=1.0, neginf=-1.0)
             self._integration_steps += 1
-            note_effort("substrate_steps", 1.0)
+            # What the step cost is how much the activations moved, against how
+            # much an ordinary step moves them: one on an ordinary step, more
+            # when the substrate is working harder. Counting one per step made
+            # her felt exertion a clock, so nothing cognition did reached the
+            # body through it (a displacement of C moved interoception by 0.21
+            # of its spread, under the edge bar). The energy of neural
+            # signalling scales with activity, not with ticks (Attwell and
+            # Laughlin, 2001). The ordinary step is the running mean of her own.
+            work = float(np.mean(np.abs(new_x_np - x_source)))
+            self._ordinary_work += (work - self._ordinary_work) / self._integration_steps
+            note_effort(
+                "substrate_steps",
+                work / self._ordinary_work if self._ordinary_work > 1e-12 else 1.0,
+            )
 
             connectivity_norm = float(self._cached_connectivity_norm)
             if connectivity_norm < 1e-8 and self.config.noise_level >= 0.1:
