@@ -24,8 +24,8 @@ def span_set_partition(scores: np.ndarray, max_spans: int) -> tuple[float, np.nd
         raise ValueError("invalid span-set partition geometry")
     n, width = scores.shape
     valid = np.arange(n)[:, None] + np.arange(1, width + 1) <= n
-    if not np.all(np.isfinite(scores[valid])) or not np.all(np.isneginf(scores[~valid])):
-        raise ValueError("span-set scores need finite intervals and masked padding")
+    if np.any(np.isnan(scores)) or np.any(np.isposinf(scores)) or not np.all(np.isneginf(scores[~valid])):
+        raise ValueError("span-set scores need finite or excluded intervals and masked padding")
     count = min(max_spans, n)
     forward = np.full((n + 1, count + 1), -np.inf)
     forward[:, 0] = 0.0
@@ -46,6 +46,8 @@ def span_set_partition(scores: np.ndarray, max_spans: int) -> tuple[float, np.nd
         for k in range(1, min(count, end) + 1):
             scale = adjoint[end, k]
             normalizer = forward[end, k]
+            if scale == 0 or not np.isfinite(normalizer):
+                continue
             adjoint[end - 1, k] += scale * np.exp(forward[end - 1, k] - normalizer)
             mass = scale * np.exp(forward[starts, k - 1] + scores[starts, lengths - 1] - normalizer)
             adjoint[starts, k - 1] += mass

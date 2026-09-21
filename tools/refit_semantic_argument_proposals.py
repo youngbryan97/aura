@@ -112,7 +112,7 @@ def main() -> int:
     parser.add_argument("--joint-operation-argument-scores", action="store_true")
     parser.add_argument("--conditional-argument-choices", action="store_true",
                         help="compare complete graphs with source-learned local categorical evidence")
-    parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "graph_factors", "graph_relations", "joint_graphs", "operation_pointer", "argument_pointer", "definition_pointer", "operation_views", "paired_operation_pointer", "ranked_operation_pointer", "operation_background", "span_set_pointer"),
+    parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "graph_factors", "graph_relations", "joint_graphs", "operation_pointer", "argument_pointer", "definition_pointer", "operation_views", "paired_operation_pointer", "ranked_operation_pointer", "operation_background", "span_set_pointer", "labeled_spans"),
                         default="binary_proposals")
     parser.add_argument("--graph-rounds", type=int, default=3)
     parser.add_argument("--graph-update-steps", type=int, default=100)
@@ -211,6 +211,7 @@ def main() -> int:
     from core.learning.semantic_operation_background import refit_compositional_operation_background
     from core.learning.semantic_operation_view_refit import refit_compositional_operation_views
     from core.learning.semantic_span_set_learning import refit_compositional_span_set_pointer
+    from core.learning.semantic_labeled_span_learning import refit_compositional_labeled_spans
     from core.learning.semantic_paired_pointer_refit import (
         refit_compositional_paired_operation_pointer,
     )
@@ -269,12 +270,13 @@ def main() -> int:
         "paired_operation_pointer": refit_compositional_paired_operation_pointer,
         "ranked_operation_pointer": refit_compositional_paired_operation_pointer,
         "span_set_pointer": refit_compositional_span_set_pointer,
+        "labeled_spans": refit_compositional_labeled_spans,
     }[args.objective]
     options = {"refit_pointer": True} if args.objective == "argument_pointer" else {}
     if args.objective == "operation_views":
         options["candidate_modes"] = args.operation_view_mode
         options["progress"] = lambda row: print(json.dumps(row, sort_keys=True), flush=True)
-    if args.objective in {"graph_factors", "graph_relations", "joint_graphs", "operation_background", "span_set_pointer"}:
+    if args.objective in {"graph_factors", "graph_relations", "joint_graphs", "operation_background", "span_set_pointer", "labeled_spans"}:
         options["progress"] = lambda row: print(json.dumps(row, sort_keys=True), flush=True)
     if args.objective in {"graph_relations", "joint_graphs"}:
         options.update(rounds=args.graph_rounds, steps=args.graph_update_steps)

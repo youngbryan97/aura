@@ -1120,6 +1120,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Joint labeled span objective](evidence/G03_LABELED_SPAN_OBJECTIVE_2026-09-21.md)
+  learns operation labels and boundaries in one exact finite distribution.
+  The 64-source fit regresses 16/18 to 14/18; all 764 source rows restore
+  16/18 but repair neither challenge. Neither candidate is promoted.
   [Source neighborhood diagnostic](evidence/G03_OPERATION_NEIGHBORHOOD_2026-09-21.md)
   finds all four nearest-training-feature rules below the existing classifier
   on gold spans from exposed controls and failures. No model is exported.
