@@ -1120,6 +1120,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Factorized recognition result](evidence/G03_FACTORIZED_RECOGNITION_RESULT_2026-09-21.md):
+  both conditional variants reach 39/54, retaining three source cases but
+  missing one control. Boundary-only intervention repairs fourteen of fifteen
+  failures; one argument reversal remains. Diagnostic repairs are not passes.
+  The standard refit command exposes the opt-in mode; no promotion follows.
   [Boundary and meaning separation](evidence/G03_FACTORED_BOUNDARY_MEANING_2026-09-21.md):
   endpoint evidence classifies 1192/1192 supplied validation operation spans,
   but its joint background-head pilot fails at 16/54. Conditional meaning

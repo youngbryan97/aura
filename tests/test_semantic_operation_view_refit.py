@@ -314,3 +314,44 @@ def test_endpoint_features_cannot_identify_different_start_boundaries(mode):
     mean_mode = "middle_mean" if mode == "middle_last" else "contextual_mean"
     assert not np.allclose(refit._operation_feature(hidden, left, mode=mean_mode, **options),
                            refit._operation_feature(hidden, right, mode=mean_mode, **options))
+
+
+def test_standard_refit_command_routes_conditional_label_option(parent, tmp_path, monkeypatch):
+    import json
+    import sys
+
+    from tools import refit_semantic_argument_proposals as command
+
+    model_path, report_path = tmp_path / "parent.json", tmp_path / "source.json"
+    model_path.write_text(json.dumps(parent.to_dict()))
+    report_path.write_text("{}")
+    monkeypatch.setattr(command, "configure_refit_environment", lambda path: None)
+    monkeypatch.setattr(command, "load_source_examples", lambda *args: _examples())
+    def capture(model, examples, **options):
+        assert model.receipt_sha256 == parent.receipt_sha256
+        assert options["conditional_labels"] is True
+        assert options["candidate_modes"] == ["middle_last"]
+        assert callable(options["progress"])
+        raise RuntimeError("conditional fitter reached")
+    monkeypatch.setattr(refit, "refit_compositional_operation_views", capture)
+    monkeypatch.setattr(sys, "argv", ["refit", "--transducer", str(model_path),
+        "--source-report", str(report_path), "--bundle", "source=unused",
+        "--output", str(tmp_path / "candidate.json"), "--objective", "operation_views",
+        "--operation-view-mode", "middle_last", "--conditional-operation-labels"])
+    with pytest.raises(RuntimeError, match="conditional fitter reached"):
+        command.main()
+
+
+def test_standard_refit_command_rejects_conditional_labels_for_other_objectives(tmp_path, monkeypatch, capsys):
+    import sys
+
+    from tools import refit_semantic_argument_proposals as command
+
+    monkeypatch.setattr(command, "configure_refit_environment", lambda path: None)
+    monkeypatch.setattr(sys, "argv", ["refit", "--transducer", "unused", "--source-report", "unused",
+        "--bundle", "source=unused", "--output", str(tmp_path / "candidate.json"),
+        "--conditional-operation-labels"])
+    with pytest.raises(SystemExit) as exc:
+        command.main()
+    assert exc.value.code == 2
+    assert "conditional operation labels require operation_views" in capsys.readouterr().err

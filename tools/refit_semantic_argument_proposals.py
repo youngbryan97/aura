@@ -79,7 +79,9 @@ def load_evaluation_candidate(path, starting, *, round_index=None, numerical_che
 
         return load_round_candidate(path, expected_parent=starting.receipt_sha256,
             expected_round=round_index, numerical_checkpoint=numerical_checkpoint)
-    from core.learning.semantic_program_compositional_transducer import compositional_semantic_program_transducer_from_dict
+    from core.learning.semantic_program_compositional_transducer import (
+        compositional_semantic_program_transducer_from_dict,
+    )
 
     return compositional_semantic_program_transducer_from_dict(json.loads(Path(path).read_text("ascii")))
 
@@ -107,6 +109,8 @@ def main() -> int:
     parser.add_argument("--runtime-operation-views", action="store_true")
     parser.add_argument("--operation-view-mode", action="append",
                         help="operation_views only: explicitly select candidate feature modes")
+    parser.add_argument("--conditional-operation-labels", action="store_true",
+                        help="operation_views only: learn meanings on operation spans; retain pointer boundary scores")
     parser.add_argument("--background-log-odds", action="store_true")
     parser.add_argument("--runtime-mention-margin", action="store_true")
     parser.add_argument("--joint-operation-argument-scores", action="store_true")
@@ -166,6 +170,8 @@ def main() -> int:
         parser.error("runtime operation views require pairwise_arguments")
     if args.operation_view_mode and args.objective != "operation_views":
         parser.error("operation view candidates require operation_views")
+    if args.conditional_operation_labels and args.objective != "operation_views":
+        parser.error("conditional operation labels require operation_views")
     if args.background_log_odds and args.objective != "operation_background":
         parser.error("background log odds require operation_background")
     if args.runtime_mention_margin and args.objective != "pairwise_arguments":
@@ -208,10 +214,9 @@ def main() -> int:
         parser.error("evaluate-existing starting options require compare-fit-start")
     from core.learning.semantic_graph_margin import refit_compositional_graph_scales
     from core.learning.semantic_joint_graph_learning import refit_compositional_joint_graphs
+    from core.learning.semantic_labeled_span_learning import refit_compositional_labeled_spans
     from core.learning.semantic_operation_background import refit_compositional_operation_background
     from core.learning.semantic_operation_view_refit import refit_compositional_operation_views
-    from core.learning.semantic_span_set_learning import refit_compositional_span_set_pointer
-    from core.learning.semantic_labeled_span_learning import refit_compositional_labeled_spans
     from core.learning.semantic_paired_pointer_refit import (
         refit_compositional_paired_operation_pointer,
     )
@@ -226,6 +231,7 @@ def main() -> int:
         refit_compositional_operation_pointer,
     )
     from core.learning.semantic_relation_graph_learning import refit_compositional_graph_relations
+    from core.learning.semantic_span_set_learning import refit_compositional_span_set_pointer
     from core.runtime.atomic_writer import atomic_write_bytes_if_absent
 
     if args.output.exists() and not args.evaluate_existing:
@@ -275,6 +281,7 @@ def main() -> int:
     options = {"refit_pointer": True} if args.objective == "argument_pointer" else {}
     if args.objective == "operation_views":
         options["candidate_modes"] = args.operation_view_mode
+        options["conditional_labels"] = args.conditional_operation_labels
         options["progress"] = lambda row: print(json.dumps(row, sort_keys=True), flush=True)
     if args.objective in {"graph_factors", "graph_relations", "joint_graphs", "operation_background", "span_set_pointer", "labeled_spans"}:
         options["progress"] = lambda row: print(json.dumps(row, sort_keys=True), flush=True)
@@ -327,6 +334,7 @@ def main() -> int:
         candidate = refit(starting, mining, **options)
         if acquisition is not None:
             from dataclasses import replace
+
             from core.learning.semantic_program_campaign import _sha
 
             if candidate.training_receipt["joint_graph_refit"]["training_example_ids_sha256"] != acquisition["training_example_ids_sha256"]:
