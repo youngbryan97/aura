@@ -983,6 +983,7 @@ class MemoryFacade(_NormalisesWhatItReturns):
             metadata.setdefault("tool_result_evidence", True)
 
         metadata = self._stamp_welfare_context(metadata)
+        metadata = self._stamp_felt(metadata)
         welfare_block = self._welfare_should_block_write(metadata)
         if welfare_block:
             logger.info("MemoryFacade: welfare blocked commit_interaction: %s", welfare_block)
@@ -1448,6 +1449,7 @@ class MemoryFacade(_NormalisesWhatItReturns):
         payload = self._merge_unity_metadata(metadata)
 
         payload = self._stamp_welfare_context(payload)
+        payload = self._stamp_felt(payload)
         welfare_block = self._welfare_should_block_write(payload)
         if welfare_block:
             self._last_add_memory_status = {"ok": False, "reason": f"welfare_block:{welfare_block}"}
@@ -1828,6 +1830,28 @@ class MemoryFacade(_NormalisesWhatItReturns):
                 },
             )
 
+        return payload
+
+    def _stamp_felt(self, metadata: dict[str, Any]) -> dict[str, Any]:
+        """Keep what she feels now with the memory being written.
+
+        Every write passes here, so a memory made by any caller carries the
+        feeling it was made in, and recall can be cued by it. A caller that
+        stamped from the state it had in hand is left as it wrote it. See
+        core/memory/felt_at_encoding.py.
+        """
+        payload = metadata if isinstance(metadata, dict) else {}
+        try:
+            from core.container import ServiceContainer
+            from core.memory.felt_at_encoding import stamp
+
+            repo = ServiceContainer.get("state_repository", default=None)
+            current = getattr(repo, "_current", None) if repo is not None else None
+            affect = getattr(current, "affect", None)
+            if affect is not None:
+                stamp(payload, affect)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("memory_facade", exc, action="wrote the memory without the feeling it was made in")
         return payload
 
     def _welfare_should_block_write(self, metadata: dict[str, Any]) -> str | None:

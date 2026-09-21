@@ -123,7 +123,7 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         # measured at the competition rather than at the dialogue. The
         # replenishment is the broadcast's own priority, so a bare win moves
         # the budget barely.
-        self._credit_attended_drive(mot, dt)
+        attended_credit = self._credit_attended_drive(mot, dt)
 
         # Active dialogue should satisfy the social drive, not merely slow its drain.
         if conv_energy > 0.5:
@@ -145,9 +145,28 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         # Drive Recovery (Homeostatic Feedback)
         # Social and Integrity drives recover when affect is high (Trust/Joy)
         e = state.affect.emotions
+        warmth_return = 0.0
         if e.get("trust", 0) > 0.6 or e.get("joy", 0) > 0.6:
-            MotivationUpdatePhase._warmth_returns_a_drive_to_rest(mot, dt)
+            warmth_return = MotivationUpdatePhase._warmth_returns_a_drive_to_rest(mot, dt) or 0.0
             logger.debug("🧡 Drive Recovery active: social=%s", f"{mot.budgets['social']['level']:.1f}")
+
+        # The forces that moved the budgets this turn, kept rather than
+        # discarded. Each is another domain acting on deliberation inside one
+        # turn: surprise from the world model, conversation from perception
+        # and the workspace, warmth from affect, a hold from the self. The
+        # budgets themselves move over minutes, so a displacement two turns
+        # long cannot show in them — every tested path into D in run_032 was
+        # significant and under a fifth of the size the edge bar asks for, and
+        # D ended with no incoming edge at all, which failed five criteria at
+        # once. These are quantities she already acts on; they were computed
+        # each turn and thrown away.
+        mot.forces = {
+            "pressure": round(float(pressure), 6),
+            "social_hold": round(float(social_decay_multiplier), 6),
+            "warmth_return": round(float(warmth_return), 6),
+            "attended_credit": round(float(attended_credit), 6),
+            "resolve_hold": 1.0 if borrowed_resolve else 0.0,
+        }
         
         # 1b. Which urge acts now, integrated over time rather than sampled.
         #
@@ -622,23 +641,29 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         return False
 
     @staticmethod
-    def _credit_attended_drive(mot: Any, dt: float) -> None:
-        """Replenish whichever drive last won the broadcast. Never raises."""
+    def _credit_attended_drive(mot: Any, dt: float) -> float:
+        """Replenish whichever drive last won the broadcast. Never raises.
+
+        Returns what it credited, so the turn can record the force as well as
+        its effect: the budget moves over minutes and the credit is a fact
+        about this turn.
+        """
         try:
             from core.runtime.service_registry import get_runtime_service
 
             workspace = get_runtime_service("global_workspace", default=None)
             reading = getattr(workspace, "last_drive_attention", None)
             if not isinstance(reading, dict):
-                return
+                return 0.0
             budget = mot.budgets.get(str(reading.get("drive", "")))
             if not isinstance(budget, dict):
-                return
+                return 0.0
             gain = float(reading.get("priority", 0.0)) * dt / 60.0
             capacity = float(budget.get("capacity", 100.0))
             budget["level"] = min(capacity, float(budget.get("level", 0.0)) + gain)
+            return gain
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, KeyError):
-            return
+            return 0.0
 
     def _conative_spike(self) -> Optional[dict]:
         """A spontaneous goal only when something is actually interesting.
@@ -998,7 +1023,7 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
             return 0.0
 
     @staticmethod
-    def _warmth_returns_a_drive_to_rest(mot: Any, dt: float) -> None:
+    def _warmth_returns_a_drive_to_rest(mot: Any, dt: float) -> float:
         """Being met brings a need back toward where it sits, not to the ceiling.
 
         The credit was half a unit a minute and integrity's need accumulates at
@@ -1021,9 +1046,10 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         try:
             step = float(dt)
         except (TypeError, ValueError):
-            return
+            return 0.0
         if step <= 0.0:
-            return
+            return 0.0
+        returned = 0.0
         for name in ("social", "integrity"):
             budget = mot.budgets.get(name)
             declared = MOTIVATION_BUDGET_DEFAULTS.get(name)
@@ -1036,6 +1062,8 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
                 continue
             share = min(1.0, rate * step)
             budget["level"] = level + (rest - level) * share
+            returned += (rest - level) * share
+        return returned
 
     @staticmethod
     def _spend_from_what_is_burning(state: Any, mot: Any) -> None:

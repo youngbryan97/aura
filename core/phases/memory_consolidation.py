@@ -8,6 +8,8 @@ from typing import Any
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 
 from ..consciousness.executive_authority import get_executive_authority
+from ..memory.felt_at_encoding import encode as encode_felt
+from ..memory.felt_at_encoding import felt_now
 from ..state.aura_state import AuraState
 from . import BasePhase
 
@@ -528,6 +530,11 @@ class MemoryConsolidationPhase(BasePhase):
                         ),
                         "bicameral_verification_pressure": bicameral_verification_pressure,
                         "resonance": affect_signature.get("resonance", getattr(new_state.affect, "get_resonance_string", lambda: "")()),
+                        # The whole feeling, not only its valence, so what
+                        # arrives later can find the memories made in it.
+                        # From this turn's state rather than the repository's
+                        # last commit. See core/memory/felt_at_encoding.py.
+                        "felt": encode_felt(felt_now(new_state.affect)),
                     },
                 )
                 self._mark_consolidation_status(

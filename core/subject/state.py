@@ -830,6 +830,20 @@ _SCHEMAS: dict[str, Schema] = {
             # able to find a variable the core's future depends on, and these
             # decide what she does next.
             *((f"drive_{name}", f"motivation.budgets.{name}") for name in _DRIVES),
+            # And the forces that move them, which the budgets themselves
+            # cannot show inside a turn. A budget shifts over minutes, so a
+            # displacement two turns long reached D at under a fifth of the
+            # size the edge bar asks for and the domain ended run_032 with no
+            # incoming edge at all — which failed causal closure, recurrence,
+            # cycles, re-entry and the closed core at once. These are the same
+            # quantities the motivation phase already acts on each turn:
+            # surprise pressing the decay, conversation holding the social
+            # drain, warmth returning a need toward rest, the workspace
+            # crediting whichever drive won it, and resolve arriving from
+            # outside holding integrity still.
+            *((f"force_{name}", f"motivation.forces.{name}")
+              for name in ("pressure", "social_hold", "warmth_return",
+                           "attended_credit", "resolve_hold")),
         ),
     ),
     "N": _sch(
@@ -1616,6 +1630,11 @@ def _read_D(state: Any, organs: Organs) -> np.ndarray:
             head.append(_f(entry.get("current", entry.get("level", 0.0))))
         else:
             head.append(_f(entry))
+    # And the forces on them this turn. See the schema above for why a budget
+    # level cannot carry them.
+    forces = _dig(state, "motivation.forces", {}) or {}
+    for name in ("pressure", "social_hold", "warmth_return", "attended_credit", "resolve_hold"):
+        head.append(_f(forces.get(name)))
     return np.array(head, dtype=np.float64)
 
 

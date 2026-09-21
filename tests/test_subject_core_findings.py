@@ -54,9 +54,14 @@ def test_the_affect_phase_runs_the_grounding_engine():
 
 def test_the_motivation_phase_reads_the_action_urgency():
     """The heartbeat read it to bid; the drives never did."""
+    from core.phases.motivation_signals import _ReadsTheDriveSignals
     from core.phases.motivation_update import MotivationUpdatePhase
 
-    source = inspect.getsource(MotivationUpdatePhase)
+    # The readers moved into the phase's mixin, so the phase is the class and
+    # what it inherits the reading from. Reading only the class's own source
+    # would pass a phase that had lost the read entirely.
+    assert issubclass(MotivationUpdatePhase, _ReadsTheDriveSignals)
+    source = inspect.getsource(MotivationUpdatePhase) + inspect.getsource(_ReadsTheDriveSignals)
     assert "_surprise_pressure" in source
     assert "get_action_urgency" in source
 

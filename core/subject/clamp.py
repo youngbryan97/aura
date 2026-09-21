@@ -192,6 +192,10 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "cognition.current_origin",
         "cognition.last_action_source",
         "motivation.budgets",
+        # The forces on the budgets this turn, which D records beside them.
+        # Held with them: a held D whose forces still moved would be a D that
+        # moved. See core/phases/motivation_update.py.
+        "motivation.forces",
         # The stance she is taking toward the person, which decides whether she
         # searches for something to do at all. See core/social/witness.py.
         "cognition.witness",
