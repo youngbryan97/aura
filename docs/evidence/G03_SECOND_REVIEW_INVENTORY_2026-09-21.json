@@ -1,0 +1,97 @@
+{
+  "schema": "aura.advisory_source_inventory.v1",
+  "date": "2026-09-21",
+  "claim": "source review, not independent reproduction of report claims",
+  "sources": [
+    {
+      "id": 1,
+      "file": "Aura_G_Ledger_Continuation_2026-09-21.pdf",
+      "sha256": "0a9d25bc80a4878079043a6439e16bc74c2889874f45fad936f0e2391e44c3ef",
+      "bytes": 14094,
+      "pages": 4,
+      "extracted_characters": 10853,
+      "reviewed_in_full": true
+    },
+    {
+      "id": 2,
+      "file": "reference_run_log (1).json",
+      "sha256": "878ee804b16939dd2c8b79b55638a97815c8fdb3da6c8955d37508e4f18717a3",
+      "bytes": 9523,
+      "pages": null,
+      "extracted_characters": 9523,
+      "reviewed_in_full": true
+    },
+    {
+      "id": 3,
+      "file": "AURA_G_LEDGER_REVIEW_2_2026-09-21.pdf",
+      "sha256": "99a48dab1eba0627bdfa5da08f92aaf739c5ef4be68e19644700488d4b0c53eb",
+      "bytes": 27861,
+      "pages": 11,
+      "extracted_characters": 22938,
+      "reviewed_in_full": true
+    },
+    {
+      "id": 4,
+      "file": "Need a new report_approach_solutions https___gith....pdf",
+      "sha256": "e06ff54c526843c37ccbca4f3baf13e8d7a54417f83ec4b6802ae9b60cc02d6a",
+      "bytes": 339970,
+      "pages": 25,
+      "extracted_characters": 55000,
+      "reviewed_in_full": true
+    },
+    {
+      "id": 5,
+      "file": "test_fast_floor_search.py",
+      "sha256": "8a40555ec5664314f0ff8fa9b5cf9a2a9ad1adf2269a86f166a27b7dd8633afd",
+      "bytes": 5134,
+      "pages": null,
+      "extracted_characters": 5134,
+      "reviewed_in_full": true
+    },
+    {
+      "id": 6,
+      "file": "fast_floor_search.py",
+      "sha256": "0a5741015f314f54b26829efaa8f769c7bcca0fe86beca333b8cb995be338b8c",
+      "bytes": 13481,
+      "pages": null,
+      "extracted_characters": 13481,
+      "reviewed_in_full": true
+    },
+    {
+      "id": 7,
+      "file": "Aura_G_Ledger_Breakthrough_Report_2026-09-21.md",
+      "sha256": "ca642047b530d6037e0b61ab668fb0d5d68fbe8ee5b66732781bac8f7ecf5ef6",
+      "bytes": 13996,
+      "pages": null,
+      "extracted_characters": 13782,
+      "reviewed_in_full": true
+    },
+    {
+      "id": 8,
+      "file": "Aura_G_Ledger_Breakthrough_Report_2026-09-21.pdf",
+      "sha256": "c075cc84868671d718701adfcc1e0a0aa731c255bc144cfc740e817a1a7f2017",
+      "bytes": 489892,
+      "pages": 6,
+      "extracted_characters": 13499,
+      "reviewed_in_full": true
+    },
+    {
+      "id": 9,
+      "file": "AURA_GENERAL_REASONING_LEDGER_CLOSEOUT_REPORT_2026-09-21.pdf",
+      "sha256": "dd1367d01f5bae2a62da206aadea8b284fa66bae87e35e6b3b913a18b80c5a65",
+      "bytes": 853558,
+      "pages": 16,
+      "extracted_characters": 38325,
+      "reviewed_in_full": true
+    },
+    {
+      "id": 10,
+      "file": "# New Report: Aura G-Ledger Program — Continued Analysis and Solutions.pdf",
+      "sha256": "f49b5e9c347ae79c0fd7b3fc1a3c852342fb7efc202642f98fb1ac9da3c7bcd7",
+      "bytes": 101444,
+      "pages": 18,
+      "extracted_characters": 40735,
+      "reviewed_in_full": true
+    }
+  ]
+}

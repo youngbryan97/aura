@@ -171,7 +171,28 @@ def _labeled_loss(parameters, rows, *, labels, width, max_spans, regularization,
     return loss, gradient
 
 
-def refit_compositional_labeled_spans(model, examples, *, max_iter=200, progress=None):
+def _labeled_graph_loss(parameters, contrasts, *, labels, width, relation_parameters, scale):
+    """Train operation evidence against the binding scores used in real selection."""
+    from core.learning.semantic_relation_graph_learning import graph_margin_gradient
+
+    weight = parameters[:labels * width].reshape(labels, width)
+    bias = parameters[labels * width:]
+    complete = (*relation_parameters, np.vstack((weight, np.zeros(width))), np.append(bias, 0.))
+    loss, gradient, margins = 0., np.zeros_like(parameters), []
+    total = sum(row.weight for row in contrasts)
+    for row in contrasts:
+        margin, derivatives = graph_margin_gradient(complete, row, scale=scale)
+        margins.append(margin)
+        deficit = max(.1 - margin, 0.)
+        coefficient = row.weight / total
+        loss += coefficient * deficit ** 2
+        gradient[:labels * width] -= 2 * coefficient * deficit * derivatives[2][:-1].ravel()
+        gradient[labels * width:] -= 2 * coefficient * deficit * derivatives[3][:-1]
+    return loss, gradient, margins
+
+
+def refit_compositional_labeled_spans(model, examples, *, max_iter=200, progress=None,
+                                     runtime_constraint_sources=(), solve_time_limit_s=20.):
     """Fit source-only labeled sets and export through the existing odds scorer."""
     from scipy.optimize import minimize
 
@@ -184,6 +205,12 @@ def refit_compositional_labeled_spans(model, examples, *, max_iter=200, progress
         raise ValueError("labeled span fitting needs unique disjoint source training")
     if model.operation_head.modes not in {("contextual_mean",), ("contextual_mean_transition",)}:
         raise ValueError("labeled span fitting requires a supported single contextual view")
+    constraint_sources = tuple(runtime_constraint_sources)
+    if (len(set(constraint_sources)) != len(constraint_sources)
+            or not set(constraint_sources) <= set(ids)
+            or type(solve_time_limit_s) not in (int, float)
+            or not np.isfinite(solve_time_limit_s) or solve_time_limit_s <= 0):
+        raise ValueError("runtime constraints require unique source-training identities and a finite allowance")
     if any(item.ir.model_basis_receipt_sha256 != model.model_basis_sha256
            or item.tokenizer_identity_sha256 != model.input_grounding.tokenizer_identity_sha256
            or (item.hidden_channels, item.hidden_channel_widths) != (model.hidden_channels, model.hidden_channel_widths)
@@ -219,10 +246,40 @@ def refit_compositional_labeled_spans(model, examples, *, max_iter=200, progress
         weight -= head.weight[background]
         bias -= head.bias[background]
     initial = np.concatenate((weight.ravel(), bias))
+    contrasts, constraint_records = [], []
+    if constraint_sources:
+        from core.learning.semantic_joint_graph_learning import mine_runtime_graph_contrast
+
+        if (head.labels != (*labels, OPERATION_BACKGROUND_LABEL)
+                or model.training_receipt.get("operation_background_fit", {}).get("score")
+                != "joint_operation_background_log_odds_v2"):
+            raise ValueError("runtime graph fitting requires the exported labeled-span score contract")
+        by_source = {item.ir.source_text_sha256: item for item in train}
+        for source in constraint_sources:
+            contrast, record = mine_runtime_graph_contrast(
+                model, by_source[source], solve_time_limit_s=solve_time_limit_s,
+                decode_time_limit_s=solve_time_limit_s,
+            )
+            if record["status"] not in {"equivalent", "counterexample"}:
+                raise RuntimeError(f"runtime graph constraint is unresolved: {record['status']}")
+            constraint_records.append(record)
+            if contrast is not None:
+                contrasts.append(contrast)
+            if progress is not None:
+                progress({"stage": "labeled_runtime_constraint", "source": source, "status": record["status"]})
+    graph_options = dict(labels=len(labels), width=width,
+                         relation_parameters=(model.definition_relation_head.query_projection.astype(np.float64),
+                                              model.definition_relation_head.definition_projection.astype(np.float64)),
+                         scale=model.definition_relation_scale)
     options = dict(labels=len(labels), width=width, max_spans=model.max_steps,
                    regularization=1. / (10. * len(train)), center=initial)
     def objective(value):
-        return _labeled_loss(value, rows, **options)
+        loss, gradient = _labeled_loss(value, rows, **options)
+        if contrasts:
+            graph_loss, graph_gradient, _ = _labeled_graph_loss(value, contrasts, **graph_options)
+            loss += graph_loss
+            gradient += graph_gradient
+        return loss, gradient
     initial_loss = objective(initial)[0]
     iterations = 0
 
@@ -264,6 +321,23 @@ def refit_compositional_labeled_spans(model, examples, *, max_iter=200, progress
         "iterations": int(fitted.nit), "max_span_tokens": model.max_span_tokens,
         "max_spans": model.max_steps, "converged": True, "serving_authority": False,
     }
+    if constraint_sources:
+        from core.learning.semantic_fit_checkpoint import fit_identity
+
+        initial_margins = _labeled_graph_loss(initial, contrasts, **graph_options)[2]
+        exported_margins = _labeled_graph_loss(value.astype(np.float64), contrasts, **graph_options)[2]
+        body["labeled_span_fit"]["runtime_graph_constraints"] = {
+            "parent": model.receipt_sha256, "sources": list(constraint_sources),
+            "records": constraint_records, "constraints_sha256": fit_identity(tuple(contrasts)),
+            "objective": "source_span_likelihood_plus_runtime_squared_margin_deficit_v1",
+            "required_margin": .1, "initial_margins": initial_margins,
+            "exported_margins": exported_margins,
+            "all_witnessed_margins_satisfied": (all(margin >= .1 for margin in exported_margins)
+                                                if exported_margins else None),
+            "full_source_decision_retention_measured": False,
+            "binding_coefficients": "frozen_parent", "runtime_competitors": "frozen_at_mining",
+            "validation_used_for_fit": False, "test_examples_used": 0, "serving_authority": False,
+        }
     if body.get("operation_search_policy") == "complete_bounded_v1":
         body["operation_label_limit"] = len(operation_head.labels)
     return replace(model, operation_head=operation_head, operation_length_penalty=0.,
