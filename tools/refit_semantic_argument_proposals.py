@@ -120,6 +120,8 @@ def main() -> int:
                         help="joint_graphs only: retain satisfied witnesses and source bindings during fitting")
     parser.add_argument("--acquire-training-errors", type=int, metavar="CONTROLS",
                         help="scan every training row, mine unresolved rows plus this many source-selected controls")
+    parser.add_argument("--replay-source-graphs", action="store_true",
+                        help="recheck every source-training decision after updates and retain witnessed regressions")
     parser.add_argument("--retention-operation-charts", type=int, default=32,
                         help="runtime operation charts searched per source-training example for retention")
     parser.add_argument("--learn-argument-heads", action="store_true",
@@ -172,6 +174,8 @@ def main() -> int:
         args.acquire_training_errors < 1 or not args.retain_semantic_constraints
     ):
         parser.error("training-error acquisition requires retained joint graphs and a positive control count")
+    if args.replay_source_graphs and not args.retain_semantic_constraints:
+        parser.error("source graph replay requires retained semantic constraints")
     if args.learn_argument_heads and not args.retain_semantic_constraints:
         parser.error("argument-head learning requires retained semantic constraints")
     if args.learn_operation_pointer and not args.retain_semantic_constraints:
@@ -268,6 +272,7 @@ def main() -> int:
     if args.objective == "joint_graphs":
         options["source_weight"] = args.source_operation_weight
         options["constraint_learning"] = args.retain_semantic_constraints
+        options["source_graph_retention"] = args.replay_source_graphs
         options["learn_arguments"] = args.learn_argument_heads
         options["learn_operation_pointer"] = args.learn_operation_pointer
         options["update_rule"] = args.graph_update_rule

@@ -191,13 +191,15 @@ def align_source_input_registers(item, input_spans):
     return instructions, mapping
 
 
-def mine_runtime_graph_contrast(model, item, *, weight=1., solve_time_limit_s=20., learn_arguments=False, learn_operation_pointer=False):
+def mine_runtime_graph_contrast(model, item, *, weight=1., solve_time_limit_s=20., learn_arguments=False,
+                                learn_operation_pointer=False, decode_time_limit_s=None):
     """Interpret without annotations, then independently compare to the source target."""
     from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
 
+    options = {} if decode_time_limit_s is None else {"search_time_limit_s": decode_time_limit_s}
     outcome = model.decode(source_token_ids=item.ir.source_token_ids, hidden_states=item.hidden_states,
         public_inputs=item.public_inputs, source_text_sha256=item.ir.source_text_sha256,
-        model_basis_sha256=model.model_basis_sha256)
+        model_basis_sha256=model.model_basis_sha256, **options)
     record = {"source_text_sha256": item.ir.source_text_sha256,
               "serving_authority": False, "negative_origin": "runtime_decode"}
     if outcome.ir is None:
@@ -239,6 +241,55 @@ def mine_runtime_graph_contrast(model, item, *, weight=1., solve_time_limit_s=20
                   negative_selection_key=graph_selection_key(model, negative),
                   positive_program_sha256=positive["program"].sha(), negative_program_sha256=negative["program"].sha())
     return selection_graph_contrast(model, positive, negative, weight=weight), record
+
+
+def replay_source_graph_retention(model, examples, *, solve_time_limit_s=20., learn_arguments=False,
+                                  learn_operation_pointer=False, progress=None):
+    """Reacquire complete-decision errors across the declared training population.
+
+    Per-token operation constraints do not retain a joint graph decision.
+    This replay uses ordinary target-blind decode and admits a training contrast
+    only after independent execution distinguishes it from the source meaning.
+    Unfinished decode or comparison stays unresolved, never retained-as-correct.
+    """
+    from core.learning.semantic_program_campaign import _sha
+    from core.learning.semantic_program_shared_transducer import _geometry
+
+    examples = tuple(examples)
+    if (type(solve_time_limit_s) not in (int, float) or not math.isfinite(solve_time_limit_s)
+            or solve_time_limit_s <= 0):
+        raise ValueError("graph retention replay allowance must be finite and positive")
+    sources = [item.ir.source_text_sha256 for item in examples]
+    if (not examples or len(sources) != len(set(sources))
+            or any(item.split != "train" for item in examples)):
+        raise ValueError("graph retention replay requires unique source training examples")
+    weights = Counter(_geometry(item) for item in examples)
+    contrasts, records = [], []
+    for index, item in enumerate(examples):
+        if progress:
+            progress({"stage": "source_graph_retention_started", "completed": index,
+                      "total": len(examples), "source": sources[index]})
+        contrast, record = mine_runtime_graph_contrast(model, item,
+            weight=1. / weights[_geometry(item)], solve_time_limit_s=solve_time_limit_s,
+            decode_time_limit_s=solve_time_limit_s, learn_arguments=learn_arguments,
+            learn_operation_pointer=learn_operation_pointer)
+        if contrast is not None:
+            record = {**record, "replay_pair": len(contrasts)}
+            contrasts.append(contrast)
+        records.append(record)
+        if progress:
+            progress({"stage": "source_graph_retention", "completed": index + 1,
+                      "total": len(examples), "row": record})
+    counts = Counter(row["status"] for row in records)
+    body = {"schema": "aura.semantic_source_graph_retention.v1",
+            "model": model.receipt_sha256, "source_ids_sha256": _sha(sorted(sources)),
+            "observed_count": len(records), "equivalent_count": counts["equivalent"],
+            "counterexample_count": len(contrasts),
+            "unresolved_count": len(records) - counts["equivalent"] - len(contrasts),
+            "records": records, "solve_time_limit_s": solve_time_limit_s,
+            "all_source_decisions_correct": counts["equivalent"] == len(examples),
+            "validation_used": False, "test_examples_used": 0, "serving_authority": False}
+    return tuple(contrasts), {**body, "receipt_sha256": _sha(body)}
 
 
 def source_operation_supervision(model, training):
@@ -390,7 +441,7 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
                                     boundary_policy="supervised", learn_operations=True,
                                     relation_metric="coefficient_euclidean",
                                     source_retention_examples=None, operation_policy="supervised",
-                                    operation_metric="coefficient_euclidean"):
+                                    operation_metric="coefficient_euclidean", source_graph_retention=False):
     """Remine source-training predictions after each joint operation/relation update."""
     from core.learning.semantic_graph_margin import graph_refit_source_splits
     from core.learning.semantic_program_campaign import _sha
@@ -399,6 +450,9 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
 
     if type(rounds) is not int or rounds < 1 or type(constraint_learning) is not bool:
         raise ValueError("joint graph learning rounds must be positive")
+    if (type(source_graph_retention) is not bool
+            or (source_graph_retention and not constraint_learning)):
+        raise ValueError("source graph retention requires retained semantic constraints")
     if type(learn_operations) is not bool or (not learn_operations and not constraint_learning):
         raise ValueError("frozen operation learning requires retained constraints")
     if relation_metric not in {"coefficient_euclidean", "factor_function"} or (
@@ -451,6 +505,16 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
     weights = Counter(_geometry(item) for item in training)
     supervision = source_operation_supervision(model, retention) if source_weight else None
     candidate, retained, history = model, [], []
+    graph_replays = []
+
+    def replay_retained_graphs(phase):
+        pairs, receipt = replay_source_graph_retention(candidate, retention,
+            solve_time_limit_s=solve_time_limit_s, learn_arguments=learn_arguments,
+            learn_operation_pointer=learn_operation_pointer, progress=progress)
+        graph_replays.append({"phase": phase, "receipt": receipt,
+                              "retained_pairs": list(range(len(retained), len(retained) + len(pairs)))})
+        retained.extend(pairs)
+
     if constraint_learning and supervision is not None:
         retained.extend(source_operation_constraints(model, supervision, weight=source_weight,
                                                     policy=operation_policy))
@@ -458,6 +522,8 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
             retained.extend(source_operation_pointer_constraints(
                 model, retention, weight=source_weight, policy=boundary_policy,
             ))
+    if source_graph_retention:
+        replay_retained_graphs("before_fit")
     stop_reason = "round_budget_exhausted"
     for round_index in range(rounds):
         coefficients_before = _sha(candidate._coefficient_body())
@@ -536,6 +602,10 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
             save_round_candidate(Path(checkpoint_dir) / f"round-{round_index + 1}.candidate.json",
                 candidate=candidate, parent=model.receipt_sha256, round_index=round_index + 1,
                 numerical_checkpoint=Path(checkpoint_dir) / f"round-{round_index + 1}.npz")
+        if source_graph_retention and _sha(candidate._coefficient_body()) != coefficients_before:
+            # Newly wrong decisions become constraints for the next round, even
+            # when they lie outside the small active error-mining subset.
+            replay_retained_graphs(f"after_round_{round_index + 1}")
         history.append({"records": records, "fit": fit})
         if progress:
             progress({"stage": "joint_graph_fit", "round": round_index + 1, "fit": fit})
@@ -548,6 +618,10 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         "training_examples": len(training), "validation_examples": len(validation),
         "source_retention_examples": len(retention),
         "source_retention_ids_sha256": _sha(sorted(item.ir.source_text_sha256 for item in retention)),
+        "source_graph_retention": source_graph_retention,
+        "source_graph_replays": graph_replays,
+        "all_source_decisions_correct": (graph_replays[-1]["receipt"]["all_source_decisions_correct"]
+                                         if graph_replays else None),
         "training_example_ids_sha256": _sha(sorted(item.ir.source_text_sha256 for item in training)),
         "validation_example_ids_sha256": _sha(sorted(item.ir.source_text_sha256 for item in validation)),
         "rounds": history, "requested_rounds": rounds, "completed_rounds": len(history),

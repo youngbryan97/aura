@@ -142,10 +142,10 @@ def test_coming_through_intact_makes_risk_cost_less(tmp_path) -> None:
     ledger = get_intactness_ledger()
     # Threats have cost her a lot before, and now keep costing almost nothing.
     for _ in range(6):
-        ledger.open("threat_detected", (0.5, 1.0))
+        ledger.begin_event("threat_detected", (0.5, 1.0))
         ledger.close((-0.5, 1.0))
     for _ in range(12):
-        ledger.open("threat_detected", (0.5, 1.0))
+        ledger.begin_event("threat_detected", (0.5, 1.0))
         ledger.close((0.49, 1.0))
     reading = ledger.read()
     assert reading.measured and reading.surprise < 1.0
@@ -159,10 +159,10 @@ def test_being_hurt_more_than_expected_makes_risk_cost_more() -> None:
 
     ledger = get_intactness_ledger()
     for _ in range(6):
-        ledger.open("error", (0.5, 1.0))
+        ledger.begin_event("error", (0.5, 1.0))
         ledger.close((0.45, 1.0))
     for _ in range(8):
-        ledger.open("error", (0.5, 1.0))
+        ledger.begin_event("error", (0.5, 1.0))
         ledger.close((-0.5, 1.0))
     assert ledger.risk_weight() > 1.0
 
