@@ -329,3 +329,22 @@ def test_a_degradation_receipt_is_written_behind_the_loop() -> None:
 
     asyncio.run(on_the_loop())
     assert handed and handed[0].startswith("degradation_receipt:a_subsystem:")
+
+
+def test_a_background_writers_own_files_are_not_a_tests_leak() -> None:
+    """LIVE 2026-09-20: three ontogeny files failed a test that never touched
+    ontogeny. The flusher is a daemon on a two-second timer; asking whether a
+    write is in flight answers for the instant it is asked, and both checks
+    landed between ticks. Asking whose files these are answers for the file."""
+    import core.ontogeny.experience as experience
+    from tests.conftest import leaked_files_a_background_writer_owns
+
+    declared = experience.background_store_files()
+    if not declared:  # no spine built in this process
+        experience.get_experience_spine()
+        declared = experience.background_store_files()
+    assert declared, "the writer must be able to say what it holds"
+    assert leaked_files_a_background_writer_owns(set(declared)) == ["core.ontogeny.experience"]
+    # one file that is not its own, and the claim is refused
+    assert leaked_files_a_background_writer_owns({*declared, "/tmp/not-its-own.db"}) == []
+    assert leaked_files_a_background_writer_owns(set()) == []

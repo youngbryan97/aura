@@ -1025,6 +1025,20 @@ def wait_for_background_writes(timeout: float = 5.0) -> bool:
     return True if spine is None else spine.wait_until_quiet(timeout)
 
 
+def background_store_files() -> tuple[str, ...]:
+    """Every file the process-wide flusher holds open while it writes.
+
+    The store, its write-ahead log and its shared-memory index. A caller
+    measuring open handles sees all three and cannot tell whose they are;
+    this is the writer saying so. Empty when no spine has been built.
+    """
+    spine = _spine
+    if spine is None:
+        return ()
+    base = str(spine.db_path)
+    return (base, f"{base}-wal", f"{base}-shm", f"{base}-journal")
+
+
 def reset_experience_spine_for_test(spine: ExperienceSpine | None = None) -> None:
     """Swap the process-wide spine. Tests only; the live path never calls this."""
     global _spine
@@ -1039,6 +1053,7 @@ __all__ = [
     "ExperienceSpine",
     "Outcome",
     "a_background_write_is_in_flight",
+    "background_store_files",
     "wait_for_background_writes",
     "OutcomeKind",
     "Provenance",

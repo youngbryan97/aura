@@ -380,6 +380,44 @@ def _sqlite_paths_from(leaked_files: set[str]) -> set[str]:
     return bases
 
 
+#: Modules that declare a process-global background writer, and the three
+#: names each declares: whether a write is in flight, how to wait it out, and
+#: which files it holds while writing.
+_DECLARED_BACKGROUND_WRITERS = (
+    (
+        "core.ontogeny.experience",
+        "a_background_write_is_in_flight",
+        "wait_for_background_writes",
+        "background_store_files",
+    ),
+)
+
+
+def leaked_files_a_background_writer_owns(leaked_files: set[str]) -> list[str]:
+    """The modules whose declared writer owns every one of these files.
+
+    A flusher on a timer holds its store for the length of one write, and the
+    write that starts during teardown belongs to no test. Asking whether a
+    write is in flight answers for the instant it is asked; asking whose
+    files these are answers for the file (LIVE 2026-09-20: three ontogeny
+    files failed a test that never touched ontogeny, after two in-flight
+    checks each landed between ticks).
+    """
+    if not leaked_files:
+        return []
+    wanted = {os.path.realpath(one) for one in leaked_files}
+    owners: list[str] = []
+    for module_name, _in_flight, _wait, files in _DECLARED_BACKGROUND_WRITERS:
+        module = sys.modules.get(module_name)
+        declared = getattr(module, files, None) if module is not None else None
+        if declared is None:
+            continue
+        held = {os.path.realpath(one) for one in declared()}
+        if held and wanted <= held:
+            owners.append(module_name)
+    return owners
+
+
 def wait_out_declared_background_writers(timeout: float = 5.0) -> list[str]:
     """Let a process-global writer finish before its handle is called a leak.
 
@@ -395,13 +433,7 @@ def wait_out_declared_background_writers(timeout: float = 5.0) -> list[str]:
     is neither started nor waited on. Returns what was waited out.
     """
     waited: list[str] = []
-    for module_name, has_writes, wait in (
-        (
-            "core.ontogeny.experience",
-            "a_background_write_is_in_flight",
-            "wait_for_background_writes",
-        ),
-    ):
+    for module_name, has_writes, wait, _files in _DECLARED_BACKGROUND_WRITERS:
         module = sys.modules.get(module_name)
         if module is None:
             continue
@@ -727,6 +759,16 @@ class HermeticResourceSandbox:
         # milliseconds, so a teardown can still land on the following one.
         # Cheap: only reached when something already looks like a leak.
         if leaks.get("open_files") and wait_out_declared_background_writers():
+            gc.collect()
+            leaks = self.leaks()
+
+        # Files a declared background writer owns, and nothing else: the
+        # flusher's next tick is two seconds away and every step above takes
+        # milliseconds, so a teardown can keep landing on one. Wait for it to
+        # go quiet and measure once more.
+        owned = leaked_files_a_background_writer_owns(set(leaks.get("open_files") or ()))
+        if owned and not leaks.get("children") and not leaks.get("listeners"):
+            wait_out_declared_background_writers(6.0)
             gc.collect()
             leaks = self.leaks()
 
