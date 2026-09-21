@@ -1,0 +1,195 @@
+"""Train shared boundaries against complete non-overlapping span sets."""
+
+from __future__ import annotations
+
+from collections import Counter
+from dataclasses import replace
+
+import numpy as np
+
+from core.learning.semantic_program_ir import TokenSpan
+from core.learning.semantic_program_shared_transducer import _geometry
+from core.learning.semantic_program_transducer import LinearPointerHead, _sha
+
+
+def span_set_partition(scores: np.ndarray, max_spans: int) -> tuple[float, np.ndarray]:
+    """Return log partition and span marginals, including the empty set once.
+
+    scores[start, length - 1] scores one interval. Uncovered tokens have zero
+    score and a unique one-token skip edge, so background segmentations cannot
+    multiply the probability of a span set. Intervals may touch, not overlap.
+    """
+    scores = np.asarray(scores, dtype=np.float64)
+    if scores.ndim != 2 or not all(scores.shape) or type(max_spans) is not int or max_spans < 1:
+        raise ValueError("invalid span-set partition geometry")
+    n, width = scores.shape
+    valid = np.arange(n)[:, None] + np.arange(1, width + 1) <= n
+    if not np.all(np.isfinite(scores[valid])) or not np.all(np.isneginf(scores[~valid])):
+        raise ValueError("span-set scores need finite intervals and masked padding")
+    count = min(max_spans, n)
+    forward = np.full((n + 1, count + 1), -np.inf)
+    forward[:, 0] = 0.0
+    for end in range(1, n + 1):
+        lengths = np.arange(1, min(width, end) + 1)
+        starts = end - lengths
+        for k in range(1, min(count, end) + 1):
+            alternatives = forward[starts, k - 1] + scores[starts, lengths - 1]
+            forward[end, k] = np.logaddexp(forward[end - 1, k], np.logaddexp.reduce(alternatives))
+    partition = float(np.logaddexp.reduce(forward[n]))
+    adjoint = np.zeros_like(forward)
+    adjoint[n] = np.exp(forward[n] - partition)
+    marginals = np.zeros_like(scores)
+    # Reverse the same acyclic recurrence rather than approximate a top-k bank.
+    for end in range(n, 0, -1):
+        lengths = np.arange(1, min(width, end) + 1)
+        starts = end - lengths
+        for k in range(1, min(count, end) + 1):
+            scale = adjoint[end, k]
+            normalizer = forward[end, k]
+            adjoint[end - 1, k] += scale * np.exp(forward[end - 1, k] - normalizer)
+            mass = scale * np.exp(forward[starts, k - 1] + scores[starts, lengths - 1] - normalizer)
+            adjoint[starts, k - 1] += mass
+            marginals[starts, lengths - 1] += mass
+    return partition, marginals
+
+
+def _span_set_loss(weight, rows, *, width, max_spans, regularization, center):
+    delta = weight - center
+    loss = 0.5 * regularization * float(delta @ delta)
+    gradient = regularization * delta
+    for hidden, starts, ends, fixed, target, sample_weight in rows:
+        projected = hidden @ weight[:2 * width].reshape(2, width).T
+        scores = np.full(fixed.shape, -np.inf)
+        columns = ends - starts
+        scores[starts, columns] = projected[starts, 0] + projected[ends, 1] + weight[-1] + fixed[starts, columns]
+        partition, marginals = span_set_partition(scores, max_spans)
+        loss += sample_weight * (partition - sum(scores[s, length - 1] for s, length in target))
+        residual = marginals
+        for start, length in target:
+            residual[start, length - 1] -= 1.0
+        values = residual[starts, columns]
+        start_mass = np.bincount(starts, weights=values, minlength=len(hidden))
+        end_mass = np.bincount(ends, weights=values, minlength=len(hidden))
+        gradient[:width] += sample_weight * (start_mass @ hidden)
+        gradient[width:2 * width] += sample_weight * (end_mass @ hidden)
+        gradient[-1] += sample_weight * float(values.sum())
+    return loss, gradient
+
+
+def fit_span_set_pointer(training, *, spans, pointer, max_span_tokens, max_spans,
+                         length_penalty=0.0, inverse_regularization=10.0,
+                         max_iter=200, progress=None):
+    """Fit source span-set likelihood while retaining frozen pair interactions."""
+    from scipy.optimize import minimize
+
+    training = tuple(training)
+    if (
+        not training or any(item.split != "train" for item in training)
+        or type(max_span_tokens) is not int or max_span_tokens < 1
+        or type(max_spans) is not int or max_spans < 1
+        or type(max_iter) is not int or max_iter < 1
+        or not np.isfinite(length_penalty)
+        or not np.isfinite(inverse_regularization) or inverse_regularization <= 0
+    ):
+        raise ValueError("invalid source span-set training contract")
+    ids = [item.ir.source_text_sha256 for item in training]
+    if len(set(ids)) != len(ids):
+        raise ValueError("span-set training sources must be unique")
+    counts = Counter(_geometry(item) for item in training)
+    rows, targets = [], []
+    for item in training:
+        hidden = item.hidden_states
+        sequence = pointer.score_sequence(hidden)
+        target = tuple(sorted(spans(item), key=lambda span: (span.start, span.end)))
+        if len(target) > max_spans or len(set(target)) != len(target):
+            raise ValueError("span-set target count is invalid")
+        previous_end = 0
+        for span in target:
+            span.validate_bound(len(hidden))
+            if span.start < previous_end or span.end - span.start > max_span_tokens:
+                raise ValueError("span-set target intervals overlap or exceed the span bound")
+            previous_end = span.end
+        n = len(hidden)
+        length = min(max_span_tokens, n)
+        starts, columns = np.nonzero(np.arange(n)[:, None] + np.arange(1, length + 1) <= n)
+        ends = starts + columns
+        fixed = np.full((n, length), -np.inf)
+        for start, end in zip(starts, ends, strict=True):
+            fixed[start, end - start] = (
+                sequence.score_span(TokenSpan(int(start), int(end + 1)))
+                - float(sequence.start[start] + sequence.end[end]) - length_penalty
+            )
+        target_pairs = tuple((span.start, span.end - span.start) for span in target)
+        rows.append((hidden, starts, ends, fixed, target_pairs, 1.0 / counts[_geometry(item)] / len(counts)))
+        targets.append([item.ir.source_text_sha256, target_pairs])
+    width = pointer.width
+    initial = np.concatenate((pointer.start_weight, pointer.end_weight,
+                              [pointer.start_bias + pointer.end_bias])).astype(np.float64)
+    regularization = 1.0 / (inverse_regularization * len(training))
+
+    def objective(weight):
+        return _span_set_loss(weight, rows, width=width, max_spans=max_spans,
+                              regularization=regularization, center=initial)
+
+    initial_loss, _ = objective(initial)
+    iterations = 0
+
+    def callback(weight):
+        nonlocal iterations
+        iterations += 1
+        if progress is not None:
+            progress({"stage": "span_set_fit", "iteration": iterations})
+
+    result = minimize(objective, initial, jac=True, method="L-BFGS-B", callback=callback,
+                      options={"maxiter": max_iter, "ftol": 1e-8, "gtol": 1e-5})
+    if not result.success or not np.all(np.isfinite(result.x)):
+        raise RuntimeError(f"span-set fit incomplete: {result.status}: {result.message}")
+    coefficients = np.asarray(result.x, dtype=np.float32)
+    fitted = LinearPointerHead(coefficients[:width], float(coefficients[-1]) / 2,
+                               coefficients[width:2 * width], float(coefficients[-1]) / 2,
+                               pointer.pair_weight)
+    exported_loss, _ = objective(coefficients.astype(np.float64))
+    receipt = {
+        "objective": "source_nonoverlapping_span_set_likelihood_v1",
+        "training_examples": len(training), "targets_sha256": _sha(targets),
+        "max_spans": max_spans, "max_span_tokens": max_span_tokens,
+        "length_penalty": float(length_penalty), "regularization": regularization,
+        "regularization_center": "parent_boundary_coefficients",
+        "pair_interaction": "frozen_parent", "geometry_balanced": True,
+        "initial_loss": initial_loss, "exported_loss": exported_loss,
+        "iterations": int(result.nit), "converged": True,
+        "validation_used_for_fit": False, "test_examples_used": 0,
+    }
+    return fitted, receipt
+
+
+def refit_compositional_span_set_pointer(model, examples, *, max_iter=200, progress=None):
+    """Export the fitted boundaries through the existing runtime pointer contract."""
+    if model.training_receipt.get("operation_background_fit", {}).get("score") == "joint_operation_background_log_odds_v2":
+        raise ValueError("span-set objective requires runtime boundary scores")
+    training = tuple(item for item in examples if item.split == "train")
+    if any(
+        item.ir.model_basis_receipt_sha256 != model.model_basis_sha256
+        or item.tokenizer_identity_sha256 != model.input_grounding.tokenizer_identity_sha256
+        or (item.hidden_channels, item.hidden_channel_widths) != (model.hidden_channels, model.hidden_channel_widths)
+        for item in training
+    ):
+        raise ValueError("span-set source representation differs from the model")
+    pointer, fit = fit_span_set_pointer(
+        training, spans=lambda item: tuple(i.operation_span for i in item.ir.instructions),
+        pointer=model.operation_pointer, max_span_tokens=model.max_span_tokens,
+        max_spans=model.max_steps, length_penalty=model.operation_length_penalty,
+        max_iter=max_iter, progress=progress,
+    )
+    coefficients = model._coefficient_body()
+    coefficients["operation_pointer"] = pointer.to_dict()
+    body = {key: value for key, value in model.training_receipt.items() if key != "receipt_sha256"}
+    body["coefficient_sha256"] = _sha(coefficients)
+    body["span_set_pointer_refit"] = {
+        "schema": "aura.semantic_span_set_pointer_refit.v1",
+        "parent_transducer_receipt_sha256": model.receipt_sha256,
+        "fit": fit, "serving_authority": False,
+        "operation_labels_and_arguments": "unchanged_not_trained_by_this_objective",
+    }
+    return replace(model, operation_pointer=pointer,
+                   training_receipt={**body, "receipt_sha256": _sha(body)})

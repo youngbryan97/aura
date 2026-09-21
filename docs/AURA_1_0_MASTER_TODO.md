@@ -1120,6 +1120,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Complete span-set objective](evidence/G03_SPAN_SET_OBJECTIVE_2026-09-21.md)
+  trains boundary selection against an exact non-overlap partition. The first
+  paired pilots, with 64 and 764 training rows, both preserve 16 controls but
+  repair neither exposed challenge. No promotion follows.
   [Complete source-decision audit](evidence/G03_FULL_SOURCE_DECISION_RESULT_2026-09-21.md):
   764/764 train and 476/500 exposed validation are semantically equivalent;
   24 validation failures remain. Original memberships and every receipt were
@@ -1533,6 +1537,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   baseline-dependent task filtering in the retrieval/depth diagnostic. The
   68-test focused pass does not qualify a model or close campaign verification.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [September 21 screenshot review](evidence/G_LEDGER_SCREENSHOT_REVIEW_2026-09-21.md)
+  adopts measured held-out search benefit and abstraction lesion/rescue, with
+  acquisition cost included. Algebraic and unconditional speedup claims are
+  rejected or restricted to their stated assumptions; they are not gain evidence.
   [Feedback execution types](evidence/G09_FEEDBACK_EXECUTION_TYPES_2026-09-20.md)
   carries structural checks through the shared outcome-learning wrapper.
   Thirty-eight focused tests pass; execution validity still cannot grade its
