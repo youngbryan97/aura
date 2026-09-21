@@ -70,6 +70,20 @@ def verify_fit_start(candidate, starting):
         raise ValueError("comparison starting candidate differs from saved fit parent")
 
 
+def load_evaluation_candidate(path, starting, *, round_index=None, numerical_checkpoint=None):
+    """Read either a final model or a parent-bound accepted training round."""
+    if (round_index is None) != (numerical_checkpoint is None):
+        raise ValueError("round evaluation requires its numerical checkpoint")
+    if round_index is not None:
+        from core.learning.semantic_fit_checkpoint import load_round_candidate
+
+        return load_round_candidate(path, expected_parent=starting.receipt_sha256,
+            expected_round=round_index, numerical_checkpoint=numerical_checkpoint)
+    from core.learning.semantic_program_compositional_transducer import compositional_semantic_program_transducer_from_dict
+
+    return compositional_semantic_program_transducer_from_dict(json.loads(Path(path).read_text("ascii")))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--transducer", type=Path, required=True)
@@ -86,6 +100,10 @@ def main() -> int:
                         help="retained-constraint optimizer state; defaults beside the output candidate")
     parser.add_argument("--evaluate-existing", action="store_true",
                         help="evaluate the saved output candidate without fitting again")
+    parser.add_argument("--evaluate-round", type=int,
+                        help="read output as a verified round snapshot; requires evaluate-existing")
+    parser.add_argument("--round-checkpoint", type=Path,
+                        help="numerical checkpoint bound to the requested round snapshot")
     parser.add_argument("--runtime-operation-views", action="store_true")
     parser.add_argument("--background-log-odds", action="store_true")
     parser.add_argument("--runtime-mention-margin", action="store_true")
@@ -126,13 +144,20 @@ def main() -> int:
     configure_refit_environment(args.output)
     if args.evaluate_existing and args.validation_output is None:
         parser.error("evaluate-existing requires validation-output")
+    if ((args.evaluate_round is None) != (args.round_checkpoint is None)
+            or (args.evaluate_round is not None and (not args.evaluate_existing or args.evaluate_round < 1))):
+        parser.error("round evaluation requires evaluate-existing, a positive round, and round-checkpoint")
     if args.validation_output is not None:
         args.validation_checkpoint = args.validation_checkpoint or args.validation_output.with_suffix(".checkpoint.json")
     if args.validation_checkpoint is not None and args.validation_checkpoint.resolve() in {
-        path.resolve() for path in (args.output, args.transducer, args.source_report, args.validation_output)
+        path.resolve() for path in (args.output, args.transducer, args.source_report, args.validation_output,
+                                   args.round_checkpoint)
         if path is not None
     }:
         parser.error("validation checkpoint must not overwrite inputs or final outputs")
+    if (args.round_checkpoint is not None and args.validation_output is not None
+            and args.round_checkpoint.resolve() == args.validation_output.resolve()):
+        parser.error("validation output must not overwrite the numerical checkpoint")
     if args.runtime_operation_views and args.objective != "pairwise_arguments":
         parser.error("runtime operation views require pairwise_arguments")
     if args.background_log_odds and args.objective != "operation_background":
@@ -264,13 +289,12 @@ def main() -> int:
     if args.objective == "operation_background":
         options["background_log_odds"] = args.background_log_odds
     if args.evaluate_existing:
-        candidate = compositional_semantic_program_transducer_from_dict(
-            json.loads(args.output.read_text("ascii"))
-        )
+        candidate = load_evaluation_candidate(args.output, starting,
+            round_index=args.evaluate_round, numerical_checkpoint=args.round_checkpoint)
         verify_source_splits(bound, candidate.training_receipt)
         if candidate.model_basis_sha256 != model.model_basis_sha256:
             raise ValueError("saved candidate representation differs from incumbent")
-        if args.compare_fit_start:
+        if args.compare_fit_start and args.evaluate_round is None:
             verify_fit_start(candidate, starting)
     else:
         mining = bound
