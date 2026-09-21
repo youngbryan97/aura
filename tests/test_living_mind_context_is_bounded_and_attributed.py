@@ -27,7 +27,7 @@ from core.brain.living_mind_context import (
     estimate_context_tokens,
     neutralize_learned_text,
 )
-
+from tests.source_contract import family_text  # the gate and its lifted siblings as one text
 
 # ─────────────────────────────── the total is bounded
 
@@ -244,7 +244,7 @@ def test_the_builders_assemble_through_the_bounded_collector():
 
     from core.brain import inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -277,7 +277,7 @@ def test_every_context_block_records_its_own_omission():
 
     from core.brain import inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -321,7 +321,7 @@ def test_user_derived_blocks_are_marked_learned():
 
     from core.brain import inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
 
     for name in ("theory_of_mind", "world_model"):
         marker = f'segments.add("{name}"'
@@ -365,7 +365,7 @@ def test_nothing_calls_the_builders_outside_the_deadline():
 
     from core.brain import inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
     tree = ast.parse(source)
 
     for node in ast.walk(tree):
@@ -503,7 +503,7 @@ def test_the_fit_pass_runs_on_every_dispatch_including_prebuilt_messages():
 
     from core.brain import inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
     tree = ast.parse(source)
 
     calls = [
@@ -592,7 +592,7 @@ def test_every_advancing_call_is_gated_and_recorded():
 
     from core.brain import inference_gate as gate_mod
 
-    source = inspect.getsource(gate_mod)
+    source = family_text(gate_mod)
     tree = ast.parse(source)
 
     advancing = {"crsm", "hedonic_gradient", "circadian", "personality"}
