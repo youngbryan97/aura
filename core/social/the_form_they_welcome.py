@@ -44,6 +44,7 @@ __all__ = [
     "FormLedger",
     "forms_of",
     "get_form_ledger",
+    "note_heard",
     "note_sent",
     "reset_for_test",
 ]
@@ -155,6 +156,16 @@ class FormLedger:
             name: {form: round(held.fit(form), 4) for form in FORMS}
             for name, held in sorted(self._people.items())
         }
+
+
+def note_heard(partner: str, warm: bool, objected: bool) -> None:
+    """Their message arrived: read it as a reaction to her last reply, and
+    score the next candidates for them. Warm with no objection is a welcome;
+    a correction or frustration is not.
+    """
+    ledger = get_form_ledger()
+    ledger.set_partner(partner)
+    ledger.note_reaction(partner, welcomed=bool(warm) and not objected, unwelcomed=bool(objected))
 
 
 def note_sent(reply: str, their_message: str, partner: str) -> None:

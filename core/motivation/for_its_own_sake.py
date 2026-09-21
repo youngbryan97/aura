@@ -34,6 +34,7 @@ that act, each of which is measured again.
 
 from __future__ import annotations
 
+import logging
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
@@ -43,8 +44,12 @@ __all__ = [
     "DoingLedger",
     "OwnSake",
     "get_doing_ledger",
+    "note_doing",
+    "outlives_its_reward",
     "reset_for_test",
 ]
+
+logger = logging.getLogger(__name__)
 
 #: Turns of doing, and turns of not doing, before a drive's share is read.
 #: Four of each: fewer and one unusually engaged turn decides it.
@@ -160,6 +165,48 @@ class DoingLedger:
 
     def status(self) -> dict[str, Any]:
         return {name: self.read(name).as_dict() for name in sorted(self._drives)}
+
+
+def note_doing(state: Any) -> None:
+    """How engaged she is this turn, and which drive's act she is at. Never raises.
+
+    The drive of her most recent open intention, or none. The motivation phase
+    calls this before anything closes.
+    """
+    try:
+        doing, level = "", None
+        for item in reversed(list(getattr(state.cognition, "pending_initiatives", []) or [])):
+            if not isinstance(item, dict) or str(item.get("source", "")) != "motivation_update":
+                continue
+            metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+            drive = str(metadata.get("drive") or "")
+            budget = state.motivation.budgets.get(drive) if drive else None
+            if isinstance(budget, dict):
+                doing, level = drive, float(budget.get("level", 0.0) or 0.0)
+                break
+        get_doing_ledger().note_turn(doing, float(getattr(state.affect, "engagement", 0.0) or 0.0), level=level)
+    except (AttributeError, TypeError, ValueError) as exc:
+        logger.debug("could not note what the doing was worth: %s", exc)
+
+
+def outlives_its_reward(item: dict, budgets: dict, drive: str) -> bool:
+    """A need was met: record the reward once, and say whether the intention stays open.
+
+    Recorded once per intention, so one kept open past its reward does not keep
+    reporting a result of nothing on every later turn. Never raises.
+    """
+    try:
+        ledger = get_doing_ledger()
+        metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        if not metadata.get("reward_arrived"):
+            budget = budgets[drive]
+            ledger.note_met(drive, float(budget.get("level", 0.0) or 0.0), float(budget.get("capacity", 100.0) or 100.0))
+            metadata["reward_arrived"] = True
+            item["metadata"] = metadata
+        return ledger.survives(drive)
+    except (AttributeError, KeyError, TypeError, ValueError) as exc:
+        logger.debug("could not ask whether the act outlives its reward: %s", exc)
+        return False
 
 
 _LEDGER: DoingLedger | None = None

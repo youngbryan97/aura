@@ -25,7 +25,11 @@ Three rules:
    never grow. Individual files may move within that total.
 
 Rule 3 is a correction to this tool's own first design, which pinned every file
-individually and failed the moment a legitimate feature touched one. That is how
+individually and failed the moment a legitimate feature touched one. A second
+per-file ratchet, `tools/god_file_ratchet.py` at 1,500 lines, had the same
+design and ended the same way: by 2026-09-21 it held 63 grown files and 64 new
+ones over its line, was run by no make target, and was retired in favour of
+this budget. That is how
 a gate gets deleted: it blocks work it was never meant to block, someone removes
 it, and the debt it was holding resumes growing unobserved. A per-file pin also
 cannot express the trade this gate exists to encourage — moving four hundred

@@ -1621,9 +1621,13 @@ print(f"RESULTS: {passes} passed, {fails} failed, {passes + fails} total")
 print(f"Time: {elapsed:.2f}s")
 print("=" * 72)
 
-# Write JSON
-json_results = {k: {kk: str(vv) for kk, vv in v.items()} for k, v in results.items()}
-json_path = Path(__file__).parent / "CONSCIOUSNESS_BATTERY_RESULTS.json"
-with open(json_path, "w") as f:
-    json.dump(json_results, f, indent=2)
-print(f"\nResults written to {json_path}")
+# Write JSON, when run as a program. Pytest imports any file named on its
+# command line whatever the file is called, so a run over `tests/*.py`
+# executed this module and rewrote the checked-in results with that run's
+# numbers, and the tree was dirty afterwards.
+if __name__ == "__main__":
+    json_results = {k: {kk: str(vv) for kk, vv in v.items()} for k, v in results.items()}
+    json_path = Path(__file__).parent / "CONSCIOUSNESS_BATTERY_RESULTS.json"
+    with open(json_path, "w") as f:
+        json.dump(json_results, f, indent=2)
+    print(f"\nResults written to {json_path}")

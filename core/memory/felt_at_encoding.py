@@ -56,6 +56,7 @@ __all__ = [
     "distinctive",
     "encode",
     "felt_now",
+    "percept_carried",
     "stamp",
     "stamp_from_repository",
 ]
@@ -187,6 +188,21 @@ def distinctive(felts: Mapping[str, Any]) -> dict[str, dict[str, float]]:
             if (above := value - mean.get(name, 0.0)) > 0.0
         }
     return out
+
+
+def percept_carried(in_words: float, appraisal: Iterable[str], felt: Any) -> float:
+    """How much of a percept a recollection carries, in its words or in its feeling.
+
+    Taken together the way two independent chances are, so a recollection that
+    carries the percept either way carries it, and one that carries it both
+    ways carries it more. Without the feeling, a threat, an error and a
+    disconnection brought back the same memories from the same moment whenever
+    no stored text used their names.
+    """
+    words = max(0.0, min(1.0, float(in_words)))
+    named = tuple(appraisal or ())
+    feeling = carries(named, felt) if named else 0.0
+    return 1.0 - (1.0 - words) * (1.0 - feeling)
 
 
 def carries(named: Iterable[str], felt: Any) -> float:

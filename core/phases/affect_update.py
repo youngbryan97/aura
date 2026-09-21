@@ -12,6 +12,8 @@ from core.kernel.bridge import Phase
 from core.phases.affect_readings import AFFECT_UPDATE_ERRORS as _AFFECT_UPDATE_ERRORS
 from core.phases.affect_readings import AffectReadings
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.self.still_standing import note_turn
+from core.social.their_rise import glad_into
 from core.state.aura_state import (
     PHYSIOLOGY_PRESSURE_SPAN,
     PHYSIOLOGY_REST,
@@ -184,15 +186,9 @@ _MOOD_REST: dict[str, float] = dict(AffectVector().mood_baselines)
 
 
 def _kind_leans_positive(kind: str) -> bool:
-    """Whether a kind of percept moves her positive emotions more than her negative ones.
-
-    Read off the affect table and the weights valence is derived from, so the
-    answer is the one her own feeling would give.
-    """
+    """Whether a kind moves her positive emotions more than her negative ones, by valence's own weights."""
     named = PERCEPT_EMOTIONS.get(str(kind or ""), ())
-    positive = sum(_POSITIVE_AFFECT_WEIGHTS.get(name, 0.0) for name in named)
-    negative = sum(_NEGATIVE_AFFECT_WEIGHTS.get(name, 0.0) for name in named)
-    return positive > negative
+    return sum(_POSITIVE_AFFECT_WEIGHTS.get(n, 0.0) - _NEGATIVE_AFFECT_WEIGHTS.get(n, 0.0) for n in named) > 0.0
 
 
 def bump_emotion(emotions: dict, name: str, delta: float) -> None:
@@ -342,13 +338,9 @@ class AffectUpdatePhase(Phase):
         # holds exactly one turn of perception by the time affect is done.
         drop_consumed(state.world, "affect")
         recent_percepts = fresh_for(state.world.recent_percepts, "affect")
-        # What the last event cost her, now that a whole turn has passed, and
-        # what she expects of the one arriving now. Read before this turn's
-        # percepts land. See core/self/still_standing.py.
-        self._note_what_it_cost(state, recent_percepts)
+        note_turn(state, recent_percepts)  # what the last event cost her; core/self/still_standing.py
         self._process_percepts(affect, recent_percepts)
-        # Gladness at somebody else's rise. See core/social/their_rise.py.
-        self._glad_for_their_rise(affect)
+        glad_into(affect, bump_emotion)  # gladness at another's rise; core/social/their_rise.py
         for item in recent_percepts:
             mark_consumed(item, "affect")
         self._record_what_others_did(recent_percepts)
@@ -1047,31 +1039,13 @@ class AffectUpdatePhase(Phase):
                         what=kind,
                         actor=actor,
                         verified=True,
-                        detail={
-                            "source": str(item.get("source") or ""),
-                            # Whether it went well for them: the kind moves her
-                            # positive emotions more than her negative ones.
-                            # See core/social/their_rise.py.
-                            "went_well": _kind_leans_positive(kind),
-                        },
+                        detail={"source": str(item.get("source") or ""), "went_well": _kind_leans_positive(kind)},
                     )
                 )
                 recorded += 1
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug("what others did went unrecorded this turn: %s", exc)
         return recorded
-
-    @staticmethod
-    def _glad_for_their_rise(affect: AffectVector) -> None:
-        from core.social.their_rise import glad_into
-
-        glad_into(affect, bump_emotion)
-
-    @staticmethod
-    def _note_what_it_cost(state: AuraState, percepts: list[dict]) -> None:
-        from core.self.still_standing import note_turn
-
-        note_turn(state, percepts)
 
     def _process_percepts(self, affect: AffectVector, percepts: list[dict]):
         """Maps recent world events to emotional triggers."""

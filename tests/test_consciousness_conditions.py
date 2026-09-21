@@ -608,7 +608,12 @@ class TestCondition06_InternalSemantics:
         boot = _read_source("core/orchestrator/main.py")
         registered = "neologism_engine" in boot and "get_neologism_engine" in boot
 
-        gate = _read_source("core/brain/inference_gate.py")
+        # Read with the modules lifted out of it: the lexicon block moved into
+        # inference_gate_living_context.py, and reading the parent alone
+        # reported a prompt the lexicon still reaches as one it never does.
+        from tests.source_contract import family_text_at
+
+        gate = family_text_at(AURA_ROOT / "core/brain/inference_gate.py")
         reaches_prompt = "get_neologism_engine" in gate and 'segments.add("neologisms"' in gate
 
         assert registered, "NeologismEngine is not registered at boot"

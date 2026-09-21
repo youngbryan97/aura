@@ -1008,18 +1008,9 @@ class ConversationalDynamicsPhase(Phase):
             corrected = any(pattern.search(said) for pattern in _CORRECTION_PATTERNS)
             difficult = bool(_DIFFICULT.search(said))
             warm = bool(_WARM.search(said))
-            # How they took the form of her last reply, and who the next one
-            # is for. See core/social/the_form_they_welcome.py.
-            from core.social.the_form_they_welcome import get_form_ledger
+            from core.social.the_form_they_welcome import note_heard
 
-            speaker = str(getattr(state.cognition, "current_partner", "") or "")
-            forms = get_form_ledger()
-            forms.set_partner(speaker)
-            forms.note_reaction(
-                speaker,
-                welcomed=warm and not (corrected or difficult),
-                unwelcomed=corrected or difficult,
-            )
+            note_heard(str(getattr(state.cognition, "current_partner", "") or ""), warm, corrected or difficult)
             if not (corrected or difficult or warm):
                 return
             reading = the_kind_it_was(
@@ -1033,12 +1024,9 @@ class ConversationalDynamicsPhase(Phase):
                 get_receptivity().observe(
                     partner, reading.kind, cost_to_source=reading.cost_to_source
                 )
-                # And what she has received from them, beside what she has
-                # given. See core/social/what_passes_between.py.
-                if reading.kind:
-                    from core.social.what_passes_between import get_between_ledger
+                from core.social.what_passes_between import note_act
 
-                    get_between_ledger().note_received(partner, cost_to_source=reading.cost_to_source)
+                note_act(partner, reading.kind, reading.cost_to_source)
         except (ImportError, AttributeError, TypeError, ValueError):
             return
 

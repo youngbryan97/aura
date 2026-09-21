@@ -207,11 +207,7 @@ def _percept_reading(state: Any) -> tuple[str, float, str]:
                 best = reading
         if best is None:
             return "", 0.0, ""
-        return (
-            _safe_text(best.content),
-            max(0.0, min(1.0, float(best.salience))),
-            str(best.kind or ""),
-        )
+        return _safe_text(best.content), max(0.0, min(1.0, float(best.salience))), str(best.kind or "")
     except _MEMORY_RECOVERABLE_ERRORS as exc:
         _record_memory_degradation(
             exc,
@@ -299,8 +295,7 @@ class MemoryRetrievalPhase(BasePhase):
         memory_candidates.append(
             (weighted_score, f"[memory score={weighted_score:.3f}] {content}")
         )
-        # The feeling it was made in, kept beside the candidate so the percept
-        # in front of her can find it. See core/memory/felt_at_encoding.py.
+        # The feeling it was made in, for the percept. See core/memory/felt_at_encoding.py.
         if felt_by_text is not None and metadata.get("felt"):
             felt_by_text[f"[memory score={weighted_score:.3f}] {content}"] = metadata.get("felt")
         # Whether the person she is with now was part of it.
@@ -976,16 +971,10 @@ class MemoryRetrievalPhase(BasePhase):
         # A recollection closes the gap to full relevance in proportion to how
         # much of the percept it carries and how salient the percept was, which
         # is attention's gain with the roles the other way round.
-        #
-        # A percept also arrives appraised: its kind names the emotions it
-        # moves. A recollection carries the percept in its words or in the
-        # feeling it was made in, whichever it carries more of, taken together
-        # the way two independent chances are. Without the second, a threat,
-        # an error and a disconnection brought back the same memories from the
-        # same moment whenever no stored text used their names. See
-        # core/memory/felt_at_encoding.py.
+        # It carries the percept in its words or in the feeling it was made in.
+        # See core/memory/felt_at_encoding.py.
         if percept_cue and percept_salience > 0.0:
-            from core.memory.felt_at_encoding import carries, distinctive
+            from core.memory.felt_at_encoding import distinctive, percept_carried
             from core.state.percepts import PERCEPT_EMOTIONS, word_overlap
 
             appraisal = tuple(PERCEPT_EMOTIONS.get(percept_kind, ()) or ())
@@ -993,9 +982,7 @@ class MemoryRetrievalPhase(BasePhase):
             reread: list[tuple[float, str]] = []
             for score, text in memory_candidates:
                 bounded = max(0.0, min(1.0, float(score)))
-                in_words = word_overlap(percept_cue, text)
-                in_feeling = carries(appraisal, set_apart.get(text)) if appraisal else 0.0
-                carried = 1.0 - (1.0 - in_words) * (1.0 - in_feeling)
+                carried = percept_carried(word_overlap(percept_cue, text), appraisal, set_apart.get(text))
                 updated = bounded + (1.0 - bounded) * carried * percept_salience
                 if updated != bounded and text.startswith("[memory score="):
                     text = f"[memory score={updated:.3f}]" + text.split("]", 1)[1]

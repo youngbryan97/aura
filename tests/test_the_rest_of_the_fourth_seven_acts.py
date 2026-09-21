@@ -168,16 +168,15 @@ def test_being_hurt_more_than_expected_makes_risk_cost_more() -> None:
 
 
 def test_the_affect_phase_reads_the_last_event_a_turn_later() -> None:
-    from core.phases.affect_update import AffectUpdatePhase
-    from core.self.still_standing import get_intactness_ledger
+    from core.self.still_standing import get_intactness_ledger, note_turn
     from core.state.percepts import emit_percept
 
     state = AuraState.default()
     state.affect.valence = 0.4
     emit_percept(state.world, "threat_detected", content="a threat", intensity=1.0)
-    AffectUpdatePhase._note_what_it_cost(state, list(state.world.recent_percepts))
+    note_turn(state, list(state.world.recent_percepts))
     state.affect.valence = 0.0
-    AffectUpdatePhase._note_what_it_cost(state, [])
+    note_turn(state, [])
     assert get_intactness_ledger().expect("threat_detected") == pytest.approx(0.2)
 
 
@@ -264,20 +263,19 @@ def _rise(actor: str, pattern: list[bool]) -> None:
 
 
 def test_somebody_rising_while_she_stands_still_presses_her_growth_and_gladdens_her() -> None:
-    from core.phases.affect_update import AffectUpdatePhase
-    from core.phases.motivation_update import MotivationUpdatePhase
-    from core.social.their_rise import get_rise_ledger
+    from core.phases.affect_update import bump_emotion
+    from core.social.their_rise import get_rise_ledger, glad_into, stasis_now
 
     _rise("user", [False] * 6 + [True] * 6)
     _rise("self", [True, False] * 6)
     reading = get_rise_ledger().read()
     assert reading.glad == pytest.approx(1.0) and reading.who == "user"
     assert reading.stasis == pytest.approx(1.0)
-    assert MotivationUpdatePhase._stasis_beside_their_rise() == pytest.approx(1.0)
+    assert stasis_now() == pytest.approx(1.0)
 
     state = AuraState.default()
     before = state.affect.emotions["admiration"]
-    AffectUpdatePhase._glad_for_their_rise(state.affect)
+    glad_into(state.affect, bump_emotion)
     assert state.affect.emotions["admiration"] > before
 
 
