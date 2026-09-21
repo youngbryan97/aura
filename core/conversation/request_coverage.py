@@ -17,7 +17,12 @@ from core.conversation.requested_reply_shape import (
     without_reply_shape_prefix,
 )
 from core.language import relational_request
-from core.language.asking_clauses import asks_for_a_quantity, states_a_quantity
+from core.language.asking_clauses import (
+    asks_for_a_quantity,
+    asks_what_the_person_said,
+    recalls_what_the_person_said,
+    states_a_quantity,
+)
 from core.language.word_forms import matching_word_forms
 
 _COVERAGE_STOPWORDS = frozenset(
@@ -1119,6 +1124,13 @@ def unanswered_question_parts(body: Any, contract: object | None) -> list[str]:
         # correct answer to a word problem was rejected as an unanswered
         # part for that (LIVE 2026-09-19).
         if asks_for_a_quantity(segment) and states_a_quantity(local_body):
+            continue
+        # And a question about what the PERSON said is engaged by saying what
+        # they said. "what preference did I state?" is answered by "you want
+        # answers short and concrete", which contains neither "preference"
+        # nor "state" (LIVE 2026-09-20: a correct two-part recall rejected
+        # four times, and the turn ended with nothing served).
+        if asks_what_the_person_said(segment) and recalls_what_the_person_said(local_body):
             continue
         # Measured on what was ASKED, not on how the answer was to be
         # presented. A segment that is a delivery instruction wearing a

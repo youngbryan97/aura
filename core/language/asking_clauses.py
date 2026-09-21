@@ -34,6 +34,8 @@ __all__ = [
     "asking_part",
     "asks_for_a_quantity",
     "asks_more_than_one_thing",
+    "asks_what_the_person_said",
+    "recalls_what_the_person_said",
     "states_a_quantity",
 ]
 
@@ -261,3 +263,41 @@ def asks_for_a_quantity(clause: str) -> bool:
 def states_a_quantity(text: str) -> bool:
     """Whether the text carries a number, with or without its unit."""
     return bool(_STATES_A_QUANTITY.search(str(text or "")))
+
+
+#: "what preference did I state?", "what did I just tell you?", "which of
+#: those did I ask for?" — a question whose answer is the CONTENT of
+#: something the person said, not the word they used for it.
+_ASKS_WHAT_THE_PERSON_SAID = re.compile(
+    r"\b(?:what|which)\b[^?]{0,80}?\b(?:did\s+)?i\b[^?]{0,40}?"
+    r"\b(?:say|said|state|stated|tell|told|mention|mentioned|ask(?:ed)?(?:\s+for)?|"
+    r"want(?:ed)?|prefer(?:red)?|request(?:ed)?)\b",
+    re.IGNORECASE,
+)
+
+#: "you want answers short and concrete", "you asked for X", "you told me Y".
+#: The attribution and at least two words of what was attributed: "And you
+#: want" at the end of a truncated draft has recalled nothing.
+_RECALLS_WHAT_THE_PERSON_SAID = re.compile(
+    r"\byou(?:'ve|\s+have)?\s+"
+    r"(?:said|stated|told\s+me|mentioned|asked(?:\s+for)?|want(?:ed)?|prefer(?:red)?|"
+    r"requested|like|liked)\b\s+(?:\w+\W+){2,}",
+    re.IGNORECASE,
+)
+
+
+def asks_what_the_person_said(clause: str) -> bool:
+    """Whether this clause asks for the content of something the person said.
+
+    The answer to "what preference did I state?" is the preference — "you
+    want answers short and concrete" — and it contains neither "preference"
+    nor "state". LIVE 2026-09-20: a correct two-part recall was rejected as
+    an unanswered part four times for that, and the turn ended with nothing
+    served.
+    """
+    return bool(_ASKS_WHAT_THE_PERSON_SAID.search(str(clause or "")))
+
+
+def recalls_what_the_person_said(body: str) -> bool:
+    """Whether this text attributes something, with content, to the person."""
+    return bool(_RECALLS_WHAT_THE_PERSON_SAID.search(str(body or "")))
