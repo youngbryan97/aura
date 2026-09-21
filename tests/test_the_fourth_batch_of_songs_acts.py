@@ -342,3 +342,48 @@ def test_the_drive_engine_asks_the_ledger_which_topic_to_go_to():
         ledger.note_visit(engine.latent_interests[0], returned=False)
     assert engine._topic_worth_going_to() == paid
     reset_for_test()
+
+
+# ── People Watching: relief whose ground was never tested ────────────────
+
+
+def test_untested_relief_decays_and_confirmed_relief_does_not():
+    from core.social.unchecked_relief import DECAY, ReliefLedger
+
+    ledger = ReliefLedger()
+    ledger.note_belief("stranger", 0.8)
+    ledger.note_belief("friend", 0.8)
+    ledger.note_said("friend", cares=True)
+    for _ in range(3):
+        ledger.note_turn()
+    reading = ledger.read()
+    # The confirmed one is untouched; the untested one has lost three turns.
+    assert reading.standing == pytest.approx(0.8 * (1.0 - DECAY) ** 3, rel=1e-6)
+    assert reading.ground == pytest.approx(0.5)
+
+
+def test_a_belief_they_contradict_takes_what_it_was_holding_up():
+    from core.social.unchecked_relief import ReliefLedger
+
+    ledger = ReliefLedger()
+    ledger.note_belief("stranger", 0.9)
+    assert ledger.read().standing == pytest.approx(0.9)
+    ledger.note_said("stranger", cares=False)
+    after = ledger.read()
+    assert after.standing == pytest.approx(0.0)
+    assert after.relief == pytest.approx(0.0)
+
+
+def test_the_felt_comfort_is_the_decayed_one_not_the_raw_warmth():
+    """The actuator, driven the way the dynamics phase drives it."""
+    from core.social.unchecked_relief import ReliefLedger
+
+    ledger = ReliefLedger()
+    warmth = 0.8
+    ledger.note_belief("stranger", warmth)
+    for _ in range(5):
+        ledger.note_turn()
+    standing = ledger.read()
+    felt = min(warmth, standing.relief) if standing.beliefs else warmth
+    assert felt < warmth
+    assert felt == pytest.approx(standing.relief)

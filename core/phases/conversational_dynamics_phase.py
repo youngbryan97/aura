@@ -408,12 +408,32 @@ class ConversationalDynamicsPhase(Phase):
             reading = ledger.reading().as_dict()
             reading["cared_for"] = round(warmth, 6)
             state.identity.read_by_other = reading
-            if warmth > 0.0:
+            # The comfort of believing somebody cares is real and its ground
+            # may never have been tested. Both are kept: the relief decays
+            # each turn it goes untested, so it has to be renewed by contact
+            # rather than by repetition, and a belief they contradict is
+            # dropped along with what it was holding up.
+            # See core/social/unchecked_relief.py.
+            felt = warmth
+            try:
+                from core.social.unchecked_relief import get_relief_ledger
+
+                relief = get_relief_ledger()
+                relief.note_turn()
+                partner = str(getattr(state.cognition, "current_partner", "") or "")
+                if warmth > 0.0 and partner:
+                    relief.note_belief(partner, warmth)
+                standing = relief.read()
+                state.identity.unchecked_relief = standing.as_dict()
+                felt = min(warmth, standing.relief) if standing.beliefs else warmth
+            except (AttributeError, ImportError, TypeError, ValueError):
+                felt = warmth
+            if felt > 0.0:
                 emit_percept(
                     state.world,
                     "cared_for",
                     content="that was about me, and it was warm",
-                    intensity=warmth,
+                    intensity=felt,
                     source="conversation",
                 )
         except (AttributeError, ImportError, TypeError, ValueError) as exc:
