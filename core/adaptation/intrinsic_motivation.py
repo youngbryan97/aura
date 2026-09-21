@@ -416,6 +416,8 @@ class IntrinsicMotivationEngine:
                 get_dynamic_value_graph, ValueEvidence, EvidenceType,
             )
         except ImportError:
+            # not a failure: with no value graph there is nowhere to submit
+            # evidence, and the docstring says the count of what was.
             return 0
 
         graph = get_dynamic_value_graph()

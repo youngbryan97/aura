@@ -248,6 +248,8 @@ class AmbientLifeDirector:
 
             candidates.append(_clamp(pressure(Resource.MEMORY)))
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            # not a failure: one candidate of several, and the max below
+            # takes whichever were readable.
             pass
         return max(candidates, default=0.0)
 

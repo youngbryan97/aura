@@ -92,6 +92,8 @@ try:
     from core.brain.llm.mlx_client import get_mlx_client
     _HAS_LOCAL_RUNTIME = True
 except ImportError:
+    # not a failure: this flag is the question "is the local runtime
+    # importable here", and False is one of its two answers.
     _HAS_LOCAL_RUNTIME = False
 
 
@@ -492,6 +494,8 @@ class APIAdapter:
                     iterator.__anext__(), timeout=self.STREAM_INACTIVITY_TIMEOUT_S
                 )
             except StopAsyncIteration:
+                # not a failure: the stream ended, which is how every
+                # complete stream ends.
                 return
             except asyncio.TimeoutError as exc:
                 await self._aclose_quietly(source)
@@ -647,6 +651,8 @@ class APIAdapter:
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
+                # not a failure: called off the loop, which is what the
+                # synchronous wrapper in the docstring is for.
                 loop = None
 
             if loop and loop.is_running():

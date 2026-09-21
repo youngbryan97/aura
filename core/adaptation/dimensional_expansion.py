@@ -745,6 +745,10 @@ class DimensionalExpansionEngine:
         try:
             persisted_seq = int(data.get("axis_seq", 0))
         except (TypeError, ValueError):
+            # not a failure: the comment above says the counter must never
+            # go backwards, and the scan below raises it past every axis
+            # actually restored, so an unreadable stored value costs
+            # nothing.
             persisted_seq = 0
         highest = 0
         for axis in restored:

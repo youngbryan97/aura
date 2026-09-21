@@ -616,6 +616,8 @@ class PlasticityGovernor:
                     try:
                         entry["count"] = int(np.asarray(data[c_key]).ravel()[0])
                     except (IndexError, ValueError, TypeError):
+                        # not a failure: a stored count this cannot read is
+                        # a set that has consolidated nothing yet.
                         entry["count"] = 0
                 self._persisted[name] = entry
             logger.info(

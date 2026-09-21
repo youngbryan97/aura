@@ -227,6 +227,8 @@ class SafeSelfOptimizer:
         try:
             generated_at = float(report.get("generated_at", 0.0))
         except (TypeError, ValueError):
+            # not a failure: the comment above says a report older than the
+            # run is no evidence, and zero is older than every run.
             generated_at = 0.0
         if self._training_started_at and generated_at < self._training_started_at:
             logger.error(
@@ -308,6 +310,8 @@ class SafeSelfOptimizer:
                 return None
             return path.read_text(encoding="utf-8", errors="ignore")[:200_000]
         except OSError:
+            # not a failure: no sample to read, which the size guard above
+            # returns None for as well.
             return None
 
 # Singleton. Construction is serialized so concurrent first access cannot

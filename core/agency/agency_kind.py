@@ -478,6 +478,8 @@ def _canonical_affect() -> float:
         reading = read("affect.valence")
         return 0.0 if reading.is_default else reading.value
     except (ImportError, KeyError, RuntimeError, TypeError, ValueError):
+        # not a failure: no canonical reading is the same neutral the line
+        # above returns for a default one.
         return 0.0
 
 
@@ -489,6 +491,7 @@ def _canonical_welfare() -> float:
         reading = read("body.integrity")
         return 0.0 if reading.is_default else (reading.value - 0.5) * 2.0
     except (ImportError, KeyError, RuntimeError, TypeError, ValueError):
+        # not a failure: no reading is the same neutral as a default one.
         return 0.0
 
 

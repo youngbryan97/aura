@@ -226,6 +226,8 @@ def cdp_call(
             try:
                 ws.settimeout(remaining)
             except (AttributeError, OSError):
+                # not a failure: the deadline above is the real bound, and
+                # the socket timeout only narrows how long one recv waits.
                 pass
             try:
                 raw = ws.recv()

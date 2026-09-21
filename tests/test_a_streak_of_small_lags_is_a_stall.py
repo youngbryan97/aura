@@ -85,16 +85,19 @@ def test_it_reports_once_not_every_look(watchdog: StallWatchdog) -> None:
     assert len(seen) == 4, "one report per 6s of accumulated lateness"
 
 
-def test_lateness_ages_out_of_the_window(watchdog: StallWatchdog, monkeypatch) -> None:
-    """Lags an hour apart are not a streak."""
-    import core.resilience.stall_watchdog as module
+def test_lateness_ages_out_of_the_window(watchdog: StallWatchdog) -> None:
+    """Lags an hour apart are not a streak.
 
-    clock = {"now": 1000.0}
-    monkeypatch.setattr(module.time, "monotonic", lambda: clock["now"])
+    The moment is passed in rather than patched onto the `time` module: a
+    watchdog is a thread, and a fake clock installed globally is read by
+    everything else running in the process. That is how this test first
+    broke a memory-watchdog test three files away.
+    """
     seen = _reported(watchdog)
+    now = 1000.0
     for _ in range(5):
-        watchdog._note_lateness(_WATCHDOG_TICK_S + 1.2)
-        clock["now"] += _ACTIVE_RECOVERY_THRESHOLD + 1.0
+        watchdog._note_lateness(_WATCHDOG_TICK_S + 1.2, now=now)
+        now += _ACTIVE_RECOVERY_THRESHOLD + 1.0
     assert seen == []
 
 

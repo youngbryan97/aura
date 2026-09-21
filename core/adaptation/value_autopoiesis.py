@@ -600,7 +600,9 @@ class ValueAutopoiesis:
                 try:
                     Path(tmp_path).unlink(missing_ok=True)
                 except OSError:
-                    pass  # no-op: intentional
+                    # not a failure: os.replace above consumed it on the
+                    # ordinary path, and the save is reported either way.
+                    pass
         except (json.JSONDecodeError, TypeError, ValueError) as exc:
             record_degradation('value_autopoiesis', exc)
             logger.debug("Autopoiesis state save failed: %s", exc)
@@ -641,8 +643,10 @@ class ValueAutopoiesis:
         try:
             from core.event_bus import get_event_bus
             get_event_bus().publish_threadsafe(topic, data)
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # no-op: intentional
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            # An event that never reaches the bus is a value change nothing
+            # downstream hears about, and the caller is told nothing.
+            logger.warning("Autopoiesis event %s was not published: %s", topic, exc)
 
     # ── Public API ──────────────────────────────────────────────────────
 

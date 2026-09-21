@@ -412,7 +412,7 @@ class StallWatchdog(threading.Thread):
                 self._consecutive_long_stalls = 0
                 self._note_lateness(elapsed)
 
-    def _note_lateness(self, elapsed: float) -> None:
+    def _note_lateness(self, elapsed: float, *, now: float | None = None) -> None:
         """Accumulate the lateness a single look was too small to report.
 
         LIVE, 2026-09-16: a streak of lags between 22:49 and 22:51Z, the
@@ -428,7 +428,9 @@ class StallWatchdog(threading.Thread):
         arriving in pieces.
         """
         late = elapsed - _WATCHDOG_TICK_S
-        now = time.monotonic()
+        # `now` is the caller's, so a test can advance the window without
+        # patching the clock a running loop is also reading.
+        now = time.monotonic() if now is None else now
         if late > 0.0:
             self._recent_lateness.append((now, late))
         cutoff = now - _ACTIVE_RECOVERY_THRESHOLD

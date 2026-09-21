@@ -391,6 +391,8 @@ class ImmuneHeuristicExecutor:
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
+                # not a failure: no loop to schedule synthesis on, which the
+                # `if loop and loop.is_running()` below already decides.
                 loop = None
             if loop and loop.is_running():
                 get_task_tracker().create_task(

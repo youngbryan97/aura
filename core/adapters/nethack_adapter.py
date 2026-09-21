@@ -388,6 +388,8 @@ class NetHackAdapter:
         try:
             return bool(child.isalive())
         except (OSError, ValueError):
+            # not a failure: a child that cannot answer is not alive, which
+            # is what the guard above returns for one that is not there.
             return False
 
     def is_alive(self) -> bool:

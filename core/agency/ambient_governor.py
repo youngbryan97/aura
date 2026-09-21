@@ -338,6 +338,8 @@ class AmbientGovernor:
         try:
             level = Strength(strength)
         except ValueError:
+            # not a failure: a strength that is not one of the levels is not
+            # auto-approvable, and the docstring says the answer is no.
             return False
         return level not in _AUTO_APPROVE_FORBIDDEN
 

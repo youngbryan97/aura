@@ -35,6 +35,8 @@ def _current_task_id() -> int | None:
     try:
         task = asyncio.current_task()
     except RuntimeError:
+        # not a failure: called off a loop, so there is no current task to
+        # scope a token to, and the line below returns None for that too.
         return None
     return id(task) if task is not None else None
 

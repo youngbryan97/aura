@@ -70,6 +70,8 @@ def _counts(row: Sequence[int]) -> tuple[int, int] | None:
     try:
         attempts, successes = int(row[0]), int(row[1])
     except (TypeError, ValueError, IndexError):
+        # not a failure: a row that is not two counts is not a measurement,
+        # which the range guard below also rejects.
         return None
     if attempts <= 0 or successes < 0 or successes > attempts:
         return None

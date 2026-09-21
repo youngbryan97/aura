@@ -287,6 +287,9 @@ class OnlineLoRAGovernor:
                 return bool(receipt.get("approved"))
             return None
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            # not a failure: a receipt that cannot be read does not say
+            # approved, and the branch above returns the same None for one
+            # that says nothing.
             return None
 
     def _decide(self, reflection: str, *, will_receipt_id: str = "") -> dict[str, Any]:

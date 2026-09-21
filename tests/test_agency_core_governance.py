@@ -107,11 +107,15 @@ def test_high_risk_gate_falls_back_to_the_value_graph_accessor():
     one, and fail-closed then disabled tool execution for the life of the
     process. The gate now falls back to the module accessor.
     """
-    import inspect
+    from core.agency import agency_core, agency_shard_work
+    from tests.source_contract import declared_in
 
-    from core.agency import agency_core
-
-    source = inspect.getsource(agency_core)
+    # The gate moved with `_shard_wrapper` when the shard work was lifted
+    # into its own module. What it DOES is unchanged, and the location was
+    # never the point.
+    _module, source = declared_in(
+        'ServiceContainer.get("dynamic_value_graph"', agency_core, agency_shard_work
+    )
     gate = source[source.index('ServiceContainer.get("dynamic_value_graph"'):]
     gate = gate[: gate.index("_value_check_done = True")]
     assert "get_dynamic_value_graph" in gate, (

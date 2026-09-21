@@ -894,6 +894,9 @@ class PostTrainingValidator:
         try:
             resolved = Path(adapter_path).expanduser().resolve()
         except (OSError, RuntimeError, ValueError):
+            # not a failure: the docstring says resolving pins symlinks
+            # against relocation, and a path that will not resolve is one
+            # this must not accept. None is the refusal.
             return None
         roots = []
         for root in (self.adapter_base_dir, self.quarantine_dir):
