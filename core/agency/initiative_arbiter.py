@@ -33,6 +33,11 @@ logger = logging.getLogger("Aura.Agency")
 def _clamp01(value: float) -> float:
     return max(0.0, min(1.0, float(value)))
 
+
+#: Readings before the middle of them is a middle. Below three there is no
+#: point above and below, so the shift would be about the last reading.
+_ENOUGH_PRESSURES = 3
+
 DIMENSION_NAMES = (
     "urgency",
     "novelty",
@@ -106,6 +111,12 @@ class InitiativeArbiter:
 
     def __init__(self):
         self._selection_history: deque[ScoredInitiative] = deque(maxlen=_MAX_HISTORY)
+        #: Measured pressures seen, so the shift below is centred on her own
+        #: middle rather than on a number chosen here.
+        self._pressures: deque[float] = deque(maxlen=_MAX_HISTORY)
+        #: The shift in force for the scoring pass under way. Read once at the
+        #: top of it so every initiative in one moment moves together.
+        self._shift: float = 0.0
         self._weights = dict(DEFAULT_WEIGHTS)
         self._last_log_signature: str | None = None
         self._last_log_at: float = 0.0
@@ -138,6 +149,10 @@ class InitiativeArbiter:
         if not pending:
             return None
 
+        # Once for the pass, not once per initiative. The shift only preserves
+        # the proposer's ranking if every initiative in this moment gets the
+        # same one, and the reading moves between calls.
+        self._shift = self._read_pressure_shift()
         scored: list[ScoredInitiative] = []
         for initiative in pending:
             si = await self.score_initiative(initiative, state)
@@ -408,9 +423,51 @@ class InitiativeArbiter:
             else:
                 if continuity_restored:
                     value = max(value, 0.45 + (0.35 * continuity_pressure))
-                return value
+                return _clamp01(value + self._shift)
 
-        return min(1.0, base)
+        return _clamp01(min(1.0, base) + self._shift)
+
+    def _read_pressure_shift(self) -> float:
+        """How far the state is pressing, against how hard it usually presses.
+
+        Every urgency a proposer declares is a constant chosen at its branch —
+        0.3, 0.5, 0.6, 0.7, 0.9 — and the only thing that moved without one
+        was a step function of wall-clock age. So deliberation had one measured
+        cause in the whole system: run_031 read I as the single domain with a
+        replicated interventional edge into D, and removing it left nothing
+        able to reach deliberation at all (vertex connectivity 1 against a bar
+        of 2).
+
+        `free_energy.get_action_urgency` is a measured quantity and was
+        reaching the workspace and not this: prediction error and arousal,
+        which is recurrent cognition and affect. It is added as a shift rather
+        than substituted, so every initiative in one moment moves by the same
+        amount and the proposer's ranking — the thing the comment above exists
+        to protect — is preserved exactly.
+
+        The shift is centred on the middle of the pressures she has actually
+        seen, so it averages to nothing over a life and cannot inflate urgency
+        on its own. Zero until there are enough readings for a middle.
+        """
+        try:
+            engine = ServiceContainer.get("free_energy", default=None)
+            if engine is None or not hasattr(engine, "get_action_urgency"):
+                return 0.0
+            pressure = float(engine.get_action_urgency())
+        except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+            return 0.0
+        if pressure != pressure:
+            return 0.0
+        self._pressures.append(pressure)
+        if len(self._pressures) < _ENOUGH_PRESSURES:
+            return 0.0
+        ordered = sorted(self._pressures)
+        middle = len(ordered) // 2
+        centre = (
+            ordered[middle] if len(ordered) % 2
+            else (ordered[middle - 1] + ordered[middle]) / 2.0
+        )
+        return pressure - centre
 
     def _score_novelty(self, initiative: dict) -> float:
         """Higher score if this initiative explores something not recently selected."""
