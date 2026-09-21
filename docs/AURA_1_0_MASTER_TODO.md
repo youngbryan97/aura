@@ -1120,6 +1120,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Existing-channel recognition](evidence/G03_EXISTING_CHANNEL_RECOGNITION_2026-09-21.md):
+  the complete coupled candidate reaches 764/764 training and 479/500 validation,
+  with fourteen repairs and eleven regressions. It is not promoted. Source-only
+  construction folds favor the existing middle-layer channel; the exact span
+  trainer can now use that channel without a new feature extractor or model.
   [Additional continuation review and complete audit](evidence/G03_ADDITIONAL_CONTINUATION_REVIEW_2026-09-21.md)
   checks all fourteen pages and rejects sorted-input cache identity and a
   sign-preserving temperature as a guaranteed ranking repair. The completed

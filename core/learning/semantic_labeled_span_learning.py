@@ -146,6 +146,31 @@ class MeanTransitionSpanEvidence(MeanSpanEvidence):
         return np.concatenate((mean, mass.T @ self.hidden), axis=1)
 
 
+def _labeled_span_evidence(model, item):
+    """Use the declared runtime view, including its actual channel coordinates."""
+    channels = {
+        "lexical_mean": "input_token_embedding",
+        "middle_mean": "middle_causal_hidden",
+        "contextual_mean": "final_causal_hidden",
+        "contextual_mean_transition": "final_causal_hidden",
+    }
+    modes = model.operation_head.modes
+    if len(modes) != 1 or modes[0] not in {*channels, "span_mean"}:
+        raise ValueError("labeled span fitting requires a supported single pooled view")
+    mode = modes[0]
+    if mode == "span_mean":
+        hidden = item.hidden_states
+    else:
+        try:
+            channel = model.hidden_channels.index(channels[mode])
+        except ValueError as exc:
+            raise ValueError("labeled span fitting needs the declared evidence channel") from exc
+        begin = sum(model.hidden_channel_widths[:channel])
+        hidden = item.hidden_states[:, begin:begin + model.hidden_channel_widths[channel]]
+    evidence_type = MeanTransitionSpanEvidence if mode == "contextual_mean_transition" else MeanSpanEvidence
+    return evidence_type.build(hidden, model.max_span_tokens, item.ir.input_spans)
+
+
 def _labeled_loss(parameters, rows, *, labels, width, max_spans, regularization, center):
     weight = parameters[:labels * width].reshape(labels, width)
     bias = parameters[labels * width:]
@@ -203,8 +228,6 @@ def refit_compositional_labeled_spans(model, examples, *, max_iter=200, progress
             or set(ids) & {item.ir.source_text_sha256 for item in examples if item.split != "train"}
             or type(max_iter) is not int or max_iter < 1):
         raise ValueError("labeled span fitting needs unique disjoint source training")
-    if model.operation_head.modes not in {("contextual_mean",), ("contextual_mean_transition",)}:
-        raise ValueError("labeled span fitting requires a supported single contextual view")
     constraint_sources = tuple(runtime_constraint_sources)
     if (len(set(constraint_sources)) != len(constraint_sources)
             or not set(constraint_sources) <= set(ids)
@@ -219,16 +242,10 @@ def refit_compositional_labeled_spans(model, examples, *, max_iter=200, progress
     labels = tuple(label for label in model.operation_head.labels if label != OPERATION_BACKGROUND_LABEL)
     if {instruction.op for item in train for instruction in item.ir.instructions} != set(labels):
         raise ValueError("labeled span training must retain every source operation")
-    channel = model.hidden_channels.index("final_causal_hidden")
-    begin = sum(model.hidden_channel_widths[:channel])
-    channel_width = model.hidden_channel_widths[channel]
     width = model.operation_head.heads[0].width
-    evidence_type = (MeanSpanEvidence if model.operation_head.modes == ("contextual_mean",)
-                     else MeanTransitionSpanEvidence)
     counts, rows, targets = Counter(_geometry(item) for item in train), [], []
     for item in train:
-        evidence = evidence_type.build(item.hidden_states[:, begin:begin + channel_width],
-                                       model.max_span_tokens, item.ir.input_spans)
+        evidence = _labeled_span_evidence(model, item)
         target = tuple(sorted((i.operation_span.start, i.operation_span.end - i.operation_span.start,
                                labels.index(i.op)) for i in item.ir.instructions))
         available = set(zip(evidence.starts, evidence.ends, strict=True))

@@ -12,6 +12,7 @@ from core.learning.semantic_labeled_span_learning import (
     MeanSpanEvidence,
     MeanTransitionSpanEvidence,
     _labeled_loss,
+    _labeled_span_evidence,
     _runtime_odds,
     labeled_span_partition,
     refit_compositional_labeled_spans,
@@ -93,7 +94,7 @@ def test_odds_match_shipped_background_probability_clipping():
         np.testing.assert_allclose(_runtime_odds(np.asarray([logits]))[0][0], expected, atol=2e-6)
 
 
-@pytest.mark.parametrize("mode", ["contextual_mean", "contextual_mean_transition"])
+@pytest.mark.parametrize("mode", ["contextual_mean", "contextual_mean_transition", "lexical_mean", "span_mean", "middle_mean"])
 def test_fit_serializes_existing_heads_and_never_uses_validation_for_fit(mode):
     from core.learning.semantic_program_compositional_transducer import (
         compositional_semantic_program_transducer_from_dict,
@@ -170,3 +171,33 @@ def test_transition_evidence_zero_states_and_start_boundary_remain_finite():
     np.testing.assert_array_equal(evidence.adjoint(np.ones((len(evidence.starts), 2))), np.zeros((2, 6)))
     with pytest.raises(ValueError, match="width differs"):
         evidence.project(np.ones((2, 3)))
+
+
+@pytest.mark.parametrize("mode", ["contextual_mean", "middle_mean", "lexical_mean", "span_mean", "contextual_mean_transition"])
+def test_pooled_views_keep_unequal_reordered_channel_coordinates(mode):
+    channels = ("middle_causal_hidden", "final_causal_hidden", "input_token_embedding")
+    widths = (3, 4, 2)
+    hidden = np.random.default_rng(55).normal(size=(7, sum(widths))).astype(np.float32)
+    model = SimpleNamespace(operation_head=SimpleNamespace(modes=(mode,)), hidden_channels=channels,
+                            hidden_channel_widths=widths, max_span_tokens=3)
+    item = SimpleNamespace(hidden_states=hidden, ir=SimpleNamespace(input_spans=(TokenSpan(2, 3),)))
+    evidence = _labeled_span_evidence(model, item)
+    features = np.stack([_operation_feature(hidden, TokenSpan(int(a), int(b)), mode=mode,
+        hidden_channels=channels, hidden_channel_widths=widths)
+        for a, b in zip(evidence.starts, evidence.ends, strict=True)])
+    weight = np.random.default_rng(56).normal(size=(2, features.shape[1]))
+    residual = np.random.default_rng(57).normal(size=(len(features), 2))
+    np.testing.assert_allclose(evidence.project(weight), features @ weight.T, atol=3e-7)
+    np.testing.assert_allclose(evidence.adjoint(residual), residual.T @ features, atol=4e-7)
+
+
+def test_pooled_evidence_refuses_an_unavailable_channel_or_different_scorer():
+    model = SimpleNamespace(operation_head=SimpleNamespace(modes=("middle_mean",)),
+        hidden_channels=("final_causal_hidden",), hidden_channel_widths=(2,), max_span_tokens=2)
+    item = SimpleNamespace(hidden_states=np.ones((3, 2)), ir=SimpleNamespace(input_spans=()))
+    with pytest.raises(ValueError, match="declared evidence channel"):
+        _labeled_span_evidence(model, item)
+    for modes in (("contextual_last",), ("lexical_mean", "contextual_mean")):
+        model.operation_head.modes = modes
+        with pytest.raises(ValueError, match="single pooled view"):
+            _labeled_span_evidence(model, item)
