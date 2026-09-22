@@ -444,6 +444,9 @@ class AffectUpdatePhase(Phase):
         # Last, after every other feeling has settled: grief that nothing else
         # fills. See core/affect/the_gap.py.
         self.readings.the_gap(state, affect)
+        # And what she feels about the things the turn was about, both ways.
+        # See core/affect/feelings_about.py.
+        self.readings.feelings_about(state, affect)
 
         # 6c. What won the workspace, as arousal. Global workspace theory's
         # claim is that ignition makes content available to the specialised

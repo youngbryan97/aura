@@ -180,6 +180,19 @@ class InitiativeArbiter:
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug("Ambient-life arbitration skipped: %s", exc)
 
+        # What she has come to feel about what an initiative is about draws
+        # her toward it or away from it. See core/affect/feelings_about.py.
+        try:
+            from core.affect.feelings_about import get_feelings_about
+
+            feelings = get_feelings_about()
+            for item in scored:
+                drawn = feelings.pull_for_text(_goal(item.initiative))
+                if drawn:
+                    item.final_score *= 1.0 + drawn
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("what she feels about things did not reach arbitration: %s", exc)
+
         # A tired mind cares less about what seems less important. Only the
         # initiatives at or above her fatigue's quantile of what she is holding
         # stay eligible, so the least important go first and the most important

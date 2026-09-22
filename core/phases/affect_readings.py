@@ -249,6 +249,44 @@ class AffectReadings:
                 severity="warning",
             )
 
+    def feelings_about(self, state: AuraState, affect: AffectVector) -> None:
+        """What the things in front of her carry, felt again, and this turn attached to them.
+
+        After every other feeling has settled. Each object brings back what it
+        has come to carry, weighted equally with what is happening now and by
+        how established it is; then what she feels attaches to everything the
+        turn was about. See core/affect/feelings_about.py.
+        """
+        try:
+            from core.affect.feelings_about import get_feelings_about, objects_of
+            from core.kernel.turn_door import USER_ORIGINS
+
+            ledger = get_feelings_about()
+            origin = str(getattr(state.cognition, "current_origin", "") or "")
+            present = objects_of(state, ledger, person_turn=origin in USER_ORIGINS)
+            carried, weight = ledger.evoked(present)
+            if weight > 0.0:
+                for key, value in carried.items():
+                    if key not in affect.emotions:
+                        continue
+                    current = float(affect.emotions.get(key, 0.0) or 0.0)
+                    _set_emotion(affect, key, current + weight * (float(value) - current) / 2.0)
+            ledger.attach(
+                present,
+                {key: float(value or 0.0) for key, value in affect.emotions.items()},
+                float(getattr(affect, "valence", 0.0) or 0.0),
+                float(getattr(affect, "arousal", 0.5) or 0.0),
+            )
+            affect.markers["feelings_about"] = {"present": present, "evoked_weight": round(weight, 6)}
+        except AFFECT_UPDATE_ERRORS as exc:
+            self._record(
+                state,
+                exc,
+                stage="feelings_about",
+                action="kept affect state without what the things in front of her carry",
+                severity="warning",
+            )
+
     def borrowed_feeling(self, state: AuraState, affect: AffectVector) -> None:
         """A feeling lent by what she believes the person here feels.
 

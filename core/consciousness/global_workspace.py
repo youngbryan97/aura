@@ -1311,9 +1311,24 @@ class GlobalWorkspace:
                 def _pressing(source: str) -> float:
                     return 0.0
 
+            # And what she has come to feel about each source, toward or away.
+            # See core/affect/feelings_about.py.
+            try:
+                from core.affect.feelings_about import get_feelings_about
+
+                _feelings = get_feelings_about()
+
+                def _drawn(source: str) -> float:
+                    return 1.0 + _feelings.pull(f"attended:{source}")
+            except (ImportError, AttributeError) as exc:
+                logger.debug("what she feels about a source cannot reach this competition: %s", exc)
+
+                def _drawn(source: str) -> float:
+                    return 1.0
+
             def _adjusted(candidate: CognitiveCandidate) -> float:
                 return (
-                    candidate.priority_at(decided_at)
+                    candidate.priority_at(decided_at) * _drawn(candidate.source)
                     - self._fatigue.get(candidate.bidder, 0.0)
                     + _pressing(candidate.source)
                 )
