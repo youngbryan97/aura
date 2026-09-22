@@ -21,7 +21,6 @@ here decides anything; it is a ledger.
 
 from __future__ import annotations
 
-import threading
 from core.runtime.lockdep import checked_lock
 
 __all__ = ["EffortLedger", "get_effort_ledger", "note_effort", "reset_effort_for_test"]

@@ -14,7 +14,7 @@ from core.runtime.errors import record_degradation
 import logging
 import time
 from collections import deque
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 from core.runtime.base_module import AuraBaseModule
 from core.container import ServiceContainer
@@ -166,6 +166,22 @@ class HomeostasisEngine(AuraBaseModule):
         except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('homeostasis', e)
             logger.debug("Metabolism check failed: %s", e)
+
+        # And from her own work. Metabolism was drained by the machine's heat
+        # and by nothing she did, so a stretch of hard thinking cost her no
+        # energy at all. Her fatigue drains it the way the heat does, and the
+        # regulation below pays it back as she rests. See core/soma/fatigue.py.
+        try:
+            from core.soma.fatigue import get_fatigue_ledger
+
+            tired = get_fatigue_ledger().read()
+            if tired.measured and tired.share > 0.0:
+                self.metabolism = max(
+                    0.2, self.metabolism - tired.share * self._proportional_gain
+                )
+        except (ImportError, AttributeError, TypeError, ValueError) as e:
+            record_degradation('homeostasis', e)
+            logger.debug("Fatigue check failed: %s", e)
 
         # Sovereignty from Scanner
         try:

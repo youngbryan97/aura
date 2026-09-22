@@ -6,7 +6,7 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from collections.abc import Mapping
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 
@@ -146,6 +146,18 @@ class SelfPredictionLoop:
                     self._conviction = book.read()
                 except (ImportError, AttributeError, TypeError, ValueError):
                     self._conviction = None
+                # And which way it missed. Unsigned, being told something
+                # wonderful and something terrible were one surprise. See
+                # core/soma/good_news.py.
+                try:
+                    from core.soma.good_news import get_good_news_ledger
+
+                    get_good_news_ledger().note(
+                        predicted=float(self._current_prediction.predicted_affect_valence),
+                        actual=float(actual_valence),
+                    )
+                except (ImportError, AttributeError, TypeError, ValueError) as exc:
+                    logger.debug("the sign of this surprise was not kept: %s", exc)
                 if error.was_surprising:
                     logger.debug(
                         f"🌟 Surprise! error={error.composite_error:.2f} "

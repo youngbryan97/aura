@@ -117,6 +117,8 @@ class InitiativeArbiter:
         #: The shift in force for the scoring pass under way. Read once at the
         #: top of it so every initiative in one moment moves together.
         self._shift: float = 0.0
+        # How far fresh good news is lifting her off what she was doing.
+        self._lightness: float = 0.0
         self._weights = dict(DEFAULT_WEIGHTS)
         self._last_log_signature: str | None = None
         self._last_log_at: float = 0.0
@@ -153,6 +155,17 @@ class InitiativeArbiter:
         # the proposer's ranking if every initiative in this moment gets the
         # same one, and the reading moves between calls.
         self._shift = self._read_pressure_shift()
+        # Good news in the middle of a task: while it is fresh, the task is not
+        # what drives her, so every initiative's urgency counts for less by the
+        # size of the jump. The same for all of them in this pass, so the
+        # proposer's order among them stands. See core/soma/good_news.py.
+        try:
+            from core.soma.good_news import get_good_news_ledger
+
+            self._lightness = get_good_news_ledger().jump()
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("good news did not reach arbitration: %s", exc)
+            self._lightness = 0.0
         scored: list[ScoredInitiative] = []
         for initiative in pending:
             si = await self.score_initiative(initiative, state)
@@ -166,6 +179,28 @@ class InitiativeArbiter:
             scored = get_ambient_life_director().prioritize_scored(scored, state)
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug("Ambient-life arbitration skipped: %s", exc)
+
+        # A tired mind cares less about what seems less important. Only the
+        # initiatives at or above her fatigue's quantile of what she is holding
+        # stay eligible, so the least important go first and the most important
+        # never does, and preference below can only choose among what is left.
+        # See core/soma/fatigue.py.
+        try:
+            from core.soma.fatigue import get_fatigue_ledger, important_enough
+
+            tired = get_fatigue_ledger().read()
+            if tired.measured and tired.share > 0.0 and len(scored) > 1:
+                keep = important_enough([item.final_score for item in scored], tired.share)
+                if not all(keep):
+                    logger.debug(
+                        "InitiativeArbiter: tired (%.2f), %d of %d initiative(s) left aside as less important.",
+                        tired.share,
+                        keep.count(False),
+                        len(scored),
+                    )
+                    scored = [item for item, kept in zip(scored, keep, strict=True) if kept]
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("fatigue did not reach arbitration: %s", exc)
 
         # Sort descending by drive/utility score first, then allow the subjective
         # choice layer to select a different eligible initiative when learned
@@ -430,9 +465,9 @@ class InitiativeArbiter:
             else:
                 if continuity_restored:
                     value = max(value, 0.45 + (0.35 * continuity_pressure))
-                return _clamp01(value + self._shift)
+                return _clamp01(value + self._shift) * (1.0 - self._lightness)
 
-        return _clamp01(min(1.0, base) + self._shift)
+        return _clamp01(min(1.0, base) + self._shift) * (1.0 - self._lightness)
 
     def _read_pressure_shift(self) -> float:
         """How far the state is pressing, against how hard it usually presses.

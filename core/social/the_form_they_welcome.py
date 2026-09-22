@@ -131,11 +131,20 @@ class FormLedger:
             # Neither, or both at once: nothing to learn about the form.
             return
         sign = 1.0 if welcomed else -1.0
+        # How a risky reply lands is watched more closely than how a safe one
+        # does, so its reception counts by one plus what it risked. See
+        # core/soma/on_the_edge.py.
+        try:
+            from core.soma.on_the_edge import get_edge_ledger
+
+            watched = 1.0 + get_edge_ledger().last_risk()
+        except (ImportError, AttributeError, TypeError, ValueError):
+            watched = 1.0
         for form, value in forms.items():
             if value <= 0.0:
                 continue
-            held.carried[form] = held.carried.get(form, 0.0) + value
-            held.welcomed[form] = held.welcomed.get(form, 0.0) + sign * value
+            held.carried[form] = held.carried.get(form, 0.0) + watched * value
+            held.welcomed[form] = held.welcomed.get(form, 0.0) + sign * watched * value
 
     def fit(self, partner: str, form: str) -> float:
         held = self._people.get(str(partner or "").strip())

@@ -253,6 +253,14 @@ async def _execute_new_state_new_state(self, state):
         spent = ledger.drain()
         soma.effort = dict(spent)
         soma.exertion = EffortLedger.exertion(spent)
+        # What working this hard has added up to. The cycle's exertion was
+        # forgotten by the next one, so the thousandth hard turn in a row felt
+        # like the first. See core/soma/fatigue.py.
+        from core.soma.fatigue import get_fatigue_ledger
+
+        tiredness = get_fatigue_ledger()
+        tiredness.note(soma.exertion)
+        soma.fatigue = tiredness.read().as_dict()
     except (ImportError, AttributeError, TypeError, ValueError) as exc:
         self._mark_channel_degraded(
             soma,
@@ -356,6 +364,39 @@ async def _execute_new_state_new_state(self, state):
             )
     except (AttributeError, ImportError, KeyError, TypeError, ValueError) as exc:
         logger.debug("what she is carrying did not reach the body: %s", exc)
+
+    # And what she is holding back, which burns. A mind keeping in the thing
+    # it most wanted to say had the body of one keeping in nothing. See
+    # core/soma/held_in.py.
+    try:
+        from core.affect.containment import get_containment_ledger
+        from core.soma.held_in import get_held_in_ledger
+
+        contained = get_containment_ledger().read()
+        held_in = get_held_in_ledger()
+        held_in.note(contained.pressure if contained.measured else 0.0, contained.source)
+        burning = held_in.shift()
+        if burning:
+            soma.expressive["pulse_rate"] = max(
+                0.1, min(3.0, float(soma.expressive["pulse_rate"]) * (1.0 + burning))
+            )
+    except (AttributeError, ImportError, KeyError, TypeError, ValueError) as exc:
+        logger.debug("what she is holding back did not reach the body: %s", exc)
+
+    # Good news makes the heart jump, and the moment after saying something
+    # risky quickens it, each against her own middle. See core/soma/good_news.py
+    # and core/soma/on_the_edge.py.
+    try:
+        from core.soma.good_news import get_good_news_ledger
+        from core.soma.on_the_edge import get_edge_ledger
+
+        lift = get_good_news_ledger().jump() + get_edge_ledger().felt_once()
+        if lift:
+            soma.expressive["pulse_rate"] = max(
+                0.1, min(3.0, float(soma.expressive["pulse_rate"]) * (1.0 + lift))
+            )
+    except (AttributeError, ImportError, KeyError, TypeError, ValueError) as exc:
+        logger.debug("the moment did not reach the body: %s", exc)
 
     # ── 4. Homeostatic Modifiers ────────────────────────────
     homeo = self._get_service(

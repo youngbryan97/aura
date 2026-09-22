@@ -575,6 +575,9 @@ class SomaState:
     # from the effort ledger the working subsystems report into.
     effort: dict[str, float] = field(default_factory=dict)
     exertion: float = 0.0
+    # And what that exertion has added up to over a stretch, paid back when she
+    # works under her ordinary. See core/soma/fatigue.py.
+    fatigue: dict[str, Any] = field(default_factory=dict)
 
     # Cognitive Performance (Self-Awareness of Thought)
     latency: dict[str, float] = field(default_factory=lambda: {

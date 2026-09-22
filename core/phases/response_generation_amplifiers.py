@@ -305,6 +305,22 @@ class _AmplifiesTheDraft:
                 _record_response_degradation(exc, "UnitaryResponse: reply not kept for distinctness: %s")
             # And the regard it carried, as a form this person will take one
             # way or another and as something given.
+            # How risky it was to say, before its forms are kept: the reading
+            # asks how this person has taken replies shaped like this one,
+            # which the reply itself must not yet be part of. See
+            # core/soma/on_the_edge.py.
+            try:
+                from core.soma.on_the_edge import get_edge_ledger, risk_of
+
+                get_edge_ledger().note_sent(
+                    risk_of(
+                        result.answer,
+                        objective,
+                        partner=str(getattr(state.cognition, "current_partner", "") or ""),
+                    )
+                )
+            except (ImportError, AttributeError, TypeError, ValueError) as exc:
+                _record_response_degradation(exc, "UnitaryResponse: the risk of the reply was not felt: %s")
             try:
                 from core.social.the_form_they_welcome import note_sent
 

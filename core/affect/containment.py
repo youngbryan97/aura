@@ -88,6 +88,9 @@ class Containment:
 @dataclass
 class _Source:
     nearness: deque[float] = field(default_factory=lambda: deque(maxlen=WINDOW))
+    #: How far it fell short of the winner last time, in the workspace's own
+    #: units, which is how much it would have needed to get out.
+    last_gap: float = 0.0
 
     def pressure(self) -> float:
         return sum(self.nearness)
@@ -137,10 +140,17 @@ class ContainmentLedger:
             if value != value:
                 continue
             near = max(0.0, min(1.0, value / top))
-            self._sources.setdefault(name, _Source()).nearness.append(near)
+            held = self._sources.setdefault(name, _Source())
+            held.nearness.append(near)
+            held.last_gap = max(0.0, top - value)
 
     def turns(self) -> int:
         return self._turns
+
+    def gap(self, source: str) -> float:
+        """How far a held source fell short last time, or nothing if it is not held."""
+        held = self._sources.get(source)
+        return held.last_gap if held is not None else 0.0
 
     def read(self) -> Containment:
         if self._turns < MIN_TURNS or not self._sources:

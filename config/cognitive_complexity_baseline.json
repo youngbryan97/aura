@@ -1,9 +1,9 @@
 {
   "organs": 123,
-  "cross_package_edges": 2045,
-  "dependency_entropy": 9.167,
-  "kernel_lines": 620423,
-  "at_commit": "82ac54a32abdd3dfb554a711b7898f254f6bffaf",
+  "cross_package_edges": 2049,
+  "dependency_entropy": 9.1725,
+  "kernel_lines": 622143,
+  "at_commit": "8347de8e551b366c2e3b6754986ebf952e318dd5",
   "history": [
     {
       "raised": [
@@ -845,6 +845,92 @@
         ],
         "commits_by_author": {
           "Claude": 1
+        }
+      }
+    },
+    {
+      "raised": [
+        "cross_package_edges",
+        "dependency_entropy",
+        "kernel_lines"
+      ],
+      "from": {
+        "cross_package_edges": 2045,
+        "dependency_entropy": 9.167,
+        "kernel_lines": 620423
+      },
+      "to": {
+        "cross_package_edges": 2049,
+        "dependency_entropy": 9.1725,
+        "kernel_lines": 622143
+      },
+      "because": "Mine: four body organs Bryan described from his own body (core/soma/fatigue.py, held_in.py, good_news.py, on_the_edge.py), each moving a decision that already existed, and the edges they need: core.soma <-> core.social for how a risky reply lands, and core.soma into the arbiter, the workspace and self-prediction. Not mine, and not justified here: the other session's growth since the last baseline, largest core/brain/llm/mlx_client_recording.py +497, inference_gate_turn_setup.py +108, inference_gate_turn_serving.py +95, frontier_gap.py +76, cognitive_engine_thinking_loop.py +69.",
+      "landed": {
+        "since": "82ac54a32abdd3dfb554a711b7898f254f6bffaf",
+        "net_kernel_lines": 1675,
+        "files_touched": 87,
+        "per_package": {
+          "brain": 1233,
+          "runtime": 221,
+          "planning": 65,
+          "world_model": 62,
+          "cognition": 55,
+          "reasoning": 29,
+          "consciousness": 10,
+          "memory": 0
+        },
+        "largest_files": [
+          {
+            "path": "core/brain/llm/mlx_client_recording.py",
+            "net_lines": 497
+          },
+          {
+            "path": "core/brain/inference_gate_turn_setup.py",
+            "net_lines": 108
+          },
+          {
+            "path": "core/brain/inference_gate_turn_serving.py",
+            "net_lines": 95
+          },
+          {
+            "path": "core/brain/frontier_gap.py",
+            "net_lines": 76
+          },
+          {
+            "path": "core/brain/cognitive_engine_thinking_loop.py",
+            "net_lines": 69
+          },
+          {
+            "path": "core/brain/latent_cortex_service_deep_reason.py",
+            "net_lines": 68
+          },
+          {
+            "path": "core/brain/llm_health_router_endpoint_call.py",
+            "net_lines": 68
+          },
+          {
+            "path": "core/planning/mission_state.py",
+            "net_lines": 65
+          },
+          {
+            "path": "core/world_model/unified_world_model.py",
+            "net_lines": 59
+          },
+          {
+            "path": "core/brain/cognitive_engine_quick_reply.py",
+            "net_lines": 56
+          },
+          {
+            "path": "core/brain/llm/context_assembler_blocks.py",
+            "net_lines": 54
+          },
+          {
+            "path": "core/runtime/action_executor_steps.py",
+            "net_lines": 46
+          }
+        ],
+        "commits_by_author": {
+          "Claude": 13
         }
       }
     }

@@ -1293,9 +1293,29 @@ class GlobalWorkspace:
             # and the sort key cannot change while the sort is running.
             decided_at = time.time()
 
+            # What she is holding back presses to get out, as far as her body
+            # runs hot with it: a share of the gap it last lost by. See
+            # core/soma/held_in.py.
+            try:
+                from core.affect.containment import get_containment_ledger
+                from core.soma.held_in import get_held_in_ledger
+
+                _contained = get_containment_ledger()
+                _held_in = get_held_in_ledger()
+
+                def _pressing(source: str) -> float:
+                    return _held_in.push(source, _contained.gap(source))
+            except (ImportError, AttributeError) as exc:
+                logger.debug("what she holds back cannot press this competition: %s", exc)
+
+                def _pressing(source: str) -> float:
+                    return 0.0
+
             def _adjusted(candidate: CognitiveCandidate) -> float:
-                return candidate.priority_at(decided_at) - self._fatigue.get(
-                    candidate.bidder, 0.0
+                return (
+                    candidate.priority_at(decided_at)
+                    - self._fatigue.get(candidate.bidder, 0.0)
+                    + _pressing(candidate.source)
                 )
 
             # Frozen before sorting, and the sort reads the frozen value. A
