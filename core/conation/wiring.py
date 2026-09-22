@@ -193,7 +193,12 @@ def should_disengage(key: str) -> bool:
         from core.conation.engine import get_conation
 
         return get_conation().dynamics.frustration(key).should_disengage()
-    except (ImportError, AttributeError, TypeError, ValueError):
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "conation could not say whether to disengage, so the caller keeps trying (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return False
 
 
@@ -203,7 +208,12 @@ def should_change_approach(key: str) -> bool:
         from core.conation.engine import get_conation
 
         return get_conation().dynamics.frustration(key).should_switch_strategy()
-    except (ImportError, AttributeError, TypeError, ValueError):
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "conation could not say whether to switch approach, so the method stands (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return False
 
 
@@ -215,7 +225,12 @@ def record_attempt(key: str, *, succeeded: bool, wanting: float = 0.5) -> None:
         get_conation().dynamics.observe_attempt(
             key, wanting=wanting, succeeded=succeeded
         )
-    except (ImportError, AttributeError, TypeError, ValueError):
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the attempt was not recorded, so the retry policy did not see it (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return
 
 
@@ -229,7 +244,12 @@ def source_is_noise(key: str) -> bool:
         from core.conation.engine import get_conation
 
         return key in get_conation().epistemic.noisy_sources()
-    except (ImportError, AttributeError, TypeError, ValueError):
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the noisy-source list is unreachable, so this source counts as quiet (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return False
 
 
@@ -239,5 +259,10 @@ def observe_source_error(key: str, prediction_error: float) -> None:
         from core.conation.engine import get_conation
 
         get_conation().epistemic.observe_error(key, prediction_error)
-    except (ImportError, AttributeError, TypeError, ValueError):
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the prediction error did not reach the noise detector (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return

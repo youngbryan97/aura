@@ -492,5 +492,10 @@ class TieredActionController:
                 action="escalated the control tier because a risk input was unusable",
                 severity="warning",
             )
-        except (ImportError, RuntimeError, TypeError, ValueError):
+        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "the tier escalation could not be recorded as a degradation (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return

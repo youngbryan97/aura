@@ -45,7 +45,12 @@ class SurvivalDriver:
         try:
             os.kill(self.parent_pid, 0)
             return True
-        except OSError:
+        except OSError as exc:
+            logger.debug(
+                "the parent process did not answer a signal, so it counts as gone (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     def get_imperatives(self, vitals: Dict[str, Any]) -> Optional[str]:

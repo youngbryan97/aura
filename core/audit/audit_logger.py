@@ -69,8 +69,12 @@ class AuditLogger:
             logger.error("Failed to initialize Audit DB: %s", e, exc_info=True)
             try:
                 self._conn.close()
-            except (sqlite3.Error, OSError):
-                pass
+            except (sqlite3.Error, OSError) as exc:
+                logger.debug(
+                    "the audit connection did not close after a failed init (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
             raise RuntimeError(f"audit_db_init_failed: {e}") from e
 
     def _sign(self, timestamp: float, actor: str, action: str, target: str, context_str: str) -> str:
@@ -157,8 +161,12 @@ class AuditLogger:
             finally:
                 try:
                     self._conn.close()
-                except (sqlite3.Error, OSError):
-                    pass
+                except (sqlite3.Error, OSError) as exc:
+                    logger.debug(
+                        "the audit connection did not close at shutdown (%s: %s)",
+                        type(exc).__name__,
+                        exc,
+                    )
 
 
 # Global instance

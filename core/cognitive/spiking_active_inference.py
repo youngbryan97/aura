@@ -13,6 +13,7 @@ sampler can consume.
 from __future__ import annotations
 
 import hashlib
+import logging
 import math
 import re
 import threading
@@ -24,6 +25,9 @@ from typing import Any
 import numpy as np
 
 from core.exceptions import ContainerError
+
+logger = logging.getLogger(__name__)
+
 
 EPS = 1e-12
 _ADVISOR_RECOVERABLE_ERRORS = (
@@ -1103,7 +1107,12 @@ def _register_advisor(advisor: SpikingActiveInferenceAdvisor) -> None:
             required_for="cognitive advisory routing and substrate sampling",
             failure_policy="degrade_without_effects",
         )
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.warning(
+            "the spiking advisor did not register, so cognitive advisory routing runs without it (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return
 
 

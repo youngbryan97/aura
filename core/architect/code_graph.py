@@ -4,6 +4,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import logging
 import os
 import sqlite3
 import time
@@ -24,6 +25,9 @@ from core.architect.models import (
 from core.architect.semantic_classifier import SemanticClassifier
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.state_ownership import state_root
+
+logger = logging.getLogger(__name__)
+
 
 
 class LiveArchitectureGraphBuilder:
@@ -202,7 +206,12 @@ class LiveArchitectureGraphBuilder:
         external_candidates = []
         try:
             is_live_workspace = root.resolve() == Path.cwd().resolve()
-        except OSError:
+        except OSError as exc:
+            logger.debug(
+                "the workspace root did not resolve, so external receipts are not searched (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             is_live_workspace = False
         if is_live_workspace:
             external_candidates = [
@@ -743,7 +752,12 @@ def _strip_ticks(value: str) -> str:
 def _safe_mtime(path: Path) -> float:
     try:
         return path.stat().st_mtime
-    except OSError:
+    except OSError as exc:
+        logger.debug(
+            "a file's modification time could not be read and reads as zero (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return 0.0
 
 

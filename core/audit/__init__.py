@@ -239,7 +239,12 @@ class AuditLog:
                 return
             with open(db_file, "rb") as handle:
                 header = handle.read(len(self._SQLITE_MAGIC))
-        except OSError:
+        except OSError as exc:
+            logger.warning(
+                "the audit database header could not be read, so its integrity is unchecked (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return
         if header == self._SQLITE_MAGIC:
             return

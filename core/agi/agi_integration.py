@@ -38,7 +38,12 @@ def _task_done(task: Any) -> bool:
     if callable(done):
         try:
             return bool(done())
-        except (RuntimeError, AttributeError, TypeError, ValueError):
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "a task handle would not say whether it was done, so it counts as not done (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
     return False
 

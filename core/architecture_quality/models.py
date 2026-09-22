@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
 
 SCHEMA_VERSION = 2
 _WINDOWS_DRIVE = re.compile(r"^[A-Za-z]:")
@@ -235,7 +239,12 @@ class ArchitectureQualityReport:
     def changed_module_for_path(self, path: str) -> str | None:
         try:
             normalized = normalize_repository_path(path, label="changed path")
-        except ValueError:
+        except ValueError as exc:
+            logger.debug(
+                "a changed path did not normalize, so it maps to no module (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return None
         module = normalized.removesuffix(".py").replace("/", ".")
         if module in self.module_to_path:

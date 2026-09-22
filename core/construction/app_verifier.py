@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import subprocess
 from dataclasses import dataclass
 from html.parser import HTMLParser
@@ -25,6 +26,9 @@ from typing import Any
 
 from core.construction.app_compiler import reducer_js
 from core.construction.app_model import AppSpec, apply, initial_state
+
+logger = logging.getLogger(__name__)
+
 
 __all__ = ["VerifiedApp", "verify_app", "node_available", "dom_driver_available"]
 
@@ -125,7 +129,12 @@ def node_available() -> bool:
     try:
         done = _run_node(["node", "--version"], timeout=5.0)
         return done.returncode == 0
-    except (OSError, subprocess.SubprocessError, RuntimeError, ImportError):
+    except (OSError, subprocess.SubprocessError, RuntimeError, ImportError) as exc:
+        logger.debug(
+            "node did not run, so JavaScript verification is unavailable (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return False
 
 
@@ -192,7 +201,12 @@ def _run_in_node(spec: AppSpec, runs: list[list[str]], inputs: dict[str, Any]) -
     )
     try:
         done = _run_node(["node", "--input-type=commonjs", "-"], stdin=driver)
-    except (OSError, subprocess.SubprocessError, RuntimeError):
+    except (OSError, subprocess.SubprocessError, RuntimeError) as exc:
+        logger.debug(
+            "the reducer driver did not start under node (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return None
     if done.returncode != 0:
         raise ValueError(f"the emitted JavaScript did not run: {done.stderr.strip()[:300]}")
@@ -220,7 +234,12 @@ def dom_driver_available() -> bool:
             ["node", "-e", "require('jsdom')"], cwd=str(_DRIVER.parent), timeout=10.0
         )
         return done.returncode == 0
-    except (OSError, subprocess.SubprocessError, RuntimeError):
+    except (OSError, subprocess.SubprocessError, RuntimeError) as exc:
+        logger.debug(
+            "jsdom did not load, so the page cannot be clicked, only reasoned about (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return False
 
 
@@ -254,7 +273,12 @@ def _drive_in_dom(html: str, runs: list[list[str]], inputs: dict[str, Any]) -> d
             timeout=_NODE_TIMEOUT_S * 3,
             stdin=html,
         )
-    except (OSError, subprocess.SubprocessError, RuntimeError):
+    except (OSError, subprocess.SubprocessError, RuntimeError) as exc:
+        logger.debug(
+            "the DOM driver did not start, so the page was never opened (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return None
     if done.returncode != 0:
         raise ValueError(f"the page could not be opened: {done.stderr.strip()[:300]}")

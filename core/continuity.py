@@ -664,7 +664,12 @@ class ContinuityEngine:
             from core.runtime.flight_recorder import get_flight_recorder
 
             death_note = get_flight_recorder().waking_note()
-        except (ImportError, AttributeError, RuntimeError, OSError, ValueError):
+        except (ImportError, AttributeError, RuntimeError, OSError, ValueError) as exc:
+            logger.debug(
+                "the flight recorder had no waking note, so the record's own shutdown reason stands (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             death_note = ""
         if death_note:
             shutdown_note = death_note

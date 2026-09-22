@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import os
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from core.runtime.resource_observation import get_resource_observer
+
+logger = logging.getLogger(__name__)
+
 
 
 def _bounded(value: Any, default: float = 0.0, *, low: float = 0.0, high: float = 1.0) -> float:
@@ -72,7 +76,12 @@ class BodyState:
             sources.append(
                 f"disk_usage:{observation.provenance.source.value}"
             )
-        except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "disk usage could not be observed and reads as zero (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             disk = 0.0
 
         working_count = len(getattr(cognition, "working_memory", []) or [])
@@ -94,7 +103,12 @@ class BodyState:
                 anticipatory = _bounded(felt.get("anticipatory_pressure", 0.0))
                 if anticipatory > 0.0:
                     sources.append("allostasis_forecast")
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "allostasis gave no anticipatory pressure, which reads as zero (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             anticipatory = 0.0
 
         return cls(

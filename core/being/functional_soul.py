@@ -5,9 +5,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable
+
+logger = logging.getLogger(__name__)
+
 
 
 @dataclass(frozen=True)
@@ -101,7 +105,12 @@ class FunctionalSoul:
         if self.receipt_verifier is not None:
             try:
                 return bool(self.receipt_verifier(receipt_id))
-            except (RuntimeError, AttributeError, TypeError, ValueError):
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "the supplied receipt verifier refused the receipt (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
                 return False
         try:
             from core.will import get_will
@@ -109,7 +118,12 @@ class FunctionalSoul:
             will = get_will()
             if hasattr(will, "verify_receipt_signature"):
                 return bool(will.verify_receipt_signature(receipt_id))
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "will could not verify the receipt signature, so the receipt is not trusted (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
         return False
 

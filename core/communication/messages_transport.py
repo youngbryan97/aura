@@ -490,7 +490,12 @@ class MessagesTransport:
                 idempotency_key=chat_key,
                 client_host="127.0.0.1",
             )
-        except (OSError, RuntimeError, TimeoutError, TypeError, ValueError):
+        except (OSError, RuntimeError, TimeoutError, TypeError, ValueError) as exc:
+            logger.warning(
+                "the chat turn for an inbound message failed, so it is queued for retry (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             reply = None
         if not reply:
             await self._journal.mark_inbound_retryable(

@@ -653,8 +653,12 @@ class _ReasonsInLatentSpace:
                                 f"{name}={size}" for size, name in sized[:12]
                             )[:700],
                         )
-            except (AttributeError, TypeError, ValueError):
-                pass
+            except (AttributeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "the oversized-message breakdown could not be measured (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
         self._mark_generation_started(
             req_id,
             prompt_chars=prompt_chars,

@@ -849,7 +849,12 @@ class ContinualLearningStabilityEngine:
             payload["utility_score"] = _finite(payload.get("utility_score", 0.0), field_name="utility")
             payload["decay_rate"] = _finite(payload.get("decay_rate", 0.002), field_name="decay_rate")
             return MemoryRecord(**payload)
-        except (StabilityEvidenceError, TypeError, ValueError):
+        except (StabilityEvidenceError, TypeError, ValueError) as exc:
+            logger.debug(
+                "a stored memory record did not rebuild and was dropped (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return None
 
     def _drop_dangling_contradictions(self) -> None:

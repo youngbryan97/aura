@@ -1129,7 +1129,12 @@ def get_executive_authority(orchestrator: Any = None) -> ExecutiveAuthority:
     # fallback construction existing at all.
     try:
         authority = ServiceContainer.get("executive_authority", default=None)
-    except (RuntimeError, AttributeError, TypeError, ValueError):
+    except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the container would not hand back executive authority, so a fallback is built (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         authority = None
     if authority and isinstance(authority, ExecutiveAuthority):
         authority.bind(orchestrator)
@@ -1158,7 +1163,12 @@ def get_executive_authority(orchestrator: Any = None) -> ExecutiveAuthority:
     # object built above is discarded.
     try:
         registered = ServiceContainer.get("executive_authority", default=None)
-    except (RuntimeError, AttributeError, TypeError, ValueError):
+    except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the container would not say whether it kept its own authority (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         registered = None
     if isinstance(registered, ExecutiveAuthority) and registered is not authority:
         registered.bind(orchestrator)

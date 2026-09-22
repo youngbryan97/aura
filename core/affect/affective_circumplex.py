@@ -249,7 +249,12 @@ class AffectiveCircumplex:
             from core.runtime import resource_psutil as psutil
             swap = psutil.swap_memory()
             swap_ratio = swap.percent / 100.0 if swap.total > 0 else 0.0
-        except (ImportError, AttributeError, RuntimeError):
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "swap pressure could not be read, so RAM duress reads as none (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             swap_ratio = 0.0
 
         ncs = self._resolve_neurochemical_system()
@@ -305,7 +310,12 @@ class AffectiveCircumplex:
             )
 
             return get_latest_neurochemical_system()
-        except (ImportError, AttributeError, RuntimeError):
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "no neurochemical system is reachable (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return None
 
     @staticmethod

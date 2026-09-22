@@ -739,5 +739,10 @@ class PhysicalGroundingEngine:
                 attributes=dict(raw.get("attributes") or {}),
                 identity=str(raw.get("identity", "natural")),
             )
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            logger.debug(
+                "a grounded object did not rebuild from its stored form and was dropped (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return None

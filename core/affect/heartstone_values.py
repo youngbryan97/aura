@@ -506,8 +506,12 @@ class HeartstoneValues:
                 free_energy=free_energy,
                 context=context,
             ))
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # Autopoiesis not yet booted -- silently skip
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "value autopoiesis did not take this outcome as evidence (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
 
     def _feed_scar(self, avoidance_tag: str, description: str, severity: float = 0.3) -> None:
         """Feed a critical event to the scar formation system."""
@@ -525,8 +529,12 @@ class HeartstoneValues:
                 avoidance_tag=avoidance_tag,
                 severity=severity,
             )
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # Scar system not yet booted -- silently skip
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "the scar system did not form a scar for this avoidance (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
 
 
 # ── Singleton ──────────────────────────────────────────────────────────────────

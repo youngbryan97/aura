@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 
 from core.runtime.errors import record_degradation
 
 from .aura_now import AuraNow
+
+logger = logging.getLogger(__name__)
+
 
 _FORBIDDEN_PATTERNS = (
     re.compile(r"\b(proven|guaranteed|certain)\s+(phenomenal\s+)?consciousness\b", re.I),
@@ -69,7 +73,12 @@ class IntrospectionRenderer:
             try:
                 from .self_report_calibrator import SelfReportCalibrator
                 self._calibrator = SelfReportCalibrator()
-            except ImportError:
+            except ImportError as exc:
+                logger.debug(
+                    "the self-report calibrator is unavailable, so reports go out uncalibrated (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
                 self._calibrator = None
         return self._calibrator
 

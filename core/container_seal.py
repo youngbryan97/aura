@@ -6,8 +6,12 @@ patches a name on it has to reach the code that reads it.
 """
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
 
 
 class _SealsItsKeys:
@@ -62,7 +66,12 @@ class _SealsItsKeys:
                     source="service_container.sovereignty_seal_key",
                 )
             return key
-        except (OSError, ValueError):
+        except (OSError, ValueError) as exc:
+            logger.warning(
+                "the sovereignty seal key could not be provisioned, so the container runs unsealed (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return None
 
     @classmethod

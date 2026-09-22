@@ -9,6 +9,7 @@ self-repair training data.
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
 import time
 from dataclasses import asdict, dataclass, field
@@ -20,9 +21,12 @@ from core.architect.models import (
     MutationTier,
     RefactorPlan,
 )
+from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.subprocess_gateway import get_subprocess_gateway
-from core.runtime.errors import record_degradation
+
+logger = logging.getLogger(__name__)
+
 
 
 # ---------------------------------------------------------------------------
@@ -456,7 +460,12 @@ class ASASafetyGate:
                 source="architect.safety_gate.git_commit",
             )
             return result.returncode == 0
-        except (subprocess.TimeoutExpired, OSError):
+        except (subprocess.TimeoutExpired, OSError) as exc:
+            logger.warning(
+                "the safety-gate commit did not complete, so no checkpoint exists for this run (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     # -- git state snapshot (for autopsy) ------------------------------------

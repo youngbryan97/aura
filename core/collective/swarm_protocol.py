@@ -77,8 +77,12 @@ class SwarmProtocol:
                 from core.runtime.runtime_hygiene import get_runtime_hygiene
 
                 get_runtime_hygiene().unregister_shutdown_resource(server)
-            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
-                pass
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "the swarm listener was not unregistered from shutdown hygiene (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
         task, self._mood_broadcast_task = self._mood_broadcast_task, None
         if task:
             await cancel_and_join(task, owner="core.collective.swarm_protocol")

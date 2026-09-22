@@ -157,7 +157,12 @@ class SharedMemoryTransport:
         path.parent.mkdir(parents=True, exist_ok=True)
         try:
             fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o600)
-        except FileExistsError:
+        except FileExistsError as exc:
+            logger.debug(
+                "the fallback segment already exists, so this attaches to it instead (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             self._attach_file_backed_segment()
             return
 

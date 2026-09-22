@@ -385,7 +385,12 @@ class HiddenEvalRunner:
                 action="returned an in-memory-only evaluation result",
                 severity="error",
             )
-        except (ImportError, RuntimeError, TypeError, ValueError):
+        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "the unpersisted evaluation could not be recorded as a degradation (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return
 
     def _run_scenario(self, scenario: EvalScenario) -> EvalResult:
