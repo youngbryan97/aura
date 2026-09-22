@@ -1795,6 +1795,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   one treatment target-score win versus four matched no-op wins, with task
   regressions. The new gradient-trained generation is not qualified or published.
 - [x] G11 Prove the qualified mechanism actually serves eligible live requests.
+  [Qualification continuity and fresh CPU replay](evidence/G11_REQUALIFICATION_CONTINUITY_2026-09-21.md):
+  120/120 through production ingress/service, 120 lesion disruptions; the
+  installed package is active after rebase. Not a new desktop or broad-gain run.
   Closed 2026-09-14: [desktop serving](evidence/G11_DESKTOP_SERVING_2026-09-14.md).
   Four fresh desktop requests across all four qualified families delivered
   exact answers with source/model identity and durable terminal proof.

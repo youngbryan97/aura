@@ -319,6 +319,25 @@ def _relative_evidence_path(repo_root: Path, path: Path) -> str:
     return relative.as_posix()
 
 
+def _qualification_manifest_identity(
+    *,
+    expected: dict[str, Any],
+    current: dict[str, Any],
+    selected_model: Path,
+    authority_key_path: Path | None = None,
+) -> dict[str, Any]:
+    """Retain measured identity while reopening permitted manifest continuity."""
+    if current.get("active_model_path") != str(
+        selected_model
+    ) or not _manifest_identity_matches_activation(
+        expected=expected,
+        current=current,
+        selected_model=selected_model,
+        authority_key_path=authority_key_path,
+    ):
+        raise RuntimeError("semantic serving resident identity differs from evidence")
+    return dict(expected)
+
 def _resolve_evidence_path(repo_root: Path, value: Any) -> Path:
     if not isinstance(value, str) or not value or Path(value).is_absolute():
         raise RuntimeError("semantic serving evidence path is not relative")
@@ -443,6 +462,7 @@ def build_semantic_neural_activation(
     resident_manifest_path: Path,
     model_path: Path,
     runtime_verification_path: Path | None = None,
+    authority_key_path: Path | None = None,
 ) -> dict[str, Any]:
     """Materialize a source/model/evidence-bound qualified activation."""
 
@@ -461,13 +481,14 @@ def build_semantic_neural_activation(
         adjudication_path=adjudication_path,
     )
     model_identity = _identity_for_model(model_path)
-    manifest_identity = _identity_for_manifest(resident_manifest_path)
-    if (
-        model_identity != verification.get("model_identity")
-        or manifest_identity != verification.get("resident_manifest_identity")
-        or manifest_identity["active_model_path"] != model_identity["path"]
-    ):
+    if model_identity != verification.get("model_identity"):
         raise RuntimeError("semantic serving resident identity differs from evidence")
+    manifest_identity = _qualification_manifest_identity(
+        expected=verification["resident_manifest_identity"],
+        current=_identity_for_manifest(resident_manifest_path),
+        selected_model=Path(model_identity["path"]),
+        authority_key_path=authority_key_path,
+    )
     manifest_payload, _manifest_raw = _read_bounded_json(
         resident_manifest_path,
         maximum_bytes=512 * 1024,
@@ -537,10 +558,8 @@ def build_semantic_neural_activation(
         }
         runtime_receipt = runtime_verification.get("activation_receipt")
         if (
-            runtime_verification.get("schema")
-            != SEMANTIC_NEURAL_RUNTIME_VERIFICATION_SCHEMA
-            or
-            runtime_verification.get("verified") is not True
+            runtime_verification.get("schema") != SEMANTIC_NEURAL_RUNTIME_VERIFICATION_SCHEMA
+            or runtime_verification.get("verified") is not True
             or runtime_verification.get("task_count") != 120
             or runtime_verification.get("exact_count") != 120
             or runtime_verification.get("lesion_disruption_count") != 120
@@ -566,12 +585,8 @@ def build_semantic_neural_activation(
             "measured_backend_receipt_equivalence_count": runtime_verification[
                 "measured_backend_receipt_equivalence_count"
             ],
-            "foreground_integration_count": runtime_verification[
-                "foreground_integration_count"
-            ],
-            "service_integration_count": runtime_verification[
-                "service_integration_count"
-            ],
+            "foreground_integration_count": runtime_verification["foreground_integration_count"],
+            "service_integration_count": runtime_verification["service_integration_count"],
             "unsupported_language_refused": runtime_verification["unsupported_language_refused"],
             "max_latency_ms": runtime_verification["max_latency_ms"],
         }

@@ -5,7 +5,6 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-from pathlib import Path
 
 import pytest
 
@@ -16,6 +15,7 @@ from core.brain.llm.cortex_manifest_continuity import (
 from core.brain.llm.semantic_neural_serving import (
     _identity_for_manifest,
     _manifest_identity_matches_activation,
+    _qualification_manifest_identity,
 )
 from core.learning.cortex_generation_upgrade import (
     _governed_write,
@@ -86,6 +86,32 @@ def test_signed_independent_update_keeps_exact_measurement_identity(manifests):
     assert _manifest_identity_matches_activation(
         expected=expected, current=_identity_for_manifest(manifest), selected_model=model
     )
+
+
+def test_requalification_retains_measured_identity_after_independent_update(manifests):
+    manifest, model, _, expected, *_ = manifests
+    current = _identity_for_manifest(manifest)
+    assert expected != current
+    measured = _qualification_manifest_identity(
+        expected=expected, current=current, selected_model=model
+    )
+    assert measured == expected
+    measured["sha256"] = "altered by caller"
+    assert measured != expected
+
+
+def test_requalification_rejects_a_changed_dependent_component(manifests):
+    manifest, model, _, expected, current, refreshed, _ = manifests
+    components = copy.deepcopy(current["migration_contract"]["components"])
+    components["recurrence_native"] = refreshed["recurrence_native"]
+    current["migration_contract"] = build_migration_contract(
+        current["artifact_descriptor"], components=components
+    )
+    manifest.write_bytes(_bytes(current))
+    with pytest.raises(RuntimeError, match="identity differs"):
+        _qualification_manifest_identity(
+            expected=expected, current=_identity_for_manifest(manifest), selected_model=model
+        )
 
 
 def test_no_component_is_independent_by_default(manifests):
@@ -168,12 +194,16 @@ def test_repeated_validation_reuses_full_hash_only_for_identical_file_versions(m
     assert second.hits == first.hits + 1
 
 
-def test_explicit_verification_key_does_not_fall_back_to_test_state(manifests, monkeypatch, tmp_path):
+def test_explicit_verification_key_does_not_fall_back_to_test_state(
+    manifests, monkeypatch, tmp_path
+):
     manifest, model, _, expected, _, _, state = manifests
     key = state / "private/cortex-upgrade/migration-authority.key"
     monkeypatch.setenv("AURA_STATE_ROOT", str(tmp_path / "no-authority"))
     assert _manifest_identity_matches_activation(
-        expected=expected, current=_identity_for_manifest(manifest), selected_model=model,
+        expected=expected,
+        current=_identity_for_manifest(manifest),
+        selected_model=model,
         authority_key_path=key,
     )
     assert not _manifest_identity_matches_activation(
@@ -224,5 +254,6 @@ async def test_boot_preparation_checks_artifacts_off_loop(monkeypatch):
 
     monkeypatch.setattr(semantic_neural_serving, "semantic_neural_default_serving_status", verify)
     assert await semantic_neural_serving.prepare_semantic_neural_serving() == {
-        "active": True, "reason": "test_verified"
+        "active": True,
+        "reason": "test_verified",
     }
