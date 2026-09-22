@@ -283,6 +283,29 @@ class MorphProposal:
                 delta -= len(transition.metadata.get("absorb", ()))
         return delta
 
+    @property
+    def binding_delta(self) -> int:
+        """Net change in edge count this proposal would cause.
+
+        The sibling of ``population_delta``, and it did not exist. The
+        governor capped cells against one and had a ``max_edges`` bound with
+        nothing to compare against, so nothing ever checked it. LIVE,
+        2026-09-21: the live graph sat at 258 bindings against a bound of
+        256 while `morphogenesis.edges` reported red_high for 38 minutes and
+        the governor went on admitting binds.
+
+        ``ROUTE`` changes an existing edge's weight rather than its
+        existence, so it counts for nothing here, which is what the
+        TransitionKind docstring says it is for.
+        """
+        delta = 0
+        for transition in self.transitions:
+            if transition.kind is TransitionKind.BIND:
+                delta += 1
+            elif transition.kind is TransitionKind.UNBIND:
+                delta -= 1
+        return delta
+
     def validate(self) -> str:
         if not self.transitions:
             return "a proposal with no transitions changes nothing"
@@ -333,6 +356,7 @@ class MorphProposal:
             "rationale": self.rationale,
             "risk": str(self.risk),
             "population_delta": self.population_delta,
+            "binding_delta": self.binding_delta,
             "affected_cells": list(self.affected_cells()),
             "created_at": self.created_at,
         }

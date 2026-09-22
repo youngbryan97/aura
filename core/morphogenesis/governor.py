@@ -433,6 +433,18 @@ class MorphGovernor:
         if projected > self.bounds.max_cells:
             return f"population: {projected} cells would pass the cap of {self.bounds.max_cells}"
 
+        # The same check the population gets. `max_edges` was declared here
+        # from the start and compared against nothing, so the only thing that
+        # noticed the topology passing it was the telemetry channel — which
+        # reported `morphogenesis.edges` red_high at 258 for 38 minutes on
+        # 2026-09-21 while this went on admitting binds.
+        bindings = self.graph.edge_count + proposal.binding_delta
+        if bindings > self.bounds.max_edges:
+            return (
+                f"bindings: {bindings} edges would pass the cap of "
+                f"{self.bounds.max_edges}"
+            )
+
         for transition in proposal.transitions:
             if transition.kind is TransitionKind.SPAWN:
                 parent = str(transition.metadata.get("parent", proposal.proposer))
