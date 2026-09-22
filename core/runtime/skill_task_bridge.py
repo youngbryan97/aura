@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Iterable
 
 from core.utils.intent_normalization import normalize_memory_intent_text
+
+logger = logging.getLogger(__name__)
 
 _ACTION_VERBS = (
     "open",
@@ -374,8 +377,14 @@ def looks_like_capability_inventory_dialogue_request(text: str) -> bool:
         from core.intent.opaque_spans import without_opaque_spans
 
         normalized = without_opaque_spans(normalized)
-    except (ImportError, TypeError, ValueError):
-        pass
+    except (ImportError, TypeError, ValueError) as exc:
+        # The comment above is about a reader matching "aura" inside a path.
+        # Leaving the spans in is how that reader sees them again.
+        logger.debug(
+            "opaque spans were not removed before matching (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
     if not normalized.strip():
         return False
     if len(normalized.split()) > 80:
@@ -418,8 +427,13 @@ def looks_like_capability_inventory_dialogue_request(text: str) -> bool:
             mood = assess_request_mood(normalized)
             if mood.asks_for_action and _EXTERNAL_EFFECT_RE.search(sanitized):
                 return False
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "request mood unavailable (%s: %s); the external-effect check "
+                "did not run",
+                type(exc).__name__,
+                exc,
+            )
     return True
 
 
@@ -498,7 +512,12 @@ def _names_a_deliverable(text: str) -> bool:
         from core.language.asking_clauses import names_a_deliverable
 
         return names_a_deliverable(text)
-    except (ImportError, TypeError, ValueError):
+    except (ImportError, TypeError, ValueError) as exc:
+        logger.debug(
+            "deliverable naming could not be judged (%s: %s); reporting no",
+            type(exc).__name__,
+            exc,
+        )
         return False
 
 
@@ -543,8 +562,13 @@ def looks_like_inline_answer_request(text: str) -> bool:
 
         if asking_clauses(normalized):
             return True
-    except (ImportError, RuntimeError, TypeError, ValueError):
-        pass
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "asking clauses could not be read (%s: %s); the question check "
+            "did not run",
+            type(exc).__name__,
+            exc,
+        )
     if looks_like_explanatory_dialogue_request(normalized):
         return True
     # "Tell me about yourself", "tell me something", "tell me a story".

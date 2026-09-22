@@ -66,11 +66,14 @@ def child_preexec() -> None:
     """
     try:
         os.setsid()
+    # not a failure: already a session leader (start_new_session=True), which
+    # is the state this call exists to reach.
     except (AttributeError, OSError):
-        # Already a session leader (start_new_session=True) — fine.
         pass
     try:
         import resource
+    # not a failure: POSIX limits do not exist off POSIX, and the child runs
+    # without them rather than not at all.
     except ImportError:  # pragma: no cover - non-POSIX
         return
 
@@ -122,8 +125,10 @@ def reap_process_group(pgid: int | None, process: Any = None) -> dict[str, Any]:
         if pgid == os.getpgrp():
             receipt["reason"] = "refused to signal aura's own process group"
             return receipt
-    except OSError:
-        pass
+    except OSError as exc:
+        # Not knowing our own group is not a reason to stop, but the receipt
+        # should say the self-signal check did not run.
+        receipt["own_group_check"] = f"unavailable: {type(exc).__name__}: {exc}"
 
     receipt["attempted"] = True
     for sig in (signal.SIGTERM, signal.SIGKILL):

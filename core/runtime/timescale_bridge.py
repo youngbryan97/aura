@@ -9,6 +9,7 @@ mistaken for events that happened.
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 from collections import Counter, deque
@@ -16,6 +17,8 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from core.container import ServiceContainer
+
+logger = logging.getLogger(__name__)
 
 
 def _bounded_float(value: Any, default: float = 0.0) -> float:
@@ -145,6 +148,25 @@ class TimescaleBridge:
         self._last_sample_at = now
         return True
 
+    def _salience(self, frame: Any, reading: str) -> float:
+        """One salience reading off a frame, and 0.0 named when it will not come.
+
+        Three of these were written out in a row, each zeroing its own
+        reading in silence. A frame whose novelty cannot be read then arrives
+        as the least interesting thing that has ever happened, and that is
+        what the attention budget acts on.
+        """
+        try:
+            return float(getattr(frame, reading)())
+        except (AttributeError, TypeError, ValueError, OverflowError) as exc:
+            logger.debug(
+                "%s unreadable on this frame (%s: %s); scoring it 0.0",
+                reading,
+                type(exc).__name__,
+                exc,
+            )
+            return 0.0
+
     def ingest_perceptual_frame(self, frame: Any, *, source: str = "perceptual_pump") -> None:
         """Summarize a perceptual frame without retaining raw sensory payloads."""
 
@@ -157,18 +179,9 @@ class TimescaleBridge:
         system = getattr(frame, "system", None)
         user = getattr(frame, "user", None)
         audio = getattr(frame, "audio", None)
-        try:
-            novelty = float(frame.novelty_score())
-        except (AttributeError, TypeError, ValueError, OverflowError):
-            novelty = 0.0
-        try:
-            threat = float(frame.threat_score())
-        except (AttributeError, TypeError, ValueError, OverflowError):
-            threat = 0.0
-        try:
-            social = float(frame.social_signal())
-        except (AttributeError, TypeError, ValueError, OverflowError):
-            social = 0.0
+        novelty = self._salience(frame, "novelty_score")
+        threat = self._salience(frame, "threat_score")
+        social = self._salience(frame, "social_signal")
 
         self._observations.append(
             TimescaleObservation(

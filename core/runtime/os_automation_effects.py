@@ -963,6 +963,8 @@ def _coerce_frame(value: object) -> tuple[int, int, int, int] | None:
         raw_values = matches
     try:
         frame = tuple(int(float(item)) for item in raw_values)
+    # not a failure: four values that are not numbers are not a frame, and
+    # None is this function's way of saying so.
     except (TypeError, ValueError):
         return None
     return (frame[0], frame[1], frame[2], frame[3])

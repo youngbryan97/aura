@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import os
 import sys
 from pathlib import Path
@@ -22,6 +23,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
+
+logger = logging.getLogger(__name__)
 
 COMMAND_HANDLERS: Dict[str, Callable[[argparse.Namespace], Dict[str, Any]]] = {}
 
@@ -98,7 +101,15 @@ def _is_writable(p: Path) -> bool:
     try:
         p.mkdir(parents=True, exist_ok=True)
         return os.access(p, os.W_OK)
-    except (RuntimeError, AttributeError, TypeError, ValueError):
+    except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        # The doctor prints this as "not writable", which reads as a
+        # permissions problem rather than as a check that could not run.
+        logger.warning(
+            "writability check for %s could not run (%s: %s)",
+            p,
+            type(exc).__name__,
+            exc,
+        )
         return False
 
 

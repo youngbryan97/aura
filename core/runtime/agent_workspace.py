@@ -113,6 +113,8 @@ class LocalWorkspace:
     def _within(candidate: Path, parent: Path) -> bool:
         try:
             candidate.relative_to(parent)
+        # not a failure: a path outside the parent is the question being
+        # asked, and "no" is the answer.
         except ValueError:
             return False
         return True

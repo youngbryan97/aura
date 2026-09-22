@@ -19,6 +19,7 @@ import os
 import re
 import secrets
 import sqlite3
+import sys
 import threading
 import time
 import uuid
@@ -1018,8 +1019,17 @@ class ChatDeliveryJournal:
             except BaseException:  # noqa: BLE001 - transaction must roll back on interruption
                 try:
                     conn.rollback()
-                except sqlite3.Error:
-                    pass
+                except sqlite3.Error as rollback_exc:
+                    # The original failure is on its way up; this one would
+                    # vanish with the handler. A note rides out on the
+                    # exception being re-raised, which is the only carrier
+                    # that survives a bare `raise`.
+                    exc = sys.exception()
+                    if exc is not None:
+                        exc.add_note(
+                            "rollback also failed: "
+                            f"{type(rollback_exc).__name__}: {rollback_exc}"
+                        )
                 raise
             finally:
                 conn.close()
@@ -1159,8 +1169,17 @@ class ChatDeliveryJournal:
             except BaseException:
                 try:
                     conn.rollback()
-                except sqlite3.Error:
-                    pass
+                except sqlite3.Error as rollback_exc:
+                    # The original failure is on its way up; this one would
+                    # vanish with the handler. A note rides out on the
+                    # exception being re-raised, which is the only carrier
+                    # that survives a bare `raise`.
+                    exc = sys.exception()
+                    if exc is not None:
+                        exc.add_note(
+                            "rollback also failed: "
+                            f"{type(rollback_exc).__name__}: {rollback_exc}"
+                        )
                 raise
             finally:
                 conn.close()
@@ -1253,8 +1272,17 @@ class ChatDeliveryJournal:
             except BaseException:  # noqa: BLE001 - transaction must roll back on interruption
                 try:
                     conn.rollback()
-                except sqlite3.Error:
-                    pass
+                except sqlite3.Error as rollback_exc:
+                    # The original failure is on its way up; this one would
+                    # vanish with the handler. A note rides out on the
+                    # exception being re-raised, which is the only carrier
+                    # that survives a bare `raise`.
+                    exc = sys.exception()
+                    if exc is not None:
+                        exc.add_note(
+                            "rollback also failed: "
+                            f"{type(rollback_exc).__name__}: {rollback_exc}"
+                        )
                 raise
             finally:
                 conn.close()
@@ -1369,8 +1397,17 @@ class ChatDeliveryJournal:
             except BaseException:  # noqa: BLE001 - transaction must roll back on interruption
                 try:
                     conn.rollback()
-                except sqlite3.Error:
-                    pass
+                except sqlite3.Error as rollback_exc:
+                    # The original failure is on its way up; this one would
+                    # vanish with the handler. A note rides out on the
+                    # exception being re-raised, which is the only carrier
+                    # that survives a bare `raise`.
+                    exc = sys.exception()
+                    if exc is not None:
+                        exc.add_note(
+                            "rollback also failed: "
+                            f"{type(rollback_exc).__name__}: {rollback_exc}"
+                        )
                 raise
             finally:
                 conn.close()
@@ -1393,8 +1430,17 @@ class ChatDeliveryJournal:
             except BaseException:  # noqa: BLE001 - transaction must roll back on interruption
                 try:
                     conn.rollback()
-                except sqlite3.Error:
-                    pass
+                except sqlite3.Error as rollback_exc:
+                    # The original failure is on its way up; this one would
+                    # vanish with the handler. A note rides out on the
+                    # exception being re-raised, which is the only carrier
+                    # that survives a bare `raise`.
+                    exc = sys.exception()
+                    if exc is not None:
+                        exc.add_note(
+                            "rollback also failed: "
+                            f"{type(rollback_exc).__name__}: {rollback_exc}"
+                        )
                 raise
             finally:
                 conn.close()

@@ -19,6 +19,7 @@ the request means a person never has to phrase it as one.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -27,6 +28,8 @@ from typing import Any
 from core.conversation.request_mood import assess_request_mood
 from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
+
+logger = logging.getLogger(__name__)
 
 #: Cues that something is to be kept up rather than done once.
 #:
@@ -132,6 +135,8 @@ def _remembered() -> float:
     try:
         held = json.loads(_measured_at().read_text())
         kept = float(held.get("seconds") or 0.0)
+    # not a failure: nothing measured yet, in this process or the last one,
+    # and 0.0 is how that is reported.
     except (OSError, ValueError, TypeError, AttributeError):
         return 0.0
     if kept > 0.0:
@@ -875,7 +880,15 @@ def _nothing_to_watch(text: str) -> bool:
 
     try:
         from core.language.named_paths import named_paths
-    except (ImportError, AttributeError):
+    except (ImportError, AttributeError) as exc:
+        # False routes the request away from the screen lane, which is the
+        # cautious direction, but it should not happen silently.
+        logger.debug(
+            "named paths unavailable (%s: %s); not treating this as a screen "
+            "pursuit",
+            type(exc).__name__,
+            exc,
+        )
         return False
     if not named_paths(text):
         return False

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from core.runtime import background_policy
 from core.runtime.service_registry import get_runtime_service
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.utils.task_tracker import get_task_tracker
+
+logger = logging.getLogger(__name__)
 
 # Shared hard bound for a caller-admitted user-facing completion. Compact and
 # background lanes apply smaller policy limits; this ceiling exists so every
@@ -100,7 +103,13 @@ def clear_background_generation(state: Any, objective: Any) -> None:
                         drive.satisfy("curiosity", 5.0),
                         name="response_policy.drive_curiosity",
                     )
+                # not a failure: off a loop there is nothing to schedule the
+                # drive updates on, and they are not worth a thread.
                 except RuntimeError:
-                    pass  # no event loop — skip
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # no-op: intentional
+                    pass
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "drive satisfaction not scheduled after a reply (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )

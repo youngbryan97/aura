@@ -411,6 +411,8 @@ def validate_mode_at_startup() -> None:
             from core.runtime.proof_policy import proof_headless_run
 
             _proof_offline = proof_headless_run()
+        # not a failure: no proof-policy module means this is not a headless
+        # proof run, which is what False says.
         except (ImportError, RuntimeError, AttributeError):
             _proof_offline = False
         if not _proof_offline:
@@ -423,8 +425,12 @@ def validate_mode_at_startup() -> None:
                     severity="warning",
                     action="ran with production capabilities but non-hardened governance",
                 )
-            except (ImportError, AttributeError, RuntimeError):
-                pass
+            except (ImportError, AttributeError, RuntimeError) as exc:
+                logger.warning(
+                    "non-hardened governance was not recorded as a degradation (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
     else:
         logger.info(
             "Governance: strict_will=%s enforce_contracts=%s (hardened=%s)",

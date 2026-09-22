@@ -74,9 +74,10 @@ def connecting(connection: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
     finally:
         try:
             connection.close()
+        # not a failure: a connection that cannot close is already unusable,
+        # and raising here would replace the caller's real exception with a
+        # cleanup one.
         except sqlite3.Error:
-            # A connection that cannot close is already unusable; raising here
-            # would replace the caller's real exception with a cleanup one.
             pass
 
 
@@ -130,6 +131,8 @@ def track(connection: sqlite3.Connection) -> sqlite3.Connection:
     try:
         with _TRACKED_LOCK:
             _TRACKED.add(connection)
+    # not a failure: the docstring above says so — a plain sqlite3.Connection
+    # cannot be weakly referenced, and such a store closes itself.
     except TypeError:
         pass
     return connection
@@ -146,6 +149,8 @@ def connection_is_open(connection: sqlite3.Connection) -> bool:
     try:
         connection.execute("SELECT 1")
         return True
+    # not a failure: "Cannot operate on a closed database" is the answer this
+    # asks for, which the docstring above describes.
     except sqlite3.ProgrammingError:
         return False
     except sqlite3.Error:

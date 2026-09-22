@@ -79,6 +79,8 @@ def finite(value: Any) -> float | None:
         return None
     try:
         num = float(value)
+    # not a failure: being handed something that is not a number, and saying
+    # so, is this function's whole job.
     except (TypeError, ValueError):
         return None
     return num if math.isfinite(num) else None

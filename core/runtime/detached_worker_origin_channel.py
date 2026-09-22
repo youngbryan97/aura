@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import os
 import select
@@ -20,6 +21,8 @@ from core.runtime.detached_worker_origin import (
     DetachedWorkerOriginAuthority,
     DetachedWorkerOriginError,
 )
+
+logger = logging.getLogger(__name__)
 
 WORKER_ORIGIN_FD_ENV = "AURA_DETACHED_WORKER_ORIGIN_FD"
 WORKER_ORIGIN_SESSION_ENV = "AURA_DETACHED_WORKER_ORIGIN_SESSION"
@@ -178,6 +181,9 @@ def _send_frame(
         while view:
             try:
                 sent = channel.send(view)
+            # not a failure: a non-blocking socket saying "not now" is the
+            # normal case this loop is written around, and the deadline below
+            # is what turns a persistent one into an error.
             except BlockingIOError:
                 sent = 0
             if sent > 0:
@@ -326,8 +332,15 @@ class DetachedWorkerOriginChannelServer:
                 role="worker_origin_response",
                 timeout_s=self._io_timeout_s,
             )
-        except DetachedWorkerOriginChannelError:
-            pass
+        except DetachedWorkerOriginChannelError as exc:
+            # The worker is waiting on this refusal. Losing it means the
+            # caller waits out its timeout instead of being told no.
+            logger.warning(
+                "worker origin refusal %s for sequence %s was not delivered: %s",
+                code,
+                sequence,
+                exc,
+            )
 
     def poll_once(self) -> bool:
         """Process at most one packet; return whether a packet was consumed."""

@@ -178,6 +178,41 @@ def look(paths: list[Path]) -> list[dict[str, object]]:
     return found
 
 
+def sealed_by_a_qualification() -> set[Path]:
+    """Files a measurement has bound by byte hash, which must not be edited.
+
+    Two ratchets, pulling opposite ways. The bounded-WOW surface seals
+    fifteen source files by SHA-256 of their BYTES, because a qualification
+    run measured what those exact files do: the seal is the claim that the
+    thing measured is the thing serving. A comment changes the bytes, so
+    adding one switches the surface off until somebody re-runs 120 tasks.
+
+    That has happened twice. On 2026-08-17 four bound files moved under
+    ordinary development and a signal established at p=5.7e-14 was dark for
+    two days before anyone noticed. On 2026-09-21 four annotation lines
+    written for THIS gate did it again, and the smoke suite caught it.
+
+    So this gate stops asking. A sealed file's handlers are real and still
+    worth fixing, but they can only be fixed in the same change that re-runs
+    the qualification, and a gate that demands an edit another gate forbids
+    teaches people to edit the seal instead.
+    """
+    try:
+        sys.path.insert(0, str(Path.cwd()))
+        from core.brain.llm.semantic_neural_serving import (
+            ACTIVATION_SOURCE_FILES,
+            REPO_ROOT,
+        )
+    except Exception as exc:  # noqa: BLE001 - any import failure means no seal here
+        print(f"   (no bound-source seal readable: {type(exc).__name__}: {exc})")
+        return set()
+    return {
+        (Path(REPO_ROOT) / relative).resolve()
+        for relative in ACTIVATION_SOURCE_FILES
+        if str(relative).endswith(".py")
+    }
+
+
 def main() -> int:
     ask = argparse.ArgumentParser(description=__doc__)
     ask.add_argument("paths", nargs="*", default=["core", "interface", "skills"])
@@ -190,6 +225,14 @@ def main() -> int:
     for one in args.paths:
         here = Path(one)
         files.extend(sorted(here.rglob("*.py")) if here.is_dir() else [here])
+    sealed = sealed_by_a_qualification()
+    skipped = [one for one in files if one.resolve() in sealed]
+    if skipped:
+        files = [one for one in files if one.resolve() not in sealed]
+        print(
+            f"{len(skipped)} file(s) skipped: sealed by a qualification and "
+            "editable only with it"
+        )
     found = look(files)
 
     by_kind: dict[str, int] = {}

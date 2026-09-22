@@ -908,8 +908,16 @@ def _record_degradation_backpressure_decision(_is_timeout, _shutting_down, actio
         try:
             from slo.slo_monitor import get_slo_monitor
             get_slo_monitor().record("error_events_per_hour", 1.0)
-        except (ImportError, AttributeError, RuntimeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError) as slo_exc:
+            # The error budget is the thing that notices a bad hour. A silent
+            # except here makes the hour look clean.
+            logger.debug(
+                "error-event SLO not recorded for %s/%s (%s: %s)",
+                subsystem,
+                error_type,
+                type(slo_exc).__name__,
+                slo_exc,
+            )
 
     if failure_policy_violation and enforce_failure_policy:
         raise RuntimeError(failure_policy_error)

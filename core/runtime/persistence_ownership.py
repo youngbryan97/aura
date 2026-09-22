@@ -129,7 +129,13 @@ def emit_persistence_receipt(
         if bytes_written is None:
             try:
                 bytes_written = path.stat().st_size
-            except OSError:
+            except OSError as exc:
+                logger.debug(
+                    "could not size %s for its write receipt (%s: %s); recording 0",
+                    path,
+                    type(exc).__name__,
+                    exc,
+                )
                 bytes_written = 0
 
         get_receipt_store().emit(
@@ -144,7 +150,15 @@ def emit_persistence_receipt(
             )
         )
         return True
-    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        # False means no receipt exists for a write that already happened,
+        # which is the shape an ownership audit later reports as a gap.
+        logger.warning(
+            "no memory-write receipt for %s (%s: %s)",
+            path,
+            type(exc).__name__,
+            exc,
+        )
         return False
 
 

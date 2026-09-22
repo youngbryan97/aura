@@ -340,7 +340,14 @@ class ResourceAdmissionController:
                     f"{','.join(snapshot.suspended_capabilities) or 'none'}"
                 ),
             )
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            # Returning here leaves the pressure conditions at whatever they
+            # last said, which reads downstream as a healthy envelope.
+            logger.debug(
+                "pressure conditions not published (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return
 
     async def pressure_snapshot_async(self) -> PressureSnapshot:
@@ -998,7 +1005,12 @@ class ResourceAdmissionController:
         try:
             self.pressure_snapshot()
             return True
-        except (OSError, RuntimeError, AttributeError, TypeError, ValueError):
+        except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.warning(
+                "admission controller reports not alive: %s: %s",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     def is_ready(self) -> bool:
@@ -1344,7 +1356,13 @@ class RuntimeControlPlane:
                 ConditionStatus.TRUE if recovering else ConditionStatus.FALSE,
                 reason=f"next_retry_at={observation.next_retry_at:.0f}" if recovering else reason,
             )
-        except (ImportError, AttributeError, TypeError, ValueError, KeyError):
+        except (ImportError, AttributeError, TypeError, ValueError, KeyError) as exc:
+            logger.debug(
+                "service conditions for %s not published (%s: %s)",
+                getattr(observation, "name", "?"),
+                type(exc).__name__,
+                exc,
+            )
             return
 
     @staticmethod
@@ -1710,7 +1728,12 @@ class RuntimeControlPlane:
                 reason="CircuitOpen" if circuits else "NoOpenCircuits",
                 message=",".join(circuits),
             )
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "reconciliation conditions not published (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return
 
     def service_status(self) -> dict[str, dict[str, Any]]:
@@ -1732,7 +1755,12 @@ class RuntimeControlPlane:
         try:
             self.admission.pressure_snapshot()
             return True
-        except (OSError, RuntimeError, AttributeError, TypeError, ValueError):
+        except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.warning(
+                "control plane reports not alive: %s: %s",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     def is_ready(self) -> bool:

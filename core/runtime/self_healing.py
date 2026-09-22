@@ -116,6 +116,8 @@ def _diagnose_this_failure(subsystem: str, reason: str) -> Any:
 
     try:
         from core.resilience.unknown_failure import look_at_this_failure
+    # not a failure: the docstring above says a diagnosis that cannot be made
+    # must never stop a repair that can.
     except ImportError:
         return None
     try:
@@ -306,6 +308,8 @@ class SelfHealing:
             return
         try:
             error = task.exception()
+        # not a failure: a cancelled loop task has no exception to consume,
+        # and this reader is not the one that cancelled it.
         except asyncio.CancelledError:
             return
         except _SELF_HEALING_RECOVERABLE_ERRORS as exc:

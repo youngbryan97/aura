@@ -81,6 +81,8 @@ def bounded_float(
     if not is_finite_number(value):
         try:
             candidate = float(value)  # strings like "0.5" are still accepted
+        # not a failure: a value that will not become a number falls to the
+        # default, which is what the docstring above describes.
         except (TypeError, ValueError):
             candidate = None
         if candidate is None or not math.isfinite(candidate):

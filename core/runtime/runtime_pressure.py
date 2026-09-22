@@ -87,8 +87,9 @@ def _model_resource_lifecycle_snapshot() -> dict[str, Any]:
         process = getattr(client, "_process", None)
         try:
             alive = bool(process is not None and process.is_alive())
+        # not a failure: a closed handle means the process is gone, which is
+        # an answer.
         except (AttributeError, OSError, RuntimeError, ValueError):
-            # A closed handle means the process is gone, which is an answer.
             #
             # multiprocessing raises ValueError("process object is closed")
             # once a worker has been reaped and its handle closed — and that

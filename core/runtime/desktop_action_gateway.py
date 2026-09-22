@@ -223,6 +223,8 @@ def _native_applescript_error_types() -> tuple[type[BaseException], ...]:
         import objc
 
         errors.append(objc.error)
+    # not a failure: without PyObjC there is no objc.error to add to the
+    # recoverable set, and the osascript transport carries the work.
     except ImportError:
         pass
     return tuple(errors)
@@ -237,6 +239,8 @@ def _run_native_applescript(script: str) -> dict[str, Any] | None:
     """
     try:
         from Foundation import NSAppleScript
+    # not a failure: no PyObjC bridge means the bounded osascript transport
+    # runs the script instead, which is the documented fallback above.
     except (ImportError, AttributeError):
         return None
 

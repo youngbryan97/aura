@@ -225,10 +225,13 @@ def _coerce_tier(value: MaturityTier | str | int) -> MaturityTier | None:
     if isinstance(value, int):
         try:
             return MaturityTier(value)
+        # not a failure: being asked whether a number names a tier, and
+        # answering that it does not, is this function's job.
         except ValueError:
             return None
     try:
         return MaturityTier[str(value).strip().upper()]
+    # not a failure: the same question asked with a name instead of a number.
     except KeyError:
         return None
 

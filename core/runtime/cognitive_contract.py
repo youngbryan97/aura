@@ -359,8 +359,12 @@ def _ensure_registry_loaded() -> None:
         from core.runtime.phase_contract_registry import ensure_contracts_loaded
 
         ensure_contracts_loaded()
-    except ImportError:  # pragma: no cover - registry is part of the package
-        pass
+    except ImportError as exc:  # pragma: no cover - registry ships with the package
+        logger.warning(
+            "phase contract registry did not import (%s); no contracts are "
+            "declared for this process",
+            exc,
+        )
 
 
 def watched_fields() -> tuple[str, ...]:

@@ -54,6 +54,8 @@ def allowed_fetch_domains() -> set[str]:
 def ip_is_public(ip_text: str) -> bool:
     try:
         ip = ipaddress.ip_address(ip_text)
+    # not a failure: something that is not an IP address is not a public one,
+    # which is the safe answer to the question asked.
     except ValueError:
         return False
     if ip_text in CLOUD_METADATA_ADDRESSES:
@@ -195,6 +197,8 @@ def _is_loopback_only(url: str) -> bool:
         infos = socket.getaddrinfo(
             host, parsed.port or (443 if scheme == "https" else 80), proto=socket.IPPROTO_TCP
         )
+    # not a failure: a name that does not resolve is not a loopback address,
+    # and False is the refusing direction here.
     except (socket.gaierror, OSError, ValueError):
         return False
     addrs = {info[4][0] for info in infos}
@@ -204,6 +208,8 @@ def _is_loopback_only(url: str) -> bool:
         try:
             if not ipaddress.ip_address(addr).is_loopback:
                 return False
+        # not a failure: an address that will not parse is not proven to be
+        # loopback, and this refuses rather than assumes.
         except ValueError:
             return False
     return True

@@ -269,7 +269,14 @@ class EventLog:
             return
         try:
             from core.runtime.atomic_writer import interprocess_file_lock
-        except ImportError:  # pragma: no cover - foundation import order
+        except ImportError as exc:  # pragma: no cover - foundation import order
+            # Yielding without the lock means two processes may interleave
+            # writes into the same file, which is what this holds off.
+            logger.warning(
+                "interprocess lock unavailable (%s); holding %s without one",
+                exc,
+                self._kept_at,
+            )
             yield
             return
         # A SIBLING file, not the log itself. `atomic_append_text` flocks the
@@ -726,9 +733,9 @@ def _where_the_experience_is_kept() -> Path | None:
         if runtime_profile() is not RuntimeProfile.LIVE:
             return None
         return Path(state_root()) / "experience.jsonl"
+    # not a failure: no path means an in-memory log, which still works. Those
+    # four are what "there is no state root here" raises.
     except (ImportError, AttributeError, RuntimeError, OSError):
-        # No path means an in-memory log, which still works. Those four are
-        # what "there is no state root here" raises.
         return None
 
 

@@ -193,7 +193,14 @@ class AuditChain:
                 int(st.st_size),
                 int(getattr(st, "st_mtime_ns", int(st.st_mtime * 1_000_000_000))),
             )
-        except OSError:
+        except OSError as exc:
+            logger.debug(
+                "chain signature unavailable for %s (%s: %s); "
+                "treating the chain as unseen",
+                self.path,
+                type(exc).__name__,
+                exc,
+            )
             return None
 
     def _reconcile_next_seq_locked(self) -> int | None:
@@ -469,7 +476,12 @@ class AuditChain:
         if hasattr(os, "O_DIRECTORY"):
             try:
                 dir_fd = os.open(str(self.root), os.O_DIRECTORY)
-            except OSError:
+            except OSError as _exc:
+                logger.debug(
+                    "Suppressed %s in core.runtime.audit_chain: %s",
+                    type(_exc).__name__,
+                    _exc,
+                )
                 return
             try:
                 try:

@@ -43,6 +43,8 @@ def delete_shutdown_artifact(path: PathLike) -> bool:
     target = Path(path).expanduser()
     try:
         target.unlink()
+    # not a failure: the artifact is already gone, and False is this
+    # function's word for "there was nothing to delete".
     except FileNotFoundError:
         return False
     return True

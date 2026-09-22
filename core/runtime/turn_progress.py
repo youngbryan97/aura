@@ -21,10 +21,13 @@ when worker callbacks and tool completion run on different async tasks.
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 import weakref
 
 from core.runtime.lockdep import checked_lock
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "TurnProgress",
@@ -61,6 +64,8 @@ class ToolActivity:
         self.progress = progress
         try:
             task = asyncio.current_task()
+        # not a failure: a tool started off the loop has no task to bind to,
+        # and the handle falls back to the turn alone.
         except RuntimeError:
             task = None
         self._task = weakref.ref(task) if task is not None else None
@@ -143,6 +148,10 @@ def still_producing(*, within_s: float, progress: TurnProgress | None = None) ->
     try:
         window = float(within_s)
     except (TypeError, ValueError):
+        logger.warning(
+            "progress window %r is not a number; reporting no recent tokens",
+            within_s,
+        )
         return False
     if not (window > 0.0):
         return False
@@ -183,5 +192,11 @@ def normal_gap_between_tokens(measured_for_64_tokens: float = 0.0) -> float:
     try:
         measured = float(measured_for_64_tokens)
     except (TypeError, ValueError):
+        # The floor below covers this, and the docstring says an unmeasured
+        # rate must not make every pause look like a stall.
+        logger.debug(
+            "measured 64-token time %r is not a number; using the floor",
+            measured_for_64_tokens,
+        )
         measured = 0.0
     return max(20.0, measured)

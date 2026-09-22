@@ -1,11 +1,13 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
 
-
+import logging
 from typing import Any
 
 from core.container import ServiceContainer
 from core.exceptions import ServiceNotFoundError
+from core.runtime.errors import record_degradation
+
+logger = logging.getLogger(__name__)
 
 
 def optional_service(*names: Any, default: Any = None) -> Any:
@@ -134,7 +136,14 @@ def resolve_identity_prompt_surface(orchestrator: Any = None, *, default: Any = 
         from core.identity import get_identity_system
 
         prompt_surface = get_identity_system(orchestrator)
-    except (ImportError, AttributeError, RuntimeError):
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        # Without a prompt surface she answers with no system prompt at all,
+        # which is a different Aura rather than a quieter one.
+        logger.warning(
+            "identity system unavailable (%s: %s); no prompt surface resolved",
+            type(exc).__name__,
+            exc,
+        )
         prompt_surface = None
     if prompt_surface is not None and (
         hasattr(prompt_surface, "get_full_system_prompt")
@@ -173,7 +182,12 @@ def resolve_llm_router(*, kernel_interface: Any = None, default: Any = None) -> 
     if callable(getter):
         try:
             instance = getter()
-        except (RuntimeError, AttributeError, TypeError, ValueError):
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "llm organ get_instance raised (%s: %s); falling through",
+                type(exc).__name__,
+                exc,
+            )
             instance = None
         if instance is not None:
             return instance

@@ -28,15 +28,18 @@ from __future__ import annotations
 
 import enum
 import json
+import logging
 import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import runtime_identity, state_root
+from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "Requirement",
@@ -357,7 +360,15 @@ async def write_certificate_async(
 def load_certificate(path: Path | str) -> dict[str, Any] | None:
     try:
         return json.loads(Path(path).read_text("utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError) as exc:
+        # None reads as "no certificate here", and a certificate that exists
+        # and will not parse is a different thing to know.
+        logger.warning(
+            "certificate at %s could not be loaded (%s: %s)",
+            path,
+            type(exc).__name__,
+            exc,
+        )
         return None
 
 

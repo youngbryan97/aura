@@ -6,6 +6,7 @@ import errno
 import fcntl
 import os
 import stat
+import sys
 from collections.abc import Collection, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -175,8 +176,15 @@ def _open_directory_no_follow(path: PathLike) -> tuple[int, Path]:
     except BaseException:
         try:
             os.close(descriptor)
-        except OSError:
-            pass
+        except OSError as close_exc:
+            # The original refusal is on its way up; a leaked descriptor is
+            # worth a note on it rather than a second silence.
+            pending = sys.exception()
+            if pending is not None:
+                pending.add_note(
+                    f"descriptor {descriptor} also failed to close: "
+                    f"{type(close_exc).__name__}: {close_exc}"
+                )
         raise
 
 

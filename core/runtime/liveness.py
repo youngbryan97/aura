@@ -7,10 +7,13 @@ wedged can depend on this module without importing the watchdog thread class.
 """
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from dataclasses import asdict, dataclass
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -53,10 +56,21 @@ def mark_runtime_service_progress(source: str = "runtime") -> None:
         )
 
     try:
-        from core.resilience.stall_watchdog import mark_runtime_service_progress as _mark_watchdog_progress
+        from core.resilience.stall_watchdog import (
+            mark_runtime_service_progress as _mark_watchdog_progress,
+        )
 
         _mark_watchdog_progress(normalized)
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        # The watchdog decides whether this service is wedged. Progress it
+        # never hears about is progress that did not happen, as far as it
+        # is concerned.
+        logger.debug(
+            "stall watchdog did not record progress for %s (%s: %s)",
+            normalized,
+            type(exc).__name__,
+            exc,
+        )
         return
 
 

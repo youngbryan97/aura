@@ -83,6 +83,8 @@ def _port_open(port: int, host: str = "127.0.0.1", timeout: float = 0.15) -> boo
     try:
         with socket.create_connection((host, port), timeout=timeout):
             return True
+    # not a failure: asking whether a port answers, and being told it does
+    # not, is what this function is for.
     except (OSError, RuntimeError, AttributeError, TypeError, ValueError):
         return False
 
@@ -717,8 +719,9 @@ class FlagshipDoctorDaemon:
 
             asleep: float = seconds_asleep_since(anchor[0], anchor[1])
             return asleep
+        # not a failure: unmeasurable is 0.0, which leaves this no worse than
+        # before the host-sleep reading existed.
         except (ImportError, AttributeError, TypeError, ValueError, OSError):
-            # Unmeasurable is 0.0, which leaves this no worse than before.
             return 0.0
 
     def _monitor_loop(self) -> None:

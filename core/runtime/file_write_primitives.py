@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import stat
+import sys
 import threading
 import time
 from pathlib import Path
@@ -128,8 +129,13 @@ def open_directory_no_follow(path: PathLike) -> tuple[int, Path]:
     except BaseException:
         try:
             os.close(descriptor)
-        except OSError:
-            pass
+        except OSError as close_exc:
+            pending = sys.exception()
+            if pending is not None:
+                pending.add_note(
+                    f"descriptor {descriptor} also failed to close: "
+                    f"{type(close_exc).__name__}: {close_exc}"
+                )
         raise
 
 
@@ -271,6 +277,8 @@ def assert_lock_binding(directory_fd: int, lock_fd: int) -> None:
 def exists_at(directory_fd: int, name: str) -> bool:
     try:
         os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+    # not a failure: the question is whether the name is there, and this is
+    # the answer "no".
     except FileNotFoundError:
         return False
     return True
@@ -283,6 +291,7 @@ def unlink_private_regular_at(directory_fd: int, name: str) -> None:
             dir_fd=directory_fd,
             follow_symlinks=False,
         )
+    # not a failure: unlinking what is already gone is the state this asks for.
     except FileNotFoundError:
         return
     if (

@@ -126,7 +126,14 @@ def foreground_inference_active() -> bool:
             InferenceGate._foreground_user_turn_active()
             or InferenceGate._foreground_owner_active()
         )
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        # False here says "the lane is idle", which is what a caller acts on.
+        # It must not be how "we could not ask" looks.
+        logger.debug(
+            "foreground inference state unreadable (%s: %s); reporting idle",
+            type(exc).__name__,
+            exc,
+        )
         return False
 
 

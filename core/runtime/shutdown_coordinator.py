@@ -184,9 +184,9 @@ class ShutdownCoordinator:
             from core.resilience.verified_state_machine import IllegalTransitionError
             try:
                 self._lifecycle.transition(to_state)
+            # not a failure: the machine already recorded it as F17, and
+            # recording it twice is not two facts.
             except IllegalTransitionError:
-                # not a failure here: the machine already recorded it as
-                # F17, and recording it twice is not two facts.
                 pass
         except ImportError as exc:
             logger.debug("Lifecycle transition skipped: %s", exc)

@@ -120,8 +120,18 @@ class MemorySentinel:
         task.cancel()
         try:
             await task
-        except (asyncio.CancelledError, Exception):  # noqa: BLE001 — shutdown must not raise
-            pass
+        except asyncio.CancelledError:
+            # Our own cancel coming back is expected; one aimed at THIS
+            # coroutine has to keep going up.
+            current = asyncio.current_task()
+            if current is not None and current.cancelling() > 0:
+                raise
+        except Exception as exc:  # noqa: BLE001 — shutdown must not raise
+            logger.warning(
+                "memory sentinel did not stop cleanly: %s: %s",
+                type(exc).__name__,
+                exc,
+            )
         # Leaving a stall open would peg PSI at 100% forever.
         self._end_memory_stall()
 

@@ -98,8 +98,16 @@ class PerformanceGuard:
                 self.budgets.concurrent_heavy_lanes = 3
             if total_gb >= 96:
                 self.budgets.concurrent_heavy_lanes = 4
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # no-op: intentional
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            # The budget stays at its conservative default, which on a 64GB
+            # host is a third of the lanes it could run.
+            logger.warning(
+                "could not read host RAM to size heavy lanes (%s: %s); "
+                "keeping %d",
+                type(exc).__name__,
+                exc,
+                self.budgets.concurrent_heavy_lanes,
+            )
 
     # ── samples ───────────────────────────────────────────────────────
 
@@ -130,8 +138,13 @@ class PerformanceGuard:
             for cb in list(self._on_motion_change):
                 try:
                     cb(target)
-                except (RuntimeError, AttributeError, TypeError, ValueError):
-                    pass  # no-op: intentional
+                except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                    logger.warning(
+                        "motion-throttle callback %r raised (%s: %s); the rest still ran",
+                        getattr(cb, "__qualname__", cb),
+                        type(exc).__name__,
+                        exc,
+                    )
             logger.info("⏱ motion throttle %s (streak=%d)", "ON" if target else "OFF", self._streak)
 
     def on_motion_change(self, cb) -> None:
@@ -170,8 +183,12 @@ class PerformanceGuard:
                     json.dumps(row, default=str) + "\n",
                     source="runtime.performance_guard.samples",
                 )
-        except (json.JSONDecodeError, TypeError, ValueError):
-            pass  # no-op: intentional
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "performance sample not persisted (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
 
     # ── background watcher ───────────────────────────────────────────
 

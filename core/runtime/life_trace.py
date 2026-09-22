@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import sqlite3
 import threading
 import time
@@ -26,8 +27,11 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
-from core.runtime.state_ownership import state_root
+
 from core.runtime.sqlite_support import connecting
+from core.runtime.state_ownership import state_root
+
+logger = logging.getLogger(__name__)
 
 
 EVENT_TYPES = (
@@ -254,7 +258,16 @@ class LifeTraceLedger:
         for row in rows:
             try:
                 payload = json.loads(row["payload"])
-            except (json.JSONDecodeError, TypeError, ValueError):
+            except (json.JSONDecodeError, TypeError, ValueError) as exc:
+                # The chain is being declared broken. Which row, and why,
+                # is the whole value of the audit.
+                logger.error(
+                    "life trace chain broken at event %s: payload does not "
+                    "parse (%s: %s)",
+                    row["event_id"],
+                    type(exc).__name__,
+                    exc,
+                )
                 return False
             if row["prev_hash"] != prev:
                 return False

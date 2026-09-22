@@ -455,6 +455,7 @@ def _on_a_running_loop() -> bool:
     """True on a thread that is currently running an asyncio loop."""
     try:
         asyncio.get_running_loop()
+    # not a failure: no running loop is the answer to the question asked.
     except RuntimeError:
         return False
     return True

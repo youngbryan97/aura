@@ -323,8 +323,15 @@ class OrganSupervisor:
                         writer.wait_closed(),
                         timeout=min(1.0, float(timeout_s)),
                     )
-                except (RuntimeError, TimeoutError, AttributeError):
-                    pass
+                except (RuntimeError, TimeoutError, AttributeError) as exc:
+                    # In a finally: this must not replace whatever is already
+                    # on its way up, but a socket that will not close is worth
+                    # saying out loud.
+                    logger.debug(
+                        "organ socket did not close cleanly (%s: %s)",
+                        type(exc).__name__,
+                        exc,
+                    )
             decoded = json.loads(data.decode("utf-8"))
             if not isinstance(decoded, dict):
                 raise ValueError("organ response must be a JSON object")

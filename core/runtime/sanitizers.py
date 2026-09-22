@@ -343,6 +343,8 @@ def _iter_numbers(value: Any, *, limit: int = 4096) -> Iterator[float]:
                     count += 1
                     if count >= limit:
                         return
+        # not a failure: a value that claimed to be iterable and is not holds
+        # no numbers, which is what stopping here reports.
         except TypeError:
             return
 
@@ -441,6 +443,8 @@ class SequenceChecker:
 
         try:
             task = asyncio.current_task()
+        # not a failure: off a loop there is no current task, and the
+        # thread-based context below is used instead.
         except RuntimeError:
             task = None
         if task is not None:

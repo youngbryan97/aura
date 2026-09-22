@@ -205,7 +205,9 @@ def the_services_it_can_address(runtime: Any) -> dict[str, Any]:
     for name in declared:
         try:
             found = resolve(name, None)
-        except Exception:  # noqa: BLE001 — an unresolvable name is the answer
+        # not a failure: an unresolvable name is the answer this report is
+        # gathering, and it is counted as unaddressable below.
+        except Exception:  # noqa: BLE001
             found = None
         if found is None:
             unaddressable.append(name)

@@ -8,6 +8,7 @@ organs.  ``AURA_SAFE_BOOT_DESKTOP`` is reserved for an explicit recovery boot.
 from __future__ import annotations
 
 import importlib
+import logging
 import os
 import platform
 import threading
@@ -15,6 +16,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+logger = logging.getLogger(__name__)
 _GIB = 1024**3
 SAFE_BOOT_MLX_MEMORY_CAP_GB = 34.0
 SAFE_BOOT_PROCESS_RSS_CAP_GB = 56.0
@@ -128,6 +130,11 @@ def compute_mlx_memory_limit(total_ram_bytes: int, env: Mapping[str, str] | None
         try:
             configured_gb = float(configured)
         except (TypeError, ValueError, OverflowError):
+            logger.warning(
+                "AURA_MLX_MEMORY_LIMIT_GB=%r is not a number; ignoring it and "
+                "using the computed ceiling",
+                configured,
+            )
             configured_gb = 0.0
         if configured_gb > 0.0:
             configured_limit = int(configured_gb * _GIB)
@@ -232,6 +239,11 @@ def compute_process_rss_limit(total_ram_bytes: int, env: Mapping[str, str] | Non
         try:
             configured_gb = float(configured)
         except (TypeError, ValueError, OverflowError):
+            logger.warning(
+                "AURA_PROCESS_RSS_LIMIT_GB=%r is not a number; ignoring it and "
+                "using the computed ceiling",
+                configured,
+            )
             configured_gb = 0.0
         if configured_gb > 0.0:
             configured_limit = int(configured_gb * _GIB)
@@ -307,6 +319,12 @@ def _macos_major_version(version: str | None = None) -> int:
     try:
         return int(head)
     except ValueError:
+        # 0 reads downstream as "older than every version gate", so a release
+        # string this cannot parse must not look like a plain old macOS.
+        logger.warning(
+            "could not read a macOS major version out of %r; reporting 0",
+            release,
+        )
         return 0
 
 

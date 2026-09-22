@@ -825,6 +825,9 @@ def _process_uptime_seconds() -> float:
     """
     try:
         orch = get_runtime_service("orchestrator", default=None)
+    # not a failure: no orchestrator registered means no boot to measure, and
+    # 0.0 withholds the boot-grace exemption rather than granting it. The
+    # docstring above says so.
     except (RuntimeError, AttributeError, TypeError, ValueError):
         return 0.0
     for candidate in (
@@ -1065,7 +1068,15 @@ def _read_participation(service: Any, requirement: ServiceRequirement) -> float 
         if not callable(probe):
             return None
         value = probe()
-    except (AttributeError, RuntimeError, TypeError, ValueError, OSError):
+    except (AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
+        # None here means "this requirement has no verdict", and a probe that
+        # RAISED is the most interesting way to reach it.
+        logger.debug(
+            "participation check %s raised (%s: %s); no verdict recorded",
+            probe_name,
+            type(exc).__name__,
+            exc,
+        )
         return None
     if isinstance(value, bool):
         return 1.0 if value else 0.0
@@ -2369,6 +2380,7 @@ def _on_event_loop() -> bool:
         import asyncio
 
         asyncio.get_running_loop()
+    # not a failure: no running loop is the answer to the question asked.
     except (RuntimeError, ImportError):
         return False
     return True

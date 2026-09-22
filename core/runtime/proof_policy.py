@@ -165,6 +165,8 @@ def structured_proof_solver_enabled(*, origin: Any = None) -> bool:
         return False
     try:
         from core.runtime.ablation_policy import service_intentionally_lesioned
+    # not a failure: without an ablation policy nothing is lesioned, and the
+    # else-branch below is the only thing this import feeds.
     except ImportError:
         pass
     else:

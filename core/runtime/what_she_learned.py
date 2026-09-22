@@ -178,5 +178,13 @@ def forget(world: str) -> bool:
             _kept_in() / f"{named(world)}.json", source="what_she_learned"
         )
         return True
-    except (OSError, RuntimeError, TypeError, ValueError):
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        # False says "there was nothing to forget", and a delete that failed
+        # means she still knows it.
+        logger.warning(
+            "could not forget %r (%s: %s)",
+            world,
+            type(exc).__name__,
+            exc,
+        )
         return False

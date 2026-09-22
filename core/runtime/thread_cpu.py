@@ -21,9 +21,12 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.util
+import logging
 import os
 import sys
 import threading
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["thread_cpu_seconds", "thread_cpu_share"]
 
@@ -67,7 +70,16 @@ def _mach_libc() -> ctypes.CDLL | None:
             ctypes.c_void_p,
             ctypes.POINTER(ctypes.c_uint),
         ]
-    except (AttributeError, OSError, TypeError):
+    except (AttributeError, OSError, TypeError) as exc:
+        # Every per-thread CPU reading is unavailable from here on, once, for
+        # the life of the process — which is what lockdep uses to tell a
+        # section that is working from one that is blocked.
+        logger.warning(
+            "mach thread_info is unavailable (%s: %s); per-thread CPU will "
+            "not be measured",
+            type(exc).__name__,
+            exc,
+        )
         _MACH_UNAVAILABLE = True
         return None
     _libc = libc
@@ -104,6 +116,8 @@ def _proc_thread_cpu_seconds(native_id: int) -> float | None:
         fields = stat[stat.rindex(")") + 2 :].split()
         ticks = float(fields[11]) + float(fields[12])
         return ticks / float(os.sysconf("SC_CLK_TCK"))
+    # not a failure: no /proc means this reader has nothing to offer, and the
+    # caller reports per-thread CPU as unmeasured.
     except (OSError, ValueError, IndexError):
         return None
 

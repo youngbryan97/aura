@@ -841,6 +841,12 @@ class _WarmsUpAndSwapsAdapters:
                     action="retried or recycled warmup precompile after cancellation",
                 )
                 raise
+            except _WarmupDeferredError:
+                # A deferral is not an attempt that failed. Rebooting the
+                # worker and burning half the campaign to "recover" from the
+                # runtime declining to spawn one is the opposite of what it
+                # asked for, and the caller has a branch that stands down.
+                raise
             except (RuntimeError, TimeoutError, AttributeError) as exc:
                 last_exc = exc
                 if attempt == 0:

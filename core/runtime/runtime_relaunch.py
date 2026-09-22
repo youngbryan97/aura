@@ -18,6 +18,7 @@ observe the old process exiting means the waiter declines rather than guesses.
 from __future__ import annotations
 
 import errno
+import logging
 import os
 import socket
 import subprocess
@@ -26,6 +27,8 @@ import time
 from typing import Any
 
 from core.runtime.errors import record_degradation
+
+logger = logging.getLogger(__name__)
 
 _SUBSYSTEM = "runtime.relaunch"
 
@@ -64,6 +67,8 @@ def _port_is_free(port: int) -> bool:
         probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             probe.bind(("127.0.0.1", port))
+        # not a failure: a port that will not bind is a port in use, which is
+        # the question being asked.
         except OSError:
             return False
     return True
@@ -75,11 +80,19 @@ def _port_from_argv(argv: list[str]) -> int:
             try:
                 return int(argv[index + 1])
             except ValueError:
+                logger.warning(
+                    "--port %r is not a number; treating the port as unset",
+                    argv[index + 1],
+                )
                 return 0
         if token.startswith("--port="):
             try:
                 return int(token.split("=", 1)[1])
             except ValueError:
+                logger.warning(
+                    "%r does not carry a numeric port; treating the port as unset",
+                    token,
+                )
                 return 0
     return 0
 
@@ -124,7 +137,14 @@ def _why_this_process_must_not_replace_itself(argv: list[str]) -> str:
         from core.runtime.state_ownership import RuntimeProfile, runtime_profile
 
         profile = runtime_profile()
-    except (ImportError, RuntimeError, ValueError):
+    except (ImportError, RuntimeError, ValueError) as exc:
+        # None means the profile check below does not run, so a non-live
+        # process could be relaunched as if it were the runtime.
+        logger.warning(
+            "runtime profile unreadable (%s: %s); relaunch is deciding without it",
+            type(exc).__name__,
+            exc,
+        )
         profile = None
     if profile is not None and profile is not RuntimeProfile.LIVE:
         return f"not_a_live_runtime:profile={getattr(profile, 'value', profile)}"

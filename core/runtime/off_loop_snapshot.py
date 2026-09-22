@@ -32,6 +32,7 @@ T = TypeVar("T")
 def _on_event_loop() -> bool:
     try:
         asyncio.get_running_loop()
+    # not a failure: no running loop is the answer to the question asked.
     except RuntimeError:
         return False
     return True

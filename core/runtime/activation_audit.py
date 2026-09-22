@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -17,6 +18,8 @@ from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
+
+logger = logging.getLogger(__name__)
 
 Starter = Callable[[Any], Awaitable[Any] | Any]
 
@@ -211,7 +214,12 @@ async def _register_architecture_governor(orchestrator: Any) -> Any:
                 name="ArchitectureGovernorBootAudit",
             )
             boot_audit_scheduled = True
-        except (ImportError, AttributeError, RuntimeError):
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.warning(
+                "architecture governor boot audit was not scheduled (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             boot_audit_scheduled = False
     return {
         "registered": True,

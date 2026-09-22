@@ -53,6 +53,8 @@ def _read_nsprocessinfo() -> ThermalReading | None:
 
         level = int(NSProcessInfo.processInfo().thermalState())
         return ThermalReading(level=max(0, min(3, level)), source="nsprocessinfo")
+    # not a failure: None means this source has nothing to say, and the
+    # caller tries the next one.
     except (ImportError, AttributeError, ValueError, TypeError):
         return None
 
@@ -69,6 +71,8 @@ def _read_pmset() -> ThermalReading | None:
             accelerator_capability="none",
         )
         out = proc.stdout or ""
+    # not a failure: None means this source has nothing to say, and the
+    # caller tries the next one.
     except (ImportError, OSError, RuntimeError, ValueError):
         return None
     match = re.search(r"CPU_Speed_Limit\s*=\s*(\d+)", out)
@@ -95,6 +99,8 @@ def _read_psutil() -> ThermalReading | None:
         if not callable(sensors):
             return None
         temps = sensors() or {}
+    # not a failure: None means this source has nothing to say, and it is the
+    # last one — the caller reports thermal state as unknown.
     except (ImportError, OSError, RuntimeError, AttributeError):
         return None
     hottest = 0.0

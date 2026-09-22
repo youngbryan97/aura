@@ -9,6 +9,7 @@ reliably and reports the remaining hardware constraints explicitly.
 from __future__ import annotations
 
 import atexit
+import logging
 import os
 import platform
 import shutil
@@ -20,6 +21,8 @@ from typing import Any
 from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import record_degradation
 from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+logger = logging.getLogger(__name__)
 
 _ENABLED_VALUES = {"1", "true", "yes", "on", "enabled"}
 _DISABLED_VALUES = {"0", "false", "no", "off", "disabled"}
@@ -74,6 +77,8 @@ class AssertionProcess:
             except ProcessLookupError:
                 self.returncode = 0
                 return self.returncode
+            # not a failure: a live pid we may not signal is still alive, and
+            # None is this method's word for "still running".
             except PermissionError:
                 return None
             return None

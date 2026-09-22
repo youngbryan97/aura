@@ -389,6 +389,8 @@ def _drop(resource: str, waiter: _AWaiter) -> None:
         return
     try:
         queue.remove(waiter)
+    # not a failure: a waiter that has already left the queue is the state
+    # this is trying to reach.
     except ValueError:
         pass
 

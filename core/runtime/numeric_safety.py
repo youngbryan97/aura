@@ -62,6 +62,8 @@ def is_usable(value: Any) -> bool:
     """Whether ``value`` is a finite number safe to compare."""
     try:
         number = float(value)
+    # not a failure: being asked whether a value is a usable number, and
+    # answering no, is this function's job.
     except (TypeError, ValueError):
         return False
     return math.isfinite(number)

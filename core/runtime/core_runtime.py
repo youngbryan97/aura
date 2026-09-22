@@ -17,7 +17,10 @@ from core.runtime import resource_psutil as psutil
 def _get_mx():
     try:
         import mlx.core as mx
-    except (ImportError, AttributeError, RuntimeError):
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        # None here makes every MLX-dependent reading read as absent, which
+        # on this host means the mind is missing rather than idle.
+        logger.warning("mlx.core is unavailable (%s: %s)", type(exc).__name__, exc)
         return None
     return mx
 

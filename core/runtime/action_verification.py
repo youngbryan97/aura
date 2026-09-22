@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import inspect
 import json
+import logging
 import os
 import time
 from collections.abc import Awaitable, Callable, Mapping
@@ -14,6 +15,8 @@ from typing import Any
 
 from core.governance.will import ActionDomain
 from core.runtime.skill_contract import ActionExpectation
+
+logger = logging.getLogger(__name__)
 
 EffectVerifier = Callable[
     [Mapping[str, Any]],
@@ -471,7 +474,14 @@ def _json_envelope_payload_matches(path: Path, expected: Any) -> bool:
         from core.runtime.atomic_writer import read_json_envelope
 
         envelope = read_json_envelope(path)
-    except (OSError, RuntimeError, TypeError, ValueError):
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "verification could not read the envelope at %s (%s: %s); "
+            "reporting no match",
+            path,
+            type(exc).__name__,
+            exc,
+        )
         return False
     return bool(envelope.get("payload") == expected)
 

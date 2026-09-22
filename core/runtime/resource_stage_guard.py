@@ -121,8 +121,13 @@ def _write_create_once(path: Path, raw: bytes) -> None:
         if created:
             try:
                 destination.unlink()
-            except OSError:
-                pass
+            except OSError as unlink_exc:
+                # A half-written guard document left behind will be read as a
+                # real one on the next boot.
+                exc.add_note(
+                    f"partial guard document at {destination} could not be "
+                    f"removed: {type(unlink_exc).__name__}: {unlink_exc}"
+                )
         raise ResourceStageGuardError("resource guard document write failed") from exc
     finally:
         if descriptor is not None:

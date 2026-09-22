@@ -198,6 +198,8 @@ def _holder_is_live(identity: Identity) -> bool:
         return False
     try:
         os.kill(identity.pid, 0)
+    # not a failure: no such process is the answer this asks for — the holder
+    # is gone and the lease is reclaimable.
     except ProcessLookupError:
         return False
     except PermissionError:
@@ -263,6 +265,8 @@ class LeaderElector:
         path = _lease_path(self.name)
         try:
             raw = path.read_text(encoding="utf-8")
+        # not a failure: no lease file means no lease, which is a state this
+        # reads for, not an error.
         except FileNotFoundError:
             return None
         except OSError:

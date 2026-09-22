@@ -337,8 +337,14 @@ class AdmissionChain:
             from core.observability.histograms import record as record_histogram
 
             record_histogram("Aura.Admission.DurationMs", max(0.0, verdict.duration_s) * 1000.0)
-        except (ImportError, RuntimeError, ValueError, TypeError):
-            pass
+        except (ImportError, RuntimeError, ValueError, TypeError) as exc:
+            # A silent except here is how the histogram read empty the first
+            # time. Say it, quietly, rather than go back to that.
+            logger.debug(
+                "Aura.Admission.DurationMs not recorded (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
         with self._lock:
             if allowed:
                 self.admitted += 1

@@ -130,6 +130,12 @@ class BootPhases:
             idx = order.index(self.state)
             progress = (idx + 1) / len(order)
         except ValueError:
+            # A state missing from the order list reports 0% forever, which
+            # reads on the boot screen as a runtime that never started.
+            logger.warning(
+                "boot state %r is not in the progress order; reporting 0%%",
+                getattr(self.state, "value", self.state),
+            )
             progress = 0.0
         blocked_on = [k for k, v in self.organs.items() if v not in ("ready", "waiting", "paused")]
         return BootSnapshot(

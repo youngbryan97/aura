@@ -6,10 +6,12 @@ the engine claims to "abstract first principles."
 """
 from __future__ import annotations
 
-
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -81,7 +83,18 @@ class PrincipleValidator:
         for ep in episodes:
             try:
                 ok = bool(applicator(candidate, ep))
-            except (RuntimeError, AttributeError, TypeError, ValueError):
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                # An applicator that RAISES is not an episode the principle
+                # failed to cover; it is a broken applicator, and scoring it
+                # as a miss buries that in a validation rate.
+                logger.warning(
+                    "principle %s: applicator raised on episode %s (%s: %s); "
+                    "counting it as unmet",
+                    candidate.principle_id,
+                    getattr(ep, "episode_id", "?"),
+                    type(exc).__name__,
+                    exc,
+                )
                 ok = False
             if ok:
                 result.passed += 1

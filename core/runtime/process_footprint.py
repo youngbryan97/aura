@@ -8,9 +8,12 @@ cannot make watchdogs disagree or write past a duplicated ctypes structure.
 from __future__ import annotations
 
 import ctypes
+import logging
 import sys
 import threading
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class DarwinRUsageInfoV4(ctypes.Structure):
@@ -91,7 +94,14 @@ def _load_libproc() -> Any | None:
             ]
             library.proc_pid_rusage.restype = ctypes.c_int
             _LIBPROC = library
-        except (AttributeError, OSError, TypeError, ValueError):
+        except (AttributeError, OSError, TypeError, ValueError) as exc:
+            # Every footprint reading falls back to 0 from here, once, for
+            # the life of the process.
+            logger.warning(
+                "libproc is unavailable (%s: %s); darwin footprints will read 0",
+                type(exc).__name__,
+                exc,
+            )
             _LIBPROC_UNAVAILABLE = True
             return None
     return _LIBPROC
@@ -121,7 +131,13 @@ def darwin_phys_footprint_bytes(pid: int) -> int:
         TypeError,
         ValueError,
         ctypes.ArgumentError,
-    ):
+    ) as exc:
+        logger.warning(
+            "libproc rusage for pid %s failed (%s: %s); footprints will read 0",
+            pid,
+            type(exc).__name__,
+            exc,
+        )
         _LIBPROC_UNAVAILABLE = True
         return 0
 

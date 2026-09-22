@@ -102,7 +102,15 @@ class Flag:
             from core.runtime.runtime_settings import get_runtime_setting
 
             return get_runtime_setting(self.spec.name, None)
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            # None sends the caller to the default, which is indistinguishable
+            # from "nothing was ever persisted" unless this says otherwise.
+            logger.debug(
+                "persisted value for flag %s unreadable (%s: %s); using the default",
+                self.spec.name,
+                type(exc).__name__,
+                exc,
+            )
             return None
 
     def _coerce(self, raw: Any) -> tuple[Any, bool]:

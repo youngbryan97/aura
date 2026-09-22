@@ -30,6 +30,7 @@ worse failure than a full disk.
 
 from __future__ import annotations
 
+import logging
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,6 +38,8 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.resource_observation import get_resource_observer
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "DISK_AMBER_PERCENT",
@@ -151,6 +154,8 @@ def directory_bytes(path: Any) -> int:
     if not root.is_dir():
         try:
             return int(root.stat().st_size)
+        # not a failure: the docstring above says why — an unknown footprint
+        # returns 0 so it blocks nothing, and only a known-too-large one does.
         except OSError:
             return 0
     total = 0
@@ -193,11 +198,24 @@ def state_volume_percent() -> float:
         from core.runtime.state_ownership import state_root
 
         target: Any = state_root()
-    except (ImportError, RuntimeError, OSError, ValueError):
+    except (ImportError, RuntimeError, OSError, ValueError) as exc:
+        logger.debug(
+            "no state root to measure (%s: %s); falling back to /",
+            type(exc).__name__,
+            exc,
+        )
         target = "/"
     try:
         return float(free_space(target).used_fraction * 100.0)
-    except (OSError, ValueError):
+    except (OSError, ValueError) as exc:
+        # 0.0% used is the healthiest reading there is. An unreadable mount
+        # must not be able to produce it.
+        logger.warning(
+            "disk usage for %s is unreadable (%s: %s); reporting 0.0%%",
+            target,
+            type(exc).__name__,
+            exc,
+        )
         return 0.0
 
 
@@ -308,7 +326,13 @@ def prune_superseded_artifacts(
             size_gb = sum(
                 item.stat().st_size for item in entry.rglob("*") if item.is_file()
             ) / float(1024**3)
-        except OSError:
+        except OSError as exc:
+            logger.debug(
+                "could not size %s before removing it (%s: %s); reporting 0 GB",
+                entry,
+                type(exc).__name__,
+                exc,
+            )
             size_gb = 0.0
         if dry_run:
             removed.append((entry.name, size_gb))

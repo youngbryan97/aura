@@ -25,6 +25,7 @@ mount otherwise.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 import uuid
@@ -33,6 +34,8 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.file_write_gateway import get_file_write_gateway
+
+logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
 DEFAULT_TENANT_ID = "default"
@@ -124,7 +127,14 @@ class TenantBoundary:
             return None
         try:
             payload = json.loads(self.stamp_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as exc:
+            # The stamp file EXISTS — the check above proved it — so None here
+            # says "no tenant" about an install that has one.
+            logger.error(
+                "tenant stamp at %s does not parse (%s); reading as no tenant",
+                self.stamp_path,
+                exc,
+            )
             return None
         try:
             return TenantStamp(
@@ -134,7 +144,14 @@ class TenantBoundary:
                 schema_version=int(payload.get("schema_version") or SCHEMA_VERSION),
                 metadata=dict(payload.get("metadata") or {}),
             )
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            logger.error(
+                "tenant stamp at %s has unusable fields (%s: %s); reading as "
+                "no tenant",
+                self.stamp_path,
+                type(exc).__name__,
+                exc,
+            )
             return None
 
     def _write_stamp(self, stamp: TenantStamp) -> None:

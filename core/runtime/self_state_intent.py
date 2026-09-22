@@ -294,6 +294,8 @@ def asked_to_act_in_a_capability_domain(text: str) -> bool:
         return True
     try:
         from core.intent.declared_capability import request_matches_declaration
+    # not a failure: the foundation must boot without the intent package, and
+    # no declaration to match against means no match.
     except ImportError:  # pragma: no cover - foundation must boot regardless
         return False
     return request_matches_declaration(

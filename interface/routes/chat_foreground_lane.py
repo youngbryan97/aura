@@ -564,6 +564,55 @@ async def _answer_from_fallback_ladder(
     )
 
 
+async def _wait_while_it_is_still_answering(task: Any, budget_s: float) -> Any:
+    """Wait on the kernel task, renewing the wait while tokens keep arriving.
+
+    An estimate is what this wait was bounded by, and an estimate is
+    sometimes wrong. LIVE, 2026-09-21: the answer clock priced the prompt at
+    11 seconds to read; the worker's own receipt says
+    ``prefill=1422 tokens/32.53s``, because the host was loaded in a way the
+    measured rate had not seen. The turn was granted 122s, this wait had 30s
+    of it left, and the generation finished at about 106s — one second after
+    the wait gave up. The 667-character answer landed in the log
+    (``✅ Brainstem response received (len=667)``) and the person was told
+    "That answer took too long to finish cleanly."
+
+    So this stops waiting when the generation stops PRODUCING, not when a
+    guess about its length runs out. ``still_producing`` is the same reading
+    the cognitive engine renews its own cycle from and the mlx client uses to
+    tell a slow decode from a wedged one; it was the one wait above them that
+    could not see it.
+
+    A wedged turn still ends: no token within a normal gap and this returns
+    to the timeout it was given. Nothing here can extend past the
+    generation's own deadline, which the worker enforces.
+    """
+    from core.brain.llm.thinking_reserve import seconds_to_decode
+    from core.runtime.turn_progress import normal_gap_between_tokens, still_producing
+
+    quiet_for = normal_gap_between_tokens(float(seconds_to_decode(64)))
+    remaining = max(2.0, float(budget_s))
+    renewals = 0
+    while True:
+        slice_s = min(remaining, max(2.0, quiet_for))
+        try:
+            return await asyncio.wait_for(asyncio.shield(task), timeout=slice_s)
+        except TimeoutError:
+            remaining -= slice_s
+            if remaining > 0.0:
+                continue
+            if not still_producing(within_s=quiet_for):
+                raise
+            renewals += 1
+            remaining = max(2.0, quiet_for)
+            logger.info(
+                "⏳ Budget spent but tokens are still arriving (%.0fs since the "
+                "last one is still normal); holding the turn open (renewal %d).",
+                quiet_for,
+                renewals,
+            )
+
+
 async def _await_foreground_gate(*, budget_s: float) -> Any:
     """Return the inference gate, waiting for it if the runtime is still booting.
 
@@ -1123,9 +1172,9 @@ async def _await_the_sovereign_kernel_reply(
                             "Waiting %.0fs for kernel to finish (no competing request).",
                             hard_budget,
                         )
-                        reply_text = await asyncio.wait_for(
-                            asyncio.shield(kernel_task),
-                            timeout=hard_budget,
+                        reply_text = await _wait_while_it_is_still_answering(
+                            kernel_task,
+                            hard_budget,
                         )
                     elif is_benchmark:
                         logger.warning(

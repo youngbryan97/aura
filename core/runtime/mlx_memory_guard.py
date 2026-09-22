@@ -101,8 +101,14 @@ def host_memory_bytes() -> int:
         size = int(get_resource_observer().memory(include_process_tree=False).total_bytes)
         if size > 0:
             return size
-    except (ImportError, AttributeError, ValueError, OSError, RuntimeError, TypeError):
-        pass
+    except (ImportError, AttributeError, ValueError, OSError, RuntimeError, TypeError) as exc:
+        # The floor below is a 64GB host pretending to be 8GB, which changes
+        # every ceiling computed from it.
+        logger.warning(
+            "host RAM unreadable (%s: %s); using the 8GB floor",
+            type(exc).__name__,
+            exc,
+        )
     return 8 * 1024**3
 
 
@@ -218,8 +224,14 @@ def host_pressure(
             broker_stdout_path=broker_swapusage_path,
         )
         swap_used = _parse_swap_used_gb(swap)
-    except (OSError, RuntimeError, ValueError):
-        pass
+    except (OSError, RuntimeError, ValueError) as exc:
+        # swap_used stays None, which the pressure reasons below read as
+        # "no swap in use" rather than "we could not look".
+        logger.debug(
+            "swap usage unreadable (%s: %s); pressure is judged without it",
+            type(exc).__name__,
+            exc,
+        )
     reasons = _pressure_reasons(
         host_gb=host,
         reclaimable_gb=reclaimable,
@@ -260,7 +272,14 @@ class MemoryEnvelope:
         try:
             _synchronize_and_reclaim()
             return True
-        except (ImportError, RuntimeError):
+        except (ImportError, RuntimeError) as exc:
+            # False here is receipted as "no reclaim ran", and a reclaim that
+            # RAISED is the case a caller under memory pressure needs named.
+            logger.warning(
+                "MLX buffer cache reclaim failed (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     def to_receipt(self) -> dict[str, Any]:

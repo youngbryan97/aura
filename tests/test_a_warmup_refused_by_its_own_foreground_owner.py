@@ -162,3 +162,25 @@ def test_a_declined_probe_does_not_mark_the_lane_recovering():
     assert declined < recovering, (
         "the declined branch must be taken before the lane is marked recovering"
     )
+
+
+def test_a_deferral_is_not_retried_as_a_failure():
+    """LIVE 2026-09-21: the boot log said "Warmup pre-compile failed once".
+
+    It had not failed. ``_generate_inner`` declined to spawn a worker while
+    foreground headroom was reserved, which is the runtime doing what it
+    meant to. ``_WarmupDeferredError`` subclasses ``RuntimeError``, so the
+    retry loop caught it as an attempt that went wrong, rebooted the worker
+    and spent the campaign recovering from a decision.
+    """
+    import inspect
+
+    from core.brain.llm import mlx_warmup_and_adapters as warmup
+
+    source = inspect.getsource(warmup._WarmsUpAndSwapsAdapters._run_warmup_precompile)
+    deferred = source.index("except _WarmupDeferredError:")
+    retried = source.index("except (RuntimeError, TimeoutError, AttributeError) as exc:")
+    assert deferred < retried, (
+        "_WarmupDeferredError must be caught before the generic retry handler, "
+        "or a deferral is retried as a failure"
+    )

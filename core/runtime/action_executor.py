@@ -344,6 +344,8 @@ def _what_stops_this(stopping: Any) -> Any:
         from core.runtime.what_stops_it import current
 
         return current(whose="action_executor.execute").stopping
+    # not a failure: outside a governed call there is no ambient scope, and
+    # "nothing stops this action" is the answer, not an error.
     except (ImportError, RuntimeError, TypeError, ValueError):
         return None
 

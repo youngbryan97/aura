@@ -242,9 +242,9 @@ def live_state_root() -> Path:
             return cached[1]
         try:
             resolved = Path(inherited).expanduser().resolve()
+        # not a failure: an unusable value falls back to inference rather
+        # than disabling the guard.
         except (OSError, RuntimeError, ValueError):
-            # An unusable value must fall back to inference rather than
-            # disabling the guard.
             pass
         else:
             _LIVE_ROOT_RESOLVED = (inherited, resolved)
@@ -454,9 +454,9 @@ def _source_roots() -> tuple[Path, ...]:
                     if parent.name == ".git":
                         roots.append(parent.parent)
                         break
+    # not a failure: a checkout whose .git cannot be read still protects
+    # itself; it simply does not learn about its siblings.
     except (OSError, RuntimeError, ValueError, UnicodeDecodeError):
-        # A checkout whose .git cannot be read still protects itself; it
-        # simply does not learn about its siblings.
         pass
     return tuple(dict.fromkeys(roots))
 

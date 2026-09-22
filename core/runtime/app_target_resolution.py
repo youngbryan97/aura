@@ -10,6 +10,7 @@ bundles.  Fuzzy correction is accepted only when it has one strong winner.
 from __future__ import annotations
 
 import difflib
+import logging
 import os
 import time
 from collections.abc import Callable, Iterable
@@ -17,6 +18,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from core.runtime.os_automation_effects import canonical_app_target
+
+logger = logging.getLogger(__name__)
 
 _APP_SCAN_ROOTS = (
     Path("/Applications"),
@@ -77,7 +80,16 @@ def _launchservices_app_path(name: str) -> str | None:
         from AppKit import NSWorkspace
 
         path = NSWorkspace.sharedWorkspace().fullPathForApplication_(name)
-    except (ImportError, AttributeError, OSError, RuntimeError):
+    except (ImportError, AttributeError, OSError, RuntimeError) as exc:
+        # None here means "LaunchServices could not be asked", which is a
+        # different thing from "no such application", and the caller cannot
+        # tell them apart from the return value alone.
+        logger.debug(
+            "LaunchServices lookup for %r unavailable (%s: %s)",
+            name,
+            type(exc).__name__,
+            exc,
+        )
         return None
     return str(path).strip() if path else ""
 

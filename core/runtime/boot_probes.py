@@ -211,8 +211,12 @@ async def probe_output_gate_dry_emit(*, output_gate: Any = None) -> ProbeResult:
             from core.container import ServiceContainer
 
             output_gate = ServiceContainer.get("output_gate", default=None)
-        except (ImportError, AttributeError, RuntimeError):
-            output_gate = None
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            return ProbeResult(
+                name="output_gate_dry_emit",
+                ok=False,
+                detail=f"container lookup raised: {type(exc).__name__}: {exc}",
+            )
     if output_gate is None:
         return ProbeResult(name="output_gate_dry_emit", ok=False, detail="output_gate not registered")
     if not hasattr(output_gate, "dry_emit") and not hasattr(output_gate, "emit"):
@@ -226,8 +230,12 @@ async def probe_event_bus_loopback(*, bus: Any = None) -> ProbeResult:
             from core.container import ServiceContainer
 
             bus = ServiceContainer.get("event_bus", default=None)
-        except (ImportError, AttributeError, RuntimeError):
-            bus = None
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            return ProbeResult(
+                name="event_bus_loopback",
+                ok=False,
+                detail=f"container lookup raised: {type(exc).__name__}: {exc}",
+            )
     if bus is None:
         return ProbeResult(name="event_bus_loopback", ok=False, detail="event_bus not registered")
     if not hasattr(bus, "publish") or (not hasattr(bus, "subscribe") and not hasattr(bus, "register_handler")):
@@ -351,8 +359,8 @@ async def run_boot_probes(
             total * 1000,
             breakdown,
         )
-    except (AttributeError, TypeError, ValueError):
-        pass
+    except (AttributeError, TypeError, ValueError) as exc:
+        logger.debug("boot probe timing breakdown not printed: %s: %s", type(exc).__name__, exc)
     if strict and not report.all_ok:
         failed = ", ".join(r.name for r in report.failed())
         raise RuntimeError(f"AURA_STRICT_RUNTIME: boot probes failed: {failed}")
@@ -364,6 +372,13 @@ async def run_boot_probes(
                 "boot_probes.failed",
                 {"failed": [r.name for r in report.failed()]},
             )
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # no-op: intentional
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            # Probes failed and strict mode is off, so this record is the
+            # only lasting trace that they did.
+            logger.warning(
+                "boot probe failures were not recorded as a degraded event (%s: %s): %s",
+                type(exc).__name__,
+                exc,
+                ", ".join(r.name for r in report.failed()),
+            )
     return report

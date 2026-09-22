@@ -146,6 +146,8 @@ def the_open_turn_is_a_persons_turn() -> bool | None:
 
     try:
         from core.runtime.turn_outcome import current_turn
+    # not a failure: the docstring above says None means there is no open
+    # turn, which is the normal state of background work.
     except ImportError:
         return None
     turn = current_turn()

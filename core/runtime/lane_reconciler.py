@@ -343,7 +343,14 @@ def _default_primary_alive() -> bool | None:
         if client is None:
             return False
         return bool(client.is_alive() and getattr(client, "_init_done", False))
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        # None is this function's documented word for "unobservable", and the
+        # reconciler acts differently on it than on False.
+        logger.debug(
+            "primary lane health unobservable (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return None
 
 
@@ -364,7 +371,14 @@ def _default_primary_age_s() -> float:
         client = mlx_client._CLIENTS.get(_default_primary_key())
         started = float(getattr(client, "_process_started_at", 0.0) or 0.0)
         return (time.time() - started) if started > 0.0 else 0.0
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        # An age of 0 reads as a worker that just started, which is the
+        # reading least likely to prompt the reconciler to act.
+        logger.debug(
+            "primary lane age unreadable (%s: %s); reporting 0s",
+            type(exc).__name__,
+            exc,
+        )
         return 0.0
 
 
@@ -450,7 +464,14 @@ def _default_foreground_active() -> bool:
         from core.brain.llm import mlx_client
 
         return bool(mlx_client._foreground_owner_active())
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        # False means "nobody is being answered", which is what lets the
+        # reconciler evict. Not being able to ask must not look like that.
+        logger.debug(
+            "foreground ownership unreadable (%s: %s); reporting idle",
+            type(exc).__name__,
+            exc,
+        )
         return False
 
 
@@ -723,8 +744,13 @@ class LaneReconciler:
                 summary=str(fields.get("detail", "") or action),
                 lane=str(fields.get("lane", "")),
             )
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # no-op: black-box feed is best-effort by design
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "reconcile_%s not recorded to the black box (%s: %s)",
+                action,
+                type(exc).__name__,
+                exc,
+            )
         return entry
 
     def snapshot(self) -> dict[str, Any]:

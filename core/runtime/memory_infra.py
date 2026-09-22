@@ -414,6 +414,9 @@ def register_sized_container(
     def provider(_level: DetailLevel) -> AllocatorDump:
         try:
             count = len(container)
+        # not a failure: a container with no length is attributed at zero
+        # entries, and the docstring above says an attributed estimate is
+        # the point.
         except (TypeError, AttributeError):
             count = 0
         return AllocatorDump(

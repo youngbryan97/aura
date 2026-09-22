@@ -360,8 +360,14 @@ class ManagedOrgan:
             from core.observability.histograms import record as record_histogram
 
             record_histogram("Aura.Lifecycle.TransitionMs", max(0.0, duration_s) * 1000.0)
-        except (ImportError, RuntimeError, ValueError, TypeError):
-            pass
+        except (ImportError, RuntimeError, ValueError, TypeError) as exc:
+            # The comment above is about this histogram reading empty forever.
+            # A silent except is the second way to arrive there.
+            logger.debug(
+                "Aura.Lifecycle.TransitionMs not recorded (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
         logger.log(
             logging.INFO if ok else logging.WARNING,
             "%s %s: %s --%s--> %s (%.3fs)%s",

@@ -63,6 +63,8 @@ def retained_bytes(value: Any, *, depth: int = 0, seen: set[int] | None = None) 
     seen.add(marker)
     try:
         total = sys.getsizeof(value)
+    # not a failure: an object that cannot report its size contributes
+    # nothing to the estimate, which is what 0 says here.
     except TypeError:
         return 0
     if depth >= _MAX_DEPTH:

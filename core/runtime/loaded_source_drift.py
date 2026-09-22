@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import dataclasses
 import importlib.util
+import logging
 import marshal
 import os
 import struct
@@ -51,9 +52,12 @@ import sys
 import threading
 from pathlib import Path
 from typing import Any, Iterable
+
 from core.governance_context import local_internal_governed_scope
 from core.runtime.dynamic_execution_gateway import get_dynamic_execution_gateway
 from core.runtime.lockdep import LockRank, checked_lock
+
+logger = logging.getLogger(__name__)
 
 #: Path components that mean "not this project's source".
 _VENDOR_PARTS = frozenset({".venv", "venv", "site-packages", "dist-packages", "node_modules", ".git"})
@@ -129,13 +133,18 @@ def _read_cache_header(cache_path: Path) -> tuple[int, int, int] | None:
     try:
         with open(cache_path, "rb") as handle:
             header = handle.read(_PYC_HEADER_BYTES)
+    # not a failure: a module with no bytecode cache on disk has no header to
+    # read, and None is how this reports that.
     except OSError:
         return None
     if len(header) < _PYC_HEADER_BYTES:
         return None
     try:
         _magic, flags, second, third = struct.unpack("<4sIII", header)
-    except struct.error:
+    except struct.error as exc:
+        # A header that is present and unreadable is different from one that
+        # is absent, and only this line can say which happened.
+        logger.debug("bytecode cache header at %s is unreadable: %s", cache_path, exc)
         return None
     return int(flags), int(second), int(third)
 
@@ -177,7 +186,24 @@ def _compiled_bodies_differ(source: Path, cache: Path) -> bool | None:
                 source="loaded_source_drift.compare",
                 dont_inherit=True,
             )
-    except (OSError, SyntaxError, ValueError, TypeError, EOFError, MemoryError, RecursionError):
+    except (
+        OSError,
+        SyntaxError,
+        ValueError,
+        TypeError,
+        EOFError,
+        MemoryError,
+        RecursionError,
+    ) as exc:
+        # None means "no drift verdict for this file", which the report reads
+        # as nothing to say about it. A file that will not compile is
+        # something to say.
+        logger.debug(
+            "could not compare %s against its cache (%s: %s)",
+            source,
+            type(exc).__name__,
+            exc,
+        )
         return None
     if not isinstance(cached_code, type(current_code)):
         return None
@@ -290,6 +316,8 @@ def _loaded_project_modules(root: Path) -> Iterable[tuple[str, Path, Path | None
             try:
                 candidate = Path(cached)
                 cache_path = candidate if candidate.exists() else None
+            # not a failure: a __cached__ that is not a usable path means this
+            # module has no cache to compare against.
             except (OSError, ValueError, TypeError):
                 cache_path = None
         yield name, source, cache_path

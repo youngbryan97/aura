@@ -258,7 +258,16 @@ class WillTransaction:
         if callable(approved):
             try:
                 return bool(approved())
-            except (RuntimeError, AttributeError, TypeError, ValueError):
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                # This is a governance verdict. "Not approved" and "the
+                # approval check broke" both stop the will, and only one of
+                # them is a decision somebody made.
+                logger.warning(
+                    "approval check raised (%s: %s); treating the will as "
+                    "not approved",
+                    type(exc).__name__,
+                    exc,
+                )
                 return False
         if isinstance(decision, dict):
             return bool(decision.get("approved", False))

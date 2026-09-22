@@ -15,6 +15,8 @@ from core.runtime.service_access import (
 def _canonical_self_version(current: Any) -> Optional[int]:
     try:
         return int(getattr(current, "version", 0) or 0)
+    # not a failure: a self with no readable version number has none to
+    # report, and None is how that is said here.
     except (TypeError, ValueError):
         return None
 

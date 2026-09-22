@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 import threading
 from collections.abc import Callable
@@ -11,6 +12,8 @@ from core.utils.task_tracker import (
     begin_shutdown_resource_creation_scope,
     end_shutdown_resource_creation_scope,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _thread_name(name: str) -> str:
@@ -98,10 +101,20 @@ async def run_sync_shutdown_callable[T](
             try:
                 loop.call_soon_threadsafe(_deliver_error, exc)
             except RuntimeError:
+                # The loop is already closed, so nobody is waiting on this
+                # future — but the callback's failure would vanish with it.
+                logger.warning(
+                    "shutdown callback raised %s: %s, and the loop was gone "
+                    "before it could be delivered",
+                    type(exc).__name__,
+                    exc,
+                )
                 return
         else:
             try:
                 loop.call_soon_threadsafe(_deliver_result, result)
+            # not a failure: a closed loop has nobody left waiting for this
+            # result, and the callback already ran.
             except RuntimeError:
                 return
 
@@ -121,6 +134,9 @@ async def run_sync_shutdown_callable[T](
         def _consume_late_result(future: asyncio.Future[T]) -> None:
             try:
                 future.exception()
+            # not a failure: the comment above says why — this consumes a late
+            # result so finalization does not warn about it, and whatever it
+            # finds has already been reported through the timeout path.
             except (asyncio.CancelledError, Exception):
                 return
 

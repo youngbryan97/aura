@@ -10,6 +10,7 @@ through ``__getattr__`` during migration and must not be used for policy.
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 from collections.abc import Callable, Iterator
 from types import SimpleNamespace
@@ -22,6 +23,8 @@ from core.runtime.resource_observation import (
     ProcessObservation,
     get_resource_observer,
 )
+
+logger = logging.getLogger(__name__)
 
 _RESOURCE_READ_APIS = frozenset(
     {
@@ -70,7 +73,17 @@ def _host_counter(api: str, fields: tuple[str, ...]) -> Any:
         return _counter_namespace(None, fields)
     try:
         raw = getattr(_psutil, api)()
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError, _psutil.Error):
+    except (
+        AttributeError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+        _psutil.Error,
+    ) as exc:
+        # None here is read by callers as "this host counter does not exist",
+        # which is not the same as a counter that raised on this call.
+        logger.debug("host counter %s raised (%s: %s)", api, type(exc).__name__, exc)
         return None
     return None if raw is None else _counter_namespace(raw, fields)
 

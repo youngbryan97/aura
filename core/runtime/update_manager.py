@@ -200,7 +200,15 @@ class UpdateManager:
                     mac_ctx.update(chunk)
             mac = mac_ctx.digest()
             return hmac.compare_digest(mac, sig)
-        except (OSError, RuntimeError, AttributeError, TypeError, ValueError):
+        except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            # A signature check that could not RUN and one that FAILED both
+            # refuse the update, and only one of them means somebody tampered.
+            logger.error(
+                "release signature could not be verified (%s: %s); refusing "
+                "the archive",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     async def list_available(self, channel: Channel) -> List[Release]:
@@ -365,7 +373,15 @@ class UpdateManager:
         try:
             from core.identity.self_object import get_self
             return get_self().snapshot().continuity_hash
-        except (ImportError, AttributeError, RuntimeError):
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            # The continuity hash is how an update proves she is still the
+            # same person afterwards. None skips that comparison.
+            logger.warning(
+                "continuity hash unavailable (%s: %s); the update cannot "
+                "compare identity across it",
+                type(exc).__name__,
+                exc,
+            )
             return None
 
     @staticmethod
@@ -382,8 +398,14 @@ class UpdateManager:
                 json.dumps({"when": time.time(), "event": event, "attempt": asdict(attempt)}, default=str) + "\n",
                 source="runtime.update_manager.record",
             )
-        except (OSError, json.JSONDecodeError, TypeError, ValueError):
-            pass  # no-op: intentional
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            logger.warning(
+                "update event %r for %s was not written to the update log (%s: %s)",
+                event,
+                attempt.version,
+                type(exc).__name__,
+                exc,
+            )
 
 
 _MANAGER: Optional[UpdateManager] = None

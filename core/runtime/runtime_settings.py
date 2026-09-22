@@ -480,6 +480,8 @@ def clear_runtime_settings_cache() -> None:
         import asyncio
 
         asyncio.get_running_loop()
+    # not a failure: off a loop there is nobody to hand the refresh to, so
+    # this thread does it itself.
     except RuntimeError:
         _refresh_settings_from_disk()
         return

@@ -23,11 +23,14 @@ the incident narrator.
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class ConditionType(StrEnum):
@@ -114,8 +117,16 @@ class ComponentConditions:
                     source=self.component,
                     summary=f"{kind}={status} ({reason}) {message}".strip(),
                 )
-            except (ImportError, AttributeError, RuntimeError):
-                pass  # no-op: black-box feed is best-effort by design
+            except (ImportError, AttributeError, RuntimeError) as exc:
+                # Best-effort by design, and the black box is read after a
+                # hard fault — a gap in it should be visible in the log.
+                logger.debug(
+                    "condition transition %s=%s not recorded to the black box (%s: %s)",
+                    kind,
+                    status,
+                    type(exc).__name__,
+                    exc,
+                )
         return condition
 
     def get(self, kind: ConditionType) -> Condition | None:

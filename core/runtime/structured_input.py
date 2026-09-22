@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 _LEARNING_BUNDLE_INTRO_MARKERS = (
     "i have some suggestions",
@@ -415,7 +418,15 @@ def _parts_the_request_counted(text: str) -> int:
         from core.conversation.response_reliability import requested_count
 
         return int(requested_count(text, *_COUNTED_PARTS) or 0)
-    except (ImportError, AttributeError, TypeError, ValueError):
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        # 0 means "the request did not say how many", and the docstring above
+        # is explicit that this must not become a second opinion about
+        # numbers — including a silent one.
+        logger.debug(
+            "requested count could not be read (%s: %s); treating it as unstated",
+            type(exc).__name__,
+            exc,
+        )
         return 0
 
 
@@ -433,7 +444,13 @@ def _the_answer_is_somewhere_else(text: str) -> bool:
         from core.intent.capability_selection import points_at_something_real
 
         return bool(points_at_something_real(text))
-    except (ImportError, AttributeError, OSError, TypeError, ValueError):
+    except (ImportError, AttributeError, OSError, TypeError, ValueError) as exc:
+        logger.debug(
+            "could not judge whether the answer is elsewhere (%s: %s); "
+            "reporting no",
+            type(exc).__name__,
+            exc,
+        )
         return False
 
 

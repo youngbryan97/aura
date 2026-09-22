@@ -138,9 +138,10 @@ def _process_started_at() -> float:
         observed = float(Process(os.getpid()).create_time())
         if observed <= 0.0:
             raise ValueError("process start time must be positive")
+    # not a failure: the established trailing-window behaviour is kept when
+    # epoch evidence is unavailable. Guessing "now" would erase valid records
+    # from this boot.
     except (ImportError, OSError, RuntimeError, TypeError, ValueError):
-        # Keep the established trailing-window behavior when epoch evidence is
-        # unavailable. Guessing "now" would erase valid records from this boot.
         observed = 0.0
     _PROCESS_STARTED_AT = observed
     return observed
@@ -352,8 +353,12 @@ def run_integrity_audit(*, log: bool = True) -> dict[str, Any]:
                 from core.observability.metrics import get_metrics
 
                 get_metrics().increment_counter("integrity_concern_total")
-            except (ImportError, AttributeError, RuntimeError, TypeError):
-                pass
+            except (ImportError, AttributeError, RuntimeError, TypeError) as exc:
+                logger.debug(
+                    "integrity_concern_total not counted (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
         if integrity_incident["resolved_subsystems"]:
             remaining = sorted(concern_counts)
             logger.info(

@@ -210,6 +210,8 @@ class RateLimitingQueue:
             return
         try:
             loop = asyncio.get_running_loop()
+        # not a failure: off a loop there is nothing to delay with, so the
+        # request goes in now rather than not at all.
         except RuntimeError:
             self.add(req)
             return
@@ -252,6 +254,7 @@ class RateLimitingQueue:
     def _signal(self) -> None:
         try:
             loop = asyncio.get_running_loop()
+        # not a failure: nothing is waiting to be woken when no loop runs.
         except RuntimeError:
             return
         loop.call_soon_threadsafe(self._wakeup.set)
@@ -486,8 +489,15 @@ class Controller:
                     from core.observability.histograms import record as record_histogram
 
                     record_histogram("Aura.Reconcile.DurationMs", max(0.0, elapsed) * 1000.0)
-                except (ImportError, RuntimeError, ValueError, TypeError):
-                    pass
+                except (ImportError, RuntimeError, ValueError, TypeError) as exc:
+                    # The comment above is about this histogram having had no
+                    # writer. A silent except is the same outcome by a
+                    # different route.
+                    logger.debug(
+                        "Aura.Reconcile.DurationMs not recorded (%s: %s)",
+                        type(exc).__name__,
+                        exc,
+                    )
                 self.queue.done(request)
 
     async def _resync_loop(self) -> None:
@@ -496,6 +506,11 @@ class Controller:
             try:
                 await asyncio.sleep(self._resync_s)
             except asyncio.CancelledError:
+                # A cancel aimed at THIS loop has to keep going up; one that
+                # only interrupted the sleep ends the loop quietly.
+                current = asyncio.current_task()
+                if current is not None and current.cancelling() > 0:
+                    raise
                 return
             if not self._running or self._list_keys is None:
                 return

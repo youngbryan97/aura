@@ -253,6 +253,7 @@ def assert_owned(
 def _pid_of(process: Any) -> int | None:
     try:
         pid_int = int(getattr(process, "pid", None))
+    # not a failure: an object with no usable pid has none to report.
     except (TypeError, ValueError):
         return None
     return pid_int if pid_int > 0 else None
@@ -281,13 +282,17 @@ def _create_time(pid: int) -> float | None:
 def _pid_alive(pid: int) -> bool:
     try:
         os.kill(pid, 0)
+    # not a failure: no such process is the answer this asks for.
     except ProcessLookupError:
         return False
     except PermissionError:
         # Exists, owned by someone else — and a process we do not own is one
         # we must not be killing anyway.
         return True
-    except OSError:
+    except OSError as exc:
+        # Every other OSError is the question going unanswered, and False
+        # here reads as "that process is gone".
+        _logger.debug("liveness check for pid %s failed: %s: %s", pid, type(exc).__name__, exc)
         return False
     return True
 

@@ -56,6 +56,8 @@ def _describe(task: asyncio.Task[Any]) -> str:
         if frames:
             frame = frames[-1]
             where = f"{frame.f_code.co_filename}:{frame.f_lineno} {frame.f_code.co_name}"
+    # not a failure: a task that has not started, or has already finished, has
+    # no frame to name, and "unknown" is the honest description of it.
     except (RuntimeError, AttributeError):
         pass
     return f"{name} <{getattr(coro, '__qualname__', repr(coro))}> at {where}"

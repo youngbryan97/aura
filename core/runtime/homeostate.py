@@ -391,8 +391,15 @@ class HomeostateEngine:
                     f"failed states: {report.failed}",
                     impact="declared runtime baseline not fully converged",
                 )
-        except (ImportError, RuntimeError, AttributeError, TypeError):
-            pass
+        except (ImportError, RuntimeError, AttributeError, TypeError) as exc:
+            # The comment above says this exists so a failed highstate is not
+            # a hidden retry. Losing the registration here hides it again.
+            logger.warning(
+                "homeostate.%s convergence was not published to subsystem health (%s: %s)",
+                name,
+                type(exc).__name__,
+                exc,
+            )
         if report.failed:
             record_degradation(
                 "homeostate",
@@ -600,8 +607,21 @@ class DegradationBeacon:
             self._task.cancel()
             try:
                 await self._task
-            except (asyncio.CancelledError, RuntimeError):
-                pass
+            except asyncio.CancelledError:
+                # Our own cancel coming back. A cancellation aimed at THIS
+                # coroutine has to keep going up, and Task.cancelling() is
+                # what tells the two apart.
+                if asyncio.current_task() is not None and (
+                    asyncio.current_task().cancelling() > 0
+                ):
+                    raise
+            except RuntimeError as exc:
+                logger.warning(
+                    "%s did not shut down cleanly: %s: %s",
+                    self._task.get_name() if self._task else "task",
+                    type(exc).__name__,
+                    exc,
+                )
             self._task = None
 
 
@@ -714,8 +734,17 @@ class HomeostateReactor:
         for task in self._tasks:
             try:
                 await task
-            except (asyncio.CancelledError, RuntimeError):
-                pass
+            except asyncio.CancelledError:
+                current = asyncio.current_task()
+                if current is not None and current.cancelling() > 0:
+                    raise
+            except RuntimeError as exc:
+                logger.warning(
+                    "reactor task %s did not shut down cleanly: %s: %s",
+                    task.get_name(),
+                    type(exc).__name__,
+                    exc,
+                )
         self._tasks.clear()
         self._topics.clear()
 
@@ -779,8 +808,21 @@ class ScheduledConvergence:
             self._task.cancel()
             try:
                 await self._task
-            except (asyncio.CancelledError, RuntimeError):
-                pass
+            except asyncio.CancelledError:
+                # Our own cancel coming back. A cancellation aimed at THIS
+                # coroutine has to keep going up, and Task.cancelling() is
+                # what tells the two apart.
+                if asyncio.current_task() is not None and (
+                    asyncio.current_task().cancelling() > 0
+                ):
+                    raise
+            except RuntimeError as exc:
+                logger.warning(
+                    "%s did not shut down cleanly: %s: %s",
+                    self._task.get_name() if self._task else "task",
+                    type(exc).__name__,
+                    exc,
+                )
             self._task = None
 
 
