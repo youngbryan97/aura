@@ -228,12 +228,14 @@ def _owned_cache_coordinate(value):
 
         if isinstance(value, mx.array):
             return mx.array(value)
+    # not a failure: no MLX here, so the copier below is what runs.
     except (ImportError, AttributeError, TypeError, ValueError):
         pass
     copier = getattr(value, "copy", None)
     if callable(copier):
         try:
             return copier()
+        # not a failure: a value whose own copy refuses is returned as it is.
         except (RuntimeError, TypeError, ValueError):
             pass
     raise CacheSnapshotError(
@@ -412,6 +414,7 @@ def _cache_entry_matches_snapshot(cache_entry, snapshot) -> bool:
         return cache_entry is None and snapshot is None
     try:
         kind, _state_value, metadata = _cache_snapshot_commitment_parts(snapshot)
+    # not a failure: a snapshot that will not read has no boundary to prove.
     except CacheSnapshotError:
         return False
     coordinates = metadata.get("coordinates", {})

@@ -294,6 +294,8 @@ def _runtime_integrity_proven(receipt: Mapping[str, Any]) -> bool:
                 "checkpoint_file_count"
             ),
         )
+    # not a failure: a receipt that will not validate has not validated, and False is
+    # the refusing direction.
     except (ImportError, TypeError, ValueError):
         return False
     return proof["verdict"]["safe_to_continue"] is True

@@ -106,6 +106,7 @@ def sample(receipt: dict[str, Any], *, passes: int | None = None) -> None:
         return
     try:
         from core.fsw.telemetry_dictionary import write
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return
 

@@ -652,6 +652,7 @@ def _certified_compiled_transition_expected(
 
     try:
         program = compile_public_transition_program(objective)
+    # not a failure: an objective that will not compile is not a public program.
     except ValueError:
         return None
     execution = execute_compiled_action_program(program)

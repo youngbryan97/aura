@@ -1073,6 +1073,7 @@ class PrivateActionSnapshotStore:
     def __del__(self) -> None:
         try:
             self.close()
+        # not a failure: a capture already closed is the state __del__ is reaching.
         except OSError:
             pass
 
@@ -1143,6 +1144,7 @@ class PrivateActionSnapshotStore:
                     try:
                         os.mkdir(part, 0o700, dir_fd=descriptor)
                         created = True
+                    # not a failure: the directory already exists, which is what mkdir was for.
                     except FileExistsError:
                         pass
                     if created:
@@ -1263,6 +1265,7 @@ class PrivateActionSnapshotStore:
             with self._directory(path.parent) as parent_fd:
                 os.stat(parts[-1], dir_fd=parent_fd, follow_symlinks=False)
             return True
+        # not a failure: a file that is already gone is the state this is reaching.
         except FileNotFoundError:
             return False
         except ActionStateCaptureError as exc:
@@ -1333,6 +1336,7 @@ class PrivateActionSnapshotStore:
                         dir_fd=target_parent_fd,
                         follow_symlinks=False,
                     )
+                # not a failure: a file that is already gone is the state this is reaching.
                 except FileNotFoundError:
                     pass
                 else:
@@ -1429,6 +1433,7 @@ class PrivateActionSnapshotStore:
                 target_exists = True
                 try:
                     target_stat = os.stat(path.name, dir_fd=parent_fd, follow_symlinks=False)
+                # not a failure: a file that is already gone is the state this is reaching.
                 except FileNotFoundError:
                     target_exists = False
                 if target_exists:
@@ -1462,6 +1467,7 @@ class PrivateActionSnapshotStore:
                     os.close(descriptor)
                 try:
                     os.unlink(temporary_name, dir_fd=parent_fd)
+                # not a failure: the temporary is already gone, which is what unlinking it was for.
                 except FileNotFoundError:
                     pass
 

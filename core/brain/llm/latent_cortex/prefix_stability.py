@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import re
 from collections import Counter
@@ -32,6 +33,8 @@ from core.learning.prefix_stability import (
     PrefixStabilityCalibrator,
 )
 from core.runtime.file_read_gateway import read_stable_bytes
+
+logger = logging.getLogger(__name__)
 
 PREFIX_STABILITY_SCHEMA = "aura.rlc.prefix_stability_verifier.v1"
 PREFIX_STABILITY_CONTEXT_SCHEMA = "aura.rlc.fresh_prefix_context.v1"
@@ -89,6 +92,7 @@ def _signature(conclusion: str) -> dict[str, str]:
         raise ValueError("conclusion is empty or exceeds 2048 characters")
     try:
         parsed = json.loads(text)
+    # not a failure: a conclusion that is not JSON is signed as the text it is.
     except json.JSONDecodeError:
         parsed = None
     if isinstance(parsed, (dict, list)):
@@ -770,8 +774,13 @@ def validate_prefix_stability_envelope(
                     candidate_sha256=value["candidate_sha256"],
                     prefix_sha256=value["prefix_sha256"],
                 )
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); a prefix result went unparsed, so this sample proves nothing about stability",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
             else:
                 raise ValueError("prefix-stability valid contract was marked refused")
         elif (

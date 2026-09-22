@@ -109,6 +109,7 @@ def normalize_text_mutations(value: Any) -> list[dict[str, Any]]:
         for key in ("before_chars", "after_chars"):
             try:
                 entry[key] = max(0, int(item.get(key) or 0))
+            # not a failure: a value that is not a number is not one this can read.
             except (TypeError, ValueError, OverflowError):
                 entry[key] = 0
         for key in ("before_sha256", "after_sha256"):

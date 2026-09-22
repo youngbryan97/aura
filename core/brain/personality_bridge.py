@@ -275,6 +275,7 @@ class PersonalityBridge:
         try:
             delattr(virtual_body, "_aura_physics_baseline")
             return True
+        # not a failure: no captured baseline is the state this is forgetting it into.
         except (AttributeError, TypeError):
             return False
 

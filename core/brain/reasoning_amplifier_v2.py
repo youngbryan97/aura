@@ -87,6 +87,7 @@ def _flag_on(name: str, default: str = "1") -> bool:
 def _clamp01(value: Any) -> float:
     try:
         return max(0.0, min(1.0, float(value)))
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0.0
 
@@ -466,7 +467,14 @@ def _cache_hit_is_insufficient(
         want = _MODE_BUDGET.get(requested_mode, 0)
         try:
             have = _MODE_BUDGET.get(ReasoningMode(str(cached.mode or "")), 0)
-        except ValueError:
+        # not a failure: a cached mode this version does not know ranks at nothing.
+        except ValueError as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); no substrate, so the amplifier reads no body signals",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
             have = 0
         if have < want:
             return "cached_mode_weaker_than_requested"
@@ -600,7 +608,13 @@ class ReasoningAmplifierV2:
                     or ServiceContainer.get("affect_engine", default=None)
                 )
                 self._substrate = sub
-            except (ImportError, RuntimeError, AttributeError):
+            except (ImportError, RuntimeError, AttributeError) as exc:
+                logger.debug(
+                    "no substrate to read (%s: %s); the amplifier decides "
+                    "without body signals",
+                    type(exc).__name__,
+                    exc,
+                )
                 sub = None
         signals: dict[str, float] = {}
         if sub is not None:
@@ -612,7 +626,14 @@ class ReasoningAmplifierV2:
                         if isinstance(data, dict):
                             signals = {k: float(v) for k, v in data.items() if isinstance(v, (int, float))}
                             break
-                    except (RuntimeError, AttributeError, TypeError, ValueError):
+                    except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                        logger.debug(
+                            "substrate affect via %s raised (%s: %s); trying "
+                            "the next reader",
+                            attr,
+                            type(exc).__name__,
+                            exc,
+                        )
                         continue
         # Augment with the kernel's live Φ (integration) and free-energy (prediction
         # error) so compute is allocated by how integrated AND how surprised the mind
@@ -629,8 +650,13 @@ class ReasoningAmplifierV2:
                     signals["arousal"] = float(loop.get("arousal") or 0.0)
                 if "valence" in loop and "valence" not in signals:
                     signals["valence"] = float(loop.get("valence") or 0.0)
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
-            pass
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "kernel loop state unavailable (%s: %s); phi, arousal and "
+                "valence are missing from this amplification",
+                type(exc).__name__,
+                exc,
+            )
         if "free_energy" not in signals and "fe" not in signals:
             try:
                 from core.container import ServiceContainer
@@ -639,8 +665,13 @@ class ReasoningAmplifierV2:
                 fe_state = fe_engine.get_current_state() if fe_engine is not None and hasattr(fe_engine, "get_current_state") else None
                 if fe_state is not None and hasattr(fe_state, "free_energy"):
                     signals["free_energy"] = float(fe_state.free_energy)
-            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
-                pass
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "free energy unavailable (%s: %s); it is missing from "
+                    "this amplification",
+                    type(exc).__name__,
+                    exc,
+                )
         return signals
 
     @staticmethod

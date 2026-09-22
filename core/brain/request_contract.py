@@ -496,6 +496,7 @@ def _numeric_string(value: Any) -> bool:
         return False
     try:
         float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return False
     return True

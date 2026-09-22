@@ -305,6 +305,7 @@ class OntologyGenesisEngine:
         kernel = get_runtime_service("aura_kernel", default=None)
         try:
             return int(getattr(kernel, "volition_level", 0) or 0)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return 0
 

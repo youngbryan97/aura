@@ -81,6 +81,7 @@ def _is_sha256(value: Any) -> bool:
         return False
     try:
         int(value, 16)
+    # not a failure: a value that is not a number is not one this can read.
     except ValueError:
         return False
     return True

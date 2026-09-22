@@ -113,6 +113,7 @@ def constraints_from_prompt(objective: str, *, step: int = 0) -> list[Constraint
         if count is None:
             try:
                 count = int(raw)
+            # not a failure: a value that is not a number is not one this can read.
             except ValueError:
                 count = None
         if count and 1 <= count <= 50:

@@ -32,10 +32,9 @@ do unaided, lives here.
 from __future__ import annotations
 
 import ast
+import logging
 from functools import lru_cache
 from typing import Any
-
-from core.runtime.errors import record_degradation
 
 from core.brain.llm.latent_cortex.neural_transition_tissue import (
     NeuralTransitionTissue,
@@ -65,6 +64,9 @@ from core.learning.recurrent_work_memory_tissue import (
     execute_mathematics_memory,
     load_mathematics_memory_tissue,
 )
+from core.runtime.errors import record_degradation
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "neural_compiled_transition_expected",
@@ -111,6 +113,8 @@ def _neural_mathematics_memory_expected(
             high=int(match.group("high")),
             values=tuple(raw_values),
         )
+    # not a failure: an objective that does not match the family is not one this
+    # producer answers.
     except (FileNotFoundError, OSError, OverflowError, RuntimeError, ValueError):
         return None
     expected = {
@@ -147,11 +151,13 @@ def neural_compiled_transition_expected(
         return memory_execution
     try:
         program = compile_public_transition_program(objective)
+    # not a failure: an objective that will not compile is not a public program.
     except ValueError:
         return None
     if program.family == "boolean":
         try:
             tissue = _resident_neural_transition_tissue()
+        # not a failure: no resident tissue means this family has no neural answer here.
         except (FileNotFoundError, OSError, RuntimeError, ValueError):
             return None
         execution = execute_neural_action_program(program, tissue)
@@ -166,6 +172,7 @@ def neural_compiled_transition_expected(
         try:
             tissue = _resident_systematic_neural_alu()
             execution = execute_systematic_neural_program(program, tissue)
+        # not a failure: no resident ALU means this family has no neural answer here.
         except (FileNotFoundError, OSError, RuntimeError, ValueError):
             return None
         match = _MODULAR_OBJECTIVE_RE.match(objective)
@@ -203,7 +210,13 @@ def _record_neural_fallback(objective: str) -> None:
         from core.learning.sealed_artifact_admission import mathematics_memory_admitted
 
         admitted, detail = mathematics_memory_admitted()
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); mathematics memory admission is unknown, so the refusal below is not recorded",
+            "mathematics_memory_admitted",
+            type(exc).__name__,
+            exc,
+        )
         return
     if admitted:
         # No admitted executor covers this objective, which is ordinary: most

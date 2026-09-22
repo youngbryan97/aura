@@ -102,6 +102,8 @@ def _sha256(value: Any) -> str:
 def _strict_json_equal(left: Any, right: Any) -> bool:
     try:
         return canonical_json_bytes(left) == canonical_json_bytes(right)
+    # not a failure: two values that will not canonicalise are not equal, and False
+    # is the refusing direction.
     except (TypeError, ValueError):
         return False
 
@@ -322,6 +324,7 @@ def _contamination_audit_valid(
     try:
         public_der = base64.b64decode(cast(str, signature.get("public_key_der_b64")), validate=True)
         signature_bytes = base64.b64decode(cast(str, signature.get("signature_b64")), validate=True)
+    # not a failure: a signature whose fields will not decode has not verified.
     except (TypeError, ValueError, binascii.Error):
         return False
     trust_sha256 = hashlib.sha256(public_der).hexdigest()
@@ -339,6 +342,7 @@ def _contamination_audit_valid(
         if not isinstance(public_key, Ed25519PublicKey):
             return False
         public_key.verify(signature_bytes, signed_payload)
+    # not a failure: a signature that will not verify has not verified.
     except (TypeError, ValueError, InvalidSignature):
         return False
     return True

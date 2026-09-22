@@ -434,6 +434,8 @@ class _ReasonsInLatentSpace:
                     "checkpoint_file_count"
                 ),
             )
+        # not a failure: without the integrity module nothing can be called safe, and
+        # False is the refusing direction.
         except ImportError:
             integrity_safe = False
         if not integrity_safe:
@@ -472,7 +474,14 @@ class _ReasonsInLatentSpace:
         self.soft_cancel_active_generation(reason)
         try:
             cancel_ack = await _await_shared_future(fut, timeout_s=_LATENT_CANCEL_ACK_GRACE_S)
-        except (TimeoutError, BrokenPipeError, OSError):
+        # not a failure: a cancel the worker never acknowledged leaves nothing to return.
+        except (TimeoutError, BrokenPipeError, OSError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the oversize-section report did not print",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
             return None
         if self._clean_latent_cancel_ack(
             cancel_ack,
@@ -1166,6 +1175,8 @@ class _ReasonsInLatentSpace:
                 )
                 try:
                     integrity_safe = self._latent_reason_async_runtime_integrity_safe(receipt)
+                # not a failure: without the integrity module nothing can be called safe, and
+                # False is the refusing direction.
                 except ImportError:
                     integrity_safe = False
                 if not integrity_safe:

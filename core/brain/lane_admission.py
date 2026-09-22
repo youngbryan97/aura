@@ -121,6 +121,7 @@ def _finite_gb(value: Any) -> float | None:
     """
     try:
         number = float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     if number != number or number in (float("inf"), float("-inf")):
@@ -164,7 +165,13 @@ def classify_lane(
                 from core.brain.llm.model_registry import get_model_lane_role
 
                 normalized_role = str(get_model_lane_role(model_path) or "")
-            except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+            except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); the lane role stays unset and the caller's default applies",
+                    "get_model_lane_role",
+                    type(exc).__name__,
+                    exc,
+                )
                 normalized_role = ""
         role_qos = {
             "cortex": QoSClass.GUARANTEED,
@@ -261,8 +268,13 @@ def _budget_for_total_gb(host_total_gb: float) -> float:
             # desktop_boot_safety from mypy, so its return arrives as Any.
             limit_bytes: float = compute_process_rss_limit(int(host_total_gb * 1024**3))
             return limit_bytes / float(1024**3)
-    except (ImportError, RuntimeError, TypeError, ValueError):
-        pass
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); no desktop RSS limit, so the caller's own bound applies",
+            "it",
+            type(exc).__name__,
+            exc,
+        )
     fraction = max(0.30, min(0.95, float(_BUDGET_FRACTION_FLAG.value())))
     return host_total_gb * fraction
 

@@ -272,6 +272,8 @@ def _manifest_identity_matches_activation(
             selected_model=selected_model,
             authority_key_path=authority_key_path,
         ) is not None
+    # not a failure: a continuity proof that will not compute has not proved
+    # continuity, and False is the refusing direction.
     except (KeyError, OSError, RuntimeError, TypeError, ValueError):
         return False
 
@@ -303,6 +305,7 @@ def _independent_manifest_continuity(
             authority_key_path=authority_key_path,
         )
         return {**proof, "consumer": SEMANTIC_NEURAL_SERVING_MODE}
+    # not a failure: the same, and None says there is no proof to carry.
     except (KeyError, OSError, RuntimeError, TypeError, ValueError):
         return None
 
@@ -620,6 +623,8 @@ def semantic_neural_activation_errors(
         errors.append("allowed_surface_profiles")
     try:
         expected_claim_boundary = _activation_claim_boundary(claim)
+    # not a failure: no claim boundary to expect, so the comparison below fails and
+    # the activation is refused.
     except RuntimeError:
         expected_claim_boundary = None
     if activation.get("claim_boundary") != expected_claim_boundary:

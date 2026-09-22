@@ -92,6 +92,7 @@ def capture_prompt_cache_one_token_rollback(
         return None
     try:
         from mlx_lm.models.cache import ArraysCache
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return None
 
@@ -100,6 +101,8 @@ def capture_prompt_cache_one_token_rollback(
         try:
             if bool(cache_member.is_trimmable()):
                 continue
+        # not a failure: a cache member that will not answer whether it trims cannot be
+        # rolled back, and None refuses the whole rollback.
         except (AttributeError, RuntimeError, TypeError, ValueError):
             return None
         if not isinstance(cache_member, ArraysCache):
@@ -800,6 +803,8 @@ class PromptCacheLRU:
             return False
         try:
             kept = deep_copy(prompt_cache)
+        # not a failure: a cache that will not deep-copy cannot be kept, and False says
+        # nothing was stored.
         except (AttributeError, RuntimeError, TypeError, ValueError):
             return False
         self.insert_cache(model_key, list(tokens), kept)

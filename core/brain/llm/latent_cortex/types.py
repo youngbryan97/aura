@@ -1265,6 +1265,7 @@ class WeightIntegrityProof:
         layers = [str(item) for item in raw_layers] if isinstance(raw_layers, (list, tuple)) else []
         try:
             version = int(data.get("version", 1))
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             version = 0
         return cls(

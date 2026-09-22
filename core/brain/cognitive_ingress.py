@@ -224,7 +224,13 @@ def _get_service(name: str):
         from core.runtime.service_registry import get_runtime_service
 
         return get_runtime_service(name, default=None)
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the caller falls back to its own default",
+            "get_runtime_service",
+            type(exc).__name__,
+            exc,
+        )
         return None
 
 

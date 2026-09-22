@@ -356,6 +356,7 @@ def _shrink_scaffold_to_context_window(
             return None
         try:
             return str(rendered), list(tokenizer.encode(str(rendered)))
+        # not a failure: a rendering the tokenizer will not encode is not a prompt.
         except (AttributeError, RuntimeError, TypeError, ValueError):
             return None
 
@@ -690,6 +691,8 @@ def _job_needs_concrete_status_signal_guidance(job: dict[str, Any]) -> bool:
             return False
         if is_operational_status_turn(prompt) or is_status_check_turn(prompt):
             return True
+    # not a failure: the turn-shape readers are optional here, and the fallback
+    # below decides without them.
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         pass
     return any(
@@ -759,7 +762,13 @@ def _repair_live_user_surface_operational_status(
             f"pressure at {memory.percent:.1f}% with {available_gb:.1f} GB "
             f"available; CPU load is {cpu_percent:.1f}% on this host."
         )
-    except (ImportError, OSError, RuntimeError, TypeError, ValueError, AttributeError):
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError, AttributeError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); host load is unknown and the repair decides without it",
+            "resource_psutil as psutil",
+            type(exc).__name__,
+            exc,
+        )
         load_1m: float | None = None
         try:
             from core.runtime.resource_observation import get_resource_observer

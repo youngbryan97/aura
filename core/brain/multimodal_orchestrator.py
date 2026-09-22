@@ -178,6 +178,8 @@ class MultimodalOrchestrator:
     def _observe_task_result(task: asyncio.Task, *, name: str) -> None:
         try:
             task.result()
+        # not a failure: a cancelled task has no result to observe, and this observer is
+        # not the one that cancelled it.
         except asyncio.CancelledError:
             return
         except _MULTIMODAL_RECOVERABLE_ERRORS as exc:

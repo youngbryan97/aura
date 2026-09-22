@@ -117,8 +117,13 @@ class PrecomputeQueue:
                 if get_reasoning_solved_cache().get(objective, task_type) is not None:
                     self._stats["already_cached"] += 1
                     continue
-            except (RuntimeError, AttributeError, TypeError, ValueError):
-                pass
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); the solved cache could not be consulted, so this objective is recomputed",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
             try:
                 result = await asyncio.wait_for(fn(objective, task_type), timeout=per_item_timeout)
                 if bool(getattr(result, "verified", False)):

@@ -247,6 +247,8 @@ class MemoryConsolidator:
             lock = checked_lock("memory_management._backend_lock", reentrant=True)
             try:
                 self.vector_memory._mutation_lock = lock
+            # not a failure: a backend that will not take the attribute keeps the lock local
+            # to this call, which is still a lock.
             except (AttributeError, TypeError):
                 pass
         return lock

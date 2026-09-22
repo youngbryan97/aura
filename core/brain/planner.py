@@ -44,6 +44,7 @@ class Planner:
                 s = float(m.group(1))
                 # clamp
                 s = max(0.0, min(1.0, s))
+        # not a failure: no number in the text is a score of zero.
         except (ImportError, AttributeError, RuntimeError):
             s = 0.0
         plan.score = s

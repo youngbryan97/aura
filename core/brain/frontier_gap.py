@@ -304,6 +304,8 @@ def _code_grader(
         source_code = _extract_python(text)
         try:
             tree = ast.parse(source_code, mode="exec")
+        # not a failure: text that does not parse is not a program, which is the verdict
+        # this grade is reaching.
         except (SyntaxError, TypeError, ValueError):
             return False
         if len(tree.body) != 1 or not isinstance(tree.body[0], ast.FunctionDef):
@@ -357,6 +359,7 @@ def _code_grader(
                 candidate(list(reversed(case))) == expected_fn(case)
                 for case in hidden_cases
             )
+        # not a failure: a candidate that raises on the hidden cases has not solved them.
         except (ArithmeticError, LookupError, RuntimeError, TypeError, ValueError):
             return False
 
@@ -1464,7 +1467,13 @@ async def run_battery(
             from core.runtime.service_access import optional_service
 
             foundry = optional_service("verifier_foundry", default=None)
-        except (ImportError, RuntimeError):
+        except (ImportError, RuntimeError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); verdicts from this battery are not graded to the foundry",
+                "optional_service",
+                type(exc).__name__,
+                exc,
+            )
             foundry = None
 
     started = time.time()
@@ -1575,8 +1584,13 @@ async def run_battery(
                         truth_pass=correct,
                         source="frontier_battery",
                     )
-            except (RuntimeError, AttributeError, TypeError, ValueError):
-                pass
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                logger.warning(
+                    "%s unavailable (%s: %s); a verdict went ungraded, so the foundry's weights do not see it",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
 
     classes = [cell.to_dict() for cell in by_class.values()]
     total = sum(cell.n for cell in by_class.values())

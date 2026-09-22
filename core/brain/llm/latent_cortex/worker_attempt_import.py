@@ -456,6 +456,7 @@ def verify_terminal_worker_stage(
             if isinstance(observed_path, str)
             else None
         )
+    # not a failure: a path that does not resolve on disk is not an observed one.
     except OSError:
         observed_resolved = None
     if observed_resolved != expected_lifecycle_path:

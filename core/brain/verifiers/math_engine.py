@@ -59,6 +59,7 @@ def _derive_exact_answer(question: str) -> tuple[str, str] | None:
         m = re.search(r"(\d[\d,]*)\s*(?:times|multiplied by|\*)\s*(\d[\d,]*)", q)
         if m:
             return f"{_i(m.group(1))}*{_i(m.group(2))}", str(_i(m.group(1)) * _i(m.group(2)))
+    # not a failure: a number this cannot read is not one this engine answers.
     except (ValueError, OverflowError):
         return None
     return None
@@ -93,6 +94,7 @@ def _final_answer_matches(text: str, exact: str) -> bool:
         return False
     try:
         final_value = float(numbers[-1].replace(",", ""))
+    # not a failure: a value that is not a number is not one this can read.
     except ValueError:
         return False
     return math.isclose(final_value, target, rel_tol=0.0, abs_tol=1e-6)

@@ -142,6 +142,8 @@ def _is_sha256(value: Any) -> bool:
 def _strict_equal(left: Any, right: Any) -> bool:
     try:
         return canonical_json_bytes(left) == canonical_json_bytes(right)
+    # not a failure: two values that will not canonicalise are not equal, and False
+    # is the refusing direction.
     except (TypeError, ValueError, RecursionError, OverflowError):
         return False
 

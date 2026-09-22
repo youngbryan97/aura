@@ -304,7 +304,13 @@ def materialized_latent_incumbent(
                 expected_tokens=tokens,
             )
             host_materialized = True
-        except (ImportError, TypeError, ValueError):
+        except (ImportError, TypeError, ValueError) as exc:
+            logger.warning(
+                "%s unavailable (%s: %s); the host incumbent was not materialised for this answer",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
             return None
     if not worker_materialized and not host_materialized:
         return None
@@ -325,6 +331,7 @@ def _resolve_service() -> Any:
         from core.runtime.service_registry import get_runtime_service
 
         return get_runtime_service("latent_cortex", default=None)
+    # not a failure: no service here means the caller falls back to its own default.
     except _RECOVERABLE_ERRORS:
         return None
 

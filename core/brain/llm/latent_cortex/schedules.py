@@ -146,6 +146,7 @@ class StageOp:
             return
         try:
             alpha = float(self.alpha)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError, OverflowError):
             return
         if not math.isfinite(alpha):
@@ -210,6 +211,7 @@ def op_layer_equivalents(op: StageOp) -> int:
     try:
         span = int(op.end) - int(op.start)
         repeats = int(op.repeats)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError, OverflowError):
         return 0
     if span <= 0 or repeats < 1:
@@ -500,6 +502,8 @@ def _resolve_receipts(
             resolver("scorer", scorer_receipt_sha256)
             and resolver("verifier", verifier_receipt_sha256)
         )
+    # not a failure: a resolver that refuses has not resolved the receipt, and False
+    # is the refusing direction.
     except (TypeError, ValueError, KeyError, OSError, RuntimeError):
         return False
 

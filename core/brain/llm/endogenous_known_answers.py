@@ -38,6 +38,8 @@ def verdict_is_earned_on_known_corpora() -> bool:
             fit_vocab_head,
         )
         from core.brain.llm.endogenous_state import STATE_DIM
+    # not a failure: the readout training package is optional, and its absence is
+    # this known answer reporting itself unavailable.
     except ImportError:
         return False
 
@@ -89,6 +91,7 @@ def bias_cannot_promote_a_ruled_out_token() -> bool:
         import numpy as np
 
         from core.brain.llm.endogenous_decode import EndogenousLogitBiasProcessor
+    # not a failure: the same: the package is optional here.
     except ImportError:
         return False
     processor = EndogenousLogitBiasProcessor(
@@ -104,6 +107,7 @@ def arbitration_follows_the_state() -> bool:
     try:
         from core.brain.llm.endogenous_absorption import Proposal, arbitrate
         from core.brain.llm.endogenous_state import empty_state
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return False
     proposal = Proposal(

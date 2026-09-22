@@ -25,6 +25,7 @@ def _batching_enabled() -> bool:
 def _resolve_primary_client() -> Any | None:
     try:
         from core.brain.llm.mlx_client import clients_snapshot
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return None
     # Snapshot first: iterating the live registry races registration.

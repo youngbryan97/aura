@@ -1531,6 +1531,7 @@ class LatentCortexEngine(_ReasonsThroughAnEpisode):
         if verifier_identity is not None:
             try:
                 source_path = inspect.getsourcefile(verifier_identity)
+            # not a failure: a verifier with no source file on disk has no path to record.
             except (OSError, TypeError):
                 source_path = None
             if source_path:
@@ -1630,6 +1631,7 @@ class LatentCortexEngine(_ReasonsThroughAnEpisode):
             return False
         try:
             piece = self.tokenizer.decode([token])
+        # not a failure: a token the tokenizer will not render has no text to judge.
         except (TypeError, ValueError, KeyError, AttributeError):
             return False
         stripped = str(piece).rstrip()
@@ -1717,6 +1719,7 @@ class LatentCortexEngine(_ReasonsThroughAnEpisode):
             return cached
         try:
             piece = self.tokenizer.decode([token])
+        # not a failure: a token the tokenizer will not render has no text to judge.
         except (TypeError, ValueError, KeyError, AttributeError):
             piece = ""
         verdict = bool(piece) and piece.strip() == "" and "\n" in piece
@@ -2772,6 +2775,7 @@ class LatentCortexEngine(_ReasonsThroughAnEpisode):
 
             try:
                 text = self._decode_public_text(out, native_thinking=native_thinking)
+            # not a failure: output the decoder will not read is not public text.
             except (TypeError, ValueError, KeyError, AttributeError):
                 return None
             return contract_decode_disposition(text)

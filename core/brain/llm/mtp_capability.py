@@ -129,6 +129,7 @@ def _mtp_tensor_count(model_dir: Path) -> int:
         return 0
     try:
         weights = json.loads(index.read_text()).get("weight_map") or {}
+    # not a failure: a weight index that will not read holds no MTP tensors.
     except (OSError, ValueError):
         return 0
     return sum(1 for key in weights if "mtp." in key)
@@ -145,6 +146,7 @@ def loader_discards_mtp(model_type: str) -> bool:
         import inspect
 
         module = importlib.import_module(f"mlx_lm.models.{model_type}")
+    # not a failure: a model type mlx_lm does not implement has no MTP head.
     except (ImportError, ValueError):
         return False
     # Model.sanitize delegates to the inner text model's, so inspecting only

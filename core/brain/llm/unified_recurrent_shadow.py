@@ -537,6 +537,8 @@ def _model_extent_matches(model_path: Path, identity: dict[str, Any]) -> bool:
                 or candidate.stat().st_size != row.get("size")
             ):
                 return False
+    # not a failure: a file whose stat does not match its row is not the file that
+    # was recorded, and False is the refusing direction.
     except (KeyError, OSError, RuntimeError, TypeError, ValueError):
         return False
     return True
@@ -560,6 +562,8 @@ def _source_mechanics_match(identity: dict[str, Any]) -> bool:
             and hashlib.sha256((root / name).read_bytes()).hexdigest() == digest
             for name, digest in selected.items()
         )
+    # not a failure: a file that cannot be read cannot match its digest, and False is
+    # the refusing direction.
     except OSError:
         return False
 

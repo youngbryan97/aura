@@ -6,8 +6,11 @@ patches a name on it has to reach the code that reads it.
 """
 from __future__ import annotations
 
+import logging
 import time
 from typing import TYPE_CHECKING, Any
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .context_assembler import (
@@ -470,8 +473,13 @@ class _BuildsThePromptBlocks:
                         f"Mild divergence ({ContextAssembler._self_state_number(div_val, low=0.0, high=1.0)}) -- dominant interpretation exists "
                         f"but alternative readings are available."
                     )
-            except (ValueError, TypeError):
-                pass  # no-op: intentional
+            except (ValueError, TypeError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); no interpretive-divergence block reaches the prompt",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
         personhood_context = "\n\n".join(personhood_blocks) + "\n\n" if personhood_blocks else ""
 
         # What Aura knows and feels about the people/places/things in play.
@@ -574,6 +582,7 @@ class _BuildsThePromptBlocks:
             if isinstance(binding, dict):
                 try:
                     recognized_at = float(binding.get("recognized_at", 0.0) or 0.0)
+                # not a failure: a value that is not a number is not one this can read.
                 except (TypeError, ValueError):
                     recognized_at = 0.0
             fresh = bool(

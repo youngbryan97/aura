@@ -328,6 +328,8 @@ class BicameralAdvisory:
         supplied = str(receipt.get("integrity") or "")
         try:
             return bool(supplied) and hmac.compare_digest(supplied, _sign(body))
+        # not a failure: a receipt whose signature will not compute does not verify, and
+        # False is the refusing direction.
         except (TypeError, ValueError, OverflowError):
             return False
 

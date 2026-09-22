@@ -158,6 +158,7 @@ Keep answers concise.
         if m3:
             try:
                 confidence = float(m3.group(1))
+            # not a failure: a value that is not a number is not one this can read.
             except (RuntimeError, AttributeError, TypeError, ValueError):
                 confidence = None
         if action is None:

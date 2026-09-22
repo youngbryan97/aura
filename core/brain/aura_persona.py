@@ -128,6 +128,7 @@ def identity_text(*, ablate_section: str = "") -> str:
 
     try:
         turn_scoped = _ABLATED_SECTION.get()
+    # not a failure: no ablated section was set for this turn.
     except LookupError:
         turn_scoped = ""
     target = str(
@@ -428,6 +429,7 @@ def build_autonomous_thought_prompt(
     """Build the idle prompt without allowing runtime strings to become instructions."""
     try:
         unanswered = max(0, min(int(unanswered_count), 1_000_000))
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError, OverflowError):
         unanswered = 0
     payload = {

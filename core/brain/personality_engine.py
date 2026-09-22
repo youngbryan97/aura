@@ -87,6 +87,7 @@ class EmotionalState:
         # persisted intensity (NaN would propagate through every later min/max).
         try:
             amount = float(amount)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if amount != amount or amount in (float("inf"), float("-inf")):
@@ -101,6 +102,7 @@ class EmotionalState:
         """Natural decay towards base level"""
         try:
             delta_time = float(delta_time)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if delta_time != delta_time or delta_time < 0.0 or delta_time in (float("inf"),):

@@ -22,7 +22,13 @@ class EmpathyProber:
         try:
             from core.event_bus import get_event_bus
             self._event_bus = get_event_bus()
-        except ImportError:
+        except ImportError as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the prober runs without publishing its findings",
+                "get_event_bus",
+                type(exc).__name__,
+                exc,
+            )
             self._event_bus = None
         logger.info("👁️ [VK] Voight-Kampff Prober ONLINE. Empathy baselines established.")
 

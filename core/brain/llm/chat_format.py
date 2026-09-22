@@ -402,6 +402,7 @@ def template_supports_thinking(tokenizer: object) -> bool:
                     enable_thinking=flag,
                 )
             )
+        # not a failure: a probe that refuses has answered the question this asks.
         except (TypeError, ValueError, KeyError, RuntimeError, AttributeError):
             return None
 
@@ -473,6 +474,7 @@ def template_supports_reasoning_effort(tokenizer: object) -> bool:
                     reasoning_effort=effort,
                 )
             )
+        # not a failure: a probe that refuses has answered the question this asks.
         except (TypeError, ValueError, KeyError, RuntimeError, AttributeError):
             return None
 
@@ -1094,6 +1096,7 @@ def _is_the_brainstem_artifact(name: str) -> bool:
     """Whether ``name`` (a model name or path, lowercased) is the brainstem's artifact."""
     try:
         from core.brain.llm.model_registry import BRAINSTEM_MODEL
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:  # pragma: no cover - the registry is always importable here
         return False
     artifact = str(BRAINSTEM_MODEL or "").strip().lower()
@@ -1252,7 +1255,13 @@ def answer_is_derived_for_generation(
         floor = int(completion_floor or 0)
         budget = int(budget_tokens or 0)
         remaining = float(seconds_remaining or 0.0)
-    except (ImportError, TypeError, ValueError):
+    except (ImportError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the private-channel budget is not applied to this turn",
+            "the_channel_budget_for",
+            type(exc).__name__,
+            exc,
+        )
         return False
     # Whether the answer is worked out here is a property of the REQUEST. A
     # closed question answered once carries the base floor; anything above it

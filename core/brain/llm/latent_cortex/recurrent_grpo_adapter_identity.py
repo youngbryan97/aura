@@ -593,6 +593,8 @@ def _validate_step_receipts(
                     expected_episode_id=str(sample.get("episode_id") or ""),
                     expected_input_tokens_sha256=str(sample.get("prompt_tokens_sha256") or ""),
                 )
+            # not a failure: without the integrity module nothing can be called safe, and
+            # False is the refusing direction.
             except ImportError:
                 measured_runtime_safe = False
             if not isinstance(activation, Mapping):

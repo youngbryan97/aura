@@ -771,6 +771,8 @@ class _WatchesTheCortexComeUp:
             if gate is None:
                 return False
             lane = gate.get_conversation_status()
+        # not a failure: the comment below says it — a probe must never break admission,
+        # and unknown residency keeps the conservative answer.
         except _INFERENCE_RECOVERABLE_ERRORS:
             # A probe must never break admission; unknown residency keeps the
             # stricter load-sized floor.
@@ -783,6 +785,8 @@ class _WatchesTheCortexComeUp:
             # "Ready" without a completed generation is an intention, not a
             # residency: the weights may still be streaming in.
             return bool(lane.get("has_generated_successfully"))
+        # not a failure: a lane status that will not read is not a proven residency, and
+        # False is the refusing direction.
         except (AttributeError, TypeError, ValueError):
             return False
 

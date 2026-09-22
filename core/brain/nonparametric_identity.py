@@ -64,6 +64,7 @@ class TrustLevel:
     def rank(cls, level: str) -> int:
         try:
             return cls.ORDER.index(str(level))
+        # not a failure: a level outside the order ranks lowest, which is what 0 is.
         except ValueError:
             return 0
 
@@ -175,5 +176,6 @@ def identity_from_mapping(value: Any, *, dim: int) -> StoreIdentity | None:
             adapter=str(value.get("adapter", "")),
             centering_version=int(value.get("centering_version", 0) or 0),
         )
+    # not a failure: a record whose fields will not coerce is not an identity.
     except (TypeError, ValueError):
         return None

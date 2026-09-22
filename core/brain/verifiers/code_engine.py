@@ -294,6 +294,7 @@ def has_module_level_asserts(code: str) -> bool:
     tucked inside function/class definitions that nothing calls."""
     try:
         tree = ast.parse(code)
+    # not a failure: text that does not parse is not the shape this was reading for.
     except SyntaxError:
         return False
 

@@ -38,6 +38,7 @@ def source_matches_action(source: Any, action: OperationKind | str) -> bool:
 
     try:
         operation = action if isinstance(action, OperationKind) else OperationKind(action)
+    # not a failure: a name that is not an operation kind belongs to no action class.
     except (TypeError, ValueError):
         return False
     label = str(source or "")

@@ -57,6 +57,7 @@ def _finite_sequence(values: Any) -> list[float] | None:
     """Every element finite, or None. One bad token poisons the mean."""
     try:
         candidates = list(values)
+    # not a failure: something that will not iterate is not a sequence of values.
     except TypeError:
         return None
     out: list[float] = []
@@ -112,6 +113,7 @@ def _read_substrate_channel(vector: Any, index: Any) -> float | None:
     """
     try:
         position = int(index)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     if position < 0 or position >= len(vector):

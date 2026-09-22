@@ -18,6 +18,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import hashlib
+import logging
 import re
 import time
 from collections.abc import Awaitable, Callable
@@ -26,6 +27,8 @@ from enum import StrEnum
 from typing import Any
 
 from core.brain.generation_provenance import attributed_text, generation_metadata_of
+
+logger = logging.getLogger(__name__)
 
 GenerateFn = Callable[[str, float], Awaitable[Any]]
 
@@ -408,8 +411,13 @@ def _normalize_contract_candidate(
         payload = parse_final_answer(candidate)
         if validate_response_payload(payload, contract)["valid"]:
             return candidate.strip(), False
-    except (KeyError, TypeError, ValueError):
-        pass
+    except (KeyError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the candidate is not accepted against its contract",
+            "parse_final_answer",
+            type(exc).__name__,
+            exc,
+        )
     try:
         from core.brain.llm.latent_cortex.contract_repair import (
             parse_contract_repair_generation,

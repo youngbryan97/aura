@@ -1592,6 +1592,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   from the exact manifests. Twenty-seven tests pass. Default family settings
   no longer qualify a structural preflight; fresh transfer remains unmeasured.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
+  OPEN, observed live 2026-09-21, and recorded here because it is a
+  reasoning error rather than a plumbing one. Asked how far a bird flies
+  between two trains 300 km apart closing at 90 and 60 km/h, she named the
+  right method — "don't track every turn, find out how long the bird is in
+  the air, then multiply by its speed" — and answered 480 km. The bird
+  flies 240. 480 is 120 x 4, and 4 hours is 300 divided by 75, which is
+  the MEAN of the two speeds. Closing speed is their sum. The method was
+  right and one primitive underneath it was wrong, which is the shape
+  worth naming: nothing in the runtime can catch it, because every
+  arithmetic step she wrote was arithmetically correct.
+  Not yet reproduced with her full working in hand. The host was saturated
+  when it was seen and the same question now returns
+  `canonical_chat_no_reply`.
   [Public-channel diagnostic](evidence/G06_PUBLIC_CHANNEL_DIAGNOSTIC_2026-09-14.md)
   found 18 token-capped and 42 stopped/unparsed ordinary CP1003 outputs.
   One real 27B development task now reaches a correct public result after
@@ -2221,6 +2234,41 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   parameter (static and class methods too, `Class.m` receivers, a
   --limit); it was the mechanism behind the per-class ceiling before the
   lifts made it moot.
+  2026-09-21, the swallowed-reason ratchet, which is MATRIX-12's fourth
+  acceptance in its own words and FAULT-001's behavioural half. 2,262 at
+  the start of the day to 1,225: core/runtime to zero, then cognition,
+  consciousness, the four new body ledgers, and core/brain.
+  Most were answers. A term that will not generalise to a length it never
+  saw, a path outside its parent, a port that does not answer, no running
+  loop: the question was asked and the answer was no. Those carry a
+  sentence above the handler now, which is reviewable in a way silence is
+  not, and two helpers place it — one for the sentence, one that adds the
+  binding and a line naming the import and what the fallback costs — so
+  the wording sits where a reader looks rather than where the diff was
+  easy.
+  The ones that were not answers fell into four shapes. A reading that
+  falls back to the healthiest value there is: 0.0% disk used on an
+  unreadable mount, an 8GB floor for a 64GB host, zero catharsis drain so
+  a thing said five times presses as hard as one never said, zero novelty
+  so today is like every other day. A record nobody misses until they need
+  it: the error budget, two histograms whose own comments are about having
+  read empty for the life of their declaration, the black box read after a
+  hard fault, the memory-write receipt whose absence an audit later calls
+  a gap. A verdict nobody made: `_is_approved` returning False when the
+  approval check RAISED, a signature that could not be CHECKED refusing
+  the same way as one that failed, a tenant stamp that exists and will not
+  parse read as no tenant. And three `recall()` functions returning 0 for
+  a file that exists and will not read, where 0 is what a first boot looks
+  like.
+  Two ratchets were pulling against each other and one had to yield. The
+  sweep added four comment lines to `qualified_recurrent_ingress.py`; the
+  bounded-WOW surface seals that file by SHA-256 of its BYTES, because a
+  120-task qualification measured what those exact files do, so four
+  comments switched off a surface established with lesion controls and
+  smoke went red. The seal is right. The file is restored byte for byte
+  and the reasons gate stops asking about the thirteen Python files a
+  qualification has bound
+  (tests/test_two_ratchets_do_not_pull_against_each_other.py).
 - [ ] Q07 Refresh semantic ledger near code freeze; reconcile changed or
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,

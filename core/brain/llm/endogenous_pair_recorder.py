@@ -235,6 +235,7 @@ def _rotate_if_needed(gateway: Any, target: Path, *, incoming_bytes: int) -> Non
             or target.stat().st_size + max(0, int(incoming_bytes)) <= MAX_FILE_BYTES
         ):
             return
+    # not a failure: a target that cannot be sized is one this does not rotate.
     except OSError:
         return
     stamp = _rotation_stamp()
@@ -306,6 +307,7 @@ def _parse_line(
 ) -> RecordedPair | None:
     try:
         payload = json.loads(line)
+    # not a failure: a line that is not JSON is not a recorded pair.
     except ValueError:
         return None
     if not isinstance(payload, Mapping):
@@ -319,6 +321,7 @@ def _parse_line(
         return None
     try:
         values = np.asarray(payload.get("z") or [], dtype=np.float32)
+    # not a failure: values that will not become an array are not a recorded pair.
     except (TypeError, ValueError):
         return None
     if values.shape != (STATE_DIM,) or not np.all(np.isfinite(values)):

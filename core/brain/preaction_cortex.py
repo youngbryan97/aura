@@ -78,6 +78,7 @@ def _latent_service() -> Any:
         from core.service_names import ServiceNames
 
         return get_runtime_service(ServiceNames.LATENT_CORTEX, default=None)
+    # not a failure: no service here, so the caller falls back to its own default.
     except (ImportError, AttributeError):
         return None
 

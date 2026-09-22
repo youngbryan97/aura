@@ -43,6 +43,7 @@ def _answer_object(text: str) -> dict[str, str | int] | None:
         return None
     try:
         payload = json.loads(matches[-1].group("payload"))
+    # not a failure: text that does not parse is not the shape this was reading for.
     except (json.JSONDecodeError, RecursionError):
         return None
     if (

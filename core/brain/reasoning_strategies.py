@@ -405,6 +405,8 @@ class ReasoningStrategies:
             from core.brain.reasoning_amplifier_v2 import is_amplifiable
 
             return is_amplifiable(q)
+        # not a failure: the amplifier could not judge it, and None is this function's
+        # word for no verdict.
         except _REASONING_RECOVERABLE_ERRORS:
             return None
 

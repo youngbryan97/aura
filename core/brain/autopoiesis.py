@@ -243,6 +243,7 @@ class ObjectiveFrictionGraph:
     def _remove(self, node: SynapticNode) -> None:
         try:
             self.nodes.remove(node)
+        # not a failure: a node already gone is the state this is removing it into.
         except ValueError:
             return
         if self._by_concept.get(node.concept) is node:

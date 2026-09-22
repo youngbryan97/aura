@@ -243,6 +243,7 @@ class SymbolicSandbox:
         """
         try:
             rounds_budget = int(max_rounds)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             rounds_budget = 0
         current = _strip_fence(code)

@@ -25,6 +25,7 @@ def _clamp01(value: Any) -> float | None:
         return None
     try:
         num = float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     if not math.isfinite(num):
@@ -230,6 +231,7 @@ def _extract_json_object(text: str) -> dict[str, Any] | None:
     try:
         obj = json.loads(stripped)
         return obj if isinstance(obj, dict) else None
+    # not a failure: text that does not parse is not the shape this was reading for.
     except (json.JSONDecodeError, ValueError):
         pass
     start = stripped.find("{")

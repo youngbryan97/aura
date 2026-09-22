@@ -425,6 +425,7 @@ class AutonomousCognitiveEngine:
             repo = service_access.resolve_state_repository(default=None)
             if repo and hasattr(repo, "get_current"):
                 return await repo.get_current()
+        # not a failure: no state repository, so there is no live state to read.
         except BRAIN_RECOVERABLE_ERRORS:
             return None
         return None

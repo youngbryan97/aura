@@ -937,7 +937,13 @@ class ReActLoop:
             from core.synthesis import deterministic_user_facing_floor
 
             floor_reply = deterministic_user_facing_floor(query)
-        except (ImportError, AttributeError, RuntimeError):
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); no deterministic floor reply for this query",
+                "deterministic_user_facing_floor",
+                type(exc).__name__,
+                exc,
+            )
             floor_reply = ""
         if floor_reply and self.simple_threshold > 0 and len(str(query or "").split()) <= 18:
             logger.debug("ReAct: Simple foreground floor detected, bypassing reasoning loop")

@@ -484,6 +484,8 @@ class VerifierFoundry:
             # duplicate grade to be processed differently after the first pop.
             try:
                 self._pending_order.remove(vid)
+            # not a failure: the id has already left the order list, which is what removing
+            # it was for.
             except ValueError:
                 pass
             truth = bool(event.get("truth_pass"))

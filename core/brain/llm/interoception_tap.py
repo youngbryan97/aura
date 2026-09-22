@@ -86,6 +86,7 @@ def _env_int(name: str, default: int, lo: int, hi: int) -> int:
 def _finite(x: Any) -> float | None:
     try:
         f = float(x)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError, OverflowError):
         return None
     if math.isnan(f) or math.isinf(f):
@@ -150,6 +151,7 @@ def _step_stats(logprobs: Any, token_id: int) -> tuple[float, float, float, floa
             if isinstance(packed, (list, tuple)) and len(packed) >= 6:
                 raw_stats = (packed[0], packed[1], packed[2], packed[3],
                              packed[4], packed[5])
+    # not a failure: no MLX here, so there are no raw stats to pack.
     except ImportError:
         raw_stats = None
 
@@ -380,6 +382,7 @@ class InteroceptionTap:
                 "mean_surprisal": round(sum(self._surprisals) / n, 4),
                 "mean_entropy": round(sum(self._entropies) / n, 4),
             }
+        # not a failure: a step that refuses has no reading to summarise.
         except _STEP_RECOVERABLE:
             return None
 

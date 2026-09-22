@@ -150,6 +150,7 @@ def _dir_is_populated(path: Path) -> bool:
         if not path.is_dir():
             return False
         entries = list(path.iterdir())
+    # not a failure: a path that is not there, or not readable, is not a model.
     except OSError:
         return False
     if not entries:
@@ -350,6 +351,8 @@ class ModelLifecycleManager:
         try:
             disk = (self._observer or get_resource_observer()).disk(anchor)
             free = disk.free_bytes if disk.available else 0
+        # not a failure: an anchor whose disk cannot be read reports no free bytes, which
+        # is the refusing direction for a model that needs room.
         except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
             free = 0
         return DiskPreflight(target=str(probe), free_bytes=int(free), required_bytes=int(required))

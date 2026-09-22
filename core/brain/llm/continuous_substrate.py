@@ -465,5 +465,11 @@ class ContinuousSubstrate:
             np.fill_diagonal(C, 0.0)
             magnitude = float(np.mean(np.abs(C)))
             return max(0.0, min(1.0, magnitude * 1.5))
-        except (RuntimeError, AttributeError, TypeError, ValueError):
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the coupling reads zero, which is what an uncoupled substrate reads",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
             return 0.0

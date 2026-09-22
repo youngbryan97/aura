@@ -107,7 +107,13 @@ class IntegrityGuard:
         try:
             from core.adaptation.immune_system import get_immune_system
             immune_sys = get_immune_system()
-        except ImportError:
+        except ImportError as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the integrity check runs without the immune system's view",
+                "get_immune_system",
+                type(exc).__name__,
+                exc,
+            )
             immune_sys = None
 
         try:
@@ -283,6 +289,7 @@ class IntegrityGuard:
             return
         try:
             last_reinforced = float(last_reinforced)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             report.skipped_unknown_age = getattr(report, "skipped_unknown_age", 0) + 1
             return

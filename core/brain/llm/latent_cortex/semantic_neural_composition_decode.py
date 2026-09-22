@@ -172,6 +172,7 @@ def parse_composition_response(
 
     try:
         parsed = json.loads(encoded.strip(), object_pairs_hook=reject_duplicates)
+    # not a failure: text that does not parse is not the shape this was reading for.
     except (json.JSONDecodeError, ValueError):
         return None
     if (

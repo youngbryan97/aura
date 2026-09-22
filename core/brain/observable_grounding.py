@@ -192,6 +192,8 @@ async def observable_blocks(user_prompt: Any) -> list[str]:
 
         for name in delivered:
             record_evidence_delivered(name)
+    # not a failure: the comment beside it says it: grounding must never fail a turn,
+    # and session scope is optional here.
     except ImportError:  # pragma: no cover - grounding must never fail a turn
         pass
     return [block for _name, block in results if block]

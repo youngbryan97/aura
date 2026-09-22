@@ -504,6 +504,7 @@ class MLXAmateurModel:
                     return None
                 with self._lock:
                     return self._cached_forward(mx, ids)
+            # not a failure: a forward pass that refuses has no logits to contrast.
             except (RuntimeError, ValueError, TypeError, AttributeError):
                 return None
 

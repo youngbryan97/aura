@@ -528,6 +528,8 @@ def _valid_identity_receipt(
         return True
     try:
         validate_verified_recurrent_grpo_adapter_identity_receipt(identity_receipt)
+    # not a failure: a receipt that will not validate has not validated, and False is
+    # the refusing direction.
     except ValueError:
         return False
     return True

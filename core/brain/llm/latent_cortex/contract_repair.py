@@ -188,6 +188,7 @@ def _unambiguous_schema_coercion(
         source = source.split("FINAL_ANSWER:", 1)[1].lstrip()
     try:
         payload, end = json.JSONDecoder().raw_decode(source)
+    # not a failure: text that does not parse is not the shape this was reading for.
     except json.JSONDecodeError:
         return None
     tail = source[end:].strip()

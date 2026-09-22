@@ -10,6 +10,7 @@ Missing evidence remains explicitly unmeasured.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import re
 from dataclasses import dataclass
@@ -24,6 +25,8 @@ from core.epistemics.assertion import (
     SourceKind,
     Verification,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class CortexEvidenceRequest(StrEnum):
@@ -206,6 +209,8 @@ _CAMPAIGN_PATHS: tuple[tuple[str, Path], ...] = (
 def _json_object(path: Path) -> dict[str, Any] | None:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
+    # not a failure: a file that is not there, or not readable as this shape, has no
+    # record to return.
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     return value if isinstance(value, dict) else None
@@ -277,6 +282,7 @@ def _verified_campaign(
         p_value = float(verification.get("paired_one_sided_exact_p"))
         adjudicated_p_value = float(adjudication.get("paired_one_sided_exact_p"))
         elapsed_seconds = float(result.get("elapsed_seconds"))
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     if not math.isfinite(p_value) or not 0.0 <= p_value <= 1.0:
@@ -416,7 +422,13 @@ def _build_cortex_evidence_surface() -> object | None:
             ),
             features=embed_sentences,
         )
-    except (ImportError, RuntimeError, TypeError, ValueError):
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); no self-evidence reading this run",
+            "LearnedMatcher",
+            type(exc).__name__,
+            exc,
+        )
         return None
 
 
@@ -428,8 +440,13 @@ def _request_tokens(text: str) -> frozenset[str]:
         from core.language.asking_clauses import asking_part
 
         text = asking_part(text)
-    except (ImportError, RuntimeError, TypeError, ValueError):
-        pass
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the whole text is tokenised, asking clause and all",
+            "asking_part",
+            type(exc).__name__,
+            exc,
+        )
     return frozenset(_WORD_RE.findall(str(text or "").casefold()))
 
 
@@ -453,6 +470,7 @@ def classify_cortex_evidence_request(text: str) -> CortexEvidenceRequest | None:
     if surface is not None:
         try:
             learned = surface.decide_without_waiting(str(text or ""))
+        # not a failure: a surface that cannot decide yet has not decided.
         except (RuntimeError, TypeError, ValueError):
             learned = None
         if learned is True:

@@ -152,10 +152,13 @@ def _keys_digest(keys: np.ndarray) -> str:
 def _fsync_directory(directory: Path) -> None:
     try:
         fd = os.open(str(directory), os.O_RDONLY)
+    # not a failure: a directory that will not open has nothing to fsync.
     except OSError:
         return
     try:
         os.fsync(fd)
+    # not a failure: an fsync that refuses on this filesystem leaves the write where
+    # the OS put it, which is the same as before this call existed.
     except OSError:
         pass
     finally:
@@ -1093,6 +1096,7 @@ class NonParametricMemory:
             if keys is not None and hasattr(keys, "_mmap"):
                 try:
                     keys._mmap.close()
+                # not a failure: a mapping already closed is the state this is reaching.
                 except (AttributeError, OSError, ValueError):
                     pass
 

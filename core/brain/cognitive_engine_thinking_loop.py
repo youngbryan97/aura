@@ -7,8 +7,11 @@ patches a name on it has to reach the code that reads it.
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from typing import TYPE_CHECKING, Any
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .cognitive_engine import (
@@ -269,8 +272,13 @@ class _RunsTheThinkingLoop:
         if "retrieval" in str(phase_name).lower():
             try:
                 record_latency("retrieval", phase_elapsed)
-            except ValueError:
-                pass
+            except ValueError as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); the retrieval phase's duration is missing from the turn's split",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
         return temp_state
 
     async def _run_thinking_loop_closed_rather_after(
@@ -845,6 +853,7 @@ class _RunsTheThinkingLoop:
         explicit_timeout = kwargs.get("timeout_s", kwargs.get("timeout"))
         try:
             cycle_timeout = float(explicit_timeout) if explicit_timeout is not None else 0.0
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             cycle_timeout = 0.0
         cycle_deadline_at, cycle_timeout = self._run_thinking_loop_part_2(context, cycle_timeout, is_background, objective, origin)
@@ -1283,7 +1292,13 @@ class _RunsTheThinkingLoop:
                 from core.conversation.surface_disposition import best_available_reply
 
                 salvaged = best_available_reply(question=objective)
-            except (ImportError, RuntimeError, TypeError, ValueError):
+            except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+                logger.warning(
+                    "%s unavailable (%s: %s); nothing was salvaged for a turn that had something to say",
+                    "best_available_reply",
+                    type(exc).__name__,
+                    exc,
+                )
                 salvaged = ""
         if salvaged:
             recoverable_metadata = self._run_thinking_loop_generation_metadata(context, origin, salvaged, state)

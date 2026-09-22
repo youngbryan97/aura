@@ -1198,6 +1198,8 @@ def runtime_integrity_safe(
             expected_checkpoint_method=expected_checkpoint_method,
             expected_checkpoint_file_count=expected_checkpoint_file_count,
         )
+    # not a failure: a receipt that will not validate has not validated, and False is
+    # the refusing direction.
     except (TypeError, ValueError):
         return False
     if require_worker:

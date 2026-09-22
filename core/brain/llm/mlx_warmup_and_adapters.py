@@ -212,11 +212,13 @@ class _WarmsUpAndSwapsAdapters:
             texts.append(text)
             try:
                 candidate_tokens = max(0, int(raw_candidate_tokens[index] or 0))
+            # not a failure: a value that is not a number is not one this can read.
             except (IndexError, TypeError, ValueError, OverflowError):
                 candidate_tokens = 0
             tokens_used_by_candidate.append(candidate_tokens)
         try:
             tokens_used = max(0, int(res.get("tokens_used") or 0))
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError, OverflowError):
             tokens_used = 0
         # The aggregate and the per-candidate totals are two claims about the
@@ -982,10 +984,18 @@ class _WarmsUpAndSwapsAdapters:
             # PROVE the prior task ended before starting another one.
             try:
                 await asyncio.wait_for(asyncio.shield(inflight), timeout=10.0)
+            # not a failure: the prior task was cancelled, or took its ten seconds to end;
+            # either way it is over and the replacement may start. Anything
+            # else is caught below and reported.
             except (asyncio.CancelledError, TimeoutError):
                 pass
-            except (RuntimeError, AttributeError, TypeError, ValueError):
-                pass
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                logger.warning(
+                    "%s unavailable (%s: %s); the prior warmup task did not end cleanly before this one started",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
             self._warmup_in_flight = False
 
         task = get_task_tracker().create_task(

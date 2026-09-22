@@ -73,6 +73,7 @@ class Feature:
     def clamp(self, value: Any) -> float:
         try:
             v = float(value)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return 0.0
         if not math.isfinite(v):
@@ -406,6 +407,7 @@ class EndogenousState:
         try:
             values = np.asarray(payload.get("values") or [], dtype=np.float32)
             present = np.asarray(payload.get("present") or [], dtype=bool)
+        # not a failure: a payload whose arrays will not read is not a state.
         except (TypeError, ValueError):
             return None
         if values.shape != (STATE_DIM,) or present.shape != (STATE_DIM,):
@@ -529,6 +531,7 @@ def _first_number(source: Any, keys: Sequence[str]) -> float | None:
 def _log_age(seconds: Any, *, span: float = 3600.0) -> float:
     try:
         age = float(seconds)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0.0
     if not math.isfinite(age) or age <= 0:
@@ -868,6 +871,7 @@ def _seconds_since_iso(value: Any) -> float | None:
         return None
     try:
         stamp = datetime.fromisoformat(value)
+    # not a failure: the docstring above says it: not an ISO-8601 timestamp.
     except (TypeError, ValueError):
         return None
     now = datetime.now(stamp.tzinfo) if stamp.tzinfo else datetime.now()

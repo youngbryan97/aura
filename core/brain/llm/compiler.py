@@ -52,6 +52,7 @@ def _finite(value: Any) -> float | None:
         return None
     try:
         num = float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     return num if math.isfinite(num) else None
@@ -288,6 +289,7 @@ Stay true to her personality: sovereign, curious, loyal, and slightly detached f
                 return ""
             try:
                 running = asyncio.get_running_loop()
+            # not a failure: off a loop there is no running loop or task to report.
             except RuntimeError:
                 running = None
             if running is loop:

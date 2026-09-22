@@ -363,6 +363,7 @@ def _reuse_or_validate_model_trust(model_path: str) -> TrustedModelIdentity:
     """Reuse identity only while its exact, fenced model remains resident."""
     try:
         requested = str(Path(model_path).expanduser().resolve(strict=True))
+    # not a failure: a model path that does not resolve is not a resident model.
     except OSError:
         requested = ""
     with _load_lock:
@@ -668,6 +669,7 @@ class LocalCodeModel:
             path = Path(self.model_path).expanduser()
             manifest = _trust_manifest_path()
             return path.is_dir() and manifest.is_file()
+        # not a failure: a path that is not there, or not readable, is not a model.
         except OSError:
             return False
 

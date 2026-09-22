@@ -13,6 +13,7 @@ import copy
 import hashlib
 import hmac
 import itertools
+import logging
 import math
 import random
 import re
@@ -29,6 +30,8 @@ from core.brain.canonical_json import (
     canonical_json_bytes,
 )
 from core.runtime.lockdep import LockRank, checked_lock
+
+logger = logging.getLogger(__name__)
 
 PROTOCOL_VERSION = 5
 MAX_CHALLENGE_LIFETIME_S = 3_600.0
@@ -1654,7 +1657,13 @@ def _chain_key() -> bytes | None:
                     mode=0o600,
                     source="frontier_evidence.chain_key",
                 )
-        except (ImportError, OSError, RuntimeError, ValueError):
+        except (ImportError, OSError, RuntimeError, ValueError) as exc:
+            logger.warning(
+                "%s unavailable (%s: %s); the evidence chain has no key, so nothing it writes can be signed",
+                "local_internal_governed_scope",
+                type(exc).__name__,
+                exc,
+            )
             _CHAIN_KEY_CACHE = None
         return _CHAIN_KEY_CACHE
 

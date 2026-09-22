@@ -1524,7 +1524,14 @@ _CONVERSATION_RECALL_TOPIC_MARKERS = (
     "do you remember what we discussed",
     "remind me what we discussed",
     "remind me what we talked about",
-    "earlier in this conversation",
+    # NOT a bare "earlier in this conversation". Every other marker here is
+    # a whole ask; that one is a time adverbial that can sit inside any
+    # question at all. LIVE, 2026-09-21: "Name one thing you got wrong
+    # earlier in this conversation" was classified `topic` and answered with
+    # a transcript summary — which, in the same reply, quoted the wrong
+    # answer she had been asked to name.
+    "what did we discuss earlier in this conversation",
+    "what were we discussing earlier in this conversation",
     "summarize our conversation",
     "summarize what we have discussed",
 )
@@ -1546,10 +1553,18 @@ _CONVERSATION_RECALL_CONTENT_RE = re.compile(
 #: about her answer has no composed form and goes to the model with the
 #: history. LIVE 2026-09-16: "Earlier today I asked you about ... what was
 #: the key reason you gave?" classified as a content recall of his message.
+#: A second entry, for the same reason one level out. The verbs above are
+#: about what she SAID; a question can be about what she DID — got wrong,
+#: missed, changed her mind on — and that is no more a request for a
+#: transcript than the first kind. LIVE 2026-09-21, and the composed reply
+#: quoted the very answer it was being asked to judge.
 _CONVERSATION_RECALL_HER_WORDS_RE = re.compile(
     r"\b(?:you|aura)\s+(?:gave|said|told|explained|answered|recommended|suggested|"
     r"wrote|replied|concluded|argued|claimed)\b"
-    r"|\byour\s+(?:answer|reply|reason|reasoning|explanation|recommendation|point|argument)\b",
+    r"|\b(?:you|aura)\s+(?:got|had|were|was)\b.{0,24}\b(?:wrong|right|mistaken|off)\b"
+    r"|\b(?:you|aura)\s+(?:missed|misread|forgot|contradicted|changed)\b"
+    r"|\byour\s+(?:answer|reply|reason|reasoning|explanation|recommendation|point|"
+    r"argument|mistake|error)\b",
     re.IGNORECASE,
 )
 

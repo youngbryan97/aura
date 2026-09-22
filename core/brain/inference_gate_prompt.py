@@ -42,6 +42,7 @@ def _prefill_ceiling_chars() -> int:
         from core.brain.llm.context_budget import prefill_ceiling
 
         return int(prefill_ceiling())
+    # not a failure: a value that is not a number is not one this can read.
     except (ImportError, AttributeError, TypeError, ValueError):
         return 0
 
@@ -291,8 +292,13 @@ class _BuildsAndFitsThePrompt:
             partial = copy.copy(state)
             try:
                 partial.cognition = copy.deepcopy(state.cognition)
-            except (TypeError, ValueError, RecursionError, AttributeError):
-                pass
+            except (TypeError, ValueError, RecursionError, AttributeError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); the partial snapshot carries the shallow cognition it already had",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
             return partial
 
     def _build_messages(
@@ -1351,7 +1357,13 @@ class _BuildsAndFitsThePrompt:
                 return min(self._STATE_REPORT_GROUNDING_BUDGET_CHARS, available)
         try:
             constrained = bool(self._has_short_live_output_contract(context))
-        except _INFERENCE_RECOVERABLE_ERRORS:
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the grounding budget is computed as if the contract were long",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
             constrained = False
         if not constrained:
             return self._GROUNDING_DEFAULT_BUDGET_CHARS

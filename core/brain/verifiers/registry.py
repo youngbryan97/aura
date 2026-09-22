@@ -135,6 +135,7 @@ class VerifierRegistry:
             from core.runtime.service_access import optional_service
 
             return optional_service("verifier_foundry", default=None)
+        # not a failure: no foundry here, so the caller's own weights apply.
         except (ImportError, RuntimeError):
             return None
 

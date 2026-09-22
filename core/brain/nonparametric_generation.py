@@ -232,6 +232,7 @@ def _valid_vocab_token(token_id: Any, vocab_size: int) -> bool:
     """
     try:
         value = int(token_id)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError, OverflowError):
         return False
     return 0 <= value < int(vocab_size)
@@ -444,6 +445,8 @@ def make_nonparametric_logits_processor(
 
     try:
         hidden_model = decoder_backbone(model)
+    # not a failure: a model with no reachable decoder backbone has no hidden states,
+    # and the docstring above says this fails open.
     except DecoderTopologyError:
         hidden_model = None
 

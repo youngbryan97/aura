@@ -37,6 +37,7 @@ logger = logging.getLogger("Brain.ContextGate")
 def _clamp01(x: float) -> float:
     try:
         return max(0.0, min(1.0, float(x)))
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError, OverflowError):
         return 0.0
 
@@ -55,6 +56,8 @@ def _optional_tiktoken_encoding() -> Any:
         import tiktoken  # type: ignore
 
         return tiktoken.get_encoding("cl100k_base")
+    # not a failure: no tiktoken here, so this counter has nothing to offer and the
+    # caller uses its own.
     except (ImportError, LookupError, AttributeError, TypeError, ValueError):
         return None
 
@@ -197,6 +200,7 @@ class ContextDeltaTracker:
         """
         try:
             v = float(value)
+        # not a failure: a value that is not a number is not one this can read.
         except (RuntimeError, AttributeError, TypeError, ValueError):
             return False
 
@@ -251,6 +255,8 @@ class AttentionalContextGate:
             try:
                 if not bool(block.include_if()):
                     return False
+            # not a failure: a block whose own condition will not evaluate is not one this
+            # includes, and False is the refusing direction.
             except (AttributeError, TypeError, ValueError, RuntimeError):
                 return False
 

@@ -237,6 +237,7 @@ def retrieve_observation(
     ):
         try:
             rendered = str(tokenizer.decode([token_id])).strip()
+        # not a failure: a token the tokenizer will not render has no text to judge.
         except (AttributeError, KeyError, TypeError, ValueError):
             rendered = ""
         if rendered:

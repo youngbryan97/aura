@@ -294,6 +294,7 @@ class LocalBrain:
         """
         try:
             deadline = float(self.timeout)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             deadline = 0.0
         if deadline != deadline or deadline in (float("inf"), float("-inf")):
@@ -399,6 +400,7 @@ class LocalBrain:
             from core.container import container
 
             nucleus = container.get("nucleus", None)
+        # not a failure: no service here, so the caller falls back to its own default.
         except _RECOVERABLE_ERRORS:
             return None
         if nucleus is None or not hasattr(nucleus, "generate_stream_async"):

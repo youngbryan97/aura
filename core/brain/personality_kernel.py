@@ -86,8 +86,13 @@ class PersonalityKernel:
                 logger.warning("Identity key had loose permissions (%o); tightening to 600.", mode)
                 try:
                     os.chmod(self.key_file, 0o600)
-                except OSError:
-                    pass
+                except OSError as exc:
+                    logger.warning(
+                        "%s unavailable (%s: %s); the identity key keeps its loose permissions",
+                        "it",
+                        type(exc).__name__,
+                        exc,
+                    )
             key = self.key_file.read_bytes()
         except OSError as e:
             record_degradation(

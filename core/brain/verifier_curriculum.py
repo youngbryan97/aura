@@ -220,8 +220,13 @@ class VerifierCurriculumLoop:
                 engine = str(getattr(verdict, "engine", "") or "registry")
                 if foundry is not None and hasattr(foundry, "weight_for"):
                     return float(foundry.weight_for(engine, task_type))
-            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
-                pass
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); no foundry weight for this engine, so the default applies",
+                    "optional_service",
+                    type(exc).__name__,
+                    exc,
+                )
             return 0.5
 
         result = await deliberate_best_of(

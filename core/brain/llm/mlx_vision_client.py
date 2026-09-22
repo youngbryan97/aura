@@ -108,8 +108,13 @@ class MLXVisionClient:
                 from core.runtime.runtime_hygiene import get_runtime_hygiene
 
                 get_runtime_hygiene().unregister_shutdown_resource(queue_obj)
-            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
-                pass
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); the vision queue stayed registered with runtime hygiene",
+                    "get_runtime_hygiene",
+                    type(exc).__name__,
+                    exc,
+                )
 
     def _close_queues(self) -> None:
         self._safe_close_queue(self._req_q)
@@ -312,7 +317,13 @@ class MLXVisionClient:
                 except asyncio.CancelledError:
                     try:
                         ready = bool(await asyncio.shield(spawn_task))
-                    except (OSError, RuntimeError, AttributeError, TypeError, ValueError):
+                    except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                        logger.warning(
+                            "%s unavailable (%s: %s); the vision worker is reported not ready after a cancelled spawn",
+                            "it",
+                            type(exc).__name__,
+                            exc,
+                        )
                         ready = False
                     if ready or self._process is not None:
                         await asyncio.to_thread(self.stop)
@@ -345,7 +356,13 @@ class MLXVisionClient:
                         if observed_process is not None
                         else 0.0
                     )
-                except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+                except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+                    logger.debug(
+                        "%s unavailable (%s: %s); the worker's footprint reads 0 GB, which is not what it costs",
+                        "it",
+                        type(exc).__name__,
+                        exc,
+                    )
                     observed_gb = 0.0
                 try:
                     committed = await lane_controller.commit(
@@ -458,6 +475,7 @@ class MLXVisionClient:
         process = self._process
         try:
             process_alive = bool(process is not None and process.is_alive())
+        # not a failure: a process handle that will not answer is not a live process.
         except (AssertionError, OSError, RuntimeError, ValueError):
             process_alive = False
         listener = self._listener_thread

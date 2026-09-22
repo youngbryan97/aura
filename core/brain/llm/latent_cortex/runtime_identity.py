@@ -642,6 +642,7 @@ def _int_or_zero(value: Any) -> int:
         if isinstance(value, bool):
             return 0
         return int(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0
 
@@ -652,6 +653,7 @@ def _float_or_zero(value: Any) -> float:
             return 0.0
         result = float(value)
         return result if math.isfinite(result) else 0.0
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0.0
 
@@ -998,6 +1000,7 @@ def _nonnegative_int(value: Any) -> int:
         return 0
     try:
         parsed = int(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0
     return parsed if parsed >= 0 else 0

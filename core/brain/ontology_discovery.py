@@ -105,6 +105,8 @@ class Predicate:
                 return float(actual) < float(self.value)
             if self.op == "==":
                 return actual == self.value
+        # not a failure: two values that will not compare do not satisfy the condition,
+        # and False is the refusing direction.
         except (TypeError, ValueError):
             return False
         return False

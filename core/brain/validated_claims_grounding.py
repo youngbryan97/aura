@@ -29,9 +29,12 @@ difference is the whole answer to "how do you know".
 
 from __future__ import annotations
 
+import logging
 import re
 
 from core.runtime.errors import record_degradation
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["CLAIMS_HEADER", "asks_for_own_evidence", "validated_claims_block"]
 
@@ -118,8 +121,13 @@ def validated_claims_block(prompt: str) -> str:
 
         if what_is_established_block(prompt).strip():
             return ""
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        pass
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); what is established could not be read, so nothing is suppressed",
+            "what_is_established_block",
+            type(exc).__name__,
+            exc,
+        )
     built = True
     try:
         from core.organism.model_validation import get_suite, install_runtime_validation

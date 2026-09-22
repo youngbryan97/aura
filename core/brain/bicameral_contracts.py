@@ -383,6 +383,8 @@ def validate_bicameral_frame(frame: Mapping[str, Any] | BicameralFrame) -> bool:
         return False
     try:
         expected = _sign(payload)
+    # not a failure: a payload that will not sign does not verify, and False is the
+    # refusing direction.
     except (TypeError, ValueError, OverflowError):
         return False
     return bool(supplied) and hmac.compare_digest(supplied, expected)

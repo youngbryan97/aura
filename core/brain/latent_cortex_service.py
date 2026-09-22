@@ -415,7 +415,13 @@ def _resident_state_reusable(receipt: dict[str, Any]) -> bool:
                 receipt.get("checkpoint_file_count") or 0
             ),
         )
-    except (ImportError, TypeError, ValueError, OverflowError):
+    except (ImportError, TypeError, ValueError, OverflowError) as exc:
+        logger.warning(
+            "%s unavailable (%s: %s); the checkpoint receipt could not be checked, which refuses",
+            "it",
+            type(exc).__name__,
+            exc,
+        )
         return False
 
 
@@ -1392,6 +1398,7 @@ class LatentCortexService(_ReasonsDeeply, _ChecksTheReceiptEvidence, _ChecksTheR
             allocation = getattr(self, "_last_allocation", None)
             if isinstance(allocation, dict):
                 decision = allocation.get("execution_controller")
+        # not a failure: no recorded allocation means no execution decision to report.
         except (AttributeError, TypeError):
             decision = None
         if not isinstance(decision, dict) or not decision.get("decision_id"):
@@ -1595,7 +1602,13 @@ class LatentCortexService(_ReasonsDeeply, _ChecksTheReceiptEvidence, _ChecksTheR
                 name: float(foundry.weight_for(f"latent_facet_{name}", str(domain)))
                 for name in _ANSWER_FACET_HINTS
             }
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); no facet weights, so the answer is scored without them",
+                "get_verifier_foundry",
+                type(exc).__name__,
+                exc,
+            )
             return None
         if all(value == 1.0 for value in weights.values()):
             return None
@@ -2419,6 +2432,7 @@ class LatentCortexService(_ReasonsDeeply, _ChecksTheReceiptEvidence, _ChecksTheR
                 worker_identity = dict(candidate_identity)
         try:
             model_parameter_count = int(worker_identity.get("worker_model_parameter_count") or 0)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError, OverflowError):
             model_parameter_count = 0
         try:

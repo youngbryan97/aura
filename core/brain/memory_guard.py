@@ -129,6 +129,7 @@ def _live_tokenizer():
         tokenizer = getattr(client, "tokenizer", None)
         if tokenizer is not None and hasattr(tokenizer, "encode"):
             return tokenizer
+    # not a failure: no client means no tokenizer, and the caller counts its own way.
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         return None
     return None
@@ -162,6 +163,7 @@ class ContextPruner:
                 value = getattr(client, attr, None)
                 if isinstance(value, int) and value > 0:
                     return value
+        # not a failure: no client means no declared context window, and 0 says unknown.
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             return 0
         return 0

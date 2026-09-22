@@ -369,6 +369,8 @@ def _accepts_conditioning(solve: Any) -> bool:
 
     try:
         signature = inspect.signature(solve)
+    # not a failure: a solver whose signature cannot be read is not one this can
+    # prove passes its exclusions, and False refuses.
     except (TypeError, ValueError):
         return False
     positional = [

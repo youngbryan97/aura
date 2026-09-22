@@ -54,6 +54,8 @@ def deep_solver_artifact_is_ready() -> bool:
         from core.brain.llm.model_artifact_profile import get_model_artifact_profile
 
         profile = get_model_artifact_profile(get_deep_model_path())
+    # not a failure: no artifact profile for the deep model means it is not
+    # distinctly configured, which is what False says.
     except (ImportError, OSError, RuntimeError, TypeError, ValueError):
         return False
     return bool(

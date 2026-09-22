@@ -424,8 +424,13 @@ class ContextAssembler(_BuildsThePromptBlocks):
             mods = getattr(state, "response_modifiers", {}) or {}
             if bool(mods.get("black_box_steering") or mods.get("no_state_prompt_leakage")):
                 return True
-        except (AttributeError, TypeError):
-            pass  # no-op: intentional
+        except (AttributeError, TypeError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the state is treated as leakable, which is the safe direction",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
         return os.environ.get("AURA_BLACK_BOX_STEERING", "").strip().lower() in {
             "1", "true", "yes", "on"
         }
@@ -777,6 +782,7 @@ class ContextAssembler(_BuildsThePromptBlocks):
                 continue
             try:
                 newest = float(message.get("timestamp", 0.0) or 0.0)
+            # not a failure: a value that is not a number is not one this can read.
             except (TypeError, ValueError):
                 newest = 0.0
             break
@@ -900,6 +906,7 @@ class ContextAssembler(_BuildsThePromptBlocks):
                 name = profile.get("name") or profile.get("preferred_name")
                 if isinstance(name, str) and name.strip():
                     return name.strip()
+        # not a failure: a state with no readable profile carries no name.
         except (AttributeError, TypeError, ValueError):
             pass
         return "They"

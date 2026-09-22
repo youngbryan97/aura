@@ -19,12 +19,15 @@ path and governance can read.
 """
 from __future__ import annotations
 
+import logging
 import re
-
-from core.runtime.errors import record_degradation
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
+
+from core.runtime.errors import record_degradation
+
+logger = logging.getLogger(__name__)
 
 
 class EpistemicStatus(StrEnum):
@@ -288,7 +291,13 @@ class CalibrationGate:
                     )
                     demoted += 1
             return demoted
-        except (AttributeError, TypeError, ValueError):
+        except (AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); no labels were demoted, and the count says none were contested",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
             return 0
 
     def _classify_sentence(

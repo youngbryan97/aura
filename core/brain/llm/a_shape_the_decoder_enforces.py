@@ -360,6 +360,7 @@ def enforce_json(
     """
     try:
         import mlx.core as mx
+    # not a failure: no MLX here, so there is no decoder state to hold.
     except ImportError:
         return None
     if require not in ("any", "object", "array"):

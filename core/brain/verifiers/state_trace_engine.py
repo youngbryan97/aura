@@ -87,6 +87,7 @@ def _number(token: str) -> float | None:
         return -math.inf
     try:
         return float(normalized)
+    # not a failure: a value that is not a number is not one this can read.
     except ValueError:
         return None
 

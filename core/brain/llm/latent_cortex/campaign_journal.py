@@ -1518,6 +1518,7 @@ class CampaignJournal:
             if temporary:
                 try:
                     os.unlink(temporary)
+                # not a failure: a file that is already gone is the state this is reaching.
                 except OSError:
                     pass
 
@@ -1548,6 +1549,8 @@ class CampaignJournal:
     def __del__(self) -> None:
         try:
             self.close()
+        # not a failure: the comment below says it: finalizers must never raise, and the
+        # explicit close is the path that reports.
         except (OSError, RuntimeError, ValueError):
             # Finalizers must never raise; the explicit close/context-manager
             # paths are where real close errors surface.

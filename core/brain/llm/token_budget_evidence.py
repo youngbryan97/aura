@@ -106,6 +106,7 @@ def _coerce_observation(chars: Any, tokens: Any) -> tuple[int, int] | None:
     try:
         char_count = int(chars)
         token_count = int(tokens)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     if char_count <= 0 or token_count <= 0:
@@ -182,6 +183,7 @@ def observe_prompt_tokenization(chars: int, tokens: int) -> bool:
             char_count = int(chars)
             token_count = int(tokens)
             ratio = char_count / token_count if token_count else float("inf")
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError, ZeroDivisionError):
             return False
         if char_count <= 0 or token_count <= 0:

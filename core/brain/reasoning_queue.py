@@ -172,8 +172,13 @@ class BackgroundReasoningQueue:
                     self._pending_ids.add(task_id)
                     self._schedule_registry_size_update(reason="submit")
                     return task_id
-                except (TimeoutError, asyncio.TimeoutError):
-                    pass
+                except (TimeoutError, asyncio.TimeoutError) as exc:
+                    logger.debug(
+                        "%s unavailable (%s: %s); the bounded wait expired and the shed path below runs",
+                        "it",
+                        type(exc).__name__,
+                        exc,
+                    )
             reason = f"reasoning queue is full ({self._queue.qsize()} queued)"
             self._remember_result(
                 task_id,
@@ -202,6 +207,7 @@ class BackgroundReasoningQueue:
         try:
             self._queue.put_nowait(task)
             return True
+        # not a failure: a full queue is what the shed below is for.
         except asyncio.QueueFull:
             pass
         if admission_wait_s > 0:
@@ -219,6 +225,7 @@ class BackgroundReasoningQueue:
         try:
             self._queue.put_nowait(task)
             return True
+        # not a failure: still full after shedding one, so this task does not get in.
         except asyncio.QueueFull:
             return False
 

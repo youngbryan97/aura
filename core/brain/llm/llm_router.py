@@ -1177,6 +1177,7 @@ class IntelligentLLMRouter:
     def _finite_or_none(value: Any) -> float | None:
         try:
             number = float(value)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return None
         if not math.isfinite(number):
@@ -1240,6 +1241,7 @@ class IntelligentLLMRouter:
         if "repetition_context_size" in overrides and kwargs.get("repetition_context_size") is None:
             try:
                 context_size = int(overrides["repetition_context_size"])
+            # not a failure: a value that is not a number is not one this can read.
             except (TypeError, ValueError):
                 context_size = 0
             if 0 < context_size <= 8192:
@@ -1402,6 +1404,7 @@ class IntelligentLLMRouter:
         kwargs: dict[str, Any] = {}
         try:
             signature = inspect.signature(reboot)
+        # not a failure: a reboot whose signature cannot be read is called with no kwargs.
         except (TypeError, ValueError):
             signature = None
         if signature is not None:
@@ -1542,6 +1545,7 @@ class IntelligentLLMRouter:
         """Absolute wall-clock budget for one routed request (all endpoints)."""
         try:
             budget = float(value)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             budget = 0.0
         if not math.isfinite(budget) or budget <= 0.0:

@@ -92,6 +92,8 @@ def advance_post_adaptation_candidate(
                 observed_candidate,
                 response_contract=response_contract,
             )
+        # not a failure: a candidate that will not parse against its contract is not
+        # admitted by it.
         except (TypeError, ValueError):
             admitted = None
         else:

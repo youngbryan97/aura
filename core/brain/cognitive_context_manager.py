@@ -475,7 +475,13 @@ class CognitiveContextManager:
             # "explain Dijkstra's algorithm" came back `code` and the turn got
             # no reference evidence at all.
             factual_reference_turn = asks_a_reference_question(str(message or ""))
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the turn is built without reference evidence",
+                "asks_a_reference_question",
+                type(exc).__name__,
+                exc,
+            )
             factual_reference_turn = False
         if factual_reference_turn:
             collectors.append(

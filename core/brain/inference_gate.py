@@ -4385,7 +4385,13 @@ class InferenceGate(_ServesTheTurn, _SetsTheTurnUp, _BuildsTheLivingContext, _Wa
                     model=model,
                 )
             )
-        except (ImportError, TypeError, ValueError):
+        except (ImportError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); no bounded completion figure for this turn",
+                "the_channel_budget_for",
+                type(exc).__name__,
+                exc,
+            )
             bounded = 0
         return max(cls._reasoning_reserve(model), bounded)
 

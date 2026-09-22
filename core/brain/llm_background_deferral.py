@@ -24,6 +24,8 @@ from core.brain.llm.model_registry import (
 )
 from core.runtime.desktop_boot_safety import desktop_resource_guard_enabled
 
+logger = logging.getLogger(__name__)
+
 #: Held only when the checkpoint cannot be read at all. An unreadable
 #: artifact is not a reason to admit something whose size is unknown.
 _BRAINSTEM_FLOOR_IF_UNREADABLE_GB = 22.0
@@ -523,6 +525,7 @@ class _DefersBackgroundWork:
 
         try:
             from core.brain.llm.mlx_client import _foreground_owner_active
+        # not a failure: the module is optional here, and its absence is the answer.
         except ImportError:
             # MLX client absent from this build: there is no local
             # foreground owner to protect.

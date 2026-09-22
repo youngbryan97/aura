@@ -340,6 +340,7 @@ def _publish_shadow_pointer_locked(
             os.close(descriptor)
         try:
             candidate.unlink()
+        # not a failure: a file that is already gone is the state this is reaching.
         except FileNotFoundError:
             pass
     resolved = resolve_shadow_pointer(pointer_path, releases_root=root)

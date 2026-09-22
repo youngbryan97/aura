@@ -1128,6 +1128,7 @@ class ImaginationEngine:
                 allowed = {field.name for field in ImaginationFrame.__dataclass_fields__.values()}
                 filtered = {key: value for key, value in frame.items() if key in allowed}
                 return ImaginationFrame(**filtered)
+            # not a failure: a frame whose fields do not fit the dataclass is not a frame.
             except (TypeError, ValueError, AttributeError):
                 return None
         return None

@@ -465,6 +465,7 @@ class _TappedInner:
         try:
             # out is hidden states [B, T, H]; record the last position of the last call.
             self._tap.last_key = normalize(out[0, -1])
+        # not a failure: hidden states this cannot index hold no key to tap.
         except (IndexError, ValueError, TypeError):
             self._tap.last_key = None
         return out

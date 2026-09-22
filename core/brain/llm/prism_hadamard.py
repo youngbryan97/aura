@@ -137,6 +137,7 @@ def is_prism_hadamard_pack(directory: str | Path) -> bool:
             json.loads(config.read_text(encoding="utf-8")).get("model_type")
             == PACK_MODEL_TYPE
         )
+    # not a failure: text that does not parse is not the shape this was reading for.
     except (OSError, ValueError):
         return False
 
@@ -299,6 +300,7 @@ def _eos_ids(directory: Path) -> list[int] | None:
         return None
     try:
         config = json.loads(path.read_text(encoding="utf-8"))
+    # not a failure: text that does not parse is not the shape this was reading for.
     except (OSError, ValueError):
         return None
     eos = config.get("eos_token_id")

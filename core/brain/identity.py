@@ -393,6 +393,7 @@ class IdentityService:
     def _safe_priority(value: Any) -> float:
         try:
             p = float(value)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return 0.0
         return p if p == p else 0.0  # reject NaN
@@ -575,7 +576,13 @@ class IdentityService:
                 from core.security.trust_engine import get_trust_engine
                 trust = get_trust_engine()
                 is_sovereign = trust.current_trust_level() == "sovereign"
-            except (ImportError, AttributeError, RuntimeError):
+            except (ImportError, AttributeError, RuntimeError) as exc:
+                logger.warning(
+                    "%s unavailable (%s: %s); trust reads as not sovereign, which is the refusing direction",
+                    "get_trust_engine",
+                    type(exc).__name__,
+                    exc,
+                )
                 is_sovereign = False
 
             bond_delta = self._safe_delta(bond_delta)
@@ -603,6 +610,7 @@ class IdentityService:
     def _safe_delta(value: Any) -> float:
         try:
             v = float(value)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return 0.0
         if v != v:  # NaN

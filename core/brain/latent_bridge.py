@@ -525,8 +525,13 @@ def compute_inference_params(
         if v in (ViabilityState.STARVED, ViabilityState.DEGRADED, ViabilityState.INJURED, ViabilityState.RECOVERING):
             extra_stops = ["\n\n##", "\n---\n"]
             rationale.append(f"early-stop appended (viability={v.value})")
-    except (ImportError, AttributeError, RuntimeError):
-        pass  # no-op: intentional
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); no viability-driven early stop is appended",
+            "ViabilityState",
+            type(exc).__name__,
+            exc,
+        )
 
     # ─── activation steering offsets ──────────────────────────────────
     # Map (valence, arousal, dominant emotion) into per-layer residual

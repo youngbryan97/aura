@@ -49,7 +49,13 @@ class DiscourseTracker:
             return self._brain
         try:
             return get_runtime_service("cognitive_engine", default=None)
-        except (ImportError, AttributeError, RuntimeError):
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the tracker runs without the engine",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
             return None
 
     # ── Fast heuristic update (every message) ────────────────────────────

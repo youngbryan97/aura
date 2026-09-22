@@ -48,6 +48,7 @@ def _workspace() -> Any:
         from core.runtime.service_access import resolve_global_workspace
 
         return resolve_global_workspace(default=None)
+    # not a failure: no service here means the caller falls back to its own default.
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         return None
 

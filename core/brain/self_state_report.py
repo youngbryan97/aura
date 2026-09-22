@@ -18,11 +18,14 @@ assembly. This runs on a foreground turn while the user waits.
 """
 from __future__ import annotations
 
+import logging
 import os
 import time
 from typing import Any
 
 from core.runtime.errors import record_degradation
+
+logger = logging.getLogger(__name__)
 
 _RECOVERABLE = (RuntimeError, AttributeError, TypeError, ValueError, OSError, ImportError, KeyError)
 
@@ -68,7 +71,13 @@ def _process_start_time() -> float:
         create_time = getattr(observed, "create_time", None)
         if create_time is not None:
             return float(create_time)
-    except _RECOVERABLE:
+    except _RECOVERABLE as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); no process start time, so uptime reads as zero",
+            "get_resource_observer",
+            type(exc).__name__,
+            exc,
+        )
         return 0.0
     return 0.0
 

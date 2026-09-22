@@ -805,7 +805,13 @@ class EvidenceProvider:
             from core.container import ServiceContainer
 
             self._memory = ServiceContainer.get("memory_facade", default=None)
-        except (ImportError, RuntimeError, AttributeError):
+        except (ImportError, RuntimeError, AttributeError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); evidence is gathered without the memory facade",
+                "ServiceContainer",
+                type(exc).__name__,
+                exc,
+            )
             self._memory = None
         return self._memory
 

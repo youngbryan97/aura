@@ -191,6 +191,7 @@ class Constraint:
             return None
         try:
             return self._check(body)
+        # not a failure: a body the check cannot read holds no commitment.
         except (ValueError, TypeError, IndexError):
             return None
 
