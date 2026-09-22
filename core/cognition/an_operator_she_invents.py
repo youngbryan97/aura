@@ -122,6 +122,7 @@ def _computes_a_number(body: Any, probes: Sequence[Any]) -> bool:
     try:
         run(probes[0])
         return True
+    # not a failure: an operator that refuses its first probe is not arithmetic.
     except Exception:  # noqa: BLE001 - foreign code: anything else is not arithmetic
         return False
 
@@ -222,6 +223,8 @@ def offer_inventing_an_operator(
                 return bool(cases) and all(
                     run(before) == comparable(expected) for before, expected in cases
                 )
+            # not a failure: a candidate that refuses has not solved it, which is the verdict
+            # this search is here to reach.
             except Exception:  # noqa: BLE001 - foreign code: a candidate that raises has not solved
                 return False
 

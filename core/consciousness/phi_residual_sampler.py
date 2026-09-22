@@ -123,6 +123,7 @@ class PhiResidualSampler:
         # sequence, so the transfer is a 5120-float vector instead of a tensor.
         try:
             shape = tuple(getattr(h, "shape", ()) or ())
+        # not a failure: a tensor with no readable shape is not a decode step to sample.
         except (AttributeError, TypeError):
             return
         if len(shape) >= 3 and shape[-2] > 1:

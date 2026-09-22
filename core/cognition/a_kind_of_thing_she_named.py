@@ -225,6 +225,8 @@ def _holds_on_sizes_it_never_saw(
         try:
             if int(run(term, 0, size, ())) not in classes:
                 return False
+        # not a failure: a term that refuses at a length it never saw has not generalised,
+        # which is what this asks.
         except (ArithmeticError, IndexError, RecursionError, TypeError, ValueError):
             return False
     return True
@@ -246,6 +248,7 @@ def a_way_of_building_over(kind: AKindOfThing) -> Any:
     first = kind.classes[0].rsplit(" is ", 1)[-1] if kind.classes else "0"
     try:
         which = int(first)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         which = 0
     branch = Term(

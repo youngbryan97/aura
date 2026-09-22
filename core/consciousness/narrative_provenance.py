@@ -441,6 +441,7 @@ def _fidelity_criterion() -> Any:
                 "sampler's habits; fixed before any generator was measured"
             ),
         )
+    # not a failure: no declared threshold means no fidelity verdict to give.
     except (ImportError, RuntimeError, ValueError):
         return None
 

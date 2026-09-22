@@ -79,6 +79,8 @@ def how_it_behaves(word: Any) -> tuple[int, ...] | None:
             for size in sizes_words_are_told_apart_at()
             for at in range(size)
         )
+    # not a failure: a term that refuses at a length it never saw has not generalised,
+    # which is what this asks.
     except (ArithmeticError, IndexError, KeyError, TypeError, ValueError):
         return None
 

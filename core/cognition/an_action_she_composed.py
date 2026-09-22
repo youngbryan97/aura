@@ -325,6 +325,8 @@ def _takes_each_there(doing: Doing, shown: Sequence[tuple[Any, Any]], world: Wor
         try:
             if what_it_does(doing, state, world) != wanted:
                 return False
+        # not a failure: a candidate that refuses has not solved it, which is the verdict
+        # this search is here to reach.
         except (ArithmeticError, KeyError, RecursionError, TypeError, ValueError):
             return False
     return True
@@ -438,6 +440,7 @@ def _runs_to(world: World, state: Any, plan: Sequence[str]) -> Any:
     for name in plan:
         try:
             here = world.act(here, name)
+        # not a failure: a plan that cannot be run to the end reaches no state.
         except (ArithmeticError, KeyError, TypeError, ValueError):
             return None
     return here

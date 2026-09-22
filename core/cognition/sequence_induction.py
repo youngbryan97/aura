@@ -103,6 +103,7 @@ def _cells(inside: str) -> tuple[Any, ...] | None:
         return None
     try:
         return tuple(parsed)
+    # not a failure: what will not become a tuple is not a sequence.
     except TypeError:
         return None
 
@@ -410,8 +411,13 @@ def _work_the_meaning_out(question: SequenceQuestion) -> str | None:
         from core.cognition.what_she_gave_meaning import keep
 
         keep()
-    except (ImportError, OSError, RuntimeError, ValueError):
-        pass  # no-op: an unkept meaning still answers this question
+    except (ImportError, OSError, RuntimeError, ValueError) as exc:
+        # It answers THIS question. The next boot does not have it.
+        logger.debug(
+            "a meaning she induced was not kept (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
     return (
         f"{list(answer)}\n\n"
         "No rule I had could say this, so I worked out what the examples are "
@@ -476,8 +482,12 @@ def _keep_what_she_worked_out() -> None:
         from core.cognition.what_she_gave_meaning import keep
 
         keep()
-    except (ImportError, OSError, RuntimeError, ValueError):
-        pass  # no-op: an unkept meaning still answers this question
+    except (ImportError, OSError, RuntimeError, ValueError) as exc:
+        logger.debug(
+            "what she worked out was not written down (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
 
 
 #: Families where several readings survive and disagree, and the case that
@@ -931,6 +941,8 @@ def _which_kind_of_growth_this_head_is(
                 try:
                     if int(word(at, size)) % size != places[at]:
                         return False
+                # not a failure: a term that refuses at a length it never saw has not generalised,
+                # which is what this asks.
                 except (ArithmeticError, IndexError, RecursionError, TypeError,
                         ValueError):
                     return False
@@ -1151,6 +1163,7 @@ def _language_path() -> Path | None:
         from core.runtime.state_ownership import state_root
 
         return Path(state_root()) / "relation_language.json"
+    # not a failure: no state root means no language file, which is a path of None.
     except (ImportError, AttributeError, OSError, TypeError, ValueError):
         return None
 
@@ -1478,5 +1491,6 @@ def _what_a_form_says(
     try:
         size = len(cells)
         return tuple(cells[rule(index, size)] for index in range(size))
+    # not a failure: a rule that indexes off the end of this state does not read it.
     except (IndexError, TypeError, ValueError, AttributeError):
         return None

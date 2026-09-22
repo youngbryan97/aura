@@ -215,6 +215,8 @@ def _ask(closed: Code, at: int, size: int, table: Any) -> int | None:
         for one in (at, size, table):
             work = run(work.body, (one, *work.env), fuel=_A_RULE_MAY_SPEND)
         return int(work)
+    # not a failure: a candidate that refuses has not solved it, which is the verdict
+    # this search is here to reach.
     except (OutOfFuel, Stuck, RecursionError, TypeError, ValueError, AttributeError):
         return None
 
@@ -286,6 +288,8 @@ def _the_places_it_names(
         for at in range(size):
             try:
                 said = run(where, (size, at), fuel=_A_RULE_MAY_SPEND)
+            # not a failure: a candidate that refuses has not solved it, which is the verdict
+            # this search is here to reach.
             except (OutOfFuel, Stuck, RecursionError, TypeError, ValueError):
                 return None
             if not isinstance(said, int):
@@ -353,6 +357,8 @@ def _what_is_done_with_it(
             other = carried[at_state][at] if carried is not None else at
             try:
                 here.append(int(rule(value, other)))
+            # not a failure: a candidate that refuses has not solved it, which is the verdict
+            # this search is here to reach.
             except (ArithmeticError, TypeError, ValueError):
                 return None
         made.append(here)
@@ -452,6 +458,7 @@ def a_rule_she_wrote(
     for before, after in transitions:
         try:
             numbered.append(([int(one) for one in before], [int(one) for one in after]))
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return None
         if len(numbered[-1][0]) != len(numbered[-1][1]):
@@ -638,6 +645,7 @@ def _finish(
         body = _as_a_body(
             [(where, compile_an_operation(operation)) for where, operation in stages]
         )
+    # not a failure: a body that will not build is not a rule.
     except (ValueError, RecursionError):
         return None
     found = Rule(

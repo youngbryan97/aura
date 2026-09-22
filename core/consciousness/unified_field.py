@@ -70,6 +70,7 @@ from .unified_field_prediction import _PredictsTheNextField
 
 try:  # scipy is an acceleration path here; dense numpy remains correct.
     from scipy import sparse as sp
+# not a failure: scipy is an acceleration path here; dense numpy remains correct.
 except ImportError:  # pragma: no cover - exercised on lean CI/runtime images
     sp = None
 

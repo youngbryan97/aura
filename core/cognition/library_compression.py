@@ -199,6 +199,8 @@ class LibraryCompressor:
             return True
         try:
             return self._evaluate(before) == self._evaluate(after)
+        # not a failure: a rewrite that cannot be evaluated is not proven safe, and this
+        # refuses rather than assumes.
         except Exception:  # noqa: BLE001 - foreign code: a rewrite that cannot be evaluated is not safe
             return False
 

@@ -311,9 +311,9 @@ class ConceptualLayer:
             threading.Thread(
                 target=_run, name="QualiaEarnedAxisRefit", daemon=True
             ).start()
+        # not a failure: interpreter shutdown or an exhausted thread table.
+        # The latch is released below so a later observation tries again
         except RuntimeError:
-            # Interpreter shutdown or an exhausted thread table. Release the
-            # latch so a later observation can try again rather than wedging
             # refits off permanently.
             self._refit_in_flight = False
 

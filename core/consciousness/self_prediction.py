@@ -144,7 +144,12 @@ class SelfPredictionLoop:
                         actual=float(actual_valence),
                     )
                     self._conviction = book.read()
-                except (ImportError, AttributeError, TypeError, ValueError):
+                except (ImportError, AttributeError, TypeError, ValueError) as exc:
+                    logger.debug(
+                        "conviction not updated from this prediction (%s: %s)",
+                        type(exc).__name__,
+                        exc,
+                    )
                     self._conviction = None
                 # And which way it missed. Unsigned, being told something
                 # wonderful and something terrible were one surprise. See
@@ -324,6 +329,7 @@ class SelfPredictionLoop:
         if self._weights is None:
             try:
                 self._weights = np.linalg.lstsq(self._gram, self._moment, rcond=None)[0]
+            # not a failure: a gram matrix with no least-squares solution is not yet a model.
             except np.linalg.LinAlgError:
                 return None
         return self._weights
@@ -483,7 +489,12 @@ class SelfPredictionLoop:
             from core.affect.frisson import get_frisson_ledger
 
             get_frisson_ledger().note(self._expectation)
-        except (ImportError, AttributeError, TypeError, ValueError):
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "the run of being right was not recorded (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             self._expectation = None
 
         self._recent_outcomes.append((confirmed, bool(error.was_surprising)))

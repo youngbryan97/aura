@@ -287,6 +287,8 @@ def _what_the_second_must_be(kind: str, one: Any, got: Any) -> set[Any] | None:
 def _fits(candidate: Expression, examples: Sequence[tuple[Any, Any, Any]]) -> bool:
     try:
         return all(candidate(one, other) == got for one, other, got in examples)
+    # not a failure: a candidate that refuses has not solved it, which is the verdict
+    # this search is here to reach.
     except (ArithmeticError, TypeError, ValueError):
         return False
 

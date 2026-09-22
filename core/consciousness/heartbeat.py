@@ -844,7 +844,14 @@ class CognitiveHeartbeat:
 
             reading = last_reading()
             return float(getattr(reading, "novelty", 0.0) or 0.0) if reading else 0.0
-        except (ImportError, AttributeError, TypeError, ValueError):
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            # Zero novelty is "today is exactly like every other day", which
+            # is a strong claim to make because a reader was unavailable.
+            logger.debug(
+                "novelty unreadable (%s: %s); reporting none",
+                type(exc).__name__,
+                exc,
+            )
             return 0.0
 
     def _world_surprise_now(self) -> float:
@@ -853,7 +860,12 @@ class CognitiveHeartbeat:
             model = optional_service("unified_world_model", default=None)
             value = model.surprise() if model is not None else None
             return 0.0 if value is None else float(value)
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "world surprise unreadable (%s: %s); reporting none",
+                type(exc).__name__,
+                exc,
+            )
             return 0.0
 
     async def _submit_candidates(self, state: dict[str, Any], tick: int):
@@ -1155,8 +1167,13 @@ class CognitiveHeartbeat:
                     load1 = float(psutil.getloadavg()[0])
                     cores = max(1, int(psutil.cpu_count() or 1))
                     cpu_usage = max(0.0, min(100.0, load1 / cores * 100.0))
-            except (ImportError, OSError, RuntimeError, AttributeError, ValueError, IndexError):
-                pass
+            except (ImportError, OSError, RuntimeError, AttributeError, ValueError, IndexError) as exc:
+                logger.debug(
+                    "host CPU and RAM unreadable (%s: %s); the pulse keeps "
+                    "what it already had",
+                    type(exc).__name__,
+                    exc,
+                )
 
             # Mycelial metrics lookup
             mycelial_data = {"nodes": 0, "edges": 0, "health": "offline"}
@@ -1269,7 +1286,14 @@ class CognitiveHeartbeat:
             state["affect_engagement"] = float(getattr(affect, "engagement", 0.0) or 0.0)
             state["affect_emotion"] = str(getattr(affect, "dominant_emotion", "neutral"))
             return True
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            # The pulse goes out without her affect in it, which reads
+            # downstream as a heartbeat from something that feels nothing.
+            logger.debug(
+                "affect did not reach the pulse (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     @staticmethod
@@ -1299,7 +1323,12 @@ class CognitiveHeartbeat:
             state["dominant_drive"] = name
             state["drive_urgency"] = max(0.0, 1.0 - lowest["percent"] / 100.0)
             return True
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "drives did not reach the pulse (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     def _compute_significance(

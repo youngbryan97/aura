@@ -169,6 +169,7 @@ class Node:
         size = len(cells)
         try:
             return tuple(cells[program(index, size)] for index in range(size))
+        # not a failure: a program that indexes off the end of this state does not read it.
         except (IndexError, TypeError, ValueError):
             return None
 

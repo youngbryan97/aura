@@ -207,6 +207,8 @@ class RIIU:
             with warnings.catch_warnings():
                 warnings.filterwarnings('ignore', category=RuntimeWarning, message='.*slogdet.*')
                 sign_w, logdet_w = np.linalg.slogdet(cov_whole)
+        # not a failure: a covariance with no log-determinant carries no integration,
+        # which is what 0.0 reports.
         except (RuntimeError, ValueError, np.linalg.LinAlgError):
             return 0.0
 

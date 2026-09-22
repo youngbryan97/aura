@@ -190,7 +190,14 @@ class ExecutiveAuthority:
             return {}
         try:
             goal_engine = ServiceContainer.get("goal_engine", default=None)
-        except (ImportError, AttributeError, RuntimeError):
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            # The objective is not bound to a goal, so nothing pursues it.
+            logger.warning(
+                "no goal engine to bind %r to (%s: %s)",
+                goal,
+                type(exc).__name__,
+                exc,
+            )
             goal_engine = None
         if goal_engine is None or not hasattr(goal_engine, "add_goal"):
             return {}

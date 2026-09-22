@@ -60,6 +60,7 @@ def _number(value: Any) -> float | None:
         if value is None or isinstance(value, bool):
             return None
         number = float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     return number if number == number else None  # NaN reads as absent

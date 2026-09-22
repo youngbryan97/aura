@@ -167,6 +167,7 @@ def how_it_scores(
                 made.body, (one, *made.env), fuel=_A_SCORING_MAY_SPEND
             )
         return int(made)
+    # not a failure: any refusal is a score of nothing, which the comment beside it says.
     except Exception:  # noqa: BLE001 - foreign code: any refusal is a score of nothing
         return 0
 

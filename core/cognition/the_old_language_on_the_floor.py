@@ -355,6 +355,8 @@ def they_agree_everywhere(
                 checked += 1
                 try:
                     said = int(positional_run(term, at, size, words)) % size
+                # not a failure: a term that refuses at a length it never saw has not generalised,
+                # which is what this asks.
                 except (ArithmeticError, IndexError, RecursionError, TypeError,
                         ValueError):
                     said = None
@@ -374,6 +376,8 @@ def they_agree_everywhere(
                             fuel=fuel,
                         )
                     ) % size
+                # not a failure: a term that refuses at a length it never saw has not generalised,
+                # which is what this asks.
                 except (OutOfFuel, Stuck, TypeError, ValueError, ZeroDivisionError):
                     made = None
                 if said != made:
@@ -474,6 +478,8 @@ def operations_agree_everywhere(
                 try:
                     said = rule(one, other)
                     said = int(said)
+                # not a failure: a term that refuses at a length it never saw has not generalised,
+                # which is what this asks.
                 except (ArithmeticError, TypeError, ValueError):
                     said = None
                 try:
@@ -492,6 +498,8 @@ def operations_agree_everywhere(
                             fuel=fuel,
                         )
                     )
+                # not a failure: a term that refuses at a length it never saw has not generalised,
+                # which is what this asks.
                 except (OutOfFuel, Stuck, TypeError, ValueError, ZeroDivisionError):
                     made = None
                 if said != made:

@@ -67,6 +67,7 @@ def modifier_owner(modifiers: Any, key: str) -> str | None:
     """Who last set ``key``, or None when nothing recorded it."""
     try:
         entry = _provenance(modifiers).get(str(key))
+    # not a failure: modifiers with no provenance have no owner to name.
     except (AttributeError, TypeError):
         return None
     if isinstance(entry, dict):

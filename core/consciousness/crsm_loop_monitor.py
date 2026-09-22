@@ -556,8 +556,12 @@ class CRSMLoopMonitor:
                 from core.observability.metrics import get_metrics
 
                 get_metrics().increment_counter("crsm_loop_open_total")
-            except (ImportError, AttributeError, RuntimeError, TypeError):
-                pass
+            except (ImportError, AttributeError, RuntimeError, TypeError) as exc:
+                logger.debug(
+                    "crsm_loop_open_total not counted (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
         return state
 
     def governance_signal(self) -> dict[str, Any]:

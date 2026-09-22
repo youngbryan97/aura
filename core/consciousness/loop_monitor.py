@@ -165,6 +165,8 @@ class ConsciousnessLoopMonitor:
         # Brief initial delay — let the orchestrator finish registering services
         try:
             await asyncio.sleep(12.0)
+        # not a failure: the monitor was cancelled during its settling delay, which is how
+        # it is stopped.
         except asyncio.CancelledError:
             return
 
@@ -257,6 +259,7 @@ class ConsciousnessLoopMonitor:
             try:
                 from core.runtime.ablation_policy import service_intentionally_lesioned
                 intentionally_lesioned = service_intentionally_lesioned("affect_engine")
+            # not a failure: no ablation policy means nothing was lesioned on purpose.
             except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
                 intentionally_lesioned = False
             if not intentionally_lesioned:
@@ -450,6 +453,7 @@ class ConsciousnessLoopMonitor:
             from core.container import ServiceContainer
 
             return ServiceContainer
+        # not a failure: the module is optional here, and its absence is the answer.
         except ImportError:
             return None
 

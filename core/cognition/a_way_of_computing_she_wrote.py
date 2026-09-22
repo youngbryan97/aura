@@ -281,6 +281,8 @@ def _ask(
         for one in (at, size, here_first, here_second, first, second):
             work = run(work.body, (one, *work.env), fuel=_A_CANDIDATE_MAY_SPEND)
         return int(work)
+    # not a failure: a candidate that refuses has not solved it, which is the verdict
+    # this search is here to reach.
     except (OutOfFuel, Stuck, RecursionError, TypeError, ValueError, AttributeError):
         return None
 

@@ -126,6 +126,7 @@ def _as_a_number(said: str) -> float | None:
         return None
     try:
         return float(digits[0].replace(",", ""))
+    # not a failure: digits that will not become a number are not a number.
     except ValueError:
         return None
 

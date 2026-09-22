@@ -102,6 +102,7 @@ def _record_aura_protocol_degradation(
 def _finite_float(value: Any) -> float | None:
     try:
         result = float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     if not math.isfinite(result):
@@ -221,6 +222,8 @@ class AuraMessage:
                 allow_nan=False,
                 separators=(",", ":"),
             ).encode("utf-8")
+        # not a failure: a snapshot that will not serialise cannot be sent, which is what
+        # False reports here.
         except (TypeError, ValueError):
             return False
         if len(snapshot_bytes) > _MAX_EPISODIC_SNAPSHOT_BYTES:
@@ -347,8 +350,15 @@ class AuraProtocolServer:
                 from core.runtime.runtime_hygiene import get_runtime_hygiene
 
                 get_runtime_hygiene().unregister_shutdown_resource(server)
-            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
-                pass
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                # A shutdown resource left registered is one hygiene will
+                # report as unaccounted for on the next pass.
+                logger.debug(
+                    "aura protocol server stayed registered with runtime "
+                    "hygiene (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
         self._running = False
         logger.info("AuraProtocolServer OFFLINE")
 

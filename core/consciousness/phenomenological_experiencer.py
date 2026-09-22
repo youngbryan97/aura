@@ -126,8 +126,14 @@ def _phenomenology_background_deferral_reason() -> str:
         # it too, otherwise slow narrative work queues the tick and blows its SLO.
         if cognition_inference_active():
             return "cognition_inference_active"
-    except (ImportError, AttributeError, RuntimeError):
-        pass
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        # Falling through means narrative work proceeds, which is what the
+        # comment above says queues the tick and blows its SLO.
+        logger.debug(
+            "could not tell whether a lane is busy (%s: %s); not yielding",
+            type(exc).__name__,
+            exc,
+        )
 
     try:
         from core.runtime.background_policy import (

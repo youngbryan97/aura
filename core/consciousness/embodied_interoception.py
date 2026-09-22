@@ -118,6 +118,7 @@ class InteroceptiveChannel:
         """Update with new raw sample and compute temporal derivatives."""
         try:
             signal = float(raw_value)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             self.fail_safe()
             return
@@ -164,6 +165,8 @@ def _resource_observer():
         from core.runtime.resource_observation import get_resource_observer
 
         return get_resource_observer()
+    # not a failure: the docstring above says it: None is a real answer, and a caller
+    # falls back to its own reading rather than a body of zeros.
     except (ImportError, AttributeError, RuntimeError):
         return None
 

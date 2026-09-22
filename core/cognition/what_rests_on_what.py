@@ -258,6 +258,7 @@ def _ask_the_policy(name: str) -> Any | None:
     try:
         from core.cognition.she_decides_to_develop import she_develops_herself
         from core.cognition.the_record_of_her_own_work import the_record
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return None
     if not the_record().kept:

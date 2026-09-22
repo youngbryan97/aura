@@ -94,6 +94,8 @@ def a_way_round(
             continue
         try:
             free = bool(allowed(wanted) or _allowed_after(wanted, one, allowed, after_they_answer))
+        # not a failure: a move whose legality cannot be read is not free, and this refuses
+        # rather than assumes.
         except (ArithmeticError, AttributeError, TypeError, ValueError):
             free = False
         good.append((costs, one, free))

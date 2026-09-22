@@ -378,6 +378,7 @@ class LiquidSubstrate(_KeepsItsStateOnDisk):
             from core.senses.soma import get_soma
 
             self.soma = get_soma()
+        # not a failure: the module is optional here, and its absence is the answer.
         except ImportError:
             self.soma = None
 

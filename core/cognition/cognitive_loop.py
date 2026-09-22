@@ -334,7 +334,14 @@ class CognitiveLoop:
                 deliberation=0.3,  # the autonomous lane is fast/reactive, not deeply deliberated
             )
             return bool(reg.hold)
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            # False lets the autonomous lane act. Not being able to ask
+            # whether she should hold must not look like being told no.
+            logger.debug(
+                "emotional regulation could not be consulted (%s: %s); not holding",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     async def _appraise_through_agency(self, fe_state, spl):
@@ -353,15 +360,25 @@ class CognitiveLoop:
             try:
                 from core.affect.nociception import get_nociception_engine
                 threat = float(get_nociception_engine().nociceptive_pressure())
-            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-                pass
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "nociceptive pressure unreadable (%s: %s); the situation "
+                    "is judged with no threat",
+                    type(exc).__name__,
+                    exc,
+                )
 
             uncertainty = 0.2
             if spl is not None and hasattr(spl, "get_surprise_signal"):
                 try:
                     uncertainty = float(spl.get_surprise_signal())
-                except (RuntimeError, TypeError, ValueError):
-                    pass
+                except (RuntimeError, TypeError, ValueError) as exc:
+                    logger.debug(
+                        "surprise signal unreadable (%s: %s); the situation "
+                        "keeps its default uncertainty",
+                        type(exc).__name__,
+                        exc,
+                    )
 
             arousal = float(getattr(fe_state, "arousal", 0.0) or 0.0)
             dominant = str(getattr(fe_state, "dominant_action", "") or "")

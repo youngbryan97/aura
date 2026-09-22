@@ -355,6 +355,8 @@ def no_word_of_hers_says_it(how_many: int = 300, *, also_at: int = 3) -> dict[st
             checked += 1
             try:
                 said = int(word(index, size)) % size
+            # not a failure: a term that refuses at a length it never saw has not generalised,
+            # which is what this asks.
             except (ArithmeticError, IndexError, RecursionError, TypeError, ValueError):
                 said = None
             if said is not None and said == rule(index, size):

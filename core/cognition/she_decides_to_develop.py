@@ -431,6 +431,7 @@ def _carry_it_out(
     if decided.action.succeeded is not None:
         try:
             came_of_it = came_of_it if decided.action.succeeded(came_of_it) else None
+        # not a failure: a success test that raises has failed the action it was judging.
         except Exception:  # noqa: BLE001 - a success test that raises fails it
             came_of_it = None
     if came_of_it:

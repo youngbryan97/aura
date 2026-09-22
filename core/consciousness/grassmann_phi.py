@@ -117,6 +117,7 @@ class GrassmannResidualComplex:
             return None
         try:
             q = subspace_basis(np.asarray(self._buf), self.k)
+        # not a failure: a window with no subspace basis has no reading to encode.
         except (ValueError, np.linalg.LinAlgError):
             return None
         return self._encode(q)

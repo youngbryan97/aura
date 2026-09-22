@@ -64,7 +64,14 @@ def surprise_ratio(model: Any, surprise: Any) -> float:
         status = model.status() if hasattr(model, "status") else {}
         detail = ((status or {}).get("facets", {}).get("learned", {}) or {}).get("detail", {}) or {}
         typical = max(0.0, float(detail.get("mean_surprise", 0.0) or 0.0))
-    except (AttributeError, TypeError, ValueError):
+    except (AttributeError, TypeError, ValueError) as exc:
+        # A typical of zero makes every moment maximally surprising.
+        logger.debug(
+            "typical surprise unreadable (%s: %s); this moment is scored "
+            "against nothing",
+            type(exc).__name__,
+            exc,
+        )
         typical = 0.0
     now = max(0.0, float(surprise or 0.0))
     total = now + typical

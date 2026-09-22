@@ -150,6 +150,7 @@ class HedoniGradientEngine:
         try:
             from core.runtime.proof_policy import proof_run_active
             return proof_run_active(origin="hedonic_gradient")
+        # not a failure: no proof policy here means this is not a proof run.
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             return False
 

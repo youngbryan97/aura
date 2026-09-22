@@ -82,6 +82,8 @@ def publish_deltas(channel: Any, deltas: dict[int, float]) -> bool:
             channel[_FIRST_SLOT + slot] += value
         channel[_COUNTER_INDEX] = int(channel[_COUNTER_INDEX]) + 1
         return True
+    # not a failure: a channel that will not take the write is a channel nothing was
+    # published on, and False says so to the caller.
     except (IndexError, OSError, OverflowError, TypeError, ValueError):
         return False
 
@@ -120,6 +122,7 @@ def publish_count(channel: Any) -> int:
         return 0
     try:
         return int(channel[_COUNTER_INDEX])
+    # not a failure: no readable counter is silence, which the docstring says zero means.
     except (IndexError, OSError, TypeError, ValueError):
         return 0
 

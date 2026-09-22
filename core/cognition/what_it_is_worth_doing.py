@@ -189,6 +189,7 @@ def how_much_it_is_worth(
                 return None
             made = run(made.body, (one, *made.env), fuel=_A_VALUATION_MAY_SPEND)
         return int(made)
+    # not a failure: a refusal is an unpriced action, which the comment beside it says.
     except Exception:  # noqa: BLE001 - foreign code: a refusal is an unpriced action
         return None
 

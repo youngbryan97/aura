@@ -22,6 +22,8 @@ class SequenceMeaning:
     def read(self, cells: Sequence[Any]) -> tuple[Any, ...] | None:
         try:
             answer = self.reader(tuple(cells))
+        # not a failure: a candidate that refuses has not solved it, which is the verdict
+        # this search is here to reach.
         except (ArithmeticError, TypeError, ValueError, RuntimeError, RecursionError):
             return None
         return tuple(answer) if isinstance(answer, (tuple, list)) else None

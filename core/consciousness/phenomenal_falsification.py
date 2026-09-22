@@ -73,6 +73,7 @@ REPORT_BOUNDARY = (
 def _clamp01(x: Any) -> float:
     try:
         v = float(x)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0.0
     return 0.0 if v < 0.0 else 1.0 if v > 1.0 else v
@@ -390,8 +391,8 @@ class PhenomenalFalsifier:
 
             mon = ServiceContainer.get("higher_order_monitor", default=None)
             metacog = 0.6 if mon is not None else 0.0
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
-            pass
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation("phenomenal_falsifier", exc, severity="debug")
 
         causal, why = _causal_by_intervention()
         self._why_causal = why
@@ -445,8 +446,13 @@ def _register_in_container(engine: PhenomenalFalsifier) -> None:
             if callable(reg):
                 reg(PhenomenalFalsifier.SERVICE_NAME, engine,
                     required=False, registered_by="phenomenal_falsification")
-    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
-        pass
+    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the falsifier was not registered in the container (%s: %s); "
+            "callers that look it up will not find it",
+            type(exc).__name__,
+            exc,
+        )
 
 
 def reset_phenomenal_falsifier_for_test() -> None:

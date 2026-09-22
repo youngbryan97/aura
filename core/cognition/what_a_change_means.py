@@ -59,6 +59,7 @@ def _a_refusal_changes_nothing() -> Iterator[Violation]:
             as_it_stands,
             only_if_it_pays,
         )
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return
 
@@ -115,6 +116,7 @@ def _a_promotion_can_go_back() -> Iterator[Violation]:
             what_it_replaced,
         )
         from core.cognition.what_she_can_take_back import as_it_stands
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return
 

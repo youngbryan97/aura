@@ -765,7 +765,14 @@ class MultipleDraftsEngine:
             from core.soma.effort import EffortLedger, get_effort_ledger
 
             spent = EffortLedger.exertion(get_effort_ledger().peek())
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            # Zero exertion removes the metabolic constraint the docstring
+            # above describes, so drafting costs nothing.
+            logger.debug(
+                "exertion unreadable (%s: %s); drafting is unconstrained",
+                type(exc).__name__,
+                exc,
+            )
             spent = 0.0
         try:
             from core.container import ServiceContainer

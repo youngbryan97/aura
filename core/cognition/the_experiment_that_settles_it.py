@@ -143,6 +143,8 @@ def _how_long(one: Any) -> int | None:
 
     try:
         length = int(how_long_it_is(one))
+    # not a failure: an account whose length will not read has no length, which the
+    # docstring above says must stay distinct from zero.
     except Exception:  # noqa: BLE001 - foreign code: accounts are hers and may be anything
         return None
     return max(0, length)

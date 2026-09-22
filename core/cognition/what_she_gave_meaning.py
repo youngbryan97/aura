@@ -376,7 +376,16 @@ def recall() -> int:
     """
     try:
         held = json.loads(_kept_at().read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except FileNotFoundError:
+        # not a failure: nothing written down yet is nothing to put back.
+        return 0
+    except (OSError, ValueError) as exc:
+        # Everything she gave meaning to, gone, and 0 looks like a first run.
+        logger.warning(
+            "the language she worked out did not read back (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return 0
     if not isinstance(held, dict):
         return 0
@@ -422,5 +431,12 @@ def forget_everything() -> bool:
 
         get_file_write_gateway().delete_file(_kept_at(), source="what_she_gave_meaning")
         return True
-    except (OSError, RuntimeError, AttributeError):
+    except (OSError, RuntimeError, AttributeError) as exc:
+        # False says "there was nothing to forget", and a delete that failed
+        # means she still has it.
+        logger.warning(
+            "the induced language was not dropped (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return False

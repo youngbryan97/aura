@@ -606,6 +606,8 @@ def the_closure_of_composing_undoing_and_repeating(
             return tuple(
                 int(word(at, size)) % size for size in sizes for at in range(size)
             )
+        # not a failure: a term that refuses at a length it never saw has not generalised,
+        # which is what this asks.
         except (ArithmeticError, IndexError, TypeError, ValueError):
             return None
 
@@ -861,6 +863,8 @@ def _holds_at_a_size_it_never_saw(
         for at in range(size):
             try:
                 said = run(term, at, size, words)
+            # not a failure: a term that refuses at a length it never saw has not generalised,
+            # which is what this asks.
             except (ArithmeticError, IndexError, RecursionError, TypeError, ValueError):
                 return False
             if not isinstance(said, int) or not 0 <= said % size < size:
@@ -977,6 +981,8 @@ def _computes(term: Term, words: Sequence[Any], wanted: dict[int, tuple[int, ...
             try:
                 if run(term, at, size, words) % size != found[at]:
                     return False
+            # not a failure: a term that refuses at a length it never saw has not generalised,
+            # which is what this asks.
             except (ArithmeticError, IndexError, RecursionError, TypeError, ValueError):
                 return False
     return True

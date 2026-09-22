@@ -1,5 +1,7 @@
-from core.runtime.errors import record_degradation
 import logging
+
+from core.runtime.errors import record_degradation
+
 """
 Aura's self-reports grounded in actual internal telemetry.
 
@@ -9,9 +11,12 @@ The difference between:
               + explore action + rising arousal, expressed in language)
 """
 
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 from core.consciousness.free_energy import get_free_energy_engine
 from core.runtime.service_registry import get_runtime_service
+
+logger = logging.getLogger(__name__)
 
 
 class SelfReportEngine:
@@ -34,7 +39,13 @@ class SelfReportEngine:
         try:
             unity_state = get_runtime_service("unity_state", default=None)
             unity_report = get_runtime_service("unity_fragmentation_report", default=None)
-        except (ImportError, AttributeError, RuntimeError):
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            # She reports on her state without the unity reading in it.
+            logger.debug(
+                "unity state unavailable for the self report (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             unity_state = None
             unity_report = None
 

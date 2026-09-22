@@ -878,8 +878,13 @@ class TheoryOfMindEngine:
                 snapshot = estimator.cognitive_snapshot(user_id)
                 if isinstance(snapshot, dict) and snapshot.get("agent_id") == user_id:
                     return snapshot
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "no calibrated social snapshot for %s (%s: %s)",
+                user_id,
+                type(exc).__name__,
+                exc,
+            )
         return {}
 
     @staticmethod
@@ -1051,7 +1056,15 @@ class TheoryOfMindEngine:
                 principal=resolved,
             ):
                 return False
-        except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError):
+        except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError) as exc:
+            # A receipt that could not be CHECKED and one that failed the
+            # check both refuse, and only one of them is evidence of anything.
+            logger.warning(
+                "delivery receipt %s could not be validated (%s: %s); refusing",
+                delivery_receipt_id,
+                type(exc).__name__,
+                exc,
+            )
             return False
         model = self._load_user(resolved, purpose="recall")
         snapshot = self._calibrated_social_snapshot(resolved)

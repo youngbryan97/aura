@@ -142,6 +142,7 @@ class TheFurthestSheHasGot:
             ruled[at] = {str(one) for one in (what or ())}
         try:
             attempts = int(held.get("attempts") or 0)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             attempts = 0
         return cls(

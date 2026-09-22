@@ -142,6 +142,7 @@ class Ordering:
                 ),
                 natural=raw.get("natural") or None,
             )
+        # not a failure: a row that will not read back is not an ordering.
         except (TypeError, ValueError):
             return None
 
@@ -238,6 +239,7 @@ class Ordering:
                     key=lambda pair: (pair[1], pair[0]),
                     reverse=self.natural == "descending",
                 )
+            # not a failure: cells that will not compare have no natural order.
             except TypeError:
                 return None
             return tuple(cell for _place, cell in ranked)
@@ -481,6 +483,7 @@ def solve_ordering(transitions: Sequence[Any]) -> Ordering | None:
         def rises(low: Any, high: Any, _back: bool = backwards) -> bool | None:
             try:
                 return (high < low) if _back else (low < high)
+            # not a failure: two cells that will not compare answer neither way.
             except TypeError:
                 return None
 
@@ -574,6 +577,7 @@ class Composed:
         size = len(ordered)
         try:
             return tuple(ordered[self.move(place, size)] for place in range(size))
+        # not a failure: a move that indexes off the end does not apply here.
         except (IndexError, TypeError, ValueError, ZeroDivisionError):
             return None
 

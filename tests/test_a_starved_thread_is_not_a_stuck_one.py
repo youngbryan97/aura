@@ -124,19 +124,41 @@ def test_the_watchdog_tells_a_starved_loop_from_a_stuck_one(monkeypatch, caplog)
 
 
 def test_the_watchdog_loop_skips_dump_and_recovery_for_a_starved_stall():
-    from pathlib import Path
+    """The loop and the helpers it calls, not the loop's own lines.
 
-    source = (
-        Path(__file__).resolve().parent.parent / "core/resilience/stall_watchdog.py"
-    ).read_text(encoding="utf-8")
-    loop = source[source.index("# Check for stall") :]
-    loop = loop[: loop.index("def stop(self)")]
+    The comparison this reads for was lifted into ``_was_starved`` on
+    2026-09-21, because a second caller needed it and had been reporting
+    starved stalls as on-loop work. Reading the method alone made that a
+    test failure rather than the fix it was.
+    """
+    from core.resilience import stall_watchdog as sw
+
+    from tests.source_contract import function_with_its_helpers
+
+    loop = function_with_its_helpers(sw, "StallWatchdog.run")
     assert "share = self._loop_cpu_share_since_heartbeat(elapsed)" in loop
     assert "LOOP_BLOCKED_CEILING_FRACTION <= share < LOOP_HOLD_STARVED_FRACTION" in loop
-    starved = loop[loop.index("self._report_starvation(elapsed, share)") :]
+    starved = loop[loop.index("self._report_starvation(elapsed, float(share))") :]
     starved = starved[: starved.index("continue")]
     assert "_attempt_active_recovery" not in starved
     assert "_report_stall" not in starved
+
+
+def test_a_lateness_streak_is_classified_the_same_way():
+    """Both callers of ``_report_stall`` ask the same question first.
+
+    LIVE 2026-09-21: three `EVENT LOOP STALL DETECTED! ... on 3% of a core:
+    on-loop work` lines, each with a dump of every stack. Three percent is
+    inside the starved band. The streak reporter was added that morning and
+    called ``_report_stall`` directly.
+    """
+    from core.resilience import stall_watchdog as sw
+
+    from tests.source_contract import function_with_its_helpers
+
+    for method in ("StallWatchdog.run", "StallWatchdog._note_lateness"):
+        text = function_with_its_helpers(sw, method)
+        assert "_was_starved" in text, f"{method} does not classify the share"
 
 
 @pytest.mark.asyncio

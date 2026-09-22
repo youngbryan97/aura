@@ -82,10 +82,14 @@ def solve_by_the_size_below(
         try:
             if smallest(here):
                 return list(answer_outright(here))
+        # not a failure: a candidate that refuses has not solved it, which is the verdict
+        # this search is here to reach.
         except (ArithmeticError, AttributeError, TypeError, ValueError):
             return None
         try:
             below = list(one_size_down(here))
+        # not a failure: a candidate that refuses has not solved it, which is the verdict
+        # this search is here to reach.
         except (ArithmeticError, AttributeError, TypeError, ValueError):
             return None
         if not below:
@@ -98,6 +102,8 @@ def solve_by_the_size_below(
             answers.append(got)
         try:
             return list(put_together(here, answers))
+        # not a failure: a candidate that refuses has not solved it, which is the verdict
+        # this search is here to reach.
         except (ArithmeticError, AttributeError, TypeError, ValueError):
             return None
 

@@ -8,6 +8,7 @@ somewhere.
 """
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # annotation only; that module imports this one
@@ -18,6 +19,8 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class _ReadsACachedVector:
@@ -59,6 +62,8 @@ class _ReadsACachedVector:
             return False
         try:
             observed = self._cached_metadata(path).get("model_descriptor_sha256")
+        # not a failure: a cache file whose metadata will not read does not match the
+        # model, and this refuses rather than assumes.
         except (OSError, ValueError, RuntimeError, TypeError):
             return False
         return observed == expected

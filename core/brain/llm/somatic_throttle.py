@@ -123,39 +123,66 @@ class SomaticComputeSentinel:
             or (gov_throttle <= 0.2)
         )
 
-        def _cap(limit: int, temperature: float) -> None:
+        def _cap(limit: int, temperature: float) -> bool:
+            """Apply the cap, and say whether it applied.
+
+            It returns early for a foreground turn, and the three log lines
+            below announced the cap either way. LIVE, 2026-09-21: "CRITICAL
+            METABOLIC PANIC ... Parameter throttle ENABLED (max_tokens capped
+            at 128)" on a user-facing turn the answer clock had just priced
+            at 258 tokens and where nothing was capped at all. A line that
+            names a cause the reader can act on, for something that did not
+            happen, costs more than silence.
+            """
             if foreground:
-                return
+                return False
             original_max = base_options.get("max_tokens", 512)
             base_options["max_tokens"] = min(original_max, limit)
             base_options["temperature"] = temperature
+            return True
 
         if gov_throttle == 0.0 and gov_measured:
             # Token exhaustion: severe cap to block further consumption
-            _cap(8, 0.05)
-            logger.error("🚫 GOVERNANCE QUOTA EXHAUSTED: Token limit hit. Sampling capped to 8 tokens.")
+            if _cap(8, 0.05):
+                logger.error(
+                    "🚫 GOVERNANCE QUOTA EXHAUSTED: Token limit hit. "
+                    "Sampling capped to 8 tokens."
+                )
+            else:
+                logger.error(
+                    "🚫 GOVERNANCE QUOTA EXHAUSTED: Token limit hit. This turn "
+                    "is user-facing and keeps its budget."
+                )
         elif is_critical:
             # Force severe parameter cuts to prevent OOM/Thermal crash
-            _cap(128, 0.15)
+            capped = _cap(128, 0.15)
             # Throttle recurrent lane depth if supported by token generator
             if "recurrent_lane_depth" in base_options:
                 base_options["recurrent_lane_depth"] = 0.2
             elif "recurrent_depth" in base_options:
                 base_options["recurrent_depth"] = 0.2
             logger.warning(
-                "🔥 CRITICAL METABOLIC PANIC: Arousal=%.2f, RAM=%.1f%%, CPU=%.1f%%, GovThrottle=%.2f. Parameter throttle ENABLED (max_tokens capped at 128).",
-                arousal, ram_pct * 100, cpu_load * 100, gov_throttle
+                "🔥 CRITICAL METABOLIC PANIC: Arousal=%.2f, RAM=%.1f%%, "
+                "CPU=%.1f%%, GovThrottle=%.2f. %s",
+                arousal, ram_pct * 100, cpu_load * 100, gov_throttle,
+                "Parameter throttle ENABLED (max_tokens capped at 128)."
+                if capped
+                else "This turn is user-facing and keeps its budget.",
             )
         elif is_stressed:
             # Moderate parameter cuts
-            _cap(256, 0.3)
+            capped = _cap(256, 0.3)
             if "recurrent_lane_depth" in base_options:
                 base_options["recurrent_lane_depth"] = 0.4
             elif "recurrent_depth" in base_options:
                 base_options["recurrent_depth"] = 0.4
             logger.info(
-                "⚠️ SYSTEMIC STRESS DETECTED: Arousal=%.2f, RAM=%.1f%%, CPU=%.1f%%, GovThrottle=%.2f. Parameter throttle activated (max_tokens capped at 256).",
-                arousal, ram_pct * 100, cpu_load * 100, gov_throttle
+                "⚠️ SYSTEMIC STRESS DETECTED: Arousal=%.2f, RAM=%.1f%%, "
+                "CPU=%.1f%%, GovThrottle=%.2f. %s",
+                arousal, ram_pct * 100, cpu_load * 100, gov_throttle,
+                "Parameter throttle activated (max_tokens capped at 256)."
+                if capped
+                else "This turn is user-facing and keeps its budget.",
             )
 
         return base_options

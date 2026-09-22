@@ -70,7 +70,15 @@ def _terms_the_search_can_reach() -> int:
         )
 
         return how_many_up_to(3, leaves=5 + len(what_she_already_knows_how_to_say()))
-    except (ImportError, RuntimeError, TypeError, ValueError):
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        # 0 reachable terms is the reading that says her language cannot
+        # grow at all, which is the thing this module exists to detect.
+        logger.warning(
+            "could not count the terms the search can reach (%s: %s); "
+            "reporting none",
+            type(exc).__name__,
+            exc,
+        )
         return 0
 
 

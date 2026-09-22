@@ -295,6 +295,7 @@ def the_candidate_at(which: int, *, leaves: int = 10) -> Code | None:
         for one in (int(which), max(1, int(leaves))):
             made = run(made.body, (one, *made.env), fuel=_A_PROPOSAL_MAY_SPEND)
         return decode(made)
+    # not a failure: the docstring above says it: an unusable candidate gets this answer.
     except (OutOfFuel, Stuck, TypeError, ValueError, AttributeError):
         return None
 

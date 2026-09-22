@@ -433,7 +433,16 @@ def recall_the_record() -> int:
     """Put it back. Returns how many episodes came back."""
     try:
         held = json.loads(_kept_at().read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except FileNotFoundError:
+        # not a failure: no record yet is nothing to put back.
+        return 0
+    except (OSError, ValueError) as exc:
+        logger.warning(
+            "the record of her own work did not read back (%s: %s); "
+            "starting from none",
+            type(exc).__name__,
+            exc,
+        )
         return 0
     if not isinstance(held, dict):
         return 0

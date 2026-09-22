@@ -346,6 +346,8 @@ def _is_sayable(family: Iterable[Any]) -> bool:
     pairs = [(tuple(before), tuple(after)) for before, after in family]
     try:
         return induce_from(pairs) is not None
+    # not a failure: a candidate that refuses has not solved it, which is the verdict
+    # this search is here to reach.
     except (ArithmeticError, IndexError, KeyError, TypeError, ValueError):
         return False
 

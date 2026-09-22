@@ -96,6 +96,7 @@ def how_soon_they_are_found(order: Code) -> float:
                 for each in (told, one["places"], before.won, before.of, symbols):
                     work = run(work.body, (each, *work.env), fuel=20_000)
                 said = int(work)
+            # not a failure: an ordering that refuses scores nothing, which is the ranking.
             except (OutOfFuel, Stuck, TypeError, ValueError, AttributeError):
                 said = 0
             scored.append((-said, symbols, name))

@@ -298,6 +298,8 @@ def _just(word: Any) -> Callable[[Any], bool]:
                 for size in (4, 5, 6)
                 for at in range(size)
             )
+        # not a failure: a term that refuses at a length it never saw has not generalised,
+        # which is what this asks.
         except (ArithmeticError, IndexError, TypeError, ValueError):
             return False
 

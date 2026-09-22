@@ -615,6 +615,46 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     before their command line could be. A direct child younger than one
     hygiene cycle with no readable command line is not yet known, and not
     yet rogue (`young_child_processes`). tests/test_runtime_hygiene.py.
+  UPDATE 2026-09-21. Four from one boot, and three of them were a gate
+  refusing the work it exists to admit.
+  - `warmup_readiness_no_text` nine times, `conversation_ready` never true,
+    and a chat request that sat 290s and got nothing. The primary lane's
+    warmup is exempt from the foreground-ownership guard — the foreground
+    owner is usually the turn WAITING on that warmup — and the exemption
+    was written at the warmup gate, not at the line that refuses the
+    generations a warmup is made of. `_generate_inner` skipped both the
+    precompile and the readiness probe, `prove_visible_readiness` reported
+    the skip as the worker producing no text, and the lane went to
+    `recovering`. A refusal now names itself on the deliberate-no-text
+    channel and a declined warmup stands down instead of failing the lane.
+    tests/test_a_warmup_refused_by_its_own_foreground_owner.py.
+  - `Model-load admission lease expired before release lane=cortex`: the
+    lease TTL is handshake+120s and the read of a 20GB model ran past it on
+    a loaded host, so admission counted the memory free while it was still
+    being taken. The controller already holds a lease for the life of a
+    holder task and the whole load runs on the acquiring task.
+    tests/test_inference_reservation_lifetime.py.
+  - `⚠️ [MLX] Warmup pre-compile failed once ... stopped_before_worker_spawn:
+    foreground_headroom_reserved`. Nothing had failed.
+    `_WarmupDeferredError` subclasses `RuntimeError`, so the retry loop
+    caught the runtime declining to spawn a worker, rebooted the worker and
+    spent the campaign recovering from a decision.
+  - `EVENT LOOP STALL DETECTED! (Elapsed: 8.0s on 3% of a core: on-loop
+    work)`, three times. Three percent of a core is inside the starved band
+    and is not on-loop work. The starvation carve-out sat at one of the two
+    callers of `_report_stall`; the lateness-streak reporter added the same
+    day called the other. One classification now, read by both.
+    tests/test_a_streak_of_small_lags_is_a_stall.py.
+  And one from the answers rather than the feed: asked to measure 4 litres
+  with a 3-litre and a 5-litre jug she said the answer took too long to
+  finish cleanly, and it had not. The answer clock priced the prompt at 11s
+  to read against a receipt of `prefill=1422 tokens/32.53s`; the wait gave
+  up at 30s with the generation a second from done, and 667 characters went
+  in the bin. `still_producing` is what the cognitive engine renews its own
+  cycle from and what the mlx client tells a slow decode from a wedged one
+  with; the outermost wait, the one that decides whether the person gets
+  the answer, was the one that could not see it.
+  tests/test_an_answer_that_landed_one_second_late.py.
   UPDATE 2026-09-18. Two more taken by cause from one evening's live feed,
   and both were the gate rather than the model.
   - `surface_controls_unavailable:steering_unavailable`, classified

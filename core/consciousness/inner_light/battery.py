@@ -191,7 +191,14 @@ def run_live(*, bus: Any = None, workspace: Any = None, n_bins: int = 96) -> Bat
     try:
         from core.ghost.causal_integration import get_system_integration
         phi = round(get_system_integration().report().phi_system, 4)
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        # The battery runs without a system phi, and its report should not
+        # read as "phi was measured and was nothing".
+        logger.debug(
+            "system phi unavailable for the battery (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         phi = None
     return run_on_matrix(sample.matrix, phi_system=phi)
 

@@ -166,6 +166,7 @@ class WhatSheHasHeard:
                 continue
         try:
             turns = int(held.get("turns") or 0)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             turns = 0
         return cls(after=after, ever=ever, turns=max(0, turns))

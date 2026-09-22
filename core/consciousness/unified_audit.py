@@ -238,6 +238,7 @@ class ConsciousnessAuditSuite:
                         "Scheduled audit: index=%.3f phi=%.3f",
                         report.consciousness_index, report.phi,
                     )
+                # not a failure: the scheduled audit was cancelled, which is how it is stopped.
                 except asyncio.CancelledError:
                     running = False
                 except (RuntimeError, AttributeError, TypeError, ValueError) as e:

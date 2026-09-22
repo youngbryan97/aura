@@ -1041,6 +1041,7 @@ class AffectiveSteeringHook:
     def _effective_alpha(self) -> float:
         try:
             alpha = float(self._alpha)
+        # not a failure: an alpha that is not a number is no steering, which 0.0 says.
         except (TypeError, ValueError):
             return 0.0
         if not math.isfinite(alpha) or alpha <= 0.0:
@@ -1567,6 +1568,7 @@ class SubstrateSyncThread:
             return None
         try:
             vector = np.asarray(value, dtype=np.float32).reshape(-1)
+        # not a failure: a value that will not become a finite vector is not a state.
         except (TypeError, ValueError, RuntimeError):
             return None
         if len(vector) == 0 or not np.isfinite(vector).all():

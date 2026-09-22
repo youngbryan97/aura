@@ -317,6 +317,7 @@ class OutputReceptor:
         """Refresh physical expectations without stalling an active owner loop."""
         try:
             asyncio.get_running_loop()
+        # not a failure: off a loop there is no running loop to report.
         except RuntimeError:
             self._refresh_action_expectations()
             return

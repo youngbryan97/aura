@@ -416,6 +416,8 @@ class TemporalContinuityEngine:
                 padded[: arr.size] = arr
                 return padded
             return None
+        # not a failure: a value that will not become a fixed-width sample is not a drift
+        # reading.
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             return None
 

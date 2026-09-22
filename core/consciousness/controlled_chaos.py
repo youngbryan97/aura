@@ -160,6 +160,7 @@ class ChaosEngine:
         """
         try:
             p = float(pressure)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if not math.isfinite(p):

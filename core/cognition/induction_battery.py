@@ -429,6 +429,8 @@ def _solve(
         return tuple(found.apply(problem.held_out.before)) == tuple(
             problem.held_out.after
         )
+    # not a failure: a candidate that refuses has not solved it, which is the verdict
+    # this search is here to reach.
     except Exception:  # noqa: BLE001 - foreign code: a relation that throws did not predict it
         return False
 

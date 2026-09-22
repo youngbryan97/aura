@@ -178,8 +178,12 @@ class ContinuousRecurrentSelfModel:
                     producer="crsm",
                     note="recurrent one-step error",
                 )
-            except (ImportError, KeyError, RuntimeError, TypeError, ValueError):
-                pass
+            except (ImportError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "world.prediction_error estimate not published (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
 
             # Online learning when prediction error is meaningful
             if err > PRED_ERR_THRESHOLD:

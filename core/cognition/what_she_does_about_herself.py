@@ -177,7 +177,12 @@ def _the_library_is_over_budget(parts: Sequence[Any]) -> bool:
 
         carried = sum(1 for one in parts if getattr(one, "term", None) is not None)
         return carried > int(where_the_budget_is())
-    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the library budget could not be read (%s: %s); reporting under it",
+            type(exc).__name__,
+            exc,
+        )
         return False
 
 

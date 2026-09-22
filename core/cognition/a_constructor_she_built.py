@@ -245,8 +245,15 @@ def a_constructor_she_built(
 
                 note_the_language_grew()
                 return recipe
-        except (TypeError, ValueError, KeyError):
-            pass
+        except (TypeError, ValueError, KeyError) as exc:
+            # The recipe is dropped from WAYS_TO_BUILD below, so a word she
+            # built stops existing. Which one, and why, is the only trace.
+            logger.warning(
+                "a constructor she built did not hold and was dropped: %s (%s: %s)",
+                name,
+                type(exc).__name__,
+                exc,
+            )
         WAYS_TO_BUILD.pop(name, None)
     return None
 
@@ -300,6 +307,7 @@ def read_back(row: Any) -> Recipe | None:
         return None
     try:
         depth = int(row.get("depth") or 2)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     return Recipe(kind=kind, depth=max(2, depth), then=read_back(row.get("then")))

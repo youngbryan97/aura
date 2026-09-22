@@ -73,6 +73,8 @@ def publish_state(channel: Any, state: int) -> bool:
         # races sees a smaller count rather than an unwritten slot.
         channel[_COUNTER_INDEX] = count + 1
         return True
+    # not a failure: a channel that will not take the write published nothing, and
+    # False says so to the caller.
     except (IndexError, OSError, TypeError, ValueError):
         return False
 

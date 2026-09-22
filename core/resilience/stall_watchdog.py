@@ -392,11 +392,8 @@ class StallWatchdog(threading.Thread):
                     self._consecutive_long_stalls = 0
                     continue
                 share = self._loop_cpu_share_since_heartbeat(elapsed)
-                if (
-                    share is not None
-                    and LOOP_BLOCKED_CEILING_FRACTION <= share < LOOP_HOLD_STARVED_FRACTION
-                ):
-                    self._report_starvation(elapsed, share)
+                if self._was_starved(share):
+                    self._report_starvation(elapsed, float(share))
                     self._last_heartbeat = time.time()
                     self._consecutive_long_stalls = 0
                     continue
@@ -451,7 +448,11 @@ class StallWatchdog(threading.Thread):
             self.threshold,
         )
         self._recent_lateness.clear()
-        self._report_stall(total, self._loop_cpu_share_since_heartbeat(total))
+        share = self._loop_cpu_share_since_heartbeat(total)
+        if self._was_starved(share):
+            self._report_starvation(total, float(share))
+            return
+        self._report_stall(total, share)
 
     def stop(self):
         self._stop_event.set()
@@ -875,6 +876,24 @@ class StallWatchdog(threading.Thread):
         if now_cpu is not None:
             self._loop_cpu_at_last_look = (now_cpu, now_wall)
         return thread_cpu_share(before, now_cpu, max(now_wall - since, 1e-6))
+
+    @staticmethod
+    def _was_starved(share: float | None) -> bool:
+        """Whether the loop thread was waiting for a core rather than using one.
+
+        The classification, in one place, because it was in one of the two
+        places that report a stall. LIVE, 2026-09-21: the lateness-streak
+        reporter added the same morning called ``_report_stall`` directly,
+        and three stalls went into the feed as "8.0s on 3% of a core:
+        on-loop work". Three percent is not on-loop work — it is the share
+        a runnable thread gets when the host will not schedule it — and each
+        one cost a dump of every stack, which is GIL time taken from the
+        loop it was reporting on.
+        """
+        return (
+            share is not None
+            and LOOP_BLOCKED_CEILING_FRACTION <= share < LOOP_HOLD_STARVED_FRACTION
+        )
 
     def _report_starvation(self, elapsed: float, share: float) -> None:
         """A stall that is the host's, said once a minute rather than dumped.

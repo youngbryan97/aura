@@ -324,7 +324,15 @@ class RelationLanguage:
                 get_file_write_gateway().write_text(
                     self.path, payload, source="cognition.relation_language"
                 )
-        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            # The language she worked out does not reach the next boot, and
+            # nothing downstream of this call can tell.
+            logger.warning(
+                "the relation language was not written to %s (%s: %s)",
+                self.path,
+                type(exc).__name__,
+                exc,
+            )
             return
 
     @classmethod
@@ -388,6 +396,8 @@ class RelationLanguage:
         )
         try:
             _ALREADY_READ[target] = ((how_big, target.stat().st_mtime_ns), made)
+        # not a failure: a file that cannot be stat'ed is simply not cached,
+        # and the next read builds it again.
         except OSError:
             pass
         return made

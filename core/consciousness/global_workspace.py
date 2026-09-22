@@ -334,7 +334,14 @@ def _relief_for(source: str) -> float:
         from core.affect.catharsis import get_catharsis_ledger
 
         reading = get_catharsis_ledger().read(str(source or ""))
-    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+        # The docstring above is about this reading having had no reader at
+        # all, so a thing said five times pressed as hard as one never said.
+        logger.debug(
+            "catharsis reading unavailable (%s: %s); no drain applied",
+            type(exc).__name__,
+            exc,
+        )
         return 0.0
     drained = float(getattr(reading, "drain", 1.0) or 1.0)
     return max(0.0, min(1.0, 1.0 - drained))
@@ -354,7 +361,12 @@ def _held_pressure(content_type: Any) -> float:
         from core.social.averted import get_averted_ledger
 
         reading = get_averted_ledger().read()
-    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "averted reading unavailable (%s: %s); no bias applied",
+            type(exc).__name__,
+            exc,
+        )
         return 0.0
     if not reading.measured or not reading.looking_away:
         return 0.0
@@ -374,7 +386,12 @@ def _civility_debt(content_type: Any) -> float:
         from core.social.civility import get_civility_ledger
 
         reading = get_civility_ledger().read()
-    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "civility reading unavailable (%s: %s); no bias applied",
+            type(exc).__name__,
+            exc,
+        )
         return 0.0
     if not reading.measured or not reading.covering:
         return 0.0
@@ -1352,8 +1369,14 @@ class GlobalWorkspace:
                 get_containment_ledger().competition(
                     winner.source, {c.source: scores[id(c)] for c in self._candidates}
                 )
-            except (ImportError, AttributeError, KeyError, TypeError, ValueError):
-                pass  # no-op: a missing reader keeps no pressure
+            except (ImportError, AttributeError, KeyError, TypeError, ValueError) as exc:
+                # A missing reader keeps no pressure, which is the same
+                # outcome as her never having held anything back.
+                logger.debug(
+                    "containment did not record this competition (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
 
             # Soar's tie impasse: several candidates that nothing actually
             # discriminates. Taking [0] resolves it silently, and until now
@@ -1488,8 +1511,12 @@ class GlobalWorkspace:
                         from core.social.civility import get_civility_ledger
 
                         get_civility_ledger().said_it()
-                    except (AttributeError, ImportError, TypeError, ValueError):
-                        pass
+                    except (AttributeError, ImportError, TypeError, ValueError) as exc:
+                        logger.debug(
+                            "civility did not record that she said it (%s: %s)",
+                            type(exc).__name__,
+                            exc,
+                        )
 
         # --- Peripheral Awareness (Attention/Consciousness Dissociation) ---
         # Feed losers into the peripheral field so content that didn't win
@@ -1720,6 +1747,7 @@ class GlobalWorkspace:
             try:
                 if not bool(manager_ready()):
                     return False
+            # not a failure: an inhibition manager that will not answer is not inhibiting.
             except _WORKSPACE_RECOVERABLE_ERRORS:
                 return False
         return bool(

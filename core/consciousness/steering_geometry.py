@@ -7,6 +7,7 @@ a refusal rather than a guess when none of them answer.
 """
 from __future__ import annotations
 
+import logging
 import math
 import os
 import re
@@ -17,6 +18,8 @@ import numpy as np
 
 from core.runtime.model_layers import resolve_model_layers
 from core.runtime.state_ownership import state_root
+
+logger = logging.getLogger(__name__)
 
 
 class _FindsTheModelsGeometry:
@@ -62,6 +65,7 @@ class _FindsTheModelsGeometry:
     def _coerce_hidden_size(candidate: Any) -> int | None:
         try:
             value = int(candidate)
+        # not a failure: a hidden size that will not read is not a hidden size.
         except (TypeError, ValueError, OverflowError):
             return None
         return value if value > 512 else None
@@ -386,7 +390,12 @@ class _FindsTheModelsGeometry:
                     model_identity={"descriptor_sha256": digest},
                 ),
             )
-        except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "no active steering generation resolved (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return None
         return resolution.cache_dir
 

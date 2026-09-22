@@ -158,6 +158,8 @@ def how_well_she_knows_herself() -> dict[str, Any]:
             together = statistics.correlation(
                 [one for one, _ in gains], [other for _, other in gains]
             )
+        # not a failure: two gains with no variance have no correlation, and 0.0 is the
+        # reading for that.
         except (statistics.StatisticsError, ValueError):
             together = 0.0
     return {

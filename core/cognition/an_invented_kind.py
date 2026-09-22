@@ -146,6 +146,7 @@ class Induced:
             where = where_all[self.where_from]
             other = where_all[self.and_from]
             what = WHAT_OF_IT[self.what_of_it]
+        # not a failure: a word naming an addressing she no longer has cannot read.
         except KeyError:
             return None
         out: list[Any] = []
@@ -252,8 +253,15 @@ def addressings() -> dict[str, Any]:
         from core.cognition.one_thing_many_spellings import one_of_each
 
         made = one_of_each(made)
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        pass
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        # The comment above says what this costs: every duplicate is another
+        # branch at every step of every search, bought for nothing.
+        logger.debug(
+            "words were not deduplicated by behaviour (%s: %s); the search "
+            "carries the duplicates",
+            type(exc).__name__,
+            exc,
+        )
     _LAST_BUILT = (now, made)
     return made
 

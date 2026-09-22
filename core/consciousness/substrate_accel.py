@@ -29,6 +29,7 @@ try:  # pragma: no cover - depends on whether the native ext is built
     import aura_m1_ext as _ext
 
     RUST_ACCEL_AVAILABLE = hasattr(_ext, "field_integrate")
+# not a failure: the native extension is optional; the numpy path stays correct.
 except _ACCEL_IMPORT_ERRORS:
     _ext = None
     RUST_ACCEL_AVAILABLE = False
@@ -72,6 +73,7 @@ def field_integrate(
                 ),
                 dtype=np.float32,
             )
+        # not a failure: the comment below says it: the numpy fallback runs instead.
         except _ACCEL_IMPORT_ERRORS + (ValueError, TypeError, RuntimeError):
             # Never let an extension hiccup break the substrate — fall back.
             pass

@@ -835,6 +835,8 @@ class PhiCore:
         """
         try:
             folded = _fold_modes_to_byte(int(state))
+        # not a failure: a state that is not an integer folds to no mode and is not
+        # appended to the history.
         except (TypeError, ValueError):
             return
         self._grassmann_state_history.append(folded)
@@ -906,7 +908,14 @@ class PhiCore:
                         client = candidate
                         break
             return getattr(client, "_phi_residual_mem", None)
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            # No ring means no activation-grounded phi, which is the state
+            # the comment above says went unnoticed for the whole project.
+            logger.debug(
+                "no residual ring to read (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return None
 
     def drain_worker_residuals(self, channel: Any) -> int:
@@ -1636,6 +1645,8 @@ class PhiCore:
         """Why an estimator could not run, in the form a reader can act on."""
         try:
             have = len(history)
+        # not a failure: a history with no length has none to report, and the shortfall
+        # line below says so either way.
         except TypeError:
             have = 0
         return f"insufficient_history:{have}/{MIN_HISTORY_FOR_TPM} {label} transitions"

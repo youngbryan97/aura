@@ -201,6 +201,7 @@ def in_the_order_worth_trying(
     def worth(name: str) -> tuple[int, int, str]:
         try:
             agreed = max(0, int(agrees(every[name], wanted)))
+        # not a failure: agreement that cannot be counted is no agreement.
         except (ArithmeticError, TypeError, ValueError):
             agreed = 0
         before = how_often_it_worked(name)
@@ -242,6 +243,7 @@ def in_the_order_worth_trying(
 def _agreed_or_nothing(agrees: Any, word: Any, wanted: Any) -> int:
     try:
         return int(agrees(word, wanted))
+    # not a failure: agreement that cannot be counted is no agreement.
     except (ArithmeticError, TypeError, ValueError):
         return 0
 
@@ -294,7 +296,17 @@ def recall() -> int:
     """What she learned about her own searching, from before this process."""
     try:
         row = json.loads(_kept_at().read_text())
-    except (OSError, ValueError):
+    except FileNotFoundError:
+        # not a failure: nothing kept yet is nothing to recall.
+        return 0
+    except (OSError, ValueError) as exc:
+        # A file that exists and will not read is her losing what she learned
+        # about her own searching, and 0 is indistinguishable from a first run.
+        logger.warning(
+            "what she learned about searching did not read back (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return 0
     won = row.get("won")
     if not isinstance(won, dict):

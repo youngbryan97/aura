@@ -98,6 +98,7 @@ _PROBE_TRIALS_FLAG = declare(
 def _maybe(value: Any) -> float | None:
     try:
         v = float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     if v != v or v in (float("inf"), float("-inf")):

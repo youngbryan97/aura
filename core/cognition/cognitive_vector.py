@@ -108,6 +108,7 @@ def random_vector(dimension: int = DEFAULT_DIMENSION, *, seed: int | None = None
 
 try:  # numpy is present in this environment; the fallback keeps the module pure.
     import numpy as _np
+# not a failure: the pure fallback above is what runs where numpy is absent.
 except ImportError:  # pragma: no cover - exercised only where numpy is absent
     _np = None
 

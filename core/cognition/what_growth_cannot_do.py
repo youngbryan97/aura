@@ -163,10 +163,13 @@ def naming_cannot_add_a_meaning(
     """
     try:
         without = unfolds_to()
+    # not a failure: a word that will not unfold cannot be held to the theorem.
     except (ArithmeticError, TypeError, ValueError):
         return False
     try:
         return bool(says_it(a_word_she_made)) and bool(says_it(without))
+    # not a failure: a term that refuses at a length it never saw has not generalised,
+    # which is what this asks.
     except (ArithmeticError, TypeError, ValueError):
         return False
 

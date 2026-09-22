@@ -158,6 +158,7 @@ def _measured_learning_evidence() -> tuple:
 def _on_a_running_loop() -> bool:
     try:
         asyncio.get_running_loop()
+    # not a failure: off a loop there is no loop to report.
     except RuntimeError:
         return False
     return True
@@ -809,7 +810,16 @@ class OutcomeLedger:
                     if not isinstance(ctx, dict):
                         continue
                     state = str(ctx.get("state") or "")
-                except (ValueError, TypeError):
+                except (ValueError, TypeError) as exc:
+                    # The row is dropped to the marginal table below, so a
+                    # state that exists and will not parse silently changes
+                    # which table an outcome is counted in.
+                    logger.debug(
+                        "outcome context did not parse (%s: %s); counting the "
+                        "row as stateless",
+                        type(exc).__name__,
+                        exc,
+                    )
                     state = ""
                 if not state:
                     continue  # no state recorded: it belongs in the marginal table

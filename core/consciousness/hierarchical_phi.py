@@ -81,6 +81,7 @@ _HIERARCHICAL_PHI_RECOVERABLE_ERRORS = (
 try:
     import mlx.core as mx  # noqa: F401
     _MLX_AVAILABLE = True
+# not a failure: MLX is opportunistic here and the numpy path stays correct.
 except (ImportError, AttributeError, RuntimeError):  # pragma: no cover - hardware dependent
     _MLX_AVAILABLE = False
 
