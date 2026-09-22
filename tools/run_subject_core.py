@@ -28,7 +28,17 @@ from typing import Any
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-os.environ.setdefault("AURA_TESTING", "1")
+# A run of her whole self is not a test, and it serves what the desktop serves:
+# the desktop's .env and the model paths its registry resolves. Both are read at
+# import by modules loaded below, so they are decided here from the command
+# line. See tools/whole_environment.py.
+if "--whole" in sys.argv[1:]:
+    from tools.whole_environment import enter_whole_environment
+
+    WHOLE_PINS = enter_whole_environment(REPO)
+else:
+    WHOLE_PINS: dict[str, str] = {}
+    os.environ.setdefault("AURA_TESTING", "1")
 
 import numpy as np  # noqa: E402
 
@@ -200,6 +210,21 @@ async def main() -> int:
         "scripted percepts, and the report says which channels carried it",
     )
     parser.add_argument(
+        "--whole",
+        action="store_true",
+        help="run her whole self: the live language organ decoding greedily in "
+        "place of the stub, and no testing flag. Loads her models; see "
+        "core/subject/steady_mind.py",
+    )
+    parser.add_argument(
+        "--conversation-tape",
+        type=Path,
+        help="a tape cut by tools/record_conversation_tape.py. The conversation "
+        "condition then hears what the person she talks to actually said, in "
+        "order, instead of one sentence; the report records the tape's digest "
+        "and length and never its words",
+    )
+    parser.add_argument(
         "--resume",
         type=Path,
         help="a run directory holding checkpoint.json. The stages it already "
@@ -354,11 +379,18 @@ async def main() -> int:
         _log(f"resuming {args.out.name} after {resumed['stage']}: {', '.join(done)} already measured")
 
     _log(f"building the offline organism in {args.out}")
-    runtime = build_runtime(args.out / "runtime", seed=args.seed)
+    runtime = build_runtime(args.out / "runtime", seed=args.seed, whole=args.whole)
+    evidence["notes"]["organism"] = {
+        "whole": bool(args.whole),
+        "language_organ": type(runtime.kernel.organs["llm"].instance).__name__,
+        "testing_flag": os.environ.get("AURA_TESTING", ""),
+        "served": dict(WHOLE_PINS),
+    }
     # Perception, before the organism lives a frame. A tape has to be on the
     # runtime for the calibration turns too, or the clock is calibrated against
     # a different world from the one the run records.
     evidence["perception"] = _attach_tape(runtime, args)
+    evidence["conversation"] = _attach_conversation(runtime, args)
     organism = await start_organism(runtime)
     evidence["organism"] = organism
     # Whether anything kept a path into the root the process would otherwise
@@ -949,6 +981,22 @@ def _attach_tape(runtime: Any, args: Any) -> dict[str, Any]:
         f"{coverage['percepts']} percepts, carried by {coverage['carried'] or 'nothing'}"
     )
     return coverage
+
+
+def _attach_conversation(runtime: Any, args: Any) -> dict[str, Any]:
+    """Whether the conversation condition hears her partner or one sentence, said either way."""
+    if not getattr(args, "conversation_tape", None):
+        return {
+            "source": "scripted",
+            "note": "the conversation condition said the same sentence on every turn",
+        }
+    from core.subject.conversation_tape import ConversationTape
+
+    tape = ConversationTape.load(args.conversation_tape)
+    runtime.conversation_tape = tape
+    provenance = tape.provenance()
+    _log(f"conversation from a tape: {provenance['turns']} turns, digest {provenance['digest'][:12]}")
+    return {"source": "tape", **provenance}
 
 
 async def _lesion(

@@ -437,6 +437,16 @@ class SubjectRuntime:
     #: the difference between them stays the intervention. See
     #: `core.subject.perception_replay`.
     tape: Any = None
+    #: What the person she talks to has actually said, or None for the
+    #: condition's one sentence. The n-th conversation turn of a run hears the
+    #: n-th thing on it; `spoken` counts them and is carried across a fork, so
+    #: both arms of a paired trial hear the same thing. See
+    #: `core.subject.conversation_tape`.
+    conversation_tape: Any = None
+    spoken: int = 0
+    #: Her whole self: the live language organ and no testing flag. See
+    #: `build_runtime`.
+    whole: bool = False
 
     # ── forking ──────────────────────────────────────────────────────────
 
@@ -707,6 +717,7 @@ class SubjectRuntime:
             taken_at=time.time(),
             clock_at=None if self.clock is None else self.clock.now(),
             frame_index=self.frame_index,
+            spoken=self.spoken,
             global_random=random.getstate(),
             numpy_random=np.random.get_state(),
             torch_random=_torch_random_state(),
@@ -760,6 +771,7 @@ class SubjectRuntime:
         _restore_services(snapshot.services)
         _restore_effort(snapshot.effort)
         self.frame_index = snapshot.frame_index
+        self.spoken = snapshot.spoken
         _restore_world(getattr(self, "_scratch", None), snapshot.world)
         _restore_stores(snapshot.stores)
         _restore_intentions(self._intentions, snapshot.intentions)
@@ -843,25 +855,29 @@ class SubjectRuntime:
             env["percepts_replayed"] = float(
                 self.tape.play(self.state.world, self.turn, now=now)
             )
+        objective = condition.objective
+        if condition.name == "conversation" and self.conversation_tape is not None:
+            objective = self.conversation_tape.at(self.spoken)
+            self.spoken += 1
         self.state.cognition.current_origin = condition.origin
         # The turn arrives the way one arrives in the desktop runtime, through
         # the same functions. Without this no campaign ever had a partner in
         # working memory; see core/kernel/turn_door.py.
         try:
-            if condition.objective and condition.origin in USER_ORIGINS:
-                note_presence(condition.objective, condition.origin, conversation_id="user")
-                admit_message(self.state, condition.objective, condition.origin)
-            clear_last_turn(self.state, condition.objective, condition.origin)
-            if condition.objective:
+            if objective and condition.origin in USER_ORIGINS:
+                note_presence(objective, condition.origin, conversation_id="user")
+                admit_message(self.state, objective, condition.origin)
+            clear_last_turn(self.state, objective, condition.origin)
+            if objective:
                 bind_objective(
-                    self.state, objective_to_bind(condition.objective, condition.origin)
+                    self.state, objective_to_bind(objective, condition.origin)
                 )
             else:
                 self.state.cognition.current_objective = None
         except Exception as exc:  # noqa: BLE001 - a door that fails is a reading
             self.failures["turn_door.open"] = self.failures.get("turn_door.open", 0) + 1
             self.failure_notes["turn_door.open"] = f"{type(exc).__name__}: {exc}"[:200]
-        env["objective_len"] = float(len(condition.objective))
+        env["objective_len"] = float(len(objective))
 
         frames: list[CoreState] = []
 
@@ -909,9 +925,9 @@ class SubjectRuntime:
             # her thirty phases of work.
             note_effort("phases", 1.0)
             try:
-                result = await asyncio.wait_for(
-                    phase.execute(self.state, objective=condition.objective),
-                    timeout=PHASE_TIMEOUT,
+                result = await self._within_budget(
+                    phase.execute(self.state, objective=objective),
+                    self._phase_budget(name, condition),
                 )
                 if result is not None:
                     self.state = result
@@ -941,7 +957,7 @@ class SubjectRuntime:
         try:
             stamp_closure(self.state, None)
             finish_foreground(
-                self.state, objective=condition.objective, turn_origin=condition.origin
+                self.state, objective=objective, turn_origin=condition.origin
             )
         except Exception as exc:  # noqa: BLE001 - a door that fails is a reading
             self.failures["turn_door.close"] = self.failures.get("turn_door.close", 0) + 1
@@ -949,7 +965,7 @@ class SubjectRuntime:
         self._publish_state()
 
         if condition.after == "retrieve":
-            self._retrieve(condition.objective)
+            self._retrieve(objective)
         elif condition.after == "act" or self._intends_to_act():
             # Off the loop. The action is a real write and a real read-back, so
             # it carries an fsync, and an fsync on the event loop is the defect
@@ -961,7 +977,7 @@ class SubjectRuntime:
             # for the loop to close through the world — deliberation, action,
             # environment, perception. Which action is chosen and whether one
             # happens at all are both read off her own intentions.
-            await asyncio.to_thread(self._act, condition.objective, actor=self.actor)
+            await asyncio.to_thread(self._act, objective, actor=self.actor)
         await capture("after")
 
         await self._consciousness_tick()
@@ -978,6 +994,52 @@ class SubjectRuntime:
         return frames
 
     # ── the real subsystems the conditions reach for ─────────────────────
+
+    def _phase_budget(self, name: str, condition: Condition) -> float:
+        """The phase's budget: live's when she runs whole, the harness's otherwise."""
+        if not self.whole:
+            return PHASE_TIMEOUT
+        try:
+            return float(
+                self.kernel._phase_timeout_seconds(
+                    name, priority=condition.origin in USER_ORIGINS
+                )
+            )
+        except (AttributeError, TypeError, ValueError):
+            return PHASE_TIMEOUT
+
+    @staticmethod
+    async def _within_budget(work: Any, budget: float) -> Any:
+        """Run a phase for its budget plus whatever it spent waiting on her language organ.
+
+        A kept answer comes back at once and a fresh one takes seconds, so the
+        arm that generated first would run out of time where the arm that read
+        the kept answer did not. The wait on the organ is added back, which is
+        why a campaign run whole measures her without the latency pressure the
+        desktop puts on a turn, and says so.
+        """
+        from core.subject.steady_mind import waited
+
+        task = asyncio.ensure_future(work)
+        started = time.monotonic()
+        organ_before = waited()
+        while True:
+            used = (time.monotonic() - started) - (waited() - organ_before)
+            remaining = budget - used
+            if remaining <= 0.0:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    # Ours, from the line above, unless this task is itself
+                    # being cancelled, in which case it is the caller's.
+                    current = asyncio.current_task()
+                    if current is not None and current.cancelling():
+                        raise
+                raise TimeoutError(f"phase ran past its {budget:.0f}s budget")
+            done, _ = await asyncio.wait({task}, timeout=min(remaining, 1.0))
+            if done:
+                return task.result()
 
     async def _consciousness_tick(self) -> None:
         """One beat of the consciousness layer, and one substrate step.
@@ -1631,18 +1693,99 @@ def _condition_index(name: str) -> int:
     return -1
 
 
-def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectRuntime:
-    """Assemble the offline organism. Import cost lives here, not at module load."""
-    os.environ.setdefault("AURA_TESTING", "1")
+def _install_mind(kernel: Any, engine: Any) -> None:
+    """Make `engine` the language organ, under every name the phases ask for it by.
+
+    The organ shape matters: phases test `organ.ready.is_set()` and read
+    `organ.instance`, and a stub missing either makes the phase raise, which
+    would be recorded as a phase that does nothing rather than as a hole in the
+    harness. And under the names the phases ask for first: registered only as
+    the organ, every phase that prefers `llm_router` reached a router with no
+    model behind it.
+    """
+    import threading
+    from types import SimpleNamespace
+
+    from core.container import ServiceContainer
+
+    ready = threading.Event()
+    ready.set()
+    kernel.organs["llm"] = SimpleNamespace(
+        get_instance=lambda: engine, instance=engine, ready=ready, name="llm"
+    )
+    for name in ("llm_router", "local_llm"):
+        try:
+            ServiceContainer.register_instance(name, engine)
+        except Exception as exc:  # noqa: BLE001 - a container that refuses is a datum
+            logger.warning("could not register the language organ as %s: %s", name, exc)
+
+
+async def _bring_up_language(runtime: SubjectRuntime) -> dict[str, Any]:
+    """Her language organ as the desktop boots it, then held to a greedy decode.
+
+    The order is the boot's: the inference gate is built and initialised and
+    registered first, and the router is built after it, so the router serves
+    her cortex through the gate as it does on the desktop. Then the foreground
+    lane is waited for, and each tier is asked once, because a lane still
+    loading answers nothing and its circuit opens, and a measured turn must not
+    be the one that finds it cold.
+    """
+    from core.brain.inference_gate import InferenceGate
+    from core.brain.llm_health_router import build_router_from_config
+    from core.config import config
+    from core.container import ServiceContainer
+    from core.subject.steady_mind import SteadyMind
+
+    gate = InferenceGate(None)
+    await gate.initialize()
+    ServiceContainer.register_instance("inference_gate", gate)
+    router = build_router_from_config(config)
+    foreground = await gate.ensure_foreground_ready(timeout=900.0)
+    warmed: dict[str, bool] = {}
+    for tier in ("primary", "tertiary"):
+        answer = None
+        for _ in range(30):
+            try:
+                answer = await router.think(
+                    "Reply with the word ready.", prefer_tier=tier, max_tokens=8, temperature=0.0
+                )
+            except Exception as exc:  # noqa: BLE001 - a lane still loading is waited for
+                logger.info("the %s lane is not answering yet: %s", tier, exc)
+                answer = None
+            if answer:
+                break
+            await asyncio.sleep(10.0)
+        warmed[tier] = bool(answer)
+    mind = SteadyMind(router)
+    _install_mind(runtime.kernel, mind)
+    return {
+        "gate_initialized": bool(getattr(gate, "_initialized", False)),
+        "foreground": {key: foreground.get(key) for key in ("state", "ready", "model") if isinstance(foreground, dict)},
+        "warmed": warmed,
+    }
+
+
+def build_runtime(
+    workdir: Path, *, seed: int = 0, mind: Any = None, whole: bool = False
+) -> SubjectRuntime:
+    """Assemble the offline organism. Import cost lives here, not at module load.
+
+    `whole` runs her as she runs on the desktop: her language organ is the
+    live router, decoding greedily (core/subject/steady_mind.py), and the
+    process is not marked as a test. The testing flag makes every proof-run
+    guard true, and under it structured calls defer before they reach the
+    organ, background work stands down and every commitment is quarantined,
+    so a campaign under it measured her with those parts switched off. The run
+    stays isolated by its own state root either way.
+    """
+    if not whole:
+        os.environ.setdefault("AURA_TESTING", "1")
     from core.governance_context import local_internal_governed_scope
     from core.runtime.file_write_gateway import get_file_write_gateway
 
     with local_internal_governed_scope("subject_core.driver"):
         get_file_write_gateway().ensure_directory(workdir, source="subject_core.driver")
     os.environ.setdefault("AURA_LOG_DIR", str(workdir / "logs"))
-
-    import threading
-    from types import SimpleNamespace
 
     from core.kernel.aura_kernel import AuraKernel, KernelConfig
     from core.ontogeny.state import OntogeneticState
@@ -1663,26 +1806,10 @@ def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectR
     kernel = AuraKernel(config=KernelConfig(), vault=vault)
     kernel._setup_phases()
     kernel._initialize_organs()
-    # The organ shape matters: phases test `organ.ready.is_set()` and read
-    # `organ.instance`, and a stub missing either makes the phase raise, which
-    # would be recorded as a phase that does nothing rather than as a hole in
-    # the harness.
-    engine = mind or DeterministicMind()
-    ready = threading.Event()
-    ready.set()
-    kernel.organs["llm"] = SimpleNamespace(
-        get_instance=lambda: engine, instance=engine, ready=ready, name="llm"
-    )
-    # And under the name the phases actually ask for first. Registered only as
-    # the organ, every phase that prefers `llm_router` reached the real router,
-    # which has no model offline.
-    for name in ("llm_router", "local_llm"):
-        try:
-            from core.container import ServiceContainer
-
-            ServiceContainer.register_instance(name, engine)
-        except Exception as exc:  # noqa: BLE001 - a container that refuses is a datum
-            logger.warning("could not register the deterministic mind as %s: %s", name, exc)
+    # Run whole, the language organ is brought up the way the desktop brings
+    # it up, which is async and so happens in `start_organism`; the stub holds
+    # the place until then and never answers a measured turn.
+    _install_mind(kernel, mind or DeterministicMind())
 
     width = sum(domain_width(key) for key in FAST_DOMAINS)
     ontogeny = OntogeneticState(
@@ -1712,6 +1839,7 @@ def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectR
         ontogeny=ontogeny,
         rng=random.Random(seed),
         ontogeny_service=ontogeny_service,
+        whole=whole,
     )
     runtime.organs = Organs.live()
     # `replace`, never a fresh `Organs(...)` listing the fields by hand. A
@@ -1906,6 +2034,8 @@ async def start_organism(runtime: SubjectRuntime, *, quiet: bool = False) -> dic
     )
     runtime.organism = organism
     summary = organism.summary()
+    if runtime.whole:
+        summary["language"] = await _bring_up_language(runtime)
     # And learn what the fork has to carry. A hundred and ten services are
     # built by now and almost none of them move during a turn; carrying all of
     # them costs a second each way against fifteen hundred restores in a run.

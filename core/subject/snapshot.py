@@ -1903,6 +1903,9 @@ class Snapshot:
     #: frame is a function of this number, so two arms that do not start from
     #: the same one are not running the same organism.
     frame_index: int = 0
+    #: How many conversation turns have heard the conversation tape, so the
+    #: next one hears the same thing in both arms.
+    spoken: int = 0
     moments: dict[str, Any] | None = None
     last_reading: Any = None
     #: What the last step sensed, which is what the N domain reports as novelty

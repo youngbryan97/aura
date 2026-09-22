@@ -48,6 +48,11 @@ include_rules = [
     # experiments and no report can recover which afterwards. Read only: the
     # registry never hears from the battery.
     "+core.brain.llm.model_registry",
+    # Her language organ as the desktop boots it, for a run of her whole self:
+    # the inference gate first and the router built on it. Built and handed to
+    # the organism; the battery reads nothing back from either.
+    "+core.brain.inference_gate",
+    "+core.brain.llm_health_router",
     "+core.agency.intention_loop",
     "+core.consciousness.consciousness_bridge",
     "+core.consciousness.system",
