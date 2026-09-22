@@ -101,6 +101,7 @@ def _sketch(value: Any, name: str, out: dict[str, float]) -> None:
     """An array as a fixed number of columns: four moments and a projection."""
     try:
         size = int(np.isfinite(np.asarray(value, dtype=np.float64)).sum())
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return
     summary = _sketch_array(value)

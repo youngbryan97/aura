@@ -480,6 +480,8 @@ class StructuralImprover:
         try:
             path.relative_to(self.root)
             return True
+        # not a failure: a path that is not there, or outside what was asked about, is
+        # the answer rather than a fault.
         except ValueError:
             return False
 

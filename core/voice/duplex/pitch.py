@@ -60,6 +60,7 @@ def bend_length_added(rate: int, cents: float, glide_ms: float) -> int:
     try:
         depth = float(cents)
         length_ms = float(glide_ms)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0
     if depth <= 0.0 or length_ms <= 0.0 or rate <= 0:

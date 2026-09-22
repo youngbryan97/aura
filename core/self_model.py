@@ -607,6 +607,7 @@ class SelfModel:
                     int(status.get("version", 0) or 0),
                     int(getattr(canonical, "version", 0) or 0),
                 )
+            # not a failure: a value that is not a number is not one this can read.
             except (TypeError, ValueError):
                 pass  # no-op: intentional
         return status

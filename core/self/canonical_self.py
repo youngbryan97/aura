@@ -328,6 +328,7 @@ class CanonicalSelfEngine:
                 scar_block = scar_system.get_context_block()
                 if scar_block:
                     lines.append(scar_block)
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError):
             pass  # no-op: intentional
 
@@ -338,6 +339,7 @@ class CanonicalSelfEngine:
                 drift = autopoiesis.get_drift_report()
                 if drift:
                     lines.append(f"Value evolution: {drift}")
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError):
             pass  # no-op: intentional
 

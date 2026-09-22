@@ -217,6 +217,7 @@ class MindStateExporter:
     def _service(name: str) -> Any:
         try:
             return ServiceContainer.get(name, default=None)
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError, KeyError):
             return None
 

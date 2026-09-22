@@ -603,6 +603,8 @@ def _the_grid_in_the_pixels(
         down_at = tuple(float(v) for v in best["down_at"])
         across_at = tuple(float(v) for v in best["across_at"])
         says = list(best.get("says") or [])
+    # not a failure: a reading that cannot be taken, or that is not a
+    # number when it is, leaves this at the value below.
     except (KeyError, TypeError, ValueError):
         return None
     if rows < 2 or columns < 2 or len(down_at) != rows or len(across_at) != columns:
@@ -617,7 +619,8 @@ def _the_grid_in_the_pixels(
     # the held ones.
     try:
         cell_w, cell_h = float(best["cell_width"]), float(best["cell_height"])
-    # not a failure: a value that is not a number is not one this can read.
+    # not a failure: a reading that cannot be taken, or that is not a
+    # number when it is, leaves this at the value below.
     except (KeyError, TypeError, ValueError):
         cell_w = cell_h = 0.0
     for held in (lattice, like):

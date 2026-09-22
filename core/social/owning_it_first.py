@@ -55,6 +55,7 @@ _KINDS: tuple[str, str] = ("owned", "raised")
 def _unit(value: Any) -> float | None:
     try:
         number = float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     if number != number:

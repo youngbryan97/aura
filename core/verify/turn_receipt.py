@@ -200,6 +200,7 @@ def record_latency(component: str, seconds: float) -> None:
         raise ValueError(f"{component!r} is not a latency component: {sorted(LATENCY_COMPONENTS)}")
     try:
         span = float(seconds)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return
     if not (span >= 0.0) or span != span:

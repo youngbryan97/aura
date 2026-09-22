@@ -174,6 +174,7 @@ class BeliefAuthority:
 
         try:
             state_authority = ServiceContainer.get("state_authority", default=None)
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError):
             state_authority = None
 

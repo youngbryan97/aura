@@ -472,6 +472,8 @@ class SafeMutationEvaluator:
             if line.startswith(marker):
                 try:
                     return json.loads(line[len(marker) :])
+                # not a failure: text that is not the JSON this expects is not a record it can
+                # read back.
                 except json.JSONDecodeError:
                     return None
         return None

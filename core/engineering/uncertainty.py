@@ -264,6 +264,8 @@ def propagate(
         low[name] = entry.value - step
         try:
             sensitivity = (float(function(**high)) - float(function(**low))) / (2.0 * step)
+        # not a failure: a reading that cannot be taken, or that is not a
+        # number when it is, leaves this at the value below.
         except (ValueError, ZeroDivisionError, ArithmeticError):
             sensitivity = 0.0
         contribution = sensitivity * entry.standard

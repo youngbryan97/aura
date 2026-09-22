@@ -195,6 +195,8 @@ class AffectBridge:
             arousal = float(affect.arousal)
             curiosity = float(getattr(affect, "curiosity", 0.0))
             heart_rate = float(physiology.get("heart_rate", 72.0))
+        # not a failure: a reading that cannot be taken, or that is not a
+        # number when it is, leaves this at the value below.
         except (AttributeError, TypeError, ValueError):
             return False
 

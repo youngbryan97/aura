@@ -96,6 +96,7 @@ class ConvictionLedger:
         try:
             want = float(predicted) - float(resting)
             got = float(actual) - float(resting)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if want != want or got != got:

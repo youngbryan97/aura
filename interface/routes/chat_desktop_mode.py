@@ -909,6 +909,8 @@ def _turn_timing() -> dict[str, Any]:
         rates = observed_rates()
         timing["prefill_tokens_per_second"] = round(float(rates["prefill"]), 1)
         timing["decode_tokens_per_second"] = round(float(rates["decode"]), 1)
+    # not a failure: a reading that cannot be taken, or that is not a
+    # number when it is, leaves this at the value below.
     except (ImportError, KeyError, TypeError, ValueError):
         pass
     return timing

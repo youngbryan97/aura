@@ -49,6 +49,7 @@ MIN_SAMPLES: int = 3
 def _finite(value: Any) -> float | None:
     try:
         number = float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     if math.isnan(number) or math.isinf(number):

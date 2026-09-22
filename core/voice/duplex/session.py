@@ -2064,6 +2064,7 @@ class DuplexVoiceSession:
     def _bounded_nonnegative_float(value: Any, *, maximum: float) -> float:
         try:
             parsed = float(value or 0.0)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return 0.0
         if not np.isfinite(parsed):
@@ -2074,6 +2075,7 @@ class DuplexVoiceSession:
     def _bounded_nonnegative_int(value: Any, *, maximum: int) -> int:
         try:
             parsed = int(value or 0)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError, OverflowError):
             return 0
         return max(0, min(parsed, int(maximum)))

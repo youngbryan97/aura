@@ -168,6 +168,7 @@ def _captured_at_ns(document: Mapping[str, Any], tokens: tuple[str, ...]) -> tup
             captured = int(parsed.timestamp() * 1_000_000_000)
             if captured > 0:
                 return captured, "azure_digital_twins.metadata.lastUpdateTime"
+        # not a failure: a value that is not a number is not one this can read.
         except (OverflowError, ValueError):
             pass
     return max(1, time.time_ns()), "system.time_ns.response_receipt"

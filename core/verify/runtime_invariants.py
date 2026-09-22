@@ -975,6 +975,8 @@ def _layering_baseline_current() -> Iterator[Violation]:
         return
     try:
         payload = json.loads(baseline_path.read_text(encoding="utf-8"))
+    # not a failure: text that is not the JSON this expects is not a record it can
+    # read back.
     except (OSError, ValueError):
         return
     count = int(payload.get("count", 0) or 0)

@@ -333,6 +333,8 @@ class DomainSpecialistTrainer:
         try:
             report = json.loads(output.read_text(encoding="utf-8"))
             return float(report.get("accuracy"))
+        # not a failure: text that is not the JSON this expects is not a record it can
+        # read back.
         except _RECOVERABLE:
             return None
 

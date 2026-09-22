@@ -122,6 +122,8 @@ def _load_if_needed() -> None:
         return
     try:
         raw = json.loads(where_it_is_kept().read_text(encoding="utf-8"))
+    # not a failure: text that is not the JSON this expects is not a record it can
+    # read back.
     except (
         AttributeError,
         LookupError,

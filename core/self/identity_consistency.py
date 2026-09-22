@@ -132,6 +132,8 @@ def check_identity_consistency(conclusion: str) -> dict[str, Any]:
             stability = float(current.identity.stability)
             if stability < 0.3:
                 cautions.append(f"low_identity_stability:{stability:.2f}")
+        # not a failure: a reading that cannot be taken, or that is not a
+        # number when it is, leaves this at the value below.
         except (AttributeError, RuntimeError, TypeError, ValueError):
             pass
 

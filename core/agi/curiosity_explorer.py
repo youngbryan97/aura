@@ -141,6 +141,7 @@ def _verification_evidence(
     """Require independent source-level evidence, not a self-asserted bool."""
     try:
         confidence = float(result.get("confidence") or 0.0)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         confidence = 0.0
     facts = [str(fact).strip() for fact in list(result.get("facts") or []) if str(fact).strip()]

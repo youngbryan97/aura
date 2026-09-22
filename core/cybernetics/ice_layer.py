@@ -124,6 +124,7 @@ class ICELayer:
         status = payload.get("status", "NORMAL")
         try:
             drift = float(drift)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             drift = 0.0
         if not math.isfinite(drift):

@@ -162,11 +162,22 @@ def _data_volume_percent(psutil_module: object) -> float:
         from core.runtime.disk_budget import state_volume_percent
 
         return float(state_volume_percent())
+    # not a failure: the canonical reading is unavailable here, and the
+    # docstring above says the injected psutil is what answers then.
     except (ImportError, OSError, ValueError):
         pass
     try:
         return float(psutil_module.disk_usage("/").percent)
-    except (OSError, ValueError, AttributeError):
+    except (OSError, ValueError, AttributeError) as exc:
+        # Both readers are out, and 0.0% used is the healthiest number
+        # there is. A monitor that cannot see the disk must not report an
+        # empty one — the same shape as disk_budget's own 0.0.
+        logger.warning(
+            "disk usage is unreadable (%s: %s); this monitor is reporting "
+            "0.0%% used and will not raise on space",
+            type(exc).__name__,
+            exc,
+        )
         return 0.0
 
 
@@ -279,6 +290,7 @@ def _valid_arp_device(ip_text: str, mac: str, local_macs: set[str]) -> bool:
         if int(mac.split(":", 1)[0], 16) & 1:
             return False
         address = ipaddress.ip_address(ip_text)
+    # not a failure: a value that is not a number is not one this can read.
     except ValueError:
         return False
     return not (

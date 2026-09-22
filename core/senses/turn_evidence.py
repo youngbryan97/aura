@@ -92,6 +92,7 @@ class TurnSensoryEvidence:
             return None
         try:
             observed_at = float(value.get("observed_at") or 0.0)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             observed_at = 0.0
         if not math.isfinite(observed_at) or observed_at <= 0.0:

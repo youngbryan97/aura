@@ -192,6 +192,7 @@ class Rule:
             return ()
         try:
             numbers = [int(one) for one in found]
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             # A rule here computes over numbers. A state of something else is
             # a state this rule has nothing to say about, and saying nothing

@@ -10,6 +10,8 @@ from typing import Any
 def clamp01(value: float) -> float:
     try:
         return float(max(0.0, min(1.0, float(value))))
+    # not a failure: a reading that cannot be taken, or that is not a
+    # number when it is, leaves this at the value below.
     except (RuntimeError, AttributeError, TypeError, ValueError):
         return 0.0
 

@@ -592,6 +592,7 @@ class PhysicalGroundingEngine:
                     return (float(pos.get("x", 0)), float(pos.get("y", 0)), float(pos.get("z", 0)))
                 if isinstance(pos, (list, tuple)) and len(pos) >= 2:
                     return (float(pos[0]), float(pos[1]), float(pos[2]) if len(pos) > 2 else 0.0)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return None
         return None

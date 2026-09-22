@@ -49,6 +49,7 @@ class Interoception:
         with self._lock:
             try:
                 self._trace.append(float(valence))
+            # not a failure: a value that is not a number is not one this can read.
             except (TypeError, ValueError):
                 return
 

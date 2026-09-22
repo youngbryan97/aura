@@ -52,6 +52,8 @@ class _ReadsTheDriveSignals:
             if engine is None:
                 return 0.0
             return max(0.0, min(1.0, float(engine.get_action_urgency())))
+        # not a failure: a reading that cannot be taken, or that is not a
+        # number when it is, leaves this at the value below.
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             return 0.0
 
@@ -93,6 +95,8 @@ class _ReadsTheDriveSignals:
             if not isinstance(reading, dict):
                 return 0.0
             return max(-1.0, min(1.0, float(reading.get("dominance", 0.0) or 0.0)))
+        # not a failure: a reading that cannot be taken, or that is not a
+        # number when it is, leaves this at the value below.
         except (AttributeError, RuntimeError, TypeError, ValueError):
             return 0.0
 
@@ -111,6 +115,8 @@ class _ReadsTheDriveSignals:
             if not isinstance(reading, dict) or reading.get("snapshot_stale"):
                 return 0.0
             return max(0.0, min(1.0, float(reading.get("volatility", 0.0) or 0.0) / 100.0))
+        # not a failure: a reading that cannot be taken, or that is not a
+        # number when it is, leaves this at the value below.
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             return 0.0
 
@@ -122,6 +128,8 @@ class _ReadsTheDriveSignals:
 
             reading = last_reading()
             return max(0.0, min(1.0, float(getattr(reading, "novelty", 0.0) or 0.0)))
+        # not a failure: a reading that cannot be taken, or that is not a
+        # number when it is, leaves this at the value below.
         except (ImportError, AttributeError, TypeError, ValueError):
             return 0.0
 
@@ -138,6 +146,8 @@ class _ReadsTheDriveSignals:
             model = get_runtime_service("unified_world_model", default=None)
             value = model.surprise() if model is not None else None
             return 0.0 if value is None else max(0.0, min(1.0, float(value)))
+        # not a failure: a reading that cannot be taken, or that is not a
+        # number when it is, leaves this at the value below.
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             return 0.0
 

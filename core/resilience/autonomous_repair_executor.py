@@ -28,6 +28,7 @@ def _default_service_getter(name: str) -> Any | None:
         from core.runtime.service_registry import get_runtime_service
 
         return get_runtime_service(name, default=None)
+    # not a failure: no service here, so the caller falls back to its own default.
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         return None
 

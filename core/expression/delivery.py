@@ -131,6 +131,7 @@ class DeliveryLedger:
     def note(self, reach: float) -> None:
         try:
             value = float(reach)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if value != value:
@@ -178,6 +179,8 @@ def live_readings(affect: Any) -> dict[str, float]:
             from core.affect.containment import get_containment_ledger
 
             pressure = float(get_containment_ledger().read().pressure)
+        # not a failure: a reading that cannot be taken, or that is not a
+        # number when it is, leaves this at the value below.
         except (ImportError, AttributeError, TypeError, ValueError):
             return 0.0
         return max(0.0, pressure) / (1.0 + max(0.0, pressure))
@@ -254,6 +257,7 @@ def read_delivery(
     # much of their scale she has this cycle. See core/expression/entrainment.py.
     try:
         theirs = float(partner_chars)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         theirs = 0.0
     if theirs > 0.0:

@@ -222,6 +222,7 @@ def _play_2048_headlessly(module: Any) -> tuple[bool, str]:
         if isinstance(outcome, dict):
             try:
                 total_score += int(outcome.get("score") or 0)
+            # not a failure: a value that is not a number is not one this can read.
             except (TypeError, ValueError):
                 pass
         if new_board != board:
@@ -241,6 +242,7 @@ def _play_2048_headlessly(module: Any) -> tuple[bool, str]:
 def _coerce_board(value: Any) -> Board | None:
     try:
         board = [[int(cell) for cell in row] for row in value]
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     if not board or any(len(row) != len(board) for row in board):

@@ -141,6 +141,8 @@ class DriveEngine:
             if not reading.measured:
                 return 0.0
             shortfall = max(0.0, float(ORDINARY_STEP) - float(reading.score))
+        # not a failure: a reading that cannot be taken, or that is not a
+        # number when it is, leaves this at the value below.
         except (ImportError, AttributeError, TypeError, ValueError):
             return 0.0
         if shortfall != shortfall:

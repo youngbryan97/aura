@@ -1062,6 +1062,7 @@ def reconstructed(case):
         repair_attempts_used = 0
         try:
             max_repairs = max(0, min(3, int(max_repair_attempts)))
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             max_repairs = 0
         while evaluator is not None and failures and repair_attempts_used < max_repairs:

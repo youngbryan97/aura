@@ -23,6 +23,7 @@ class _GoalReconciliationMixin:
 
         try:
             task_engine = ServiceContainer.get("task_engine", default=None)
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError):
             task_engine = None
 

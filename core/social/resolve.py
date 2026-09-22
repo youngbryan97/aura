@@ -79,6 +79,7 @@ class ResolveLedger:
     def note(self, rate: float) -> None:
         try:
             value = float(rate)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if value != value:

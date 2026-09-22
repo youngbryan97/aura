@@ -1047,6 +1047,7 @@ class BootResilienceMixin:
             self.capability_map = get_capability_map()
             engine = ServiceContainer.get("capability_engine", default=None)
             self.capability_map.ping_all(engine)
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError):
             self.capability_map = None
 

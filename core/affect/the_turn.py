@@ -90,6 +90,7 @@ class TurnLedger:
     def note(self, value: float) -> None:
         try:
             reading = float(value)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if reading != reading:

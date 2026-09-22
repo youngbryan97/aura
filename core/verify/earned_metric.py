@@ -177,6 +177,7 @@ class EarnedAxis:
             return
         try:
             value = float(target)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if not math.isfinite(value):

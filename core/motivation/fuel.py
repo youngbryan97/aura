@@ -105,6 +105,7 @@ class FuelLedger:
             return
         try:
             value = float(drain)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if value != value:

@@ -900,6 +900,8 @@ def _decode_owner_session_cookie(token: str | None) -> dict[str, Any] | None:
     padded = encoded + "=" * (-len(encoded) % 4)
     try:
         payload = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8"))
+    # not a failure: text that is not the JSON this expects is not a record it can
+    # read back.
     except (ValueError, UnicodeDecodeError):
         return None
     if payload.get("scope") != "sovereign_owner":

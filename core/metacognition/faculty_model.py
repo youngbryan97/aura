@@ -81,6 +81,7 @@ DEFAULT_REPROPOSE_COOLDOWN_S = 900.0
 def _finite(value: Any) -> float | None:
     try:
         number = float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     return number if math.isfinite(number) else None

@@ -158,6 +158,7 @@ class Organs:
                 from core.container import ServiceContainer
 
                 return ServiceContainer.get(name, default=None)
+            # not a failure: no service here, so the caller falls back to its own default.
             except (ImportError, AttributeError, RuntimeError):
                 # An absent container is an absent organ. Anything else is a
                 # defect in the reader, and returning None for it would report
@@ -169,6 +170,7 @@ class Organs:
                 from core.runtime.service_registry import get_runtime_service
 
                 return get_runtime_service(name, default=None)
+            # not a failure: no service here, so the caller falls back to its own default.
             except (ImportError, AttributeError, RuntimeError):
                 return None
 

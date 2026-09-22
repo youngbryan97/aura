@@ -343,6 +343,7 @@ class EpisodicMemory(_RecallsEpisodes, _RanksWhatToRecall):
             from core.container import ServiceContainer
 
             return ServiceContainer.get("executive_core", default=None)
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
             return None
 
@@ -1498,6 +1499,8 @@ class EpisodicMemory(_RecallsEpisodes, _RanksWhatToRecall):
                     s = float(svc.get_surprise_signal())
                     if s == s:  # reject NaN
                         return max(0.0, min(1.0, s))
+                # not a failure: a reading that cannot be taken, or that is not a
+                # number when it is, leaves this at the value below.
                 except (AttributeError, RuntimeError, ValueError, TypeError):
                     pass
         try:

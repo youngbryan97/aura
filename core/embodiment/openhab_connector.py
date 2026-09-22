@@ -148,6 +148,7 @@ def _optional_finite(value: object) -> float | None:
         return None
     try:
         number = float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     return number if math.isfinite(number) else None

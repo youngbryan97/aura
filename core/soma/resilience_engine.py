@@ -528,6 +528,7 @@ class ResilienceEngine:
     def _clamp01(value: float) -> float:
         try:
             scalar = float(value)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError, OverflowError):
             return 0.0
         if math.isnan(scalar):

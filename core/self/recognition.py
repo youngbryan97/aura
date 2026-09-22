@@ -127,6 +127,8 @@ def cared_for(modifiers: Any) -> float:
         register = modifiers.get("register") or {}
         warmth = float(sentiment.get("warmth", 0.0) or 0.0)
         second = float(register.get("second", 0.0) or 0.0)
+    # not a failure: a reading that cannot be taken, or that is not a
+    # number when it is, leaves this at the value below.
     except (AttributeError, TypeError, ValueError):
         return 0.0
     return max(0.0, min(1.0, warmth)) * max(0.0, min(1.0, second))

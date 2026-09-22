@@ -126,6 +126,7 @@ class Histogram:
     def record(self, value: float, count: int = 1) -> None:
         try:
             numeric = float(value)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if math.isnan(numeric) or math.isinf(numeric):

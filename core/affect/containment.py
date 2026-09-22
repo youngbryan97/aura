@@ -125,6 +125,7 @@ class ContainmentLedger:
         self._turns += 1
         try:
             top = float(rows.get(winner, max(rows.values())))
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if top <= 0.0:

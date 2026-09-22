@@ -511,6 +511,8 @@ class _KeptOntology(FailureOntology):
             import json
 
             held = json.loads(_where_it_is_kept().read_text(encoding="utf-8"))
+        # not a failure: text that is not the JSON this expects is not a record it can
+        # read back.
         except (OSError, ValueError, ImportError, AttributeError):
             return
         if not isinstance(held, dict):

@@ -143,6 +143,8 @@ class UnifiedFeltStateEngine:
             if not getattr(computer, "has_sufficient_data", False):
                 return None
             return float(computer.latest_phi)
+        # not a failure: a reading that cannot be taken, or that is not a
+        # number when it is, leaves this at the value below.
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             return None
 

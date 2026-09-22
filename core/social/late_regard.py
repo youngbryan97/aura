@@ -163,6 +163,7 @@ class RegardLedger:
 def _clamp(value: Any) -> float:
     try:
         number = float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0.0
     if number != number:  # NaN

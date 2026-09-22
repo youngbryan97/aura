@@ -66,6 +66,8 @@ def _is_her_own_source(resolved_path: str) -> bool:
         ):
             return False
         relative = os.sep + os.path.relpath(resolved_path, _SOURCE_ROOT_REALPATH)
+    # not a failure: a path that is not there, or outside what was asked about, is
+    # the answer rather than a fault.
     except (OSError, RuntimeError, ValueError):
         return False
     return not any(marker in relative for marker in _NESTED_CHECKOUT_MARKERS)

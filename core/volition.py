@@ -1192,6 +1192,7 @@ def _clamp01(value: float) -> float:
     # otherwise clamp to maximum priority.
     try:
         candidate = float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0.0
     if candidate != candidate or candidate in (float("inf"), float("-inf")):

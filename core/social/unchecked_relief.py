@@ -93,6 +93,7 @@ class ReliefLedger:
             return
         try:
             value = max(0.0, min(1.0, float(relief)))
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         held = self._beliefs.get(name)

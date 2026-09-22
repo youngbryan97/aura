@@ -80,6 +80,7 @@ def deeper(returns: int) -> int:
     """
     try:
         count = int(returns)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0
     if count <= 0:
@@ -114,6 +115,7 @@ class MatchLedger:
     def note(self, match: float) -> None:
         try:
             value = float(match)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if value != value:

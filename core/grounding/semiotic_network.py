@@ -188,6 +188,8 @@ class SemioticNetwork:
             return
         try:
             payload = json.loads(self.path.read_text(encoding="utf-8"))
+        # not a failure: text that is not the JSON this expects is not a record it can
+        # read back.
         except json.JSONDecodeError:
             return
         self.methods = {k: GroundingMethod(**v) for k, v in payload.get("methods", {}).items()}

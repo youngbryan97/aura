@@ -274,6 +274,8 @@ def _file_binding(path: Path) -> dict[str, Any]:
 def _within(path: Path, root: Path) -> bool:
     try:
         path.resolve(strict=False).relative_to(root.resolve(strict=False))
+    # not a failure: a path that is not there, or outside what was asked about, is
+    # the answer rather than a fault.
     except ValueError:
         return False
     return True

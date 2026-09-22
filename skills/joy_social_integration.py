@@ -491,6 +491,7 @@ def _resolve_registered_joy_social(orchestrator: Any | None = None) -> Any:
         from core.container import ServiceContainer
 
         return ServiceContainer.get("joy_social", default=None)
+    # not a failure: no service here, so the caller falls back to its own default.
     except (ImportError, AttributeError, RuntimeError):
         return None
 
@@ -505,6 +506,7 @@ def _resolve_agency_core(orchestrator: Any) -> Any:
         from core.container import ServiceContainer
 
         return ServiceContainer.get("agency_core", default=None)
+    # not a failure: no service here, so the caller falls back to its own default.
     except (ImportError, AttributeError, RuntimeError):
         return None
 
@@ -523,6 +525,7 @@ def bind_joy_social_agency(orchestrator: Any | None = None, agency: Any | None =
             from core.container import ServiceContainer
 
             resolved_agency = ServiceContainer.get("agency_core", default=None)
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError):
             resolved_agency = None
     if resolved_agency is None:

@@ -113,6 +113,7 @@ async def get_vault_stats():
         try:
             created_ts = float(m.get("created", 0))
             age_sec = int(time.time() - created_ts / 1000.0)
+        # not a failure: a value that is not a number is not one this can read.
         except (ValueError, TypeError):
             age_sec = 0
             

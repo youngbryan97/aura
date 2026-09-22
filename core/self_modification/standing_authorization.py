@@ -203,6 +203,8 @@ def read_standing_grant(fused_model_dir: Path | str) -> AStandingGrant | None:
     path = where_a_grant_is_kept(fused_model_dir)
     try:
         body = json.loads(path.read_text(encoding="utf-8"))
+    # not a failure: text that is not the JSON this expects is not a record it can
+    # read back.
     except (OSError, ValueError):
         return None
     if not isinstance(body, dict) or body.get("schema") != GRANT_SCHEMA:

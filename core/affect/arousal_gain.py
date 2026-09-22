@@ -21,6 +21,7 @@ __all__ = ["gained"]
 def _unit(value: object) -> float:
     try:
         number = float(value)  # type: ignore[arg-type]
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0.0
     if number != number:

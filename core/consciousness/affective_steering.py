@@ -1439,6 +1439,8 @@ class AffectiveSteeringHook:
                             hook._last_injection_norm = (
                                 float(mx.linalg.norm(composite)) * effective_alpha
                             )
+                        # not a failure: a reading that cannot be taken, or that is not a
+                        # number when it is, leaves this at the value below.
                         except (AttributeError, ImportError, TypeError, ValueError):
                             # Losing a diagnostic is survivable. Losing the
                             # injection is not, so this swallows deliberately

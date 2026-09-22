@@ -345,6 +345,7 @@ class AppRegistry:
             ws = ServiceContainer.get("world_state", default=None)
             if ws and hasattr(ws, "installed_apps"):
                 ws.installed_apps = sorted(self._apps.keys())
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError):
             pass
 

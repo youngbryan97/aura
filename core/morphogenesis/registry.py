@@ -252,6 +252,8 @@ class MorphogenesisRegistry:
             data = json.loads(self.state_path.read_text(encoding="utf-8"))
             payload = data.get("payload", data) if isinstance(data, dict) else {}
             return bool(payload.get("cells")) or bool(payload.get("organs"))
+        # not a failure: text that is not the JSON this expects is not a record it can
+        # read back.
         except (OSError, UnicodeDecodeError, ValueError, TypeError, AttributeError):
             # Unreadable is not populated; a first write should be allowed to
             # replace a file nothing can parse.

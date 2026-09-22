@@ -295,6 +295,7 @@ class AffectiveCircumplex:
             ncs = ServiceContainer.get("neurochemical_system", default=None)
             if ncs is not None:
                 return ncs
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError):
             pass  # no-op: intentional
 

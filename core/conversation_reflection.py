@@ -696,6 +696,8 @@ class ConversationReflector:
         if arr_match:
             try:
                 sg_items = _json.loads(arr_match.group(0))
+            # not a failure: text that is not the JSON this expects is not a record it can
+            # read back.
             except (_json.JSONDecodeError, TypeError, ValueError):
                 sg_items = None
         if not isinstance(sg_items, list):

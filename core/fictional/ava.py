@@ -83,6 +83,7 @@ class SocialModelingEngine:
             candidate = getattr(social, "active_user_id", None) if social else None
             if candidate:
                 return re.sub(r"[^A-Za-z0-9_.-]", "_", str(candidate))[:64] or "default"
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             pass
         return "default"

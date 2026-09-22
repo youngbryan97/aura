@@ -53,11 +53,13 @@ class TestRunner:
                         if p == "passed" and i > 0:
                             try:
                                 passed = int(parts[i - 1])
+                            # not a failure: a value that is not a number is not one this can read.
                             except ValueError:
                                 pass
                         if p == "failed" and i > 0:
                             try:
                                 failed = int(parts[i - 1])
+                            # not a failure: a value that is not a number is not one this can read.
                             except ValueError:
                                 pass
 

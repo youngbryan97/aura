@@ -118,6 +118,8 @@ class SandboxedFileBroker:
             relative_to_temp = resolved.relative_to(Path(tempfile.gettempdir()).resolve())
             if relative_to_temp.parts and relative_to_temp.parts[0].startswith(self.TEMP_PREFIX):
                 return resolved
+        # not a failure: a path that is not there, or outside what was asked about, is
+        # the answer rather than a fault.
         except ValueError:
             return None
         return None

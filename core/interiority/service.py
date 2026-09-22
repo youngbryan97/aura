@@ -174,6 +174,7 @@ def _shift_goal_priorities(goals: Sequence[GoalDelta]) -> int:
         store = optional_service("goal_hierarchy", default=None) or (
             optional_service("motivation_engine", default=None)
         )
+    # not a failure: no service here, so the caller falls back to its own default.
     except (ImportError, RuntimeError, AttributeError, TypeError, ValueError, KeyError):
         return 0
     table = getattr(store, "goals", None)

@@ -81,6 +81,8 @@ class JsonLineFormatter(logging.Formatter):
                 parsed = json.loads(message)
                 if isinstance(parsed, dict):
                     payload = parsed
+            # not a failure: text that is not the JSON this expects is not a record it can
+            # read back.
             except ValueError:
                 payload = None
         if payload is None:

@@ -162,6 +162,8 @@ def _ipc_sort_key(message: object) -> tuple[int, float, int] | None:
         priority = int(message.priority)
         timestamp = float(message.timestamp)
         sequence = int(getattr(message, "sequence", 0))
+    # not a failure: a reading that cannot be taken, or that is not a
+    # number when it is, leaves this at the value below.
     except (AttributeError, TypeError, ValueError):
         return None
     return priority, timestamp, sequence

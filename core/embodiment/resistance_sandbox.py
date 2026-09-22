@@ -112,6 +112,8 @@ def _is_relative_to(path: Path, root: Path) -> bool:
     try:
         path.relative_to(root)
         return True
+    # not a failure: a path that is not there, or outside what was asked about, is
+    # the answer rather than a fault.
     except ValueError:
         return False
 

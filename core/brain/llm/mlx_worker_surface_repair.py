@@ -776,6 +776,8 @@ def _repair_live_user_surface_operational_status(
             load_1m = float(get_resource_observer().compute().load_1m)
             if not math.isfinite(load_1m):
                 load_1m = None
+        # not a failure: a reading that cannot be taken, or that is not a
+        # number when it is, leaves this at the value below.
         except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
             load_1m = None
         if load_1m is not None:

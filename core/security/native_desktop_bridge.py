@@ -281,6 +281,8 @@ def _resident_bridge_process_running(executable: Path | None = None) -> bool:
         lock_pid = int(launcher_lock.read_text(encoding="utf-8").strip().splitlines()[0])
         if lock_pid > 1 and lock_pid not in candidate_pids:
             candidate_pids.append(lock_pid)
+    # not a failure: a reading that cannot be taken, or that is not a
+    # number when it is, leaves this at the value below.
     except (OSError, IndexError, TypeError, ValueError):
         pass
 
@@ -451,6 +453,8 @@ def _invoke_one_shot_bridge(
     text = str(completed.stdout or "").strip()
     try:
         result = json.loads(text or "{}")
+    # not a failure: text that is not the JSON this expects is not a record it can
+    # read back.
     except json.JSONDecodeError:
         return {
             "ok": False,

@@ -107,6 +107,8 @@ class RepairImportPolicy:
             return
         try:
             payload = json.loads(self.policy_path.read_text(encoding="utf-8"))
+        # not a failure: text that is not the JSON this expects is not a record it can
+        # read back.
         except (OSError, json.JSONDecodeError):
             return
         for raw in payload.get("imports", []):

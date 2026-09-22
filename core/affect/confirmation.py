@@ -118,6 +118,7 @@ class ExpectationLedger:
     def note(self, error: float) -> None:
         try:
             value = float(error)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if value != value:  # NaN is not a score

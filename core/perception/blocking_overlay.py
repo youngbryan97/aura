@@ -235,6 +235,7 @@ def _where(region: dict[str, Any]) -> tuple[float, float] | None:
             float(region.get("center_x", region.get("x", 0.0))),
             float(region.get("center_y", region.get("y", 0.0))),
         )
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
 

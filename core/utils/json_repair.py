@@ -22,6 +22,8 @@ def robust_json_parse(raw_output: str) -> Dict[str, Any]:
             clean_json = match.group(1).strip()
             try:
                 return json.loads(clean_json)
+            # not a failure: text that is not the JSON this expects is not a record it can
+            # read back.
             except json.JSONDecodeError:
                 # If balanced extraction fails, fallback to heuristic repair
                 pass  # no-op: intentional

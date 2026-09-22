@@ -260,6 +260,8 @@ def _drive_in_dom(html: str, runs: list[list[str]], inputs: dict[str, Any]) -> d
         raise ValueError(f"the page could not be opened: {done.stderr.strip()[:300]}")
     try:
         return json.loads(done.stdout or "{}")
+    # not a failure: text that is not the JSON this expects is not a record it can
+    # read back.
     except (TypeError, ValueError):
         return None
 

@@ -22,6 +22,7 @@ def conversation_lane_is_busy(lane: dict[str, Any] | None) -> bool:
     reason = str(lane.get("last_failure_reason", "") or lane.get("last_error", "") or "").strip()
     try:
         active_generations = int(lane.get("active_generations", 0) or 0)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError, OverflowError):
         active_generations = 0
     active_work = (
@@ -81,6 +82,7 @@ def conversation_lane_is_serving(lane: dict[str, Any] | None) -> bool:
     reason = str(lane.get("last_failure_reason", "") or lane.get("last_error", "") or "").strip()
     try:
         active_generations = int(lane.get("active_generations", 0) or 0)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError, OverflowError):
         active_generations = 0
     return (

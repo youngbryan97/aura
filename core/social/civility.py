@@ -94,6 +94,7 @@ class CivilityLedger:
         reply performs -- both already measured elsewhere, on the same scale."""
         try:
             gap = float(shown) - float(felt)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if gap != gap:

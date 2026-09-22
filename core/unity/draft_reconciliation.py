@@ -101,6 +101,7 @@ def _valence_value(draft: Any) -> float:
         value = draft.get("valence")
     try:
         return float(value or 0.0)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0.0
 

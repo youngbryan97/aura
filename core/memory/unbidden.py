@@ -158,6 +158,7 @@ class UnbiddenLedger:
     def _vector(state: Sequence[float]) -> tuple[float, ...] | None:
         try:
             values = tuple(float(x) for x in state)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return None
         if not values or any(v != v for v in values):

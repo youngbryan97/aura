@@ -543,6 +543,7 @@ class SoftmaxCompetitionStabilityProbe:
         try:
             eigenvalues = np.linalg.eigvals(jacobian)
             spectral_radius = float(np.max(np.abs(eigenvalues))) if eigenvalues.size else 0.0
+        # not a failure: a value that is not a number is not one this can read.
         except (np.linalg.LinAlgError, ValueError, FloatingPointError):
             spectral_radius = 0.0
         ordered = np.sort(p)
@@ -636,6 +637,7 @@ class SoftmaxODEStabilityProbe:
         try:
             eig = np.linalg.eigvals(jacobian)
             spectral_abscissa = float(np.max(np.real(eig))) if eig.size else 0.0
+        # not a failure: a value that is not a number is not one this can read.
         except (np.linalg.LinAlgError, FloatingPointError, ValueError):
             spectral_abscissa = 0.0
 

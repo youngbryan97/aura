@@ -204,6 +204,8 @@ async def where_the_drawing_is(
             float(where["right"]), float(where["bottom"]),
         )
         share = float(where.get("share") or 0.0)
+    # not a failure: a reading that cannot be taken, or that is not a
+    # number when it is, leaves this at the value below.
     except (ValueError, TypeError, KeyError):
         return None
     if band[2] <= band[0] or band[3] <= band[1]:

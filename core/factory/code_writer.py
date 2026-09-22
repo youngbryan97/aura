@@ -33,6 +33,8 @@ class CodeWriter:
         file_path = (repo_root / str(module)).resolve()
         try:
             file_path.relative_to(repo_root)
+        # not a failure: a path that is not there, or outside what was asked about, is
+        # the answer rather than a fault.
         except ValueError:
             return {
                 "module": module,

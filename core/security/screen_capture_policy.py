@@ -60,6 +60,8 @@ def _load_privacy_policy() -> _ScreenCapturePrivacyPolicy | None:
 
     try:
         payload = json.loads(_POLICY_PATH.read_text(encoding="utf-8"))
+    # not a failure: text that is not the JSON this expects is not a record it can
+    # read back.
     except (OSError, json.JSONDecodeError, TypeError, ValueError):
         return None
     if not isinstance(payload, dict) or payload.get("schema") != _POLICY_SCHEMA:

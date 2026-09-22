@@ -98,6 +98,7 @@ class ConstancyLedger:
     def _note(self, book: deque[float], at: float) -> None:
         try:
             value = float(at)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if value != value:

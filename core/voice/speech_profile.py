@@ -335,6 +335,7 @@ class SpeechProfileCompiler:
         sc = social_context or {}
         try:
             social_confidence = float(sc.get("social_confidence", 0.0))
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError, OverflowError):
             social_confidence = 0.0
         if not math.isfinite(social_confidence):

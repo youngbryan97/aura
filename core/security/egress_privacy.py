@@ -359,6 +359,8 @@ def filter_outbound_body(
     patterns = _patterns_for(tier)
     try:
         document = json.loads(text)
+    # not a failure: text that is not the JSON this expects is not a record it can
+    # read back.
     except (json.JSONDecodeError, RecursionError, ValueError):
         document = None
 

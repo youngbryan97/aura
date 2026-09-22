@@ -594,6 +594,7 @@ def _values_match(expected: Any, observed: Any) -> bool:
     if isinstance(expected, (int, float)) and not isinstance(expected, bool):
         try:
             return abs(float(observed) - float(expected)) <= 2.0
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return False
     if isinstance(expected, list):

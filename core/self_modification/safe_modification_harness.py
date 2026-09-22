@@ -573,6 +573,8 @@ class SafeModificationHarness:
             process = get_resource_observer().process(os.getpid())
             if process is not None:
                 return float(process.rss_bytes) / (1024 * 1024)
+        # not a failure: a reading that cannot be taken, or that is not a
+        # number when it is, leaves this at the value below.
         except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
             return 0.0
 

@@ -61,6 +61,8 @@ def write_unity_results_artifact(path: str | Path, payload: dict[str, Any]) -> P
             k: v for k, v in existing.items() if k != "timestamp"
         } == {k: v for k, v in payload.items() if k != "timestamp"}:
             return target
+    # not a failure: text that is not the JSON this expects is not a record it can
+    # read back.
     except (OSError, ValueError):
         pass  # unreadable/missing/legacy artifact: write a fresh copy
     get_file_write_gateway().write_text(

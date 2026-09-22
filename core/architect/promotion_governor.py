@@ -41,6 +41,8 @@ def _contained_target(repo_root: Path, rel: str) -> Path | None:
     target = (root / candidate).resolve(strict=False)
     try:
         target.relative_to(root)
+    # not a failure: a path that is not there, or outside what was asked about, is
+    # the answer rather than a fault.
     except ValueError:
         return None
     return target

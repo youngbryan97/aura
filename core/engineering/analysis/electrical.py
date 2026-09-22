@@ -205,6 +205,8 @@ def voltage_drop(design: Any) -> Iterable[Finding]:
         if "mm2" in declared:
             try:
                 gauge_area = float(declared.split("mm2")[0].split()[-1]) * 1e-6
+            # not a failure: a reading that cannot be taken, or that is not a
+            # number when it is, leaves this at the value below.
             except (ValueError, IndexError):
                 gauge_area = None
         current = float(link.through.as_("A").value)

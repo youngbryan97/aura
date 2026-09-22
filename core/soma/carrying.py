@@ -124,6 +124,7 @@ class CarryingLedger:
         """One moment's load: how hard the most pressing open thing is asking."""
         try:
             value = float(pressure)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if value != value:

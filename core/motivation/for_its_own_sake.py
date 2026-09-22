@@ -110,6 +110,7 @@ class DoingLedger:
         """One turn: which drive's intention was open, if any, and how engaged she was."""
         try:
             value = max(0.0, min(1.0, float(engagement)))
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         name = str(doing or "").strip()
@@ -122,6 +123,7 @@ class DoingLedger:
         if held.opened_at is None and level is not None:
             try:
                 held.opened_at = float(level)
+            # not a failure: a value that is not a number is not one this can read.
             except (TypeError, ValueError):
                 held.opened_at = None
 
@@ -133,6 +135,7 @@ class DoingLedger:
         try:
             room = max(float(capacity), 1e-9)
             returned = max(0.0, (float(level) - held.opened_at) / room)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         held.results.append(min(1.0, returned))

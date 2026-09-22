@@ -698,6 +698,8 @@ class ProprioceptiveLoop(BasePhase):
                 if self._thermal_probe is None:
                     self._thermal_probe = SubstrateMonitor()
                 level = int(self._thermal_probe.thermal()[0])
+            # not a failure: a reading that cannot be taken, or that is not a
+            # number when it is, leaves this at the value below.
             except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError):
                 level = 0
             # Megabytes, because that is what the consumer compares against —
@@ -766,6 +768,8 @@ class ProprioceptiveLoop(BasePhase):
             return float(get_resource_observer().memory().process_rss_bytes) / (
                 1024.0 * 1024.0
             )
+        # not a failure: a reading that cannot be taken, or that is not a
+        # number when it is, leaves this at the value below.
         except (ImportError, AttributeError, RuntimeError, OSError, ValueError):
             return 0.0
 

@@ -966,6 +966,7 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
                 return False
             quiet_until = float(getattr(orch, "_foreground_user_quiet_until", 0.0) or 0.0)
             return quiet_until > time.time()
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError):
             return False
 

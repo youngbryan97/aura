@@ -42,6 +42,8 @@ def disk_percent_value(reader: Any) -> float:
     """Call a disk-percent reader and return a float, never a surprise."""
     try:
         return float(reader())
+    # not a failure: a reading that cannot be taken, or that is not a
+    # number when it is, leaves this at the value below.
     except (OSError, RuntimeError, TypeError, ValueError):
         return 0.0
 

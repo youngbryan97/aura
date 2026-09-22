@@ -28,6 +28,7 @@ except ImportError:
 def _normalize_percentish(value: Any) -> float | None:
     try:
         number = float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     if abs(number) <= 1.0:

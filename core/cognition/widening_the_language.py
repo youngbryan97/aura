@@ -389,6 +389,8 @@ def _say_which_kind_of_growth_this_is(
                 for size in lengths
                 for at in range(len(addressing.at[size]))
             )
+        # not a failure: a reading that cannot be taken, or that is not a
+        # number when it is, leaves this at the value below.
         except (ArithmeticError, IndexError, KeyError, TypeError, ValueError):
             return False
 

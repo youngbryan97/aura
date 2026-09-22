@@ -125,6 +125,8 @@ class Statevector:
                 value = float(self._entropy_source())
                 if 0.0 <= value < 1.0:
                     return value
+            # not a failure: a reading that cannot be taken, or that is not a
+            # number when it is, leaves this at the value below.
             except (TypeError, ValueError, RuntimeError, OSError):
                 pass  # counted below, with the out-of-range case
             # Counted here rather than recorded: this module imports nothing

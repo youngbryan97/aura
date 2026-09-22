@@ -67,6 +67,8 @@ class CapabilityGuard:
         try:
             rel_path = path.relative_to(config.paths.project_root).as_posix()
             candidates.append(rel_path)
+        # not a failure: a path that is not there, or outside what was asked about, is
+        # the answer rather than a fault.
         except ValueError:
             rel_path = None
 

@@ -165,6 +165,7 @@ class SittingLedger:
     def message(self, agent_id: str, at: float, strain: float | None = None) -> None:
         try:
             stamp = float(at)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if not math.isfinite(stamp):
@@ -178,6 +179,7 @@ class SittingLedger:
         strains.extend([None] * (len(times) - 1 - len(strains)))
         try:
             level = None if strain is None else float(strain)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             level = None
         strains.append(level if level is not None and math.isfinite(level) else None)

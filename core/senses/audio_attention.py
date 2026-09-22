@@ -54,6 +54,7 @@ def observe_room_loudness(rms_db: float) -> None:
     """Record one loudness observation for the noise-floor estimate."""
     try:
         value = float(rms_db)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return
     if value != value or value in (float("inf"), float("-inf")):

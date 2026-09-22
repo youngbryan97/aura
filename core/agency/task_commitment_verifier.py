@@ -973,6 +973,7 @@ class TaskCommitmentVerifier(_KeepsTheTaskLedger):
         try:
             from core.container import ServiceContainer
             return ServiceContainer.get("goal_engine", default=None)
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError):
             return None
 

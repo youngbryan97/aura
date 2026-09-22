@@ -195,6 +195,8 @@ def _special_token_count(tokenizer: Any) -> int:
         return 0
     try:
         return max(0, int(method(pair=False)))
+    # not a failure: a reading that cannot be taken, or that is not a
+    # number when it is, leaves this at the value below.
     except (TypeError, ValueError, AttributeError):
         return 0
 

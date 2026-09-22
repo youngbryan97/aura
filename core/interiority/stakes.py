@@ -320,6 +320,7 @@ class StakeFeed:
         try:
 
             engine = optional_service("capability_engine", default=None)
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, RuntimeError, AttributeError, TypeError, ValueError, KeyError):
             engine = None
         if engine is None:

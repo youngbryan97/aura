@@ -251,6 +251,8 @@ def _is_path_within_workspace(path: Any) -> bool:
             target = root / target
         resolved = target.resolve()
         return os.path.commonpath([str(root), str(resolved)]) == str(root)
+    # not a failure: a path that is not there, or outside what was asked about, is
+    # the answer rather than a fault.
     except (OSError, RuntimeError, TypeError, ValueError):
         return False
 
@@ -412,6 +414,8 @@ def _desktop_task_scope(params: dict[str, Any]) -> str | None:
     if isinstance(raw_steps, str):
         try:
             raw_steps = json.loads(raw_steps)
+        # not a failure: text that is not the JSON this expects is not a record it can
+        # read back.
         except (TypeError, ValueError):
             return None
     if not isinstance(raw_steps, list) or not raw_steps:

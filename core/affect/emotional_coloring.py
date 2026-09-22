@@ -141,6 +141,7 @@ def _coerce_float(value: Any) -> float | None:
         return None
     try:
         return float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
 

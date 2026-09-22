@@ -272,6 +272,7 @@ class MeTTaEngine:
             if isinstance(atom, Node):
                 try:
                     return float(atom.name)
+                # not a failure: a value that is not a number is not one this can read.
                 except (TypeError, ValueError):
                     return None
             return None

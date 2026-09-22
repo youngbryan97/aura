@@ -166,6 +166,7 @@ class PhysicsWorldModel:
         """
         try:
             duration_s = float(duration_s)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             duration_s = 0.0
         if not math.isfinite(duration_s) or duration_s < 0.0:
@@ -189,6 +190,7 @@ class PhysicsWorldModel:
                 if heading is not None:
                     try:
                         heading_f = float(heading)
+                    # not a failure: a value that is not a number is not one this can read.
                     except (TypeError, ValueError):
                         heading_f = None
                     if heading_f is not None and math.isfinite(heading_f):
@@ -196,6 +198,7 @@ class PhysicsWorldModel:
                 if speed is not None:
                     try:
                         speed_f = float(speed)
+                    # not a failure: a value that is not a number is not one this can read.
                     except (TypeError, ValueError):
                         speed_f = None
                     if speed_f is not None and math.isfinite(speed_f):
@@ -204,6 +207,7 @@ class PhysicsWorldModel:
             elif action_type == "transfer" and entity.kind == "node":
                 try:
                     amount = float(action.get("amount", 0.0))
+                # not a failure: a value that is not a number is not one this can read.
                 except (TypeError, ValueError):
                     amount = 0.0
                 if not math.isfinite(amount) or amount <= 0.0:

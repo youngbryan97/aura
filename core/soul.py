@@ -19,6 +19,7 @@ def _finite_surprise(value: Any) -> float:
     drive urgency (5124cb9f: raw multiply/add could go non-finite/unbounded)."""
     try:
         num = float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0.0
     if not math.isfinite(num):

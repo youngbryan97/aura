@@ -254,9 +254,13 @@ async def voice_duplex_endpoint(ws: WebSocket) -> None:
             try:
                 raw = await asyncio.wait_for(ws.receive_text(), timeout=5.0)
                 data = json.loads(raw)
+            # not a failure: text that is not the JSON this expects is not a record it can
+            # read back.
             except TimeoutError:
                 await ws.close(code=4001, reason="Auth Timeout")
                 return
+            # not a failure: text that is not the JSON this expects is not a record it can
+            # read back.
             except json.JSONDecodeError:
                 await ws.close(code=4001, reason="Invalid Auth Payload")
                 return

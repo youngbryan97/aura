@@ -1993,6 +1993,7 @@ class AuthorityGateway(_AuthorisesAMemoryWrite):
         version = organism.get("canonical_self_version")
         try:
             return int(version) if version is not None else None
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return None
 

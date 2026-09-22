@@ -298,6 +298,7 @@ def apply_influence(hits: Iterable[Any]) -> list[Any]:
 def _as_score(value: Any) -> float:
     try:
         return float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0.0
 

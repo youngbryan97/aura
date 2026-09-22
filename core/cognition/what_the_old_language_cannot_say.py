@@ -326,6 +326,8 @@ def the_one_no_word_of_hers_says(
             return 0
         try:
             answered = int(made[index](index, size)) % size
+        # not a failure: a reading that cannot be taken, or that is not a
+        # number when it is, leaves this at the value below.
         except (ArithmeticError, IndexError, RecursionError, TypeError, ValueError):
             # It refuses here. Answering at all is already different.
             return 0

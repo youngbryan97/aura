@@ -279,6 +279,8 @@ def _verdict_from_stdout(stdout: str) -> dict[str, Any] | None:
         if line.startswith(_VERDICT_MARKER):
             try:
                 return json.loads(line[len(_VERDICT_MARKER):])
+            # not a failure: text that is not the JSON this expects is not a record it can
+            # read back.
             except json.JSONDecodeError:
                 return None
     return None

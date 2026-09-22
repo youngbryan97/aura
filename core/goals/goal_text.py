@@ -90,6 +90,8 @@ def _json_loads(text: str) -> Any:
 
     try:
         return json.loads(text)
+    # not a failure: text that is not the JSON this expects is not a record it can
+    # read back.
     except (ValueError, TypeError):
         return None
 

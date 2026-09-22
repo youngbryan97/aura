@@ -227,6 +227,7 @@ class InitiativeGenerationPhase(BasePhase):
 
         try:
             orch = get_runtime_service("orchestrator", default=None)
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError):
             orch = None
         if not background_activity_allowed(

@@ -424,6 +424,8 @@ class ActivityRecorder:
         try:
             path = Path(filename).resolve()
             rel = path.relative_to(self.repo)
+        # not a failure: a path that is not there, or outside what was asked about, is
+        # the answer rather than a fault.
         except (ValueError, OSError):
             return None
         parts = list(rel.with_suffix("").parts)

@@ -829,6 +829,7 @@ class MemoryRetrievalPhase(BasePhase):
             from core.runtime.conversation_support import resolve_primary_user_id
 
             partner_id = resolve_primary_user_id(state)
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             partner_id = ""
 

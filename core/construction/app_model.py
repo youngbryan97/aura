@@ -234,5 +234,6 @@ def _number(value: Any) -> float | int:
     try:
         text = str(value).strip()
         return int(text) if text.lstrip("-").isdigit() else float(text)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0

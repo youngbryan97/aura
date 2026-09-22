@@ -50,6 +50,7 @@ class Telling:
 def _reading(value: Any) -> float:
     try:
         out = float(value or 0.0)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0.0
     if out != out:

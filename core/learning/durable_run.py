@@ -157,6 +157,8 @@ class DurableRun:
                 payload=data["payload"],
                 created_unix=float(data["created_unix"]),
             )
+        # not a failure: a reading that cannot be taken, or that is not a
+        # number when it is, leaves this at the value below.
         except (ValueError, OSError, KeyError):
             return None
 

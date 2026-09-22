@@ -241,6 +241,7 @@ class Hypervisor:
 
             monitor = ServiceContainer.get("event_loop_monitor", default=None)
             sample = monitor.last_lag_sample() if monitor is not None else None
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             sample = None
         if sample is None:

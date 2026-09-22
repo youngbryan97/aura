@@ -482,6 +482,7 @@ def _parse_cohort(cohort_id: str) -> tuple[str, str, int]:
     runtime_revision, _, head = remainder.rpartition(":head=")
     try:
         head_version = int(head)
+    # not a failure: a value that is not a number is not one this can read.
     except ValueError:
         head_version = 0
     return provenance or LEGACY_CALIBRATION, runtime_revision or "unbound", head_version

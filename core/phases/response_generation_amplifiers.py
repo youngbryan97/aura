@@ -196,6 +196,8 @@ class _AmplifiesTheDraft:
                 return draft
             if float(getattr(pressure, "pressure_pct", 0.0) or 0.0) >= 85.0:
                 return draft
+        # not a failure: a reading that cannot be taken, or that is not a
+        # number when it is, leaves this at the value below.
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             pass
         try:
@@ -233,7 +235,8 @@ class _AmplifiesTheDraft:
         word_budget = 0
         try:
             word_budget = int(state.response_modifiers.get("voice_word_budget", 0) or 0)
-        # not a failure: a value that is not a number is not one this can read.
+        # not a failure: a reading that cannot be taken, or that is not a
+        # number when it is, leaves this at the value below.
         except (AttributeError, TypeError, ValueError):
             word_budget = 0
         if word_budget <= 0:

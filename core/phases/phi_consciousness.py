@@ -399,6 +399,7 @@ class PhiConsciousnessPhase(Phase):
             sr = ServiceContainer.get("shadow_runtime", default=None)
             if sr is not None and isinstance(sr, ShadowRuntime):
                 sr.set_coherence_gate(phi)
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError):
             pass  # Non-critical: gate defaults to 1.0 (permissive) on failure
 

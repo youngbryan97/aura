@@ -353,6 +353,7 @@ class Calibration:
 def _clamp(value: float, lo: float = -1.0, hi: float = 1.0) -> float:
     try:
         v = float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0.0
     if not math.isfinite(v):

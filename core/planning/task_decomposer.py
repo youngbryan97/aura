@@ -368,6 +368,7 @@ class TaskDecomposer:
         def _num(name: str) -> float:
             try:
                 return float(frame.get(name, 0.0) or 0.0)
+            # not a failure: a value that is not a number is not one this can read.
             except (TypeError, ValueError, OverflowError):
                 return 0.0
 

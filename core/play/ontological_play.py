@@ -225,6 +225,7 @@ class OntologicalPlayEngine:
                 return False
             d = de.snapshot() or {}
             return float(d.get("curiosity", 0.0)) >= 0.65
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError):
             return False
 

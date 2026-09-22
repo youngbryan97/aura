@@ -510,6 +510,7 @@ def _get_belief_authority() -> Any | None:
         from core.container import ServiceContainer
 
         return ServiceContainer.get("belief_authority", default=None)
+    # not a failure: no service here, so the caller falls back to its own default.
     except (ImportError, AttributeError, RuntimeError):
         return None
 

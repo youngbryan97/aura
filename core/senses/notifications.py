@@ -30,6 +30,8 @@ def _parse_hhmm(value: object) -> tuple[int, int] | None:
     try:
         hh, mm = str(value).strip().split(":")
         h, m = int(hh), int(mm)
+    # not a failure: a reading that cannot be taken, or that is not a
+    # number when it is, leaves this at the value below.
     except (ValueError, AttributeError):
         return None
     if 0 <= h < 24 and 0 <= m < 60:

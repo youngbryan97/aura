@@ -148,10 +148,14 @@ def parse_instance_lock_pid(raw: str) -> int | None:
         logger.debug("Suppressed %s in core.utils.singleton: %s", type(_exc).__name__, _exc)
     try:
         payload = json.loads(text)
+    # not a failure: text that is not the JSON this expects is not a record it can
+    # read back.
     except (json.JSONDecodeError, TypeError, ValueError):
         return None
     try:
         return int(payload.get("pid"))
+    # not a failure: a reading that cannot be taken, or that is not a
+    # number when it is, leaves this at the value below.
     except (AttributeError, TypeError, ValueError):
         return None
 

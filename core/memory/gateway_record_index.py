@@ -49,6 +49,8 @@ class GatewayRecordEntry:
 def _parse_record(path: Path, mtime: float) -> GatewayRecordEntry | None:
     try:
         envelope = json.loads(path.read_text(encoding="utf-8"))
+    # not a failure: text that is not the JSON this expects is not a record it can
+    # read back.
     except (OSError, json.JSONDecodeError, UnicodeDecodeError):
         return None
     payload = envelope.get("payload") if isinstance(envelope, dict) else None

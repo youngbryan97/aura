@@ -1573,6 +1573,7 @@ The plan is a JSON array of steps:
             from core.container import ServiceContainer
 
             cap = ServiceContainer.get("capability_engine", default=None)
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError):
             cap = None
 

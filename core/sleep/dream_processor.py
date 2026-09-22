@@ -59,6 +59,7 @@ class DreamProcessor:
             graph_writes_raw = await self._contract_graph(reflection)
             try:
                 graph_writes = int(graph_writes_raw or 0)
+            # not a failure: a value that is not a number is not one this can read.
             except (TypeError, ValueError):
                 graph_writes = 0
 

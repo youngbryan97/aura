@@ -132,6 +132,7 @@ class ReturningLedger:
         labels = labels or {}
         try:
             winning = float(scores.get(chosen_id, 0.0))
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if winning != winning:

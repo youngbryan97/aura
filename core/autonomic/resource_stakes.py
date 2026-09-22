@@ -440,6 +440,7 @@ def _state_dict(state: ViabilityState) -> dict[str, object]:
 def _clamp01(value: float) -> float:
     try:
         v = float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0.0
     # Reject NaN/inf so they cannot create boundary/non-finite state or corrupt

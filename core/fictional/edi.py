@@ -325,6 +325,7 @@ class ProgressiveAutonomySystem:
         """
         try:
             magnitude = float(delta)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             magnitude = 0.0
         if not math.isfinite(magnitude):

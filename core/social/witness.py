@@ -77,6 +77,7 @@ def _valence(modifiers: Mapping[str, Any]) -> float | None:
         return None
     try:
         value = float(sentiment["valence"])
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     if value != value:

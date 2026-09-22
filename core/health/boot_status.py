@@ -233,6 +233,7 @@ def build_boot_health_snapshot(
     try:
         if start_time:
             uptime = round(max(0.0, now - float(start_time)), 1)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         uptime = 0.0
 

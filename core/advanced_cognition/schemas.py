@@ -253,6 +253,7 @@ class Outcome:
             raw = getattr(self, name)
             try:
                 value = float(raw)
+            # not a failure: a value that is not a number is not one this can read.
             except (TypeError, ValueError):
                 value = 0.0
             if not math.isfinite(value):

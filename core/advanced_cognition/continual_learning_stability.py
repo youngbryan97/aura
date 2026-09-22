@@ -836,6 +836,8 @@ class ContinualLearningStabilityEngine:
     def _decode_memory(line: str) -> MemoryRecord | None:
         try:
             raw = json.loads(line)
+        # not a failure: text that is not the JSON this expects is not a record it can
+        # read back.
         except (json.JSONDecodeError, ValueError):
             return None
         if not isinstance(raw, dict) or not raw.get("record_id"):

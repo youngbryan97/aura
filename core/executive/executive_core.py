@@ -1383,6 +1383,7 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
         objective_promoted_at = 0.0
         try:
             objective_promoted_at = float(objective_binding.get("promoted_at", 0.0) or 0.0)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             objective_promoted_at = 0.0
         objective_age_s = time.time() - objective_promoted_at if objective_promoted_at > 0.0 else None

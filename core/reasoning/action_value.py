@@ -337,6 +337,7 @@ class ActionValueModel:
                     evidence="caller",
                     action_key=name,
                 )
+            # not a failure: a value that is not a number is not one this can read.
             except (TypeError, ValueError):
                 pass  # a malformed hint is no hint; fall through to evidence
 

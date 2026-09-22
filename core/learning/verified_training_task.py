@@ -317,6 +317,7 @@ def _as_decimal(value: Any) -> Decimal | None:
             denominator = Decimal(parts[1])
             return Decimal(parts[0]) / denominator if denominator else None
         return Decimal(text)
+    # not a failure: a value that is not a number is not one this can read.
     except (InvalidOperation, ZeroDivisionError, ValueError):
         return None
 

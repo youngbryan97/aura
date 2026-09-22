@@ -76,6 +76,7 @@ def _open_degradations() -> float | None:
     total = status.get("total_degradations")
     try:
         return float(total)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
 
@@ -103,6 +104,7 @@ def _recall_hit_rate() -> float | None:
         if isinstance(section, dict) and section.get("hit_rate") is not None:
             try:
                 return float(section["hit_rate"])
+            # not a failure: a value that is not a number is not one this can read.
             except (TypeError, ValueError):
                 return None
     return None

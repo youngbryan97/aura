@@ -477,6 +477,7 @@ class MemoryFacade(_NormalisesWhatItReturns):
         try:
             unity_state = ServiceContainer.get("unity_state", default=None)
             unity_report = ServiceContainer.get("unity_fragmentation_report", default=None)
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError):
             unity_state = None
             unity_report = None

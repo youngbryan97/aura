@@ -225,6 +225,7 @@ def _seat_count(text: str, names: list[str]) -> int:
         if stated is None:
             try:
                 stated = int(token)
+            # not a failure: a value that is not a number is not one this can read.
             except ValueError:
                 stated = 0
         if stated:

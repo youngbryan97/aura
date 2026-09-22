@@ -123,6 +123,7 @@ async def ground_response(
             from core.container import ServiceContainer
 
             capability_engine = ServiceContainer.get("capability_engine", default=None)
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError):
             capability_engine = None
 
@@ -315,6 +316,8 @@ def _parse_json_tail(tail: str) -> Any | None:
         return None
     try:
         return json.loads(text)
+    # not a failure: text that is not the JSON this expects is not a record it can
+    # read back.
     except json.JSONDecodeError:
         return None
 

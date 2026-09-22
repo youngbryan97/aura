@@ -220,6 +220,8 @@ class SovereignSupervisor:
             return False
         try:
             payload = json.loads(grace_file.read_text(encoding="utf-8"))
+        # not a failure: text that is not the JSON this expects is not a record it can
+        # read back.
         except (OSError, json.JSONDecodeError, TypeError, ValueError):
             return False
         if not isinstance(payload, dict):
