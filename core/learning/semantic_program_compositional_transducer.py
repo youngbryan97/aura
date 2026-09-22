@@ -897,14 +897,13 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
             )
         )
 
-    def _runtime_operation_charts(
+    def _runtime_input_grounding(
         self,
         tokens: tuple[Any, ...],
         hidden: Any,
         inputs: tuple[Any, ...],
-        inference_max_steps: Any,
     ) -> Any:
-        """Share source grounding and operation candidates with offline graph learning."""
+        """Ground public values independently of operation recognition."""
         input_banks: list[tuple[tuple[TokenSpan, float], ...]] = []
         argument_pointer_scores = self.argument_pointer.score_sequence(hidden)
         for index, value in enumerate(inputs):
@@ -918,6 +917,18 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
         if grounded is None:
             raise ValueError("input_pointer_assignment_failed")
         input_spans, input_scores = grounded
+        return input_spans, input_scores, argument_pointer_scores
+
+    def _runtime_operation_charts(
+        self,
+        tokens: tuple[Any, ...],
+        hidden: Any,
+        inputs: tuple[Any, ...],
+        inference_max_steps: Any,
+    ) -> Any:
+        """Share source grounding and operation candidates with offline graph learning."""
+        input_spans, input_scores, argument_pointer_scores = self._runtime_input_grounding(
+            tokens, hidden, inputs)
         nodes = _operation_nodes(
             pointer=self.operation_pointer,
             classifier=self.operation_head,

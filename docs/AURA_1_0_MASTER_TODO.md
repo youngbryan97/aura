@@ -1107,6 +1107,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Context and portfolio comparison](evidence/G03_CONTEXT_AND_PORTFOLIO_2026-09-21.md):
+  complete constrained decoding reaches 240/256 on the first source fold;
+  retaining six methods yields 239/256 selected versus 180/256 for the local
+  incumbent, with 59 gains and zero regressions. Candidate availability is
+  248/256, separating eight coverage failures from nine selection failures.
+  Argument heads saw the source fold; this is development, not G04 transfer.
   [Architecture reset](evidence/G03_ARCHITECTURE_RESET_2026-09-21.md): stop
   local coefficient campaigns against the repeatedly exposed validation set.
   Compare full-request learned recognition on source-construction holdouts,
