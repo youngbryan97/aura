@@ -738,6 +738,10 @@ class CognitiveContext:
     #: appraised choices. Written by the affect phase.
     #: See core/agency/asking_the_impulse.py.
     impulse: dict[str, Any] = field(default_factory=dict)
+    #: Her habits and reflexes, taken as hers: how many, which she means to
+    #: change, and by how much the worst has done worse than her weighing.
+    #: Written by the affect phase. See core/agency/habits_are_hers.py.
+    habits: dict[str, Any] = field(default_factory=dict)
     #: Whether somebody's account of a past she shares with them gave her less
     #: of it than accounts usually do. Written by the conversational dynamics
     #: phase. See core/social/made_minor.py.

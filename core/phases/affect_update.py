@@ -449,6 +449,9 @@ class AffectUpdatePhase(Phase):
         # And what she feels about the things the turn was about, both ways.
         # See core/affect/feelings_about.py.
         self.readings.feelings_about(state, affect)
+        # With every feeling settled, what followed her last acts is known.
+        # See core/agency/habits_are_hers.py.
+        self.readings.habits(state, affect)
 
         # 6c. What won the workspace, as arousal. Global workspace theory's
         # claim is that ignition makes content available to the specialised

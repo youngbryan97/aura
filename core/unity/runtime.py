@@ -471,6 +471,32 @@ class UnityRuntime:
                     action_relevance=lifted(_clamp(0.5 + 0.5 * a.severity), owning) * held_off,
                     affective_charge=-0.3 * a.severity,
                 ))
+            # A habit or reflex she took in front of them since they last
+            # spoke, that has left them worse off than her weighing does. The
+            # content is the record, as a fact about her, with the share of
+            # the moment it has cost them. See core/agency/habits_are_hers.py.
+            from core.agency.habits_are_hers import get_habit_ledger
+
+            for account in get_habit_ledger().owed_to(agent_id)[:3]:
+                summary = _normalize_text(
+                    f"my {'reflex' if account.kind == 'reflex' else 'habit'}: {account.act}, "
+                    f"{account.taken} times; weighing has gone better for {agent_id} "
+                    f"(delta {account.for_them:.2f})",
+                    180,
+                )
+                share = lifted(_clamp(account.deficit), owning) * held_off
+                out.append(BoundContent(
+                    content_id=_content_id("accountability", "responsibility", summary),
+                    modality="responsibility",
+                    source="habits_are_hers",
+                    summary=summary,
+                    salience=share,
+                    confidence=0.85,
+                    timestamp=time.time(),
+                    ownership="self",
+                    action_relevance=share,
+                    affective_charge=-0.3 * account.deficit,
+                ))
             return out
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("unity_runtime", exc, severity="debug")

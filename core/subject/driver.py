@@ -1253,6 +1253,7 @@ class SubjectRuntime:
         """
         forced = getattr(self, "forced_action", None)
         if forced in self.ACTIONS:
+            self._how_chosen = "forced"
             return str(forced)
         attending = str(getattr(self.state.cognition, "attention_focus", "") or "")
         source = attending.split(":", 1)[0].strip()
@@ -1260,6 +1261,7 @@ class SubjectRuntime:
             source = "self"
         chosen = self.ATTENTION_ACTIONS.get(source)
         if chosen:
+            self._how_chosen = "weighed"
             return chosen
         budgets = getattr(getattr(self.state, "motivation", None), "budgets", {}) or {}
         levels = []
@@ -1273,9 +1275,25 @@ class SubjectRuntime:
             if isinstance(entry, dict):
                 levels.append((float(entry.get("level", 100.0) or 0.0), name))
         if not levels:
+            self._how_chosen = "automatic"
             return self.ACTIONS[0]
         levels.sort()
-        return self.DRIVE_ACTIONS.get(levels[0][1], self.ACTIONS[0])
+        drive_alone = self.DRIVE_ACTIONS.get(levels[0][1], self.ACTIONS[0])
+        # A habit she means to change does not fire on drive alone. Each drive's
+        # pull is how far it sits below the fullest, less what a habit of its
+        # act has cost; where that moves the pick, her record decided it.
+        # See core/agency/habits_are_hers.py.
+        from core.agency.habits_are_hers import discounted_by_habit
+
+        fullest = levels[-1][0]
+        pulls = [
+            (discounted_by_habit(fullest - level, self.DRIVE_ACTIONS.get(name, self.ACTIONS[0])), -level, name)
+            for level, name in levels
+        ]
+        best = max(pulls)
+        chosen = self.DRIVE_ACTIONS.get(best[2], self.ACTIONS[0]) if best[0] > 0.0 else drive_alone
+        self._how_chosen = "automatic" if chosen == drive_alone else "weighed"
+        return chosen
 
     #: How many lines the action log keeps. Past this an append rolls it,
     #: which removes lines the append never asked to remove — an outcome she
@@ -1545,6 +1563,14 @@ class SubjectRuntime:
         )
         self._last_observed = observed
         self.state.cognition.last_action_source = actor
+        # Hers, whichever way it was chosen, unless somebody else is named as
+        # having done it or the experiment held her to it.
+        # See core/agency/habits_are_hers.py.
+        how = getattr(self, "_how_chosen", "")
+        if actor == "self" and how in {"automatic", "weighed"}:
+            from core.agency.habits_are_hers import get_habit_ledger
+
+            get_habit_ledger().note(kind, kind=how)
 
         # And she sees what she did. The loop the specification asks for closes
         # through the world — action, environment, perception — and without

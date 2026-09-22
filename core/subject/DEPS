@@ -54,6 +54,9 @@ include_rules = [
     "+core.brain.inference_gate",
     "+core.brain.llm_health_router",
     "+core.agency.intention_loop",
+    # Her habits: the driver's acts go on the record as hers, and a habit
+    # that has done worse than her weighing is discounted on drive alone.
+    "+core.agency.habits_are_hers",
     "+core.consciousness.consciousness_bridge",
     "+core.consciousness.system",
     "+core.container",

@@ -503,6 +503,11 @@ async def _execute_new_state_new_state(self, state):
                 # Surface the most recent motor action for phenomenal awareness
                 latest = reports[-1]
                 soma.latency["last_reflex_ms"] = latest.latency_ms
+                # Each is a reflex of hers. See core/agency/habits_are_hers.py.
+                from core.agency.habits_are_hers import get_habit_ledger
+
+                for report in reports:
+                    get_habit_ledger().note(f"reflex_{report.handler_name}", kind="reflex")
                 soma.expressive["last_reflex"] = (
                     f"{latest.handler_name}:{latest.result_summary}"[:60]
                 )
@@ -933,6 +938,11 @@ class ProprioceptiveLoop(BasePhase):
                 await result
             reflexes = state.soma.hardware.setdefault("autonomic_reflexes", [])
             reflexes.append({"subsystem": subsystem, "duration": duration, "reason": reason})
+            # A reflex is hers too, and what followed it is kept.
+            # See core/agency/habits_are_hers.py.
+            from core.agency.habits_are_hers import get_habit_ledger
+
+            get_habit_ledger().note(f"inhibit_{subsystem}", kind="reflex")
             return True
         except (AttributeError, RuntimeError, OSError, ConnectionError, TimeoutError, TypeError, ValueError) as exc:
             self._mark_channel_degraded(

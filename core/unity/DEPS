@@ -15,6 +15,8 @@ include_rules = [
 
     # What this package reaches for today.
     "+core.affect",
+    # A habit or reflex she owes somebody an account of enters the moment.
+    "+core.agency.habits_are_hers",
     "+core.cognition",
     "+core.consciousness",
     "+core.container",

@@ -297,7 +297,7 @@
       "scope": "<module>.CommitmentEngine._save"
     },
     {
-      "callee": "core.runtime.atomic_writer.atomic_write_text",
+      "callee": "core.runtime.atomic_writer.atomic_write_text_behind",
       "canonical_owner": false,
       "category": "direct_atomic_file_write",
       "count": 1,
@@ -16570,6 +16570,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "551af6240ec8a105907e6c705f787ceb5d035776421b5173c2ce07293eeee27a",
+  "inventory_sha256": "2920dee0c57f06e91e2ee7c38597c67c6dc7ef1ccc48eccdce6c95038c84b7f1",
   "schema_version": 1
 }

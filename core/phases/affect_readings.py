@@ -460,6 +460,35 @@ class AffectReadings:
                 severity="warning",
             )
 
+    def habits(self, state: AuraState, affect: AffectVector) -> None:
+        """What followed her last acts, for her, and whether a habit has cost her.
+
+        Closes the acts waiting on this reading, hands their outcomes to the
+        receipts they opened, and writes what her habits and reflexes have been
+        worth onto her state. See core/agency/habits_are_hers.py.
+        """
+        try:
+            from core.agency.habits_are_hers import appraise, get_habit_ledger, situation_of
+            from core.kernel.turn_door import USER_ORIGINS
+
+            ledger = get_habit_ledger()
+            origin = str(getattr(state.cognition, "current_origin", "") or "")
+            partner = str(getattr(state.cognition, "current_partner", "") or "")
+            closed = ledger.felt(
+                float(getattr(affect, "valence", 0.0) or 0.0),
+                situation=situation_of(partner, person_turn=origin in USER_ORIGINS),
+            )
+            appraise(closed)
+            state.cognition.habits = ledger.reading()
+        except AFFECT_UPDATE_ERRORS as exc:
+            self._record(
+                state,
+                exc,
+                stage="habits",
+                action="kept affect state without what followed her last acts",
+                severity="warning",
+            )
+
     def made_minor(self, state: AuraState, affect: AffectVector) -> None:
         """Being made minor in somebody's account of a shared past, felt as sadness.
 

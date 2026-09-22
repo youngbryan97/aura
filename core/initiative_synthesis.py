@@ -1023,6 +1023,13 @@ class InitiativeSynthesizer:
                 str(winner.get("goal") or winner.get("description") or "an initiative")[:80],
                 will_receipt or "unrecorded",
             )
+            # Hers, whichever way it was chosen. See core/agency/habits_are_hers.py.
+            try:
+                from core.agency.habits_are_hers import note_initiative
+
+                note_initiative(winner)
+            except (ImportError, AttributeError, TypeError, ValueError) as e:
+                record_degradation('initiative_synthesis', e)
         result = SynthesisResult(
             winner=winner if approved else None,
             impulse_count=impulse_count,

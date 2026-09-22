@@ -194,6 +194,18 @@ class InitiativeArbiter:
         except (ImportError, AttributeError, TypeError, ValueError) as exc:
             logger.debug("what she feels about things did not reach arbitration: %s", exc)
 
+        # A habit that has done worse than her weighing does not fire on drive
+        # alone: its score counts for less by the deficit, and preference below
+        # can still pick it. See core/agency/habits_are_hers.py.
+        try:
+            from core.agency.habits_are_hers import act_of, discounted_by_habit, get_habit_ledger
+
+            habits = get_habit_ledger()
+            for item in scored:
+                item.final_score = discounted_by_habit(item.final_score, act_of(_goal(item.initiative)), habits)
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("her habits did not reach arbitration: %s", exc)
+
         # A tired mind cares less about what seems less important. Only the
         # initiatives at or above her fatigue's quantile of what she is holding
         # stay eligible, so the least important go first and the most important
@@ -294,6 +306,13 @@ class InitiativeArbiter:
             metadata = best.initiative.setdefault("metadata", {})
             if isinstance(metadata, dict):
                 metadata["subjective_choice_id"] = subjective_receipt.choice_id
+                # Whether drive alone chose it, which decides whether acting on
+                # it is a habit or a weighed act. See core/agency/habits_are_hers.py.
+                from core.agency.asking_the_impulse import impulse_led
+
+                metadata["subjective_impulse_led"] = impulse_led(
+                    subjective_receipt.option_features.get(subjective_receipt.chosen_id)
+                )
                 metadata["subjective_preference_override"] = subjective_receipt.preference_override
             if subjective_receipt.preference_override:
                 rationale_parts.append(
@@ -331,13 +350,17 @@ class InitiativeArbiter:
                 get_decision_preference_learner,
             )
 
-            get_decision_preference_learner().record_choice(
+            decision_id = get_decision_preference_learner().record_choice(
                 chosen_scores=best.scores,
                 pool_scores=[s.scores for s in scored],
                 goal=_goal(best.initiative),
                 weights_used=dict(self._weights),
                 expected_value=best.scores.get("expected_value", 0.5),
             )
+            # Kept on the initiative, so the one caller that acts on it can
+            # close the receipt with what followed. See core/agency/habits_are_hers.py.
+            if isinstance(best.initiative, dict):
+                best.initiative.setdefault("metadata", {})["decision_choice_id"] = decision_id
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug("Decision-preference capture skipped: %s", exc)
 

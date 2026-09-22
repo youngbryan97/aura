@@ -913,6 +913,11 @@ class OtherAgentStateEstimator:
             frustration = _frustration(model, observed_at)
             if frustration is not None:
                 get_owning_ledger().heard(agent_id, frustration=frustration, complaint=complaint)
+                # And what her habits and reflexes did to them since they last
+                # spoke. See core/agency/habits_are_hers.py.
+                from core.agency.habits_are_hers import get_habit_ledger
+
+                get_habit_ledger().heard(agent_id, frustration)
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation(
                 "other_agent_model",

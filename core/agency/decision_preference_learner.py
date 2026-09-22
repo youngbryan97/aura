@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.atomic_writer import atomic_write_text_behind
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
@@ -226,7 +226,9 @@ class DecisionPreferenceLearner:
                 "resolved_count": self._resolved_count,
                 "saved_at": time.time(),
             }
-            atomic_write_text(
+            # Behind the loop: a choice is resolved from the affect phase, and
+            # this save's fsync would otherwise sit on the event loop.
+            atomic_write_text_behind(
                 self._state_path,
                 json.dumps(payload, indent=2),
                 encoding="utf-8",
