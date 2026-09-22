@@ -39,6 +39,8 @@ include_rules = [
     "+core.learning",
     "+core.memory",
     "+core.orchestrator",
+    # Rank executable hypothesis probes with the shared sensing algebra.
+    "+core.perception.expected_information_gain",
     "+core.promotion",
     "+core.reasoning",
     "+core.runtime",

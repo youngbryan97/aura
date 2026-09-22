@@ -278,3 +278,42 @@ def test_bounds_hold():
 def test_criteria_refuse_a_single_episode_rule():
     with pytest.raises(ValueError, match="coincidence"):
         PromotionCriteria(min_episodes=1)
+
+
+@pytest.mark.parametrize("resolution,correct", [("B", False), ("A", True)])
+def test_recorded_counterevidence_immediately_invalidates_reuse(resolution, correct):
+    gen = ProceduralGeneralizer()
+    rule = _probationary(gen)
+    gen.promote(rule)
+    gen.record(_episode(rule.conditions, resolution=resolution, correct=correct))
+    assert gen.propose(rule.conditions) is None
+    assert rule.contradicting == 1
+    assert rule.tier is RuleTier.CANDIDATE
+    assert not gen.promote(rule)
+
+
+def test_protected_counterevidence_retires_an_existing_rule():
+    gen = ProceduralGeneralizer()
+    rule = _probationary(gen)
+    gen.promote(rule)
+    gen.record(_episode(rule.conditions, correct=False, protected=True))
+    assert rule.tier is RuleTier.RETIRED
+    assert gen.propose(rule.conditions) is None
+
+
+@pytest.mark.parametrize("resolution,correct", [("B", None), ("A", False)])
+def test_unjudged_or_failed_alternative_does_not_refute_existing_rule(resolution, correct):
+    gen = ProceduralGeneralizer()
+    rule = _probationary(gen)
+    gen.promote(rule)
+    gen.record(_episode(rule.conditions, resolution=resolution, correct=correct))
+    assert gen.propose(rule.conditions) is rule
+    assert rule.contradicting == 0
+
+
+def test_counterevidence_outside_applicability_leaves_rule_available():
+    gen = ProceduralGeneralizer()
+    rule = _probationary(gen)
+    gen.promote(rule)
+    gen.record(_episode({"reversible=false"}, correct=False, protected=True))
+    assert gen.propose(rule.conditions) is rule

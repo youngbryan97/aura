@@ -82,6 +82,7 @@ def main() -> None:
     parser.add_argument("--full-source", action="store_true",
                         help="fit source training only, then measure exposed development; never fresh transfer")
     parser.add_argument("--position-mode", choices=("absolute", "relative", "none"), default="absolute")
+    parser.add_argument("--feature-scaling", choices=("none", "unit_variance"), default="none")
     parser.add_argument("--context", choices=("full", "local", "frozen"), default="full")
     parser.add_argument("--resume-checkpoint", type=Path)
     args = parser.parse_args()
@@ -135,7 +136,8 @@ def main() -> None:
     evaluation_split = "validation" if args.full_source else "train"
     labels = tuple(sorted(PRIMITIVES_BY_NAME))
     model = ContextualSpanRecognizer(RequestContextConfig(source[0].hidden_states.shape[1],
-                                     width=32, heads=4, layers=1, position_mode=args.position_mode), labels)
+                                     width=32, heads=4, layers=1, position_mode=args.position_mode,
+                                     feature_scaling=args.feature_scaling), labels)
     if args.context == "frozen":
         model.context.requires_grad_(False)
     optimizer = torch.optim.AdamW((p for p in model.parameters() if p.requires_grad),

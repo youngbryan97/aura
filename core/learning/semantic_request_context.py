@@ -21,6 +21,7 @@ class RequestContextConfig:
     heads: int = 4
     layers: int = 2
     position_mode: str = "absolute"
+    feature_scaling: str = "none"
 
     def __post_init__(self) -> None:
         values = (self.input_width, self.width, self.heads, self.layers)
@@ -30,6 +31,8 @@ class RequestContextConfig:
             raise ValueError("request context width must be even and divisible by heads")
         if self.position_mode not in {"absolute", "relative", "none"}:
             raise ValueError("unknown request position representation")
+        if self.feature_scaling not in {"none", "unit_variance"}:
+            raise ValueError("unknown source feature scaling")
 
 
 class RequestContextBlock(nn.Module):
@@ -90,7 +93,10 @@ class SemanticRequestContext(nn.Module):
                               torch.ones_like(features[valid, 0]), atol=1e-4):
             raise ValueError("source features must be unit normalized")
         clean = features.masked_fill(~valid.unsqueeze(-1), 0)
-        state = self.project(clean)
+        # Unit-length features have mean square 1/input_width. Restore the
+        # fan-in scale expected by Linear without changing the residual.
+        scale = math.sqrt(self.config.input_width) if self.config.feature_scaling == "unit_variance" else 1.0
+        state = self.project(clean * scale)
         # Count source tokens, not padding positions, including left padding.
         positions = (valid.long().cumsum(dim=1) - 1).clamp_min(0)
         if self.config.position_mode == "absolute":

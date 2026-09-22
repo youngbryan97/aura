@@ -1177,6 +1177,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Inquiry and shared rules](evidence/G03_INQUIRY_AND_SHARED_RULES_2026-09-22.md):
+  executable distinctions feed inquiry; failed rule outcomes count against
+  derivation. Human-input implementation remains tracked, not declared done.
   [Relational evidence and direct decoder](evidence/G03_RELATIONAL_AND_DIRECT_DECODER_2026-09-22.md):
   experimental adapter and 187/256 source-fold decoder; no serving promotion.
   [Full-source comparison and coordinate correction](evidence/G03_FULL_CONTEXT_AND_COORDINATES_2026-09-21.md):

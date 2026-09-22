@@ -21,6 +21,32 @@ def setup(position_mode="absolute"):
     return model, x, valid
 
 
+def test_scaled_projection_receives_unit_mean_square_features():
+    model = SemanticRequestContext(RequestContextConfig(
+        5120, width=8, heads=2, layers=1, feature_scaling="unit_variance"))
+    seen = []
+    hook = model.project.register_forward_pre_hook(lambda module, args: seen.append(args[0]))
+    x = functional.normalize(torch.randn(1, 3, 5120), dim=-1)
+    result = model(x, torch.ones(1, 3, dtype=torch.bool))
+    hook.remove()
+    torch.testing.assert_close(seen[0].square().mean(dim=-1), torch.ones(1, 3))
+    assert torch.isfinite(result).all()
+
+
+def test_default_scaling_preserves_checkpoint_input_contract():
+    model, x, valid = setup()
+    seen = []
+    hook = model.project.register_forward_pre_hook(lambda module, args: seen.append(args[0]))
+    model(x, valid)
+    hook.remove()
+    torch.testing.assert_close(seen[0], x)
+
+
+def test_unknown_scaling_is_rejected():
+    with pytest.raises(ValueError, match="scaling"):
+        RequestContextConfig(12, feature_scaling="guess")
+
+
 def test_later_clause_changes_earlier_features_only_with_context():
     model, x, valid = setup()
     changed = x.clone()

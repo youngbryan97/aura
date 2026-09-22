@@ -266,6 +266,27 @@ class ProceduralGeneralizer:
             self._episodes.append(episode)
             if len(self._episodes) > self._max_episodes:
                 del self._episodes[: len(self._episodes) - self._max_episodes]
+            # Recorded counterevidence must reach rules already in use, even
+            # when no caller asks to derive that resolution again.
+            for rule in self._rules.values():
+                if not episode.matches(rule.conditions):
+                    continue
+                contradicts = (
+                    episode.resolution == rule.resolution and episode.correct is False
+                ) or (
+                    episode.resolution != rule.resolution and episode.correct is True
+                )
+                if not contradicts:
+                    continue
+                rule.contradicting += 1
+                if episode.protected:
+                    rule.tier = RuleTier.RETIRED
+                elif (
+                    rule.tier is not RuleTier.RETIRED
+                    and (rule.contradicting > self._criteria.max_contradictions
+                         or rule.confidence < self._criteria.min_confidence_lower_bound)
+                ):
+                    rule.tier = RuleTier.CANDIDATE
 
     # -- derivation ------------------------------------------------------
 
@@ -319,7 +340,9 @@ class ProceduralGeneralizer:
         contradicting = [
             e
             for e in episodes
-            if e.matches(causal) and e.resolution != resolution and e.correct is True
+            if e.matches(causal)
+            and ((e.resolution != resolution and e.correct is True)
+                 or (e.resolution == resolution and e.correct is False))
         ]
         protected_contradiction = any(e.protected for e in contradicting)
 

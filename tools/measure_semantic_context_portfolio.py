@@ -22,6 +22,8 @@ def main():
     parser.add_argument("--graph-report", type=Path, required=True, action="append")
     parser.add_argument("--incumbent", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--plan-inquiries", action="store_true",
+                        help="retain answer-blind questions that distinguish complete proposals")
     args = parser.parse_args()
     if args.output.exists():
         parser.error("output already exists")
@@ -76,6 +78,7 @@ def main():
     if len(indexed) != len(rows) or set(indexed) != {(i, a) for i in ids for a in arms}:
         raise ValueError("portfolio graph rows are not complete and paired")
     plan = {"schema": "aura.semantic_program_portfolio_probe.v1", "incumbent": args.incumbent,
+            "plan_inquiries": args.plan_inquiries,
             "method_order": list(arms), "source_ids": ids, "fuel_per_program": 2_000_000,
             "graph_reports": {str(path): hashlib.sha256(path.read_bytes()).hexdigest()
                               for path in args.graph_report},
@@ -88,7 +91,9 @@ def main():
             "source_sha256": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
                 for p in (Path(__file__).resolve(), ROOT / "core/learning/semantic_program_portfolio.py",
                           ROOT / "core/evidence/candidate_portfolio.py",
-                          ROOT / "core/evidence/necessary_condition_selector.py")}}
+                          ROOT / "core/evidence/necessary_condition_selector.py",
+                          ROOT / "core/learning/semantic_program_inquiry.py",
+                          ROOT / "core/perception/expected_information_gain.py")}}
     if not atomic_write_bytes_if_absent(args.output.with_suffix(".plan.json"), json.dumps(plan, sort_keys=True).encode()):
         raise RuntimeError("portfolio plan already exists")
     outcomes = []
@@ -109,6 +114,9 @@ def main():
             fuel=plan["fuel_per_program"])
         selection_s = time.monotonic() - started
         selected = decision.decision.selected
+        inquiry_started = time.monotonic()
+        inquiries = decision.plan_inquiries(fuel=plan["fuel_per_program"]) if args.plan_inquiries else ()
+        inquiry_s = time.monotonic() - inquiry_started
         # Evaluation labels enter only after the selector has returned.
         correct = {arm: indexed[identity, arm]["comparison"]["status"] == "equivalent" for arm in arms}
         outcomes.append({"source": identity, "selected": selected, "correct": correct[selected],
@@ -117,6 +125,8 @@ def main():
                          "method_resolution_s": {arm: indexed[identity, arm]["resolution_s"] for arm in arms},
                          "portfolio_execution_and_comparison_s": selection_s,
                          "candidate_relations": decision.relations,
+                         "inquiries": [inquiry.to_dict() for inquiry in inquiries],
+                         "inquiry_s": inquiry_s,
                          "selection_receipts": [x.receipt for x in decision.decision.comparisons]})
     summary = {"count": len(outcomes), "selected_correct": sum(x["correct"] for x in outcomes),
                "incumbent_correct": sum(x["incumbent_correct"] for x in outcomes),
@@ -126,6 +136,8 @@ def main():
                "selection_counts": dict(Counter(x["selected"] for x in outcomes))}
     summary["method_resolution_s"] = {arm: sum(x["method_resolution_s"][arm] for x in outcomes) for arm in arms}
     summary["portfolio_execution_and_comparison_s"] = sum(x["portfolio_execution_and_comparison_s"] for x in outcomes)
+    summary["inquiry_s"] = sum(x["inquiry_s"] for x in outcomes)
+    summary["cases_with_discriminating_inquiry"] = sum(bool(x["inquiries"]) for x in outcomes)
     summary["candidate_unavailable"] = sum(not x["oracle_available"] for x in outcomes)
     summary["available_but_not_selected"] = sum(x["oracle_available"] and not x["correct"] for x in outcomes)
     summary["candidate_relations"] = dict(Counter(

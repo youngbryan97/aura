@@ -122,7 +122,11 @@ def _score(
     matched = []
     depth = 0.0
     for relation in source.relations:
-        projected = tuple(mapping.get(a, a) for a in relation.args)
+        if any(a not in mapping for a in relation.args):
+            continue
+        if predicates is not None and relation.predicate not in predicates:
+            continue
+        projected = tuple(mapping[a] for a in relation.args)
         read_as = (
             predicates.get(relation.predicate, relation.predicate)
             if predicates
@@ -239,20 +243,22 @@ def map_structures(
         )
     readings = _predicate_candidates(source, target)
     best: Alignment | None = None
-    for permutation in itertools.permutations(target_objects, len(source_objects)):
-        mapping = dict(zip(source_objects, permutation, strict=True))
-        for reading in readings:
-            score, systematicity, matched = _score(source, target, mapping, reading)
-            # Strictly better only. Readings arrive with the fewest renamings
-            # first, so an equal score keeps the more conservative one.
-            if best is None or (score, systematicity) > (best.score, best.systematicity):
-                best = Alignment(
-                    mapping=mapping,
-                    matched=tuple(matched),
-                    score=score,
-                    systematicity=systematicity,
-                    predicate_mapping=dict(reading),
-                )
+    size = min(len(source_objects), len(target_objects))
+    # A maximal partial injection can extend every smaller injection without
+    # removing matches. Enumerate source subsets when the target is smaller.
+    for subset in itertools.combinations(source_objects, size):
+        for permutation in itertools.permutations(target_objects, size):
+            mapping = dict(zip(subset, permutation, strict=True))
+            for reading in readings:
+                score, systematicity, matched = _score(source, target, mapping, reading)
+                if best is None or (score, systematicity) > (best.score, best.systematicity):
+                    best = Alignment(
+                        mapping=mapping,
+                        matched=tuple(matched),
+                        score=score,
+                        systematicity=systematicity,
+                        predicate_mapping=dict(reading),
+                    )
     return best
 
 

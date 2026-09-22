@@ -34,6 +34,17 @@ class SemanticProgramPortfolio:
     def selected_program(self):
         return dict(self.proposals)[self.decision.selected]
 
+    def plan_inquiries(self, *, fuel: int = 100_000):
+        """Use retained disagreement witnesses to plan actual observations."""
+        from core.learning.semantic_program_inquiry import plan_program_inquiries
+
+        probes = tuple(tuple(relation["witness"]["inputs"])
+                       for _, _, relation in self.relations
+                       if relation.get("status") == "different" and "witness" in relation)
+        return plan_program_inquiries(
+            {name: program for name, program in self.proposals if program is not None},
+            probes, fuel=fuel)
+
 
 def select_semantic_program_portfolio(*, proposals: Mapping[str, Program | None],
                                      provenance: Mapping[str, str], public_inputs: tuple,
