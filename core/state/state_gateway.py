@@ -160,12 +160,18 @@ class ConcreteStateGateway(StateGatewayBase):
 
     async def snapshot(self, *, domain: str = "world_state") -> dict[str, Any]:
         domain = _safe_domain(domain)
-        with self._lock:
-            return {
-                key: value
-                for (cached_domain, key), value in self._cache.items()
-                if cached_domain == domain
-            }
+        def read_domain() -> dict[str, Any]:
+            rows: dict[str, Any] = {}
+            for path in sorted((self.root / domain).glob("*.json")):
+                _, payload = _read_state_payload(path)
+                key = payload.get("key")
+                if not isinstance(key, str) or not key or key in rows:
+                    raise ValueError("state snapshot contains an invalid or duplicate key")
+                rows[key] = payload.get("value")
+            return rows
+
+        async with self._mutation_lock:
+            return await asyncio.to_thread(read_domain)
 
     async def _authorize(
         self,

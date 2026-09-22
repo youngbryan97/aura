@@ -13,8 +13,9 @@ from core.evidence.necessary_condition_selector import (
 )
 from core.evidence.packet import observe, fuse
 from core.learning.procedure_induction import Program
+from core.learning.semantic_program_composition import ProgramComposition, compose_semantic_programs
 from core.learning.semantic_graph_counterexamples import (
-    compare_program_meanings,
+    ProgramObservationCache, compare_program_meanings,
     counterfactual_inputs,
 )
 from core.learning.semantic_program_floor import (
@@ -29,6 +30,8 @@ class SemanticProgramPortfolio:
     decision: CandidatePortfolioDecision
     executions: tuple[tuple[str, dict], ...]
     relations: tuple[tuple[str, str, dict], ...]
+    composition: ProgramComposition | None = None
+    source_sha256: str = ""
 
     @property
     def selected_program(self):
@@ -43,7 +46,7 @@ class SemanticProgramPortfolio:
                        if relation.get("status") == "different" and "witness" in relation)
         return plan_program_inquiries(
             {name: program for name, program in self.proposals if program is not None},
-            probes, fuel=fuel)
+            probes, fuel=fuel, source_sha256=self.source_sha256)
 
     async def retain_inquiries(self, gateway, *, fuel: int = 100_000):
         """Retain unanswered distinctions without putting floor work on the loop."""
@@ -51,6 +54,27 @@ class SemanticProgramPortfolio:
 
         inquiries = await off_the_loop(self.plan_inquiries, fuel=fuel)
         return tuple([await inquiry.retain(gateway) for inquiry in inquiries])
+
+    async def reconcile_retained_inquiries(self, gateway, *, fuel: int = 100_000):
+        """Replay durable caller-observed feedback against the unchanged proposals."""
+        from core.learning.semantic_program_inquiry import ObservedProgramInquiry, ProgramInquiry
+        from core.runtime.executors import off_the_loop
+
+        pending = await gateway.snapshot(domain="semantic_inquiries")
+        observed = await ObservedProgramInquiry.restore_all(gateway)
+        program_shas = {name: program.sha() for name, program in self.proposals
+                        if program is not None}
+        feedback = []
+        for record in observed:
+            inquiry = record.inquiry
+            if (dict(inquiry.program_shas) != program_shas
+                    or inquiry.source_sha256 != self.source_sha256):
+                continue
+            retained = pending.get(inquiry.identity)
+            if retained is None or ProgramInquiry.from_dict(retained) != inquiry:
+                raise ValueError("observed inquiry lacks the matching retained distinction")
+            feedback.append((inquiry, record.observed_result, record.origin, record.ref))
+        return await off_the_loop(self.reconcile_inquiries, tuple(feedback), fuel=fuel)
 
     def reconcile_inquiry(self, inquiry, *, observed_result, origin: str, ref: str,
                           fuel: int = 100_000):
@@ -72,9 +96,11 @@ class SemanticProgramPortfolio:
                 raise ValueError("feedback requires a bound program inquiry")
             if programs != dict(inquiry.program_shas):
                 raise ValueError("inquiry feedback belongs to different programs")
+            if inquiry.source_sha256 != self.source_sha256:
+                raise ValueError("inquiry feedback belongs to a different source request")
             replay = plan_program_inquiries(
                 {name: p for name, p in self.proposals if p is not None},
-                (inquiry.inputs,), fuel=fuel,
+                (inquiry.inputs,), fuel=fuel, source_sha256=self.source_sha256,
             )
             if not replay or dict(replay[0].predictions) != dict(inquiry.predictions):
                 raise ValueError("inquiry predictions do not match checked program execution")
@@ -119,7 +145,8 @@ class SemanticProgramPortfolio:
 def select_semantic_program_portfolio(*, proposals: Mapping[str, Program | None],
                                      provenance: Mapping[str, str], public_inputs: tuple,
                                      observation_sha256: str, incumbent: str,
-                                     fuel: int = 2_000_000) -> SemanticProgramPortfolio:
+                                     fuel: int = 2_000_000, composition_budget: int = 0,
+                                     composition_examined_limit: int = 256) -> SemanticProgramPortfolio:
     """Preserve an executable incumbent and repair failures with other methods.
 
     Floor completion is necessary, not sufficient, for semantic correctness.
@@ -127,12 +154,26 @@ def select_semantic_program_portfolio(*, proposals: Mapping[str, Program | None]
     to resolve their meanings or infer which answer is correct.
     """
     if (not proposals or set(proposals) != set(provenance) or incumbent not in proposals
-            or type(fuel) is not int or fuel < 1):
+            or type(fuel) is not int or fuel < 1
+            or type(composition_budget) is not int or composition_budget < 0
+            or type(composition_examined_limit) is not int or composition_examined_limit < 1):
         raise ValueError("invalid semantic portfolio")
     for identity in (observation_sha256, *provenance.values()):
         if (not isinstance(identity, str) or len(identity) != 64
                 or any(x not in "0123456789abcdef" for x in identity)):
             raise ValueError("portfolio observation and methods need immutable identities")
+    proposals, provenance = dict(proposals), dict(provenance)
+    composition = None
+    if composition_budget:
+        composition = compose_semantic_programs(
+            proposals, public_inputs, max_candidates=composition_budget,
+            max_examined=composition_examined_limit,
+        )
+        for candidate in composition.candidates:
+            if candidate.name in proposals:
+                raise ValueError("derived proposal identity conflicts with an existing method")
+            proposals[candidate.name] = candidate.program
+            provenance[candidate.name] = candidate.provenance_sha256
     measurements, packets, executions = {}, {}, []
     for name, program in proposals.items():
         if program is not None and not isinstance(program, Program):
@@ -165,8 +206,11 @@ def select_semantic_program_portfolio(*, proposals: Mapping[str, Program | None]
                                           measurements=measurements, provenance=packets)
     relations = []
     probes = counterfactual_inputs(public_inputs, count=16)
+    observation_cache = ProgramObservationCache(capacity=max(256, len(proposals) * len(probes)))
     for left, right in combinations(proposals, 2):
         if measurements[left]["executable_program"] and measurements[right]["executable_program"]:
             relations.append((left, right, compare_program_meanings(
-                proposals[left], proposals[right], probes, fuel=fuel)))
-    return SemanticProgramPortfolio(tuple(proposals.items()), decision, tuple(executions), tuple(relations))
+                proposals[left], proposals[right], probes, fuel=fuel,
+                observation_cache=observation_cache)))
+    return SemanticProgramPortfolio(tuple(proposals.items()), decision, tuple(executions),
+                                    tuple(relations), composition, observation_sha256)

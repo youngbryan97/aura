@@ -1177,6 +1177,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Mixed proposals and durable feedback](evidence/G03_MIXED_METHOD_PROPOSALS_2026-09-22.md)
+  retain original methods and recover one of fourteen missing candidates on
+  exposed development data; selection and transfer remain open.
+  [Full-portfolio gap attribution](evidence/G03_PORTFOLIO_GAP_ATTRIBUTION_2026-09-22.md)
+  separates missing candidates from wrong selection on the 500 exposed tasks.
   [Observed inquiry feedback](evidence/G03_INQUIRY_FEEDBACK_2026-09-22.md),
   [retention](evidence/G03_INQUIRY_RETENTION_2026-09-22.md), and
   [condition ablation](evidence/G03_CONDITION_ABLATION_2026-09-22.md):

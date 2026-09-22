@@ -6,7 +6,9 @@ import json
 from dataclasses import replace
 
 from core.learning.procedure_induction import Instruction, Program
-from core.learning.semantic_program_inquiry import ProgramInquiry, plan_program_inquiries
+from core.learning.semantic_program_inquiry import (
+    ObservedProgramInquiry, ProgramInquiry, plan_program_inquiries,
+)
 from core.learning.semantic_program_portfolio import select_semantic_program_portfolio
 
 
@@ -72,6 +74,25 @@ def test_inquiry_identity_binds_the_hypotheses_not_only_probe_values():
         {"a": program("add"), "b": program("sub")}, [(3, 2)], fuel=100_000
     )[0]
     assert first.identity != second.identity
+
+
+def test_inquiry_identity_binds_request_not_only_programs_and_probe():
+    proposals = {"add": program("add"), "multiply": program("mul")}
+    first = plan_program_inquiries(proposals, [(3, 2)], fuel=100_000,
+                                   source_sha256="a" * 64)[0]
+    second = plan_program_inquiries(proposals, [(3, 2)], fuel=100_000,
+                                    source_sha256="b" * 64)[0]
+    assert first.identity != second.identity
+    assert ProgramInquiry.from_dict(json.loads(json.dumps(first.to_dict()))) == first
+    assert first.to_dict()["schema"] == "aura.semantic_program_inquiry.v2"
+    portfolio = select_semantic_program_portfolio(
+        proposals=proposals, incumbent="add",
+        provenance={"add": "a" * 64, "multiply": "b" * 64},
+        public_inputs=(2, 2), observation_sha256="a" * 64,
+    )
+    with pytest.raises(ValueError, match="different source request"):
+        portfolio.reconcile_inquiry(second, observed_result=6,
+                                    origin="user-example", ref="turn-1")
 
 
 def test_pending_inquiry_roundtrips_without_becoming_an_observation():
@@ -168,7 +189,8 @@ def test_observed_feedback_changes_selection_without_an_evaluation_key():
         provenance={"add": "a" * 64, "multiply": "b" * 64},
         public_inputs=(2, 2), observation_sha256="c" * 64, incumbent="add",
     )
-    inquiry = plan_program_inquiries(dict(portfolio.proposals), [(3, 2)], fuel=100_000)[0]
+    inquiry = plan_program_inquiries(dict(portfolio.proposals), [(3, 2)], fuel=100_000,
+                                    source_sha256=portfolio.source_sha256)[0]
     assert portfolio.reconcile_inquiry(
         inquiry, observed_result=5, origin="user-example", ref="one"
     ).selected == "add"
@@ -188,7 +210,8 @@ def test_feedback_cannot_be_applied_to_changed_programs():
         public_inputs=(2, 2), observation_sha256="c" * 64, incumbent="add",
     )
     wrong = plan_program_inquiries(
-        {"add": program("sub"), "multiply": program("mul")}, [(3, 2)], fuel=100_000
+        {"add": program("sub"), "multiply": program("mul")}, [(3, 2)], fuel=100_000,
+        source_sha256=portfolio.source_sha256,
     )[0]
     with pytest.raises(ValueError, match="different programs"):
         portfolio.reconcile_inquiry(wrong, observed_result=6, origin="observed", ref="one")
@@ -200,7 +223,8 @@ def test_selection_replays_predictions_instead_of_trusting_bound_names():
         provenance={"add": "a" * 64, "multiply": "b" * 64},
         public_inputs=(2, 2), observation_sha256="c" * 64, incumbent="add",
     )
-    inquiry = plan_program_inquiries(dict(portfolio.proposals), [(3, 2)], fuel=100_000)[0]
+    inquiry = plan_program_inquiries(dict(portfolio.proposals), [(3, 2)], fuel=100_000,
+                                    source_sha256=portfolio.source_sha256)[0]
     forged = replace(inquiry, predictions=(("add", '["integer", 6]'),
                                            ("multiply", '["integer", 5]')))
     with pytest.raises(ValueError, match="checked program execution"):
@@ -213,7 +237,8 @@ def test_history_does_not_resurrect_previously_refuted_programs():
         provenance={"add": "a" * 64, "multiply": "b" * 64, "sub": "d" * 64},
         public_inputs=(2, 2), observation_sha256="c" * 64, incumbent="add",
     )
-    questions = plan_program_inquiries(dict(portfolio.proposals), [(3, 2), (2, 2)], fuel=100_000)
+    questions = plan_program_inquiries(dict(portfolio.proposals), [(3, 2), (2, 2)],
+                                       fuel=100_000, source_sha256=portfolio.source_sha256)
     by_inputs = {q.inputs: q for q in questions}
     history = [(by_inputs[3, 2], 6, "observed", "first"),
                (by_inputs[2, 2], 4, "observed", "second")]
@@ -224,3 +249,62 @@ def test_history_does_not_resurrect_previously_refuted_programs():
     with pytest.raises(ValueError, match="conflicting feedback"):
         portfolio.reconcile_inquiries(history + [(by_inputs[3, 2], 5, "observed", "first")])
     assert portfolio.reconcile_inquiries([]) is portfolio.decision
+
+
+def test_observed_feedback_survives_reopen_and_revises_the_portfolio(tmp_path):
+    from core.state.state_gateway import ConcreteStateGateway
+
+    portfolio = select_semantic_program_portfolio(
+        proposals={"add": program("add"), "multiply": program("mul")},
+        provenance={"add": "a" * 64, "multiply": "b" * 64},
+        public_inputs=(2, 2), observation_sha256="c" * 64, incumbent="add",
+    )
+    inquiry = portfolio.plan_inquiries()[0]
+    prediction = json.loads(dict(inquiry.predictions)["multiply"])[1]
+
+    async def run():
+        writer = ConcreteStateGateway(root=tmp_path, governance_decide=lambda **_: True)
+        await inquiry.retain(writer)
+        observed = ObservedProgramInquiry(inquiry, prediction, "user-example", "turn-1")
+        await observed.retain(writer)
+        reader = ConcreteStateGateway(root=tmp_path)
+        restored = await ObservedProgramInquiry.restore_all(reader)
+        assert restored == (observed,)
+        assert (await portfolio.reconcile_retained_inquiries(reader)).selected == "multiply"
+        return reader
+
+    asyncio.run(run())
+
+
+def test_retained_conflicting_outcomes_do_not_choose_a_candidate(tmp_path):
+    from core.state.state_gateway import ConcreteStateGateway
+
+    portfolio = select_semantic_program_portfolio(
+        proposals={"add": program("add"), "multiply": program("mul")},
+        provenance={"add": "a" * 64, "multiply": "b" * 64},
+        public_inputs=(2, 2), observation_sha256="c" * 64, incumbent="add",
+    )
+    inquiry = portfolio.plan_inquiries()[0]
+
+    async def run():
+        gateway = ConcreteStateGateway(root=tmp_path, governance_decide=lambda **_: True)
+        await inquiry.retain(gateway)
+        await ObservedProgramInquiry(inquiry, 5, "user-example", "turn-1").retain(gateway)
+        await ObservedProgramInquiry(inquiry, 6, "user-example", "turn-1").retain(gateway)
+        reopened = ConcreteStateGateway(root=tmp_path)
+        with pytest.raises(ValueError, match="conflicting feedback"):
+            await portfolio.reconcile_retained_inquiries(reopened)
+
+    asyncio.run(run())
+
+
+def test_observed_record_rejects_changed_result_and_identity():
+    inquiry = plan_program_inquiries(
+        {"add": program("add"), "multiply": program("mul")}, [(3, 2)], fuel=100_000
+    )[0]
+    observed = ObservedProgramInquiry(inquiry, 5, "user-example", "turn-1")
+    assert ObservedProgramInquiry.from_dict(json.loads(json.dumps(observed.to_dict()))) == observed
+    changed = observed.to_dict()
+    changed["observed_result"] = '["integer", 6]'
+    with pytest.raises(ValueError, match="digest or bindings"):
+        ObservedProgramInquiry.from_dict(changed)

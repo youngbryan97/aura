@@ -179,6 +179,21 @@ async def test_state_domains_do_not_alias_same_key(tmp_root, approve_all):
 
 
 @pytest.mark.asyncio
+async def test_state_snapshot_reads_durable_entries_after_gateway_reopen(tmp_root, approve_all):
+    from core.state.state_gateway import ConcreteStateGateway
+
+    root = tmp_root / "state_reopened_snapshot"
+    first = ConcreteStateGateway(root=root, governance_decide=approve_all)
+    await first.mutate(StateMutationRequest(
+        key="first", new_value={"state": "observed"}, cause="test", domain="cognition"))
+    await first.mutate(StateMutationRequest(
+        key="other", new_value=3, cause="test", domain="body"))
+    reopened = ConcreteStateGateway(root=root)
+    assert await reopened.snapshot(domain="cognition") == {"first": {"state": "observed"}}
+    assert await reopened.snapshot(domain="body") == {"other": 3}
+
+
+@pytest.mark.asyncio
 async def test_state_receipt_failure_rolls_back_durable_and_cached_value(
     tmp_root,
     approve_all,
