@@ -21,6 +21,9 @@ include_rules = [
     "+core.config",
     "+core.constitution",
     "+core.container",
+    # The belief engine is the world model's belief facet: one world model
+    # under one service name instead of two objects that replaced each other.
+    "+core.final_engines",
     "+core.governance_context",
     "+core.health",
     "+core.resilience",

@@ -341,7 +341,11 @@ class DreamingProcess:
 
             # 3. Feed patterns into EpistemicState (world model) as beliefs
             try:
-                world_model = ServiceContainer.get("world_model", default=None)
+                # The epistemic state, which holds subject-predicate-object
+                # beliefs. This asked for `world_model`, which is the world
+                # model's facets and has no `update_belief`, so the guard below
+                # was false on every dream and no pattern ever reached a belief.
+                world_model = ServiceContainer.get("epistemic_state", default=None)
                 if world_model and hasattr(world_model, "update_belief"):
                     max_freq = max((p["frequency"] for p in patterns), default=1)
                     for p in patterns:

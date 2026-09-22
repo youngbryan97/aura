@@ -19,16 +19,16 @@ Wire these from orchestrator._init_autonomous_evolution():
     from core.final_engines import register_final_engines
     register_final_engines(orchestrator=self)
 """
-from core.runtime.numeric_safety import validated_unit
-
-from core.runtime.atomic_writer import atomic_write_text
-from core.runtime.service_registry import register_runtime_service
 import json
 import logging
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.numeric_safety import validated_unit
+from core.runtime.service_registry import register_runtime_service
 
 logger = logging.getLogger("Aura.FinalEngines")
 
@@ -220,9 +220,16 @@ def register_final_engines(orchestrator=None) -> Dict[str, Any]:
     engines: Dict[str, Any] = {}
 
     engines["world"] = WorldModelEngine()
+    # One world model. The belief engine is its belief facet, and the name
+    # stays on the model with every facet, so a caller that asks for beliefs
+    # and one that asks for the causal graph reach the same object.
+    from core.world_model.unified_world_model import get_unified_world_model
+
+    world = get_unified_world_model()
+    world.adopt_beliefs(engines["world"])
     register_runtime_service(
         "world_model",
-        engines["world"],
+        world,
         owner="core/final_engines.py",
         registered_by="register_final_engines",
     )

@@ -45,13 +45,20 @@ class UnifiedWorldModel:
     """A composite facade: one interface, four specialist world-model facets behind it."""
 
     def __init__(
-        self, *, learned: Any = None, causal: Any = None, outcome: Any = None, rules: Any = None
+        self,
+        *,
+        learned: Any = None,
+        causal: Any = None,
+        outcome: Any = None,
+        rules: Any = None,
+        belief_store: Any = None,
     ) -> None:
         # Pre-injected facets (used by tests) are treated as already-resolved.
         self._learned = learned
         self._causal = causal
         self._outcome = outcome
         self._rules = rules
+        self._belief_store = belief_store
         self._failed: Dict[str, bool] = {}
 
     # ── lazy, fault-isolated facet resolution ─────────────────────────────
@@ -120,6 +127,53 @@ class UnifiedWorldModel:
                                    action="outcome facet unavailable")
                 self._failed["outcome"] = True
         return self._outcome
+
+    @property
+    def belief_store(self) -> Any:
+        """What she holds true about the world: claims with a confidence and their evidence.
+
+        The fifth facet. Two objects were registered as `world_model`: this
+        one, and at orchestrator boot the belief engine in core/final_engines.py,
+        which replaced it. Which one a caller got depended on which registration
+        ran last. The prompt assembler, the resource governor and the browser
+        skill asked for beliefs, and the affect grounding and the subject core
+        asked for surprise and the causal graph, so whichever object won, one
+        side of her world model was missing from the other side's callers. It
+        is one model now, and the belief engine is the facet that holds claims.
+        """
+        if self._belief_store is None and not self._failed.get("beliefs"):
+            try:
+                from core.final_engines import WorldModelEngine
+                self._belief_store = WorldModelEngine()
+            except (ImportError, AttributeError, RuntimeError, OSError, ValueError, TypeError) as exc:
+                record_degradation("unified_world_model", exc, severity="debug",
+                                   action="belief facet unavailable")
+                self._failed["beliefs"] = True
+        return self._belief_store
+
+    def adopt_beliefs(self, store: Any) -> None:
+        """Hold this belief engine as the belief facet, the one boot built and loaded."""
+        self._belief_store = store
+        self._failed.pop("beliefs", None)
+
+    @property
+    def beliefs(self) -> Dict[str, Any]:
+        store = self.belief_store
+        return getattr(store, "beliefs", {}) if store is not None else {}
+
+    def add_belief(
+        self, claim: str, confidence: float, source_id: Optional[str] = None, tags: Optional[List[str]] = None
+    ) -> None:
+        store = self.belief_store
+        if store is not None:
+            store.add_belief(claim, confidence, source_id=source_id, tags=tags)
+
+    def get_context_injection(self) -> str:
+        """Her most confident beliefs about the world, as the prompt carries them."""
+        store = self.belief_store
+        if store is None:
+            return ""
+        return str(store.get_context_injection() or "")
 
     # ── forward dynamics (LearnedWorldModel) ──────────────────────────────
 
@@ -375,6 +429,11 @@ class UnifiedWorldModel:
     def status(self) -> Dict[str, Any]:
         """Which facets are live, and each one's own status where it exposes one."""
         out: Dict[str, Any] = {"module": "UnifiedWorldModel", "facets": {}}
+        store = self.belief_store
+        out["facets"]["beliefs"] = {
+            "available": store is not None,
+            "detail": {"count": len(getattr(store, "beliefs", {}) or {})} if store is not None else {},
+        }
         for name in ("learned", "causal", "outcome"):
             facet = getattr(self, name)
             entry: Dict[str, Any] = {"available": facet is not None}

@@ -152,7 +152,7 @@ async def test_dream_cycle_continues_when_downstream_services_fail(service_conta
                 raise RuntimeError("vector memory offline")
 
     dreamer._get_recent_summary = _recent_summary
-    service_container.register_instance("world_model", BrokenWorldModel(), required=False)
+    service_container.register_instance("epistemic_state", BrokenWorldModel(), required=False)
     service_container.register_instance("homeostasis", BrokenHomeostasis(), required=False)
     service_container.register_instance("credit_assignment", BrokenCredit(), required=False)
     service_container.register_instance(
