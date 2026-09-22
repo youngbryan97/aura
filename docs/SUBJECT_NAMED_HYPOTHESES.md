@@ -109,6 +109,44 @@ the conjunction, and fails it on one component, on every declared seed.
 Refuted if it passes the conjunction on any seed, or fails it only on lines
 other than one component.
 
+## Amendment, 22 September 2026, before any seed-19 reading was opened
+
+Found on seed 7, the diagnostic seed, from the whole-proof campaign's side
+record (40 rounds, c2195b4f1). No seed-19 number had been read.
+
+- **Ties are read by change, not by level.** Her readings drift slowly, and two
+  drifting series correlate whatever they are. On seed 7 a shifted copy of the
+  joy baseline correlated with contentment at 0.9953, so the null bar sat
+  there, and the tie "passed" at 0.9956: a measure of drift, not of the
+  coupling he described. The tie statistic, the largest lagged correlation
+  against the same shifted-copy null, is now taken on first differences.
+  Controls (tests/test_the_named_hypotheses_can_be_tested.py): six seeds of
+  independent random walks and one of independent trends pass no tie; a
+  reading that follows another's changes a step later passes every tie.
+- **What matters only together is scored by the battery's own synergy line**
+  (ISC-v3, `passes_v3` in core/subject/synergy.py): the raw synergy against
+  the bootstrap null and the shifted null, with the held-out interaction
+  bound. It had read the fraction against its shifted null, the bar v3
+  retired because a ratio of two small numbers keeps a wide null.
+- **A reading that never moved is not measured, and is reported so.** On
+  seed 7 `unknown_person` held 0 for all 10,560 frames: no condition in the
+  workload puts a stranger in front of her. That tie reads NOT MEASURED, not
+  FAIL, until a condition does. `habit_deficit` also never moved there; no H
+  reads it, and the reason is a loop that cannot fire in this workload: the
+  subject driver calls an act weighed whenever her attention maps to one, which
+  is nearly every turn, and automatic only when the drive decides alone. In a
+  probe of four rounds weighed outcomes reached 105 and automatic takings
+  stayed at 1, so no habit ever reached the three takings it is judged on.
+- **H1 had no evaluator.** The prediction above was written and nothing read
+  it off a content report. `check_families` (core/subject/named_readings.py)
+  applies the rule as written, both inequalities on the internal geometry, and
+  reports beside the verdict whether each margin clears the run's internal
+  floor. `tools/check_subject_named_hypotheses.py --content REPORT` runs it.
+- **Nor had H4.** The nulls stage runs `drives_only` and a test holds that it
+  loses one component, but no step read the verdict off a campaign.
+  `check_drives_only` does: the row's `one_component` field, since losing it
+  is losing the conjunction. `--campaign REPORT` runs it.
+
 ## What these do not license
 
 They are predictions from one person's account of himself, tested on her. A

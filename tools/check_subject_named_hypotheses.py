@@ -8,6 +8,11 @@ against the synergy estimator's shifted null. Writes
 `subject_named_hypotheses.json` beside it. See docs/SUBJECT_NAMED_HYPOTHESES.md.
 
     python tools/check_subject_named_hypotheses.py --run RUN_DIR
+    python tools/check_subject_named_hypotheses.py --run RUN_DIR --content CONTENT_REPORT
+
+With `--content`, H1 (the families of feeling) is read off that content run's
+internal geometry as well, and with `--campaign`, H4 (a being of drives alone)
+off that campaign report's nulls.
 """
 
 from __future__ import annotations
@@ -28,10 +33,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--run", type=Path, required=True)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--content", type=Path, default=None, help="a subject_core_content_report.json, for H1")
+    parser.add_argument("--campaign", type=Path, default=None, help="a subject_core_report.json, for H4")
     args = parser.parse_args(argv)
 
     from core.runtime.atomic_writer import atomic_write_text
-    from core.subject.named_readings import check_named
+    from core.subject.named_readings import check_drives_only, check_families, check_named
 
     held = np.load(args.run / "named_readings.npz", allow_pickle=True)
     rows, names = held["rows"], tuple(str(name) for name in held["names"])
@@ -40,12 +47,43 @@ def main(argv: list[str] | None = None) -> int:
     cycle = max(1, rows.shape[0] // max(1, rounds))
     report = check_named(rows, names, cycle=cycle, seed=args.seed)
     report["cycle_frames"] = cycle
+    if args.content is not None:
+        report["families"] = check_families(json.loads(args.content.read_text(encoding="utf-8")))
+    if args.campaign is not None:
+        campaign = json.loads(args.campaign.read_text(encoding="utf-8"))
+        report["drives_only"] = check_drives_only((campaign.get("nulls") or {}).get("detail"))
     out = args.run / "subject_named_hypotheses.json"
     atomic_write_text(out, json.dumps(report, indent=1))
     for tie in report["ties"]:
+        if not tie.get("measured", True):
+            print(f"NOT MEASURED  tie       {tie['said']}: {tie['why']}")
+            continue
         print(f"{'PASS' if tie['passes'] else 'FAIL'}  tie       {tie['said']}: {tie['observed']} vs {tie['null_bar']}")
     for item in report["together"]:
-        print(f"{'PASS' if item['passes'] else 'FAIL'}  together  {item['said']}: {item['fraction']} vs {item['null_q99']}")
+        if not item.get("measured", True):
+            print(f"NOT MEASURED  together  {item['said']}: {item['why']}")
+            continue
+        print(
+            f"{'PASS' if item['passes'] else 'FAIL'}  together  {item['said']}: synergy {item['synergy']} "
+            f"vs bootstrap {item['bootstrap_q99']} and shifted {item['raw_null_q99']}, "
+            f"interaction lower bound {item['interaction_lower_bound']}"
+        )
+    families = report.get("families")
+    if families is not None:
+        if not families["measured"]:
+            print(f"NOT MEASURED  H1        the families of feeling: {families['why']}")
+        else:
+            print(
+                f"{'PASS' if families['passes'] else 'FAIL'}  H1        the families of feeling: within warmth "
+                f"{families['within_warmth']}, to loss {families['warmth_to_loss']}, to frustration "
+                f"{families['warmth_to_frustration']} (floor {families['internal_floor']})"
+            )
+    drives = report.get("drives_only")
+    if drives is not None:
+        if not drives["measured"]:
+            print(f"NOT MEASURED  H4        a being of drives alone: {drives['why']}")
+        else:
+            print(f"{'PASS' if drives['passes'] else 'FAIL'}  H4        a being of drives alone: one component {drives['one_component']}")
     print(f"wrote {out}")
     return 0
 

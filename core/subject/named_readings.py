@@ -147,6 +147,14 @@ class NamedAccumulator:
         return rows, tuple(NAMED)
 
 
+def _never_moved(matrix: np.ndarray, columns: list[str], wanted: tuple[str, ...]) -> str:
+    """The first of these readings that held one value throughout, or ''."""
+    for name in wanted:
+        if float(np.std(matrix[:, columns.index(name)])) < 1e-12:
+            return name
+    return ""
+
+
 def _max_lagged(a: np.ndarray, b: np.ndarray, lags: int) -> float:
     best = 0.0
     for lag in range(0, lags + 1):
@@ -184,8 +192,17 @@ def check_named(
     rng = np.random.default_rng(seed)
     ties: list[dict[str, Any]] = []
     for left, right, said in TIES:
-        a = complete[:, columns.index(left)]
-        b = complete[:, columns.index(right)]
+        still = _never_moved(complete, columns, (left, right))
+        if still:
+            ties.append({"pair": [left, right], "said": said, "measured": False, "passes": None,
+                         "why": f"{still} never moved over {complete.shape[0]} frames"})
+            continue
+        # Read by what changed, not by level. Her readings drift slowly, and two
+        # drifting series correlate whatever they are: on seed 7 a shifted copy
+        # of the joy baseline correlated with contentment at 0.9953, and the
+        # tie "passed" at 0.9956. Changes carry the coupling and not the drift.
+        a = np.diff(complete[:, columns.index(left)])
+        b = np.diff(complete[:, columns.index(right)])
         observed = _max_lagged(a, b, cycle)
         shifts = max(1, len(a) // max(1, cycle) - 1)
         null = [
@@ -193,15 +210,110 @@ def check_named(
             for _ in range(draws)
         ]
         bar = float(np.quantile(null, 1.0 - 0.05 / len(TIES))) if null else float("inf")
-        ties.append({"pair": [left, right], "said": said, "observed": round(observed, 6),
+        ties.append({"pair": [left, right], "said": said, "measured": True, "observed": round(observed, 6),
                      "null_bar": round(bar, 6), "passes": observed > bar})
     frame = _Frame(complete, tuple(columns))
     together: list[dict[str, Any]] = []
     for source_a, source_b, target, said in TOGETHER:
+        still = _never_moved(complete, columns, (source_a, source_b, target))
+        if still:
+            together.append({"sources": [source_a, source_b], "target": target, "said": said,
+                             "measured": False, "passes": None,
+                             "why": f"{still} never moved over {complete.shape[0]} frames"})
+            continue
         report = synergy(frame, source_a, source_b, target, seed=seed, of="change")  # type: ignore[arg-type]
+        # The battery's own synergy line (ISC-v3): the raw synergy against the
+        # bootstrap null and the shifted null, and the held-out interaction.
+        # The fraction against its shifted null, which this read first, is the
+        # bar v3 retired: a ratio of two small numbers whose null stays wide.
         together.append({"sources": [source_a, source_b], "target": target, "said": said,
-                         "fraction": round(float(report.normalised), 6),
-                         "null_q99": round(float(report.null_q99), 6),
-                         "passes": float(report.normalised) > float(report.null_q99)})
+                         "measured": True,
+                         "synergy": round(float(report.synergy), 6),
+                         "bootstrap_q99": round(float(report.bootstrap_q99), 6),
+                         "raw_null_q99": round(float(report.raw_null_q99), 6),
+                         "interaction_lower_bound": round(float(report.interaction_lower_bound), 6),
+                         "passes": bool(report.passes_v3)})
     return {"rows": int(complete.shape[0]), "dropped": int(matrix.shape[0] - complete.shape[0]),
             "ties": ties, "together": together}
+
+
+# ── H1: the families of feeling, read off a content run ────────────────────
+
+#: His families, as the percept kinds the content run presents. Anger has no
+#: kind (in her it comes from somebody objecting, not from something seen),
+#: so the frustration kinds nearest it stand in. docs/SUBJECT_NAMED_HYPOTHESES.md.
+FAMILIES: dict[str, tuple[str, ...]] = {
+    "warmth": ("cared_for", "positive_interaction", "interaction", "extended_dialogue"),
+    "loss": ("disconnection",),
+    "frustration": ("error", "internal_error", "self_correction", "inner_conflict"),
+}
+
+
+def check_families(report: dict[str, Any]) -> dict[str, Any]:
+    """H1 as registered: warmth kinds nearer each other than to loss and to frustration.
+
+    Both inequalities on the content run's internal geometry, the Fisher-Rao
+    distance between the futures two classes induce from one fork. Refuted if
+    either fails. Whether each margin clears the run's own internal floor is
+    reported beside the verdict and does not change it.
+    """
+    classes = [c for c in report.get("classes") or () if isinstance(c, dict)]
+    internal = report.get("internal") or {}
+    kinds = [str(c.get("kind") or "") for c in classes]
+    if not classes or not internal:
+        return {"measured": False, "passes": None, "why": "the content run has no internal geometry"}
+
+    def members(family: str) -> list[int]:
+        return [i for i, kind in enumerate(kinds) if kind in FAMILIES[family]]
+
+    warmth, loss, frustration = members("warmth"), members("loss"), members("frustration")
+    missing = [name for name, found in (("warmth", len(warmth) >= 2), ("loss", loss), ("frustration", frustration)) if not found]
+    if missing:
+        return {"measured": False, "passes": None,
+                "why": f"no class of the {', '.join(missing)} family among {sorted(set(kinds))}"}
+
+    def distance(i: int, j: int) -> float | None:
+        value = internal.get(f"{min(i, j)}-{max(i, j)}")
+        return None if value is None else float(value)
+
+    def mean(pairs: list[tuple[int, int]]) -> float | None:
+        values = [d for d in (distance(i, j) for i, j in pairs) if d is not None]
+        return float(np.mean(values)) if values else None
+
+    within = mean([(i, j) for n, i in enumerate(warmth) for j in warmth[n + 1:]])
+    to_loss = mean([(i, j) for i in warmth for j in loss])
+    to_frustration = mean([(i, j) for i in warmth for j in frustration])
+    if within is None or to_loss is None or to_frustration is None:
+        return {"measured": False, "passes": None, "why": "a family pair has no measured distance"}
+    floor = max((float(v) for v in (report.get("internal_floor") or {}).values()), default=0.0)
+    return {
+        "measured": True,
+        "within_warmth": round(within, 6),
+        "warmth_to_loss": round(to_loss, 6),
+        "warmth_to_frustration": round(to_frustration, 6),
+        "internal_floor": round(floor, 6),
+        "margins_clear_the_floor": bool(to_loss - within > floor and to_frustration - within > floor),
+        "passes": bool(within < to_loss and within < to_frustration),
+    }
+
+
+# ── H4: a being of drives alone, read off a campaign's nulls ───────────────
+
+
+def check_drives_only(nulls_detail: dict[str, Any] | None) -> dict[str, Any]:
+    """H4 as registered: the drives-only null fails the conjunction, on one component.
+
+    Failing one component is failing the conjunction, since every line is
+    required, so the verdict is that one field of the architecture's row.
+    Refuted if the row reads one component, which is also the only way it
+    could pass. A campaign whose nulls stage did not run it has not measured it.
+    """
+    row = (nulls_detail or {}).get("drives_only")
+    if not isinstance(row, dict) or "one_component" not in row:
+        return {"measured": False, "passes": None, "why": "the campaign's nulls stage has no drives_only row"}
+    return {
+        "measured": True,
+        "one_component": bool(row["one_component"]),
+        "passes": not bool(row["one_component"]),
+    }
+
