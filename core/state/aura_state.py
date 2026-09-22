@@ -677,6 +677,10 @@ class CognitiveContext:
     mind_moment: Any | None = None       # One reconstructible active-present frame
     current_objective: str | None = None # The specific goal of the current cognitive cycle
     current_origin: str = "system"        # Source of the current objective (user, motivation, etc.)
+    # Who she is talking to on a person's turn. Read by the affect readings and
+    # conversation support, and written only behind `hasattr` checks, so until
+    # it was declared here nothing ever set it and both read an empty name.
+    current_partner: str = ""
     rolling_summary: str = ""             # Rolling compacted summary of older context
     # Durable, non-decaying record of what the conversation established.
     # Serialized form of core.brain.llm.continuity_ledger.ContinuityLedger.

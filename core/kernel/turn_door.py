@@ -102,6 +102,62 @@ def note_presence(message: str, origin: str, *, conversation_id: str) -> None:
         )
 
 
+def observe_the_person(state: Any, person: str, message: str, *, observed_at: float) -> dict[str, Any] | None:
+    """What a person's turn tells her about them, before cognition reads it.
+
+    The humour record, the model of the other person, who she is talking to,
+    and the observer's note of the turn. Moved here from the orchestrator's
+    incoming path, where only the desktop runtime reached it: the subject
+    driver's turns came through this door without it, so in every campaign her
+    model of the person never learned anyone and nothing keyed to a partner
+    moved. Returns the social situation the model built, or None. Each step
+    that fails is recorded and the turn goes on.
+    """
+    import hashlib
+
+    from core.runtime.errors import record_degradation
+    from core.runtime.service_access import optional_service
+
+    digest = hashlib.sha256(f"{person}\n{observed_at:.9f}\n{message}".encode("utf-8", errors="replace")).hexdigest()
+    humor = optional_service("humor_engine", default=None)
+    if humor is not None and hasattr(humor, "record_reaction"):
+        try:
+            humor.record_reaction(person, message, observed_at)
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("social_observation", exc, action="continued the turn without pairing the last joke's reaction")
+    social: dict[str, Any] | None = None
+    other = optional_service("other_agent_model", default=None)
+    if other is not None and hasattr(other, "observe_message"):
+        other.observe_message(
+            person,
+            message,
+            hour=time.localtime(observed_at).tm_hour,
+            now=observed_at,
+            persist=False,
+            evidence_digest=digest,
+        )
+        if hasattr(other, "cognitive_snapshot"):
+            social = other.cognitive_snapshot(person, observed_at)
+    cognition = getattr(state, "cognition", None)
+    if cognition is not None and hasattr(cognition, "current_partner"):
+        cognition.current_partner = person
+    try:
+        observer = optional_service("recursive_tom", default=None)
+        if observer is not None:
+            if hasattr(observer, "observe_agent"):
+                observer.observe_agent(
+                    person, kind="conversation_turn", strength=0.8, evidence_digest=digest, observed_at=observed_at
+                )
+            if isinstance(social, dict):
+                social["evidence_digest"] = digest
+                social["at"] = observed_at
+                if hasattr(observer, "register_interaction"):
+                    observer.register_interaction(person, social)
+    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("social_observation", exc, action="continued the turn without the observer's note of it")
+    return social
+
+
 def admit_message(state: Any, message: str, origin: str) -> None:
     """Put the message into working memory as the person's turn, once.
 

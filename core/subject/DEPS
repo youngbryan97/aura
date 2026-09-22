@@ -17,6 +17,8 @@ include_rules = [
     "+core.subject",
 
     # What it reads to build K and to drive a life.
+    "+core.interiority",
+    "+core.social.relational_memory",
     "+core.kernel",
     "+core.memory",
     "+core.ontogeny",

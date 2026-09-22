@@ -204,6 +204,7 @@ from core.kernel.turn_door import (
     finish_foreground,
     note_presence,
     objective_to_bind,
+    observe_the_person,
     stamp_closure,
 )
 from core.subject.language_organ import (
@@ -757,6 +758,46 @@ class SubjectRuntime:
 
     # ── the turn ─────────────────────────────────────────────────────────
 
+    #: Who she is talking to on a person's turn. One person, the same all run:
+    #: her model of them starts knowing nothing and learns them as it goes.
+    PARTNER: ClassVar[str] = "the_person"
+
+    async def _meet_the_person(self, message: str) -> None:
+        """The person's turn, as the desktop runtime meets one.
+
+        Her model of the other person, who she is talking to, the observer's
+        note, and the interior appraisal of what they said. Campaigns never had
+        any of it: the partner was never set, so nothing keyed to a person moved
+        in any run. The appraisal is awaited, so it lands inside this turn in
+        every arm rather than whenever the loop gets to it.
+        """
+        observed_at = time.time()
+        try:
+            # Her model of a person is kept only under that person's consent,
+            # and without it she abstains, rightly. The partner here is the
+            # run's own script in the run's own state, so the run grants it,
+            # for recall only, which writes nothing that outlives the run.
+            from core.social.relational_memory import get_relational_memory_authority
+
+            authority = get_relational_memory_authority()
+            if not authority.allows(self.PARTNER, "derived_profile", "recall"):
+                authority.grant_consent(
+                    self.PARTNER,
+                    kinds=("derived_profile",),
+                    operations=("recall",),
+                    receipt_id="subject_core.partner",
+                    source="subject_core.scripted_partner",
+                )
+            observe_the_person(self.state, self.PARTNER, message, observed_at=observed_at)
+            from core.interiority.service import get_interiority
+            from core.interiority.text_features import a_person_said
+
+            service = get_interiority()
+            await service.apply(service.tick(a_person_said(self.PARTNER, message, at=observed_at)))
+        except Exception as exc:  # noqa: BLE001 - a door that fails is a reading
+            self.failures["turn_door.person"] = self.failures.get("turn_door.person", 0) + 1
+            logger.warning("the person's turn was not observed: %s", exc)
+
     async def turn_once(
         self,
         condition: Condition,
@@ -825,6 +866,7 @@ class SubjectRuntime:
             if objective and condition.origin in USER_ORIGINS:
                 note_presence(objective, condition.origin, conversation_id="user")
                 admit_message(self.state, objective, condition.origin)
+                await self._meet_the_person(objective)
             clear_last_turn(self.state, objective, condition.origin)
             if objective:
                 bind_objective(

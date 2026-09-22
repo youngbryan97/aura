@@ -168,3 +168,23 @@ def channels(message: str) -> dict[str, Reading]:
 
 
 __all__ = ["TextStatistics", "channels", "statistics"]
+
+
+def a_person_said(person: str, message: str, *, at: float):  # -> InteriorEvent
+    """The interior event a person's message is, as every incoming path builds it.
+
+    One builder for the desktop runtime's incoming turn and the subject
+    driver's, so both appraise the same event. `person` may be empty: an
+    unidentified turn is still a turn she is in.
+    """
+    from core.interiority.event import EventKind, InteriorEvent
+
+    return InteriorEvent(
+        kind=EventKind.SOCIAL,
+        summary=str(message)[:200],
+        subject=person or None,
+        object=str(message)[:64],
+        observations=channels(str(message)),
+        source="conversation_engine.user_turn",
+        at=at,
+    )

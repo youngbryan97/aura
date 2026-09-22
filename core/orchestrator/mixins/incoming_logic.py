@@ -5,7 +5,6 @@ Extracts the incoming message handling pipeline, routing, and filesystem checks.
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import inspect
 import logging
 import re
@@ -154,65 +153,19 @@ class IncomingLogicMixin:
             return ""
         payload_context["user_id"] = user_id
         observed_at = time.time()
-        turn_evidence_digest = hashlib.sha256(
-            f"{user_id}\n{observed_at:.9f}\n{message}".encode(
-                "utf-8",
-                errors="replace",
-            )
-        ).hexdigest()
-        humor = optional_service("humor_engine")
-        if humor and hasattr(humor, "record_reaction"):
-            try:
-                humor.record_reaction(user_id, message, observed_at)
-            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-                _record_incoming_degradation(
-                    exc,
-                    action="continued incoming turn after prior delivered-humor feedback pairing failed",
-                )
+        # The humour record, the model of the other person, who she is talking
+        # to and the observer's note: one door, which the subject driver's
+        # turns also come through. See core/kernel/turn_door.py.
+        from core.kernel.turn_door import observe_the_person
+
+        social = observe_the_person(live_state, user_id, message, observed_at=observed_at)
+        if social is not None:
+            payload_context["social_situation"] = social
         other_agent = optional_service("other_agent_model")
-        if other_agent and hasattr(other_agent, "observe_message"):
-            other_agent.observe_message(
-                user_id,
-                message,
-                hour=time.localtime(observed_at).tm_hour,
-                now=observed_at,
-                persist=False,
-                evidence_digest=turn_evidence_digest,
-            )
-            if hasattr(other_agent, "cognitive_snapshot"):
-                payload_context["social_situation"] = other_agent.cognitive_snapshot(
-                    user_id,
-                    observed_at,
-                )
-            if hasattr(other_agent, "save_if_due"):
-                self._fire_and_forget(
-                    asyncio.to_thread(other_agent.save_if_due),
-                    name="other_agent_model_persist",
-                )
-            cognition = getattr(live_state, "cognition", None)
-            if cognition is not None and hasattr(cognition, "current_partner"):
-                cognition.current_partner = user_id
-        try:
-            observer_context = optional_service("recursive_tom")
-            social_snapshot = payload_context.get("social_situation")
-            if observer_context:
-                if hasattr(observer_context, "observe_agent"):
-                    observer_context.observe_agent(
-                        user_id,
-                        kind="conversation_turn",
-                        strength=0.8,
-                        evidence_digest=turn_evidence_digest,
-                        observed_at=observed_at,
-                    )
-                if isinstance(social_snapshot, dict):
-                    social_snapshot["evidence_digest"] = turn_evidence_digest
-                    social_snapshot["at"] = observed_at
-                    if hasattr(observer_context, "register_interaction"):
-                        observer_context.register_interaction(user_id, social_snapshot)
-        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            _record_incoming_degradation(
-                exc,
-                action="continued incoming turn without observer privacy posture update",
+        if other_agent and hasattr(other_agent, "save_if_due"):
+            self._fire_and_forget(
+                asyncio.to_thread(other_agent.save_if_due),
+                name="other_agent_model_persist",
             )
         self._observe_interior_turn(user_id, message, observed_at)
         return user_id
@@ -232,21 +185,11 @@ class IncomingLogicMixin:
         must never be the reason a reply is late.
         """
         try:
-            from core.interiority.event import EventKind, InteriorEvent
             from core.interiority.service import get_interiority
-            from core.interiority.text_features import channels
+            from core.interiority.text_features import a_person_said
 
             service = get_interiority()
-            event = InteriorEvent(
-                kind=EventKind.SOCIAL,
-                summary=str(message)[:200],
-                subject=user_id or None,
-                object=str(message)[:64],
-                observations=channels(str(message)),
-                source="conversation_engine.user_turn",
-                at=observed_at,
-            )
-            service.apply_soon(service.tick(event))
+            service.apply_soon(service.tick(a_person_said(user_id, message, at=observed_at)))
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             _record_incoming_degradation(
                 exc,
