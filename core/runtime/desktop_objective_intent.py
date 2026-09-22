@@ -663,13 +663,18 @@ def looks_like_desktop_objective(user_message: str) -> bool:
     try:
         from core.conversation.request_mood import assess_request_mood
 
-        # The target is read from the sanitised text: an app in a negated,
-        # reported or first-person clause ("if I open the browser, will you
-        # see it?") is not one she was asked to open.
-        if (
-            assess_request_mood(user_message).asks_for_action
-            and extract_direct_application_targets(sanitized_text)
-        ):
+        # The target is read from the words as written, because a name is
+        # known for an application by its capitals and the sanitised text is
+        # lower case: "Open DefinitelyNotInstalledAuraProbe." found no target
+        # there. It is kept only if it survives in the sanitised text, so an
+        # app in a negated, reported or first-person clause ("if I open the
+        # browser, will you see it?") is still not one she was asked to open.
+        targets = [
+            target
+            for target in extract_direct_application_targets(str(user_message or ""))
+            if str(target).lower() in sanitized_text
+        ]
+        if assess_request_mood(user_message).asks_for_action and targets:
             return True
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         # not a failure: the comment below says the vocabulary check is
