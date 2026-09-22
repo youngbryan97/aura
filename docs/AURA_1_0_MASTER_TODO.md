@@ -1176,6 +1176,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Paired method overlap and advisory review](evidence/G03_METHOD_OVERLAP_AND_ADVISORY_REVIEW_2026-09-22.md):
+  source-fold oracle 24/24, exposed-failure oracle only 9/23; consensus on
+  exposed failures is 4/17. Active inquiries now evaluate the full bounded
+  counterfactual set, but independently observed meaning and fresh transfer
+  remain open.
+  [Operation evidence probe](evidence/G03_OPERATION_EVIDENCE_PROBE_2026-09-22.md):
+  19/24 held-out source candidates but 3/23 exposed validation misses;
+  fitting all 764 source examples did not improve that gap. No promotion.
   [Direct and mixed exposed-gap attribution](evidence/G03_DIRECT_MIXED_GAP_ATTRIBUTION_2026-09-22.md):
   7/23 direct, 5/23 ranker, 1/23 answer-blind portfolio; 16/23 have no
   learned correct selection despite bank coverage. Source-only coverage and

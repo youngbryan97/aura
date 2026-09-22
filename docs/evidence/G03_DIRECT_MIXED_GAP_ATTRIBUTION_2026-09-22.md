@@ -16,13 +16,13 @@ executable methods disagree without an independent observation. Calling the
 
 | Construction | Cases | Direct | Ranker | Portfolio |
 | --- | ---: | ---: | ---: | ---: |
-| cataphoric depth 3 | 2 | 0 | 0 | 0 |
-| cataphoric depth 4 | 1 | 1 | 0 | 0 |
-| cataphoric depth 5 | 5 | 0 | 0 | 0 |
-| reserved alias depth 4 | 4 | 0 | 0 | 0 |
-| reserved alias depth 5 | 8 | 4 | 4 | 1 |
-| role binding depth 4 | 2 | 1 | 0 | 0 |
-| role binding depth 5 | 1 | 1 | 1 | 0 |
+| cataphoric variant 3 | 2 | 0 | 0 | 0 |
+| cataphoric variant 4 | 1 | 1 | 0 | 0 |
+| cataphoric variant 5 | 5 | 0 | 0 | 0 |
+| reserved alias variant 4 | 4 | 0 | 0 | 0 |
+| reserved alias variant 5 | 8 | 4 | 4 | 1 |
+| role binding variant 4 | 2 | 1 | 0 | 0 |
+| role binding variant 5 | 1 | 1 | 1 | 0 |
 
 This separates two problems. The learned methods do not select a correct
 program on 16 of these cases even though the bank contains one. On six more,
@@ -30,6 +30,11 @@ one learned method selects a correct program but the portfolio has no
 independent evidence to replace the incumbent. A source-only expansion of
 construction coverage and a calibrated, independently tested selection
 signal are needed; neither can be inferred from these validation labels.
+
+The numbered constructions are wording/template variants, not program depth.
+These validation programs have two instructions; training has other wording
+variants of the same operation families. A larger bank sampled only from the
+existing source variants cannot by itself establish lexical transfer.
 
 Receipt:
 `~/.aura/rlc-evidence/semantic-real-bank-mixed-fold0-20260922/direct-mixed-gap-attribution.json`.

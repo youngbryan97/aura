@@ -32,6 +32,7 @@ class SemanticProgramPortfolio:
     relations: tuple[tuple[str, str, dict], ...]
     composition: ProgramComposition | None = None
     source_sha256: str = ""
+    public_inputs: tuple = ()
 
     @property
     def selected_program(self):
@@ -41,9 +42,7 @@ class SemanticProgramPortfolio:
         """Use retained disagreement witnesses to plan actual observations."""
         from core.learning.semantic_program_inquiry import plan_program_inquiries
 
-        probes = tuple(tuple(relation["witness"]["inputs"])
-                       for _, _, relation in self.relations
-                       if relation.get("status") == "different" and "witness" in relation)
+        probes = counterfactual_inputs(self.public_inputs, count=16)
         return plan_program_inquiries(
             {name: program for name, program in self.proposals if program is not None},
             probes, fuel=fuel, source_sha256=self.source_sha256)
@@ -213,4 +212,5 @@ def select_semantic_program_portfolio(*, proposals: Mapping[str, Program | None]
                 proposals[left], proposals[right], probes, fuel=fuel,
                 observation_cache=observation_cache)))
     return SemanticProgramPortfolio(tuple(proposals.items()), decision, tuple(executions),
-                                    tuple(relations), composition, observation_sha256)
+                                    tuple(relations), composition, observation_sha256,
+                                    public_inputs)

@@ -10,6 +10,7 @@ from core.learning.semantic_program_inquiry import (
     ObservedProgramInquiry, ProgramInquiry, plan_program_inquiries,
 )
 from core.learning.semantic_program_portfolio import select_semantic_program_portfolio
+from core.learning.semantic_graph_counterexamples import counterfactual_inputs
 
 
 def program(op):
@@ -55,6 +56,20 @@ def test_portfolio_conflicts_reach_the_shared_question_planner():
     )
     assert portfolio.plan_inquiries()
     assert portfolio.decision.selected == "add"
+
+
+def test_portfolio_considers_every_bounded_counterfactual_not_only_pair_witness():
+    portfolio = select_semantic_program_portfolio(
+        proposals={"add": program("add"), "multiply": program("mul")},
+        provenance={"add": "a" * 64, "multiply": "b" * 64},
+        public_inputs=(2, 2), observation_sha256="c" * 64, incumbent="add",
+    )
+    expected = plan_program_inquiries(
+        dict(portfolio.proposals), counterfactual_inputs((2, 2), count=16),
+        fuel=100_000, source_sha256=portfolio.source_sha256,
+    )
+    assert portfolio.plan_inquiries() == expected
+    assert len(expected) > 1
 
 
 def test_missing_and_boolean_observations_are_not_integer_answers():
