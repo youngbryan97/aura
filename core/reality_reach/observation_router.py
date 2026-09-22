@@ -10,6 +10,7 @@ only bounded scalar claims and provenance cross the cognitive boundary.
 from __future__ import annotations
 
 import asyncio
+import logging
 import math
 import re
 import time
@@ -51,6 +52,8 @@ from core.runtime.errors import record_degradation
 from core.runtime.lockdep import checked_lock, checked_semaphore
 from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
+
+logger = logging.getLogger(__name__)
 
 _IDENTIFIER = re.compile(r"^[a-z0-9][a-z0-9_.:-]{0,127}$")
 _SELECTOR = re.compile(r"^(?:\*|[a-z0-9][a-z0-9_.:-]{0,127}\*?)$")
@@ -1642,8 +1645,13 @@ class RealityObservationRouter:
                                 0,
                                 self._durable_queue_depth - 1,
                             )
-                    except (RuntimeError, ValueError):
-                        pass
+                    except (RuntimeError, ValueError) as exc:
+                        logger.debug(
+                            "%s unavailable (%s: %s); the durable queue depth was not decremented for this observation",
+                            "it",
+                            type(exc).__name__,
+                            exc,
+                        )
                 raise
             except (OSError, RuntimeError, TimeoutError, TypeError, ValueError) as exc:
                 self._delivery_failures += 1

@@ -526,6 +526,8 @@ class SCPIStreamTransport:
         admission.writer.close()
         try:
             await asyncio.wait_for(admission.writer.wait_closed(), timeout=2.0)
+        # not a failure: a connection already closing, or one that will not close inside
+        # its bound, is the state this teardown reaches.
         except (ConnectionError, OSError, RuntimeError):
             return
         # not a failure: the wait ran out, which is what the timeout was set to decide.

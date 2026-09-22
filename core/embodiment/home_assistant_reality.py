@@ -135,6 +135,7 @@ def _home_assistant_event_time_ns(value: Any) -> int | None:
         return None
     try:
         parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    # not a failure: text that is not an ISO-8601 timestamp is not a timestamp.
     except ValueError:
         return None
     if parsed.tzinfo is None:

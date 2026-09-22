@@ -68,6 +68,7 @@ def _record_hardware_degradation(
 def _safe_device_id(value: object) -> str:
     try:
         text = str(value or "").replace("\x00", "").strip()
+    # not a failure: a value that will not become text has no device id in it.
     except (RuntimeError, TypeError, ValueError):
         text = ""
     return text[:128]

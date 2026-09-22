@@ -470,6 +470,8 @@ class AsyncUaScalarTransport:
             self._connected = False
         try:
             await client.disconnect()
+        # not a failure: a connection already closing, or one that will not close inside
+        # its bound, is the state this teardown reaches.
         except (OSError, RuntimeError, TimeoutError):
             return
 
@@ -583,6 +585,8 @@ class AsyncUaScalarTransport:
         if client is not None:
             try:
                 await client.disconnect()
+            # not a failure: a connection already closing, or one that will not close inside
+            # its bound, is the state this teardown reaches.
             except (OSError, RuntimeError, TimeoutError):
                 return
 

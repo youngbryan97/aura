@@ -323,6 +323,8 @@ class GhostLine:
         try:
             env = read_json_envelope(path)
             return env.get("payload") if isinstance(env, dict) and "payload" in env else env
+        # not a failure: a frame body that is not there, or not a readable envelope, has
+        # no payload.
         except (OSError, ValueError):
             return None
 
@@ -555,6 +557,7 @@ class GhostLine:
             for path in files[:max(0, excess)]:
                 try:
                     path.unlink()
+                # not a failure: a body already gone is the state this prune reaches.
                 except OSError:
                     pass
         except OSError as exc:
@@ -625,6 +628,7 @@ class GhostLine:
     def close(self) -> None:
         try:
             self._chain.close()
+        # not a failure: a chain already closed is the state close reaches.
         except (OSError, RuntimeError):
             pass
 

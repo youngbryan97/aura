@@ -384,6 +384,8 @@ class PahoMQTTScalarTransport:
             spec = self._resources[resource_id]
             try:
                 value = spec.decode(bytes(message.payload))
+            # not a failure: a payload this spec cannot decode is not a reading for this
+            # resource.
             except (UnicodeError, MQTTConnectorError, TypeError, ValueError):
                 return
             with self._lock:

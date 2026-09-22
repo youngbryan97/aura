@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import math
 import re
 import time
@@ -51,6 +52,8 @@ from core.runtime.errors import record_degradation
 from core.runtime.lockdep import checked_async_lock, checked_lock, checked_semaphore
 from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
+
+logger = logging.getLogger(__name__)
 
 _IDENTIFIER = re.compile(r"^[a-z0-9][a-z0-9_.:-]{0,127}$")
 _DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -1118,7 +1121,13 @@ class DeviceAttachmentBroker:
         if expired or self._state_needs_compaction:
             try:
                 await self._persist_state()
-            except (OSError, RuntimeError, TypeError, ValueError):
+            except (OSError, RuntimeError, TypeError, ValueError) as exc:
+                logger.warning(
+                    "%s unavailable (%s: %s); the expired grant is gone from the live set and persistence did not record it",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
                 # The expired grant has already been removed from the live
                 # authority set.  Persistence stays visibly unhealthy, but a
                 # Keychain outage must not blind bounded physical sensing.
@@ -1216,6 +1225,8 @@ class DeviceAttachmentBroker:
             try:
                 self._router.register_sampler(adapter)
                 sampler_registered = True
+            # not a failure: the comment below says it: push-only and synchronous adapters
+            # are valid channels that do not use the async sampling hook.
             except (TypeError, ValueError):
                 # Push-only and synchronous adapters remain valid Reality Reach
                 # channels; they simply do not use the async sampling hook.
@@ -1992,6 +2003,8 @@ class DeviceAttachmentBroker:
             return True
         try:
             return bool(self._digital_twin.is_ready())
+        # not a failure: a twin that will not answer is not a ready one, and False is the
+        # refusing direction.
         except (OSError, RuntimeError, TypeError, ValueError):
             return False
 

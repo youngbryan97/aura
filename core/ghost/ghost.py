@@ -142,8 +142,13 @@ class Ghost:
         self._pending: set[asyncio.Task] = set()
         try:
             ServiceContainer.set(ServiceNames.GHOST, self, required=False)
-        except (RuntimeError, AttributeError, TypeError, ValueError):
-            pass
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.warning(
+                "%s unavailable (%s: %s); the ghost is not in the container, so callers that look it up will not find it",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
 
     # ── reading the self ─────────────────────────────────────────────────
     def _read_canonical(self) -> dict[str, Any]:
@@ -263,8 +268,13 @@ class Ghost:
                     if callable(getter):
                         adapters = tuple(sorted(str(a) for a in (getter() or [])))
                         break
-        except _SAFE_ERRORS:
-            pass
+        except _SAFE_ERRORS as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the substrate fingerprint carries no adapters",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
         return SubstrateFingerprint(model_artifact=model, adapters=adapters)
 
     # ── advancing the line (loop-aware, never blocks the caller) ──────────
@@ -281,6 +291,7 @@ class Ghost:
         self._advancing = True
         try:
             loop = asyncio.get_running_loop()
+        # not a failure: off a loop there is no running loop to use.
         except RuntimeError:
             loop = None
         if loop is None:

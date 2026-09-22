@@ -1108,6 +1108,8 @@ def _this_process_owns_the_state() -> bool:
         from core.runtime.state_ownership import RuntimeProfile, runtime_profile
 
         return runtime_profile() is RuntimeProfile.LIVE
+    # not a failure: no runtime profile to read means this is not the live one, which
+    # is the refusing direction.
     except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
         return False
 

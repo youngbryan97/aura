@@ -164,6 +164,7 @@ def signals_from_recall(
         try:
             from core.memory.adversarial_memory import AdversarialMemoryScanner
             scanner = AdversarialMemoryScanner()
+        # not a failure: no scanner here, and the caller checks for None below.
         except (ImportError, AttributeError):
             scanner = None
 

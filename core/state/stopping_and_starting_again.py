@@ -117,6 +117,8 @@ class AnInterruption:
         """
         try:
             why = WhyItStopped(str(row.get("why") or ""))
+        # not a failure: the docstring above says it: guessing at a reason nobody wrote
+        # would resume work under a rule nobody wrote.
         except ValueError:
             return None
         return cls(

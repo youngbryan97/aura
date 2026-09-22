@@ -361,6 +361,8 @@ class InSqlite(AnAsyncStore):
                             f"ALTER TABLE checkpoints ADD COLUMN {column} {kind} "
                             f"NOT NULL DEFAULT {default}"
                         )
+                    # not a failure: the comment beside it says it: the column is already there,
+                    # which is the usual case.
                     except sqlite3.OperationalError:
                         pass  # already there, which is the usual case
 
@@ -604,6 +606,8 @@ def what_a_checkpoint_store_promises(
         store.put(changed)
         try:
             store.get("one")
+        # not a failure: the store complained, which is what this self-check is proving
+        # it does; the raise below is the failure.
         except WhatCameBackIsNotWhatWentIn:
             return
         raise AssertionError("a changed state came back without complaint")

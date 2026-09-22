@@ -196,6 +196,7 @@ def _stance_of_position(text: str) -> str | None:
         from core.brain.llm.continuity_ledger import POSITION_OPENER
 
         body = POSITION_OPENER.sub("", body, count=1).strip() or body
+    # not a failure: no continuity ledger module here, so the body keeps its opener.
     except ImportError:
         pass
     # Negative first: "I don't like X" matches the positive pattern too.
@@ -1407,6 +1408,7 @@ class AuraState:
             if not stored:
                 return
             self._form_preferences_from(ContinuityLedger.from_dict(stored))
+        # not a failure: a stored ledger that will not read back forms no preferences.
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             return
 

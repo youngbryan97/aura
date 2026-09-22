@@ -502,6 +502,8 @@ def verify_acceptance_preregistration(
             if isinstance(raw_policy, Mapping):
                 try:
                     trust_policy = AcceptanceTrustPolicy.from_dict(raw_policy)
+                # not a failure: a policy that will not read back is not one this statement
+                # carries, and the verification below decides on that.
                 except AcceptanceTransparencyError:
                     trust_policy = None
     artifact = verify_acceptance_transparency_artifact(

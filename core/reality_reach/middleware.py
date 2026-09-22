@@ -700,6 +700,8 @@ class RealityMiddlewareRuntime(RealityServiceLane):
                     timeout=endpoint.cancel_timeout_s,
                 )
             )
+        # not a failure: a cancel that does not land inside its own bound has not
+        # cancelled, and False says so to the caller.
         except (TimeoutError, RuntimeError, OSError, ValueError, TypeError):
             return False
 

@@ -288,6 +288,8 @@ class RealityActuationTransactionStore:
     def is_alive(self) -> bool:
         try:
             return self.root.is_dir() and not self.root.is_symlink()
+        # not a failure: a root that cannot be stat'ed is not a live store, and False is
+        # the refusing direction.
         except OSError:
             return False
 

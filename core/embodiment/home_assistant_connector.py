@@ -161,6 +161,8 @@ class HomeAssistantConnector:
                     item.to_dict() for item in control.actuator_capabilities()
                 ],
             }
+        # not a failure: a control that will not describe itself has no manifest, and the
+        # caller checks for None.
         except (HomeAssistantRealityError, TypeError, ValueError):
             control_manifest = None
         attributes = state.get("attributes")

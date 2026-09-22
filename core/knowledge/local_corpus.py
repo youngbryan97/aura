@@ -334,11 +334,15 @@ class LocalCorpusStore:
             return 0
         try:
             conn = self._connect_ro()
+        # not a failure: a database that will not open or has no such table holds nothing
+        # to count, which is the answer this returns.
         except sqlite3.OperationalError:
             return 0
         try:
             row = conn.execute("SELECT COUNT(*) FROM docs").fetchone()
             return int(row[0]) if row else 0
+        # not a failure: a database that will not open or has no such table holds nothing
+        # to count, which is the answer this returns.
         except sqlite3.OperationalError:
             return 0
         finally:
@@ -352,6 +356,8 @@ class LocalCorpusStore:
             return False
         try:
             conn = self._connect_ro()
+        # not a failure: a database that will not open or has no such table holds nothing
+        # to count, which is the answer this returns.
         except sqlite3.OperationalError:
             return False
         try:

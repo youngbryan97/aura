@@ -128,19 +128,34 @@ def _read_substrate() -> dict[str, Any]:
         homeo = ServiceContainer.get("homeostasis_engine", default=None) or ServiceContainer.get("homeostatic_engine", default=None)
         if homeo is not None and hasattr(homeo, "snapshot"):
             out["homeo"] = homeo.snapshot() or {}
-    except (ImportError, AttributeError, RuntimeError):
-        pass  # no-op: intentional
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); affect and homeostasis are missing from this bridge snapshot",
+            "ServiceContainer",
+            type(exc).__name__,
+            exc,
+        )
     try:
         from core.runtime import resource_psutil as psutil
         out["cpu_pct"] = psutil.cpu_percent(interval=None)
         out["ram_pct"] = psutil.virtual_memory().percent
-    except (ImportError, AttributeError, RuntimeError):
-        pass  # no-op: intentional
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); host CPU and RAM are missing from this bridge snapshot",
+            "resource_psutil as psutil",
+            type(exc).__name__,
+            exc,
+        )
     try:
         from core.organism.viability import get_viability
         out["viability"] = get_viability().state.value
-    except (ImportError, AttributeError, RuntimeError):
-        pass  # no-op: intentional
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); viability is missing from this bridge snapshot",
+            "get_viability",
+            type(exc).__name__,
+            exc,
+        )
     return out
 
 

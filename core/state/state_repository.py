@@ -107,6 +107,7 @@ def _shutdown_requested() -> bool:
         from core.runtime.shutdown_coordinator import is_shutdown_requested
 
         return bool(is_shutdown_requested())
+    # not a failure: no shutdown coordinator means no shutdown in progress.
     except _STATE_BOUNDARY_ERRORS:
         return False
 
@@ -118,6 +119,7 @@ def _is_shutdown_commit_payload(payload: dict[str, Any]) -> bool:
 def _close_if_possible(awaitable: Any) -> None:
     try:
         close = awaitable.close
+    # not a failure: something with no close is not an awaitable this needs to close.
     except AttributeError:
         return
     try:
@@ -160,6 +162,8 @@ def get_state_shm_size_bytes() -> int:
         from core.runtime import resource_psutil as psutil
 
         total_gb = psutil.virtual_memory().total / float(1024**3)
+    # not a failure: a host whose total memory will not read contributes 0 GB, and
+    # the sizing below reads that as unknown.
     except _STATE_BOUNDARY_ERRORS:
         total_gb = 0.0
 
@@ -1429,6 +1433,8 @@ class StateRepository:
         if not self.is_vault_owner:
             try:
                 vault_transport_available = bool(self._transport_has_vault())
+            # not a failure: a transport that will not answer is not a proven vault, and
+            # False is the refusing direction.
             except _STATE_BOUNDARY_ERRORS:
                 vault_transport_available = False
 

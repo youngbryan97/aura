@@ -255,6 +255,7 @@ class DigestLibrary:
                 row = conn.execute(
                     f"SELECT {self._COLUMNS} FROM digests WHERE key = ?", (key,)
                 ).fetchone()
+        # not a failure: a digest table this cannot read holds no digest for that key.
         except sqlite3.Error:
             return None
         return self._row_to_digest(row) if row else None
@@ -392,6 +393,8 @@ class ConceptCompiler:
                     )
                 )
                 return (out.strip(), COMPILER_RESIDENT_DEEP) if out else None
+            # not a failure: a compiler that refuses or runs past its bound has produced no
+            # understanding.
             except (ImportError, AttributeError, RuntimeError, TypeError,
                     ValueError, TimeoutError):
                 return None
@@ -399,6 +402,7 @@ class ConceptCompiler:
             import asyncio
 
             out = await asyncio.wait_for(self._think(prompt), timeout=self._timeout_s)
+        # not a failure: the same, on the think path.
         except (RuntimeError, TypeError, ValueError, TimeoutError):
             return None
         text = str(out or "").strip()

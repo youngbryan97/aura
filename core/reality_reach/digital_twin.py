@@ -1175,6 +1175,7 @@ class RealityDigitalTwinGraph:
         finally:
             try:
                 temporary.unlink(missing_ok=True)
+            # not a failure: a temporary already gone is the state this unlink reaches.
             except OSError:
                 pass
 
@@ -2882,6 +2883,7 @@ class RealityDigitalTwinGraph:
         for label, path in paths.items():
             try:
                 result[label] = int(path.stat().st_size)
+            # not a failure: a path that cannot be stat'ed contributes nothing to the count.
             except OSError:
                 result[label] = 0
         archive_bytes = 0
@@ -2889,6 +2891,7 @@ class RealityDigitalTwinGraph:
             for path in self._archive_dir.iterdir():
                 if path.is_file() and not path.is_symlink():
                     archive_bytes += int(path.stat().st_size)
+        # not a failure: a path that cannot be stat'ed contributes nothing to the count.
         except OSError:
             archive_bytes = 0
         result["lifecycle_archive"] = archive_bytes

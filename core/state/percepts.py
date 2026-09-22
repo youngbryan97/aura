@@ -240,6 +240,8 @@ def _attend(record: dict[str, Any]) -> None:
         gained = salience + (1.0 - salience) * overlap * priority
         record["salience"] = max(0.0, min(1.0, gained))
         record["attended"] = round(gained - salience, 4)
+    # not a failure: the comment below says it: a percept that cannot be biased is
+    # still a percept.
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         # A percept that cannot be biased is still a percept.
         return
