@@ -108,7 +108,8 @@ class Carrying:
     #: reading is the middle it is against.
     pressure: float = 0.0
     middle: float = 0.0
-    #: This moment against that middle. Negative when she is carrying less.
+    #: Where this moment ranks among her recent loads, centred on zero and
+    #: bounded to half either way. Negative when she is carrying less.
     shift: float = 0.0
     seen: int = 0
     measured: bool = False
@@ -159,7 +160,18 @@ class CarryingLedger:
                 ),
             )
         middle = _median(list(self._seen))
-        shift = self._last - middle
+        # Where this load sits among the ones before it, centred, rather than
+        # its distance from their middle. The load is a sum and unbounded, so a
+        # difference in load units could be several whole units: multiplied
+        # into the pulse it drove the rate into its clamp on 15.0% of a proof
+        # run's frames, the same saturation the pulse had just been taken out
+        # of. A centred rank is bounded to half either way, so the multiplier
+        # stays within half again and half as much, and one more open thing
+        # still ranks higher than the loads before it.
+        before = list(self._seen)[:-1]
+        below = sum(1 for one in before if one < self._last)
+        ties = sum(1 for one in before if one == self._last)
+        shift = (below + ties / 2.0) / len(before) - 0.5
         return Carrying(
             pressure=self._last,
             middle=middle,
@@ -168,7 +180,8 @@ class CarryingLedger:
             measured=True,
             why=(
                 f"she is holding {self._last:.2f} against the {middle:.2f} she "
-                f"usually holds, so the body reads {shift:+.2f}"
+                f"usually holds, which ranks {shift + 0.5:.0%} of the way up her "
+                "recent loads"
             ),
         )
 

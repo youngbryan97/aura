@@ -152,3 +152,16 @@ def test_the_net_is_unchanged_while_nothing_has_a_middle():
     after = retriever.plan(intent)
     assert after.weights == before.weights
     assert not any("carrying" in line for line in after.rationale)
+
+
+def test_a_load_however_large_cannot_push_the_pulse_into_its_clamp():
+    """The sum is unbounded, and a shift in load units multiplied into the
+    pulse drove it to its clamp on 15.0% of a proof run's frames. A centred
+    rank is bounded to half either way, so the multiplier stays in 0.5-1.5."""
+    ledger = CarryingLedger()
+    for _ in range(10):
+        ledger.note(pressure_of([{"urgency": 0.5}]))
+    for count in (5, 20, 200):
+        ledger.note(pressure_of([{"urgency": 0.9}] * count))
+        assert -0.5 <= ledger.shift() <= 0.5
+        assert 0.5 <= 1.0 + ledger.shift() <= 1.5
