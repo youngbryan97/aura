@@ -58,6 +58,7 @@ def _timestamp(value: Any, *, observed_at: float) -> float | None:
 def _safe_service(name: str) -> Any | None:
     try:
         return ServiceContainer.get(name, default=None)
+    # not a failure: no service here, so the caller falls back to its own default.
     except (AttributeError, RuntimeError, TypeError, ValueError):
         return None
 
@@ -80,6 +81,7 @@ def _safe_registered(name: str) -> Any | None:
     if callable(peek):
         try:
             found = peek(name, default=None)
+        # not a failure: no service here, so the caller falls back to its own default.
         except (AttributeError, RuntimeError, TypeError, ValueError):
             found = None
         if found is not None:
@@ -148,6 +150,8 @@ def _safe_last(service: Any) -> Any | None:
     if callable(last):
         try:
             return last()
+        # not a failure: a probe that refuses has nothing to report, which is what the
+        # caller reads None as.
         except (AttributeError, RuntimeError, TypeError, ValueError):
             return None
     return None

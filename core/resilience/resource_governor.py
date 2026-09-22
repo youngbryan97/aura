@@ -578,6 +578,7 @@ class ResourceGovernor:
         for task in to_remove:
             try:
                 tasks.remove(task)
+            # not a failure: the comment beside it says it: already removed by the supervisor.
             except ValueError:
                 pass  # Already removed by supervisor
 

@@ -70,6 +70,8 @@ class CodeVerifier:
         try:
             ast.parse(code)
             return True
+        # not a failure: code that does not parse fails stage one, which is the verdict
+        # this stage exists to give.
         except SyntaxError:
             return False
 

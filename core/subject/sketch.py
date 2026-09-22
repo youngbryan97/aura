@@ -58,6 +58,7 @@ def sketch(value: Any) -> dict[str, float] | None:
     """The array's moments and projections, or None when it holds no finite number."""
     try:
         flat = np.asarray(value, dtype=np.float64).reshape(-1)
+    # not a failure: the docstring above says it: None when it holds no finite number.
     except (TypeError, ValueError):
         return None
     flat = flat[np.isfinite(flat)]

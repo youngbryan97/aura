@@ -128,8 +128,13 @@ def _model_worker_reclaim_order(process: Any) -> tuple[int, int]:
                 )
             )
             return qos_rank, 1 if active else 0
-    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
-        pass
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); this client's activity is unknown, so it ranks as idle in the shed order",
+            "QoSClass",
+            type(exc).__name__,
+            exc,
+        )
     return 2, 0
 
 def _tombstone_dir() -> Path:
@@ -240,6 +245,8 @@ def _phys_footprint_mb(pid: int) -> float:
     """Return the canonical RSS/phys-footprint memory sample in MB."""
     try:
         return float(process_memory_bytes(pid)) / float(1024 * 1024)
+    # not a failure: a pid whose footprint cannot be sampled contributes 0 MB, and
+    # the caller ranks on what it can measure.
     except _WATCHDOG_RECOVERABLE_ERRORS:
         return 0.0
 
@@ -988,6 +995,7 @@ class MemoryWatchdog(threading.Thread):
                 # bounded (observed 54MB unrotated growth in live use).
                 if spike_log.exists() and spike_log.stat().st_size > 16 * 1024 * 1024:
                     spike_log.replace(spike_log.with_suffix(".log.1"))
+            # not a failure: a log that cannot be rotated is appended to as it is.
             except OSError:
                 pass
             with open(spike_log, "a") as fh:
@@ -1029,6 +1037,7 @@ class MemoryWatchdog(threading.Thread):
                     logger.debug("MemoryWatchdog governor kick failed: %s", exc)
 
             loop.call_soon_threadsafe(_kick)
+        # not a failure: no running loop to hand the governor kick to.
         except RuntimeError:
             return
         except _WATCHDOG_RECOVERABLE_ERRORS as exc:

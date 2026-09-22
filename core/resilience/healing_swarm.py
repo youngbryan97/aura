@@ -14,6 +14,8 @@ def _is_contract_subsystem(name: str) -> bool:
         from core.runtime.health_contract import RUNTIME_CONTRACT
 
         return any(req.container_key == name for req in RUNTIME_CONTRACT)
+    # not a failure: no health contract to consult means this name is not a
+    # container key in it.
     except (ImportError, AttributeError):
         return False
 

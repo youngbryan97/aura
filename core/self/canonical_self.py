@@ -229,6 +229,8 @@ class CanonicalSelfEngine:
         # Publish to ServiceContainer so all subsystems can read it
         try:
             ServiceContainer.register_instance("canonical_self", self._current)
+        # not a failure: the comment beside it says it: already registered, and the
+        # instance is updated in place.
         except (RuntimeError, AttributeError, TypeError, ValueError):
             pass  # Already registered — instance updated in-place via get()
 

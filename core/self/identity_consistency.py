@@ -76,6 +76,7 @@ def _canonical_self_engine() -> Any:
         from core.self.canonical_self import get_canonical_self_engine
 
         return get_canonical_self_engine()
+    # not a failure: no service here, so the caller falls back to its own default.
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         return None
 

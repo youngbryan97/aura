@@ -403,6 +403,7 @@ class CognitiveLedger:
                 cols = [d[0] for d in cur.description]
                 row = cur.fetchone()
                 return dict(zip(cols, row)) if row else None
+            # not a failure: a snapshot table this cannot read holds no latest snapshot.
             except (sqlite3.Error, OSError):
                 return None
 

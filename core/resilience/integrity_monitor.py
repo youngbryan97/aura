@@ -198,7 +198,13 @@ class SystemIntegrityMonitor:
         try:
             from core.runtime import resource_psutil as psutil
             total_mb = int(psutil.virtual_memory().total / (1024 * 1024))
-        except (ImportError, AttributeError, RuntimeError):
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.warning(
+                "%s unavailable (%s: %s); total memory reads 0 MB, so the memory thresholds below are computed from nothing",
+                "resource_psutil as psutil",
+                type(exc).__name__,
+                exc,
+            )
             total_mb = 0
 
         warning_mb = self._DEFAULT_MEMORY_WARNING_MB

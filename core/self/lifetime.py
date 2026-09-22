@@ -95,6 +95,7 @@ def _current_uptime_s() -> float:
                 continue
             if start > 0.0:
                 return max(0.0, time.time() - start)
+    # not a failure: no readable start time, so there is no lifetime to report.
     except _RECOVERABLE + (ImportError, AttributeError, RuntimeError):
         return 0.0
     return 0.0
@@ -139,6 +140,8 @@ def turns_today() -> int:
         midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         window = max(60.0, time.time() - midnight.timestamp())
         return len(durable_user_turns(limit=1000, within_s=window))
+    # not a failure: no durable turns to count means none happened today as far as
+    # this reader can tell.
     except (ImportError, OSError, TypeError, ValueError):
         return 0
 

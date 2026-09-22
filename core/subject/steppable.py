@@ -100,6 +100,7 @@ def frame_seconds() -> float:
         from core.subject.clock import installed_clock
 
         clock = installed_clock()
+    # not a failure: the clock ships with this package, and None is handled below.
     except ImportError:  # pragma: no cover - the clock ships with this package
         clock = None
     if clock is None:

@@ -144,8 +144,13 @@ class MetricsExporter:
                 from core.runtime.runtime_hygiene import get_runtime_hygiene
 
                 get_runtime_hygiene().unregister_shutdown_resource(server)
-            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
-                pass
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); the exporter's server stayed registered with runtime hygiene",
+                    "get_runtime_hygiene",
+                    type(exc).__name__,
+                    exc,
+                )
         self.actual_port = None
         logger.info("📊 Metrics Exporter OFFLINE")
 

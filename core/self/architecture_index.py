@@ -291,6 +291,7 @@ class ArchitectureIndex:
 
         try:
             tree = ast.parse(src)
+        # not a failure: a file that does not parse is not one this indexes.
         except SyntaxError:
             return None
 

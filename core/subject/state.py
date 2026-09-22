@@ -179,6 +179,8 @@ class Organs:
             from core.agency.authorship import get_agency_ledger
 
             agency = get_agency_ledger()
+        # not a failure: an absent agency ledger is an absent organ, which the sibling
+        # below says in the same words.
         except Exception:  # noqa: BLE001
             agency = None
         return cls(
@@ -201,6 +203,8 @@ def _agency_comparator() -> Any:
         from core.consciousness.agency_comparator import get_agency_comparator
 
         return get_agency_comparator()
+    # not a failure: the comment below says it: an absent comparator is an absent
+    # organ.
     except (ImportError, AttributeError, RuntimeError):
         # An absent comparator is an absent organ; a broken one is not.
         return None

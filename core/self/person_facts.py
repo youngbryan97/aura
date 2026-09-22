@@ -21,8 +21,11 @@ comes from the sentence and the answer comes from the store.
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "PERSON_FACT_HEADER",
@@ -93,8 +96,13 @@ def _known_about_person() -> list[str]:
         if graph is not None and hasattr(graph, "get_beliefs"):
             for key, value in list(dict(graph.get_beliefs() or {}).items())[:40]:
                 lines.append(f"{key}: {value}")
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        pass
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); no beliefs reached the person facts",
+            "ServiceContainer",
+            type(exc).__name__,
+            exc,
+        )
     return lines
 
 

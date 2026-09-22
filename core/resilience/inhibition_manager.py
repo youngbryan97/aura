@@ -144,5 +144,10 @@ def reset_inhibition_manager_for_test() -> None:
         services = getattr(ServiceContainer, "_services", None)
         if isinstance(services, dict):
             services.pop("inhibition_manager", None)
-    except (ImportError, AttributeError, RuntimeError, TypeError):
-        pass
+    except (ImportError, AttributeError, RuntimeError, TypeError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the manager stayed in the container after being torn down",
+            "ServiceContainer",
+            type(exc).__name__,
+            exc,
+        )

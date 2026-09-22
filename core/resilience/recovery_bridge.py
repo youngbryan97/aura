@@ -110,6 +110,7 @@ class RecoveryBridge:
             if strategy == "ignore":
                 return None
             return strategy
+        # not a failure: no recovery definition for this fault means no strategy to name.
         except (ImportError, AttributeError, RuntimeError):
             return None
 

@@ -18,6 +18,8 @@ try:
     CIRCUIT_FAILURES = Counter('aura_circuit_breaker_failures_total', 'Total failures for circuit breaker', ['name'])
     CIRCUIT_CALLS = Counter('aura_circuit_breaker_calls_total', 'Total calls for circuit breaker', ['name'])
     PROMETHEUS_AVAILABLE = True
+# not a failure: prometheus is optional, and the flag below is how the rest of
+# the module knows.
 except ImportError:
     PROMETHEUS_AVAILABLE = False
 

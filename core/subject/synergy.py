@@ -151,6 +151,8 @@ def _gaussian_mi(x: np.ndarray, y: np.ndarray, *, ridge: float = 1e-9) -> float:
         joint = float(np.sum(np.log(np.diag(np.linalg.cholesky(cov)))))
         own_x = float(np.sum(np.log(np.diag(np.linalg.cholesky(cov[:width_x, :width_x])))))
         own_y = float(np.sum(np.log(np.diag(np.linalg.cholesky(cov[width_x:, width_x:])))))
+    # not a failure: a covariance with no Cholesky factor carries no synergy, which
+    # is what 0.0 reports.
     except np.linalg.LinAlgError:
         return 0.0
     digamma = psi((rows - np.arange(1, width + 1)) / 2.0) / 2.0

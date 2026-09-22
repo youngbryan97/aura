@@ -75,6 +75,8 @@ def _run_git(*args: str, text: bool = True, timeout: float = 30.0) -> Any | None
             source="subject_core.provenance.git",
             accelerator_capability="none",
         )
+    # not a failure: no git here, or none that answers, so there is no revision to
+    # record.
     except (OSError, subprocess.SubprocessError):
         return None
     return out.stdout if out.returncode == 0 else None
@@ -466,6 +468,7 @@ def mind_identity(mind: Any) -> dict[str, Any]:
     source = ""
     try:
         source = inspect.getsource(type(mind))
+    # not a failure: a mind class with no source on disk has none to fingerprint.
     except (OSError, TypeError):
         source = ""
     if source:

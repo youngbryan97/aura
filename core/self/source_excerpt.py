@@ -326,6 +326,8 @@ def _recorded_source_involvement() -> list[tuple[str, str]]:
 
     try:
         delta = body.last_boot_delta()
+    # not a failure: no readable boot delta means there is nothing to say about what
+    # changed since.
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
         delta = None
     if delta is not None and getattr(delta, "commits", None):
@@ -361,6 +363,7 @@ def _beliefs_path() -> Path | None:
             from core.utils.paths import aura_data_dir
 
             return Path(aura_data_dir()) / "beliefs" / "belief_system.json"
+        # not a failure: no belief path resolvable either way, so there is none to read.
         except (ImportError, AttributeError, TypeError, ValueError):
             return None
 
@@ -479,6 +482,8 @@ def source_tree_is_readable() -> bool:
     """Whether Aura can read her own source at all right now."""
     try:
         return _SOURCE_ROOT.is_dir() and os.access(_SOURCE_ROOT, os.R_OK)
+    # not a failure: a source tree that cannot be stat'ed is not readable, which is
+    # the question being asked.
     except OSError:
         return False
 
@@ -582,6 +587,8 @@ def source_evidence_brief(request: Any = "", *, max_chars: int = 1800) -> str:
     interest = None
     try:
         interest = excerpt_of_standing_interest()
+    # not a failure: a probe that refuses has nothing to report, which is what the
+    # caller reads None as.
     except (OSError, RuntimeError, TypeError, ValueError):
         interest = None
     if interest is not None and interest.grounded:
@@ -929,6 +936,8 @@ def grounded_excerpt_reply(request: Any = "") -> str:
     interest = None
     try:
         interest = excerpt_of_standing_interest()
+    # not a failure: a probe that refuses has nothing to report, which is what the
+    # caller reads None as.
     except (OSError, RuntimeError, TypeError, ValueError):
         interest = None
     if interest is not None and interest.grounded:

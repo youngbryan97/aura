@@ -100,6 +100,7 @@ def _database() -> Path | None:
         from core.config import config
 
         path = Path(config.paths.data_dir) / "memory" / "intention_loop.db"
+    # not a failure: a path that is not there, or not readable, is the answer.
     except _RECOVERABLE:
         return None
     return path if path.is_file() else None

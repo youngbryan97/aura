@@ -690,6 +690,7 @@ class _ChecksEachSubsystem:
                     from core.runtime.runtime_hygiene import get_runtime_hygiene
 
                     hygiene = get_runtime_hygiene()
+                # not a failure: no service here, so the caller falls back to its own default.
                 except (ImportError, AttributeError, RuntimeError):
                     hygiene = None
 
@@ -766,6 +767,8 @@ class _ChecksEachSubsystem:
 
             if proof_headless_run():
                 real_missing = real_missing - {"aura.research_cycle"}
+        # not a failure: no proof policy here means this is not a headless proof run, so
+        # the research cycle stays required.
         except (ImportError, RuntimeError, AttributeError):
             pass
 

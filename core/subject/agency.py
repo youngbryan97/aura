@@ -63,6 +63,8 @@ def _same_percept(left: list[CoreState], right: list[CoreState]) -> bool | None:
         return None
     try:
         return bool(np.array_equal(left[0].domain("P"), right[0].domain("P")))
+    # not a failure: two readings that will not compare answer neither way, which is
+    # what None means to this caller.
     except (AttributeError, KeyError, TypeError, ValueError):
         return None
 

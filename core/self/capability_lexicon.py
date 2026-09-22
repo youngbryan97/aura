@@ -22,12 +22,15 @@ words and is found by them, with nothing to re-wire.
 
 from __future__ import annotations
 
+import logging
 import re
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
 from core.conversation.word_markers import stem_fold
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "CAPABILITY_STATUS_HEADER",
@@ -132,8 +135,13 @@ def _skill_metadata(engine: Any = None) -> dict[str, Any]:
         from core.self.capability_sources import all_capabilities
 
         return dict(all_capabilities(engine))
-    except (ImportError, RuntimeError, TypeError, ValueError):
-        pass
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the capability sources are unavailable, so the fallback below builds the lexicon",
+            "all_capabilities",
+            type(exc).__name__,
+            exc,
+        )
     if engine is None:
         try:
             from core.capability_engine import CapabilityEngine, live_capability_engine

@@ -248,6 +248,8 @@ def pin_arm_identity(
             from core.brain.llm.model_registry import get_active_cortex_spec
 
             spec = get_active_cortex_spec()
+        # not a failure: no active cortex spec to read, so the arm is identified without
+        # one.
         except (ImportError, RuntimeError, OSError, ValueError):
             spec = None
 
@@ -271,6 +273,7 @@ def pin_arm_identity(
             from core.config import get_config
 
             value = getattr(get_config(), key, None)
+        # not a failure: no config value under that key.
         except (ImportError, AttributeError, RuntimeError):
             value = None
         if value is not None:

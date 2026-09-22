@@ -348,6 +348,8 @@ async def perturb_organs(
                 source="subject_core_probe",
             )
             hit = True
+        # not a failure: the comment beside it says it: a refused write is not a write,
+        # and `hit` is the record of whether it landed.
         except Exception:  # noqa: BLE001 - a refused write is not a write
             hit = False
     elif domain == "G" and organs.workspace is not None:
@@ -405,6 +407,7 @@ async def perturb_organs(
                     )
                 )
             hit = True
+        # not a failure: the same: a refused write is not a write.
         except Exception:  # noqa: BLE001
             hit = False
     elif domain == "S" and organs.self_model is not None:
@@ -413,6 +416,7 @@ async def perturb_organs(
                 "subject_core_probe", round(delta, 4), note="displacement probe"
             )
             hit = True
+        # not a failure: the same: a refused write is not a write.
         except Exception:  # noqa: BLE001
             hit = False
     elif domain == "I":
@@ -439,6 +443,8 @@ async def perturb_organs(
                 if abs(step) > 1e-9:
                     ledger.note(kind, step)
                     hit = True
+        # not a failure: the comment beside it says it: an organ that refuses was not
+        # displaced, and `hit` is the record of whether it landed.
         except Exception:  # noqa: BLE001 - an absent ledger is an absent ledger
             hit = False
     elif domain == "N":
@@ -461,6 +467,8 @@ async def perturb_organs(
                     np.asarray(reservoir.h, dtype=np.float64) + delta, -1.0, 1.0
                 )
                 hit = True
+        # not a failure: the comment beside it says it: an organ that refuses was not
+        # displaced, and `hit` is the record of whether it landed.
         except Exception:  # noqa: BLE001 - an absent organ is an absent organ
             hit = False
     elif domain == "W" and organs.world_model is not None:
@@ -482,6 +490,8 @@ async def perturb_organs(
             observation = observation_of(state) + float(delta)
             organs.world_model.observe(observation, action_of(state), learn=True)
             hit = True
+        # not a failure: the comment beside it says it: an organ that refuses was not
+        # displaced, and `hit` is the record of whether it landed.
         except Exception:  # noqa: BLE001
             hit = False
     elif domain == "D" and organs.intentions is not None:
@@ -502,6 +512,8 @@ async def perturb_organs(
                 if held:
                     organs.intentions.abandon(held[-1].id, reason="subject core displacement probe")
                     hit = True
+        # not a failure: the comment beside it says it: an organ that refuses was not
+        # displaced, and `hit` is the record of whether it landed.
         except Exception:  # noqa: BLE001 - an intention loop that refuses is not displaced
             hit = False
     return hit

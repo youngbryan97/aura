@@ -107,6 +107,7 @@ def claim_about_her(text: str) -> float | None:
         from core.cognitive.sentiment_tracker import analyze_text_sentiment
 
         evidence = analyze_text_sentiment(said)
+    # not a failure: no sentiment reader means there is no grounded evidence here.
     except (ImportError, AttributeError, TypeError, ValueError):
         return None
     if not bool(getattr(evidence, "grounded", False)):

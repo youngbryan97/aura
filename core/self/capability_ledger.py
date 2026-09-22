@@ -559,6 +559,7 @@ def _soma_reserve_reading() -> dict[str, float]:
             continue
         try:
             organ = method("soma", default=None)
+        # not a failure: no service here, so the caller falls back to its own default.
         except _PROBE_ERRORS:
             organ = None
         if organ is not None:
@@ -635,6 +636,7 @@ def _substrate_reading() -> dict[str, float]:
             continue
         try:
             organ = method("liquid_substrate", default=None)
+        # not a failure: no service here, so the caller falls back to its own default.
         except _PROBE_ERRORS:
             organ = None
         if organ is not None:
@@ -789,6 +791,8 @@ def fabricated_self_metrics(
             from core.runtime.self_state_intent import asks_about_own_runtime
 
             self_measurement_context = asks_about_own_runtime(request_context)
+        # not a failure: the reader could not be asked, so this is not treated as a
+        # self-measurement request.
         except (ImportError, TypeError, ValueError):
             self_measurement_context = False
         if not self_measurement_context and not _EXPLICIT_SELF_MEASUREMENT_REPORT_RE.search(
