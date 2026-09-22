@@ -36,11 +36,10 @@ attempt to kill it before it is allowed to fire:
    resolution is a coincidence with a hypothesis attached.
 2. **Invariant extraction** — the features common to every successful episode.
    That is the candidate explanation, and it is where classic chunking stops.
-3. **Counterfactual lesion** — for each candidate condition, look for episodes
-   that resolved the same way *without* it. A condition that makes no
-   difference to the outcome is not causal, however reliably it co-occurs, and
-   it is dropped. This is the step that turns "I found a pattern" into "here is
-   the empirically supported domain in which the shortcut holds".
+3. **Condition ablation** — an explicit proposed condition set can be tested
+   against successful episodes without each condition. Widen it only when
+   enough measured outcomes support the wider domain and contradiction search
+   still passes. Observational coverage does not establish causal necessity.
 4. **Contradiction search** — episodes matching the conditions that resolved
    *differently*. Any at all in a protected domain blocks promotion outright.
 5. **A statistical floor**, on the Wilson lower bound rather than the raw
@@ -290,13 +289,15 @@ class ProceduralGeneralizer:
 
     # -- derivation ------------------------------------------------------
 
-    def derive(self, resolution: str) -> GeneralizedRule | None:
+    def derive(
+        self, resolution: str, *, proposed_conditions: Iterable[Feature] | None = None
+    ) -> GeneralizedRule | None:
         """Propose a rule for ``resolution``, or None if the evidence will not carry one.
 
-        The three steps that matter, in order: invariant extraction finds what
-        every successful episode had in common, lesion removes the parts of
-        that which make no difference, and contradiction search looks for
-        episodes the surviving conditions match that went the other way.
+        Without a proposal, intersect the successful traces conservatively.
+        An explicit proposal permits measured condition removal using episodes
+        outside its original domain. Each widening is checked independently;
+        removing two conditions separately cannot authorize their joint removal.
         """
         with self._lock:
             episodes = list(self._episodes)
@@ -309,47 +310,54 @@ class ProceduralGeneralizer:
             return None
 
         # 1. Invariant extraction: the candidate explanation.
-        invariant: frozenset[Feature] = frozenset.intersection(
-            *(e.features for e in successes)
+        invariant = (
+            frozenset.intersection(*(e.features for e in successes))
+            if proposed_conditions is None else frozenset(proposed_conditions)
         )
+        if any(not isinstance(feature, str) or not feature for feature in invariant):
+            raise ValueError("proposed conditions must be nonempty feature strings")
         if not invariant:
             return None
+        if sum(e.matches(invariant) for e in successes) < criteria.min_episodes:
+            return None
 
-        # 2. Counterfactual lesion. A condition that successful episodes
-        #    resolved the same way WITHOUT is not doing causal work, however
-        #    reliably it co-occurs. Classic chunking keeps it; that is how a
-        #    rule ends up keyed on the time of day.
-        others = [e for e in episodes if e.resolution == resolution and e.correct is True]
-        causal: set[Feature] = set()
+        def contradictions(conditions):
+            return [e for e in episodes if e.matches(conditions) and (
+                (e.resolution != resolution and e.correct is True)
+                or (e.resolution == resolution and e.correct is False)
+            )]
+
+        # A global intersection cannot have successful counterexamples lacking
+        # one of its members. Explicit proposals let evidence test wider scope.
+        causal = set(invariant)
         lesioned: list[Feature] = []
         for condition in sorted(invariant):
-            remaining = invariant - {condition}
-            # Episodes matching everything else but lacking this condition.
-            without = [
-                e for e in others if e.matches(remaining) and condition not in e.features
-            ]
-            if without:
-                lesioned.append(condition)  # outcome held without it
-            else:
-                causal.add(condition)
+            remaining = causal - {condition}
+            if len(remaining) < criteria.min_conditions:
+                continue
+            without = [e for e in successes
+                       if e.matches(remaining) and condition not in e.features]
+            failures = contradictions(remaining)
+            hits = sum(e.matches(remaining) for e in successes)
+            if (len(without) >= criteria.min_episodes
+                and not any(e.protected for e in failures)
+                and len(failures) <= criteria.max_contradictions
+                and wilson_lower_bound(hits, hits + len(failures))
+                    >= criteria.min_confidence_lower_bound):
+                causal.remove(condition)
+                lesioned.append(condition)
 
         if len(causal) < criteria.min_conditions:
             return None
 
         # 3. Contradiction search over the surviving conditions.
-        contradicting = [
-            e
-            for e in episodes
-            if e.matches(causal)
-            and ((e.resolution != resolution and e.correct is True)
-                 or (e.resolution == resolution and e.correct is False))
-        ]
+        contradicting = contradictions(causal)
         protected_contradiction = any(e.protected for e in contradicting)
 
         rule = GeneralizedRule(
             conditions=frozenset(causal),
             resolution=resolution,
-            supporting=len(successes),
+            supporting=sum(e.matches(causal) for e in successes),
             contradicting=len(contradicting),
             lesioned=tuple(lesioned),
         )

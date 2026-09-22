@@ -317,3 +317,51 @@ def test_counterevidence_outside_applicability_leaves_rule_available():
     gen.promote(rule)
     gen.record(_episode({"reversible=false"}, correct=False, protected=True))
     assert gen.propose(rule.conditions) is rule
+
+
+def test_explicit_proposal_is_widened_by_measured_outside_examples():
+    gen = ProceduralGeneralizer()
+    for _ in range(12):
+        gen.record(_episode({"reversible=true", "time=morning"}))
+        gen.record(_episode({"reversible=true", "time=afternoon"}))
+    rule = gen.derive("B", proposed_conditions={"reversible=true", "time=morning"})
+    assert rule.conditions == frozenset({"reversible=true"})
+    assert rule.lesioned == ("time=morning",)
+    assert rule.supporting == 24
+    assert gen.promote(rule)
+    assert gen.propose({"reversible=true", "time=evening"}) is rule
+
+
+def test_ablation_checks_joint_removal_instead_of_assuming_compositional_safety():
+    gen = ProceduralGeneralizer()
+    for _ in range(12):
+        gen.record(_episode({"domain=x", "a=1", "b=1"}))
+        gen.record(_episode({"domain=x", "a=1"}))
+        gen.record(_episode({"domain=x", "b=1"}))
+    gen.record(_episode({"domain=x"}, correct=False))
+    rule = gen.derive("B", proposed_conditions={"domain=x", "a=1", "b=1"})
+    assert len(rule.lesioned) == 1
+    assert rule.supporting == 24
+    assert gen.promote(rule)
+    assert gen.propose({"domain=x"}) is None
+
+
+def test_unknown_outside_examples_do_not_authorize_widening():
+    gen = ProceduralGeneralizer()
+    for _ in range(12):
+        gen.record(_episode({"domain=x", "verified=true"}))
+        gen.record(_episode({"domain=x"}, correct=None))
+    rule = gen.derive("B", proposed_conditions={"domain=x", "verified=true"})
+    assert rule.lesioned == ()
+    assert rule.supporting == 12
+
+
+def test_unrelated_successes_do_not_inflate_narrow_rule_confidence():
+    gen = ProceduralGeneralizer()
+    for _ in range(3):
+        gen.record(_episode({"domain=x"}))
+    for _ in range(100):
+        gen.record(_episode({"domain=y"}))
+    rule = gen.derive("B", proposed_conditions={"domain=x"})
+    assert rule.supporting == 3
+    assert not gen.promote(rule)

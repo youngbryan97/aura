@@ -84,6 +84,9 @@ def test_a_promoted_rule_fires_on_wording_tier_one_would_miss():
         assert fresh.receipt.chunk_reused is False, (
             "this must be Tier 2 transfer, not a Tier 1 exact hit"
         )
+        gen.record(module.DecisionEpisode(rule.conditions, resolution, correct=False))
+        after_failure = _drive(engine, ["new request after independent counterevidence"])[0]
+        assert after_failure.receipt.rule_applied is False
     finally:
         module._generalizer = previous
 
