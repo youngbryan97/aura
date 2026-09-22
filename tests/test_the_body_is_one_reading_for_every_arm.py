@@ -100,22 +100,26 @@ def test_every_priced_kind_of_work_has_something_that_reports_it():
     written. A reader with no writer, in the module written to give her a sense
     of her own exertion.
     """
-    import subprocess
+    import ast
 
     from core.soma.effort import UNIT_COST
 
-    found = subprocess.run(
-        ["grep", "-rn", "note_effort(", "--include=*.py", "core/"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    ).stdout
-    reported = {
-        line.split('note_effort("', 1)[1].split('"', 1)[0]
-        for line in found.splitlines()
-        if 'note_effort("' in line
-    }
+    # Read as calls, not lines: the substrate's report is formatted over two
+    # lines, and a line match found no writer for it.
+    reported: set[str] = set()
+    for path in (ROOT / "core").rglob("*.py"):
+        source = path.read_text(encoding="utf-8")
+        if "note_effort" not in source:
+            continue
+        for node in ast.walk(ast.parse(source)):
+            if (
+                isinstance(node, ast.Call)
+                and getattr(node.func, "id", getattr(node.func, "attr", "")) == "note_effort"
+                and node.args
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+            ):
+                reported.add(node.args[0].value)
     missing = sorted(set(UNIT_COST) - reported)
     assert not missing, f"priced but never reported: {missing}"
 
