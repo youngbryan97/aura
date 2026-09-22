@@ -17,12 +17,17 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import copy
+import datetime
+import decimal
 import enum
+import fractions
 import functools
 import importlib
 import inspect
 import logging
+import math
 import os
+import random
 import sqlite3
 import sys
 import time
@@ -30,7 +35,7 @@ import types
 from collections import deque
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, is_dataclass
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -187,7 +192,7 @@ def _organ_state(organ: Any, depth: int = 0, skip: frozenset[int] = frozenset())
             out[name] = (_NESTED, _organ_state(value, depth + 1, skip))
             continue
         try:
-            out[name] = copy.deepcopy(value)
+            out[name] = _unchanged_or(id(organ), name, copy.deepcopy(value))
         except Exception:  # noqa: BLE001 - every way a copy fails has one answer
             # Take it apart instead. A multiprocessing queue raises RuntimeError
             # rather than TypeError, an executor raises something else again,
@@ -196,6 +201,114 @@ def _organ_state(organ: Any, depth: int = 0, skip: frozenset[int] = frozenset())
             if hasattr(value, "__dict__") and depth < _ORGAN_DEPTH:
                 out[name] = (_NESTED, _organ_state(value, depth + 1))
     return out
+
+
+#: The last copy taken of each field, by the owner's id and the field's name.
+#: A snapshot is never mutated: a restore copies out of it (`_place`,
+#: `np.copyto`, a rebuilt dict). So when a field holds exactly what it held at
+#: the last snapshot, the new snapshot can hold the same copy. The substrate's
+#: private subsystems and most weight matrices do not move between two anchors,
+#: and copying them again for each of 128 anchors was half of every fork.
+_LAST_COPY: dict[tuple[int, str], Any] = {}
+
+
+def _unchanged_or(owner: int, name: str, fresh: Any) -> Any:
+    """The copy the last snapshot kept, if `fresh` is identical to it; else `fresh`."""
+    key = (owner, name)
+    kept = _LAST_COPY.get(key, _ABSENT)
+    if kept is not _ABSENT and identical(kept, fresh):
+        return kept
+    _LAST_COPY[key] = fresh
+    return fresh
+
+
+def identical(left: Any, right: Any) -> bool:
+    """Whether two copies hold the same thing, exactly. Any doubt is no.
+
+    Same type all the way down, the same bits in every float (a signed zero
+    is not zero), NaN where the other has NaN, the same dtype and shape for an
+    array, the same key order for a dict. A type this does not know how to
+    read counts as different, so the worst a gap here costs is a copy.
+    """
+    try:
+        return _identical(left, right, set())
+    except (AttributeError, RecursionError, RuntimeError, TypeError, ValueError):
+        # A comparison that could not be finished is a doubt, and a doubt is a
+        # copy: bfloat16 tensors will not become numpy arrays, for one.
+        return False
+
+
+#: Immutable types whose equality is their whole content.
+_VALUES: tuple[type, ...] = (
+    str, bytes, int, bool, type(None), complex, PurePath, datetime.date, datetime.time,
+    datetime.timedelta, decimal.Decimal, fractions.Fraction, range,
+)
+
+
+def _identical(left: Any, right: Any, pairs: set[tuple[int, int]]) -> bool:
+    if left is right:
+        return True
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, float):
+        return (left == right and math.copysign(1.0, left) == math.copysign(1.0, right)) or (
+            left != left and right != right
+        )
+    if isinstance(left, _VALUES):
+        return left == right
+    if isinstance(left, random.Random):
+        return left.getstate() == right.getstate()
+    pair = (id(left), id(right))
+    if pair in pairs:
+        # Already being compared further up a cycle.
+        return True
+    pairs.add(pair)
+    if isinstance(left, np.ndarray):
+        if left.shape != right.shape or left.dtype != right.dtype:
+            return False
+        if left.dtype.hasobject:
+            return all(
+                _identical(a, b, pairs)
+                for a, b in zip(left.ravel().tolist(), right.ravel().tolist(), strict=True)
+            )
+        # Byte for byte: a signed zero and a NaN's payload are both kept.
+        return left.tobytes() == right.tobytes()
+    if isinstance(left, dict):
+        if getattr(left, "default_factory", None) is not getattr(right, "default_factory", None):
+            return False
+        if hasattr(left, "__dict__") and not _identical(vars(left), vars(right), pairs):
+            return False
+        return list(left) == list(right) and all(_identical(left[k], right[k], pairs) for k in left)
+    if isinstance(left, (list, tuple)):
+        return len(left) == len(right) and all(
+            _identical(a, b, pairs) for a, b in zip(left, right, strict=True)
+        )
+    if isinstance(left, deque):
+        return (
+            left.maxlen == right.maxlen
+            and len(left) == len(right)
+            and all(_identical(a, b, pairs) for a, b in zip(left, right, strict=True))
+        )
+    if isinstance(left, (set, frozenset)):
+        return all(isinstance(item, _ATOMIC) for item in left) and left == right
+    tensor = _tensor_type()
+    if tensor is not None and isinstance(left, tensor):
+        return (
+            left.shape == right.shape
+            and left.dtype == right.dtype
+            and left.device == right.device
+            and left.requires_grad == right.requires_grad
+            and left.detach().cpu().numpy().tobytes() == right.detach().cpu().numpy().tobytes()
+        )
+    if _state_is_its_dict(left) and not getattr(type(left), "__slots__", None):
+        return _identical(vars(left), vars(right), pairs)
+    return False
+
+
+def _tensor_type() -> type | None:
+    # Read each time: torch may be imported after the first snapshot.
+    torch = sys.modules.get("torch")
+    return getattr(torch, "Tensor", None)
 
 
 #: Values no arm can mutate, so a restore can hand the same object to all three
@@ -1232,16 +1345,34 @@ def _differs(left: Any, right: Any) -> bool:
         return True
 
 
-def _service_state(only: set[str] | None = None) -> dict[str, dict[str, Any]]:
-    """The mutable state of everything the container has already built."""
+def _service_state(
+    only: set[str] | None = None,
+    skip: frozenset[int] = frozenset(),
+    organs: frozenset[int] = frozenset(),
+) -> dict[str, dict[str, Any]]:
+    """The mutable state of everything the container has already built.
+
+    Each object once. A service registered under two names is one object, and
+    a service holding another service as a field (the authority keeps the
+    somatic gate, the gate keeps interoception, three of them keep the
+    neurochemical system) is holding something `skip` says is carried under
+    its own name. Copying it again under every owner made one snapshot 230 MB,
+    and a worker holding 128 of them held 29 GB: six workers restarted the
+    machine on 22 September. A service that is one of the organs (`organs`)
+    is carried with them and not again here.
+    """
     out: dict[str, dict[str, Any]] = {}
+    captured_ids: set[int] = set(organs)
     for name, instance in _built_services().items():
         if name in _UNFORKED_SERVICES:
             continue
         if only is not None and name not in only:
             continue
+        if id(instance) in captured_ids:
+            continue
+        captured_ids.add(id(instance))
         try:
-            captured = _organ_state(instance)
+            captured = _organ_state(instance, skip=skip)
         except (
             ArithmeticError,
             AttributeError,

@@ -226,6 +226,7 @@ from core.subject.snapshot import (  # noqa: E402
     _held,
     _HeldObserver,
     _intentions_state,
+    _is_published_value,
     _lifetime_last,
     _module_state,
     _moments_of,
@@ -466,6 +467,41 @@ class SubjectRuntime:
                 out[name] = captured
         return out
 
+    def _organ_ids(self) -> frozenset[int]:
+        return frozenset(
+            id(organ)
+            for field_name in self.ORGAN_FIELDS
+            if (organ := getattr(self.organs, field_name, None)) is not None
+        )
+
+    def _carried_by_name(self) -> frozenset[int]:
+        """What a service or organ holding it as a field must not copy again.
+
+        The objects this snapshot carries under a name of their own and
+        restores in place: every organ and every service it forks. Three kinds
+        stay with whatever holds them, as they always were. A service the fork
+        leaves alone is still rewound through its owners; a service calibration
+        saw stand still is carried only that way; and a published value is
+        replaced on restore, so an owner still holding the old one needs its
+        own copy.
+        """
+        built = _built_services()
+        forked = {
+            id(obj)
+            for name, obj in built.items()
+            if name not in _UNFORKED_SERVICES
+            and (self.forked_services is None or name in self.forked_services)
+            # A published value is replaced on restore, not rewound, so a field
+            # still holding the old one has to be carried by its owner.
+            and not _is_published_value(obj)
+        }
+        return frozenset(
+            {
+                *forked,
+                *self._organ_ids(),
+            }
+        )
+
     def _fork_skip(self) -> frozenset[int]:
         """Objects carried under a name of their own, which a phase or a module
         global reaching them must not carry a second time."""
@@ -609,10 +645,11 @@ class SubjectRuntime:
         self._previous_observer = None
 
     def snapshot(self) -> Snapshot:
+        carried = self._carried_by_name()
         return Snapshot(
             outcomes_by_kind=dict(getattr(self, "_outcomes_by_kind", {}) or {}),
             organs={
-                name: _organ_state(getattr(self.organs, name, None))
+                name: _organ_state(getattr(self.organs, name, None), skip=carried)
                 for name in self.ORGAN_FIELDS
             },
             state=copy.deepcopy(self.state),
@@ -633,7 +670,7 @@ class SubjectRuntime:
             singletons=_singleton_state(),
             module_state=_module_state(self._module_keys(), self._fork_skip()),
             empty_module_slots=self._empty_slots(),
-            services=_service_state(self.forked_services),
+            services=_service_state(self.forked_services, skip=carried, organs=self._organ_ids()),
             effort=_effort_state(),
             taken_at=time.time(),
             clock_at=None if self.clock is None else self.clock.now(),
