@@ -88,6 +88,8 @@ class HeldInLedger:
         """One moment's strongest held pressure, in the containment ledger's units."""
         try:
             value = float(pressure)
+    # not a failure: a reading that is not a number is nothing to record,
+    # and the ledger keeps the window it already has.
         except (TypeError, ValueError):
             return
         if value != value:

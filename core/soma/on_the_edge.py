@@ -103,6 +103,8 @@ class EdgeLedger:
     def note_sent(self, risk: float) -> None:
         try:
             value = float(risk)
+        # not a failure: a risk that is not a number is nothing to record,
+        # and the ledger keeps the window it already has.
         except (TypeError, ValueError):
             return
         if value != value:

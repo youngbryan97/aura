@@ -106,6 +106,8 @@ class FatigueLedger:
         """One cycle's exertion, in the effort ledger's own [0, 1] reading."""
         try:
             value = float(exertion)
+    # not a failure: a reading that is not a number is nothing to record,
+    # and the ledger keeps the window it already has.
         except (TypeError, ValueError):
             return
         if value != value:

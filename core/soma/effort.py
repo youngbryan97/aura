@@ -21,7 +21,11 @@ here decides anything; it is a ledger.
 
 from __future__ import annotations
 
+import logging
+
 from core.runtime.lockdep import checked_lock
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["EffortLedger", "get_effort_ledger", "note_effort", "reset_effort_for_test"]
 
@@ -56,6 +60,8 @@ class EffortLedger:
     def note(self, kind: str, amount: float = 1.0) -> None:
         try:
             value = float(amount)
+        # not a failure: an amount that is not a number is nothing to record,
+        # and the ledger keeps the window it already has.
         except (TypeError, ValueError):
             return
         if value <= 0.0 or value != value:
@@ -130,7 +136,12 @@ def note_effort(kind: str, amount: float = 1.0) -> None:
     """Report exertion. Never raises into the path that was doing the work."""
     try:
         get_effort_ledger().note(kind, amount)
-    except (RuntimeError, TypeError, ValueError):
+    except (RuntimeError, TypeError, ValueError) as exc:
+        # Never raising is the contract. Never SAYING is how a body ledger
+        # reads flat for a whole run with everything apparently wired.
+        logger.debug(
+            "effort %r not recorded (%s: %s)", kind, type(exc).__name__, exc
+        )
         return
 
 

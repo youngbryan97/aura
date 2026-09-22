@@ -122,6 +122,8 @@ def expression_for(valence: Any, arousal: Any) -> str:
     """
     try:
         v = float(valence)
+    # not a failure: a valence that is not a number sits at neutral, which
+    # is the word this returns for it.
     except (TypeError, ValueError):
         v = 0.0
     try:

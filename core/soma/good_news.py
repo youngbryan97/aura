@@ -71,6 +71,8 @@ class GoodNewsLedger:
     def note(self, predicted: float, actual: float) -> None:
         try:
             error = float(actual) - float(predicted)
+    # not a failure: a reading that is not a number is nothing to record,
+    # and the ledger keeps the window it already has.
         except (TypeError, ValueError):
             return
         if error != error:
