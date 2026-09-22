@@ -14,13 +14,28 @@ His account: a warmth family (praise, love, comfort, happiness; peace,
 connection, wanting to reciprocate); anger (pressure fixed on its source,
 feeding itself); grief (a gap only the lost thing fills).
 
-Prediction, on the content run's quality structure (core/subject/content.py),
-among the classes her emotion channels form: joy, trust, peace and warmth are
-nearer each other than any of them is to anger or to sadness; anger and
-sadness are not nearer each other than either is to the warmth family.
+The content run (tools/run_subject_core_content.py) presents one class per
+percept kind and reads her internal geometry, the Fisher-Rao distance between
+the futures two classes induce from a common fork. Anger has no percept kind:
+in her it comes from somebody objecting (core/affect/anger_feeds_itself.py),
+not from something seen, so the run can only speak to two of his families and
+to the frustration kinds nearest anger.
 
-Refuted if the content run's distances put anger or sadness inside the warmth
-family's span, on the run's own floor.
+| family | percept kinds |
+|---|---|
+| warmth | cared_for, positive_interaction, interaction, extended_dialogue |
+| loss | disconnection |
+| frustration | error, internal_error, self_correction, inner_conflict |
+
+Prediction: the mean internal distance between two warmth kinds is smaller than
+the mean distance from a warmth kind to the loss kind, and smaller than the
+mean distance from a warmth kind to a frustration kind.
+
+Refuted if either inequality fails on the content run's internal geometry. It
+is a weak prediction, and it is written as one: the affect table the classes are
+built from already gives the warmth kinds shared emotions, so what is tested is
+whether her dynamics keep that grouping or wash it out, not whether she finds
+it on her own.
 
 Built from: core/social/warmth.py, core/affect/anger_feeds_itself.py,
 core/affect/the_gap.py, core/affect/feelings_about.py.
