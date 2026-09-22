@@ -149,8 +149,7 @@ class NetworkSentinel:
             self._baseline_established_at = established if self._known else 0.0
         except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
             logger.info(
-                "Network baseline unavailable after validation failure: %s",
-                type(exc).__name__,
+                "Network baseline unavailable after validation failure: %s", type(exc).__name__
             )
             self._known.clear()
             self._novel.clear()
@@ -187,8 +186,7 @@ class NetworkSentinel:
                 )
         except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
             logger.warning(
-                "Network baseline persistence failed; in-memory evidence retained: %s",
-                exc,
+                "Network baseline persistence failed; in-memory evidence retained: %s", exc
             )
 
     def learn_baseline(self, devices: List[Device]) -> None:

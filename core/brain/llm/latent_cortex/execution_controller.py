@@ -542,10 +542,7 @@ class ExecutionController:
                         self._restore_errors += 1
         except OSError as exc:
             self._restore_errors += 1
-            logger.warning(
-                "Controller action ledger unreadable - bootstrap-only: %s",
-                exc,
-            )
+            logger.warning("Controller action ledger unreadable - bootstrap-only: %s", exc)
 
     def _fold_action_transition(self, row: dict[str, Any]) -> None:
         transition = validate_action_transition(row)

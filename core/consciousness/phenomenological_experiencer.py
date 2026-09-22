@@ -130,9 +130,7 @@ def _phenomenology_background_deferral_reason() -> str:
         # Falling through means narrative work proceeds, which is what the
         # comment above says queues the tick and blows its SLO.
         logger.debug(
-            "could not tell whether a lane is busy (%s: %s); not yielding",
-            type(exc).__name__,
-            exc,
+            "could not tell whether a lane is busy (%s: %s); not yielding", type(exc).__name__, exc
         )
 
     try:

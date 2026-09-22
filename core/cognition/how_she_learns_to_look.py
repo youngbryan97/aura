@@ -303,9 +303,7 @@ def recall() -> int:
         # A file that exists and will not read is her losing what she learned
         # about her own searching, and 0 is indistinguishable from a first run.
         logger.warning(
-            "what she learned about searching did not read back (%s: %s)",
-            type(exc).__name__,
-            exc,
+            "what she learned about searching did not read back (%s: %s)", type(exc).__name__, exc
         )
         return 0
     won = row.get("won")

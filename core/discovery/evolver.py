@@ -14,11 +14,15 @@ domain.
 """
 from __future__ import annotations
 
+import logging
 import random
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.discovery.expression import SafeExpression
+
+logger = logging.getLogger(__name__)
+
 
 
 Example = Tuple[int, int, int]
@@ -148,7 +152,12 @@ class ExpressionEvolver:
             try:
                 if expr.eval(a, b) != target:
                     return False
-            except (RuntimeError, AttributeError, TypeError, ValueError):
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "the candidate expression would not evaluate, so it is not perfect (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
                 return False
         return True
 
@@ -175,5 +184,10 @@ class ExpressionEvolver:
                 )
             )
             return receipt.receipt_id
-        except (ImportError, AttributeError, RuntimeError):
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "no receipt was issued for the discovered expression (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return None

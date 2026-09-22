@@ -813,7 +813,12 @@ class FrontierDiscoveryEngine:
                 formal = f"({expr}) % {m} == 0  ∀ n"
                 statement = f"For every integer n, {m} divides {expr}."
                 return expr, m, formal, statement
-            except (ValueError, AttributeError):
+            except (ValueError, AttributeError) as exc:
+                logger.debug(
+                    "the divisibility pattern did not parse into a conjecture (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
                 return None
         return None
 

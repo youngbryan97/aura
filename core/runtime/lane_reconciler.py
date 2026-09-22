@@ -346,11 +346,7 @@ def _default_primary_alive() -> bool | None:
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         # None is this function's documented word for "unobservable", and the
         # reconciler acts differently on it than on False.
-        logger.debug(
-            "primary lane health unobservable (%s: %s)",
-            type(exc).__name__,
-            exc,
-        )
+        logger.debug("primary lane health unobservable (%s: %s)", type(exc).__name__, exc)
         return None
 
 
@@ -374,11 +370,7 @@ def _default_primary_age_s() -> float:
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         # An age of 0 reads as a worker that just started, which is the
         # reading least likely to prompt the reconciler to act.
-        logger.debug(
-            "primary lane age unreadable (%s: %s); reporting 0s",
-            type(exc).__name__,
-            exc,
-        )
+        logger.debug("primary lane age unreadable (%s: %s); reporting 0s", type(exc).__name__, exc)
         return 0.0
 
 
@@ -468,9 +460,7 @@ def _default_foreground_active() -> bool:
         # False means "nobody is being answered", which is what lets the
         # reconciler evict. Not being able to ask must not look like that.
         logger.debug(
-            "foreground ownership unreadable (%s: %s); reporting idle",
-            type(exc).__name__,
-            exc,
+            "foreground ownership unreadable (%s: %s); reporting idle", type(exc).__name__, exc
         )
         return False
 

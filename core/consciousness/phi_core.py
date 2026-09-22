@@ -911,11 +911,7 @@ class PhiCore:
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             # No ring means no activation-grounded phi, which is the state
             # the comment above says went unnoticed for the whole project.
-            logger.debug(
-                "no residual ring to read (%s: %s)",
-                type(exc).__name__,
-                exc,
-            )
+            logger.debug("no residual ring to read (%s: %s)", type(exc).__name__, exc)
             return None
 
     def drain_worker_residuals(self, channel: Any) -> int:

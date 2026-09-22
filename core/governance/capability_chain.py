@@ -745,7 +745,10 @@ def _verify_signature(payload: bytes, signature: str, key_id: str) -> bool:
         try:
             keys["public"].verify(bytes.fromhex(signature), payload)
             return True
-        except (InvalidSignature, ValueError):
+        except (InvalidSignature, ValueError) as exc:
+            logger.warning(
+                "the capability signature did not verify (%s: %s)", type(exc).__name__, exc
+            )
             return False
     expected = hmac.new(keys["private"], payload, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, signature)

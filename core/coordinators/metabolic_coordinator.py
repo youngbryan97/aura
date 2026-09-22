@@ -104,7 +104,12 @@ def lock_file_is_stale(lock_file) -> bool:
         os.kill(pid, 0)
     except ProcessLookupError:
         return True
-    except PermissionError:
+    except PermissionError as exc:
+        logger.debug(
+            "the lock holder cannot be signalled, so it counts as not ours (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return False
     except OSError as exc:
         logger.debug("Unable to inspect PID %s from %s: %s", pid, lock_file, exc)
@@ -459,7 +464,12 @@ class MetabolicCoordinator(_TriggersTheImpulses):
 
             disk = state_volume_percent()
             return mem > 90 or disk > 95
-        except (ImportError, OSError, AttributeError, RuntimeError, TypeError, ValueError):
+        except (ImportError, OSError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "memory and disk pressure could not be read, so no duress is reported (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     def _allostasis_defers(self) -> bool:
@@ -477,7 +487,12 @@ class MetabolicCoordinator(_TriggersTheImpulses):
                 return False
             defer, _reason = allostasis.should_defer_heavy_work()
             return bool(defer)
-        except _METABOLIC_BOUNDARY_ERRORS:
+        except _METABOLIC_BOUNDARY_ERRORS as exc:
+            logger.debug(
+                "allostasis did not answer, so heavy work is not deferred (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     async def _continuity_checkpoint(self) -> None:
@@ -546,7 +561,10 @@ class MetabolicCoordinator(_TriggersTheImpulses):
             if namer is None:
                 return
             namer(resting=self._metabolic_energy < _DORMANT_ENERGY)
-        except (AttributeError, RuntimeError, TypeError, ValueError):
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "the resting mode could not be named on cognition (%s: %s)", type(exc).__name__, exc
+            )
             return
 
     async def _allostasis_pulse(self) -> None:

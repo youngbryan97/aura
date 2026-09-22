@@ -450,8 +450,7 @@ def _entry_is_from_the_human(entry: dict) -> bool:
         return bool(_origin_is_user_anchored(origin))
     except (ImportError, AttributeError, TypeError, ValueError) as exc:
         logger.warning(
-            "Grounded recall excluded an entry whose human origin could not be verified: %s",
-            exc,
+            "Grounded recall excluded an entry whose human origin could not be verified: %s", exc
         )
         return False
 

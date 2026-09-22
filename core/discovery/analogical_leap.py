@@ -246,7 +246,12 @@ class OutOfDistributionDetector:
             try:
                 from core.memory.intentional_retrieval import get_intentional_retriever
                 retriever = get_intentional_retriever()
-            except (ImportError, AttributeError, RuntimeError):
+            except (ImportError, AttributeError, RuntimeError) as exc:
+                logger.debug(
+                    "no intentional retriever, so retrieval support reads as zero (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
                 return 0.0
         try:
             from core.memory.intentional_retrieval import RetrievalIntent

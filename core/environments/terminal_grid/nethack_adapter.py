@@ -121,7 +121,10 @@ class NetHackTerminalGridAdapter(TerminalGridAdapter):
             if out and self._pyte_stream is not None:
                 self._pyte_stream.feed(out)
                 self.screen.text = "\n".join(self._pyte_screen.display)  # type: ignore[union-attr]
-        except pexpect.TIMEOUT:
+        except pexpect.TIMEOUT as exc:
+            logger.debug(
+                "no screen output inside the read window (%s: %s)", type(exc).__name__, exc
+            )
             return
         except pexpect.EOF as exc:
             self._mark_child_dead(exc)

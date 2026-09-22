@@ -42,9 +42,7 @@ class SelfReportEngine:
         except (ImportError, AttributeError, RuntimeError) as exc:
             # She reports on her state without the unity reading in it.
             logger.debug(
-                "unity state unavailable for the self report (%s: %s)",
-                type(exc).__name__,
-                exc,
+                "unity state unavailable for the self report (%s: %s)", type(exc).__name__, exc
             )
             unity_state = None
             unity_report = None

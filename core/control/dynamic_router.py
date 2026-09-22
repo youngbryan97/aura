@@ -313,9 +313,7 @@ class DynamicRouter:
             exc = task.exception()
         except (RuntimeError, asyncio.CancelledError) as exc:
             logger.debug(
-                "the learning task would not report its exception (%s: %s)",
-                type(exc).__name__,
-                exc,
+                "the learning task would not report its exception (%s: %s)", type(exc).__name__, exc
             )
             return
         if exc is not None:

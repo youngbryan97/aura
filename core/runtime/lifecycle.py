@@ -364,9 +364,7 @@ class ManagedOrgan:
             # The comment above is about this histogram reading empty forever.
             # A silent except is the second way to arrive there.
             logger.debug(
-                "Aura.Lifecycle.TransitionMs not recorded (%s: %s)",
-                type(exc).__name__,
-                exc,
+                "Aura.Lifecycle.TransitionMs not recorded (%s: %s)", type(exc).__name__, exc
             )
         logger.log(
             logging.INFO if ok else logging.WARNING,

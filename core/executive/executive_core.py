@@ -1274,7 +1274,12 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
                 or ServiceContainer.has("kernel_interface")
                 or bool(getattr(ServiceContainer, "_registration_locked", False))
             )
-        except (RuntimeError, AttributeError, TypeError):
+        except (RuntimeError, AttributeError, TypeError) as exc:
+            logger.debug(
+                "the container would not answer, so the runtime does not count as strict (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     def _identity_integrity_available(self) -> bool:
@@ -1519,8 +1524,12 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
                     payload_hint=intent.payload,
                 ),
             )
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # no-op: intentional
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "no research trigger was emitted for the contested belief (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
 
     def _get_failure_state(self) -> Dict[str, Any]:
         try:

@@ -355,9 +355,7 @@ def run_integrity_audit(*, log: bool = True) -> dict[str, Any]:
                 get_metrics().increment_counter("integrity_concern_total")
             except (ImportError, AttributeError, RuntimeError, TypeError) as exc:
                 logger.debug(
-                    "integrity_concern_total not counted (%s: %s)",
-                    type(exc).__name__,
-                    exc,
+                    "integrity_concern_total not counted (%s: %s)", type(exc).__name__, exc
                 )
         if integrity_incident["resolved_subsystems"]:
             remaining = sorted(concern_counts)

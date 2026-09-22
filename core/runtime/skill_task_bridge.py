@@ -381,9 +381,7 @@ def looks_like_capability_inventory_dialogue_request(text: str) -> bool:
         # The comment above is about a reader matching "aura" inside a path.
         # Leaving the spans in is how that reader sees them again.
         logger.debug(
-            "opaque spans were not removed before matching (%s: %s)",
-            type(exc).__name__,
-            exc,
+            "opaque spans were not removed before matching (%s: %s)", type(exc).__name__, exc
         )
     if not normalized.strip():
         return False
@@ -514,9 +512,7 @@ def _names_a_deliverable(text: str) -> bool:
         return names_a_deliverable(text)
     except (ImportError, TypeError, ValueError) as exc:
         logger.debug(
-            "deliverable naming could not be judged (%s: %s); reporting no",
-            type(exc).__name__,
-            exc,
+            "deliverable naming could not be judged (%s: %s); reporting no", type(exc).__name__, exc
         )
         return False
 

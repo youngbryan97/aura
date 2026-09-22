@@ -351,8 +351,10 @@ class Ghost:
         snap = self.snapshot()
         try:
             ServiceContainer.set("ghost_snapshot", snap, required=False)
-        except (RuntimeError, AttributeError, TypeError, ValueError):
-            pass
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "the ghost snapshot did not reach the container (%s: %s)", type(exc).__name__, exc
+            )
         try:
             me = self._read_canonical()
             digest = self._digest(snap, me)

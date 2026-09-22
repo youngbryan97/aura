@@ -343,11 +343,7 @@ class ResourceAdmissionController:
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             # Returning here leaves the pressure conditions at whatever they
             # last said, which reads downstream as a healthy envelope.
-            logger.debug(
-                "pressure conditions not published (%s: %s)",
-                type(exc).__name__,
-                exc,
-            )
+            logger.debug("pressure conditions not published (%s: %s)", type(exc).__name__, exc)
             return
 
     async def pressure_snapshot_async(self) -> PressureSnapshot:
@@ -1007,9 +1003,7 @@ class ResourceAdmissionController:
             return True
         except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
             logger.warning(
-                "admission controller reports not alive: %s: %s",
-                type(exc).__name__,
-                exc,
+                "admission controller reports not alive: %s: %s", type(exc).__name__, exc
             )
             return False
 
@@ -1730,9 +1724,7 @@ class RuntimeControlPlane:
             )
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug(
-                "reconciliation conditions not published (%s: %s)",
-                type(exc).__name__,
-                exc,
+                "reconciliation conditions not published (%s: %s)", type(exc).__name__, exc
             )
             return
 
@@ -1756,11 +1748,7 @@ class RuntimeControlPlane:
             self.admission.pressure_snapshot()
             return True
         except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            logger.warning(
-                "control plane reports not alive: %s: %s",
-                type(exc).__name__,
-                exc,
-            )
+            logger.warning("control plane reports not alive: %s: %s", type(exc).__name__, exc)
             return False
 
     def is_ready(self) -> bool:

@@ -19,8 +19,12 @@ package exists to prevent, one level up.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
 
 __all__ = [
     "Lesson",
@@ -295,7 +299,8 @@ def _memory_facade() -> Any:
         return None
     try:
         return get_container().get(ServiceNames.MEMORY_FACADE)
-    except (ServiceNotFoundError, AttributeError, KeyError, RuntimeError):
+    except (ServiceNotFoundError, AttributeError, KeyError, RuntimeError) as exc:
+        logger.debug("the memory facade is not in the container (%s: %s)", type(exc).__name__, exc)
         return None
 
 

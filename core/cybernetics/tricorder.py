@@ -129,7 +129,12 @@ class Tricorder:
                         name="tricorder.process_empathy",
                     )
                 )
-        except ImportError:
+        except ImportError as exc:
+            logger.debug(
+                "the event bus is unavailable, so the tricorder sees no empathy updates (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             self._event_bus = None
         self._is_active = True
         logger.info("📡 [TRICORDER] Multi-modal Diagnostic Sensor ONLINE.")

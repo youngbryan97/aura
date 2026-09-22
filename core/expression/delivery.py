@@ -46,9 +46,13 @@ how hard this cycle has been. Working twice as hard halves the phrase.
 
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
 
 __all__ = [
     "LEVEL",
@@ -278,7 +282,12 @@ def read_delivery(
             from core.expression.register import read as read_shape
 
             answer_slot = bool(read_shape(said).asks_for_help())
-        except (ImportError, AttributeError, TypeError, ValueError):
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "the register could not be read, so the reply does not count as asking for help (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             answer_slot = False
 
     baseline = book.baseline()

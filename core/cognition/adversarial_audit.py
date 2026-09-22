@@ -255,11 +255,7 @@ class AdversarialAuditor:
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             # The audit reports what it found. A check that did not run is
             # absent from the findings and reads as a check that passed.
-            logger.debug(
-                "calibration finding not produced (%s: %s)",
-                type(exc).__name__,
-                exc,
-            )
+            logger.debug("calibration finding not produced (%s: %s)", type(exc).__name__, exc)
 
         risk = self._risk(findings)
         verdict = "block" if risk >= self._block_t else "caveat" if risk >= self._caveat_t else "trust"

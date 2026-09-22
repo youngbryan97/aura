@@ -458,10 +458,7 @@ class _RunsTheThinkingLoop:
                         if isinstance(candidate, dict):
                             surface_control_receipt = dict(candidate)
             except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
-                logger.debug(
-                    "Could not read full-phase surface-control receipt: %s",
-                    exc,
-                )
+                logger.debug("Could not read full-phase surface-control receipt: %s", exc)
         context_controls_bound = bool(
             context.get("live_mind_controls_bound", False)
             and generation_controls

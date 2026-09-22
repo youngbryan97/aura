@@ -56,11 +56,15 @@ the evidence and the memory at the same time.
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Iterable
 from typing import Any
 
 from core.language.typography import quotation_spans
+
+logger = logging.getLogger(__name__)
+
 
 __all__ = [
     "fabricated_shared_history",
@@ -360,7 +364,12 @@ def _attribution_surface() -> Any:
             ),
             features=embed_sentences,
         )
-    except (ImportError, RuntimeError, TypeError, ValueError):
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the attribution surface could not be built, so attribution is not screened (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         _ATTRIBUTION_SURFACE = None
     return _ATTRIBUTION_SURFACE
 
@@ -371,7 +380,12 @@ def _surface_says_not_an_attribution(sentence: str) -> bool:
         return False
     try:
         return surface.decide(sentence) is False
-    except (RuntimeError, TypeError, ValueError):
+    except (RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the attribution surface would not decide, so the sentence is left alone (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return False
 
 

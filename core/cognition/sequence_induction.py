@@ -24,6 +24,11 @@ it was shown, which is the same discipline the invention itself applies.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.cognition.what_she_can_take_back import HowItStood
+
 import ast
 import logging
 import re
@@ -113,7 +118,7 @@ def _a_meaning_worked_out(question: SequenceQuestion) -> str | None:
     return _work_the_meaning_out(question)
 
 
-def _everything_she_can_say() -> Any:
+def _everything_she_can_say() -> "HowItStood":
     """Use the same complete snapshot as the developmental action wrapper."""
     from core.cognition.what_she_can_take_back import as_it_stands
 
@@ -413,11 +418,7 @@ def _work_the_meaning_out(question: SequenceQuestion) -> str | None:
         keep()
     except (ImportError, OSError, RuntimeError, ValueError) as exc:
         # It answers THIS question. The next boot does not have it.
-        logger.debug(
-            "a meaning she induced was not kept (%s: %s)",
-            type(exc).__name__,
-            exc,
-        )
+        logger.debug("a meaning she induced was not kept (%s: %s)", type(exc).__name__, exc)
     return (
         f"{list(answer)}\n\n"
         "No rule I had could say this, so I worked out what the examples are "
@@ -483,11 +484,7 @@ def _keep_what_she_worked_out() -> None:
 
         keep()
     except (ImportError, OSError, RuntimeError, ValueError) as exc:
-        logger.debug(
-            "what she worked out was not written down (%s: %s)",
-            type(exc).__name__,
-            exc,
-        )
+        logger.debug("what she worked out was not written down (%s: %s)", type(exc).__name__, exc)
 
 
 #: Families where several readings survive and disagree, and the case that

@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
@@ -51,6 +52,9 @@ from typing import Any
 
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.verify.invariants import invariant
+
+logger = logging.getLogger(__name__)
+
 
 __all__ = [
     "EvidenceStatus",
@@ -132,7 +136,12 @@ class Finding:
             return False
         try:
             return _finite_metric(self.value) >= _finite_metric(self.threshold)
-        except (TypeError, ValueError, OverflowError):
+        except (TypeError, ValueError, OverflowError) as exc:
+            logger.debug(
+                "the metric and its threshold would not compare, so the threshold counts as unmet (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     def to_dict(self) -> dict[str, Any]:
@@ -284,7 +293,12 @@ class Preregistration:
             value = observed[metric]
             try:
                 value = None if value is None else _finite_metric(value)
-            except (TypeError, ValueError, OverflowError):
+            except (TypeError, ValueError, OverflowError) as exc:
+                logger.debug(
+                    "an unregistered metric was not a finite number, so it is reported as absent (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
                 value = None
             findings.append(
                 Finding(
@@ -306,7 +320,12 @@ class Preregistration:
                 continue
             try:
                 same = canonical_hash(used[key]) == canonical_hash(registered)
-            except (TypeError, ValueError, OverflowError):
+            except (TypeError, ValueError, OverflowError) as exc:
+                logger.debug(
+                    "a parameter would not hash, so it counts as drifted (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
                 same = False
             if not same:
                 drift[key] = f"{registered!r}->{used[key]!r}"

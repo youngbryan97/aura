@@ -104,11 +104,7 @@ def host_memory_bytes() -> int:
     except (ImportError, AttributeError, ValueError, OSError, RuntimeError, TypeError) as exc:
         # The floor below is a 64GB host pretending to be 8GB, which changes
         # every ceiling computed from it.
-        logger.warning(
-            "host RAM unreadable (%s: %s); using the 8GB floor",
-            type(exc).__name__,
-            exc,
-        )
+        logger.warning("host RAM unreadable (%s: %s); using the 8GB floor", type(exc).__name__, exc)
     return 8 * 1024**3
 
 
@@ -228,9 +224,7 @@ def host_pressure(
         # swap_used stays None, which the pressure reasons below read as
         # "no swap in use" rather than "we could not look".
         logger.debug(
-            "swap usage unreadable (%s: %s); pressure is judged without it",
-            type(exc).__name__,
-            exc,
+            "swap usage unreadable (%s: %s); pressure is judged without it", type(exc).__name__, exc
         )
     reasons = _pressure_reasons(
         host_gb=host,
@@ -275,11 +269,7 @@ class MemoryEnvelope:
         except (ImportError, RuntimeError) as exc:
             # False here is receipted as "no reclaim ran", and a reclaim that
             # RAISED is the case a caller under memory pressure needs named.
-            logger.warning(
-                "MLX buffer cache reclaim failed (%s: %s)",
-                type(exc).__name__,
-                exc,
-            )
+            logger.warning("MLX buffer cache reclaim failed (%s: %s)", type(exc).__name__, exc)
             return False
 
     def to_receipt(self) -> dict[str, Any]:

@@ -478,10 +478,7 @@ async def _finalize_chat_delivery(
         try:
             await operation
         except ChatDeliveryJournalError as exc:
-            logger.error(
-                "Chat delivery terminal receipt failed during cancellation: %s",
-                exc,
-            )
+            logger.error("Chat delivery terminal receipt failed during cancellation: %s", exc)
         raise
 
 
@@ -1078,8 +1075,7 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                     _chat_preflight._schedule_chat_turn_memory_log(chat_origin="terminal_recovery")
                 except (ChatDeliveryFenceLost, ChatDeliveryJournalError) as exc:
                     logger.error(
-                        "Chat cancellation could not seal its authoritative state: %s",
-                        exc,
+                        "Chat cancellation could not seal its authoritative state: %s", exc
                     )
                 raise
             except HTTPException as exc:

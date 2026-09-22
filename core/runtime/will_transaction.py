@@ -154,10 +154,7 @@ class WillTransaction:
             record_degradation("will_transaction", exc)
             self.record.approved = False
             self.record.failure = repr(exc)
-            logger.error(
-                "WillTransaction governance call failed; treating as DENIED: %s",
-                exc,
-            )
+            logger.error("WillTransaction governance call failed; treating as DENIED: %s", exc)
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> bool:

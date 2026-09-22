@@ -72,8 +72,7 @@ def _record_research_degradation(
         )
     except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
         logger.warning(
-            "ResearchCycle degradation sink rejected recoverable research fault: %s",
-            exc,
+            "ResearchCycle degradation sink rejected recoverable research fault: %s", exc
         )
 
 
@@ -641,8 +640,7 @@ class ResearchCycle:
                 extra={"goal": goal[:160]},
             )
             logger.warning(
-                "ResearchCycle: executive suppression failed, leaving initiative intact: %s",
-                exc,
+                "ResearchCycle: executive suppression failed, leaving initiative intact: %s", exc
             )
             self._settle_intent_lease(completed=False)
 

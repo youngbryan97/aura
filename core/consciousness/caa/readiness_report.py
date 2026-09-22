@@ -380,9 +380,7 @@ def audit(**kwargs: Any) -> dict[str, Any]:
             get_metrics().increment_counter("caa_below_design_capacity_total")
         except (ImportError, AttributeError, RuntimeError, TypeError) as exc:
             logger.debug(
-                "caa_below_design_capacity_total not counted (%s: %s)",
-                type(exc).__name__,
-                exc,
+                "caa_below_design_capacity_total not counted (%s: %s)", type(exc).__name__, exc
             )
     return report
 

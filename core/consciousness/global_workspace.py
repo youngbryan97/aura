@@ -338,9 +338,7 @@ def _relief_for(source: str) -> float:
         # The docstring above is about this reading having had no reader at
         # all, so a thing said five times pressed as hard as one never said.
         logger.debug(
-            "catharsis reading unavailable (%s: %s); no drain applied",
-            type(exc).__name__,
-            exc,
+            "catharsis reading unavailable (%s: %s); no drain applied", type(exc).__name__, exc
         )
         return 0.0
     drained = float(getattr(reading, "drain", 1.0) or 1.0)
@@ -363,9 +361,7 @@ def _held_pressure(content_type: Any) -> float:
         reading = get_averted_ledger().read()
     except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug(
-            "averted reading unavailable (%s: %s); no bias applied",
-            type(exc).__name__,
-            exc,
+            "averted reading unavailable (%s: %s); no bias applied", type(exc).__name__, exc
         )
         return 0.0
     if not reading.measured or not reading.looking_away:
@@ -388,9 +384,7 @@ def _civility_debt(content_type: Any) -> float:
         reading = get_civility_ledger().read()
     except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug(
-            "civility reading unavailable (%s: %s); no bias applied",
-            type(exc).__name__,
-            exc,
+            "civility reading unavailable (%s: %s); no bias applied", type(exc).__name__, exc
         )
         return 0.0
     if not reading.measured or not reading.covering:
@@ -1373,9 +1367,7 @@ class GlobalWorkspace:
                 # A missing reader keeps no pressure, which is the same
                 # outcome as her never having held anything back.
                 logger.debug(
-                    "containment did not record this competition (%s: %s)",
-                    type(exc).__name__,
-                    exc,
+                    "containment did not record this competition (%s: %s)", type(exc).__name__, exc
                 )
 
             # Soar's tie impasse: several candidates that nothing actually

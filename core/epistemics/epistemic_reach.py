@@ -196,7 +196,12 @@ class WikipediaSource:
                 getattr(policy, "mutate_hosts", ()) or ()
             )
             return self.HOST in hosts
-        except _RECOVERABLE:
+        except _RECOVERABLE as exc:
+            logger.debug(
+                "the reach policy could not be read, so this host counts as not permitted (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     async def lookup(self, gateway: Any, terms: list[str]) -> tuple[str, str]:
@@ -382,7 +387,12 @@ class EpistemicReachEngine:
                     return False
                 try:
                     self._queue.put_nowait(_QueuedReach(felt=felt, reserved_at=reserved_at))
-                except queue.Full:
+                except queue.Full as exc:
+                    logger.debug(
+                        "the reach queue is full, so this reach is dropped (%s: %s)",
+                        type(exc).__name__,
+                        exc,
+                    )
                     self._dropped_queue += 1
                     return False
                 self._recent_reaches.append(reserved_at)
@@ -469,18 +479,30 @@ class EpistemicReachEngine:
                     self._dropped_shutdown += 1
                     try:
                         self._recent_reaches.remove(queued.reserved_at)
-                    except ValueError:
-                        pass
+                    except ValueError as exc:
+                        logger.debug(
+                            "a queued reach had no reservation to remove at shutdown (%s: %s)",
+                            type(exc).__name__,
+                            exc,
+                        )
             try:
                 self._queue.put_nowait(_QUEUE_STOP)
-            except queue.Full:
-                pass
+            except queue.Full as exc:
+                logger.debug(
+                    "the stop token did not fit in the queue, so the worker ends on its own (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
 
         if active_loop is not None and active_task is not None and not active_task.done():
             try:
                 active_loop.call_soon_threadsafe(active_task.cancel)
-            except RuntimeError:
-                pass
+            except RuntimeError as exc:
+                logger.debug(
+                    "the reach worker could not be cancelled on its loop (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
 
         if worker is not None and worker is not threading.current_thread():
             worker.join(timeout=max(0.0, float(timeout_s)))

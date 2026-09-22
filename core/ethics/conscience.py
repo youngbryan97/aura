@@ -152,8 +152,10 @@ def _install_rules_hash() -> None:
         atomic_write_text(_RULES_HASH_PATH, h, encoding="utf-8")
         try:
             os.chmod(_RULES_HASH_PATH, 0o400)
-        except (RuntimeError, AttributeError, TypeError, ValueError):
-            pass  # no-op: intentional
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.warning(
+                "the rules-hash file could not be made read-only (%s: %s)", type(exc).__name__, exc
+            )
 
 
 _install_rules_hash()

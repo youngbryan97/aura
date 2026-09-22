@@ -512,8 +512,7 @@ class ReceiptStore:
                 self._ledger = None
                 self._ledger_pid = 0
             logger.error(
-                "High-volume receipt ledger unavailable; falling back to envelope files: %s",
-                exc,
+                "High-volume receipt ledger unavailable; falling back to envelope files: %s", exc
             )
             return False
 

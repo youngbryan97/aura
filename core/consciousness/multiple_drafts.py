@@ -769,9 +769,7 @@ class MultipleDraftsEngine:
             # Zero exertion removes the metabolic constraint the docstring
             # above describes, so drafting costs nothing.
             logger.debug(
-                "exertion unreadable (%s: %s); drafting is unconstrained",
-                type(exc).__name__,
-                exc,
+                "exertion unreadable (%s: %s); drafting is unconstrained", type(exc).__name__, exc
             )
             spent = 0.0
         try:

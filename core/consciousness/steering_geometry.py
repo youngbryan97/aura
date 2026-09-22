@@ -391,11 +391,7 @@ class _FindsTheModelsGeometry:
                 ),
             )
         except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
-            logger.debug(
-                "no active steering generation resolved (%s: %s)",
-                type(exc).__name__,
-                exc,
-            )
+            logger.debug("no active steering generation resolved (%s: %s)", type(exc).__name__, exc)
             return None
         return resolution.cache_dir
 

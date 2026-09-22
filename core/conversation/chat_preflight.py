@@ -1496,7 +1496,12 @@ def _active_degradation_categories() -> set[str] | None:
             for item in get_incident_manager().get_active()
             if isinstance(item, dict) and item.get("category")
         }
-    except _CHAT_PREFLIGHT_RECOVERABLE_ERRORS:
+    except _CHAT_PREFLIGHT_RECOVERABLE_ERRORS as exc:
+        logger.debug(
+            "active incident categories are unreadable, so preflight sees no incidents (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return None
 
 

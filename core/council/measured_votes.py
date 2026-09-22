@@ -139,8 +139,12 @@ def _known_gates() -> set[str]:
             match = re.match(r"^([a-z][a-z0-9_-]*):", line)
             if match:
                 gates.add(match.group(1))
-    except OSError:
-        pass
+    except OSError as exc:
+        logger.debug(
+            "the Makefile could not be read, so no gates are known (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
     return gates
 
 

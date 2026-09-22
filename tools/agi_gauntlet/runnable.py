@@ -1668,7 +1668,10 @@ def acquiring_a_new_skill(freeze: Freeze, options: dict[str, Any]) -> dict[str, 
     # say is the language; a skill acquired and forgotten is not acquired.
     from core.cognition.sequence_induction import _everything_she_can_say
 
-    kept = sum(len(one) for one in _everything_she_can_say().values())
+    # `.held` is the mapping of registries. This read was `.values()` on the
+    # snapshot itself, from when the helper returned the mapping directly —
+    # so this gate raised instead of returning a verdict.
+    kept = sum(len(one) for one in _everything_she_can_say().held.values())
     return {
         "families": how_many,
         "acquired": round(with_growth / how_many, 4) if how_many else 0.0,

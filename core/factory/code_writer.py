@@ -90,7 +90,12 @@ class CodeWriter:
         syntax_ok = True
         try:
             ast.parse(patch_content)
-        except SyntaxError:
+        except SyntaxError as exc:
+            logger.warning(
+                "the generated patch does not parse, so it is marked syntactically bad (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             syntax_ok = False
 
         # Apply the patch to the filesystem using ActionExecutor

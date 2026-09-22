@@ -311,11 +311,7 @@ class AffectiveCircumplex:
 
             return get_latest_neurochemical_system()
         except (ImportError, AttributeError, RuntimeError) as exc:
-            logger.debug(
-                "no neurochemical system is reachable (%s: %s)",
-                type(exc).__name__,
-                exc,
-            )
+            logger.debug("no neurochemical system is reachable (%s: %s)", type(exc).__name__, exc)
             return None
 
     @staticmethod

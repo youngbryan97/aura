@@ -76,7 +76,12 @@ def _record_tool_executor_degradation(
 def _safe_tool_name(tool_name: object) -> str:
     try:
         name = str(tool_name or "").replace("\x00", "").strip()
-    except (RuntimeError, TypeError, ValueError):
+    except (RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the tool name would not convert to text, so it reads as empty (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         name = ""
     return name[:MAX_TOOL_NAME_CHARS]
 

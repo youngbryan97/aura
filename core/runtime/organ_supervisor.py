@@ -328,9 +328,7 @@ class OrganSupervisor:
                     # on its way up, but a socket that will not close is worth
                     # saying out loud.
                     logger.debug(
-                        "organ socket did not close cleanly (%s: %s)",
-                        type(exc).__name__,
-                        exc,
+                        "organ socket did not close cleanly (%s: %s)", type(exc).__name__, exc
                     )
             decoded = json.loads(data.decode("utf-8"))
             if not isinstance(decoded, dict):

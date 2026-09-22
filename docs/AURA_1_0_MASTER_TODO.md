@@ -2391,6 +2391,49 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   (`model_load_admission_denied`) charged as failed work because word-aware
   matching reads an underscore-joined identifier as one word.
 
+  RUN 2026-09-22, 40 chunks against a worktree pinned at one revision, so
+  this register is of one tree. Chunks 1, 2 and 5 green (3,068 tests).
+  Chunk 3 found two ratchet failures already closed at HEAD. Chunk 4 found
+  three, and two of them are the same defect wearing different numbers.
+  The swallowed-reason campaign put the tree 302 lines over the module-size
+  budget, and one file 9 lines past the 2,000-line ceiling. A debug line is
+  a line: 175 reason handlers landed inside modules that are already too
+  big, and the ratchet holds one aggregate number for all of them. Both
+  ratchets are right and they pull against each other, which is the second
+  time this pair has done it. The reason calls are written as tightly as
+  the 100-column margin allows now (201 lines back), and two lifts paid the
+  rest: the five `refit_compositional_*` entry points out of
+  `semantic_program_compositional_transducer.py` (2,009 to 1,543) and the
+  four `_integrity_of_*` sections out of `core/runtime/health_contract.py`
+  (2,732 to 1,841, off the oversize list altogether). The budget went
+  127,318 to 126,869 and no entry was refreshed upward.
+  The third was a real defect the gate suite alone could see.
+  `_everything_she_can_say()` returns a `HowItStood` snapshot rather than
+  the mapping of registries it once did. Every caller was updated except
+  one, in `tools/agi_gauntlet/runnable.py`, which still asked it for
+  `.values()` — so gate 9, new-skill acquisition, raised `AttributeError`
+  instead of returning a verdict. The helper was annotated `-> Any`, which
+  is why nothing typed caught the change.
+
+  A fifth, found while triaging the fourth, and it is about a claim rather
+  than a test. The compositional semantic activation seals the exact symbols
+  its qualification ran against. Four of them no longer hash to what was
+  measured: `execute_compositional_semantic_shadow`,
+  `CompositionalSemanticProgramTransducer.decode`,
+  `compositional_semantic_program_transducer_from_dict` and
+  `execute_compositional_semantic_observation`, changed across three commits
+  between 13 and 21 September. None of my work touched them — every symbol
+  the two lifts moved hashes the same before and after, which is what a
+  symbol-level seal is for. The envelope has described code that does not
+  exist for eight days, and the only thing checking it was a test most of a
+  full-suite run away from the commit that broke it.
+  `make qualification-seals` hashes the same selectors and names each one
+  that moved (`tools/lint_qualification_seals.py`). It is red today and
+  should be: the seal is refreshed by re-running the 120-task qualification
+  against the live 27B, not by writing down what the code says now. The
+  re-run is the open work; the gate is so that the next one is caught at the
+  commit instead of the release.
+
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
   2026-09-21, 61, and this one poisons every test that runs after it.
   `tests/test_routing_consults_what_actually_ran.py` called

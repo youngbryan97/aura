@@ -84,7 +84,12 @@ class ICELayer:
                     self._process_events(),
                     name="ice_layer.process_events",
                 )
-        except ImportError:
+        except ImportError as exc:
+            logger.debug(
+                "the event bus is unavailable, so ICE sees no audits or violations (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             self._event_bus = None
 
         # Initialize the learned anomaly detector

@@ -272,8 +272,7 @@ class RedditAdapterSkill(BaseSkill):
             )
         except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
             logger.info(
-                "Reddit connection state reset after unreadable persistence: %s",
-                type(exc).__name__,
+                "Reddit connection state reset after unreadable persistence: %s", type(exc).__name__
             )
         return state
 
@@ -727,8 +726,7 @@ class RedditAdapterSkill(BaseSkill):
                 increment_failure=True,
             )
             logger.info(
-                "Reddit session validation deferred after provider failure: %s",
-                type(exc).__name__,
+                "Reddit session validation deferred after provider failure: %s", type(exc).__name__
             )
             return False
 

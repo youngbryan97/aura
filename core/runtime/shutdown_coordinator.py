@@ -1291,9 +1291,7 @@ def request_shutdown(
             )
         except (ImportError, AttributeError, RuntimeError, OSError) as exc:
             logger.debug(
-                "Suppressed %s in core.runtime.shutdown_coordinator: %s",
-                type(exc).__name__,
-                exc,
+                "Suppressed %s in core.runtime.shutdown_coordinator: %s", type(exc).__name__, exc
             )
     return snapshot
 

@@ -7222,10 +7222,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                     else:
                         _cancel_shared_future(stuck_future)
                 except (RuntimeError, AttributeError) as exc:
-                    logger.debug(
-                        "MLX request preemption future cancel skipped: %s",
-                        exc,
-                    )
+                    logger.debug("MLX request preemption future cancel skipped: %s", exc)
         return False
 
     def _try_acquire_request_lock(

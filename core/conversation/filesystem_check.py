@@ -637,7 +637,12 @@ def _count_in(
         )
     try:
         files = _matching_files(target, suffix, recursive=recursive)
-    except OSError:
+    except OSError as exc:
+        logger.debug(
+            "the directory could not be listed, so no count is reported (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return None
     return FilesystemCount(
         path=str(target),
@@ -1010,7 +1015,12 @@ def requested_file_read(user_message: Any) -> FileRead | None:
             if target.is_file():
                 try:
                     body = target.read_text(encoding="utf-8", errors="replace")
-                except OSError:
+                except OSError as exc:
+                    logger.debug(
+                        "a remembered file would not open, so it is treated as empty (%s: %s)",
+                        type(exc).__name__,
+                        exc,
+                    )
                     body = ""
                 if body:
                     topic, mentions = _topic_coverage(body, text, filename=candidate)
@@ -1075,7 +1085,12 @@ def requested_file_read(user_message: Any) -> FileRead | None:
             target = Path(by_name[0])
             try:
                 body = target.read_text(encoding="utf-8", errors="replace")
-            except OSError:
+            except OSError as exc:
+                logger.debug(
+                    "a file found by name would not open, so it is treated as empty (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
                 body = ""
             if body:
                 topic, mentions = _topic_coverage(body, text, filename=candidate)

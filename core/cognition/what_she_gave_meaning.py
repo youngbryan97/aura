@@ -382,9 +382,7 @@ def recall() -> int:
     except (OSError, ValueError) as exc:
         # Everything she gave meaning to, gone, and 0 looks like a first run.
         logger.warning(
-            "the language she worked out did not read back (%s: %s)",
-            type(exc).__name__,
-            exc,
+            "the language she worked out did not read back (%s: %s)", type(exc).__name__, exc
         )
         return 0
     if not isinstance(held, dict):
@@ -434,9 +432,5 @@ def forget_everything() -> bool:
     except (OSError, RuntimeError, AttributeError) as exc:
         # False says "there was nothing to forget", and a delete that failed
         # means she still has it.
-        logger.warning(
-            "the induced language was not dropped (%s: %s)",
-            type(exc).__name__,
-            exc,
-        )
+        logger.warning("the induced language was not dropped (%s: %s)", type(exc).__name__, exc)
         return False

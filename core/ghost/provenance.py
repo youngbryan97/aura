@@ -28,8 +28,12 @@ thought enters as low-confidence, high-salience — held at arm's length).
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Optional, Sequence
+
+logger = logging.getLogger(__name__)
+
 
 # Origin labels
 SELF_GENERATED = "self_generated"
@@ -175,8 +179,12 @@ def signals_from_recall(
         if scanner is not None and "content" in hit:
             try:
                 is_quarantined = bool(scanner.score(str(hit.get("content", "")))["quarantine"])
-            except (KeyError, TypeError, ValueError):
-                pass
+            except (KeyError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "the adversarial scan gave no verdict, so layer and trust decide quarantine (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
         if is_quarantined:
             quarantined += 1
         else:

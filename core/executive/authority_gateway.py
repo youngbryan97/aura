@@ -745,7 +745,12 @@ class AuthorityGateway(_AuthorisesAMemoryWrite):
         try:
             ice = ServiceContainer.get("ice_layer", default=None)
             status = ice.get_status() if ice is not None and hasattr(ice, "get_status") else {}
-        except (AttributeError, RuntimeError, TypeError, ValueError):
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "the ICE layer gave no status, so no incident is enforced here (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return None
         if not isinstance(status, dict) or not bool(status.get("is_breached", False)):
             return None
@@ -1985,7 +1990,12 @@ class AuthorityGateway(_AuthorisesAMemoryWrite):
                 or ServiceContainer.has("kernel_interface")
                 or bool(getattr(ServiceContainer, "_registration_locked", False))
             )
-        except (RuntimeError, AttributeError, TypeError):
+        except (RuntimeError, AttributeError, TypeError) as exc:
+            logger.debug(
+                "the container would not answer, so the runtime does not count as strict (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     def _canonical_self_version(self) -> int | None:

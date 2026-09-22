@@ -470,9 +470,7 @@ class InputBus:
             _, _, event = self._q.get(timeout=timeout)
         except queue.Empty as exc:
             logger.debug(
-                "no event arrived inside the poll window (%s: %s)",
-                type(exc).__name__,
-                exc,
+                "no event arrived inside the poll window (%s: %s)", type(exc).__name__, exc
             )
             return None
         with self._lock:

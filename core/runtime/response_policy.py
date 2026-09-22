@@ -109,7 +109,5 @@ def clear_background_generation(state: Any, objective: Any) -> None:
                     pass
         except (ImportError, AttributeError, RuntimeError) as exc:
             logger.debug(
-                "drive satisfaction not scheduled after a reply (%s: %s)",
-                type(exc).__name__,
-                exc,
+                "drive satisfaction not scheduled after a reply (%s: %s)", type(exc).__name__, exc
             )

@@ -340,11 +340,7 @@ class AdmissionChain:
         except (ImportError, RuntimeError, ValueError, TypeError) as exc:
             # A silent except here is how the histogram read empty the first
             # time. Say it, quietly, rather than go back to that.
-            logger.debug(
-                "Aura.Admission.DurationMs not recorded (%s: %s)",
-                type(exc).__name__,
-                exc,
-            )
+            logger.debug("Aura.Admission.DurationMs not recorded (%s: %s)", type(exc).__name__, exc)
         with self._lock:
             if allowed:
                 self.admitted += 1

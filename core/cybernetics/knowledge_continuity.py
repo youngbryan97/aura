@@ -62,7 +62,12 @@ class KnowledgeContinuity:
         try:
             from core.event_bus import get_event_bus
             self._event_bus = get_event_bus()
-        except ImportError:
+        except ImportError as exc:
+            logger.debug(
+                "the event bus is unavailable, so continuity runs without it (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             self._event_bus = None
         logger.info("🧠 [CONTINUITY] Knowledge Distillation Substrate ACTIVE.")
 

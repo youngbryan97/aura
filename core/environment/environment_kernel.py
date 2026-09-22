@@ -1,11 +1,13 @@
 """Universal typed observe -> model -> gate -> act -> learn kernel."""
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
 from typing import Any
 
+from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 
 from .action_gateway import EnvironmentActionGateway, GatewayDecision
@@ -25,7 +27,9 @@ from .prediction_error import PredictionErrorComputer
 from .receipt_chain import EnvironmentActionReceipt
 from .simulation import TacticalSimulator
 from .state_compiler import StateCompiler
-from core.conversation.word_markers import names_any
+
+logger = logging.getLogger(__name__)
+
 
 
 @dataclass
@@ -120,9 +124,9 @@ class EnvironmentKernel:
         self.run_id = ""
         self.frames: list[EnvironmentFrame] = []
         # Cross-episode learning stores
-        from core.memory.procedural.store import ProceduralMemoryStore
         from core.environment.outcome.ledger import OutcomeLedger
-        
+        from core.memory.procedural.store import ProceduralMemoryStore
+
         from .runtime_workspace import environment_runtime_dir
         aura_data_dir = environment_runtime_dir(self.environment_id, purpose="learning")
         self.causal_model = None       # set externally to CausalWorldModel if available
@@ -487,8 +491,12 @@ class EnvironmentKernel:
             _chamber = _SC.get("glados", default=None)
             if _chamber is not None:
                 _chamber.record_result(intent.name, passed=outcome.success_score > 0.5)
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass  # advisory difficulty tracking; never affects the environment step
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "GLaDOS did not record the result, so self-test difficulty does not adapt (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
         self._record_action_budget(
             frame,
             intent,

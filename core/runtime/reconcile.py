@@ -494,9 +494,7 @@ class Controller:
                     # writer. A silent except is the same outcome by a
                     # different route.
                     logger.debug(
-                        "Aura.Reconcile.DurationMs not recorded (%s: %s)",
-                        type(exc).__name__,
-                        exc,
+                        "Aura.Reconcile.DurationMs not recorded (%s: %s)", type(exc).__name__, exc
                     )
                 self.queue.done(request)
 

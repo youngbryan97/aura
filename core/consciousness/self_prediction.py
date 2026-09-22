@@ -491,9 +491,7 @@ class SelfPredictionLoop:
             get_frisson_ledger().note(self._expectation)
         except (ImportError, AttributeError, TypeError, ValueError) as exc:
             logger.debug(
-                "the run of being right was not recorded (%s: %s)",
-                type(exc).__name__,
-                exc,
+                "the run of being right was not recorded (%s: %s)", type(exc).__name__, exc
             )
             self._expectation = None
 

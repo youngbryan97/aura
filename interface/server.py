@@ -697,10 +697,7 @@ async def lifespan(app: FastAPI):
                 action="kept Aura online while private Messages remains explicitly unavailable",
                 enforce_failure_policy=False,
             )
-            logger.warning(
-                "Private Messages transport unavailable: %s",
-                type(exc).__name__,
-            )
+            logger.warning("Private Messages transport unavailable: %s", type(exc).__name__)
     logger.info("Aura Server online — %s", version_string("full"))
     try:
         yield  # ← app is live here

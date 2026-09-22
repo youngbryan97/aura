@@ -200,9 +200,7 @@ def state_volume_percent() -> float:
         target: Any = state_root()
     except (ImportError, RuntimeError, OSError, ValueError) as exc:
         logger.debug(
-            "no state root to measure (%s: %s); falling back to /",
-            type(exc).__name__,
-            exc,
+            "no state root to measure (%s: %s); falling back to /", type(exc).__name__, exc
         )
         target = "/"
     try:

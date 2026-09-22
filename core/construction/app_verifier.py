@@ -203,9 +203,7 @@ def _run_in_node(spec: AppSpec, runs: list[list[str]], inputs: dict[str, Any]) -
         done = _run_node(["node", "--input-type=commonjs", "-"], stdin=driver)
     except (OSError, subprocess.SubprocessError, RuntimeError) as exc:
         logger.debug(
-            "the reducer driver did not start under node (%s: %s)",
-            type(exc).__name__,
-            exc,
+            "the reducer driver did not start under node (%s: %s)", type(exc).__name__, exc
         )
         return None
     if done.returncode != 0:

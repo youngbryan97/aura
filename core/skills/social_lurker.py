@@ -80,9 +80,7 @@ class LurkerSkill(BaseSkill):
                         # its way up, and a browser left open is a process
                         # nobody reaps.
                         logger.warning(
-                            "the lurker's browser did not close (%s: %s)",
-                            type(exc).__name__,
-                            exc,
+                            "the lurker's browser did not close (%s: %s)", type(exc).__name__, exc
                         )
                 
                 if not headlines:

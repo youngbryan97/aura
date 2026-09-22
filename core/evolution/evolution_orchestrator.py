@@ -77,7 +77,12 @@ def _has_actually_seen_a_gap(synthesizer: Any) -> bool:
 
     try:
         status = synthesizer.get_status()
-    except (AttributeError, RuntimeError, TypeError, ValueError):
+    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the synthesizer would not report status, so no gap counts as seen (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return False
     if not isinstance(status, dict):
         return False

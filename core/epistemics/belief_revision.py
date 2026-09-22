@@ -468,7 +468,12 @@ class BeliefRevisionEngine:
                 return False
             equivalent, _, _ = prove_equivalent(new_f, old_f)
             return equivalent
-        except (ImportError, ValueError, RuntimeError, TypeError, AttributeError):
+        except (ImportError, ValueError, RuntimeError, TypeError, AttributeError) as exc:
+            logger.debug(
+                "the two beliefs could not be compared, so they count as different (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     def _mirror_claim_to_atomspace(self, belief: Belief) -> None:

@@ -959,7 +959,12 @@ class StandingAuthorityManager:
                     os.path.commonpath([str(root.resolve()), str(resolved)]) == str(root.resolve())
                     for root in (repo_root, aura_state)
                 )
-            except (OSError, RuntimeError, TypeError, ValueError):
+            except (OSError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "the read path did not resolve inside a known root, so it is refused (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
                 allowed = False
             return (True, "aura_local_read") if allowed else (
                 False,

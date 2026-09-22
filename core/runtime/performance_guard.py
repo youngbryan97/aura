@@ -184,11 +184,7 @@ class PerformanceGuard:
                     source="runtime.performance_guard.samples",
                 )
         except (json.JSONDecodeError, TypeError, ValueError) as exc:
-            logger.debug(
-                "performance sample not persisted (%s: %s)",
-                type(exc).__name__,
-                exc,
-            )
+            logger.debug("performance sample not persisted (%s: %s)", type(exc).__name__, exc)
 
     # ── background watcher ───────────────────────────────────────────
 

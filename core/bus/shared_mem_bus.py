@@ -83,10 +83,7 @@ class SharedMemoryTransport:
             ReaperManifest().deregister_shm(name)
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation('shared_mem_bus', exc)
-            logger.warning(
-                "🚌 SharedMem: Failed to deregister from Reaper during close: %s",
-                exc,
-            )
+            logger.warning("🚌 SharedMem: Failed to deregister from Reaper during close: %s", exc)
 
     @staticmethod
     def _finalize_owner_segment(name: str, shm: Any) -> None:

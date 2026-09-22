@@ -523,7 +523,8 @@ def _declare_criterion() -> None:
                 "any arm was run"
             ),
         )
-    except (ImportError, RuntimeError, ValueError):
+    except (ImportError, RuntimeError, ValueError) as exc:
+        logger.debug("the alpha threshold was not preregistered (%s: %s)", type(exc).__name__, exc)
         return
 
 

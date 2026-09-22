@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import functools
+import logging
 import re
 from typing import Any, Iterable
 
 from core.autonomy.research_goal_filter import is_stale_or_prompt_scaffold_goal
+
+logger = logging.getLogger(__name__)
+
 
 _INTRINSIC_GOAL_TEXTS = frozenset(
     {
@@ -81,7 +85,8 @@ def _literal_eval(text: str) -> Any:
 
     try:
         return ast.literal_eval(text)
-    except (ValueError, SyntaxError, TypeError, MemoryError, RecursionError):
+    except (ValueError, SyntaxError, TypeError, MemoryError, RecursionError) as exc:
+        logger.debug("the goal text is not a Python literal (%s: %s)", type(exc).__name__, exc)
         return None
 
 

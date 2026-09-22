@@ -918,6 +918,27 @@ class ExperienceSpine:
         except (sqlite3.Error, OSError) as exc:
             record_degradation("ontogeny_experience", exc, severity="warning",
                                action="final experience flush failed")
+        # The flusher can be inside `_using_the_store` when close is called, so
+        # returning here left a connection open behind us — three handles on
+        # experience.db that a hermetic teardown then reported as a leak. The
+        # handle counter exists so a shutdown can wait; this is the shutdown.
+        flusher, self._flusher = self._flusher, None
+        if flusher is not None and flusher.is_alive():
+            flusher.join(timeout=_FLUSH_INTERVAL_S + 1.0)
+            if flusher.is_alive():
+                record_degradation(
+                    "ontogeny_experience",
+                    TimeoutError("the experience flusher did not stop"),
+                    severity="warning",
+                    action="closed the store with its flusher still running",
+                )
+        if not self.wait_until_quiet(timeout=5.0):
+            record_degradation(
+                "ontogeny_experience",
+                TimeoutError(f"{self._open_handles} handle(s) still open on the store"),
+                severity="warning",
+                action="closed the store while something still held it open",
+            )
 
 
 def _episode_from_row(row: sqlite3.Row) -> Episode:

@@ -847,11 +847,7 @@ class CognitiveHeartbeat:
         except (ImportError, AttributeError, TypeError, ValueError) as exc:
             # Zero novelty is "today is exactly like every other day", which
             # is a strong claim to make because a reader was unavailable.
-            logger.debug(
-                "novelty unreadable (%s: %s); reporting none",
-                type(exc).__name__,
-                exc,
-            )
+            logger.debug("novelty unreadable (%s: %s); reporting none", type(exc).__name__, exc)
             return 0.0
 
     def _world_surprise_now(self) -> float:
@@ -862,9 +858,7 @@ class CognitiveHeartbeat:
             return 0.0 if value is None else float(value)
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug(
-                "world surprise unreadable (%s: %s); reporting none",
-                type(exc).__name__,
-                exc,
+                "world surprise unreadable (%s: %s); reporting none", type(exc).__name__, exc
             )
             return 0.0
 
@@ -1289,11 +1283,7 @@ class CognitiveHeartbeat:
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             # The pulse goes out without her affect in it, which reads
             # downstream as a heartbeat from something that feels nothing.
-            logger.debug(
-                "affect did not reach the pulse (%s: %s)",
-                type(exc).__name__,
-                exc,
-            )
+            logger.debug("affect did not reach the pulse (%s: %s)", type(exc).__name__, exc)
             return False
 
     @staticmethod
@@ -1324,11 +1314,7 @@ class CognitiveHeartbeat:
             state["drive_urgency"] = max(0.0, 1.0 - lowest["percent"] / 100.0)
             return True
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            logger.debug(
-                "drives did not reach the pulse (%s: %s)",
-                type(exc).__name__,
-                exc,
-            )
+            logger.debug("drives did not reach the pulse (%s: %s)", type(exc).__name__, exc)
             return False
 
     def _compute_significance(

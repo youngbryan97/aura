@@ -184,9 +184,7 @@ def resolve_llm_router(*, kernel_interface: Any = None, default: Any = None) -> 
             instance = getter()
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
             logger.debug(
-                "llm organ get_instance raised (%s: %s); falling through",
-                type(exc).__name__,
-                exc,
+                "llm organ get_instance raised (%s: %s); falling through", type(exc).__name__, exc
             )
             instance = None
         if instance is not None:

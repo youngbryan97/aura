@@ -117,7 +117,12 @@ class WillClient:
         if callable(checker):
             try:
                 return bool(checker())
-            except (RuntimeError, AttributeError, TypeError, ValueError):
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "the decision would not say whether it was approved, so it counts as refused (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
                 return False
         if isinstance(decision, dict):
             return bool(decision.get("approved", False))

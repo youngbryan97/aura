@@ -7839,10 +7839,7 @@ async def _api_chat_turn_held(foreground_lock_token, foreground_owner_task, fore
                 )
                 foreground_slot_acquired = True
             except TimeoutError as exc:
-                logger.debug(
-                    "Foreground lock reacquire after preemption timed out: %s",
-                    exc,
-                )
+                logger.debug("Foreground lock reacquire after preemption timed out: %s", exc)
     return foreground_lock_token, foreground_slot_acquired
 
 def _api_chat_turn_notify_proactive_presence(_semantic_user_message, conversation_only_surface, desktop_requires_cognitive_engine, is_benchmark):

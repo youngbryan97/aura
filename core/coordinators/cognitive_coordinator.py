@@ -48,7 +48,12 @@ def _record_cognitive_degradation(
 def _close_if_possible(awaitable) -> None:
     try:
         close = awaitable.close
-    except AttributeError:
+    except AttributeError as exc:
+        logger.debug(
+            "the awaitable has no close, so nothing is released here (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return
     try:
         close()

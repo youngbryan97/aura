@@ -113,13 +113,23 @@ def test_the_encoder_records_a_degradation_once_not_per_token(monkeypatch):
 
 
 def test_the_health_surface_reads_the_publishers_not_only_the_depth():
-    """A depth of zero beside 'sampled 97, published 0' is a diagnosis."""
-    import inspect
+    """A depth of zero beside 'sampled 97, published 0' is a diagnosis.
 
-    from core.runtime import health_contract
+    The block is found by searching the package rather than one module: it
+    was lifted out of `health_contract` once already, and a test that names
+    the module it used to live in fails on the move rather than on the
+    property it is checking.
+    """
+    from pathlib import Path
 
-    source = inspect.getsource(health_contract)
-    block = source[source.index("grassmann_history_depth") :]
+    here = Path(__file__).resolve().parents[1] / "core" / "runtime"
+    found = [
+        one.read_text(encoding="utf-8")
+        for one in sorted(here.glob("health*.py"))
+        if "grassmann_history_depth" in one.read_text(encoding="utf-8")
+    ]
+    assert len(found) == 1, f"the depth block lives in {len(found)} modules"
+    block = found[0][found[0].index("grassmann_history_depth") :]
     block = block[: block.index("except Exception")]
     assert "publishers" in block
     assert "get_diagnostics" in block

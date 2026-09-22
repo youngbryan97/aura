@@ -290,7 +290,10 @@ def _computer_use_scope(params: dict[str, Any]) -> str | None:
         return None
     try:
         argv = shlex.split(str((params or {}).get("target") or ""))
-    except ValueError:
+    except ValueError as exc:
+        logger.debug(
+            "the command target did not split into arguments (%s: %s)", type(exc).__name__, exc
+        )
         return None
     if not argv:
         return None
@@ -535,7 +538,12 @@ def _skill_meta_for(name: str) -> Any:
         engine = get_container().try_get(ServiceNames.CAPABILITY_ENGINE)
         skills = getattr(engine, "skills", None) or {}
         return skills.get(name)
-    except _REGISTRY_LOOKUP_FAILURES:
+    except _REGISTRY_LOOKUP_FAILURES as exc:
+        logger.debug(
+            "the capability registry holds no declaration for this skill (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return None
 
 
