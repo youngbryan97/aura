@@ -73,6 +73,7 @@ from typing import Any
 import numpy as np
 
 from core.subject.estimate import fit_predict, split_rows
+from core.subject.measured_columns import MEASURED_COLUMNS
 from core.subject.recording import Recording
 from core.subject.state import DOMAINS
 
@@ -240,6 +241,39 @@ def _block_columns(recording: Recording, block: tuple[str, ...]) -> np.ndarray:
     )
 
 
+def _measured_block(recording: Recording, key: str) -> list[int]:
+    """One domain's columns, restricted to the instrument.
+
+    Each domain is reduced to `COMPONENTS` directions and `_basis`
+    standardises every column to unit variance first, so a channel that barely
+    moves is scaled up to the same variance as one that carries the domain.
+    That makes the recorded width part of the measurement: on a synthetic
+    source that genuinely drives its target, adding thirty-two weakly varying
+    columns took the variance explained from 0.7027 to 0.0392 with the causal
+    relationship untouched.
+
+    The schema grew from 210 columns to 315 between 45a74c913 and e22e89192 as
+    organ readings were added to it, and four domains roughly doubled. So the
+    reduction reads the pinned set and the rest of the recording is left where
+    it is -- the interventional path takes a maximum over a domain's columns
+    and is not affected either way, and the raw frames must keep their full
+    width because that path reads them directly.
+
+    A recording that predates a pinned column, or that was built at a
+    different width, keeps whatever of the set it has: this selects by name.
+    See core/subject/measured_columns.py.
+    """
+    columns = _block_columns(recording, (key,))
+    names = getattr(recording, "columns", ()) or ()
+    if not names:
+        return columns
+    wanted = set(MEASURED_COLUMNS)
+    kept = [index for index in columns if names[index] in wanted]
+    # A domain the instrument does not name at all is read whole rather than
+    # read as nothing, because an empty block is not a measurement.
+    return kept or columns
+
+
 def _basis(block: np.ndarray, train: slice, k: int) -> Any:
     """A projection into one domain's top-k directions, fitted on training rows.
 
@@ -323,7 +357,7 @@ def phi_do(
     source: dict[str, np.ndarray] = {}
     target_of: dict[str, np.ndarray] = {}
     for key in live:
-        columns = _block_columns(recording, (key,))
+        columns = _measured_block(recording, key)
         basis = _basis(now[:, columns], train, components)
         source[key] = basis(now[:, columns])
         # The same basis applied to both ends, so the target is the movement of

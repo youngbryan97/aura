@@ -129,13 +129,41 @@ def test_more_added_columns_never_read_as_more_signal():
     assert scores == sorted(scores, reverse=True), scores
 
 
-def test_a_recording_is_built_on_the_pinned_set_by_default():
-    """Recording everything is available and is not the default.
+def test_the_reduction_reads_the_instrument_and_the_frames_keep_their_width():
+    """Where the pin belongs, and where it must not be.
 
-    A run that scores has to be taken on the instrument; `full=True` is for
-    looking at a new reading rather than for scoring one.
+    The interventional path reads `CoreState.domain()` directly, so the raw
+    frames and the recording have to agree in width — filtering
+    `build_recording` made `_paired_divergence` index a 17-wide domain with a
+    12-wide mask and every run died there. The reduction is where the width
+    matters and where the pin now is.
     """
+    import inspect
+
+    from core.subject.irreducibility import _measured_block
     from core.subject.recording import build_recording
 
-    assert build_recording.__kwdefaults__["full"] is False
+    assert "full" not in (build_recording.__kwdefaults__ or {})
+    assert "instrument" not in inspect.signature(build_recording).parameters
     assert len(MEASURED_COLUMNS) < len(feature_names())
+    assert callable(_measured_block)
+
+
+def test_a_domain_the_instrument_does_not_name_is_read_whole():
+    """An empty block is not a measurement."""
+    from core.subject.irreducibility import _measured_block
+
+    class _Recording:
+        columns = ("Z.one", "Z.two")
+
+        def __init__(self) -> None:
+            self.slices = {"Z": slice(0, 2)}
+
+    import core.subject.irreducibility as module
+
+    keep = module._block_columns
+    module._block_columns = lambda recording, keys: [0, 1]
+    try:
+        assert _measured_block(_Recording(), "Z") == [0, 1]
+    finally:
+        module._block_columns = keep
