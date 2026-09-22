@@ -240,6 +240,22 @@ class SittingLedger:
             return None
         return len(self._times.get(str(agent_id or ""), [])) / total
 
+    def people(self) -> list[str]:
+        """Everybody whose messages she has had."""
+        return sorted(name for name, times in self._times.items() if times)
+
+    def longest_absence(self, agent_id: str) -> float | None:
+        """The longest they have ever been gone between sittings, or None before that is known."""
+        times = self._times.get(str(agent_id or ""), [])
+        gaps = [later - earlier for earlier, later in zip(times, times[1:], strict=False)]
+        cut = otsu_split([math.log(gap) for gap in gaps if gap > 0.0])
+        if cut is None:
+            return None
+        absences = [gap for gap in gaps if gap > math.exp(cut)]
+        if len(absences) < MIN_SITTINGS:
+            return None
+        return max(absences)
+
     def absence(self, agent_id: str, now: float) -> Absence:
         """The share of their past absences between sittings that this one has outlasted.
 

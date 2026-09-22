@@ -221,6 +221,34 @@ class AffectReadings:
                 severity="warning",
             )
 
+    def the_gap(self, state: AuraState, affect: AffectVector) -> None:
+        """Grief for whoever she is built around and has lost, which nothing else fills.
+
+        Taken last, after every other feeling has settled, so joy from something
+        else still arrives and does not lift it. Sadness is floored at the gap,
+        and the gap closes only when they come back. See core/affect/the_gap.py.
+        """
+        try:
+            import time
+
+            from core.affect.the_gap import the_gap
+            from core.social.closing_window import get_sitting_ledger
+
+            partner = str(getattr(state.cognition, "current_partner", "") or "")
+            reading = the_gap(get_sitting_ledger(), time.time(), present=partner)
+            affect.markers["the_gap"] = reading.as_dict()
+            if reading.gap > 0.0:
+                current = float(affect.emotions.get("sadness", 0.0) or 0.0)
+                _set_emotion(affect, "sadness", max(current, reading.gap))
+        except AFFECT_UPDATE_ERRORS as exc:
+            self._record(
+                state,
+                exc,
+                stage="the_gap",
+                action="kept affect state without the gap somebody's absence leaves",
+                severity="warning",
+            )
+
     def borrowed_feeling(self, state: AuraState, affect: AffectVector) -> None:
         """A feeling lent by what she believes the person here feels.
 
