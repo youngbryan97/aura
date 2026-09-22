@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from core.learning.procedure_induction import Program
 from core.learning.semantic_graph_counterexamples import ProgramObservationCache
 from core.perception.expected_information_gain import Observation, choose
+from core.runtime.gateways import StateGateway, StateMutationRequest
 
 
 @dataclass(frozen=True)
@@ -22,6 +24,37 @@ class ProgramInquiry:
     inputs: tuple
     predictions: tuple[tuple[str, str], ...]
     expected_bits: float
+    program_shas: tuple[tuple[str, str], ...] = ()
+
+    def __post_init__(self):
+        names = [name for name, _ in self.predictions]
+        identities = dict(self.program_shas)
+        if (not names or len(names) != len(set(names))
+                or set(names) != set(identities)
+                or len(identities) != len(self.program_shas)
+                or any(not isinstance(name, str) or not name for name in names)
+                or any(not isinstance(sha, str) or not sha.startswith("sha256:")
+                       or len(sha) != 71
+                       or any(c not in "0123456789abcdef" for c in sha[7:])
+                       for sha in identities.values())
+                or type(self.expected_bits) not in (float, int)
+                or not math.isfinite(self.expected_bits) or self.expected_bits <= 0):
+            raise ValueError("invalid inquiry hypothesis bindings")
+        for value in self.inputs:
+            _outcome(value)
+        outcomes = {}
+        for name, encoded in self.predictions:
+            kind, value = json.loads(encoded)
+            if kind not in {"integer", "integer_sequence"} or _outcome(value) != encoded:
+                raise ValueError("invalid inquiry prediction")
+            sha = identities[name]
+            if sha in outcomes and outcomes[sha] != encoded:
+                raise ValueError("one program has conflicting predictions")
+            outcomes[sha] = encoded
+        if len(set(outcomes.values())) < 2 or self.expected_bits > math.log2(len(outcomes)) + 1e-6:
+            raise ValueError("inquiry has no valid discriminating information")
+        if self.identity != _identity(self.inputs, identities.values()):
+            raise ValueError("inquiry identity does not match its probe and programs")
 
     def to_dict(self) -> dict:
         return {
@@ -29,11 +62,43 @@ class ProgramInquiry:
             "identity": self.identity,
             "inputs": self.inputs,
             "predictions": dict(self.predictions),
+            "program_shas": dict(self.program_shas),
             "expected_bits": self.expected_bits,
             "observed_result": None,
             "observation_required": True,
             "correctness_authority": False,
         }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping):
+        if (payload.get("schema") != "aura.semantic_program_inquiry.v1"
+                or payload.get("observed_result") is not None
+                or payload.get("observation_required") is not True
+                or payload.get("correctness_authority") is not False):
+            raise ValueError("invalid pending inquiry record")
+        return cls(
+            payload["identity"],
+            tuple(tuple(v) if isinstance(v, list) else v for v in payload["inputs"]),
+            tuple(payload["predictions"].items()), payload["expected_bits"],
+            tuple(payload["program_shas"].items()),
+        )
+
+    async def retain(self, gateway: StateGateway):
+        """Persist the pending inquiry through the canonical state owner."""
+        return await gateway.mutate(StateMutationRequest(
+            key=self.identity, new_value=self.to_dict(), domain="semantic_inquiries",
+            cause="retain executable interpretation distinction",
+        ))
+
+    @classmethod
+    async def restore(cls, gateway: StateGateway, identity: str):
+        payload = await gateway.read(identity, domain="semantic_inquiries", fresh=True)
+        if payload is None:
+            return None
+        inquiry = cls.from_dict(payload)
+        if inquiry.identity != identity:
+            raise ValueError("stored inquiry belongs to another request")
+        return inquiry
 
     def compatible_methods(self, *, observed_result: object) -> tuple[str, ...]:
         """Report compatibility, not proof, after an independently obtained value."""
@@ -47,6 +112,13 @@ def _outcome(value: object) -> str:
     if type(value) in (tuple, list) and all(type(x) is int for x in value):
         return json.dumps(["integer_sequence", list(value)])
     raise ValueError("inquiry outcomes require a measured integer or integer sequence")
+
+
+def _identity(inputs, programs):
+    return hashlib.sha256(json.dumps(
+        {"inputs": inputs, "programs": sorted(set(programs))},
+        sort_keys=True, allow_nan=False,
+    ).encode()).hexdigest()
 
 
 def plan_program_inquiries(
@@ -69,11 +141,7 @@ def plan_program_inquiries(
     observations, retained = [], {}
     for probe in probes:
         values = tuple(tuple(v) if isinstance(v, list) else v for v in probe)
-        identity = hashlib.sha256(
-            json.dumps(
-                {"inputs": values, "programs": sorted(programs)}, sort_keys=True, allow_nan=False
-            ).encode()
-        ).hexdigest()
+        identity = _identity(values, programs)
         if identity in retained:
             continue
         predictions = {}
@@ -95,7 +163,8 @@ def plan_program_inquiries(
         )
     ranked = choose(dict.fromkeys(programs, 1.0), observations)
     return tuple(
-        ProgramInquiry(row.observation, *retained[row.observation], row.expected_bits)
+        ProgramInquiry(row.observation, *retained[row.observation], row.expected_bits,
+                       tuple((name, program.sha()) for name, program in proposals.items()))
         for row in ranked
         if row.take
     )

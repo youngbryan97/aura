@@ -45,6 +45,13 @@ class SemanticProgramPortfolio:
             {name: program for name, program in self.proposals if program is not None},
             probes, fuel=fuel)
 
+    async def retain_inquiries(self, gateway, *, fuel: int = 100_000):
+        """Retain unanswered distinctions without putting floor work on the loop."""
+        from core.runtime.executors import off_the_loop
+
+        inquiries = await off_the_loop(self.plan_inquiries, fuel=fuel)
+        return tuple([await inquiry.retain(gateway) for inquiry in inquiries])
+
 
 def select_semantic_program_portfolio(*, proposals: Mapping[str, Program | None],
                                      provenance: Mapping[str, str], public_inputs: tuple,
