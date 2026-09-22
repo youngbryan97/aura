@@ -248,7 +248,12 @@ class HeuristicImperatives:
         try:
             st = self.principles_path.stat()
             return int(st.st_size), int(getattr(st, "st_mtime_ns", int(st.st_mtime * 1_000_000_000)))
-        except OSError:
+        except OSError as exc:
+            logger.debug(
+                "the principles file could not be stat'd, so its signature is unknown (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return None
 
     def _load_principles(self) -> list[dict[str, Any]]:

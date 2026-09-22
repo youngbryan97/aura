@@ -52,6 +52,7 @@ class BeliefEdge:
 def _on_a_running_loop() -> bool:
     try:
         asyncio.get_running_loop()
+    # not a failure: the question was whether a loop is running here, and it is not.
     except RuntimeError:
         return False
     return True

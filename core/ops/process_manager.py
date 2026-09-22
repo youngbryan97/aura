@@ -371,6 +371,7 @@ class ManagedProcess:
             return
         try:
             running_loop = asyncio.get_running_loop()
+        # not a failure: the question was whether a loop is running here, and it is not.
         except RuntimeError:
             running_loop = None
         if loop is not None and loop.is_running() and running_loop is not loop:

@@ -1271,7 +1271,12 @@ class AffectiveSteeringHook:
 
                 self._cached_composite_mx = mx.array(array)
                 mx.eval(self._cached_composite_mx)
-            except ImportError:
+            except ImportError as exc:
+                logger.debug(
+                    "no MLX here, so only the numpy record of the steering vector is kept (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
                 # No MLX here — the numpy side is still the record of what was
                 # asked for, and a caller without MLX cannot inject anyway.
                 self._cached_composite_mx = None

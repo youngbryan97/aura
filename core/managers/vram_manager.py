@@ -8,6 +8,7 @@ from core.utils.task_tracker import get_task_tracker
 try:
     import mlx.core as mx
     MLX_AVAILABLE = True
+# not a failure: MLX is optional; MLX_AVAILABLE records its absence.
 except ImportError:
     MLX_AVAILABLE = False
 
@@ -45,6 +46,7 @@ class VRAMManager:
 
         try:
             loop = asyncio.get_running_loop()
+        # not a failure: the question was whether a loop is running here, and it is not.
         except RuntimeError:
             loop = None
 

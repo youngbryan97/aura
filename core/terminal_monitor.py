@@ -69,7 +69,12 @@ def _safe_terminal_degradation(exc: BaseException) -> None:
     except (RuntimeError, OSError, TypeError, ValueError, AttributeError) as degradation_exc:
         try:
             sys.__stderr__.write(f"TerminalMonitor degradation recorder failed: {degradation_exc}\n")
-        except (RuntimeError, OSError, ValueError):
+        except (RuntimeError, OSError, ValueError) as exc:
+            logger.debug(
+                "stderr is gone too, so this failure has nowhere left to go (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return
 
 @dataclass

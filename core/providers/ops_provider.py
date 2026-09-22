@@ -52,7 +52,12 @@ def register_ops_services(container, is_proxy: bool = False):
         try:
             from core.soma.resilience_engine import ResilienceEngine
             return ResilienceEngine()
-        except ImportError: return None
+        except ImportError as exc:
+            logger.debug(
+                "the resilience engine is unavailable, so nothing is registered for it (%s: %s)",
+                type(exc).__name__, exc,
+            )
+            return None
     container.register('resilience', create_resilience, lifetime=SERVICE_LIFETIME_SINGLETON, required=False)
 
     # Subsystem Audit

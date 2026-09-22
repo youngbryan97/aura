@@ -101,7 +101,10 @@ def _record_shutdown_task_event(
             outcome=outcome,
             detail=source,
         )
-    except (ImportError, RuntimeError, TypeError, ValueError):
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the shutdown admission event was not recorded (%s: %s)", type(exc).__name__, exc
+        )
         return
 
 

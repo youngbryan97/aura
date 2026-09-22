@@ -597,6 +597,7 @@ class AuthorityGateway(_AuthorisesAMemoryWrite):
                     evidence=context,
                 )
             )
+        # not a failure: most state mutations are not recovery operations.
         except ValueError:
             # Most state mutations are not recovery operations. Their ordinary
             # governance context remains unchanged and receives no repair lane.

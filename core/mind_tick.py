@@ -50,6 +50,7 @@ def _record_mind_degradation(
 def _close_if_possible(awaitable: Any) -> None:
     try:
         close = awaitable.close
+    # not a failure: an awaitable with no close has nothing to release.
     except AttributeError:
         return
     try:
@@ -526,6 +527,7 @@ class MindTick(_RunsTheTickLoopSteps, _KnowsWhetherItIsStillAlive):
             return
         try:
             self._owner_loop = asyncio.get_running_loop()
+        # not a failure: the question was whether a loop is running here, and it is not.
         except RuntimeError:
             self._owner_loop = None
         self._install_loop_done_callback(self._task, name="mind_tick.run_loop")

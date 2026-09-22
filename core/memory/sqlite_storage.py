@@ -467,6 +467,7 @@ class SQLiteMemory:
             try:
                 try:
                     loop = getattr(self, "loop", None) or asyncio.get_running_loop()
+                # not a failure: the question was whether a loop is running here, and it is not.
                 except RuntimeError:
                     loop = None
                 if loop and loop.is_running():

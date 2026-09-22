@@ -655,8 +655,12 @@ class ImageGenSkill(BaseSkill):
                 await asyncio.to_thread(torch.mps.empty_cache)
             elif torch.cuda.is_available():
                 await asyncio.to_thread(torch.cuda.empty_cache)
-        except (ImportError, AttributeError, RuntimeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "the accelerator cache was not emptied before releasing the lane (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
         await asyncio.to_thread(gc.collect)
         if lease is not None:
             await lease.release(reason=reason)

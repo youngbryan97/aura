@@ -29,8 +29,12 @@ and the blends, is an infinity as useless as a NaN and replaced by zero.
 """
 from __future__ import annotations
 
+import logging
 from math import exp, isfinite, isnan
 from math import tanh as _tanh
+
+logger = logging.getLogger(__name__)
+
 
 Vector = dict[str, float]
 
@@ -84,7 +88,12 @@ def _record_non_finite(value: float, field: str) -> None:
             action="substituted the neutral value so the substrate kept running",
             extra={"field": field or "unknown"},
         )
-    except (ImportError, RuntimeError, TypeError, ValueError):
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the non-finite value could not be reported; the neutral value was still used (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         # The substrate must not fail because reporting failed.
         pass
 

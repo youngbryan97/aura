@@ -118,8 +118,10 @@ def _key() -> bytes:
         )
     try:
         os.chmod(_STEM_KEY_FILE, 0o600)
-    except (RuntimeError, AttributeError, TypeError, ValueError):
-        pass  # no-op: intentional
+    except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        logger.warning(
+            "the stem-cell key file could not be made owner-only (%s: %s)", type(exc).__name__, exc
+        )
     return raw
 
 

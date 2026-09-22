@@ -738,8 +738,12 @@ def _extract_conversation_context(state: Any) -> dict[str, Any]:
             ctx["current_topic"] = dyn_state.current_topic
         if dyn_state.partner_frame and dyn_state.partner_frame != "neutral":
             ctx["partner_frame"] = dyn_state.partner_frame
-    except (ImportError, AttributeError, RuntimeError):
-        pass  # no-op: intentional
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        logger.debug(
+            "the dynamics engine gave no state, so the voice context keeps its defaults (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
 
     return ctx
 

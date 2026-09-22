@@ -170,6 +170,7 @@ class AutonomicReflectionLoop:
                 # The loop should not block on async sampling here. A fresh
                 # sample will arrive on the stream's own cadence.
                 return None
+        # not a failure: the branch above returns rather than sampling, so nothing here can fail.
         except _RUNTIME_ERRORS:
             return None
         return None

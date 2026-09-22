@@ -22,6 +22,7 @@ try:
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
     CRYPTO_AVAILABLE = True
+# not a failure: the asymmetric primitives are optional; CRYPTO_AVAILABLE selects the HMAC fallback.
 except (ImportError, AttributeError, RuntimeError):
     CRYPTO_AVAILABLE = False
 

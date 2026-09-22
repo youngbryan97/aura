@@ -224,8 +224,12 @@ def _sample_reflex_health_telemetry() -> tuple[float, float, float]:
             first_key = next(iter(temps))
             temp_c = temps[first_key][0].current
             thermal_pressure = max(0.0, min(1.0, (temp_c - 60) / 40))
-    except (ImportError, OSError, AttributeError, IndexError, StopIteration, TypeError, ValueError):
-        pass
+    except (ImportError, OSError, AttributeError, IndexError, StopIteration, TypeError, ValueError) as exc:
+        logger.debug(
+            "no temperature sensor, so thermal pressure reads as zero (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
     return cpu, memory_percent, thermal_pressure
 
 

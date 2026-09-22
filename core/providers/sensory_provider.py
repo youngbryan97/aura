@@ -13,7 +13,8 @@ def register_sensory_services(container):
             from core.senses.voice_engine import get_voice_engine
 
             return get_voice_engine()
-        except ImportError:
+        except ImportError as exc:
+            logger.debug("the voice engine is unavailable (%s: %s)", type(exc).__name__, exc)
             return None
     container.register('voice_engine', create_voice_engine, lifetime=SERVICE_LIFETIME_SINGLETON, required=False)
 
@@ -27,7 +28,8 @@ def register_sensory_services(container):
         try:
             from core.senses.tts_stream import FastMouth
             return FastMouth()
-        except ImportError:
+        except ImportError as exc:
+            logger.debug("the TTS stream is unavailable (%s: %s)", type(exc).__name__, exc)
             return None
     container.register('tts_stream', create_tts_stream, lifetime=SERVICE_LIFETIME_SINGLETON, required=False)
 
@@ -36,7 +38,8 @@ def register_sensory_services(container):
         try:
             from core.perception.sensory_integration import VisionSystem
             return VisionSystem()
-        except ImportError:
+        except ImportError as exc:
+            logger.debug("the vision system is unavailable (%s: %s)", type(exc).__name__, exc)
             return None
     container.register('vision', create_vision, lifetime=SERVICE_LIFETIME_SINGLETON, required=False)
 
@@ -62,7 +65,8 @@ def register_sensory_services(container):
         try:
             from core.senses.hearing import HearingSystem
             return HearingSystem()
-        except ImportError:
+        except ImportError as exc:
+            logger.debug("the hearing system is unavailable (%s: %s)", type(exc).__name__, exc)
             return None
     container.register('hearing', create_hearing, lifetime=SERVICE_LIFETIME_SINGLETON, required=False)
 

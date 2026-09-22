@@ -114,6 +114,7 @@ def what_an_organ_says(where: Path) -> dict[str, Any]:
                 for node in ast.walk(ast.parse(text))
                 if isinstance(node, ast.ExceptHandler)
             )
+        # not a failure: a file that does not parse catches nothing this can count.
         except (SyntaxError, ValueError):
             caught = 0
         if caught:

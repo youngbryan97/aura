@@ -200,7 +200,11 @@ class Soma:
             TimeoutError,
             AttributeError,
             OSError,
-        ):
+        ) as exc:
+            logger.debug(
+                "the loopback probe did not complete, so network latency has no source (%s: %s)",
+                type(exc).__name__, exc,
+            )
             self.state.network_latency_source = "unavailable"
             return None
 

@@ -134,6 +134,7 @@ def learned_weights() -> tuple[dict[str, float], str] | None:
             {name: float(weights[name]) for name in VECTOR_FIELDS},
             f"ontogeny/{CONTROL_POINT}@{stage}",
         )
+    # not a failure: a control point nobody has built is the expected case, not a fault.
     except (ImportError, AttributeError, TypeError, ValueError, KeyError, LookupError):
         # A missing control point is the expected case, not a fault. Recording
         # a degradation on every appraisal for a head nobody has built would

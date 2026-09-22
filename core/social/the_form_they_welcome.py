@@ -36,8 +36,12 @@ the fit again.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
 
 __all__ = [
     "FORMS",
@@ -62,7 +66,12 @@ def forms_of(reply: str, their_message: str = "") -> dict[str, float]:
         from core.social.never_told import kinds_in
 
         shown = 1.0 if kinds_in(text) else 0.0
-    except (ImportError, AttributeError, TypeError, ValueError):
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the kinds reader is unavailable, so nothing counts as shown (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         shown = 0.0
     try:
         from core.expression.register import read
@@ -76,7 +85,12 @@ def forms_of(reply: str, their_message: str = "") -> dict[str, float]:
             said = {word for word in str(their_message).lower().split() if len(word) > 2}
             mine = {word for word in text.lower().split() if len(word) > 2}
             named = len(said & mine) / len(said) if said else 0.0
-    except (ImportError, AttributeError, TypeError, ValueError):
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the register could not read their message, so nothing counts as named (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         named = 0.0
     return {"shown": shown, "named": max(0.0, min(1.0, named))}
 

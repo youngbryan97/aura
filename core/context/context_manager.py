@@ -77,6 +77,7 @@ try:
     import tiktoken
     _T_ENCODING = tiktoken.get_encoding("cl100k_base")
     HAS_TIKTOKEN = True
+# not a failure: tiktoken is optional; HAS_TIKTOKEN records its absence and the char count is used.
 except ImportError:
     HAS_TIKTOKEN = False
     _T_ENCODING = None

@@ -352,8 +352,12 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
                     "plugged": battery.power_plugged if battery else None,
                 },
             )
-        except (ImportError, OSError, AttributeError):
-            pass  # no-op: intentional
+        except (ImportError, OSError, AttributeError) as exc:
+            logger.debug(
+                "no battery reading, so the sensor limb is left as it was (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
 
         try:
             from core.runtime.disk_budget import state_volume_usage
@@ -374,8 +378,12 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
                 body.update_limb("disk_sensor", health=0.5)
             else:
                 body.update_limb("disk_sensor", health=1.0)
-        except (ImportError, OSError, AttributeError):
-            pass  # no-op: intentional
+        except (ImportError, OSError, AttributeError) as exc:
+            logger.debug(
+                "no disk reading, so the sensor limb is left as it was (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
 
     # ------------------------------------------------------------------
     # Neural stream emission
@@ -420,8 +428,12 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
         try:
             addrs = psutil.net_if_addrs()
             self._known_interfaces = set(addrs.keys()) - {"lo", "lo0"}
-        except (ImportError, OSError, AttributeError):
-            pass  # no-op: intentional
+        except (ImportError, OSError, AttributeError) as exc:
+            logger.debug(
+                "network interfaces are unreadable, so none are known (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
 
         for lib_name in self.TRACKED_SENSORS:
             if importlib.util.find_spec(lib_name) is not None:

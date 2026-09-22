@@ -121,6 +121,7 @@ def _responder_accepts_reply_stream(responder: Responder) -> bool:
     """
     try:
         signature = inspect.signature(responder)
+    # not a failure: a builtin with no introspectable signature is a perfectly good responder.
     except (TypeError, ValueError):
         # Builtins and some callables have no introspectable signature. Assume
         # the narrower contract: a wrong guess here would raise TypeError on

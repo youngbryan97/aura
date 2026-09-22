@@ -468,7 +468,12 @@ class ResourceGovernor:
         """The sampler is live when it can produce a current snapshot."""
         try:
             return self.get_snapshot() is not None
-        except (OSError, RuntimeError, AttributeError, TypeError, ValueError):
+        except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "no snapshot, so the resource sampler counts as not alive (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     def get_status(self) -> dict[str, Any]:

@@ -833,5 +833,9 @@ def reset_unity_runtime_for_test() -> None:
         if isinstance(services, dict):
             for key in ("unity_runtime", "unity_workspace_frame"):
                 services.pop(key, None)
-    except (ImportError, AttributeError, RuntimeError, TypeError):
-        pass
+    except (ImportError, AttributeError, RuntimeError, TypeError) as exc:
+        logger.debug(
+            "the unity services could not be cleared from the container (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )

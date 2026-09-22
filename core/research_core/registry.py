@@ -8,9 +8,13 @@ name.
 """
 from __future__ import annotations
 
+import logging
 from typing import Any, Optional
 
 from core.research_core.core import ResearchCoreConfig, SelfImprovingResearchCore
+
+logger = logging.getLogger(__name__)
+
 
 
 def register_research_core(
@@ -27,14 +31,24 @@ def register_research_core(
             from core.container import ServiceContainer
 
             container = ServiceContainer
-        except (ImportError, AttributeError, RuntimeError):
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "the service container is unavailable, so nothing is registered (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             container = None
 
     if container is not None:
         existing = None
         try:
             existing = container.get(SelfImprovingResearchCore.SERVICE_NAME, default=None)
-        except (OSError, ConnectionError, TimeoutError):
+        except (OSError, ConnectionError, TimeoutError) as exc:
+            logger.debug(
+                "the container would not answer, so a fresh research core is built (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             existing = None
         if existing is not None:
             return existing

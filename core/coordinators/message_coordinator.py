@@ -124,6 +124,7 @@ class MessageCoordinator:
                     )
             orch._last_thought_time = time.time()
             return msg
+        # not a failure: an empty queue means no message is waiting, which is the answer.
         except asyncio.QueueEmpty:
             return None
         except _COORDINATOR_RECOVERABLE_ERRORS as e:

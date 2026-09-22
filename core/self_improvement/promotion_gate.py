@@ -144,7 +144,12 @@ class LabPromotionGate:
                 metadata=metadata or {},
             ))
             return receipt.receipt_id
-        except (ImportError, AttributeError, RuntimeError):
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "no governance receipt was issued for this promotion decision (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return None
 
 

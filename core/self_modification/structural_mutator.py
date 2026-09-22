@@ -196,8 +196,12 @@ class StructuralMutator:
                 if setter is not None:
                     try:
                         setter(value)
-                    except (RuntimeError, AttributeError, TypeError, ValueError):
-                        pass  # no-op: intentional
+                    except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                        logger.warning(
+                            "the parameter setter refused the rollback value (%s: %s)",
+                            type(exc).__name__,
+                            exc,
+                        )
                 minv, maxv, _ = self._parameter_bands.get(target, (value, value, value))
                 self._parameter_bands[target] = (minv, maxv, value)
                 post = {"value": value}

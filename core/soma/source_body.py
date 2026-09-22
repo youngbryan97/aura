@@ -625,7 +625,12 @@ class SourceBodyAwareness:
                         self.ledger_path.exists()
                         and self.ledger_path.stat().st_size > _MAX_LEDGER_BYTES
                     )
-                except OSError:
+                except OSError as exc:
+                    logger.debug(
+                        "the ledger size could not be read, so it is not treated as oversized (%s: %s)",
+                        type(exc).__name__,
+                        exc,
+                    )
                     oversized = False
                 if oversized:
                     tail = self._read_ledger_lines()[-_LEDGER_TAIL_KEEP:]
@@ -763,7 +768,12 @@ class SourceBodyAwareness:
                 (continuity.get_obligations() or {}).get("last_shutdown_reason", "")
                 or ""
             ).strip().lower()
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError):
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
+            logger.debug(
+                "the last shutdown reason is unreadable, so it does not count as clean (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
         return reason in self._CLEAN_SHUTDOWN_REASONS
 
@@ -985,8 +995,10 @@ class SourceBodyAwareness:
         for task in self._tasks:
             try:
                 task.cancel()
-            except _RECOVERABLE_ERRORS:
-                pass
+            except _RECOVERABLE_ERRORS as exc:
+                logger.debug(
+                    "a source-body task would not cancel (%s: %s)", type(exc).__name__, exc
+                )
         self._tasks.clear()
 
     # ── read surfaces (prompt + Q&A); cached state only, no git ──

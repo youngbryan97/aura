@@ -155,7 +155,10 @@ def check_optional_packages() -> list[ValidationResult]:
         """Check optional package presence without executing native imports."""
         try:
             return importlib.util.find_spec(module_name) is not None
-        except (ImportError, AttributeError, ModuleNotFoundError, ValueError):
+        except (ImportError, AttributeError, ModuleNotFoundError, ValueError) as exc:
+            logger.debug(
+                "the optional package could not be located (%s: %s)", type(exc).__name__, exc
+            )
             return False
 
     backend = get_local_backend()

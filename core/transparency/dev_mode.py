@@ -170,8 +170,12 @@ class DevMode:
             from core.runtime.turn_progress import tool_started
 
             trace._progress_activity = tool_started()
-        except ImportError:
-            pass
+        except ImportError as exc:
+            logger.debug(
+                "turn progress is unavailable, so a long tool leaves an unbracketed gap (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
 
         async with await self._get_lock():
             self.tool_traces.append(trace)
@@ -196,8 +200,12 @@ class DevMode:
             from core.runtime.turn_progress import tool_finished
 
             tool_finished(trace._progress_activity)
-        except ImportError:
-            pass
+        except ImportError as exc:
+            logger.debug(
+                "turn progress is unavailable, so the tool's end is not marked (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
 
         from core.runtime.tool_result_contracts import tool_result_is_deferred
 

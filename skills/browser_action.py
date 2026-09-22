@@ -126,6 +126,7 @@ def _is_private_ip(url: str) -> bool:
         try:
             ip = ipaddress.ip_address(hostname)
             return ip.is_private or ip.is_loopback
+        # not a failure: a hostname that is not an IP literal is not a private address.
         except ValueError:
             return False
     except (ImportError, AttributeError, RuntimeError) as exc:

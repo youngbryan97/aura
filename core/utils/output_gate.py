@@ -432,7 +432,12 @@ class AutonomousOutputGate:
                 or ServiceContainer.has("aura_kernel")
                 or ServiceContainer.has("kernel_interface")
             )
-        except (ImportError, AttributeError, RuntimeError):
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "the container would not answer, so the runtime does not count as live (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             runtime_live = False
 
         if (

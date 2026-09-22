@@ -277,6 +277,7 @@ class BodySchema(AuraBaseModule):
         try:
             import pyttsx3  # noqa: F401
             tts_available = True
+        # not a failure: pyttsx3 is optional; the limb records that speech output is unavailable.
         except ImportError:
             tts_available = False
         self._register_limb(Limb(
@@ -305,8 +306,12 @@ class BodySchema(AuraBaseModule):
         try:
             interfaces = psutil.net_if_addrs()
             net_available = len(interfaces) > 0
-        except (ImportError, OSError, AttributeError):
-            pass  # no-op: intentional
+        except (ImportError, OSError, AttributeError) as exc:
+            logger.debug(
+                "network interfaces are unreadable, so the limb reports unavailable (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
         self._register_limb(Limb(
             name="network",
             limb_type=LimbType.ACTUATOR,

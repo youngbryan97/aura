@@ -484,7 +484,12 @@ def _recording_nbytes(recording: Any) -> int:
     except (AttributeError, TypeError, ValueError):
         try:
             nbytes = len(bytes(recording))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            logger.debug(
+                "the recording has no readable size, so it counts as empty (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             nbytes = 0
     return max(0, nbytes)
 
@@ -512,8 +517,10 @@ def record_sounddevice_array(
         revoked_reason = str(reason or "microphone_lease_revoked")
         try:
             sounddevice.stop()
-        except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
-            pass
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "capture did not stop on the revoked lease (%s: %s)", type(exc).__name__, exc
+            )
 
     result = authority.acquire(
         holder,
@@ -574,8 +581,10 @@ def play_and_record_sounddevice_array(
         revoked_reason = str(reason or "microphone_lease_revoked")
         try:
             sounddevice.stop()
-        except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
-            pass
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "calibration did not stop on the revoked lease (%s: %s)", type(exc).__name__, exc
+            )
 
     result = authority.acquire(
         holder,

@@ -230,7 +230,12 @@ class WorldState:
                 # Thermal pressure through psutil when available, with substrate fallback.
                 try:
                     temps = psutil.sensors_temperatures()
-                except (AttributeError, OSError, RuntimeError, ValueError):
+                except (AttributeError, OSError, RuntimeError, ValueError) as exc:
+                    logger.debug(
+                        "no temperature sensors, so the substrate fallback decides thermal pressure (%s: %s)",
+                        type(exc).__name__,
+                        exc,
+                    )
                     temps = None
                 if temps:
                     max_temp = max(t.current for sensors in temps.values() for t in sensors)

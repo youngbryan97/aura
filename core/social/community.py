@@ -210,8 +210,12 @@ class CommunityLayer:
                     store = get_store()
                     dossier = store.get_or_create(msg.sender, name=msg.sender)
                     store.record_interaction_affect(dossier.relationship_id, {"platform": tname, "channel": msg.channel})
-                except (ImportError, AttributeError, RuntimeError):
-                    pass  # no-op: intentional
+                except (ImportError, AttributeError, RuntimeError) as exc:
+                    logger.debug(
+                        "the relationship dossier was not updated for this sender (%s: %s)",
+                        type(exc).__name__,
+                        exc,
+                    )
                 return msg
             except (ImportError, AttributeError, RuntimeError) as exc:
                 record_degradation('community', exc)
@@ -229,8 +233,10 @@ class CommunityLayer:
                 encoding="utf-8",
                 source="community.record",
             )
-        except (json.JSONDecodeError, TypeError, ValueError):
-            pass  # no-op: intentional
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "the community ledger line was not appended (%s: %s)", type(exc).__name__, exc
+            )
 
 
 _LAYER: Optional[CommunityLayer] = None

@@ -139,11 +139,13 @@ class _DropNewestOnOverflowQueueHandler(logging.handlers.QueueHandler):
             )
         try:
             self.queue.get_nowait()
+        # not a failure: the queue emptied between the two calls; logging here would recurse into this handler.
         except queue.Empty:
             pass
         _dropped_log_records += 1
         try:
             self.queue.put_nowait(record)
+        # not a failure: the record is dropped and counted in _dropped_log_records; logging here would recurse.
         except queue.Full:
             pass
 
@@ -161,6 +163,7 @@ def _stop_queue_listener() -> None:
     if listener is not None:
         try:
             listener.stop()
+        # not a failure: the interpreter is tearing down and the sinks may already be closed.
         except (RuntimeError, ValueError):
             pass  # interpreter teardown: sinks may already be closed
 

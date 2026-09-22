@@ -11,6 +11,7 @@ canonical Python runtime.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import sys
@@ -25,6 +26,9 @@ from typing import Any
 from core import governance_context as _governance_context
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+logger = logging.getLogger(__name__)
+
 
 _BRIDGE_FLAG = "--native-desktop-bridge"
 _PROBE_READY_TTL_S = 30.0
@@ -356,7 +360,12 @@ def _invoke_resident_bridge(
             json.dumps(request, separators=(",", ":")),
             encoding="utf-8",
         )
-    except OSError:
+    except OSError as exc:
+        logger.debug(
+            "the bridge request could not be written, so nothing was asked (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         request_path.unlink(missing_ok=True)
         return None
 

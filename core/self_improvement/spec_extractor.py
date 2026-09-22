@@ -229,7 +229,12 @@ class SpecExtractor:
                     if node.name.startswith("test_"):
                         try:
                             test_src = ast.get_source_segment(test_source, node) or ""
-                        except (RuntimeError, AttributeError, TypeError, ValueError):
+                        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                            logger.debug(
+                                "a test's source segment could not be recovered (%s: %s)",
+                                type(exc).__name__,
+                                exc,
+                            )
                             test_src = ""
                         test_cases.append(TestCase(
                             name=node.name, source=test_src,

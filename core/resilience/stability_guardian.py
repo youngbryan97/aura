@@ -25,6 +25,7 @@ from .stability_checks import _ChecksEachSubsystem
 try:
     from core.runtime import resource_psutil as psutil
     _HAS_PSUTIL = True
+# not a failure: psutil is optional; _HAS_PSUTIL records its absence.
 except ImportError:
     _HAS_PSUTIL = False
 
@@ -139,7 +140,12 @@ class StabilityGuardian(_ChecksEachSubsystem):
             return StabilityGuardian.MEMORY_WARNING_PCT, StabilityGuardian.MEMORY_CRITICAL_PCT
         try:
             total_gb = float(psutil.virtual_memory().total) / float(1024 ** 3)
-        except (ImportError, OSError, AttributeError):
+        except (ImportError, OSError, AttributeError) as exc:
+            logger.debug(
+                "total memory is unreadable, so the default thresholds apply (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             total_gb = 0.0
         if total_gb >= 60.0:
             return 88.0, 94.0

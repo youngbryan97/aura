@@ -2312,6 +2312,23 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   and the reasons gate stops asking about the thirteen Python files a
   qualification has bound
   (tests/test_two_ratchets_do_not_pull_against_each_other.py).
+  CLOSED 2026-09-22, the swallowed-reason ratchet: 2,262 handlers to 0.
+  Every `except` in core, interface and skills either says why it fired or
+  says, in a sentence a person wrote, that what it caught was the answer and
+  not a fault. `asyncio.get_running_loop()` raising is the question being
+  asked; an optional dependency that will not import is the condition the
+  flag below it records. Those carry the marker. Everything else logs the
+  type and the exception.
+  Two things came out of doing it at this scale. The first is that a debug
+  line is a line, and 175 of them landed in modules already over the
+  size ceiling — the two ratchets pulled against each other for the second
+  time. Compaction to the 100-column margin gave 201 lines back and three
+  lifts gave the rest. The second is that 13 files could not be touched at
+  all: they are byte-sealed by a qualification, so the 7 handlers they hold
+  stay silent until that measurement is re-run. The gate skips them by name
+  and prints that number on every run — "13 files skipped" reads like
+  nothing is owed, and the handlers are the debt.
+
 - [ ] Q07 Refresh semantic ledger near code freeze; reconcile changed or
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,

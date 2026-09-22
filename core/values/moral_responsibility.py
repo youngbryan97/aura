@@ -83,8 +83,12 @@ class MoralResponsibility:
                         kind="overdue_commitment", subject=c.description[:80], severity=0.5,
                         owed_action="proactively flag the slip and give a realistic new plan",
                     ))
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "commitments are unreadable, so no broken-commitment amends are owed (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
         # A socially-ruptured relationship Aura may have contributed to.
         try:
             from core.social.other_agent_model import get_other_agent_model
@@ -99,8 +103,12 @@ class MoralResponsibility:
                     severity=_clamp(est.social_rupture_risk),
                     owed_action="acknowledge the confirmed response failure before pressing on",
                 ))
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "the rupture estimate is unavailable, so no social amends are owed (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
         amends.sort(key=lambda a: a.severity, reverse=True)
         return amends
 
@@ -123,8 +131,12 @@ class MoralResponsibility:
                     owned = True
                     matched = c.description[:80]
                     break
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "commitments are unreadable, so this outcome is not owned (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
         responsibility = _clamp((1.0 - _clamp(observed_quality)) * (1.0 if owned else 0.3))
         return {
             "owns_outcome": owned,

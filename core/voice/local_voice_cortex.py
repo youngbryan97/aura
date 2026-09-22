@@ -227,12 +227,12 @@ class LocalVoiceCortex:
         try:
             if stream.is_active():
                 stream.stop_stream()
-        except _LOCAL_VOICE_RECOVERABLE_ERRORS:
-            pass
+        except _LOCAL_VOICE_RECOVERABLE_ERRORS as exc:
+            logger.debug("the microphone stream would not stop (%s: %s)", type(exc).__name__, exc)
         try:
             stream.close()
-        except _LOCAL_VOICE_RECOVERABLE_ERRORS:
-            pass
+        except _LOCAL_VOICE_RECOVERABLE_ERRORS as exc:
+            logger.debug("the microphone stream would not close (%s: %s)", type(exc).__name__, exc)
         if self._mic_stream is stream:
             self._mic_stream = None
 

@@ -129,8 +129,12 @@ class WelfareModel:
             if sample is not None:
                 managed_mb = sample.managed_rss_mb
                 lethal_mb = watchdog.thresholds.lethal_mb
-        except _WELFARE_RECOVERABLE_ERRORS:
-            pass
+        except _WELFARE_RECOVERABLE_ERRORS as exc:
+            logger.debug(
+                "the memory watchdog gave no sample, so the lethal threshold is unknown here (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
         if lethal_mb <= 0.0:
             try:
                 managed_mb = self._proc.memory_info().rss / (1024 * 1024)

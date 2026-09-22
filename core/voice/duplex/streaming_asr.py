@@ -212,7 +212,12 @@ class _WhisperBackend:
         else:
             try:
                 mlx_spec = importlib.util.find_spec("mlx_whisper")
-            except (ImportError, AttributeError, RuntimeError, ValueError):
+            except (ImportError, AttributeError, RuntimeError, ValueError) as exc:
+                logger.debug(
+                    "mlx_whisper could not be located, so the fallback chain is used (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
                 mlx_spec = None
             if mlx_spec is not None:
                 self._impl = "mlx"

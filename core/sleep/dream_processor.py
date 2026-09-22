@@ -167,7 +167,8 @@ class DreamProcessor:
         for attr in ("content", "text", "response"):
             try:
                 text = getattr(value, attr, None)
-            except (AttributeError, RuntimeError, TypeError, ValueError):
+            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug("a result attribute would not read (%s: %s)", type(exc).__name__, exc)
                 text = None
             if text:
                 return str(text)

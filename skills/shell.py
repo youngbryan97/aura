@@ -202,7 +202,10 @@ class ShellSkill(BaseSkill):
 
         try:
             argv = shlex.split(cmd_str)
-        except ValueError:
+        except ValueError as exc:
+            logger.debug(
+                "the command string did not split into arguments (%s: %s)", type(exc).__name__, exc
+            )
             return {"ok": False, "error": "Malformed command string."}
         base_cmd = argv[0]
 
@@ -265,9 +268,14 @@ class ShellSkill(BaseSkill):
             failure = "" if succeeded else str(result.get("error", "") or "")
             result["governance"] = verdict.receipt()
             return result
-        except subprocess.TimeoutExpired:
-            failure = "timeout"
-            return {"ok": False, "error": "Command timed out."}
+        except subprocess.TimeoutExpired as exc:
+            # The grant's record read "timeout" with no number in it, so the
+            # ledger could not tell a command killed at 2 seconds from one
+            # killed at 600.
+            after = f" after {float(exc.timeout):.0f}s" if exc.timeout else ""
+            failure = f"timeout{after}"
+            logger.debug("Shell command timed out%s: %s", after, cmd_str[:200])
+            return {"ok": False, "error": f"Command timed out{after}."}
         except (ImportError, AttributeError, RuntimeError, OSError) as e:
             failure = str(e)
             record_degradation("shell", e)

@@ -19,6 +19,7 @@ import asyncio
 import hashlib
 import importlib
 import json
+import logging
 import os
 import re
 import shutil
@@ -31,6 +32,9 @@ from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.payload_values import payload_path
 
 from .program_dna_inspection import _LooksAtWhatIsThere
+
+logger = logging.getLogger(__name__)
+
 
 #: A generated directory name stays short enough to read at a glance.
 _SLUG_WORDS = 6
@@ -901,7 +905,12 @@ def reconstructed(case):
                     from core.brain.llm.local_code_model import get_local_code_model
 
                     code_router = get_local_code_model()
-                except (ImportError, RuntimeError, OSError):
+                except (ImportError, RuntimeError, OSError) as exc:
+                    logger.debug(
+                        "no un-steered code model, so synthesis falls back to the router (%s: %s)",
+                        type(exc).__name__,
+                        exc,
+                    )
                     code_router = None
                 # An admission refusal means this lane cannot serve, which is
                 # the same situation as absent weights and reaches the same
@@ -1081,7 +1090,12 @@ def reconstructed(case):
                     from core.brain.llm.local_code_model import get_local_code_model
 
                     code_router = get_local_code_model()
-                except (ImportError, RuntimeError, OSError):
+                except (ImportError, RuntimeError, OSError) as exc:
+                    logger.debug(
+                        "no un-steered code model, so synthesis falls back to the router (%s: %s)",
+                        type(exc).__name__,
+                        exc,
+                    )
                     code_router = None
                 # An admission refusal means this lane cannot serve, which is
                 # the same situation as absent weights and reaches the same
@@ -2702,7 +2716,8 @@ def reconstructed(case):
                 errors.record_degradation(subsystem, exc, severity=severity, action=action)
             else:
                 errors.record_degradation(subsystem, exc, severity=severity)
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("the degradation could not be recorded (%s: %s)", type(exc).__name__, exc)
             return
 
 

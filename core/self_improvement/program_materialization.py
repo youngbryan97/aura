@@ -37,6 +37,7 @@ from __future__ import annotations
 import ast
 import copy
 import json
+import logging
 import random
 import textwrap
 from collections.abc import Callable
@@ -51,6 +52,9 @@ from core.self_improvement.presentation_contract import (
     PresentationContract,
     grade_presentation,
 )
+
+logger = logging.getLogger(__name__)
+
 
 _RECOVERABLE = (RuntimeError, AttributeError, TypeError, ValueError, OSError, ImportError, KeyError)
 
@@ -396,7 +400,12 @@ async def _generate_code_with_fallback(
         from core.brain.llm.local_code_model import get_local_code_model
 
         code_router = get_local_code_model()
-    except (ImportError, RuntimeError, OSError):
+    except (ImportError, RuntimeError, OSError) as exc:
+        logger.debug(
+            "no un-steered code model, so generation falls back to the resident cortex (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         code_router = None
 
     if code_router is not None:

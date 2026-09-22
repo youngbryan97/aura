@@ -20,6 +20,7 @@ _RAY_RECOVERABLE_ERRORS = (
 try:
     import ray
     _RAY_AVAILABLE = True
+# not a failure: Ray is optional; _RAY_AVAILABLE records its absence.
 except ImportError:
     ray = None
     _RAY_AVAILABLE = False

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ast
 import dataclasses
+import logging
 import math
 import time
 from dataclasses import dataclass, field
@@ -22,6 +23,9 @@ from core.runtime.tenant_boundary import TenantBoundary
 from core.unknowns.generator import UnknownUnknownGenerator
 from core.unknowns.novelty_archive import NoveltyArchive
 from core.verification.semantic_verifier import SemanticVerifier
+
+logger = logging.getLogger(__name__)
+
 
 
 @dataclass
@@ -114,7 +118,12 @@ def deterministic_task_solver(prompt: str) -> Any:
             x_str = ret.split("g(f(")[1].split("))")[0]
             a, b, c, d, x = int(a_str), int(b_str), int(c_str), int(d_str), int(x_str)
             return c * (a * x + b) + d
-    except (RuntimeError, AttributeError, TypeError, ValueError):
+    except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the composed-function prompt did not parse into numbers (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return None
     return None
 
@@ -206,7 +215,12 @@ class SelfImprovingResearchCore:
         for task in tasks:
             try:
                 pred = self.task_solver(task.prompt)
-            except (RuntimeError, AttributeError, TypeError, ValueError):
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "the solver raised on this task, so it counts as unanswered (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
                 pred = None
             if self._matches(pred, task.answer):
                 correct += 1
@@ -237,7 +251,12 @@ class SelfImprovingResearchCore:
             with torch.no_grad():
                 out = self.model(ids, labels=labels)
             loss_val = float(out["loss"])
-        except (ImportError, AttributeError, RuntimeError):
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "the held-out loss could not be measured and reads as zero (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             loss_val = 0.0
 
         # Semantic consistency probe over a paraphrase trio.
@@ -264,7 +283,12 @@ class SelfImprovingResearchCore:
             return prediction == answer
         try:
             return str(prediction).strip().lower() == str(answer).strip().lower()
-        except (RuntimeError, AttributeError, TypeError, ValueError):
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "the prediction and the answer would not compare as text (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     def _record_prediction_to_ledger(

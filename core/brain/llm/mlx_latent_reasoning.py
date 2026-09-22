@@ -1679,7 +1679,10 @@ class _ReasonsInLatentSpace:
                 cfutures.CancelledError,
                 cfutures.InvalidStateError,
                 asyncio.CancelledError,
-            ):
+            ) as exc:
+                logger.debug(
+                    "the worker future did not deliver a response (%s: %s)", type(exc).__name__, exc
+                )
                 return None
         except (OSError, RuntimeError, TypeError, ValueError) as exc:
             raise RuntimeError(

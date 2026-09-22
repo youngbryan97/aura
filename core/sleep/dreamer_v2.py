@@ -77,7 +77,12 @@ class DreamerV2:
                     aura_response,
                 ).ok:
                     return False
-            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "the learning-admission check could not run, so this is not learned from (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
                 return False
 
         if node_type in {"error", "failure", "raw_response"}:
@@ -103,7 +108,12 @@ class DreamerV2:
         try:
             from core.thought_stream import get_emitter
             emitter = get_emitter()
-        except ImportError:
+        except ImportError as exc:
+            logger.debug(
+                "no thought emitter, so the sleep cycle runs unannounced (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             emitter = None
 
         # 1. Memory consolidation (Consolidate FIRST per BUG-15)
@@ -290,7 +300,10 @@ class DreamerV2:
         try:
             from core.thought_stream import get_emitter
             emitter = get_emitter()
-        except ImportError:
+        except ImportError as exc:
+            logger.debug(
+                "no thought emitter, so REM runs unannounced (%s: %s)", type(exc).__name__, exc
+            )
             emitter = None
         
         try:

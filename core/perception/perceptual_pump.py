@@ -463,8 +463,12 @@ def _collect_system_state() -> SystemState:
                 exc,
             )
 
-    except ImportError:
-        pass  # psutil not installed — degrade gracefully
+    except ImportError as exc:
+        logger.debug(
+            "psutil is absent, so the system readings stay at their defaults (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as e:
         record_degradation("perceptual_pump.system", e)
 
@@ -793,8 +797,12 @@ class PerceptualPump:
                 lane = gate.get_conversation_status() or {}
                 if lane.get("foreground_owned") or int(lane.get("active_generations", 0) or 0) > 0:
                     return True
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
-            pass
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "the inference gate would not say whether a person is waiting (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
         return float(getattr(self._system, "memory_percent", 0.0) or 0.0) >= 85.0
 
     # While throttled, screen/user sensors run 10x slower (every 5s).

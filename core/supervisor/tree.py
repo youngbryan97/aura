@@ -232,13 +232,15 @@ class SupervisionTree:
             for endpoint in pipe:
                 try:
                     endpoint.close()
-                except (RuntimeError, AttributeError, TypeError, ValueError):
-                    pass  # no-op: intentional
+                except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                    logger.debug(
+                        "a pipe endpoint would not close (%s: %s)", type(exc).__name__, exc
+                    )
             return
         try:
             pipe.close()
-        except (RuntimeError, AttributeError, TypeError, ValueError):
-            pass  # no-op: intentional
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("the pipe would not close (%s: %s)", type(exc).__name__, exc)
 
     def _send_actor_stop(self, pipe: Any, name: str) -> bool:
         """Best-effort cooperative actor stop over the existing pipe transport."""
@@ -254,8 +256,12 @@ class SupervisionTree:
         try:
             if not process.is_alive():
                 return False
-        except (RuntimeError, AttributeError, TypeError, ValueError):
-            pass
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "the process would not say whether it is alive; the pid is checked instead (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
         pid = getattr(process, "pid", None)
         if not pid:
             return True
@@ -354,8 +360,12 @@ class SupervisionTree:
                 if proc is not None:
                     try:
                         proc.close()
-                    except (AttributeError, RuntimeError, TypeError, ValueError):
-                        pass
+                    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                        logger.debug(
+                            "the failed actor process would not close (%s: %s)",
+                            type(exc).__name__,
+                            exc,
+                        )
                 record_degradation(
                     "tree",
                     exc,
@@ -608,6 +618,7 @@ class SupervisionTree:
         """Blocking compatibility entry point over the managed async monitor."""
         try:
             asyncio.get_running_loop()
+        # not a failure: the absence of a running loop is what this checks for.
         except RuntimeError:
             pass
         else:
@@ -856,7 +867,12 @@ class SupervisionTree:
                 reason="ActorCircuitOpen" if open_circuits else "NoOpenCircuits",
                 message=f"open_circuits={open_circuits}",
             )
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "the supervision conditions could not be published (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return
 
 _tree_instance: SupervisionTree | None = None

@@ -33,11 +33,15 @@ boundary the rest of the Program DNA lane works under.
 """
 from __future__ import annotations
 
+import logging
 import re
 from collections import Counter
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
 
 _RECOVERABLE = (RuntimeError, AttributeError, TypeError, ValueError, OSError, KeyError)
 
@@ -286,8 +290,12 @@ def assess_coverage(plan: Any, constraints: list[Constraint]) -> GapReport:
             haystack_parts.append(str(getattr(invariant, "description", "")))
             haystack_parts.append(str(getattr(invariant, "expression", "")))
         haystack_parts.extend(str(note) for note in (getattr(plan, "research_notes", ()) or ()))
-    except _RECOVERABLE:
-        pass
+    except _RECOVERABLE as exc:
+        logger.debug(
+            "part of the plan would not render, so the search text is incomplete (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
     haystack = " ".join(haystack_parts).lower()
 
     report = GapReport()

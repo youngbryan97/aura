@@ -229,9 +229,14 @@ def main() -> int:
     skipped = [one for one in files if one.resolve() in sealed]
     if skipped:
         files = [one for one in files if one.resolve() not in sealed]
+        # Count what is behind the seal rather than only how many files hold
+        # it. "13 files skipped" reads like nothing is owed; the number of
+        # handlers is the debt, and it belongs on every run.
+        held = len(look(skipped))
         print(
             f"{len(skipped)} file(s) skipped: sealed by a qualification and "
-            "editable only with it"
+            f"editable only with it, holding {held} handler(s) that lose the "
+            "reason until it is re-run"
         )
     found = look(files)
 

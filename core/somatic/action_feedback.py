@@ -361,8 +361,10 @@ class FeedbackProcessor:
                 "success": feedback.succeeded,
                 "timestamp": feedback.timestamp,
             })
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # no-op: intentional
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "the action-feedback event did not reach the bus (%s: %s)", type(exc).__name__, exc
+            )
 
     @staticmethod
     def _make_id(ts: float, action_name: str) -> str:
