@@ -691,8 +691,13 @@ class FrontierDiscoveryEngine:
             from core.observability.metrics import get_metrics
 
             get_metrics().increment_counter(counter)
-        except (ImportError, AttributeError, RuntimeError, TypeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError, TypeError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the reading is missing from the record",
+                "get_metrics",
+                type(exc).__name__,
+                exc,
+            )
 
     # ── integer-sequence law discovery (GA, SUPPORTED-only) ─────────────────
     def discover_sequence_law(self, sequence: Sequence[int]) -> Optional[Conjecture]:

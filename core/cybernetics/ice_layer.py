@@ -62,8 +62,13 @@ class ICELayer:
                     except (ImportError, AttributeError, RuntimeError) as exc:
                         record_degradation("ice_layer", exc)
                         logger.debug("[ICE] Anomaly detector registration failed: %s", exc)
-                except ImportError:
-                    pass  # no-op: intentional
+                except ImportError as exc:
+                    logger.debug(
+                        "%s unavailable (%s: %s); the reading is missing from the record",
+                        "AnomalyDetector",
+                        type(exc).__name__,
+                        exc,
+                    )
         return self._anomaly_detector
 
     async def load(self):

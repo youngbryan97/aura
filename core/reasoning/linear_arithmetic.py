@@ -26,11 +26,14 @@ from __future__ import annotations
 
 import ast
 import itertools
+import logging
 from dataclasses import dataclass
 from fractions import Fraction
 from typing import Any, Iterable, Mapping, Sequence
 
 from core.reasoning.proof_kernel import KernelVerdict, register_checker
+
+logger = logging.getLogger(__name__)
 
 # Fail-closed bounds for the elimination search (the checker needs none —
 # checking a certificate is linear in its size).
@@ -424,8 +427,13 @@ def _note_and_record(
             extra={"goal": str(goal), "premises": [str(p) for p in premises]},
             enforce_failure_policy=False,
         )
-    except (ImportError, RuntimeError, ValueError, TypeError, AttributeError):
-        pass
+    except (ImportError, RuntimeError, ValueError, TypeError, AttributeError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the reading is missing from the record",
+            "record_degradation",
+            type(exc).__name__,
+            exc,
+        )
 
 
 def _replay_farkas(encoded: Mapping[str, Any]) -> bool:

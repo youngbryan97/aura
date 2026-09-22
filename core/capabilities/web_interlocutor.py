@@ -77,8 +77,13 @@ def _mark_web_interlocutor_progress(source: str) -> None:
         from core.runtime.liveness import mark_runtime_service_progress
 
         mark_runtime_service_progress(source)
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        pass
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the reading is missing from the record",
+            "mark_runtime_service_progress",
+            type(exc).__name__,
+            exc,
+        )
 
 
 #: Who asked for the visible actions happening right now, and under which run.

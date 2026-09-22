@@ -7,15 +7,17 @@ flip the ``aura-throttle-motion`` class on its own ``<body>`` without
 waiting for a websocket round-trip.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
 
-
+import logging
 from typing import Any, Dict
 
 from fastapi import APIRouter, Body, Depends
 from fastapi.responses import JSONResponse
 
+from core.runtime.errors import record_degradation
 from interface.auth import _require_internal
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/performance", tags=["performance"])
 _PERFORMANCE_ROUTE_ERRORS = (
@@ -34,8 +36,13 @@ def _mark_runtime_service_progress(source: str) -> None:
         from core.resilience.stall_watchdog import mark_runtime_service_progress
 
         mark_runtime_service_progress(source)
-    except _PERFORMANCE_ROUTE_ERRORS:
-        pass
+    except _PERFORMANCE_ROUTE_ERRORS as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the reading is missing from the record",
+            "mark_runtime_service_progress",
+            type(exc).__name__,
+            exc,
+        )
 
 
 @router.post("/frame")

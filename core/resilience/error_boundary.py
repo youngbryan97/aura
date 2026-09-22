@@ -239,8 +239,13 @@ async def wrap_phase(
         from core.soma.effort import note_effort
 
         note_effort("phases", 1.0)
-    except (ImportError, RuntimeError, TypeError, ValueError):
-        pass  # no-op: an unreported cost never stops a phase
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the reading is missing from the record",
+            "note_effort",
+            type(exc).__name__,
+            exc,
+        )
 
     try:
         # FIX: pass state (and optional objective + kwargs) into the phase

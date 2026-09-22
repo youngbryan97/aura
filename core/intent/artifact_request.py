@@ -21,10 +21,13 @@ did, and every phrasing the floor is sure about teaches it.
 
 from __future__ import annotations
 
+import logging
 import re
 
 from core.language.learned_matcher import LearnedMatcher as _LearnedMatcher
 from core.language.model_features import model_hidden_features as _model_hidden_features
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["asks_for_an_artifact", "names_an_artifact"]
 
@@ -196,8 +199,13 @@ def asks_for_an_artifact(message: object) -> bool:
     if settled is not None:
         try:
             _WANTS_A_THING.observe(text, holds=settled)
-        except (RuntimeError, TypeError, ValueError):
-            pass
+        except (RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the reading is missing from the record",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
         return settled
     try:
         learned = _WANTS_A_THING.decide_without_waiting(text)

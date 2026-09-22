@@ -525,8 +525,13 @@ def verify_grounded_claims(reply: str, *, now: datetime | None = None) -> Ground
                 severity="warning",
                 action="reconciled a user-facing claim against a real runtime reading",
             )
-        except _RECOVERABLE:
-            pass
+        except _RECOVERABLE as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the reading is missing from the record",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
 
     return GroundedReply(text=text, corrections=tuple(corrections))
 

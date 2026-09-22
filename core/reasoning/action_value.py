@@ -463,8 +463,13 @@ def on_outcome_resolved(receipt: Any) -> None:
     """
     try:
         get_action_value_model().mark_stale()
-    except (RuntimeError, ImportError, AttributeError):
-        pass  # no-op: a stale model still answers, it just answers with old data
+    except (RuntimeError, ImportError, AttributeError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the reading is missing from the record",
+            "it",
+            type(exc).__name__,
+            exc,
+        )
 
     signature = ""
     correct = False

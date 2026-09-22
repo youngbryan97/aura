@@ -167,8 +167,13 @@ def _decide(text: str, settled: bool | None) -> bool:
     if settled is not None:
         try:
             _NEEDS_IT_WORKED_OUT.observe(text, holds=settled)
-        except (RuntimeError, TypeError, ValueError):
-            pass
+        except (RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the reading is missing from the record",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
         return settled
     try:
         return bool(_NEEDS_IT_WORKED_OUT.decide_without_waiting(text))
