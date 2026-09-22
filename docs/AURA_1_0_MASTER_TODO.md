@@ -1176,6 +1176,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Human relational criteria](evidence/G_HUMAN_RELATIONAL_CRITERIA_2026-09-22.md)
+  bind the current selection experiment and later transfer claims to
+  relation-preserving and relation-breaking tests without adding eval labels.
   [Source-trained candidate selector](evidence/G03_SOURCE_TRAINED_CANDIDATE_SELECTOR_2026-09-22.md):
   source-only synthetic contrasts did not transfer to the retained real bank;
   a construction-stratified source-only real-bank pilot is the next experiment.

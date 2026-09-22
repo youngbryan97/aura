@@ -154,6 +154,17 @@ def _contrast_cases(items: dict, train: list[str], held: list[str], *, limit: in
     return cases
 
 
+def _training_views(source: str, banks: dict, contrasts: dict | None) -> tuple:
+    """Keep real proposals and witnessed alternatives as separate evidence."""
+    bank = banks[source]
+    if contrasts is None:
+        return (bank,)
+    contrast = contrasts[source]
+    if bank[1:3] != contrast[1:3]:
+        raise ValueError("mixed candidate evidence changed source grounding")
+    return bank, contrast
+
+
 def _evaluate_contrasts(model, items: dict, cases: dict, held: list[str]) -> dict:
     import torch
 
@@ -182,7 +193,7 @@ def main() -> None:
     parser.add_argument("--candidate-report", type=Path, required=True)
     parser.add_argument("--feature-root", type=Path, required=True)
     parser.add_argument("--bank-directory", type=Path)
-    parser.add_argument("--training-mode", choices=("bank", "source_contrasts"),
+    parser.add_argument("--training-mode", choices=("bank", "source_contrasts", "mixed"),
                         default="source_contrasts")
     parser.add_argument("--contrast-limit", type=int, default=24)
     parser.add_argument("--folds", type=Path, required=True)
@@ -194,8 +205,8 @@ def main() -> None:
     args = parser.parse_args()
     if args.epochs < 1 or args.pilot_rows < 0 or args.contrast_limit < 2:
         parser.error("epochs and contrast-limit must be positive; pilot-rows nonnegative")
-    if args.training_mode == "bank" and args.bank_directory is None:
-        parser.error("bank training needs a complete source bank directory")
+    if args.training_mode in {"bank", "mixed"} and args.bank_directory is None:
+        parser.error("bank or mixed training needs a complete source bank directory")
 
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
@@ -241,14 +252,17 @@ def main() -> None:
     train = [source for source in ids if folds["assignments"][source] != args.fold]
     if args.pilot_rows:
         train, held = train[:args.pilot_rows], held[:args.pilot_rows]
-    if args.training_mode == "bank":
+    if args.training_mode in {"bank", "mixed"}:
         rows = {source: _read_bank(args.bank_directory / "rows" / f"{source}.json",
                                    source=source, plan_sha=plan["plan_sha256"],
                                    model_receipt=model.receipt_sha256,
                                    expected_receipt=bank_report["row_receipts"][source]) for source in ids}
         cases = {source: _rankable(items[source], rows[source]) for source in train + held}
+        contrasts = (_contrast_cases(items, train, held, limit=args.contrast_limit)
+                     if args.training_mode == "mixed" else None)
     else:
         cases = _contrast_cases(items, train, held, limit=args.contrast_limit)
+        contrasts = None
     torch.manual_seed(20260922 + args.fold)
     np.random.seed(20260922 + args.fold)
     config = RequestContextConfig(model.hidden_size, width=64, heads=4, layers=1,
@@ -264,18 +278,19 @@ def main() -> None:
                 20260922 + args.fold + epoch)).tolist():
             source = train[index]
             item = items[source]
-            (programs, labels, _), spans, kinds, anchors = cases[source]
-            if not any(labels):
-                continue
             features = torch.from_numpy(_hidden_array(item.hidden_states)).float()
-            optimizer.zero_grad(set_to_none=True)
-            scores = ranker(features, spans, kinds, programs, operation_spans=anchors)
-            loss = candidate_set_loss(scores, labels)
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(ranker.parameters(), 1.0)
-            optimizer.step()
-            update_count += 1
-            losses.append(float(loss.detach()))
+            training_views = _training_views(source, cases, contrasts)
+            for (programs, labels, _), spans, kinds, anchors in training_views:
+                if not any(labels):
+                    continue
+                optimizer.zero_grad(set_to_none=True)
+                scores = ranker(features, spans, kinds, programs, operation_spans=anchors)
+                loss = candidate_set_loss(scores, labels)
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(ranker.parameters(), 1.0)
+                optimizer.step()
+                update_count += 1
+                losses.append(float(loss.detach()))
         learning_curve.append({"epoch": epoch + 1, "updates": update_count,
                                "mean_loss": sum(losses) / len(losses) if losses else None})
         print(json.dumps({"stage": "epoch", "fold": args.fold,
@@ -284,9 +299,10 @@ def main() -> None:
         raise ValueError("no source-training candidates had a verified solution")
     train_probe = (train if args.pilot_rows else train[:64])
     training_evaluation = (_evaluate(ranker, items, rows, train_probe)
-                           if args.training_mode == "bank" else
+                           if args.training_mode in {"bank", "mixed"} else
                            _evaluate_contrasts(ranker, items, cases, train_probe))
-    evaluation = (_evaluate(ranker, items, rows, held) if args.training_mode == "bank"
+    evaluation = (_evaluate(ranker, items, rows, held)
+                  if args.training_mode in {"bank", "mixed"}
                   else _evaluate_contrasts(ranker, items, cases, held))
     args.output_directory.mkdir(parents=True, exist_ok=True)
     weights = args.output_directory / f"fold-{args.fold}.safetensors"
@@ -301,7 +317,8 @@ def main() -> None:
             "source_bank_receipt_sha256": (bank_report["receipt_sha256"]
                                            if bank_report else None),
             "training_mode": args.training_mode,
-            "contrast_limit": args.contrast_limit if args.training_mode == "source_contrasts" else None,
+            "contrast_limit": args.contrast_limit if args.training_mode in {
+                "source_contrasts", "mixed"} else None,
             "source_report_sha256": hashlib.sha256(args.source_report.read_bytes()).hexdigest(),
             "candidate_report_sha256": hashlib.sha256(args.candidate_report.read_bytes()).hexdigest(),
             "model_receipt_sha256": model.receipt_sha256,

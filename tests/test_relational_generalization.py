@@ -17,6 +17,7 @@ from core.cognition.relational_generalization import (
     Interpretation,
     RelationalCase,
     RelationalGeneralizer,
+    TemporalFactEvidence,
 )
 
 
@@ -52,7 +53,8 @@ def test_principle_requires_independent_support_and_falsification():
     model = RelationalGeneralizer(minimum_support=2, minimum_contexts=2)
     interpretation = Interpretation("retrieve contained person")
     candidate = model.observe(
-        left, interpretation, outcome="found", context_id="a", supports=True, evidence="trace-a"
+        left, interpretation, outcome="found", context_id="a", supports=True,
+        evidence="trace-a", source_id="observer-a",
     )
     assert candidate.status(minimum_support=2, minimum_contexts=2) == "provisional"
     model.observe(
@@ -63,8 +65,23 @@ def test_principle_requires_independent_support_and_falsification():
         supports=True,
         falsification_attempt=True,
         evidence="trace-b",
+        source_id="observer-b",
     )
     assert candidate.status(minimum_support=2, minimum_contexts=2) == "consolidated"
+
+
+def test_relabelled_contexts_from_one_source_do_not_certify_principle():
+    left, right = cases()
+    model = RelationalGeneralizer(minimum_support=2, minimum_contexts=2)
+    candidate = model.observe(left, Interpretation("retrieve"), outcome="found",
+                              context_id="one", supports=True, evidence="trace-a",
+                              source_id="one-observer")
+    model.observe(right, Interpretation("retrieve"), outcome="found",
+                  context_id="two", supports=True, falsification_attempt=True,
+                  evidence="trace-b", source_id="one-observer")
+    assert candidate.independent_contexts == 2
+    assert candidate.independent_sources == 1
+    assert candidate.status(minimum_support=2, minimum_contexts=2) == "provisional"
 
 
 def test_contradiction_requests_revision_and_records_continuity():
@@ -112,6 +129,141 @@ def test_changed_facts_cannot_be_treated_as_the_same_problem():
     left, _ = cases()
     assert not RelationalGeneralizer().same_problem(
         left, replace(left, facts=(("state", "closed"),)))
+
+
+def test_plausible_readings_keep_unknown_consequences_open():
+    model = RelationalGeneralizer()
+    affordable = Interpretation("salary alone funded the purchase",
+        believed_facts=(("income_is_sufficient", True), ("owns_vehicle", True)))
+    prior_savings = Interpretation("purchase came from earlier savings",
+        believed_facts=(("owns_vehicle", True), ("prior_savings", True)))
+    audits = model.scrutinize((affordable, prior_savings), observations={
+        "income_is_sufficient": (False, "budget-receipt"),
+        "owns_vehicle": (True, "registration-receipt"),
+    })
+    assert audits[0].status == "contradicted"
+    assert audits[0].contradicted == (("income_is_sufficient", "budget-receipt"),)
+    assert audits[1].status == "unresolved"
+    assert audits[1].unmeasured == ("prior_savings",)
+    revised = model.scrutinize((prior_savings,), observations={
+        "owns_vehicle": (True, "registration-receipt"),
+        "prior_savings": (True, "bank-receipt"),
+    })
+    assert revised[0].status == "supported"
+
+
+def test_scrutiny_rejects_unmeasured_or_conflicting_claim_identity():
+    model = RelationalGeneralizer()
+    with pytest.raises(ValueError, match="provenance"):
+        model.scrutinize((Interpretation("claim", believed_facts=(("fact", True),)),),
+                         observations={"fact": (True, "")})
+    with pytest.raises(ValueError, match="distinct"):
+        model.scrutinize((Interpretation("claim", believed_facts=(("fact", True),
+                                                                    ("fact", False))),),
+                         observations={})
+
+
+def test_discrimination_distinguishes_decisive_from_one_sided_questions():
+    first = Interpretation("new salary paid", believed_facts=(
+        ("income_is_sufficient", True), ("owns_vehicle", True)))
+    second = Interpretation("prior savings paid", believed_facts=(
+        ("income_is_sufficient", False), ("prior_savings", True),
+        ("owns_vehicle", True)))
+    inquiries = RelationalGeneralizer().plan_discrimination(
+        (first, second), observations={"owns_vehicle": (True, "registration")})
+    assert [(item.proposition, item.decisive) for item in inquiries] == [
+        ("income_is_sufficient", True), ("prior_savings", False)]
+    assert inquiries[0].predictions == (("new salary paid", True),
+                                        ("prior savings paid", False))
+    assert RelationalGeneralizer().plan_discrimination(
+        (first, second), observations={"owns_vehicle": (True, "registration"),
+                                       "income_is_sufficient": (False, "budget")})[0].proposition == (
+                                           "prior_savings")
+
+
+def test_analogy_exposes_extra_target_constraints_without_claiming_transfer():
+    boxing = RelationalCase("boxing", (("athlete", "competitor"), ("opponent", "competitor")),
+                            (("strikes", "athlete", "opponent"),), goal="win")
+    mma = RelationalCase("mma", (("fighter", "competitor"), ("rival", "competitor")),
+                         (("punches", "fighter", "rival"),
+                          ("grapples", "fighter", "rival")), goal="win")
+    probe = RelationalGeneralizer().probe_transfer(boxing, mma, trials=4)
+    assert probe.matched == 1
+    assert len(probe.target_unmatched) == 1
+    assert probe.role_consistent
+    assert probe.null_separation is not None
+    assert not probe.goal_equivalence_measured
+    assert not probe.task_outcome_measured
+    assert not probe.structural_candidate
+
+
+def test_revision_separates_changed_fact_from_initially_wrong_belief():
+    evidence = (
+        TemporalFactEvidence("rule_applies", True, 10, 12, "archive", "old-rule"),
+        TemporalFactEvidence("rule_applies", False, 20, 21, "registry", "new-rule"),
+    )
+    assess = RelationalGeneralizer.assess_revision
+    changed = assess("rule_applies", old_belief=True, new_belief=False,
+                     old_at=10, new_at=20, evidence=evidence)
+    assert changed.status == "world_change_supported"
+    assert changed.old_evidence == ("archive:old-rule",)
+    assert changed.new_evidence == ("registry:new-rule",)
+    misunderstood = assess("rule_applies", old_belief=True, new_belief=False,
+                           old_at=10, new_at=20,
+                           evidence=(replace(evidence[0], value=False), evidence[1]))
+    assert misunderstood.status == "prior_misunderstanding_supported"
+    recent_only = assess("rule_applies", old_belief=True, new_belief=False,
+                         old_at=10, new_at=20, evidence=(evidence[1],))
+    assert recent_only.status == "unresolved"
+
+
+def test_revision_refuses_conflicting_or_replayed_temporal_evidence():
+    earlier = TemporalFactEvidence("p", True, 1, 3, "archive", "one")
+    later = TemporalFactEvidence("p", False, 2, 4, "registry", "two")
+    assess = RelationalGeneralizer.assess_revision
+    conflict = assess("p", old_belief=True, new_belief=False, old_at=1, new_at=2,
+                      evidence=(earlier, replace(earlier, value=False, ref="contradiction"),
+                                later))
+    assert conflict.status == "unresolved"
+    with pytest.raises(ValueError, match="count twice"):
+        assess("p", old_belief=True, new_belief=False, old_at=1, new_at=2,
+               evidence=(earlier, earlier, later))
+
+
+def test_cross_domain_analogy_needs_sourced_roles_and_exposes_foil():
+    schedule = RelationalCase(
+        "schedule", (("doctor", "worker"), ("slot", "capacity"),
+                     ("patient", "request")),
+        (("claims", "patient", "slot"), ("serves", "doctor", "patient"),
+         ("occupies", "doctor", "slot")), goal="serve requests",
+    )
+    async_work = RelationalCase(
+        "async", (("job", "process"), ("worker", "executor"),
+                  ("resource", "resource")),
+        (("queues_for", "job", "resource"), ("handled_by", "worker", "job"),
+         ("holds", "worker", "resource")), goal="serve requests",
+    )
+    foil = replace(async_work, case_id="async-with-preemption",
+                   relations=(*async_work.relations,
+                              ("preempts", "job", "worker")))
+    generalizer = RelationalGeneralizer()
+    unsourced = generalizer.probe_transfer(schedule, async_work, trials=8)
+    assert not unsourced.role_consistent
+    with pytest.raises(ValueError, match="sourced correspondence"):
+        generalizer.probe_transfer(schedule, async_work, role_correspondence={"worker": "executor"})
+    roles = {"worker": "executor", "capacity": "resource", "request": "process"}
+    paired = generalizer.probe_transfer(schedule, async_work, trials=8,
+                                        role_correspondence=roles,
+                                        role_evidence="independent-role-analysis")
+    altered = generalizer.probe_transfer(schedule, foil, trials=8,
+                                         role_correspondence=roles,
+                                         role_evidence="independent-role-analysis")
+    assert paired.matched == len(schedule.relations)
+    assert not paired.source_unmatched and not paired.target_unmatched
+    assert paired.role_consistent
+    assert altered.target_unmatched
+    assert not altered.structural_candidate
+    assert not paired.task_outcome_measured
 
 
 def test_goal_order_is_semantic_not_a_bag_of_words():

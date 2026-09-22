@@ -12,8 +12,26 @@ from core.learning.semantic_candidate_ranker import ContextualProgramRanker, can
 from core.learning.semantic_construction_folds import construction_folds
 from core.learning.semantic_program_ir import TokenSpan
 from core.learning.semantic_request_context import RequestContextConfig
-from tools.evaluate_semantic_candidate_ranker import _rankable
+from tools.compare_semantic_candidate_methods import _direct_choice, _portfolio_comparison
+from tools.evaluate_semantic_candidate_ranker import _rankable, _training_views
 from tools.materialize_semantic_candidate_training import _plan, _select_source_ids
+
+
+def test_mixed_methods_retain_disagreement_without_oracle_selection():
+    programs = (Program(2, (Instruction("add", (0, 1)),)),
+                Program(2, (Instruction("sub", (0, 1)),)))
+    common = dict(programs=programs, keys=tuple(program.sha() for program in programs),
+                  labels=(False, True), ranker_index=1, direct_index=0,
+                  public_inputs=(7, 3), source="a" * 64,
+                  transducer_receipt="b" * 64, ranker_receipt="c" * 64,
+                  direct_receipt="d" * 64)
+    rescued = _portfolio_comparison(**common, incumbent_present=False)
+    assert rescued["portfolio_selected"] == "ranker"
+    assert rescued["portfolio_correct"]
+    assert rescued["portfolio_disagreements"] >= 1
+    retained = _portfolio_comparison(**common, incumbent_present=True)
+    assert retained["portfolio_selected"] == "incumbent"
+    assert not retained["portfolio_correct"]
 
 
 def _programs():
@@ -173,3 +191,31 @@ def test_candidate_subset_is_selected_by_construction_without_labels():
     bad = {**folds, "receipt_sha256": "bad"}
     with pytest.raises(ValueError, match="frozen construction"):
         _select_source_ids(examples, bad, per_group=1)
+
+
+def test_mixed_training_keeps_two_grounded_candidate_views():
+    spans = (TokenSpan(0, 1), TokenSpan(2, 3))
+    kinds = ("integer", "integer")
+    bank = ((_programs(), (True, False), tuple(p.sha() for p in _programs())),
+            spans, kinds, ((TokenSpan(1, 2),),) * 2)
+    contrasts = ((_programs()[::-1], (False, True),
+                  tuple(p.sha() for p in _programs()[::-1])),
+                 spans, kinds, ((TokenSpan(1, 2),),) * 2)
+    assert _training_views("source", {"source": bank}, None) == (bank,)
+    assert _training_views("source", {"source": bank}, {"source": contrasts}) == (
+        bank, contrasts)
+    changed = (contrasts[0], (TokenSpan(0, 1), TokenSpan(1, 2)), kinds, contrasts[3])
+    with pytest.raises(ValueError, match="grounding"):
+        _training_views("source", {"source": bank}, {"source": changed})
+
+
+def test_direct_candidate_choice_uses_program_scores_not_labels():
+    class Model:
+        def score(self, _features, _spans, _kinds, program):
+            return torch.tensor(2. if program.instructions[0].op == "sub" else 1.)
+
+    spans = (TokenSpan(0, 1), TokenSpan(2, 3))
+    features = functional.normalize(torch.randn(4, 8), dim=-1)
+    assert _direct_choice(Model(), features, spans, ("integer", "integer"), _programs()) == 1
+    assert _direct_choice(Model(), features, spans, ("integer", "integer"),
+                          _programs()[::-1]) == 0
