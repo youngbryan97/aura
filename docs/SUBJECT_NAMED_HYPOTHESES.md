@@ -32,23 +32,30 @@ peace with himself with happiness; excitement and curiosity with joy;
 curiosity about people as about things; hard thinking going well with
 excitement; expression coming back through what others learned.
 
-Prediction, on a campaign recording: each named pair covaries more than the
-same channels shuffled against each other in time (the replay surrogate the
-battery already builds), at the battery's own level:
+Each tie is built as a loop in core/affect/tangled.py, so this is less a
+prediction about her than a check that the loop moves her in the running
+organism rather than only in its unit test. From the campaign after the one
+started at 173eb6ff0, the readings are recorded at every frame beside the
+recording, in `named_readings.npz` (core/subject/named_readings.py), and kept
+out of the core state, whose schema is part of the instrument.
 
-| pair | her channels |
+| tie | readings |
 |---|---|
-| agency, persistence | agency efficacy; goals still pending after a failure |
-| contentment, happiness | warmth peace and self peace; joy's baseline |
-| joy, curiosity | joy above its rest; curiosity's baseline |
-| not knowing a person, curiosity | 1 - confidence in the partner; curiosity |
-| effort going well, excitement | fatigue effort times capacity; anticipation |
-| taken up, joy | carried times added; joy |
+| people and peace with herself, with happiness | contentment; joy's baseline |
+| joy, with curiosity | joy; curiosity's baseline |
+| not knowing who is in front of her, with curiosity | how little she knows them; curiosity's baseline |
+| hard thinking going well, with excitement | effort times capacity; anticipation's baseline |
 
-Refuted for any pair whose lagged cross-correlation does not clear its replay
-surrogate's 95th percentile.
+Refuted for any tie whose largest lagged correlation, over lags up to one
+condition cycle, does not clear the 1 - 0.05 / 4 quantile of the same statistic
+with one side slid by whole condition cycles, so the four are read together at
+0.05 (tools/check_subject_named_hypotheses.py).
 
-Built from: core/affect/tangled.py.
+Persistence and her expression coming back are loops too (the give-up count
+scales with her capacity; being taken up moves joy and counts as her act) and
+have no reading here yet: a goal's failures are counted in the live agency
+core, which the offline organism does not run, and uptake needs a partner who
+answers what she said.
 
 ## H3. What matters only together is synergistic in her
 
@@ -56,25 +63,25 @@ His account: a compliment when low and when fine; a question from somebody
 trusted and from a stranger; the same news on a tired day; things that are
 particular to you and land at the moment they are relevant. From his body
 answers: tiredness with importance decides what is pursued; good news with a
-task in hand decides what holds attention; risk with the other's reaction
-decides how it lands.
+task in hand decides what holds attention.
 
-Prediction: in each named triple the target carries information about the
-pair that neither source carries alone, by the synergy estimator the battery
-uses (core/subject/synergy.py), above its shifted null:
-
-| sources | target |
+| sources | target's change |
 |---|---|
-| how particular it is to her; how much it meets her | the moment's weight's effect on joy |
-| fatigue share; initiative importance | which initiative is kept |
-| good-news jump; task urgency | the arbiter's lightness |
-| risk of what she said; their next frustration | the form ledger's weighting |
+| how particular it is to her; how much it meets her | joy |
+| fatigue share; the most urgent initiative | that urgency |
+| good-news jump; the most urgent initiative | that urgency |
 
-Refuted for any triple whose synergy fraction does not clear its shifted
-null's 95th percentile.
+Refuted for any triple whose synergy fraction, by the battery's estimator
+(core/subject/synergy.py), does not clear its shifted null's 99th percentile.
+
+The estimator is Gaussian over rank-normalised readings. It sees the part of an
+interaction a joint linear fit can carry, which for two readings that are never
+negative, as these are, is most of a product; it cannot see a pure product of
+two readings symmetric about zero. A triple that fails here has not been shown
+to be additive, only not to be synergistic in the estimator's sense.
 
 Built from: core/affect/a_moment_that_fits.py, core/soma/fatigue.py,
-core/soma/good_news.py, core/soma/on_the_edge.py.
+core/soma/good_news.py.
 
 ## H4. A being of drives alone fails the battery for lacking a centre
 

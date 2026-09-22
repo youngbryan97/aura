@@ -92,7 +92,7 @@ def _log(message: str) -> None:
 
 
 async def _record(
-    runtime: Any, conditions: Any, rounds: int
+    runtime: Any, conditions: Any, rounds: int, named: Any = None
 ) -> tuple[list[Any], tuple[np.ndarray, tuple[str, ...]]]:
     """Live the rounds, keeping each frame's core state and periphery reading.
 
@@ -112,6 +112,10 @@ async def _record(
             for reading in await runtime.turn_once(condition):
                 frames.append(reading)
                 periphery.note(read_periphery(runtime.kernel))
+                # And the readings Bryan's answers name, beside the recording
+                # rather than in it. See core/subject/named_readings.py.
+                if named is not None:
+                    named.note(runtime.state)
     return frames, periphery.matrix()
 
 
@@ -468,7 +472,10 @@ async def main() -> int:
 
     if "record" not in done:
         _log(f"recording {args.rounds} rounds over {len(CONDITIONS)} conditions")
-        frames, periphery_read = await _record(runtime, CONDITIONS, args.rounds)
+        from core.subject.named_readings import NamedAccumulator
+
+        named = NamedAccumulator()
+        frames, periphery_read = await _record(runtime, CONDITIONS, args.rounds, named)
         recording = build_recording(
             frames,
             notes={
@@ -478,6 +485,10 @@ async def main() -> int:
             },
         )
         recording.save(args.out)
+        _named_rows, _named_columns = named.matrix()
+        np.savez_compressed(
+            args.out / "named_readings.npz", rows=_named_rows, names=np.asarray(_named_columns, dtype=object)
+        )
         scale = _scales(recording)
         _log(
             f"{recording.frames} frames, {len(recording.live_domains())} live domains, "

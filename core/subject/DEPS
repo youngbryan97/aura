@@ -65,6 +65,10 @@ include_rules = [
     "+core.runtime.service_registry",
     "+core.service_registration",
     "+core.soma.effort",
+    # Read, never written: the tiredness and good news Bryan's answers name,
+    # kept beside a campaign's recording. See core/subject/named_readings.py.
+    "+core.soma.fatigue",
+    "+core.soma.good_news",
     # Construct the same observation/action vectors the measured cycle uses.
     "+core.world_model.observe_cycle",
 
