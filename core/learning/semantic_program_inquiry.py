@@ -16,6 +16,7 @@ from core.learning.procedure_induction import Program
 from core.learning.semantic_graph_counterexamples import ProgramObservationCache
 from core.perception.expected_information_gain import Observation, choose
 from core.runtime.gateways import StateGateway, StateMutationRequest
+from core.evidence.packet import observe
 
 
 @dataclass(frozen=True)
@@ -57,7 +58,7 @@ class ProgramInquiry:
             raise ValueError("inquiry identity does not match its probe and programs")
 
     def to_dict(self) -> dict:
-        return {
+        payload = {
             "schema": "aura.semantic_program_inquiry.v1",
             "identity": self.identity,
             "inputs": self.inputs,
@@ -68,9 +69,19 @@ class ProgramInquiry:
             "observation_required": True,
             "correctness_authority": False,
         }
+        payload["content_sha256"] = hashlib.sha256(json.dumps(
+            payload, sort_keys=True, allow_nan=False
+        ).encode()).hexdigest()
+        return payload
 
     @classmethod
     def from_dict(cls, payload: Mapping):
+        content = dict(payload)
+        digest = content.pop("content_sha256", None)
+        if digest != hashlib.sha256(json.dumps(
+            content, sort_keys=True, allow_nan=False
+        ).encode()).hexdigest():
+            raise ValueError("inquiry content digest mismatch")
         if (payload.get("schema") != "aura.semantic_program_inquiry.v1"
                 or payload.get("observed_result") is not None
                 or payload.get("observation_required") is not True
@@ -104,6 +115,25 @@ class ProgramInquiry:
         """Report compatibility, not proof, after an independently obtained value."""
         outcome = _outcome(observed_result)
         return tuple(name for name, predicted in self.predictions if predicted == outcome)
+
+    def evidence_for(self, *, observed_result: object, origin: str, ref: str):
+        """Bind measured probe agreement to the existing evidence algebra.
+
+        The caller supplies the independent observation identity. These packets
+        support agreement on this probe, not universal program correctness.
+        """
+        if not isinstance(origin, str) or not origin.strip() or not isinstance(ref, str) or not ref.strip():
+            raise ValueError("observed inquiry evidence requires a source and reference")
+        outcome = _outcome(observed_result)
+        identities = dict(self.program_shas)
+        return {
+            name: observe(
+                float(predicted == outcome), origin=origin, ref=ref,
+                subject=f"inquiry_agreement:{self.identity}:{identities[name]}",
+                produced_by="semantic_program_inquiry",
+            )
+            for name, predicted in self.predictions
+        }
 
 
 def _outcome(value: object) -> str:

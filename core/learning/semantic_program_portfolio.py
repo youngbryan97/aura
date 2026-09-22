@@ -11,7 +11,7 @@ from core.evidence.necessary_condition_selector import (
     NecessaryEvidenceCondition,
     build_necessary_condition_selector,
 )
-from core.evidence.packet import observe
+from core.evidence.packet import observe, fuse
 from core.learning.procedure_induction import Program
 from core.learning.semantic_graph_counterexamples import (
     compare_program_meanings,
@@ -51,6 +51,69 @@ class SemanticProgramPortfolio:
 
         inquiries = await off_the_loop(self.plan_inquiries, fuel=fuel)
         return tuple([await inquiry.retain(gateway) for inquiry in inquiries])
+
+    def reconcile_inquiry(self, inquiry, *, observed_result, origin: str, ref: str,
+                          fuel: int = 100_000):
+        """Select within this portfolio after independent probe feedback.
+
+        None means the observation refutes every available candidate. Agreement
+        is scoped to this probe and cannot certify unobserved behavior.
+        """
+        return self.reconcile_inquiries(((inquiry, observed_result, origin, ref),), fuel=fuel)
+
+    def reconcile_inquiries(self, feedback, *, fuel: int = 100_000):
+        """Require agreement with every applicable observed probe in the history."""
+        from core.learning.semantic_program_inquiry import ProgramInquiry, plan_program_inquiries
+
+        programs = {name: p.sha() for name, p in self.proposals if p is not None}
+        evidence, seen = [], {}
+        for inquiry, observed_result, origin, ref in feedback:
+            if not isinstance(inquiry, ProgramInquiry):
+                raise ValueError("feedback requires a bound program inquiry")
+            if programs != dict(inquiry.program_shas):
+                raise ValueError("inquiry feedback belongs to different programs")
+            replay = plan_program_inquiries(
+                {name: p for name, p in self.proposals if p is not None},
+                (inquiry.inputs,), fuel=fuel,
+            )
+            if not replay or dict(replay[0].predictions) != dict(inquiry.predictions):
+                raise ValueError("inquiry predictions do not match checked program execution")
+            packets = inquiry.evidence_for(observed_result=observed_result, origin=origin, ref=ref)
+            identity = (origin, ref)
+            payload = json.dumps([inquiry.identity, observed_result], sort_keys=True)
+            if identity in seen:
+                if seen[identity] != payload:
+                    raise ValueError("one observation identity cannot name conflicting feedback")
+                continue
+            seen[identity] = payload
+            evidence.append(packets)
+        if not evidence:
+            return self.decision
+        subject = "inquiry_history:" + hashlib.sha256(json.dumps(
+            sorted((origin, ref, payload) for (origin, ref), payload in seen.items())
+        ).encode()).hexdigest()
+        executions = dict(self.executions)
+        measurements = {
+            name: {"observed_probe_agreement": min(row[name].strength for row in evidence),
+                   "executable_program": float(executions[name]["completed"])}
+            for name in programs
+        }
+        if not any(all(values.values()) for values in measurements.values()):
+            return None
+        selector = build_necessary_condition_selector((
+            NecessaryEvidenceCondition("observed_probe_agreement", 1.,
+                                       "program_must_agree_with_independent_probe"),
+            NecessaryEvidenceCondition("executable_program", 1.,
+                                       "semantic_answer_requires_completed_floor_execution"),
+        ))
+        incumbent = self.decision.selected
+        if incumbent not in measurements:
+            incumbent = next(iter(measurements))
+        return select_candidate_portfolio(
+            selector, incumbent=incumbent, measurements=measurements,
+            provenance={name: fuse(tuple(row[name].with_subject(subject) for row in evidence))
+                        for name in programs},
+        )
 
 
 def select_semantic_program_portfolio(*, proposals: Mapping[str, Program | None],
