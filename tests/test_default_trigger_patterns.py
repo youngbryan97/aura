@@ -29,12 +29,14 @@ def test_the_table_is_a_literal_with_no_computation_in_it() -> None:
     """It is data. A call inside it would make the move a behaviour change."""
     source = (ROOT / "core/skills/default_trigger_patterns.py").read_text()
     tree = ast.parse(source)
-    function = next(
+    # The table is the module constant the function copies from; it was lifted
+    # out of the function when the function crossed the method-size bar.
+    assignment = next(
         node
         for node in tree.body
-        if isinstance(node, ast.FunctionDef) and node.name == "default_trigger_patterns"
+        if isinstance(node, (ast.Assign, ast.AnnAssign))
+        and getattr(node.targets[0] if isinstance(node, ast.Assign) else node.target, "id", "") == "_TABLE"
     )
-    assignment = next(node for node in function.body if isinstance(node, ast.Assign))
     assert isinstance(assignment.value, ast.Dict)
     for node in ast.walk(assignment.value):
         assert not isinstance(node, (ast.Call, ast.Attribute, ast.Name)), (

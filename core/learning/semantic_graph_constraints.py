@@ -38,6 +38,94 @@ def _project_direction(direction: Any, normals: list[Any]) -> Any:
     return (normalized + a.T @ multiplier) * magnitude
 
 
+def _resume_fit(
+    checkpoint_path: Any,
+    checkpoint_identity: Any,
+    *,
+    initial: tuple[Any, ...],
+    contrasts: Any,
+    scale: float,
+    steps: int,
+    required_margin: float,
+    learning_rate: float,
+    max_active: int,
+    adaptive_step: bool,
+    batched: bool,
+    objective: str,
+    update_rule: str,
+    trainable_parameters: tuple[Any, ...],
+    relation_metric: str,
+    operation_metric: str,
+    flat: Any,
+    margins: Any,
+    floors: Any,
+    anchor: Any,
+    mutable: Any,
+    evaluate: Any,
+    progress: Any,
+) -> tuple[Any, int, str, list[Any], Any, Any, Any]:
+    """The fit's checkpoint, and where a saved fit takes up again if there is one.
+
+    Returns the checkpoint, the step to start from, the status and trace so
+    far, and the parameters, margins and floors to go on from. Lifted whole out
+    of _fit_graph_parameters, which had grown past the method-size bar; a saved
+    fit is refused, as before, unless it still holds every margin it witnessed.
+    """
+    trace, status = [], "search_budget_exhausted"
+    checkpoint, start_step = None, 0
+    if checkpoint_path is None:
+        return checkpoint, start_step, status, trace, flat, margins, floors
+    from core.learning.semantic_fit_checkpoint import SemanticFitCheckpoint, fit_identity
+
+    source_files = ("semantic_graph_constraints.py", "semantic_graph_batch.py", "semantic_relation_graph_learning.py",
+                    "semantic_operation_graph_learning.py", "semantic_argument_graph_learning.py",
+                    "semantic_operation_pointer_learning.py", "margin_repair.py", "bilinear_geometry.py",
+                    "affine_margin_polish.py", "semantic_fit_checkpoint.py", "affine_function_geometry.py",
+                    "semantic_choice_evidence.py")
+    identity = fit_identity({
+        "algorithm": [Path(__file__).with_name(name).read_text() for name in source_files],
+        "owner": checkpoint_identity, "initial": initial, "contrasts": tuple(contrasts),
+        "options": (scale, steps, required_margin, learning_rate, max_active, adaptive_step, batched, objective,
+                    update_rule, trainable_parameters, relation_metric, operation_metric),
+    })
+    checkpoint = SemanticFitCheckpoint(checkpoint_path, identity)
+    saved = checkpoint.load()
+    from core.learning.semantic_fit_problem import save_fit_problem
+
+    save_fit_problem(Path(checkpoint_path).with_suffix(".problem.npz"),
+        identity=identity, initial=initial, contrasts=contrasts,
+        options={"scale": scale, "steps": steps, "required_margin": required_margin,
+            "learning_rate": learning_rate, "max_active": max_active,
+            "adaptive_step": adaptive_step, "batched": batched, "objective": objective,
+            "update_rule": update_rule, "trainable_parameters": trainable_parameters,
+            "relation_metric": relation_metric, "operation_metric": operation_metric})
+    if saved is not None:
+        allowed = {"running", "search_budget_exhausted", "retained_constraints_satisfied",
+                   "no_feasible_direction_found", "no_retention_preserving_step_found",
+                   "local_margin_projection_unverified"}
+        start_step, status, trace = saved["next_step"], saved["status"], saved["trace"]
+        if (type(start_step) is not int or not 0 <= start_step <= steps or status not in allowed
+                or len(trace) != start_step
+                or [row.get("step") for row in trace] != list(range(1, start_step + 1))
+                or saved["flat"].shape != flat.shape or not np.all(np.isfinite(saved["flat"]))
+                or saved["margins"].shape != margins.shape or saved["floors"].shape != floors.shape):
+            raise ValueError("fit checkpoint progress or geometry differs")
+        verified = evaluate(saved["flat"])
+        if (not np.allclose(verified, saved["margins"], atol=1e-12, rtol=1e-12)
+                or np.any(np.isnan(saved["floors"])) or not np.all(saved["floors"] >= floors)
+                or not np.all(verified >= saved["floors"])
+                or not np.array_equal(saved["flat"][~mutable], anchor[~mutable])):
+            raise ValueError("fit checkpoint does not retain the witnessed margins")
+        flat, margins, floors = saved["flat"], verified, saved["floors"]
+        if progress:
+            progress({"stage": "constraint_fit_resumed", "completed": start_step,
+                      "total": steps, "status": status})
+        if status != "running":
+            start_step = steps
+
+    return checkpoint, start_step, status, trace, flat, margins, floors
+
+
 def _fit_graph_parameters(
     initial: tuple[Any, ...],
     contrasts: Any,
@@ -208,56 +296,14 @@ def _fit_graph_parameters(
             values = evaluate(trial)
         return trial, values, 8
 
-    trace, status = [], "search_budget_exhausted"
-    checkpoint, start_step = None, 0
-    if checkpoint_path is not None:
-        from core.learning.semantic_fit_checkpoint import SemanticFitCheckpoint, fit_identity
-
-        source_files = ("semantic_graph_constraints.py", "semantic_graph_batch.py", "semantic_relation_graph_learning.py",
-                        "semantic_operation_graph_learning.py", "semantic_argument_graph_learning.py",
-                        "semantic_operation_pointer_learning.py", "margin_repair.py", "bilinear_geometry.py",
-                        "affine_margin_polish.py", "semantic_fit_checkpoint.py", "affine_function_geometry.py",
-                        "semantic_choice_evidence.py")
-        identity = fit_identity({
-            "algorithm": [Path(__file__).with_name(name).read_text() for name in source_files],
-            "owner": checkpoint_identity, "initial": initial, "contrasts": tuple(contrasts),
-            "options": (scale, steps, required_margin, learning_rate, max_active, adaptive_step, batched, objective,
-                        update_rule, trainable_parameters, relation_metric, operation_metric),
-        })
-        checkpoint = SemanticFitCheckpoint(checkpoint_path, identity)
-        saved = checkpoint.load()
-        from core.learning.semantic_fit_problem import save_fit_problem
-
-        save_fit_problem(Path(checkpoint_path).with_suffix(".problem.npz"),
-            identity=identity, initial=initial, contrasts=contrasts,
-            options={"scale": scale, "steps": steps, "required_margin": required_margin,
-                "learning_rate": learning_rate, "max_active": max_active,
-                "adaptive_step": adaptive_step, "batched": batched, "objective": objective,
-                "update_rule": update_rule, "trainable_parameters": trainable_parameters,
-                "relation_metric": relation_metric, "operation_metric": operation_metric})
-        if saved is not None:
-            allowed = {"running", "search_budget_exhausted", "retained_constraints_satisfied",
-                       "no_feasible_direction_found", "no_retention_preserving_step_found",
-                       "local_margin_projection_unverified"}
-            start_step, status, trace = saved["next_step"], saved["status"], saved["trace"]
-            if (type(start_step) is not int or not 0 <= start_step <= steps or status not in allowed
-                    or len(trace) != start_step
-                    or [row.get("step") for row in trace] != list(range(1, start_step + 1))
-                    or saved["flat"].shape != flat.shape or not np.all(np.isfinite(saved["flat"]))
-                    or saved["margins"].shape != margins.shape or saved["floors"].shape != floors.shape):
-                raise ValueError("fit checkpoint progress or geometry differs")
-            verified = evaluate(saved["flat"])
-            if (not np.allclose(verified, saved["margins"], atol=1e-12, rtol=1e-12)
-                    or np.any(np.isnan(saved["floors"])) or not np.all(saved["floors"] >= floors)
-                    or not np.all(verified >= saved["floors"])
-                    or not np.array_equal(saved["flat"][~mutable], anchor[~mutable])):
-                raise ValueError("fit checkpoint does not retain the witnessed margins")
-            flat, margins, floors = saved["flat"], verified, saved["floors"]
-            if progress:
-                progress({"stage": "constraint_fit_resumed", "completed": start_step,
-                          "total": steps, "status": status})
-            if status != "running":
-                start_step = steps
+    checkpoint, start_step, status, trace, flat, margins, floors = _resume_fit(
+        checkpoint_path, checkpoint_identity, initial=initial, contrasts=contrasts, scale=scale, steps=steps,
+        required_margin=required_margin, learning_rate=learning_rate, max_active=max_active,
+        adaptive_step=adaptive_step, batched=batched, objective=objective, update_rule=update_rule,
+        trainable_parameters=trainable_parameters, relation_metric=relation_metric,
+        operation_metric=operation_metric, flat=flat, margins=margins, floors=floors, anchor=anchor,
+        mutable=mutable, evaluate=evaluate, progress=progress,
+    )
 
     def persist(state: str) -> None:
         if checkpoint is not None:

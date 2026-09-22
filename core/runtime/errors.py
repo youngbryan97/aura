@@ -517,6 +517,100 @@ def backpressure_markers() -> tuple[str, ...]:
     return BACKPRESSURE_MARKERS
 
 
+def _fail_closed_escalation(
+    subsystem: str,
+    error: BaseException,
+    severity: str,
+    *,
+    enforce_failure_policy: bool,
+    shutting_down: bool,
+    is_timeout: bool,
+    is_admission_backpressure: bool,
+) -> tuple[bool, str, str]:
+    """Whether a record on a fail-closed subsystem escalates, the text it raises, and its severity.
+
+    Lifted whole out of _record_degradation_backpressure_decision, which had
+    grown past the method-size bar. The caller raises the text when the first
+    value is true.
+    """
+    failure_policy_violation = False
+    failure_policy_error = ""
+    try:
+        from core.runtime.mode import AuraMode, get_mode
+        if (
+            enforce_failure_policy
+            and not shutting_down
+            and get_mode() in (AuraMode.PRODUCTION, AuraMode.LIVE)
+        ):
+            from core.runtime.service_registry import get_service_failure_policy
+
+            # Backpressure is exempt for the same reason timeouts are.
+            #
+            # LIVE, 2026-08-13, on every boot:
+            #   FAULT RUNTIME-INFERENCE_GATE [CRITICAL] in inference_gate:
+            #   RuntimeError: warmup_deferred
+            #   CRITICAL SERVICE FAILURE: Subsystem 'inference_gate' failed
+            #   with failure policy 'fail-closed'
+            #   🚨 Background task 'InferenceGate.deferred_cortex_prewarm' crashed
+            #
+            # warmup_deferred is already in BACKPRESSURE_MARKERS, and
+            # that demotes it from degraded to WARNING — then this branch
+            # accepts warning and escalates it to critical anyway, so the
+            # demotion bought nothing. A lane saying "not warm yet, try later"
+            # is the system working, and the comment 60 lines up says exactly
+            # that: these drove felt existential threat to 1.00 while the CPU
+            # was idle.
+            if (
+                get_service_failure_policy(subsystem) == "fail-closed"
+                and not is_timeout
+                and not is_admission_backpressure
+            ):
+                # An escalation must never escalate itself. The raised
+                # CRITICAL SERVICE FAILURE propagates and is recorded again for
+                # the same subsystem, and because both wraps are RuntimeError
+                # the rate cap — keyed on (subsystem, error type) — sees them as
+                # one fault and lets the second through. The result is a
+                # message containing itself:
+                #
+                #   CRITICAL SERVICE FAILURE: ... Original error: RuntimeError:
+                #   CRITICAL SERVICE FAILURE: ... Original error: RuntimeError:
+                #   swap exhaustion: managed RSS 34494MB, swap 16.9GB
+                #
+                # and, worse than the ugly text, TWO degradation records for one
+                # underlying event. Measured live 2026-07-28: that doubling is
+                # what pinned deg_threat at 1.00, which pins existential threat,
+                # which is what the Ulysses covenant reads before it refuses
+                # heavy compute — so one swap spike silently blocked every build
+                # she was asked for.
+                _already_escalated = _ESCALATION_MARKER in str(error)
+                if severity in ("critical", "degraded", "warning") and not _already_escalated:
+                    if _escalation_governor.allow(subsystem, type(error).__qualname__):
+                        failure_policy_violation = True
+                        failure_policy_error = (
+                            f"{_ESCALATION_MARKER} Subsystem '{subsystem}' failed with failure policy 'fail-closed'. "
+                            f"Original error: {type(error).__name__}: {error}"
+                        )
+                        if severity != "critical":
+                            severity = "critical"
+                    else:
+                        # A4 escalation-rate cap: this exact fault already
+                        # failed closed with full force this window. Repeats
+                        # stay visible at their caller-passed severity but
+                        # do not re-escalate and do not raise — one fault
+                        # must not become a CRITICAL storm (FM-FCL-001).
+                        logger.warning(
+                            "[ESCALATION-CAP] %s: fail-closed escalation for %s "
+                            "suppressed (cap reached this window); recording at "
+                            "severity=%s",
+                            subsystem,
+                            type(error).__qualname__,
+                            severity,
+                        )
+    except (ImportError, RuntimeError) as _exc:
+        logger.debug("Suppressed %s in core.runtime.errors: %s", type(_exc).__name__, _exc)
+    return failure_policy_violation, failure_policy_error, severity
+
+
 def _record_degradation_backpressure_decision(_is_timeout, _shutting_down, action, enforce_failure_policy, error, extra, receipt_required, severity, subsystem):
     # ── Admission backpressure is a DECISION, not a fault ─────────────
     # Warmup backoff, model-load admission refusal, spawn-gate contention and
@@ -585,81 +679,15 @@ def _record_degradation_backpressure_decision(_is_timeout, _shutting_down, actio
         # on and served.
         severity = "warning"
 
-    failure_policy_violation = False
-    failure_policy_error = ""
-    try:
-        from core.runtime.mode import AuraMode, get_mode
-        if (
-            enforce_failure_policy
-            and not _shutting_down
-            and get_mode() in (AuraMode.PRODUCTION, AuraMode.LIVE)
-        ):
-            from core.runtime.service_registry import get_service_failure_policy
-
-            # Backpressure is exempt for the same reason timeouts are.
-            #
-            # LIVE, 2026-08-13, on every boot:
-            #   FAULT RUNTIME-INFERENCE_GATE [CRITICAL] in inference_gate:
-            #   RuntimeError: warmup_deferred
-            #   CRITICAL SERVICE FAILURE: Subsystem 'inference_gate' failed
-            #   with failure policy 'fail-closed'
-            #   🚨 Background task 'InferenceGate.deferred_cortex_prewarm' crashed
-            #
-            # warmup_deferred is already in BACKPRESSURE_MARKERS, and
-            # that demotes it from degraded to WARNING — then this branch
-            # accepts warning and escalates it to critical anyway, so the
-            # demotion bought nothing. A lane saying "not warm yet, try later"
-            # is the system working, and the comment 60 lines up says exactly
-            # that: these drove felt existential threat to 1.00 while the CPU
-            # was idle.
-            if (
-                get_service_failure_policy(subsystem) == "fail-closed"
-                and not _is_timeout
-                and not _is_admission_backpressure
-            ):
-                # An escalation must never escalate itself. The raised
-                # CRITICAL SERVICE FAILURE propagates and is recorded again for
-                # the same subsystem, and because both wraps are RuntimeError
-                # the rate cap — keyed on (subsystem, error type) — sees them as
-                # one fault and lets the second through. The result is a
-                # message containing itself:
-                #
-                #   CRITICAL SERVICE FAILURE: ... Original error: RuntimeError:
-                #   CRITICAL SERVICE FAILURE: ... Original error: RuntimeError:
-                #   swap exhaustion: managed RSS 34494MB, swap 16.9GB
-                #
-                # and, worse than the ugly text, TWO degradation records for one
-                # underlying event. Measured live 2026-07-28: that doubling is
-                # what pinned deg_threat at 1.00, which pins existential threat,
-                # which is what the Ulysses covenant reads before it refuses
-                # heavy compute — so one swap spike silently blocked every build
-                # she was asked for.
-                _already_escalated = _ESCALATION_MARKER in str(error)
-                if severity in ("critical", "degraded", "warning") and not _already_escalated:
-                    if _escalation_governor.allow(subsystem, type(error).__qualname__):
-                        failure_policy_violation = True
-                        failure_policy_error = (
-                            f"{_ESCALATION_MARKER} Subsystem '{subsystem}' failed with failure policy 'fail-closed'. "
-                            f"Original error: {type(error).__name__}: {error}"
-                        )
-                        if severity != "critical":
-                            severity = "critical"
-                    else:
-                        # A4 escalation-rate cap: this exact fault already
-                        # failed closed with full force this window. Repeats
-                        # stay visible at their caller-passed severity but
-                        # do not re-escalate and do not raise — one fault
-                        # must not become a CRITICAL storm (FM-FCL-001).
-                        logger.warning(
-                            "[ESCALATION-CAP] %s: fail-closed escalation for %s "
-                            "suppressed (cap reached this window); recording at "
-                            "severity=%s",
-                            subsystem,
-                            type(error).__qualname__,
-                            severity,
-                        )
-    except (ImportError, RuntimeError) as _exc:
-        logger.debug("Suppressed %s in core.runtime.errors: %s", type(_exc).__name__, _exc)
+    failure_policy_violation, failure_policy_error, severity = _fail_closed_escalation(
+        subsystem,
+        error,
+        severity,
+        enforce_failure_policy=enforce_failure_policy,
+        shutting_down=_shutting_down,
+        is_timeout=_is_timeout,
+        is_admission_backpressure=_is_admission_backpressure,
+    )
 
 
     error_type = type(error).__qualname__
