@@ -524,6 +524,52 @@ ProcessorFn = Callable[
 # Main class
 # ---------------------------------------------------------------------------
 
+def _bids(
+    candidates: list[CognitiveCandidate], fatigue: dict[str, float], decided_at: float
+) -> dict[int, float]:
+    """Each candidate's bid as the sort reads it, by the candidate's id.
+
+    Its priority at the moment of deciding, drawn toward or away by what she
+    has come to feel about its source (core/affect/feelings_about.py), less
+    the fatigue of whoever bid, plus what she is holding back pressing to get
+    out, as far as her body runs hot with it (core/soma/held_in.py).
+    """
+    try:
+        from core.affect.containment import get_containment_ledger
+        from core.soma.held_in import get_held_in_ledger
+
+        contained = get_containment_ledger()
+        held_in = get_held_in_ledger()
+
+        def pressing(source: str) -> float:
+            return held_in.push(source, contained.gap(source))
+    except (ImportError, AttributeError) as exc:
+        logger.debug("what she holds back cannot press this competition: %s", exc)
+
+        def pressing(source: str) -> float:
+            return 0.0
+
+    try:
+        from core.affect.feelings_about import get_feelings_about
+
+        feelings = get_feelings_about()
+
+        def drawn(source: str) -> float:
+            return 1.0 + feelings.pull(f"attended:{source}")
+    except (ImportError, AttributeError) as exc:
+        logger.debug("what she feels about a source cannot reach this competition: %s", exc)
+
+        def drawn(source: str) -> float:
+            return 1.0
+
+    return {
+        id(candidate): candidate.priority_at(decided_at) * drawn(candidate.source)
+        - fatigue.get(candidate.bidder, 0.0)
+        + pressing(candidate.source)
+        for candidate in candidates
+    }
+
+
 class GlobalWorkspace:
     """The competitive bottleneck. One winner per cognitive tick.
 
@@ -1304,49 +1350,9 @@ class GlobalWorkspace:
             # and the sort key cannot change while the sort is running.
             decided_at = time.time()
 
-            # What she is holding back presses to get out, as far as her body
-            # runs hot with it: a share of the gap it last lost by. See
-            # core/soma/held_in.py.
-            try:
-                from core.affect.containment import get_containment_ledger
-                from core.soma.held_in import get_held_in_ledger
-
-                _contained = get_containment_ledger()
-                _held_in = get_held_in_ledger()
-
-                def _pressing(source: str) -> float:
-                    return _held_in.push(source, _contained.gap(source))
-            except (ImportError, AttributeError) as exc:
-                logger.debug("what she holds back cannot press this competition: %s", exc)
-
-                def _pressing(source: str) -> float:
-                    return 0.0
-
-            # And what she has come to feel about each source, toward or away.
-            # See core/affect/feelings_about.py.
-            try:
-                from core.affect.feelings_about import get_feelings_about
-
-                _feelings = get_feelings_about()
-
-                def _drawn(source: str) -> float:
-                    return 1.0 + _feelings.pull(f"attended:{source}")
-            except (ImportError, AttributeError) as exc:
-                logger.debug("what she feels about a source cannot reach this competition: %s", exc)
-
-                def _drawn(source: str) -> float:
-                    return 1.0
-
-            def _adjusted(candidate: CognitiveCandidate) -> float:
-                return (
-                    candidate.priority_at(decided_at) * _drawn(candidate.source)
-                    - self._fatigue.get(candidate.bidder, 0.0)
-                    + _pressing(candidate.source)
-                )
-
             # Frozen before sorting, and the sort reads the frozen value. A
             # key function that calls the clock is not a key function.
-            scores = {id(c): _adjusted(c) for c in self._candidates}
+            scores = _bids(self._candidates, self._fatigue, decided_at)
             self._candidates.sort(key=lambda c: scores[id(c)], reverse=True)
             winner = self._candidates[0]
             losers = self._candidates[1:]
