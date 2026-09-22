@@ -54,6 +54,7 @@ __all__ = [
     "shard_of",
     "OPENING_ANCHORS",
     "ANCHOR_STEP",
+    "anchor_schedule",
     "decide_cut",
     "sweep_cuts",
 ]
@@ -63,6 +64,26 @@ OPENING_ANCHORS: int = 8
 
 #: Anchors added to an undecided cut on each further round.
 ANCHOR_STEP: int = 8
+
+def anchor_schedule(looks: Sequence[int], rounds: int, available: int) -> tuple[tuple[int, ...], int]:
+    """The anchor counts a cut is looked at, and how many looks the design has.
+
+    Explicit looks are a preregistered schedule. Without them the looks are
+    `OPENING_ANCHORS`, then `ANCHOR_STEP` more for each further round, as the
+    sweep has always drawn them. A look past the anchors there are is read at
+    the anchors there are.
+
+    The number of looks is the design's, not the number left after that cap,
+    because each look is read at alpha divided by it. Reading every look at
+    the full alpha let a cut that costs nothing be decided at any of them, so
+    the chance of deciding one grew with every round the sweep ran.
+    """
+    design = sorted({int(n) for n in looks if int(n) >= 2}) if looks else [
+        OPENING_ANCHORS + ANCHOR_STEP * index for index in range(max(1, int(rounds)))
+    ]
+    reachable = sorted({min(n, int(available)) for n in design if min(n, int(available)) >= 2})
+    return tuple(reachable), max(1, len(design))
+
 
 #: Cuts that cannot be run at all. A cut is never removed for scoring badly.
 EXCLUDED: frozenset[tuple[tuple[str, ...], tuple[str, ...]]] = frozenset()
@@ -107,6 +128,10 @@ class CutVerdict:
     p_value: float = 1.0
     decided: bool = False
     note: str = ""
+    #: Whether the playback control, the untouched run replayed as the cut arm,
+    #: was decided on this cut's own anchors at the look it stopped at. None
+    #: where it was not scored.
+    playback_decided: bool | None = None
 
     @property
     def name(self) -> str:
@@ -135,6 +160,7 @@ class CutVerdict:
             p_value=float(row.get("p_value", 1.0)),
             decided=bool(row.get("decided", False)),
             note=str(row.get("note", "")),
+            playback_decided=row.get("playback_decided"),
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -148,6 +174,7 @@ class CutVerdict:
             "sham_rate": None if self.estimate is None else round(self.estimate.sham_rate, 6),
             "decided": self.decided,
             "note": self.note,
+            "playback_decided": self.playback_decided,
         }
 
 
@@ -173,6 +200,14 @@ class SweepReport:
     #: "index/count" when this sweep scored one shard of the cuts. A shard on its
     #: own has not scored every cut and claims nothing until merged.
     shard: str = ""
+    #: The anchor counts each cut was looked at, the level each look was read
+    #: at, and the bootstrap draws behind each lower bound.
+    looks: list[int] = field(default_factory=list)
+    alpha_per_look: float = 0.05
+    draws: int = 200
+    #: False for a horizon reported beside the deciding one. It is scored on the
+    #: anchors the deciding horizon drew and decides nothing.
+    deciding: bool = True
 
     @property
     def weakest(self) -> CutVerdict | None:
@@ -189,7 +224,7 @@ class SweepReport:
         one cut compatible with zero refuses it and no amount of margin
         elsewhere buys it back.
         """
-        if self.screened or self.shard:
+        if self.screened or self.shard or not self.deciding:
             return False
         return bool(self.verdicts) and not self.undecided and all(
             v.decided and v.lower_bound > 0.0 for v in self.verdicts
@@ -207,6 +242,8 @@ class SweepReport:
             "cuts_in_full": self.cuts_in_full,
             "screened": self.screened,
             "cuts_decided": sum(1 for v in self.verdicts if v.decided),
+            "playback_scored": sum(1 for v in self.verdicts if v.playback_decided is not None),
+            "playback_decided": sum(1 for v in self.verdicts if v.playback_decided),
             "cuts_unscorable": self.unscorable,
             "measured_nothing": bool(
                 self.verdicts and not any(v.estimate is not None for v in self.verdicts)
@@ -214,6 +251,10 @@ class SweepReport:
             "undecided": list(self.undecided),
             "anchors_spent": self.anchors_spent,
             "shard": self.shard,
+            "looks": list(self.looks),
+            "alpha_per_look": self.alpha_per_look,
+            "draws": self.draws,
+            "deciding": self.deciding,
             "irreducible": self.irreducible,
             "weakest_cut": None if weakest is None else weakest.name,
             "weakest_lower_bound": None if weakest is None else round(weakest.lower_bound, 6),
@@ -252,13 +293,24 @@ def merge_sweeps(shards: Sequence[dict[str, Any]], *, cuts_in_full: int) -> Swee
             verdicts.append(CutVerdict.from_dict(row))
     if len(seen) != cuts_in_full:
         raise ValueError(f"shards scored {len(seen)} of {cuts_in_full} cuts")
+    designs = {
+        (tuple(s.get("looks", ())), float(s.get("alpha_per_look", 0.05)), int(s.get("draws", 200)), bool(s.get("deciding", True)))
+        for s in shards
+    }
+    if len(designs) != 1:
+        raise ValueError(f"shards were run to different designs: {sorted(designs)}")
+    looks, alpha_per_look, draws, deciding = designs.pop()
     return SweepReport(
         tau_seconds=float(shards[0]["tau_seconds"]),
         cuts_in_full=cuts_in_full,
         unscorable=sum(int(s.get("cuts_unscorable", 0)) for s in shards),
         verdicts=verdicts,
-        undecided=sorted(v.name for v in verdicts if not v.decided),
+        undecided=sorted(v.name for v in verdicts if not v.decided) if deciding else [],
         anchors_spent=sum(int(s.get("anchors_spent", 0)) for s in shards),
+        looks=list(looks),
+        alpha_per_look=alpha_per_look,
+        draws=draws,
+        deciding=deciding,
     )
 
 
@@ -292,6 +344,24 @@ class _Gathered:
             }
             for lag, slot in self._parts.items()
         }
+
+
+def playback_decided(
+    samples: dict[str, np.ndarray], *, tau_seconds: float, seed: int, alpha: float, draws: int
+) -> bool:
+    """Whether the decision rule decides a cut whose cut arm is the untouched run.
+
+    The two arms then carry identical states and the cut could not have
+    changed anything, so a rule that decides it is reporting on its own
+    estimator. It is read by the same rule as the cut, at the same level and
+    draws, on the same anchors.
+    """
+    replay = dict(samples)
+    replay["cut"] = np.asarray(samples["intact"]).copy()
+    _estimate, _excess, lower, _p = decide_cut(
+        replay, tau_seconds=tau_seconds, seed=seed, alpha=alpha, draws=draws, permutation_draws=19
+    )
+    return lower > 0.0
 
 
 def decide_cut(
@@ -364,6 +434,8 @@ async def sweep_cuts(
     domains: Sequence[str] | None = None,
     screen: int = 0,
     on_progress: Any = None,
+    looks: Sequence[int] = (),
+    draws: int = 200,
 ) -> SweepReport:
     """Every bipartition, with precision spent where the answer is still open.
 
@@ -396,21 +468,26 @@ async def sweep_cuts(
         stride = max(1, len(cuts) // screen)
         cuts = cuts[:: stride][:screen]
         screened = True
-    report = SweepReport(tau_seconds=float(tau_seconds), screened=screened, cuts_in_full=every_cut)
+    schedule, looks_in_design = anchor_schedule(looks, rounds, len(anchors))
+    per_look = float(alpha) / looks_in_design
+    report = SweepReport(
+        tau_seconds=float(tau_seconds),
+        screened=screened,
+        cuts_in_full=every_cut,
+        looks=list(schedule),
+        alpha_per_look=per_look,
+        draws=int(draws),
+    )
     verdicts: dict[str, CutVerdict] = {}
     for left, right in cuts:
         verdicts[f"{''.join(left)}|{''.join(right)}"] = CutVerdict(left=left, right=right, anchors_used=0)
 
-    budget = OPENING_ANCHORS
     unscorable = 0
     untouched: dict = {}
     gathered: dict[str, _Gathered] = {}
-    for round_index in range(max(1, rounds)):
+    for round_index, take in enumerate(schedule):
         pending = [v for v in verdicts.values() if not v.decided]
         if not pending:
-            break
-        take = min(len(anchors), budget)
-        if take < 2:
             break
         for position, verdict in enumerate(pending):
             store = gathered.setdefault(verdict.name, _Gathered())
@@ -437,7 +514,8 @@ async def sweep_cuts(
                     slot,
                     tau_seconds=tau_seconds,
                     seed=seed + position,
-                    alpha=alpha,
+                    alpha=per_look,
+                    draws=draws,
                 )
             except ValueError as exc:
                 # Recorded on the verdict AND counted, so a sweep where every
@@ -453,7 +531,6 @@ async def sweep_cuts(
             verdict.decided = lower > 0.0
             if on_progress is not None:
                 on_progress(round_index, verdict)
-        budget += ANCHOR_STEP
 
     report.verdicts = list(verdicts.values())
     report.undecided = sorted(v.name for v in report.verdicts if not v.decided)
@@ -480,6 +557,9 @@ async def sweep_cuts_over_lags(
     domains: Sequence[str] | None = None,
     screen: int = 0,
     shard: tuple[int, int] | None = None,
+    looks: Sequence[int] = (),
+    draws: int = 200,
+    deciding: Sequence[int] | None = None,
 ) -> dict[int, SweepReport]:
     """Every bipartition at every horizon, from one set of rollouts per cut.
 
@@ -497,6 +577,12 @@ async def sweep_cuts_over_lags(
     undecided. `lag_vector` clamps a lag past the last recorded frame to that
     last frame, so without this every lag longer than a rollout would be scored
     as the same frame under a different name.
+
+    `deciding` names the horizons that decide whether a cut draws more
+    anchors; the rest are scored on whatever the deciding ones drew and
+    decide nothing. Without it every horizon decides, and a horizon that
+    cannot decide anything, as one step cannot for a system that updates once
+    a step, kept every cut drawing to the last look.
     """
     if len(anchors) < MINIMUM_ANCHORS:
         raise ValueError(
@@ -507,6 +593,11 @@ async def sweep_cuts_over_lags(
     ladder = sorted({int(lag) for lag in lags})
     if not ladder:
         raise ValueError("a sweep needs at least one horizon to score")
+    decides = set(ladder) if deciding is None else {int(lag) for lag in deciding} & set(ladder)
+    if not decides:
+        raise ValueError("a sweep needs at least one deciding horizon among the ones it scores")
+    schedule, looks_in_design = anchor_schedule(looks, rounds, len(anchors))
+    per_look = float(alpha) / looks_in_design
     cuts = list(bipartitions(tuple(domains))) if domains else list(bipartitions())
     every_cut = len(cuts)
     screened = False
@@ -524,6 +615,10 @@ async def sweep_cuts_over_lags(
             screened=screened,
             cuts_in_full=every_cut,
             shard="" if shard is None else f"{shard[0]}/{shard[1]}",
+            looks=list(schedule),
+            alpha_per_look=per_look,
+            draws=int(draws),
+            deciding=lag in decides,
         )
         for lag in ladder
     }
@@ -543,15 +638,11 @@ async def sweep_cuts_over_lags(
     def open_at(name: str, lag: int) -> bool:
         return not verdicts[lag][name].decided and name not in unreached[lag]
 
-    budget = OPENING_ANCHORS
     untouched: dict = {}
     gathered: dict[str, _Gathered] = {}
-    for _round in range(max(1, rounds)):
-        pending = [name for name in names if any(open_at(name, lag) for lag in ladder)]
+    for take in schedule:
+        pending = [name for name in names if any(open_at(name, lag) for lag in decides)]
         if not pending:
-            break
-        take = min(len(anchors), budget)
-        if take < 2:
             break
         for name in pending:
             # Seeded by the cut's place in the full list rather than its place
@@ -577,7 +668,11 @@ async def sweep_cuts_over_lags(
             )
             samples = store.add(fresh, take)
             for lag in ladder:
-                if not open_at(name, lag):
+                # A reported horizon is rescored on every anchor drawn, so it
+                # ends on the same anchors as the horizon that decided.
+                if lag in decides and not open_at(name, lag):
+                    continue
+                if name in unreached[lag]:
                     continue
                 verdict = verdicts[lag][name]
                 slot = samples[lag]
@@ -595,7 +690,8 @@ async def sweep_cuts_over_lags(
                         slot,
                         tau_seconds=reports[lag].tau_seconds,
                         seed=seed + lag + position,
-                        alpha=alpha,
+                        alpha=per_look,
+                        draws=draws,
                     )
                 except ValueError as exc:
                     verdict.note = f"not enough matched contexts: {exc}"
@@ -606,12 +702,19 @@ async def sweep_cuts_over_lags(
                 verdict.lower_bound = lower
                 verdict.p_value = p_value
                 verdict.decided = lower > 0.0
-        budget += ANCHOR_STEP
+                if lag in decides and (verdict.decided or take == schedule[-1]):
+                    verdict.playback_decided = playback_decided(
+                        slot,
+                        tau_seconds=reports[lag].tau_seconds,
+                        seed=seed + lag + position + 3,
+                        alpha=per_look,
+                        draws=draws,
+                    )
 
     for lag in ladder:
         report = reports[lag]
         report.verdicts = list(verdicts[lag].values())
-        report.undecided = sorted(v.name for v in report.verdicts if not v.decided)
+        report.undecided = sorted(v.name for v in report.verdicts if not v.decided) if lag in decides else []
         report.unscorable = unscorable[lag]
         if unscorable[lag] and not any(v.estimate is not None for v in report.verdicts):
             logger.warning(

@@ -352,6 +352,11 @@ async def _learn_grain(
 # ── stage 3: the spectrum ─────────────────────────────────────────────────
 
 
+def _ints(text: str) -> tuple[int, ...]:
+    """Whole numbers from a comma-separated flag, in the order given."""
+    return tuple(int(item) for item in str(text or "").split(",") if item.strip())
+
+
 async def _spectrum(
     runtime: Any,
     anchors: Sequence[Any],
@@ -365,6 +370,7 @@ async def _spectrum(
     domains: Sequence[str] | None = None,
     screen: int = 0,
     shard: tuple[int, int] | None = None,
+    design: dict[str, Any] | None = None,
 ) -> tuple[dict[float, float], dict[str, Any]]:
     """The weakest cut's rate at every horizon on the ladder.
 
@@ -376,11 +382,16 @@ async def _spectrum(
 
     spectrum: dict[float, float] = {}
     detail: dict[str, Any] = {}
+    chosen = design or {}
     reports = await sweep_cuts_over_lags(
         runtime, anchors, conditions,
         lags=lags, frame_seconds=frame_seconds,
         turns=turns, rounds=rounds, seed=seed, domains=domains,
         screen=screen, shard=shard,
+        looks=tuple(chosen.get("looks") or ()),
+        draws=int(chosen.get("draws") or 200),
+        alpha=float(chosen.get("alpha") or 0.05),
+        deciding=chosen.get("deciding") or None,
     )
     for lag in sorted(reports):
         report = reports[lag]
@@ -500,7 +511,12 @@ def _invariance(
 
 
 def _v25_nulls(
-    samples: dict[str, np.ndarray], *, tau_seconds: float, seed: int
+    samples: dict[str, np.ndarray],
+    *,
+    tau_seconds: float,
+    seed: int,
+    alpha: float = 0.05,
+    draws: int = 200,
 ) -> dict[str, Any]:
     """The four controls v25 adds, scored with the same estimator.
 
@@ -510,6 +526,7 @@ def _v25_nulls(
     reporting on its own estimator, and the movie objection lands.
     """
     from core.subject.intrinsic_v25 import intrinsic_rate_from_samples
+    from core.subject.v25_cut import playback_decided
 
     def rate(intact, cut, sham_a, sham_b) -> float:
         return float(
@@ -539,7 +556,15 @@ def _v25_nulls(
     return {
         "measured": True,
         "playback": round(playback, 6),
-        "playback_is_zero": bool(playback <= max(1e-6, honest * 0.25)),
+        # Read by the rule that decides a cut, on the same anchors: zero when
+        # that rule does not decide it. The comparison it replaced was against
+        # a quarter of the honest rate, which is a comparison with 1e-6 when
+        # the honest rate is zero, and estimator noise failed it (v25screen,
+        # 21 September).
+        "playback_is_zero": not playback_decided(
+            samples, tau_seconds=tau_seconds, seed=seed + 5, alpha=alpha, draws=draws
+        ),
+        "playback_rule": "undecided by the cut rule at the same level and draws",
         "duplicate_coordinates": round(duplicate, 6),
         "duplication_did_not_help": bool(duplicate <= honest * (1.0 + INVARIANCE_TOLERANCE)),
         "invertible_recoding": round(recoded, 6),
@@ -612,6 +637,21 @@ async def main() -> int:
         "--shard-wait-seconds", type=float, default=0.0,
         help="how long the coordinator waits for every shard file before refusing",
     )
+    parser.add_argument(
+        "--looks", type=str, default="",
+        help="comma-separated anchor counts each cut is looked at; each look is read at alpha over their number",
+    )
+    parser.add_argument("--draws", type=int, default=200, help="bootstrap draws behind each lower bound")
+    parser.add_argument("--alpha", type=float, default=0.05, help="the level across every look at one cut")
+    parser.add_argument("--lags", type=str, default="", help="comma-separated horizons in frames; default is the ladder")
+    parser.add_argument(
+        "--deciding-lags", type=str, default="",
+        help="the horizons that decide whether a cut draws more anchors; default is every one scored",
+    )
+    parser.add_argument(
+        "--v5", action="store_true",
+        help="the ISC-v5 design in core/subject/isc_v5.py: its looks, draws, level, horizons and anchors",
+    )
     args = parser.parse_args()
     shard: tuple[int, int] | None = None
     if args.shard:
@@ -651,6 +691,25 @@ async def main() -> int:
         collect_partition_samples,
     )
 
+    if args.v5:
+        from core.subject.isc_v5 import design as v5_design
+
+        preset = v5_design()
+        args.looks = ",".join(str(n) for n in preset["looks"])
+        args.draws, args.alpha = int(preset["draws"]), float(preset["alpha"])
+        args.lags = ",".join(str(n) for n in preset["lags"])
+        args.deciding_lags = ",".join(str(n) for n in preset["deciding"])
+        args.anchors = max(int(args.anchors), int(preset["anchors"]))
+        args.skip_grain = True
+    ladder = _ints(args.lags) or LAGS
+    sweep_design: dict[str, Any] = {
+        "looks": list(_ints(args.looks)),
+        "draws": int(args.draws),
+        "alpha": float(args.alpha),
+        "deciding": list(_ints(args.deciding_lags)) or None,
+        "lags": list(ladder),
+        "v5": bool(args.v5),
+    }
     support = tuple(args.domains.split(",")) if args.domains else tuple(DOMAINS)
     conditions = CONDITIONS[: args.conditions] if args.conditions else CONDITIONS
     resumed = _resume_v25(args)
@@ -674,6 +733,7 @@ async def main() -> int:
         turns=args.turns,
         cut_rounds=args.cut_rounds,
         support=support,
+        design=sweep_design,
     )
     _log(f"v25 run {run_dir.name} on {fingerprint.get('commit', '?')[:12]}")
     if resumed is not None:
@@ -810,13 +870,13 @@ async def main() -> int:
 
         # ── a shard worker scores its share of the cuts and stops ──────
         if shard is not None:
-            lags = (1, 8) if args.quick else LAGS
+            lags = ladder if (args.lags or not args.quick) else (1, 8)
             _log(f"shard {shard[0]} of {shard[1]}: scoring its cuts at {len(lags)} horizons")
             _, cut_detail = await _spectrum(
                 runtime, anchors, conditions,
                 lags=lags, frame_seconds=frame_seconds, turns=args.turns,
                 rounds=args.cut_rounds, seed=args.seed, domains=support,
-                screen=args.screen, shard=shard,
+                screen=args.screen, shard=shard, design=sweep_design,
             )
             payload = {
                 "shard": f"{shard[0]}/{shard[1]}",
@@ -825,6 +885,7 @@ async def main() -> int:
                 "support": list(support),
                 "conditions": [getattr(c, "name", str(c)) for c in conditions],
                 "lags": [int(lag) for lag in lags],
+                "design": sweep_design,
                 "frame_seconds": frame_seconds,
                 "anchor_states": [np.asarray(a.current, dtype=np.float64).tolist() for a in anchors],
                 "reports": cut_detail,
@@ -861,7 +922,7 @@ async def main() -> int:
 
         # ── the spectrum over horizons ─────────────────────────────────
         if "spectrum" not in done_v25:
-            lags = (1, 8) if args.quick else LAGS
+            lags = ladder if (args.lags or not args.quick) else (1, 8)
             if args.from_shards:
                 from core.subject.v25_cut import merge_shard_payloads
 
@@ -897,7 +958,7 @@ async def main() -> int:
                     runtime, anchors, conditions,
                     lags=lags, frame_seconds=frame_seconds, turns=args.turns,
                     rounds=args.cut_rounds, seed=args.seed, domains=support,
-                    screen=args.screen,
+                    screen=args.screen, design=sweep_design,
                 )
             binding = _horizon_is_binding(spectrum, lags)
             tau_star = max(spectrum, key=lambda tau: spectrum[tau]) if spectrum else None
@@ -914,7 +975,7 @@ async def main() -> int:
             evidence["cuts"] = cut_detail
             _checkpoint_v25(run_dir, "spectrum", evidence)
         else:
-            lags = (1, 8) if args.quick else LAGS
+            lags = ladder if (args.lags or not args.quick) else (1, 8)
             cut_detail = evidence.get("cuts", {}) or {}
             spectrum = {
                 float(tau): float(rate)
@@ -947,7 +1008,9 @@ async def main() -> int:
                     samples, tau_seconds=tau_best, seed=args.seed
                 )
                 evidence["v25_nulls"] = _v25_nulls(
-                    samples, tau_seconds=tau_best, seed=args.seed
+                    samples, tau_seconds=tau_best, seed=args.seed,
+                    alpha=float(args.alpha) / max(1, len(sweep_design["looks"]) or args.cut_rounds),
+                    draws=int(args.draws),
                 )
             except (ValueError, KeyError, IndexError) as exc:
                 # Same reason as inside them: what is already measured is worth

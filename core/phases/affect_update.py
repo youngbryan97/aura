@@ -446,6 +446,11 @@ class AffectUpdatePhase(Phase):
         # Last, after every other feeling has settled: grief that nothing else
         # fills. See core/affect/the_gap.py.
         self.readings.the_gap(state, affect)
+        # A moment that fits her, and the feelings that are tied up with each
+        # other, before what she feels attaches to the people and things of
+        # the turn. See core/affect/a_moment_that_fits.py and tangled.py.
+        self.readings.a_moment(state, affect)
+        self.readings.tangled(state, affect)
         # And what she feels about the things the turn was about, both ways.
         # See core/affect/feelings_about.py.
         self.readings.feelings_about(state, affect)
@@ -964,6 +969,14 @@ class AffectUpdatePhase(Phase):
             # halfway between rest and what she has lived, within a few hundred
             # turns.
             rest = _MOOD_REST.get(emotion, baseline)
+            # What the feeling returns to, moved by what it is tied up with.
+            # See core/affect/tangled.py.
+            tied = (affect.markers.get("tangled") or {}) if isinstance(affect.markers, dict) else {}
+            lift = (tied.get("lifts") or {}).get(emotion)
+            if lift:
+                from core.affect.tangled import lifted_rest
+
+                rest = lifted_rest(rest, float(lift))
             affect.mood_baselines[emotion] = (
                 baseline
                 + _BASELINE_RATE * (current_val - baseline)

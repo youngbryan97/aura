@@ -35,6 +35,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from core.self.what_came_before import keep_across_stages
+
 __all__ = [
     "MIN_SAMPLES",
     "OwningFirst",
@@ -179,6 +181,9 @@ def lifted(share: float, reading: OwningFirst) -> float:
 #: carried, so a ledger first made inside one arm would reach the next arm with
 #: the first arm's events in it.
 _ledger: OwningLedger = OwningLedger()
+#: Part of her history, so it is kept across her restarts along her own line.
+#: See core/self/what_came_before.py.
+keep_across_stages(__name__, "_ledger")
 
 
 def get_owning_ledger() -> OwningLedger:

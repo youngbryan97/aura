@@ -41,7 +41,7 @@ def rig(monkeypatch):
             out[lag] = {
                 "context": np.zeros((n, 2)),
                 "intact": np.zeros((n, 2)),
-                "cut": np.zeros((n, 2)),
+                "cut": np.ones((n, 2)),
                 "sham_a": np.zeros((n, 2)),
                 "sham_b": np.zeros((n, 2)),
                 "reached": reached,
@@ -52,8 +52,12 @@ def rig(monkeypatch):
 
     decisions: list[tuple[str, int]] = []
 
-    def decide(slot, *, tau_seconds, seed, alpha):
+    def decide(slot, *, tau_seconds, seed, alpha, draws=200, permutation_draws=199):
         key = (slot["_name"], slot["_lag"])
+        if np.array_equal(slot["cut"], slot["intact"]):
+            # The playback control, read beside a cut where it stopped.
+            estimate = SimpleNamespace(raw_rate=0.0, sham_rate=0.0, rate=0.0)
+            return estimate, 0.0, -1.0, 1.0
         decisions.append(key)
         lower = 1.0 if decided_at.get(key, False) else -1.0
         estimate = SimpleNamespace(raw_rate=0.0, sham_rate=0.0, rate=0.0)

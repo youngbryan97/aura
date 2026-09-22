@@ -32,6 +32,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from core.self.what_came_before import keep_across_stages
+
 __all__ = [
     "DISTRESSING",
     "JOYFUL",
@@ -186,6 +188,9 @@ class JoyLedger:
 #: taken is not carried, so a ledger first made inside one arm would reach the
 #: next arm with the first arm's turns in it.
 _ledger: JoyLedger = JoyLedger()
+#: Part of her history, so it is kept across her restarts along her own line.
+#: See core/self/what_came_before.py.
+keep_across_stages(__name__, "_ledger")
 
 
 def get_joy_ledger() -> JoyLedger:

@@ -12,6 +12,8 @@ description = "core.social: may import only what it already imports; every new e
 
 include_rules = [
     "+core.social",
+    # Its ledgers are part of her history. See core/self/what_came_before.py.
+    "+core.self.what_came_before",
 
     # What this package reaches for today.
     "+core.agency",

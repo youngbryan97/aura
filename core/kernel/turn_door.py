@@ -226,9 +226,14 @@ def bind_objective(state: Any, bound_objective: str) -> None:
 def stamp_closure(state: Any, tick_id: Any) -> None:
     """Who acted this turn and what the executive decided, stamped into the state.
 
-    Every committed state is self-documenting about the decision chain.
+    Every committed state is self-documenting about the decision chain. And
+    what her organs have learned this tick is kept, behind the loop, so it is
+    there after a restart. See core/self/what_came_before.py.
     """
     from core.kernel.aura_kernel import _record_kernel_degradation, logger
+    from core.self.what_came_before import remember_what_came_before
+
+    remember_what_came_before()
 
     try:
         state.cognition.last_kernel_cycle_id = tick_id

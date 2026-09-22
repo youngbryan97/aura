@@ -38,6 +38,8 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Any
 
+from core.self.what_came_before import keep_across_stages
+
 __all__ = ["Edge", "EdgeLedger", "get_edge_ledger", "reset_for_test", "risk_of"]
 
 #: How much of her own history the middle is taken over.
@@ -152,6 +154,9 @@ class EdgeLedger:
 #: is not carried, so a ledger first made inside one arm would reach the next
 #: arm with the first arm's history in it. See core/social/owning_it_first.py.
 _LEDGER: EdgeLedger = EdgeLedger()
+#: Part of her history, so it is kept across her restarts along her own line.
+#: See core/self/what_came_before.py.
+keep_across_stages(__name__, "_LEDGER")
 
 
 def get_edge_ledger() -> EdgeLedger:

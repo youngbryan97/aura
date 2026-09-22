@@ -1697,6 +1697,14 @@ class AgencyCore:
         )
         return True
 
+    @staticmethod
+    def _failures_tolerated() -> int:
+        from core.affect.tangled import tolerated_failures
+        from core.agency.authorship import get_agency_ledger
+        from core.agency.capacity import capacity_of
+
+        return tolerated_failures(_GOAL_MAX_FAILURES, capacity_of(get_agency_ledger().by_capability).capacity)
+
     def settle_goal_execution(
         self,
         goal: dict[str, Any],
@@ -1723,7 +1731,10 @@ class AgencyCore:
             next_eligible_at = 0.0
         else:
             failures += 1
-            new_status = "blocked" if failures >= _GOAL_MAX_FAILURES else "pending"
+            # How many failures she takes before setting a goal aside is how
+            # much she believes she can do, as self-efficacy predicts: the old
+            # count at the middle of her capacity. See core/affect/tangled.py.
+            new_status = "blocked" if failures >= self._failures_tolerated() else "pending"
             delay = min(
                 _GOAL_RETRY_MAX_SECONDS,
                 _GOAL_RETRY_BASE_SECONDS * (2 ** max(0, failures - 1)),

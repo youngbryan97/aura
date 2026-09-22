@@ -193,6 +193,7 @@ def sweep(
         "anchors_spent": spent,
         "looks": list(schedule),
         "alpha_per_look": per_look,
+        "draws": draws,
     }
 
 

@@ -49,6 +49,8 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Any
 
+from core.self.what_came_before import keep_across_stages
+
 __all__ = ["Fatigue", "FatigueLedger", "get_fatigue_ledger", "important_enough", "reset_for_test"]
 
 #: How much of her own recent exertion the ordinary is taken over. The window
@@ -124,6 +126,16 @@ class FatigueLedger:
             self._levels.append(self._accumulated)
         self._seen.append(value)
 
+    def effort(self) -> float:
+        """How hard this cycle was among her own ordinary, as a rank; nothing until she has one."""
+        if len(self._seen) < _ENOUGH:
+            return 0.0
+        ordered = sorted(self._seen)
+        latest = self._seen[-1]
+        below = sum(1 for item in ordered if item < latest)
+        level = sum(1 for item in ordered if item == latest)
+        return (below + 0.5 * level) / len(ordered)
+
     def read(self) -> Fatigue:
         seen = len(self._seen)
         if seen < _ENOUGH:
@@ -187,6 +199,9 @@ def important_enough(scores: list[float], share: float) -> list[bool]:
 #: is not carried, so a ledger first made inside one arm would reach the next
 #: arm with the first arm's history in it. See core/social/owning_it_first.py.
 _LEDGER: FatigueLedger = FatigueLedger()
+#: Part of her history, so it is kept across her restarts along her own line.
+#: See core/self/what_came_before.py.
+keep_across_stages(__name__, "_LEDGER")
 
 
 def get_fatigue_ledger() -> FatigueLedger:

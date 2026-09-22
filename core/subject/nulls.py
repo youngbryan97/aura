@@ -752,6 +752,19 @@ def architecture(
                 coupling[key][other] = (write[key] @ read[other]) * (
                     strength * LOW_RANK_GAIN / max(1.0, np.sqrt(widths[other]))
                 )
+    elif name == "drives_only":
+        # Bryan's case, from his own account of what would not be conscious: a
+        # being that acts purely on its physiological drives, with no central
+        # reasoning and no choice that changes it. The body's state sets a
+        # drive, the drive acts on the world and the world comes back through
+        # the senses, which moves the body: interoception, affect and
+        # perception in one closed loop. Nothing reads or writes the
+        # workspace, cognition, the self, memory, the world model,
+        # deliberation or development, which run on their own noise. It is
+        # recurrent, and most of it is not part of it: one component is the
+        # line it has to lose.
+        for key, other in (("A", "I"), ("P", "A"), ("I", "P")):
+            coupling[key][other] = _matrix(rng, widths[key], widths[other], strength)
     elif name == "high_dimensional_independent":
         # The opposite failure. Each domain mixes richly inside itself and
         # nothing crosses between domains, so the effective dimension is as
@@ -804,6 +817,7 @@ ARCHITECTURES: tuple[str, ...] = (
     "slow_only",
     "low_rank",
     "high_dimensional_independent",
+    "drives_only",
 )
 
 

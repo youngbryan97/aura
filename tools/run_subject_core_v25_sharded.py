@@ -33,8 +33,16 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 
 #: Arguments passed unchanged to every process, so the workers and the
-#: coordinator run one experiment.
-SHARED = ("rounds", "anchors", "history_turns", "turns", "cut_rounds", "seed", "domains", "conditions")
+#: coordinator run one experiment. The sweep design is among them: a worker
+#: that looked at its cuts on another schedule is a shard of another sweep,
+#: and the merge refuses it.
+SHARED = (
+    "rounds", "anchors", "history_turns", "turns", "cut_rounds", "seed", "domains", "conditions",
+    "looks", "draws", "alpha", "lags", "deciding_lags",
+)
+
+#: Flags that are on or off, passed the same way.
+SHARED_FLAGS = ("allow_degraded", "v5")
 
 
 def _cores_this_run_has() -> int:
@@ -79,12 +87,15 @@ def commands(args: argparse.Namespace, base: Path) -> list[tuple[str, list[str]]
     """Every process to start, as (name, argv). Pure, so the plan can be read before it runs."""
     shared: list[str] = []
     for name in SHARED:
-        value = getattr(args, name)
-        if value in (None, "", 0) and name in ("domains", "conditions"):
+        # A launch from before the sweep design was shared has none of it,
+        # and the runner's own defaults are then the design.
+        value = getattr(args, name, None)
+        if value is None or (value in ("", 0) and name in ("domains", "conditions", "looks", "lags", "deciding_lags")):
             continue
         shared += [f"--{name.replace('_', '-')}", str(value)]
-    if args.allow_degraded:
-        shared.append("--allow-degraded")
+    for flag in SHARED_FLAGS:
+        if getattr(args, flag, False):
+            shared.append(f"--{flag.replace('_', '-')}")
     runner = [sys.executable, str(REPO / "tools" / "run_subject_core_v25.py")]
     shard_dir = base / "shards"
     plan = [
@@ -118,6 +129,12 @@ def main() -> int:
     parser.add_argument("--domains", type=str, default="")
     parser.add_argument("--conditions", type=int, default=0)
     parser.add_argument("--allow-degraded", action="store_true")
+    parser.add_argument("--looks", type=str, default="", help="the sequential looks, as the runner takes them")
+    parser.add_argument("--draws", type=int, default=200)
+    parser.add_argument("--alpha", type=float, default=0.05)
+    parser.add_argument("--lags", type=str, default="")
+    parser.add_argument("--deciding-lags", type=str, default="")
+    parser.add_argument("--v5", action="store_true", help="every process runs the ISC-v5 design")
     parser.add_argument("--hours", type=float, default=24.0,
                         help="the bound on every process, and on the coordinator's wait for shards")
     parser.add_argument("--out", type=Path, default=REPO / "artifacts" / "subject_core_v25_sharded")

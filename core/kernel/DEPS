@@ -43,6 +43,8 @@ include_rules = [
     # The growth engine enters its language organ's verdict into the growth
     # ledger as a step; it takes nothing else from core.self.
     "+core.self.growth",
+    # Her history is kept at the close of each tick.
+    "+core.self.what_came_before",
     "+core.self_modification",
     "+core.senses",
     "+core.somatic",

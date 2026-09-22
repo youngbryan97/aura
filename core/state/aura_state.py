@@ -742,6 +742,10 @@ class CognitiveContext:
     #: change, and by how much the worst has done worse than her weighing.
     #: Written by the affect phase. See core/agency/habits_are_hers.py.
     habits: dict[str, Any] = field(default_factory=dict)
+    #: Whether what somebody just said was a moment that fits her: how
+    #: particular it was to her, how much it met her, and the product.
+    #: Written by the affect phase. See core/affect/a_moment_that_fits.py.
+    moment: dict[str, Any] = field(default_factory=dict)
     #: Whether somebody's account of a past she shares with them gave her less
     #: of it than accounts usually do. Written by the conversational dynamics
     #: phase. See core/social/made_minor.py.

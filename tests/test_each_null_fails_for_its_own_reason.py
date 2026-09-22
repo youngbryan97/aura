@@ -84,7 +84,7 @@ def _fails_on(row: dict[str, object]) -> set[str]:
 def measured() -> dict[str, dict[str, object]]:
     names = (
         "recurrent", "ring", "all_to_all", "low_rank",
-        "common_driver", "high_dimensional_independent",
+        "common_driver", "high_dimensional_independent", "drives_only",
     )
     return {name: _measure(name) for name in names}
 
@@ -111,6 +111,10 @@ MUST_FAIL_ON: dict[str, str] = {
     # The highest effective dimension of anything in the suite, and nothing
     # crossing between the domains.
     "high_dimensional_independent": "differentiation",
+    # A body, a drive and the senses in a closed loop, and no centre: nothing
+    # reaches reasoning, the self, memory or deliberation. Recurrent, and not
+    # one system. Bryan's account of what would not be conscious.
+    "drives_only": "one_component",
 }
 
 

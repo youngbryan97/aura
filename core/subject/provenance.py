@@ -27,7 +27,7 @@ import json
 import platform
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -308,6 +308,7 @@ def campaign_v25(
     turns: int,
     cut_rounds: int,
     support: Sequence[str],
+    design: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """The v25 fingerprint, which is a different campaign from the battery's.
 
@@ -351,7 +352,7 @@ def campaign_v25(
             "name": "Fisher-Rao",
             "estimator": "cross-fitted k-NN posterior -> Bhattacharyya -> 2 arccos",
             "floor": "sham against sham, same estimator",
-            "lower_bound": "paired bootstrap, alpha 0.05",
+            "lower_bound": "paired bootstrap, alpha over the number of looks",
             "p_value": "paired randomization over common forks",
         },
         "horizons": {
@@ -366,6 +367,9 @@ def campaign_v25(
             "anchor_step": ANCHOR_STEP,
             "rounds": cut_rounds,
             "stopping_rule": "a cut stops drawing once its lower bound clears zero",
+            # The sequential design, when a run names one: the looks, the level
+            # each is read at, the draws, and the horizons that decide.
+            "design": dict(design or {}),
             "score": "the weakest cut, as an intersection-union over all of them",
             "cut_construction": "clamp both sides in turn, compose the free halves",
         },

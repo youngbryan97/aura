@@ -1299,7 +1299,18 @@ def test_agency_runner_activates_canonical_proof_task_mode():
     assert "await shutdown_agency_runtime(orch)" in agency_source
     assert "proof_evaluation_turn = proof_run_active(origin=routing_origin)" in response_source
     assert "Proof evaluation fast-path: isolated live-path prompt" in response_source
-    assert "clear_transient_response_modifiers(" in kernel_source
+    # The scrub happens at the turn door now (core/kernel/turn_door.py), and
+    # it is checked by what it does rather than by where its name is written:
+    # a stale per-turn modifier from the last turn is gone before any phase.
+    from core.kernel.turn_door import clear_last_turn
+    from core.runtime.proof_policy import TRANSIENT_RESPONSE_MODIFIER_KEYS
+    from core.state.aura_state import AuraState
+
+    stale = sorted(TRANSIENT_RESPONSE_MODIFIER_KEYS)[0]
+    state = AuraState.default()
+    state.response_modifiers[stale] = "from the last turn"
+    clear_last_turn(state, "a new question", "user")
+    assert stale not in state.response_modifiers
     assert "except asyncio.CancelledError as phase_err:" in kernel_source
     assert "Priority kernel tick cancelled" in kernel_source
     cancel_block_start = kernel_source.index("except asyncio.CancelledError as phase_err:")

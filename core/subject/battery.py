@@ -153,6 +153,10 @@ class Verdict:
     #: that synergy line. Reported beside v1 and v2, changing neither.
     #: See docs/ISC_V3_PREREGISTRATION.md.
     v3_criteria: list[Criterion] = field(default_factory=list)
+    #: ISC-v5's two lines: irreducibility and its null comparison, read by
+    #: intervention on a sweep run to the preregistered design. Reported beside
+    #: v1 to v3, changing none of them. See docs/ISC_V5_PREREGISTRATION.md.
+    v5_criteria: list[Criterion] = field(default_factory=list)
 
     @property
     def isc(self) -> bool:
@@ -213,6 +217,17 @@ class Verdict:
         lines = self.v3_lines()
         return bool(self.v2_criteria) and bool(self.v3_criteria) and all(item.passed for item in lines)
 
+    def v5_lines(self) -> list[Criterion]:
+        """ISC-v3's conjunction with ISC-v5's two lines standing in for the ones they replace."""
+        replaced = {item.key for item in self.v5_criteria}
+        return [item for item in self.v3_lines() if item.key not in replaced] + list(self.v5_criteria)
+
+    @property
+    def isc_v5_on_this_seed(self) -> bool:
+        """Every line under ISC-v5: v3's, with irreducibility read by intervention."""
+        lines = self.v5_lines()
+        return bool(self.v3_criteria) and bool(self.v5_criteria) and all(item.passed for item in lines)
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "isc": self.isc,
@@ -223,6 +238,9 @@ class Verdict:
             "isc_v3_on_this_seed": self.isc_v3_on_this_seed,
             "v3_passed": sum(1 for item in self.v3_lines() if item.passed) if self.v3_criteria else None,
             "v3_criteria": [item.as_dict() for item in self.v3_criteria],
+            "isc_v5_on_this_seed": self.isc_v5_on_this_seed,
+            "v5_passed": sum(1 for item in self.v5_lines() if item.passed) if self.v5_criteria else None,
+            "v5_criteria": [item.as_dict() for item in self.v5_criteria],
             "contested_criteria": sorted(_CONTESTED),
             "passed": self.passed,
             "total": len(self.criteria),
@@ -378,6 +396,46 @@ def _assemble_v3(out: Verdict, evidence: dict[str, Any]) -> None:
         {"reference_passes_on_this_seed": reference, "nulls_passing_on_this_seed": passing},
         "decided across seeds by the scorecard",
     ))
+
+
+def _assemble_v5(out: Verdict, evidence: dict[str, Any]) -> None:
+    """ISC-v5's two lines, where a v5 sweep was read into this run's evidence.
+
+    A run with no `interventional_cut` leaves `v5_criteria` empty: it was not
+    read under v5. The sweep, the playback count and the passing nulls' sweeps
+    are attached by tools/score_isc_v5.py; the lines are core/subject/isc_v5.py.
+    """
+    reading = evidence.get("interventional_cut")
+    if reading is None:
+        return
+    from core.subject.isc_v5 import lines
+
+    nulls = evidence.get("nulls", {}) or {}
+    passing = list(reading.get("nulls_that_pass", nulls.get("nulls_that_pass", [])) or [])
+    sweep = reading.get("sweep") or None
+    for line in lines(
+        sweep,
+        playback_decided=(sweep or {}).get("playback_decided") if sweep else None,
+        nulls_that_pass=passing,
+        null_sweeps=reading.get("null_sweeps") or {},
+    ):
+        statement = (
+            "every bipartition of the core changes where the rest ends a turn when "
+            "its sides are held apart, by a margin the sham floor cannot account for (ISC-v5)"
+            if line["key"] == "partition_irreducibility"
+            else "the playback control is decided at no cut and no null that passes the "
+            "rest of the conjunction is decided at every cut (ISC-v5)"
+        )
+        out.v5_criteria.append(_c(
+            line["key"], "11" if line["key"] == "partition_irreducibility" else "18",
+            statement,
+            bool(line["passed"]),
+            line["value"],
+            "every cut decided at the preregistered design"
+            if line["key"] == "partition_irreducibility"
+            else "playback decided nowhere, no passing null decided everywhere",
+            why=line["why"],
+        ))
 
 
 def assemble(evidence: dict[str, Any]) -> Verdict:
@@ -631,6 +689,7 @@ def assemble(evidence: dict[str, Any]) -> Verdict:
     ))
     _assemble_v2(out, evidence)
     _assemble_v3(out, evidence)
+    _assemble_v5(out, evidence)
     del directed
     _invalidate_on_missing_readings(out, evidence)
     return out
@@ -684,7 +743,7 @@ def _invalidate_on_missing_readings(verdict: Verdict, evidence: dict[str, Any]) 
 
     # The v2 and v3 lines rest on the same organs as the v1 lines they replace,
     # so an organ that went unread invalidates all of them.
-    for lines in (verdict.criteria, verdict.v2_criteria, verdict.v3_criteria):
+    for lines in (verdict.criteria, verdict.v2_criteria, verdict.v3_criteria, verdict.v5_criteria):
         for index, item in enumerate(lines):
             needed = CRITERION_ORGANS.get(item.key, ())
             gone = sorted(set(needed) & absent)

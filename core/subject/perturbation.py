@@ -327,10 +327,21 @@ async def perturb_organs(
             # carries ten times the displacement to land on `delta`. The
             # authority may constrain the weight, which makes the intervention
             # smaller and is a refusal the measurement has to live with.
+            #
+            # It also refuses any element past its admission bound, and a
+            # refused stimulus leaves the state where it was. So every dose
+            # above a tenth of the bound did nothing at all, a larger dose
+            # displaced C less than a smaller one, and the dose search climbed
+            # to its ceiling logging a critical refusal at each step (v5 smoke,
+            # 22 September). The stimulus is held at the bound the organ
+            # admits, which is the most it can be displaced this way.
+            from core.consciousness.steering_admission import MAX_STIMULUS_MAGNITUDE
+
+            level = float(np.clip(delta * 10.0, -MAX_STIMULUS_MAGNITUDE, MAX_STIMULUS_MAGNITUDE))
             await organs.substrate.inject_stimulus(
                 np.full(
                     int(getattr(getattr(organs.substrate, "config", None), "neuron_count", 512)),
-                    delta * 10.0,
+                    level,
                     dtype=np.float64,
                 ),
                 weight=1.0,

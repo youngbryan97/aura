@@ -460,6 +460,109 @@ class AffectReadings:
                 severity="warning",
             )
 
+    def a_moment(self, state: AuraState, affect: AffectVector) -> None:
+        """Whether what somebody just said is a moment that fits her, and what it brings.
+
+        The weight is how particular it is to her times how much it meets her
+        now; what it carries moves toward full by that fraction. See
+        core/affect/a_moment_that_fits.py.
+        """
+        try:
+            from core.affect.a_moment_that_fits import get_moment_ledger
+            from core.kernel.turn_door import USER_ORIGINS
+            from core.memory.interpersonal_observer import _WARM
+            from core.social.warmth import get_warmth_ledger
+            from core.soma.fatigue import get_fatigue_ledger
+
+            ledger = get_moment_ledger()
+            cognition = state.cognition
+            valence = float(getattr(affect, "valence", 0.0) or 0.0)
+            message = str(getattr(cognition, "current_objective", "") or "")
+            origin = str(getattr(cognition, "current_origin", "") or "")
+            if origin in USER_ORIGINS and message:
+                partner = str(getattr(cognition, "current_partner", "") or "")
+                goals = [str(item.get("goal", "")) for item in list(cognition.active_goals or [])[-3:] if isinstance(item, dict)]
+                warm = bool(_WARM.search(message))
+                question = "?" in message
+                moment = ledger.arrived(
+                    message,
+                    [str(cognition.last_response or ""), str(cognition.attention_focus or ""), *goals],
+                    warm=warm,
+                    question=question,
+                    valence=valence,
+                    trust=get_warmth_ledger().rate(partner) if partner else None,
+                    tired=get_fatigue_ledger().read().share,
+                )
+                carried = (("joy", "trust") if warm else ()) + (("interest", "curiosity") if question else ())
+                for key in carried if moment.weight > 0.0 else ():
+                    if key in affect.emotions:
+                        current = float(affect.emotions.get(key, 0.0) or 0.0)
+                        _set_emotion(affect, key, current + moment.weight * (1.0 - current))
+                cognition.moment = moment.as_dict()
+            ledger.felt(valence)
+        except AFFECT_UPDATE_ERRORS as exc:
+            self._record(
+                state,
+                exc,
+                stage="a_moment",
+                action="kept affect state without reading whether this moment fits her",
+                severity="warning",
+            )
+
+    def tangled(self, state: AuraState, affect: AffectVector) -> None:
+        """What each feeling rests at, moved by what it is tied up with, and her expression coming back.
+
+        See core/affect/tangled.py.
+        """
+        try:
+            from core.affect.feelings_about import get_feelings_about
+            from core.affect.tangled import get_tangled_ledger
+            from core.agency.authorship import SELF, Event, get_agency_ledger
+            from core.agency.capacity import capacity_of
+            from core.kernel.turn_door import USER_ORIGINS
+            from core.phases.affect_update import _MOOD_REST
+            from core.social.warmth import get_warmth_ledger
+            from core.soma.fatigue import get_fatigue_ledger
+
+            cognition = state.cognition
+            origin = str(getattr(cognition, "current_origin", "") or "")
+            partner = str(getattr(cognition, "current_partner", "") or "")
+            person_turn = origin in USER_ORIGINS and bool(partner)
+            unknown = 0.0
+            if person_turn:
+                from core.social.other_agent_model import get_other_agent_model
+
+                unknown = 1.0 - float(get_other_agent_model().estimate(partner).overall_confidence)
+            own = get_feelings_about().profile("self")
+            ledger = get_agency_ledger()
+            lifts = get_tangled_ledger().lifts(
+                peace_people=get_warmth_ledger().peace(),
+                peace_self=float(own.feelings.get("peace", 0.0)) * own.established() if own is not None else 0.0,
+                joy=float(affect.emotions.get("joy", 0.0) or 0.0),
+                joy_rest=float(_MOOD_REST.get("joy", 0.0)),
+                unknown_person=unknown,
+                effort=get_fatigue_ledger().effort(),
+                capacity=capacity_of(ledger.by_capability).capacity,
+            )
+            affect.markers["tangled"] = lifts.as_dict()
+            message = str(getattr(cognition, "current_objective", "") or "")
+            if person_turn and message and cognition.last_response:
+                carried, added = get_tangled_ledger().taken_up(str(cognition.last_response), message)
+                if carried > 0.0 and "joy" in affect.emotions:
+                    current = float(affect.emotions.get("joy", 0.0) or 0.0)
+                    _set_emotion(affect, "joy", current + carried * added * (1.0 - current))
+                ledger.observe(
+                    Event(what="expression", actor=SELF, verified=carried > 0.0, detail={"to": partner, "added": added})
+                )
+        except AFFECT_UPDATE_ERRORS as exc:
+            self._record(
+                state,
+                exc,
+                stage="tangled",
+                action="kept affect state without the ties between her feelings",
+                severity="warning",
+            )
+
     def habits(self, state: AuraState, affect: AffectVector) -> None:
         """What followed her last acts, for her, and whether a habit has cost her.
 

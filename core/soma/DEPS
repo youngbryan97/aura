@@ -12,6 +12,8 @@ description = "core.soma: may import only what it already imports; every new edg
 
 include_rules = [
     "+core.soma",
+    # Its ledgers are part of her history. See core/self/what_came_before.py.
+    "+core.self.what_came_before",
 
     # What this package reaches for today.
     "+core.config",

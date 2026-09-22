@@ -35,6 +35,8 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Any
 
+from core.self.what_came_before import keep_across_stages
+
 __all__ = [
     "MIN_RETURNS",
     "Constancy",
@@ -152,6 +154,9 @@ class ConstancyLedger:
 #: carried, so a ledger first made inside one arm would reach the next arm with
 #: that arm's returns in it.
 _LEDGER: ConstancyLedger = ConstancyLedger()
+#: Part of her history, so it is kept across her restarts along her own line.
+#: See core/self/what_came_before.py.
+keep_across_stages(__name__, "_LEDGER")
 
 
 def get_constancy_ledger() -> ConstancyLedger:

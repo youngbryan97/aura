@@ -32,6 +32,8 @@ include_rules = [
     "+core.ontogeny",
     "+core.organism",
     "+core.runtime",
+    # Whose history a kept record is. See core/self/what_came_before.py.
+    "+core.identity.entity_key",
     "+core.security",
     "+core.self_model",
     "+core.senses",

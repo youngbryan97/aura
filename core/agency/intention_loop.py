@@ -510,22 +510,49 @@ class IntentionLoop:
             return ""
 
     def _record_authorship(self, rec: IntentionRecord, actual_outcome: str) -> None:
-        """Tell the agency ledger she caused this. Never raises into observe()."""
+        """Tell the agency ledger she caused this. Never raises into observe().
+
+        What she did is hers and the tool she did it with is not. Bryan, on
+        where he stops: a calculator is not him and the page he writes is,
+        because he chose what went on it. A tool whose name carries the act
+        she meant is her own hand, as `write_file` is for "write the notes":
+        the event is hers, named for the tool, as it always was. Any other
+        tool is an instrument, as `web_search` is for "research sleep": her
+        event is the act she meant, named from her intention, and succeeds when
+        the intention did, and the tool's own run is a second event with the
+        tool as its actor, evidence about the tool and never about her.
+        """
         try:
             from core.agency.authorship import SELF, Event, get_agency_ledger
             from core.container import ServiceContainer
 
             tool = ""
+            tool_worked = False
             if rec.actions_taken:
                 tool = str(getattr(rec.actions_taken[-1], "tool_name", "") or "")
+                tool_worked = bool(getattr(rec.actions_taken[-1], "success", False))
+            words = str(rec.intention or "").split()
+            act = words[0].strip(".,:;!?'\"()").lower() if words else ""
             succeeded = self._succeeded(rec, actual_outcome)
-            get_agency_ledger().observe(
+            ledger = get_agency_ledger()
+            own_hand = not tool or tool == "unknown" or act in (tool.lower(), *tool.lower().split("_"))
+            if not own_hand and act:
+                ledger.observe(
+                    Event(
+                        what=tool,
+                        actor=f"tool:{tool}",
+                        verified=tool_worked,
+                        detail={"went_well": tool_worked, "used_for": act, "intention_id": rec.id},
+                    )
+                )
+            ledger.observe(
                 Event(
-                    what=tool or "intention",
+                    what=(tool if own_hand else act) or act or "intention",
                     actor=SELF,
                     verified=succeeded,
                     detail={
                         "intention_id": rec.id,
+                        "with": tool,
                         "surprise": rec.surprise,
                         # What the forward model made of it, beside what she
                         # declared. The ledger records who acted; the comparator

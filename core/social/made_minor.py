@@ -30,6 +30,8 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
+from core.self.what_came_before import keep_across_stages
+
 __all__ = ["MIN_SAMPLES", "AccountLedger", "MadeMinor", "get_account_ledger", "reset_for_test"]
 
 #: Shared recalls before a usual gap is an estimate. Three is the least that can
@@ -126,6 +128,9 @@ class AccountLedger:
 
 #: Made at import rather than on first use, so the subject-core fork carries it.
 _ledger: AccountLedger = AccountLedger()
+#: Part of her history, so it is kept across her restarts along her own line.
+#: See core/self/what_came_before.py.
+keep_across_stages(__name__, "_ledger")
 
 
 def get_account_ledger() -> AccountLedger:

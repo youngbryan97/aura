@@ -154,6 +154,59 @@ def _detect_action_stagnation_into_soma(
         logger.debug("Proprioception stagnation check failed: %s", _stag_exc)
 
 
+def _drain_motor_cortex(self, soma) -> None:
+    """The motor cortex's receipts since the last tick, felt as hers.
+
+    Lifted out of ``_execute_new_state_new_state`` whole, so the tick stays
+    under the method-size bar with each of her reflexes noted.
+    """
+    # ── 4b. [RUBICON] Motor Cortex Awareness ───────────────
+    # Drain pending receipts from the motor cortex so the cognitive
+    # loop becomes aware of reflex actions (screen captures, health
+    # throttles, file reactions) that happened since the last tick.
+    mc = self._get_service(
+        "motor_cortex",
+        soma=soma,
+        channel="motor_cortex",
+        action="Skipped motor cortex receipt drain because service lookup failed",
+        severity="warning",
+    )
+    if mc is not None:
+        try:
+            reports = mc.drain_pending_reports()
+            if reports:
+                soma.hardware["motor_cortex_actions"] = len(reports)
+                soma.hardware["motor_cortex_failures"] = sum(
+                    1 for r in reports if not r.success
+                )
+                # Surface the most recent motor action for phenomenal awareness
+                latest = reports[-1]
+                soma.latency["last_reflex_ms"] = latest.latency_ms
+                _her_reflexes(reports)
+                soma.expressive["last_reflex"] = (
+                    f"{latest.handler_name}:{latest.result_summary}"[:60]
+                )
+            soma.hardware["motor_cortex_available"] = True
+        except (AttributeError, RuntimeError, OSError, ConnectionError, TimeoutError, TypeError, ValueError) as _mc_exc:
+            soma.hardware["motor_cortex_available"] = False
+            self._mark_channel_degraded(
+                soma,
+                "motor_cortex",
+                _mc_exc,
+                action="Marked motor cortex awareness unavailable and continued cognitive tick",
+                severity="warning",
+            )
+            logger.debug("Proprioception motor cortex drain failed: %s", _mc_exc)
+
+
+def _her_reflexes(reports: list) -> None:
+    """Each motor-cortex receipt is a reflex of hers. See core/agency/habits_are_hers.py."""
+    from core.agency.habits_are_hers import get_habit_ledger
+
+    for report in reports:
+        get_habit_ledger().note(f"reflex_{report.handler_name}", kind="reflex")
+
+
 async def _execute_new_state_new_state(self, state):
     new_state = state.derive("proprioceptive_loop")
     soma = new_state.soma
@@ -481,47 +534,7 @@ async def _execute_new_state_new_state(self, state):
 
     soma.updated_at = time.time()
 
-    # ── 4b. [RUBICON] Motor Cortex Awareness ───────────────
-    # Drain pending receipts from the motor cortex so the cognitive
-    # loop becomes aware of reflex actions (screen captures, health
-    # throttles, file reactions) that happened since the last tick.
-    mc = self._get_service(
-        "motor_cortex",
-        soma=soma,
-        channel="motor_cortex",
-        action="Skipped motor cortex receipt drain because service lookup failed",
-        severity="warning",
-    )
-    if mc is not None:
-        try:
-            reports = mc.drain_pending_reports()
-            if reports:
-                soma.hardware["motor_cortex_actions"] = len(reports)
-                soma.hardware["motor_cortex_failures"] = sum(
-                    1 for r in reports if not r.success
-                )
-                # Surface the most recent motor action for phenomenal awareness
-                latest = reports[-1]
-                soma.latency["last_reflex_ms"] = latest.latency_ms
-                # Each is a reflex of hers. See core/agency/habits_are_hers.py.
-                from core.agency.habits_are_hers import get_habit_ledger
-
-                for report in reports:
-                    get_habit_ledger().note(f"reflex_{report.handler_name}", kind="reflex")
-                soma.expressive["last_reflex"] = (
-                    f"{latest.handler_name}:{latest.result_summary}"[:60]
-                )
-            soma.hardware["motor_cortex_available"] = True
-        except (AttributeError, RuntimeError, OSError, ConnectionError, TimeoutError, TypeError, ValueError) as _mc_exc:
-            soma.hardware["motor_cortex_available"] = False
-            self._mark_channel_degraded(
-                soma,
-                "motor_cortex",
-                _mc_exc,
-                action="Marked motor cortex awareness unavailable and continued cognitive tick",
-                severity="warning",
-            )
-            logger.debug("Proprioception motor cortex drain failed: %s", _mc_exc)
+    _drain_motor_cortex(self, soma)
 
     # ── 4c. [RUBICON] Limb Health Summary ──────────────────
     # Surface body schema limb health from the feedback processor

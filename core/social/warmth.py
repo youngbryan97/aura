@@ -31,6 +31,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.self.what_came_before import keep_across_stages
+
 __all__ = ["Warmth", "WarmthLedger", "get_warmth_ledger", "reset_for_test"]
 
 #: How much of her own history the middle is taken over.
@@ -144,6 +146,9 @@ class WarmthLedger:
 
 #: Made at import, so a fork carries it. See core/social/owning_it_first.py.
 _LEDGER: WarmthLedger = WarmthLedger()
+#: Part of her history, so it is kept across her restarts along her own line.
+#: See core/self/what_came_before.py.
+keep_across_stages(__name__, "_LEDGER")
 
 
 def get_warmth_ledger() -> WarmthLedger:

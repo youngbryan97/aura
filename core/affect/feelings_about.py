@@ -49,6 +49,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping
 
+from core.self.what_came_before import keep_across_stages
+
 __all__ = [
     "APPROACH",
     "WITHDRAW",
@@ -206,6 +208,9 @@ class FeelingsAbout:
 
 #: Made at import, so a fork carries it. See core/social/owning_it_first.py.
 _LEDGER: FeelingsAbout = FeelingsAbout()
+#: Part of her history, so it is kept across her restarts along her own line.
+#: See core/self/what_came_before.py.
+keep_across_stages(__name__, "_LEDGER")
 
 
 def get_feelings_about() -> FeelingsAbout:
