@@ -90,6 +90,7 @@ class BubbleOverlay:
             from core.perception.ambient_presence import get_ambient_presence
 
             return bool(get_ambient_presence().drawing_surface_attached())
+        # not a failure: no ambient presence means there is no surface drawing.
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             return False
 

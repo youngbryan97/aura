@@ -138,8 +138,13 @@ class PerceptionSentinel:
                 from core.security.user_recognizer import get_user_recognizer
                 r = get_user_recognizer().recognize(obs.content)
                 return ("bryan" if r.is_owner else None), _clamp(r.combined_confidence)
-            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-                pass
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); the observer is not recognised, so this text has no identity on it",
+                    "get_user_recognizer",
+                    type(exc).__name__,
+                    exc,
+                )
         # A named-but-unenrolled device is "seen before" only if previously enrolled by name.
         if obs.identity_hint:
             with self._lock:
@@ -203,8 +208,13 @@ class PerceptionSentinel:
                     vector=obs.modality.value, threat_class=cls,
                     evidence={"familiarity": familiarity, "hostile": hostile},
                 )
-            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-                pass
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); the threat was not filed with the immune system",
+                    "get_immune_system",
+                    type(exc).__name__,
+                    exc,
+                )
 
         return verdict
 

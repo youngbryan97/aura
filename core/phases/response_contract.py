@@ -1324,6 +1324,7 @@ def build_response_contract(
         from core.conversation.asks_about_the_world import wants_outside_evidence
 
         asks_about_the_world = bool(wants_outside_evidence(search_trigger_text))
+    # not a failure: the reader could not be asked, so nothing here claims it holds.
     except (ImportError, AttributeError, TypeError, ValueError):
         asks_about_the_world = False
     factual_lookup = _matches_any(search_lower, _FACTUAL_LOOKUP_PATTERNS)
@@ -1483,6 +1484,7 @@ def build_response_contract(
         from core.conversation.page_interaction import asks_to_act_on_a_page
 
         acts_on_a_page = asks_to_act_on_a_page(search_trigger_text)
+    # not a failure: the reader could not be asked, so nothing here claims it holds.
     except (ImportError, AttributeError, TypeError, ValueError):
         acts_on_a_page = False
 
@@ -1504,6 +1506,7 @@ def build_response_contract(
         )
 
         reads_local_disk = looks_like_filesystem_observation(search_trigger_text)
+    # not a failure: the reader could not be asked, so nothing here claims it holds.
     except (ImportError, AttributeError, TypeError, ValueError):
         reads_local_disk = False
 

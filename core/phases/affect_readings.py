@@ -10,10 +10,13 @@ phase's degradation record.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from typing import Any
 
 from core.state.aura_state import AffectVector, AuraState
+
+logger = logging.getLogger(__name__)
 
 AFFECT_UPDATE_ERRORS = (
     AttributeError,
@@ -693,7 +696,13 @@ class AffectReadings:
             from core.social.constancy import get_constancy_ledger
 
             get_constancy_ledger().she_came_round(time.time())
-        except (ImportError, AttributeError, TypeError, ValueError):
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); constancy did not record that she came round",
+                "time",
+                type(exc).__name__,
+                exc,
+            )
             return
 
     def standing(self, state: AuraState) -> None:

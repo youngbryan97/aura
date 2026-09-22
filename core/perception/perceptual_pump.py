@@ -426,6 +426,7 @@ def _collect_system_state() -> SystemState:
         # Thermal
         try:
             temps = psutil.sensors_temperatures()
+        # not a failure: a host with no temperature sensors reports none.
         except (AttributeError, OSError, RuntimeError, ValueError):
             temps = None
         if temps:

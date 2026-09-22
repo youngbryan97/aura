@@ -48,6 +48,7 @@ class EmbodiedTraceLogger:
                 from core.runtime.state_ownership import state_root
 
                 self._existing_trace = TraceLogger(state_root() / "traces" / "embodied_cognition.jsonl")
+            # not a failure: no trace logger here, so this runs without an existing trace.
             except (ImportError, AttributeError, RuntimeError):
                 self._existing_trace = None
         if self.path:

@@ -139,6 +139,8 @@ class _AutoAVSRRuntime:
             if added_runtime_path:
                 try:
                     sys.path.remove(runtime_path)
+                # not a failure: the runtime path is already off sys.path, which is what removing
+                # it was for.
                 except ValueError:
                     pass
         for symbol in (BatchBeamSearch, E2E, LengthBonus):
@@ -449,6 +451,8 @@ class AutoAVSRBackend:
     async def _compensate_lane(self, _owner: Any, _reason: str) -> bool:
         try:
             await self._ensure_loaded()
+        # not a failure: a lane that will not load cannot be compensated, and False says
+        # so to the governor.
         except (ImportError, OSError, RuntimeError, TypeError, ValueError):
             return False
         return self._runtime is not None and self._runtime.loaded and self._lane_lease is not None

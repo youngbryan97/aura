@@ -98,6 +98,8 @@ def _normalize_percent(value: float) -> float:
 def _density(items: Any, target: int, *, floor: float = 0.0) -> float:
     try:
         size = len(items or [])
+    # not a failure: something with no length contributes no items, which is what 0
+    # says here.
     except (RuntimeError, AttributeError, TypeError, ValueError):
         size = 0
     if target <= 0:

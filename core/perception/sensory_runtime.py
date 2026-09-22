@@ -113,6 +113,8 @@ class CameraProvider:
                 self._cascade = cv2.CascadeClassifier(
                     cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
                 )
+            # not a failure: a provider with no cascade file has no face detector, and the
+            # runtime runs without one.
             except _provider_errors(cv2):
                 self._cascade = None
             return True
@@ -255,6 +257,7 @@ def _appearance_descriptor(cv2: Any, gray_crop: np.ndarray) -> np.ndarray | None
         small = cv2.resize(gray_crop, (16, 16)).astype(np.float64).reshape(-1)
         n = float(np.linalg.norm(small))
         return small / n if n > 1e-9 else small
+    # not a failure: a frame this provider cannot process yields no descriptor.
     except _provider_errors(cv2):
         return None
 
@@ -270,6 +273,7 @@ def _voice_descriptor(audio: np.ndarray, sr: int) -> np.ndarray | None:
         binned = spec[:512].reshape(32, -1).mean(axis=1)
         n = float(np.linalg.norm(binned))
         return binned / n if n > 1e-9 else binned
+    # not a failure: a frame this provider cannot process yields no descriptor.
     except _SENSORY_RUNTIME_ERRORS:
         return None
 

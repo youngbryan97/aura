@@ -1092,7 +1092,13 @@ class ConversationalDynamicsPhase(Phase):
                 from core.social.what_passes_between import note_act
 
                 note_act(partner, reading.kind, reading.cost_to_source)
-        except (ImportError, AttributeError, TypeError, ValueError):
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the act between them was not noted",
+                "get_telling_ledger",
+                type(exc).__name__,
+                exc,
+            )
             return
 
     async def _execute_new_state(self, engine, objective, origin, state):

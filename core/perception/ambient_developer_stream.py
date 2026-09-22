@@ -122,8 +122,13 @@ def _log_roots(project_root: Path) -> tuple[Path, ...]:
         from core.config import config
 
         roots.append(config.paths.log_dir)
-    except _RUNTIME_ERRORS:
-        pass
+    except _RUNTIME_ERRORS as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the configured log directory is not among the roots this watches",
+            "config",
+            type(exc).__name__,
+            exc,
+        )
     return tuple(dict.fromkeys(path.resolve() for path in roots))
 
 
@@ -780,8 +785,13 @@ class AmbientDeveloperStream:
                             detail=thermal,
                         )
                     )
-            except _RUNTIME_ERRORS:
-                pass
+            except _RUNTIME_ERRORS as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); no thermal interrupt is raised from this pass",
+                    "get_pressure_snapshot",
+                    type(exc).__name__,
+                    exc,
+                )
         return interrupts[:8]
 
     def _build_repair_candidates(

@@ -135,7 +135,13 @@ class BondingPhase(Phase):
                         lower=-1.0,
                         upper=1.0,
                     )
-        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the traits were not bonded this turn",
+                "get_personality_engine",
+                type(exc).__name__,
+                exc,
+            )
             return
 
     def _settle_toward(self, bonding: float, baseline: float) -> float:

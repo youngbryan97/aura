@@ -66,6 +66,7 @@ def _look_at_the_screen(subject: str) -> str | None:
     try:
         daemon = PerceptionDaemon.get_sync()
         seen = str(getattr(daemon, "last_active_window", "") or "")
+    # not a failure: a daemon with no readable active window has none to report.
     except (AttributeError, RuntimeError, OSError, TypeError, ValueError):
         return None
     if not seen:
@@ -83,6 +84,8 @@ def _read_the_file(subject: str) -> str | None:
         if not where.is_absolute() or not where.exists():
             return None
         return "present" if where.stat().st_size > 0 else "absent"
+    # not a failure: a path that is not there, or not readable, is neither present
+    # nor absent to this reader.
     except (OSError, ValueError):
         return None
 

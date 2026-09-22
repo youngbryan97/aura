@@ -191,7 +191,13 @@ async def _execute_new_state_new_state(self, state):
                 if getattr(thermal, "available", False) and not thermal.blind:
                     soma.hardware["temperature"] = float(thermal.level)
                     soma.hardware["temperature_available"] = True
-            except (AttributeError, StopIteration, IndexError):
+            except (AttributeError, StopIteration, IndexError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); temperature reads as unavailable for this cycle",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
                 soma.hardware["temperature_available"] = False
             except (OSError, RuntimeError, TypeError, ValueError) as exc:
                 soma.hardware["temperature_available"] = False
@@ -210,7 +216,13 @@ async def _execute_new_state_new_state(self, state):
                 if getattr(power, "available", False):
                     soma.hardware["battery"] = float(power.battery_percent)
                     soma.hardware["battery_available"] = True
-            except AttributeError:
+            except AttributeError as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); battery reads as unavailable for this cycle",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
                 soma.hardware["battery_available"] = False
             except (OSError, RuntimeError, TypeError, ValueError) as exc:
                 soma.hardware["battery_available"] = False
@@ -738,6 +750,7 @@ class ProprioceptiveLoop(BasePhase):
         """
         try:
             mods = coupling.get_modifiers()
+        # not a failure: a coupling with no readable modifiers has none to apply.
         except (AttributeError, RuntimeError, TypeError, ValueError):
             return
         cognition = getattr(state, "cognition", None)

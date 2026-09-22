@@ -712,6 +712,7 @@ class AmbientPresence(_CarriesTheBubble):
             return None
         try:
             denial = ScreenCaptureDenial(str(admission.get("reason", "")))
+        # not a failure: a reason that is not a known denial is not one this reports.
         except ValueError:
             return None
         authority = str(admission.get("authority", "") or "unknown")

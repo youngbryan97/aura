@@ -133,6 +133,7 @@ def _already_said_about(observation: Any) -> bool:
         from core.perception.ambient_presence import get_ambient_presence
 
         state = get_ambient_presence().state()
+    # not a failure: no ambient presence means there is no utterance in the room.
     except (ImportError, AttributeError, RuntimeError):
         return False
     if state.get("has_utterance"):
@@ -247,6 +248,7 @@ def _latest_observation() -> Any:
         )
 
         return get_observation_memory().latest(ObservationKind.SCREEN_TEXT)
+    # not a failure: no observation memory means there is no latest screen text.
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         return None
 

@@ -77,6 +77,7 @@ class _ReadsTheDriveSignals:
             if surprise is None:
                 return None
             return surprise_ratio(model, surprise)
+        # not a failure: no world model means no surprise to ratio.
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             return None
 

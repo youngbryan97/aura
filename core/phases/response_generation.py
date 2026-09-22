@@ -687,6 +687,8 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
         if cap is None:
             try:
                 cap = ServiceContainer.get("capability_engine", default=None)
+            # not a failure: no capability engine in the container, and the caller checks for
+            # None below.
             except (AttributeError, RuntimeError, TypeError, ValueError):
                 cap = None
         return cap if cap is not None and hasattr(cap, "execute") else None

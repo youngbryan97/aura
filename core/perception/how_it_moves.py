@@ -819,6 +819,7 @@ class HowItMoves:
         for rule in standing:
             try:
                 foretold = rule.apply(self.the_thing(arrangement), action)
+            # not a failure: a rule that will not apply to this arrangement foretells nothing.
             except (AttributeError, TypeError, ValueError):
                 foretold = None
             if foretold is None:
@@ -1073,6 +1074,8 @@ def prediction_held(predicted: Any, seen: Any) -> bool:
 
     try:
         return _near_enough(predicted, seen)
+    # not a failure: two readings that will not compare are not near enough, and
+    # False is the refusing direction.
     except (AttributeError, TypeError):
         return False
 

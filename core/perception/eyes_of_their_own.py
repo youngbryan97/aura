@@ -112,6 +112,7 @@ def _let_go(child: Any) -> None:
     except (OSError, ValueError, subprocess.TimeoutExpired):
         try:
             child.kill()
+        # not a failure: a child already gone is the state killing it reaches.
         except OSError:
             pass
 
@@ -216,6 +217,7 @@ class _WhatTheyNoticed(logging.Handler):
         try:
             self.lines.append(record.getMessage())
             del self.lines[:-20]
+        # not a failure: a record whose message will not render is not one this keeps.
         except (TypeError, ValueError):
             return
 

@@ -866,7 +866,13 @@ class AffectUpdatePhase(Phase):
             try:
                 reading = substrate.get_substrate_affect() or {}
                 step = float(affect.curiosity) - float(reading.get("curiosity", 0.0) or 0.0)
-            except _AFFECT_UPDATE_ERRORS:
+            except _AFFECT_UPDATE_ERRORS as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); the curiosity step reads as zero, so nothing moved it this turn",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
                 step = 0.0
             # And frustration, which nothing here pushed. Frustration is what an
             # obstructed goal does to the one pursuing it (Berkowitz,

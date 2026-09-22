@@ -208,8 +208,13 @@ async def ground_response(
     if audit_callback is not None:
         try:
             audit_callback(result.as_dict())
-        except (RuntimeError, AttributeError, TypeError, ValueError):
-            pass  # no-op: intentional
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the grounding audit callback raised and the turn carried on",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
 
     return result
 

@@ -307,6 +307,8 @@ class CameraAuthority:
             from core.media.safe_imports import cv2_main_process_blocked
 
             return bool(cv2_main_process_blocked())
+        # not a failure: the comment below says it: the interlock is a safety measure,
+        # not a gate, and an unconsultable one prefers the in-process path.
         except (ImportError, RuntimeError, AttributeError):
             # The interlock is a safety measure, not a gate. If it cannot be
             # consulted, prefer the in-process path and let the open succeed
@@ -447,6 +449,8 @@ class CameraAuthority:
                 if capture is not None:
                     try:
                         capture.release()
+                    # not a failure: a capture that will not release was not open, which is the case
+                    # this branch is already handling.
                     except (RuntimeError, OSError, AttributeError):
                         pass
                 # The device exists but would not open. On macOS this is

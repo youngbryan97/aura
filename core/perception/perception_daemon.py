@@ -332,6 +332,7 @@ class PerceptionDaemon:
             from core.runtime.proof_policy import proof_headless_run
 
             headless = proof_headless_run()
+        # not a failure: no proof policy here means this is not a headless proof run.
         except (ImportError, RuntimeError, AttributeError):
             headless = False
         if headless:

@@ -374,6 +374,8 @@ def _requires_live_aura_voice(contract: object | None) -> bool:
     if callable(checker):
         try:
             return bool(checker())
+        # not a failure: a contract whose own check refuses has not asserted the
+        # requirement, and False is the refusing direction.
         except (RuntimeError, AttributeError, TypeError, ValueError):
             return False
     return bool(
@@ -394,6 +396,8 @@ def _requires_explicit_live_grounding(contract: object | None) -> bool:
     if callable(checker):
         try:
             return bool(checker())
+        # not a failure: a contract whose own check refuses has not asserted the
+        # requirement, and False is the refusing direction.
         except (RuntimeError, AttributeError, TypeError, ValueError):
             return False
     return bool(

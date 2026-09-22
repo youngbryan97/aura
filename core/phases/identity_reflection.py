@@ -63,8 +63,13 @@ class IdentityReflectionPhase(BasePhase):
             # Repair: force identity name back to Aura
             try:
                 state.identity.name = "Aura"
-            except (AttributeError, TypeError):
-                pass  # no-op: intentional
+            except (AttributeError, TypeError) as exc:
+                logger.warning(
+                    "%s unavailable (%s: %s); the identity name could not be forced back to Aura after a breach",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
             return state
              
         # 2. Output Characterization (Anti-Hallucination)
@@ -123,8 +128,13 @@ class IdentityReflectionPhase(BasePhase):
                 return state
             try:
                 state.response_modifiers["identity_reflection_will_receipt"] = decision.receipt_id
-            except (RuntimeError, AttributeError, TypeError, ValueError):
-                pass  # no-op: intentional
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); the will receipt is missing from the response modifiers",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
             state.identity.narrative_version += 1
             state.identity.last_evolution_timestamp = time.time()
 

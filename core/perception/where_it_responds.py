@@ -644,6 +644,7 @@ def _the_grid_in_the_pixels(
                 lattice.down_at = down_at
                 lattice.across_at = across_at
                 lattice.would_not_fit = 0
+            # not a failure: a lattice that will not take these fields keeps the ones it had.
             except (AttributeError, TypeError):
                 pass
     cells = tuple(

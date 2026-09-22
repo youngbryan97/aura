@@ -32,6 +32,7 @@ degraded one.
 
 from __future__ import annotations
 
+import logging
 import subprocess
 import time
 from dataclasses import dataclass
@@ -39,6 +40,8 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+logger = logging.getLogger(__name__)
 
 HIGHLIGHT_SCHEMA = "aura.perception.screen_highlight.v1"
 
@@ -181,8 +184,13 @@ def _screen_area() -> float:
         parts = [float(p.strip()) for p in str(completed.stdout or "").split(",")]
         if len(parts) == 4:
             return max(1.0, (parts[2] - parts[0]) * (parts[3] - parts[1]))
-    except (OSError, subprocess.SubprocessError, ValueError):
-        pass
+    except (OSError, subprocess.SubprocessError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the highlighted region reads as zero area",
+            "it",
+            type(exc).__name__,
+            exc,
+        )
     return 0.0
 
 
