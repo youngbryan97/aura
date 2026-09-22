@@ -134,21 +134,6 @@ class UnbiddenLedger:
     def arrivals_now(self) -> tuple[str, ...]:
         """What comes back given where she is, without anything asking."""
         return self.arrivals(self._now) if self._now else ()
-        self._now: tuple[float, ...] = ()
-
-    def now(self, state: Sequence[float]) -> None:
-        """Where she is, set by the phase that runs every turn. Retrieval is
-        handed a query and not a mood, so the mood has to be left here."""
-        vector = self._vector(state)
-        if vector is not None:
-            self._now = vector
-
-    def here(self) -> tuple[float, ...]:
-        return self._now
-
-    def arrivals_now(self) -> tuple[str, ...]:
-        """What comes back given where she is, without anything asking."""
-        return self.arrivals(self._now) if self._now else ()
 
     @staticmethod
     def _key(name: str) -> str:

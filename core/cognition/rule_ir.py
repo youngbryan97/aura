@@ -114,6 +114,8 @@ class Node:
                         from_examples=int(said.get("from_examples") or 0),
                     ),
                 )
+            # not a failure: the comment beside it says it: a meaning that cannot be read
+            # leaves the kind unreadable.
             except (KeyError, TypeError, ValueError):
                 pass  # no-op: a meaning that cannot be read leaves the kind unreadable
         return cls(kind=kind, parameters=dict(parameters), parts=tuple(parts))

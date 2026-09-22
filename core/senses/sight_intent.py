@@ -24,8 +24,11 @@ only difference is the pointing word.
 """
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 # Verbs of seeing, aimed at her. "Can you see", "look at", "watch me".
 _SEEING = (
@@ -165,8 +168,13 @@ def classify(message: str) -> SightIntent:
                 question=text,
                 reason="the question semantically requires present physical perception",
             )
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        pass
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the semantic reader could not be asked, so this is not classified as needing sight",
+            "it",
+            type(exc).__name__,
+            exc,
+        )
 
     return SightIntent("none")
 

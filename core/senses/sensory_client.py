@@ -149,8 +149,13 @@ class SensoryLocalClient:
                 from core.runtime.runtime_hygiene import get_runtime_hygiene
 
                 get_runtime_hygiene().unregister_shutdown_resource(queue_obj)
-            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
-                pass
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); the sensory queue stayed registered with runtime hygiene",
+                    "get_runtime_hygiene",
+                    type(exc).__name__,
+                    exc,
+                )
 
     def _close_queues(self) -> None:
         self._safe_close_queue(self._req_q)
@@ -299,6 +304,7 @@ class SensoryLocalClient:
             return {"status": "error", "msg": "runtime_shutdown"}
         try:
             asyncio.get_running_loop()
+        # not a failure: off a loop there is no running loop to hold.
         except RuntimeError:
             pass
         else:

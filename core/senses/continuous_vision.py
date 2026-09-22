@@ -111,6 +111,7 @@ class ContinuousSensoryBuffer:
                 sidecar_available = bool(
                     get_camera_authority().state().get("backend_available")
                 )
+            # not a failure: no camera authority to ask, so no sidecar is claimed available.
             except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
                 sidecar_available = False
         self.camera_capture_enabled = bool(
@@ -187,6 +188,7 @@ class ContinuousSensoryBuffer:
                     from core.security.native_desktop_bridge import bridge_executable
 
                     native_bridge_available = bridge_executable() is not None
+                # not a failure: no bridge to ask, so no native bridge is claimed available.
                 except (ImportError, OSError, RuntimeError, TypeError, ValueError):
                     native_bridge_available = False
             if (
@@ -388,6 +390,7 @@ class ContinuousSensoryBuffer:
                 and height > 0
             ):
                 return {"left": 0, "top": 0, "width": width, "height": height}
+        # not a failure: no resident bridge answer, so there is no capture region to give.
         except (ImportError, OSError, RuntimeError, TimeoutError, TypeError, ValueError):
             return None
         return None

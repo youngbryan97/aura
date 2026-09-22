@@ -79,6 +79,7 @@ class ContinuousPerceptionEngine:
         try:
             from skills.computer_use import ComputerUseSkill
             self._computer_use_skill = ComputerUseSkill()
+        # not a failure: the skill is optional here, and the caller checks for None.
         except ImportError:
             self._computer_use_skill = None
 

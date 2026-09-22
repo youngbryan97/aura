@@ -155,6 +155,7 @@ class Execution:
 def _size(value: Any) -> int:
     try:
         return len(repr(value))
+    # not a failure: the comment below says it: a repr that refuses has no size.
     except (RecursionError, TypeError, ValueError, AttributeError):
         # A repr that refuses has no size. Narrow: anything else here is a
         # defect in this function, and reporting it as size zero hides it.

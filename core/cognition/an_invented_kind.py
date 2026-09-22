@@ -155,6 +155,8 @@ class Induced:
                 one = found[where(index, size) % size]
                 two = found[other(index, size) % size]
                 out.append(what(one, two))
+            # not a failure: the comment below says it: a word she derived refuses what it
+            # has never seen.
             except (IndexError, KeyError, TypeError, ValueError, ZeroDivisionError):
                 # A word she derived refuses what it has never seen: an
                 # addressing read off length four says nothing about length

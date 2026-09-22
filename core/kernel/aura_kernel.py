@@ -1199,8 +1199,13 @@ class AuraKernel(_TicksAndShutsDown):
                 if unverified_claims:
                     trace_outcome = "UNGROUNDED_ACTION"
                     trace_meta["grounding_warning"] = unverified_claims[:4]
-            except (ImportError, AttributeError, RuntimeError):
-                pass  # no-op: intentional
+            except (ImportError, AttributeError, RuntimeError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); unverified action claims were not checked on this trace",
+                    "check_unverified_action_claims",
+                    type(exc).__name__,
+                    exc,
+                )
 
             await tracer.log_cycle_async(
                 objective=objective,

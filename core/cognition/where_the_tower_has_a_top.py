@@ -166,10 +166,13 @@ def naming_adds_no_meaning(
     """
     try:
         without = written_out()
+    # not a failure: a word that will not write out cannot be held to the theorem.
     except (ArithmeticError, TypeError, ValueError):
         return False
     try:
         return bool(says_it(the_name)) and bool(says_it(without))
+    # not a failure: a term that refuses at a length it never saw has not generalised,
+    # which is what this asks.
     except (ArithmeticError, TypeError, ValueError):
         return False
 

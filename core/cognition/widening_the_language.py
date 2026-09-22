@@ -291,6 +291,8 @@ def an_operation_nobody_wrote(
             try:
                 one = before[addressing(index, size) % size]
                 other = before[second(index, size) % size]
+            # not a failure: an addressing that indexes off the end of this state does not
+            # read it.
             except (IndexError, TypeError, ValueError, ZeroDivisionError):
                 return None
             got = after[index]

@@ -95,6 +95,8 @@ class VoiceStreamProcessor:
                 audio_np = np.frombuffer(frame, dtype=np.int16).astype(np.float32)
                 rms = np.sqrt(np.mean(audio_np**2))
                 is_speech = rms > 300 # Threshold for local sensitivity
+            # not a failure: a frame this cannot measure is not speech, and False is the
+            # refusing direction for a voice gate.
             except (RuntimeError, AttributeError, TypeError, ValueError):
                 is_speech = False
 

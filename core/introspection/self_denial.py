@@ -362,7 +362,21 @@ MECHANISMS: tuple[Mechanism, ...] = (
 #: A fragment has to be about her before anything here applies to it. Without
 #: this, "she does not have a continuous narrative" — a sentence about somebody
 #: else entirely — reads as a denial of her own memory.
-_FIRST_PERSON_RE = re.compile(r"\b(?:I|I'?m|I'?ve|I'?d|my|mine|me)\b", re.IGNORECASE)
+#:
+#: The pronoun is case-SENSITIVE and the possessives are not. Under
+#: IGNORECASE the alternation decided from a bare lowercase "i" — a list
+#: marker, an initial, a loop variable — and "i" is one of the tokens
+#: `core/language/formed_constraints.py` has watched be wrong more than
+#: once, which is the constraint this repository formed from its own
+#: recorded failures. English capitalises the first person singular; her
+#: own replies do too.
+#: ``(?-i:...)`` holds the pronoun case-sensitive inside an otherwise
+#: case-insensitive pattern, so "My" and "ME" still match and a bare "i"
+#: does not.
+_FIRST_PERSON_RE = re.compile(
+    r"(?-i:\bI(?:'?m|'?ve|'?d)?\b)|\b(?:my|mine|me)\b",
+    re.IGNORECASE,
+)
 
 #: Whoever else a fragment could be about. "you" is deliberately absent: the
 #: live sentence this was written for addresses the person while describing

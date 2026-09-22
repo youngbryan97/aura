@@ -106,6 +106,8 @@ def _pairs_that_share_something() -> int:
         )
 
         terms = [one for one in what_she_is_made_of() if one.term is not None]
+    # not a failure: the package is optional here, and a count it cannot take is zero
+    # rather than a guess.
     except (ImportError, RuntimeError, TypeError, ValueError):
         return 0
     found = 0
@@ -153,6 +155,8 @@ def _families_to_judge_on() -> int:
         )
 
         return len(_probe())
+    # not a failure: the package is optional here, and a count it cannot take is zero
+    # rather than a guess.
     except (ImportError, RuntimeError, TypeError, ValueError):
         return 0
 
@@ -163,6 +167,8 @@ def _counts() -> dict[str, int]:
         from core.cognition.one_algebra import DERIVED_HEADS
 
         heads = len(DERIVED_HEADS)
+    # not a failure: the package is optional here, and a count it cannot take is zero
+    # rather than a guess.
     except (ImportError, AttributeError):
         heads = 0
     try:
@@ -171,6 +177,8 @@ def _counts() -> dict[str, int]:
         )
 
         leaves = len(what_she_already_knows_how_to_say())
+    # not a failure: the package is optional here, and a count it cannot take is zero
+    # rather than a guess.
     except (ImportError, RuntimeError, TypeError, ValueError):
         leaves = 0
     return {

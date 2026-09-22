@@ -65,6 +65,8 @@ def _native_frontmost_window_hint() -> tuple[str, str]:
         options = Quartz.kCGWindowListOptionOnScreenOnly
         try:
             options |= Quartz.kCGWindowListExcludeDesktopElements
+        # not a failure: an older Quartz without that option keeps the base list, which
+        # is the one this asked for.
         except AttributeError:
             pass
         windows = Quartz.CGWindowListCopyWindowInfo(

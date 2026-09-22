@@ -188,6 +188,7 @@ class NeuralBridge:
 
         try:
             self._main_loop = asyncio.get_running_loop()
+        # not a failure: off a loop there is no running loop to hold.
         except RuntimeError:
             self._main_loop = None
 
