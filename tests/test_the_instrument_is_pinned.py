@@ -4,8 +4,13 @@ Every domain is reduced to four principal components, and `_basis` standardises
 each column to unit variance before the decomposition — so a channel that
 barely moves is scaled up to the same variance as one that carries the domain.
 Between 45a74c913 and e22e89192 the schema grew from 210 columns to 315 as
-organ readings were added to it, and the score went from 19/24 to 13/24 without
-the system getting worse at anything.
+organ readings were added to it.
+
+That bears on everything read through the reduction. It does not bear on the
+interventional edges: `_paired_divergence` takes a maximum over the domain's
+columns and reads effect and floor off the same one, so another column can only
+raise it. The last test here holds that, because a wrong mechanism recorded as
+a right one is worse than no mechanism at all.
 """
 
 from __future__ import annotations
@@ -89,6 +94,30 @@ def test_weak_columns_added_to_a_domain_destroy_a_real_effect():
     diluted = float(np.mean([_explained(32, seed) for seed in (3, 7, 11)]))
     assert plain > 0.5, plain
     assert diluted < plain / 4.0, (plain, diluted)
+
+
+def test_an_edge_is_a_maximum_over_columns_and_cannot_be_diluted():
+    """The claim the first version of this got wrong.
+
+    An edge effect is not a fit. Each column's peak displacement is taken over
+    the lags, the column with the largest margin over its own sham floor is
+    chosen, and the effect is read off that column — so adding a column can
+    only raise the maximum, never lower it.
+    """
+    import ast
+    from pathlib import Path
+
+    source = (
+        Path(__file__).resolve().parents[1] / "core" / "subject" / "causal.py"
+    ).read_text()
+    tree = ast.parse(source)
+    paired = next(
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "_paired_divergence"
+    )
+    body = ast.unparse(paired)
+    assert "argmax(column_effect - column_floor)" in body
+    assert "column_effect = moved.max(axis=0)" in body
 
 
 def test_more_added_columns_never_read_as_more_signal():

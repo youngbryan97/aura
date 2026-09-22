@@ -26,13 +26,22 @@ variance explained from 0.7027 to:
        24       0.1022
        32       0.0392
 
-D gained 31 columns over that window and A gained 22. A->I, the one strong
-edge into the body, read 8.9583 across all eight conditions in run_031 and
-0.4307 in two of eight in the campaign after -- a 95% loss, which is where the
-32-column line sits. Interoception then had no incoming edge, and that one fact
-fails closure, `robust_recurrence_kappa`, `cycles_per_domain`, `reentry` and
-per-condition replication. The score went from 19/24 to 13/24 without the
-system getting worse at anything.
+D gained 31 columns over that window and A gained 22.
+
+**What this does and does not explain.** It bears on everything read through
+the reduction -- irreducibility, the cut search, the surrogate comparisons --
+because those all run on four components per domain.
+
+It does not explain the interventional edges, and the first version of this
+file said it did. An edge effect is not a fit. `_paired_divergence` takes each
+column's peak displacement over the lags, picks the column whose margin over
+its own sham floor is largest, and reads the effect off that one column. That
+is a maximum over candidates, so another column can only raise it; the module
+says as much where it says an existence claim must not be a function of the
+schema's granularity, and it is right. A->I falling from 8.9583 at eight
+conditions of eight in run_031 to 0.4307 at two of eight in the campaign after
+has some other cause, and the campaign run on this pinned set is the test of
+whether the schema was any part of it.
 
 So the instrument is pinned here, to the 210 columns of 45a74c913 -- the commit
 run_029, run_030 and run_031 were read on, and the one the thresholds were
