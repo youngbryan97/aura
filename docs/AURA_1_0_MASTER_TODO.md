@@ -645,6 +645,36 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     callers of `_report_stall`; the lateness-streak reporter added the same
     day called the other. One classification now, read by both.
     tests/test_a_streak_of_small_lags_is_a_stall.py.
+  2026-09-21, later the same evening, on the runtime running this tree.
+  Three more, and the first two were caught BY the fix before them.
+  - A person asked and got nothing, three times, while the runtime reported
+    itself HEALTHY. The turn was receipted and the lane marked failed, but
+    `_mark_conversation_lane_state` builds the dict that goes back in the
+    response and touches nothing durable, so no subsystem counted these.
+    Both empty-reply refusals record a degradation now, carrying the
+    question. Live proof, minutes later: `FAULT RUNTIME-CHAT-CANONICAL_REPLY
+    [MARGINAL] in chat.canonical_reply: the canonical lane produced nothing
+    for 'What files are in the current working directory...'`
+    tests/test_a_refused_turn_is_recorded.py.
+  - And that same turn is why there was nothing. She answered "I don't have
+    access to the current working directory of the process I'm running in",
+    which is true, complete, and the only honest answer available. The
+    coverage gate read two parts, reported `1 of 2 part(s) unanswered —
+    missed ['Name three.']` six times, and the error boundary raised
+    `Foreground conversation lane produced only unsafe drafts`. You cannot
+    name three of a thing you have just said you cannot see: a reply that
+    declines the request AS A WHOLE has engaged every part of it. A decline
+    with content after it, or with a list in it, is still checked part by
+    part. tests/test_a_refusal_answers_every_part.py.
+  - `🚨 DEADLOCK ALERT: Lock 'AuraKernel.StateLock' held for 438.8s`,
+    twenty-nine times, each a CRITICAL line, a critical degraded event and a
+    StabilityGuardian DEGRADED card — for a kernel tick that was mid-
+    generation on the Brainstem and released the lock in its `finally` when
+    it finished. A lock held while real work is being done is not a
+    deadlock, and this watchdog had no way to tell the two apart, while
+    being the one component that can force-release a lock out from under
+    live work. `still_producing` is the same reading three other components
+    already use. tests/test_a_lock_held_while_working_is_not_a_deadlock.py.
   And one from the answers rather than the feed: asked to measure 4 litres
   with a 3-litre and a 5-litre jug she said the answer took too long to
   finish cleanly, and it had not. The answer clock priced the prompt at 11s

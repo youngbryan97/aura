@@ -1111,6 +1111,59 @@ def _a_clause_for_every_part(body: Any, parts: int) -> bool:
     return len(clauses) >= parts
 
 
+#: "I cannot" as the whole of a reply. The verbs are first-person and
+#: negated; the second pattern is what turns a decline into a partial answer,
+#: because "I can't open that, but here are three others" IS three things.
+_DECLINES_ENTIRELY_RE = re.compile(
+    # About ABILITY or ACCESS, not about anything she happens to negate.
+    # A bare "I don't" is not a decline: "I don't have anything to do" is
+    # content, and matching it skipped a coverage check that was right.
+    r"\bI\s+(?:can\s?not|can'?t|am\s+not\s+able\s+to)\b"
+    r"|\bI\s+(?:do\s+not|don'?t)\s+have\s+(?:access|a\s+way|any\s+way|"
+    r"the\s+ability)\b"
+    r"|\bI\s+have\s+no\s+(?:access|way|means)\b",
+    re.IGNORECASE,
+)
+_OFFERS_SOMETHING_INSTEAD_RE = re.compile(
+    r"\b(?:but|however|instead|although|though|here(?:'s| is| are))\b",
+    re.IGNORECASE,
+)
+
+
+def declines_the_whole_request(body: Any) -> bool:
+    """Whether the reply's substance is that she cannot do what was asked.
+
+    LIVE, 2026-09-21. Asked "What files are in the current working directory
+    of the process you are running in? Name three." she answered "I don't
+    have access to the current working directory of the process I'm running
+    in" — true, complete, and the only honest answer available. This gate
+    read the request as two parts, found "Name three." unengaged, and the
+    repair loop rejected the draft six times until the error boundary raised
+    ``Foreground conversation lane produced only unsafe drafts`` and the
+    person got nothing at all.
+
+    You cannot name three of a thing you have just said you cannot see. A
+    reply that declines the request AS A WHOLE has answered every part of
+    it, and the parts are not separately checkable.
+
+    Whole is the load-bearing word. A decline followed by content — "I can't
+    open that one, but here are three others" — is a partial answer, and so
+    is a decline with a list in it. Both keep the per-part check.
+    """
+
+    text = str(body or "").strip()
+    if not text or not _DECLINES_ENTIRELY_RE.search(text):
+        return False
+    if _OFFERS_SOMETHING_INSTEAD_RE.search(text):
+        return False
+    # The same marker this module already counts an enumerated answer by.
+    if len(re.findall(r"(?:^|\n|\s)\d+\s*[.)]", text)) >= 2:
+        return False
+    if len(re.findall(r"(?:^|\n)\s*[-*\u2022]\s+", text)) >= 2:
+        return False
+    return True
+
+
 def unanswered_question_parts(body: Any, contract: object | None) -> list[str]:
     """Return substantive asks a reply never engages with at all.
 
@@ -1133,6 +1186,10 @@ def unanswered_question_parts(body: Any, contract: object | None) -> list[str]:
     ):
         return []
     if len(segments) < 2 and not relational_segments:
+        return []
+
+    # A reply that declines the whole request has engaged every part of it.
+    if declines_the_whole_request(body):
         return []
 
     answered = coverage_tokens(body)

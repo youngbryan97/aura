@@ -23,6 +23,46 @@ class _TrackedLock:
     interventions: int = 0
     last_alert_at: float = 0.0
     last_intervention_at: float = 0.0
+    #: Whether this hold has ever been excused by observed progress. Counted
+    #: so the log can say how long a legitimate hold actually ran.
+    working_looks: int = 0
+
+
+def _the_holder_is_working() -> bool:
+    """Whether the turn this lock is part of is still producing tokens.
+
+    A lock held while real work is being done is not a deadlock, and this
+    watchdog had no way to tell the two apart. LIVE, 2026-09-21: twenty-nine
+    ``DEADLOCK ALERT: Lock 'AuraKernel.StateLock' held for 438.8s`` while the
+    kernel tick that held it was mid-generation on the Brainstem — each one
+    a CRITICAL log line, a degraded event at critical severity, and a
+    StabilityGuardian DEGRADED card, for a turn that was working.
+
+    The hold is real and it is long, which is worth knowing. What it is not
+    is a deadlock, and the difference decides whether a recovery callback
+    force-releases a lock out from under live work.
+
+    ``still_producing`` is the same reading the cognitive engine renews its
+    own cycle from, the mlx client tells a slow decode from a wedged one
+    with, and the stall watchdog's starvation carve-out uses. This is the
+    fourth caller and the first that could have force-released something.
+    """
+    try:
+        from core.brain.llm.thinking_reserve import seconds_to_decode
+        from core.runtime.turn_progress import normal_gap_between_tokens, still_producing
+
+        quiet_for = normal_gap_between_tokens(float(seconds_to_decode(64)))
+        return bool(still_producing(within_s=quiet_for))
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        # Unmeasurable is not working: an unreadable progress signal must not
+        # excuse a hold forever.
+        logger.debug(
+            "lock watchdog could not read turn progress (%s: %s); "
+            "judging the hold on its duration alone",
+            type(exc).__name__,
+            exc,
+        )
+        return False
 
 @singleton
 class LockWatchdog:
@@ -194,6 +234,21 @@ class LockWatchdog:
                     held_duration = now - tracked.start_time
                     threshold_s = tracked.threshold_s if tracked.threshold_s is not None else self._threshold
                     if held_duration > threshold_s:
+                        if _the_holder_is_working():
+                            with self._active_locks_guard:
+                                refreshed = self._active_locks.get(lock_id)
+                                if refreshed is not None:
+                                    refreshed.working_looks += 1
+                                    refreshed.last_alert_at = now
+                            if (now - tracked.last_alert_at) >= self._check_interval:
+                                logger.info(
+                                    "⏳ LockWatchdog: '%s' has been held %.1fs and the "
+                                    "turn is still producing; not a deadlock (%d look(s)).",
+                                    tracked.name,
+                                    held_duration,
+                                    tracked.working_looks + 1,
+                                )
+                            continue
                         if (now - tracked.last_alert_at) >= self._check_interval:
                             with self._active_locks_guard:
                                 refreshed = self._active_locks.get(lock_id)
