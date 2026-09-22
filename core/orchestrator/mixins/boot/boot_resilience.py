@@ -121,9 +121,6 @@ class BootResilienceMixin:
         from core.orchestrator.orchestrator_types import SystemStatus
         from core.utils.hook_manager import HookManager
 
-        def get_stealth_mode() -> bool:
-            return False  # privacy_stealth removed
-
         now = time.time()
         self.status = SystemStatus(
             start_time=now,
@@ -176,7 +173,9 @@ class BootResilienceMixin:
 
         # Internal State Variables
         self.start_time = time.time()
-        self.stealth_mode = get_stealth_mode()
+        # Network stealth was never implemented here; the attribute stays False
+        # for readers of the status surface.
+        self.stealth_mode = False
         self.conversation_history = []
         self._thread = None
         self._autonomous_task = None

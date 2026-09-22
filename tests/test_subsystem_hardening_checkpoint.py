@@ -1,62 +1,10 @@
 import json
-import sys
 
 from core.body.sensor_registry import BaseSensor
 from core.learning.eval_before_promotion import AdapterEvaluator
 from core.learning.trace_labeler import TraceLabeler
-from core.security.sandbox import LocalCommandSandbox
 from core.sleep.world_model_training import WorldModelTrainer
 from environments.social_world.social_simulator import VirtualSocialWorld
-
-
-def test_local_command_sandbox_actually_isolates(tmp_path):
-    """It used to pass `cwd` and call itself a sandbox.
-
-    The previous version of this test asserted exactly that: one subprocess
-    gateway call carrying `cwd=sandbox_dir`. Both the code and the test were
-    self-consistent, and neither was about isolation — the command could read
-    any file, write outside the directory with one absolute path, and open a
-    socket. What is asserted here instead is the property: the command runs
-    under the OS-enforced sandbox, and the receipt says which kind of
-    enforcement it got.
-    """
-    result = LocalCommandSandbox().execute_sandboxed_command(
-        [sys.executable, "-c", "print('ok')"], str(tmp_path)
-    )
-
-    assert result["exit_code"] == 0
-    assert "ok" in result["stdout"]
-    assert result["sandboxed"] is True
-    if sys.platform == "darwin":
-        # A seatbelt profile that denies network and confines writes.
-        assert result["kernel_enforced"] is True
-
-
-def test_local_command_sandbox_refuses_rather_than_running_unsandboxed(
-    monkeypatch, tmp_path
-):
-    """No silent degradation to a plain subprocess.
-
-    Falling back to an unsandboxed run would reinstate the original defect on
-    exactly the path where isolation had already failed once.
-    """
-    monkeypatch.setitem(sys.modules, "security.sandbox", None)
-
-    result = LocalCommandSandbox().execute_sandboxed_command(
-        [sys.executable, "-c", "print('should not run')"], str(tmp_path)
-    )
-
-    assert result["exit_code"] == -1
-    assert result["sandboxed"] is False
-    assert "refused" in result["error"]
-
-
-def test_local_command_sandbox_enforces_its_allowlist(tmp_path):
-    """RESTRICTED permits python; it does not permit an arbitrary binary."""
-    result = LocalCommandSandbox().execute_sandboxed_command("curl https://x", str(tmp_path))
-
-    assert result["exit_code"] != 0
-    assert result["security_violations"]
 
 
 def test_adapter_promotion_requires_real_evaluation_artifact(tmp_path):

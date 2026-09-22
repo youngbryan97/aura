@@ -1306,7 +1306,6 @@ core/security/permission_guard.py
 core/security/permission_setup.py
 core/security/permissions.py
 core/security/plugin_allowlist.py
-core/security/privacy_stealth.py
 core/security/prompt_fencing.py
 core/security/rekor_transparency.py
 core/security/screen_capture_policy.py

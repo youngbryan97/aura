@@ -44,6 +44,32 @@ SECURITY = ROOT / "core" / "security"
 #: that only imports itself is exactly the shape being ruled out.
 CONSUMERS = ("core", "interface", "skills", "executors", "tools", "tests")
 
+#: Where a PRODUCTION consumer could be: the same, without tests. A test that
+#: invokes a module directly and watches it refuse is how the deleted chain
+#: looked live, so a test is not a consumer.
+PRODUCTION = ("core", "interface", "skills", "executors", "tools", "security", "llm")
+
+#: Modules nothing in production imports, found 2026-09-22 when this guard
+#: stopped counting a mention as a use. It had matched the module's name as a
+#: word anywhere: `privacy_stealth` passed on two comments saying it had been
+#: removed. Each of these is either wired to a real caller or deleted; the set
+#: only shrinks, and an entry that has gained a caller or gone must leave it.
+KNOWN_ORPHANS = frozenset({
+    "audit_trail",
+    "credential_broker",
+    "macos_bundle_manifest",
+    "output_guardrails",
+    "permissions",
+    "workspace_jail",
+})
+
+#: Deleted 2026-09-22 rather than wired: each claimed something nothing used.
+#: `sandbox` delegated to the real sandbox in security/sandbox.py and said in
+#: its own docstring that nothing routed through it; `privacy_stealth` was an
+#: inert compatibility surface nothing imported; `secrets` re-exported three
+#: names from zenith_secrets, already marked RETIRE in orphan_dispositions.
+DELETED_SCENERY = ("sandbox", "privacy_stealth", "secrets")
+
 DELETED_CHAIN = (
     "consent_kernel",
     "secret_guard",
@@ -69,20 +95,99 @@ def _sources() -> dict[pathlib.Path, str]:
     return found
 
 
+def _imported_by_production() -> set[str]:
+    """Stems of core/security modules some production module actually imports.
+
+    Read from the import statements, plus a dotted path written as a string
+    for the importlib callers. A name in a comment or a docstring is not a use.
+    """
+    import ast
+
+    found: set[str] = set()
+    for top in PRODUCTION:
+        for path in (ROOT / top).rglob("*.py"):
+            if "__pycache__" in str(path) or SECURITY in path.parents:
+                continue
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8"))
+            except (OSError, SyntaxError, UnicodeDecodeError):
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module:
+                    if node.module.startswith("core.security."):
+                        found.add(node.module.split(".")[2])
+                    elif node.module == "core.security":
+                        found.update(alias.name for alias in node.names)
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if alias.name.startswith("core.security."):
+                            found.add(alias.name.split(".")[2])
+                elif (
+                    isinstance(node, ast.Constant)
+                    and isinstance(node.value, str)
+                    and node.value.startswith("core.security.")
+                ):
+                    found.add(node.value.split(".")[2])
+    # And whatever a live security module imports is live through it: the
+    # rule excludes a cluster that only imports itself, not a live module's
+    # own helpers.
+    def _security_imports(stem: str) -> set[str]:
+        path = SECURITY / f"{stem}.py"
+        if not path.is_file():
+            return set()
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, UnicodeDecodeError):
+            return set()
+        out: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                if node.module.startswith("core.security."):
+                    out.add(node.module.split(".")[2])
+                elif node.module == "core.security":
+                    out.update(alias.name for alias in node.names)
+                elif node.level == 1 and node.module:
+                    out.add(node.module.split(".")[0])
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.startswith("core.security."):
+                        out.add(alias.name.split(".")[2])
+        return out
+
+    frontier = set(found)
+    while frontier:
+        reached = set().union(*(_security_imports(stem) for stem in frontier)) - found
+        found |= reached
+        frontier = reached
+    return found
+
+
 def test_every_security_module_has_a_consumer_outside_the_package():
-    sources = _sources()
-    orphans = []
-    for module in sorted(SECURITY.glob("*.py")):
-        if module.name == "__init__.py":
-            continue
-        pattern = re.compile(rf"\b{re.escape(module.stem)}\b")
-        if not any(pattern.search(text) for text in sources.values()):
-            orphans.append(module.stem)
+    imported = _imported_by_production()
+    stems = {m.stem for m in SECURITY.glob("*.py") if m.name != "__init__.py"}
+    orphans = sorted(stems - imported - KNOWN_ORPHANS)
     assert not orphans, (
-        "security modules nothing outside core/security reaches for: "
+        "security modules no production code imports: "
         f"{orphans}. A safety control with no caller is scenery, and it reads "
         "as protection to anyone auditing this tree."
     )
+
+
+def test_the_known_orphans_only_shrink():
+    imported = _imported_by_production()
+    stems = {m.stem for m in SECURITY.glob("*.py") if m.name != "__init__.py"}
+    stale = sorted(stem for stem in KNOWN_ORPHANS if stem in imported or stem not in stems)
+    assert not stale, (
+        f"{stale} gained a production caller or no longer exists; take it out "
+        "of KNOWN_ORPHANS so the set says what is still owed."
+    )
+
+
+def test_the_deleted_scenery_stays_deleted():
+    """privacy_stealth passed the old guard on two comments saying it was gone."""
+    for stem in DELETED_SCENERY:
+        assert not (SECURITY / f"{stem}.py").exists(), f"core/security/{stem}.py is back"
+    assert not set(DELETED_SCENERY) & _imported_by_production()
 
 
 def test_the_chain_that_advertised_itself_is_gone():
@@ -112,8 +217,8 @@ def test_the_live_owners_are_still_wired():
     this fails if the replacement stops being reachable.
     """
 
-    from core.runtime.network_gateway import _filter_outbound_body  # noqa: F401
     from core.runtime.authorization_receipt import read_verdict  # noqa: F401
+    from core.runtime.network_gateway import _filter_outbound_body  # noqa: F401
     from core.security.egress_privacy import (  # noqa: F401
         egress_privacy_counters,
         filter_outbound_body,

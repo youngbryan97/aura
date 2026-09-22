@@ -409,12 +409,6 @@
       "lines": 76,
       "reason": "exposes ['get_permission_manager']"
     },
-    "core.security.secrets": {
-      "classified": "SCAFFOLDING",
-      "disposition": "RETIRE",
-      "lines": 3,
-      "reason": "a re-export shim over core.security.zenith_secrets, left behind by bf82d4432 when the cloud configuration surface was removed"
-    },
     "core.self_modification.meta_optimization": {
       "classified": "SERVICE",
       "disposition": "WIRE_PENDING",

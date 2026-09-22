@@ -11,7 +11,6 @@ from core.config import SecurityConfig
 from core.container import ServiceContainer
 from core.executive.authority_gateway import AuthorityGateway
 from core.runtime.version import VERSION
-from core.security.privacy_stealth import StealthMode, get_stealth_mode
 from core.skills.malware_analysis import MalwareAnalysisSkill
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -175,18 +174,6 @@ def test_tracked_avatar_asset_is_self_contained():
     assert "aura_avatar.svg" in shell_css
     assert "/static/aura_avatar.png" not in aura_css
     assert "/static/aura_avatar.png" not in shell_css
-
-
-@pytest.mark.asyncio
-async def test_privacy_stealth_compatibility_layer_is_inert_and_scrubs_metadata():
-    stealth = StealthMode()
-
-    assert await stealth.enable_stealth() is False
-    status = await stealth.get_stealth_status()
-    assert status["vpn_active"] is False
-    assert status["proxy_active"] is False
-    assert "not_available" in status["active_network_stealth"]
-    assert "[SECRET_REDACTED]" in get_stealth_mode().process_output("token=abcdef123456")
 
 
 @pytest.mark.asyncio

@@ -16,8 +16,6 @@ from core.orchestrator.types import SystemStatus
 from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 
-# privacy_stealth module removed from public repo
-
 logger = logging.getLogger("Aura.BootManager")
 
 

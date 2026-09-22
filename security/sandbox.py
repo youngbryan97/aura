@@ -16,7 +16,7 @@ What it does not do: process, mount or PID namespace separation, which macOS
 does not offer outside a VM or container runtime; and off macOS the seatbelt
 step is absent, leaving the allowlist and the rlimits. ``ExecutionResult``
 does not hide that difference —
-:func:`core.security.sandbox._kernel_enforced` reports which boundary the
+:meth:`SecureSandbox.kernel_enforced` reports which boundary the
 caller actually got, because ``exit_code: 0`` from a degraded sandbox reads
 identically to one from an enforced one.
 
