@@ -26,6 +26,7 @@ from core.subject.bridge_theorems import (
     partitions,
     refines,
     relational_likelihood,
+    same_orbit,
 )
 from core.subject.v25_exclusion import Candidate, dominates, pareto_frontier
 
@@ -190,6 +191,42 @@ def test_every_symmetry_maps_each_refined_class_onto_itself(seed: int) -> None:
             assert {sigma[name] for name in cell} == set(cell)
             if len(cell) == 1:
                 assert sigma[cell[0]] == cell[0]
+
+
+@pytest.mark.parametrize("seed", range(25))
+def test_the_classes_returned_together_are_exactly_the_orbits(seed: int) -> None:
+    """Not only closed under every symmetry: each cell is one orbit, no coarser."""
+    rng = random.Random(1000 + seed)
+    size = rng.randint(3, 7)
+    names = [f"q{i}" for i in range(size)]
+    matrix = np.zeros((size, size))
+    for i, j in itertools.combinations(range(size), 2):
+        matrix[i, j] = matrix[j, i] = rng.choice((1.0, 2.0))
+    weights = {(names[i], names[j]): matrix[i, j] for i in range(size) for j in range(size) if i != j}
+    group = automorphisms(weights)
+    true_orbits = {tuple(sorted({sigma[name] for sigma in group})) for name in names}
+    assert orbits(names, matrix) == tuple(sorted(true_orbits))
+
+
+def test_classes_colour_refinement_cannot_tell_apart_are_split_by_the_exact_search() -> None:
+    """A six-cycle beside two triangles: every class has two near and nine far.
+
+    Refinement sees one cell, twelve alike. No symmetry maps a class on the
+    cycle to one on a triangle, so the exact orbits are two cells of six.
+    """
+    names = [f"c{i}" for i in range(6)] + [f"t{i}" for i in range(6)]
+    near = {(i, (i + 1) % 6) for i in range(6)}
+    near |= {(6 + a, 6 + b) for a, b in ((0, 1), (1, 2), (2, 0), (3, 4), (4, 5), (5, 3))}
+    matrix = np.full((12, 12), 2.0)
+    np.fill_diagonal(matrix, 0.0)
+    for i, j in near:
+        matrix[i, j] = matrix[j, i] = 1.0
+    cycle = tuple(sorted(names[:6]))
+    triangles = tuple(sorted(names[6:]))
+    assert orbits(names, matrix) == (cycle, triangles)
+    weights = {(i, j): int(matrix[i, j]) for i in range(12) for j in range(12) if i != j}
+    assert same_orbit(weights, 0, 3) and same_orbit(weights, 6, 9)
+    assert not same_orbit(weights, 0, 6)
 
 
 # ── Theorem 6: gauge — a relation-preserving relabelling changes no likelihood ──

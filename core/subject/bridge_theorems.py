@@ -159,6 +159,33 @@ def automorphisms(weights: Mapping[tuple[Hashable, Hashable], Any]) -> list[dict
     return [dict(mapping) for mapping in matcher.isomorphisms_iter()]
 
 
+def same_orbit(weights: Mapping[tuple[Hashable, Hashable], Any], first: Hashable, second: Hashable) -> bool:
+    """Whether some permutation preserving every weighted edge maps `first` to `second`.
+
+    One search, pinned at the pair, rather than the whole group: a structure
+    with many symmetries has too many automorphisms to list, and the orbit
+    question only needs one that moves this class onto that one.
+    """
+    if first == second:
+        return True
+    graph = nx.DiGraph()
+    graph.add_nodes_from({node for edge in weights for node in edge} | {first, second})
+    for (source, target), weight in weights.items():
+        graph.add_edge(source, target, weight=weight)
+    pinned_left = {node: node == first for node in graph.nodes}
+    pinned_right = {node: node == second for node in graph.nodes}
+    nx.set_node_attributes(graph, pinned_left, "pinned")
+    mirror = graph.copy()
+    nx.set_node_attributes(mirror, pinned_right, "pinned")
+    matcher = nx.algorithms.isomorphism.DiGraphMatcher(
+        graph,
+        mirror,
+        node_match=lambda left, right: left["pinned"] == right["pinned"],
+        edge_match=lambda left, right: left["weight"] == right["weight"],
+    )
+    return bool(matcher.is_isomorphic())
+
+
 def relational_likelihood(
     distances: Mapping[tuple[Hashable, Hashable], Any],
     labels: Sequence[Hashable],

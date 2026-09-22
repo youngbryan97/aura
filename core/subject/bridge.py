@@ -180,7 +180,11 @@ def _levels(distances: np.ndarray, tolerance: float) -> np.ndarray:
 def orbits(
     names: Sequence[str], distances: np.ndarray, tolerance: float = 0.0
 ) -> tuple[tuple[str, ...], ...]:
-    """The classes no relation in the structure separates, by colour refinement."""
+    """The classes no relation in the structure separates: its exact orbits.
+
+    Colour refinement proposes the cells and an exact automorphism search
+    splits any cell whose members no symmetry exchanges.
+    """
     size = len(names)
     if size == 0:
         return ()
@@ -196,10 +200,26 @@ def orbits(
         if len(set(refined)) == len(set(colour)):
             break
         colour = refined
-    cells: dict[int, list[str]] = {}
-    for index, name in enumerate(names):
-        cells.setdefault(colour[index], []).append(str(name))
-    return tuple(sorted(tuple(sorted(cell)) for cell in cells.values()))
+    cells: dict[int, list[int]] = {}
+    for index in range(size):
+        cells.setdefault(colour[index], []).append(index)
+    # Colour refinement never splits a true orbit, and it can leave two classes
+    # in one cell that no symmetry of the structure exchanges. So each cell of
+    # more than one class is split into its exact orbits: two classes share one
+    # only if some permutation keeping every level maps one onto the other
+    # (core/subject/bridge_theorems.py). A cell of one was already exact.
+    from core.subject.bridge_theorems import same_orbit
+
+    weights = {(i, j): int(levels[i, j]) for i in range(size) for j in range(size) if i != j}
+    exact: list[tuple[str, ...]] = []
+    for members in cells.values():
+        remaining = list(members)
+        while remaining:
+            head = remaining.pop(0)
+            orbit = [head] + [other for other in remaining if same_orbit(weights, head, other)]
+            remaining = [other for other in remaining if other not in orbit]
+            exact.append(tuple(sorted(str(names[index]) for index in orbit)))
+    return tuple(sorted(exact))
 
 
 def invariant(distances: np.ndarray) -> dict[str, list[float]]:
