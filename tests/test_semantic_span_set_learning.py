@@ -61,6 +61,16 @@ def test_background_has_one_path_and_empty_set_is_not_duplicated():
     assert learning.span_set_partition(scores, 3)[0] == pytest.approx(np.log(8))
 
 
+@pytest.mark.parametrize("seed", range(12))
+def test_batched_counts_match_exhaustive_sets_with_missing_intervals(seed):
+    scores = _scores(6, 3, seed)
+    scores[np.random.default_rng(seed + 50).random(scores.shape) < .4] = -np.inf
+    actual = learning.span_set_partition(scores, 4)
+    expected = _enumerate(scores, 4)
+    assert actual[0] == pytest.approx(expected[0], abs=1e-12)
+    np.testing.assert_allclose(actual[1], expected[1], atol=1e-12)
+
+
 def test_partition_gradient_matches_finite_differences_at_extreme_scores():
     scores = _scores(5, 3) * 500
     partition, marginal = learning.span_set_partition(scores, 3)

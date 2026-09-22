@@ -1107,6 +1107,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Completed cohort and paired-boundary result](evidence/G03_COMPLETE_LITERAL_AND_PAIRED_BOUNDARY_RESULT_2026-09-21.md):
+  literal identity reaches 477/500 validation with one gain and no losses,
+  retaining 764/764 training cases. The converged paired-boundary candidate
+  regresses 39/54 to 37/54 and is rejected. These supersede the pending-run
+  notes below; G03 remains open.
+  [Fit recovery](evidence/G03_SPAN_FIT_RECOVERY_2026-09-21.md) preserves
+  accepted numerical iterates under the original evidence-bound objective.
   [Literal grammar identity](evidence/G03_LITERAL_GRAMMAR_IDENTITY_2026-09-21.md):
   the division reversal used a whitespace-wrapped literal to bypass input
   ownership. Grammar-equivalent forms now share occurrence identity, opt-in,

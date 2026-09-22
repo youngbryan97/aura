@@ -33,9 +33,9 @@ def span_set_partition(scores: np.ndarray, max_spans: int) -> tuple[float, np.nd
     for end in range(1, n + 1):
         lengths = np.arange(1, min(width, end) + 1)
         starts = end - lengths
-        for k in range(1, min(count, end) + 1):
-            alternatives = forward[starts, k - 1] + scores[starts, lengths - 1]
-            forward[end, k] = np.logaddexp(forward[end - 1, k], np.logaddexp.reduce(alternatives))
+        ks = np.arange(1, min(count, end) + 1)
+        alternatives = forward[starts[:, None], ks - 1] + scores[starts, lengths - 1, None]
+        forward[end, ks] = np.logaddexp(forward[end - 1, ks], np.logaddexp.reduce(alternatives, axis=0))
     partition = float(np.logaddexp.reduce(forward[n]))
     adjoint = np.zeros_like(forward)
     adjoint[n] = np.exp(forward[n] - partition)
@@ -44,15 +44,16 @@ def span_set_partition(scores: np.ndarray, max_spans: int) -> tuple[float, np.nd
     for end in range(n, 0, -1):
         lengths = np.arange(1, min(width, end) + 1)
         starts = end - lengths
-        for k in range(1, min(count, end) + 1):
-            scale = adjoint[end, k]
-            normalizer = forward[end, k]
-            if scale == 0 or not np.isfinite(normalizer):
-                continue
-            adjoint[end - 1, k] += scale * np.exp(forward[end - 1, k] - normalizer)
-            mass = scale * np.exp(forward[starts, k - 1] + scores[starts, lengths - 1] - normalizer)
-            adjoint[starts, k - 1] += mass
-            marginals[starts, lengths - 1] += mass
+        ks = np.arange(1, min(count, end) + 1)
+        ks = ks[(adjoint[end, ks] != 0) & np.isfinite(forward[end, ks])]
+        if not len(ks):
+            continue
+        scale, normalizer = adjoint[end, ks], forward[end, ks]
+        adjoint[end - 1, ks] += scale * np.exp(forward[end - 1, ks] - normalizer)
+        mass = scale * np.exp(forward[starts[:, None], ks - 1]
+                              + scores[starts, lengths - 1, None] - normalizer)
+        adjoint[starts[:, None], ks - 1] += mass
+        marginals[starts, lengths - 1] += mass.sum(axis=1)
     return partition, marginals
 
 
