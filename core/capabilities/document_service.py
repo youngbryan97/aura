@@ -312,6 +312,8 @@ class DocumentService:
             )
             await asyncio.wait_for(proc.wait(), timeout=5.0)
             return proc.returncode == 0
+        # not a failure: an open that will not run, or will not finish inside five
+        # seconds, did not open the preview.
         except (OSError, asyncio.TimeoutError):
             return False
 

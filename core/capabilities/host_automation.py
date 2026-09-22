@@ -68,6 +68,8 @@ def _resolve_screenshot_path_policy(save_path: str) -> tuple[Path | None, tuple[
     """Resolve a requested capture path and its allowed roots off the event loop."""
     try:
         resolved = Path(save_path).expanduser().resolve()
+    # not a failure: a path that will not resolve cannot be authorized, and None
+    # refuses rather than acting on an unresolved one.
     except (OSError, RuntimeError, ValueError):
         resolved = None
     roots = (
@@ -1411,6 +1413,7 @@ class HostAutomationProvider(_ReadsTheScreen):  # type: ignore[misc]
                 from core.perception.frontmost_app import frontmost_app_name_fast
 
                 target_app = str(frontmost_app_name_fast() or "").strip()
+            # not a failure: no frontmost app reader, so the target is chosen below instead.
             except (ImportError, OSError, RuntimeError, TypeError, ValueError):
                 target_app = ""
         if not target_app:

@@ -510,7 +510,13 @@ async def _answer_from_fallback_ladder(
                 f" last_error={getattr(router, 'last_background_error', '')!r}"
                 f" chain={skips}"
             )[:300]
-        except (AttributeError, TypeError, ValueError):
+        except (AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the router's background detail is missing from the degradation below",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
             detail = ""
         record_degradation(
             "chat.fallback_ladder",

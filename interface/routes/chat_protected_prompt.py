@@ -49,6 +49,7 @@ def _collect_voice_perception_snapshot(*, max_age_s: float = 180.0) -> dict[str,
                 from core.world_state import get_world_state
 
                 world_state = get_world_state()
+            # not a failure: no world state here, and the caller checks for None below.
             except _CHAT_RECOVERABLE_ERRORS:
                 world_state = None
         if world_state is None:

@@ -760,6 +760,7 @@ def _ground_runtime_fact_status_reply(
         )
 
         sentence_count = requested_sentence_count(user_message)
+    # not a failure: the reader could not be asked, so nothing here claims it holds.
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         repair_instruction_shape = None
         sentence_count = None
@@ -1454,6 +1455,8 @@ async def _grounded_competent_recovery(
         snapshot = get_memory_pressure_snapshot()
         if bool(getattr(snapshot, "refuse_heavy_local_generation", False)):
             return None
+    # not a failure: memory pressure is unknown, so heavy local generation is not
+    # refused on that ground.
     except _CHAT_RECOVERABLE_ERRORS:
         pass
 
@@ -1523,6 +1526,8 @@ async def _grounded_competent_recovery(
         }
         if set(getattr(assessment, "reasons", ()) or ()) & hard:
             return None
+    # not a failure: the assessment could not be read, so no hard reason blocks this
+    # reply.
     except _CHAT_RECOVERABLE_ERRORS:
         pass
     return reply

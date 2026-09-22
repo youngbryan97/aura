@@ -478,6 +478,8 @@ class CapabilityDiscovery:
             for pkg in packages:
                 try:
                     status[pkg] = importlib.util.find_spec(pkg) is not None
+                # not a failure: a package whose spec cannot be found is not installed, which is
+                # what this status reports.
                 except (ImportError, ValueError, AttributeError):
                     status[pkg] = False
             return status

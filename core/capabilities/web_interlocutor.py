@@ -485,6 +485,8 @@ async def _discard_capture_screenshot(snap: Any) -> None:
     else:
         try:
             snap.screenshot_path = ""
+        # not a failure: a snapshot that will not take the cleared path keeps the one it
+        # had, and the branch above is the one that records a leftover.
         except (AttributeError, TypeError):
             pass
 
@@ -553,6 +555,8 @@ class ChromeCDPDialogueBrowser:
             import ipaddress
 
             return ipaddress.ip_address(host.strip("[]")).is_loopback
+        # not a failure: a host that is not an IP address is not loopback, which is the
+        # refusing direction.
         except (ImportError, ValueError):
             return False
 
@@ -580,6 +584,8 @@ class ChromeCDPDialogueBrowser:
         """Reject a webSocketDebuggerUrl that points off loopback."""
         try:
             parts = urllib.parse.urlparse(str(ws_url or ""))
+        # not a failure: a URL that will not parse is not one this can compare or trust,
+        # and False is the refusing direction.
         except (TypeError, ValueError):
             parts = None
         if parts is None or parts.scheme not in {"ws", "wss"} or not self._is_loopback_host(
@@ -4431,6 +4437,8 @@ def _same_origin_or_exact_url(current_url: str, desired_url: str) -> bool:
     try:
         current_parts = urllib.parse.urlparse(current)
         desired_parts = urllib.parse.urlparse(desired)
+    # not a failure: a URL that will not parse is not one this can compare or trust,
+    # and False is the refusing direction.
     except (TypeError, ValueError):
         return False
     if not current_parts.scheme or not desired_parts.scheme:

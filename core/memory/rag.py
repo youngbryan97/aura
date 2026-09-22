@@ -62,6 +62,7 @@ def _on_event_loop() -> bool:
 
         asyncio.get_running_loop()
         return True
+    # not a failure: off a loop there is no running loop to report.
     except (RuntimeError, ImportError):
         return False
 

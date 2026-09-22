@@ -1173,7 +1173,13 @@ def _build_grounded_introspection_reply(
                     getattr(getattr(live_state, "cognition", None), "current_mode", "") or ""
                 )
                 mode_label = mode_label.rsplit(".", 1)[-1].lower()
-            except (AttributeError, RuntimeError, TypeError, ValueError):
+            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); the live mode label is missing from this repair",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
                 mode_label = ""
             if mode_label:
                 response_parts.append(

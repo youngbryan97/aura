@@ -489,6 +489,7 @@ def _sanitize_attention_focus(raw: str, user_message: str = "") -> str:
 
         if is_evaluation_contamination(raw):
             return ""
+    # not a failure: the reader could not be asked, so nothing here claims it holds.
     except (ImportError, AttributeError, RuntimeError):
         pass
     if _INTERNAL_STATE_PATTERNS.search(raw) or _looks_symbolic_scene_leak(raw):
@@ -813,6 +814,7 @@ def _is_identity_request(user_message: str) -> bool:
 
         if looks_like_desktop_objective(user_message):
             return False
+    # not a failure: the reader could not be asked, so nothing here claims it holds.
     except (ImportError, AttributeError, TypeError, ValueError):
         pass
     return False
@@ -1791,6 +1793,7 @@ def _build_bounded_cognitive_process_reply(
             is_self_process_question(user_message) or is_live_self_reflection_turn(user_message)
         ):
             return ""
+    # not a failure: the reader could not be asked, so nothing here claims it holds.
     except _CHAT_RECOVERABLE_ERRORS:
         pass
     requested: list[str] = []

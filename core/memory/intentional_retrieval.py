@@ -415,6 +415,8 @@ class IntentionalRetriever:
             if widest <= 0.0:
                 return 0.0
             return -widest * max(0.0, min(1.0, 1.0 - float(reading.unique)))
+        # not a failure: no breadth reading means no widening to apply, which is what
+        # 0.0 says.
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
             return 0.0
 

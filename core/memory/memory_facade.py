@@ -267,6 +267,8 @@ class MemoryFacade(_NormalisesWhatItReturns):
                 try:
                     if not bool(probe()):
                         return False
+                # not a failure: a backend whose own probe refuses is not proven healthy, and
+                # False is the refusing direction.
                 except (RuntimeError, AttributeError, TypeError, ValueError):
                     return False
                 break
@@ -609,6 +611,7 @@ class MemoryFacade(_NormalisesWhatItReturns):
                                 encoding="utf-8",
                                 errors="ignore",
                             )
+                        # not a failure: a file that will not read contributes no live content.
                         except (RuntimeError, AttributeError, TypeError, ValueError):
                             live_content = ""
 

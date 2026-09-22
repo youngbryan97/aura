@@ -144,6 +144,8 @@ def _collect_expected_turn_organs() -> dict[str, bool]:
     for name, _why in _EXPECTED_TURN_ORGANS:
         try:
             engaged[name] = ServiceContainer.peek(name, default=None) is not None
+        # not a failure: a container that will not answer shows the organ as not engaged,
+        # which is what this turn record is for.
         except _CHAT_RECOVERABLE_ERRORS:
             engaged[name] = False
     return engaged

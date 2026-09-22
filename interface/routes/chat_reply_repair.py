@@ -754,6 +754,8 @@ async def _stabilize_user_facing_reply(
                     cleaned,
                     recent_user_messages=recent_user_messages,
                 )
+            # not a failure: a reply this assessor refuses has no assessment, and the caller
+            # below treats None as no verdict.
             except _CHAT_RECOVERABLE_ERRORS:
                 cleaned_assessment = None
             if (
@@ -905,6 +907,7 @@ async def _stabilize_user_facing_reply(
                             corrected_text,
                             recent_user_messages=recent_user_messages,
                         )
+                    # not a failure: the same, on the corrected text.
                     except _CHAT_RECOVERABLE_ERRORS:
                         corrected_assessment = None
                     try:

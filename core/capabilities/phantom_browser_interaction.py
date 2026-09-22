@@ -231,6 +231,7 @@ class _ActsOnThePage:
         """What the field holds now, or None when it cannot be read."""
         try:
             return str(await self.page.locator(selector).first.input_value(timeout=2000))
+        # not a failure: the docstring above says it: None when the field cannot be read.
         except (RuntimeError, AttributeError, TypeError, ValueError, PlaywrightError):
             return None
 

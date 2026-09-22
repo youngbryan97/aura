@@ -544,8 +544,13 @@ def _register_belief_revision(
                 resolution="affirmed",
                 evidence=f"adopted behavioral test {rev.revised_test} (record {record_id})",
             )
-        except (AttributeError, TypeError, ValueError):
-            pass
+        except (AttributeError, TypeError, ValueError) as exc:
+            logger.warning(
+                "%s unavailable (%s: %s); the belief was not reconciled against the behavioural test that adopted it",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
         return str(getattr(record, "key", "") and belief_id or belief_id)
     except (AttributeError, TypeError, ValueError, RuntimeError) as exc:
         record_degradation(

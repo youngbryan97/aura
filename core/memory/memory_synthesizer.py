@@ -952,6 +952,7 @@ class MemorySynthesizer:
         for attr in ("description", "content", "text", "value"):
             try:
                 val = getattr(item, attr, None)
+            # not a failure: an attribute that raises on read holds nothing this can use.
             except (RuntimeError, AttributeError, TypeError, ValueError):
                 val = None
             if val:

@@ -714,6 +714,8 @@ def _reset_health_probe_state_for_test(*, drain_s: float = 1.0) -> None:
             # cancelled. Both mean the same thing here: it is no longer about
             # to write, or it will not settle and is abandoned.
             future.exception(timeout=drain_s)
+        # not a failure: the comment above says it: both mean the probe is no longer
+        # about to write, or will not settle and is abandoned.
         except (concurrent.futures.TimeoutError, concurrent.futures.CancelledError):
             pass
     with _HEALTH_PROBE_STATE_LOCK:
@@ -1274,6 +1276,8 @@ def _invalidate_launch_provenance_source_observation_cache() -> None:
         cache = launch_provenance._SOURCE_CACHE
         with lock:
             cache.clear()
+    # not a failure: the comment below says it: older launch-provenance builds do not
+    # expose this cache, and the shell digest still protects the bytes.
     except (AttributeError, ImportError, RuntimeError, TypeError):
         # Older launch-provenance implementations may not expose this cache.
         # The independent shell digest still protects the executable UI bytes.
@@ -3416,6 +3420,7 @@ async def _collect_desktop_access_summary(*, allow_probe: bool = True) -> dict[s
                 return
             try:
                 completed.exception()
+            # not a failure: a cancelled or unfinished probe has no exception to read.
             except (asyncio.CancelledError, asyncio.InvalidStateError):
                 return
 

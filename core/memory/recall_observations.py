@@ -199,6 +199,7 @@ class RecallObservationRing:
                 from core.runtime.task_ownership import runtime_shutdown_requested
 
                 shutting_down = runtime_shutdown_requested()
+            # not a failure: no shutdown coordinator means no shutdown in progress.
             except (ImportError, AttributeError, RuntimeError):
                 shutting_down = False
             if pending and not cancelled and not shutting_down:

@@ -105,6 +105,8 @@ class SandboxedFileBroker:
         """
         try:
             resolved = path.resolve()
+        # not a failure: a path that will not resolve cannot be authorized, and None
+        # refuses rather than acting on an unresolved one.
         except (OSError, RuntimeError, ValueError):
             return None
         roots = self._expanded_roots or [Path(os.path.expanduser(r)) for r in self.ALLOWED_ROOTS]
@@ -378,12 +380,15 @@ class SandboxedFileBroker:
             )
             await asyncio.wait_for(proc.wait(), timeout=5.0)
             return proc.returncode == 0
+        # not a failure: the reveal did not run, or did not finish; the child is reaped
+        # below and False says it did not happen.
         except (OSError, asyncio.TimeoutError):
             # Terminate + reap the child on timeout so it is not orphaned.
             if proc is not None and proc.returncode is None:
                 try:
                     proc.kill()
                     await asyncio.wait_for(proc.wait(), timeout=2.0)
+                # not a failure: a process already gone is the state this is reaching.
                 except (OSError, asyncio.TimeoutError, ProcessLookupError):
                     pass
             return False
@@ -428,6 +433,8 @@ class SandboxedFileBroker:
                 try:
                     Path(op.source).rmdir()  # only removes if empty
                     return {"success": True, "rolled_back": f"removed folder {op.source}"}
+                # not a failure: a folder that will not rmdir is not empty, which is what this
+                # reports to the caller.
                 except OSError:
                     return {"success": False, "error": "Folder not empty"}
             return {"success": False, "error": "folder missing"}

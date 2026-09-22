@@ -156,6 +156,7 @@ class OutcomeLedger:
             if category is not None:
                 try:
                     stats.category = MemoryCategory(category)
+                # not a failure: a value outside the enumeration is not one of its members.
                 except ValueError:
                     pass
             self._evict_locked()
@@ -172,6 +173,7 @@ class OutcomeLedger:
             return None
         try:
             call = RetrievalVerdict(verdict)
+        # not a failure: a value outside the enumeration is not one of its members.
         except ValueError:
             return None
         with self._lock:

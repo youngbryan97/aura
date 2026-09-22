@@ -129,6 +129,8 @@ def _is_own_capture_artifact(target: str) -> bool:
 
         candidate = Path(match.group(1)).expanduser().resolve()
         root = Path(state_root()).expanduser().resolve()
+    # not a failure: the comment below says it: it cannot be proved hers, so it is
+    # not treated as hers.
     except (OSError, RuntimeError, ValueError, ImportError):
         # Cannot prove it is hers, so it is not treated as hers.
         return False
@@ -458,6 +460,8 @@ class PermissionRiskModel:
                 context.get("origin"),
                 stated=context.get("a_person_is_waiting"),
             )
+        # not a failure: the reader could not be asked, so nobody is assumed to be
+        # waiting — which is the cautious direction for a risk class.
         except (ImportError, AttributeError, TypeError, ValueError):
             asked_for = False
         risk_level, reason = self.classify_risk(

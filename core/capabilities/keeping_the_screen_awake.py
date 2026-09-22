@@ -86,6 +86,7 @@ def _let_go(holder: Any) -> None:
     except (OSError, ValueError, subprocess.TimeoutExpired):
         try:
             holder.kill()
+        # not a failure: a process already gone is the state this is reaching.
         except OSError:
             pass
 

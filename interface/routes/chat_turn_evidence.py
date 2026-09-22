@@ -598,6 +598,7 @@ async def _collect_named_url_evidence(user_message: str) -> dict[str, Any] | Non
         from core.intent.opaque_spans import first_named_url
 
         url = first_named_url(user_message)
+    # not a failure: no URL reader, so this message names none.
     except _CHAT_RECOVERABLE_ERRORS:
         url = ""
     if not url:

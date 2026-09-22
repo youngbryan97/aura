@@ -1398,8 +1398,13 @@ class EpisodicMemory(_RecallsEpisodes, _RanksWhatToRecall):
         engram_stats = {}
         try:
             engram_stats = self._hippocampus.stats()
-        except (sqlite3.Error, AttributeError):
-            pass
+        except (sqlite3.Error, AttributeError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); engram statistics are missing from this memory report",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
         return {
             "total_episodes": total,
             "stored_episode_rows": stored_rows,

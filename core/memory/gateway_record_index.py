@@ -105,6 +105,8 @@ class GatewayRecordIndex:
     def _stat_mtime(self, path: Path) -> float:
         try:
             return float(path.stat().st_mtime)
+        # not a failure: a path with no readable mtime has none, and 0.0 forces the
+        # refresh below rather than trusting a cache.
         except OSError:
             return 0.0
 

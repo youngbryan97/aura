@@ -268,6 +268,8 @@ def _register_fragment() -> None:
         from core.runtime.health_fragments import register_health_fragment
 
         register_health_fragment("external_reach", external_reach_report)
+    # not a failure: the comment beside it says it: the register is optional and its
+    # absence is reported by the surface.
     except (ImportError, AttributeError):
         pass  # the register is optional; its absence is reported by the surface
 

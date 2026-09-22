@@ -156,6 +156,7 @@ def _count_items(store: Any) -> tuple[int | None, bool, str]:
 
     try:
         asyncio.get_running_loop()
+    # not a failure: off a loop there is no running loop to report.
     except RuntimeError:
         pass
     else:

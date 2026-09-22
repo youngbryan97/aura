@@ -264,6 +264,8 @@ async def _apply_regenerated_reply(
     if not record.task.cancelled():
         try:
             terminal_error = record.task.exception()
+        # not a failure: a task still running, or cancelled, has no terminal exception to
+        # read, and the error above already says what happened.
         except (asyncio.InvalidStateError, asyncio.CancelledError):
             terminal_error = None
     conflict = isinstance(terminal_error, ConversationRevisionConflictError)
