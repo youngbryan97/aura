@@ -51,15 +51,25 @@ _ENOUGH = 3
 
 
 def pressure_of(*collections: Any) -> float:
-    """How hard the most pressing open thing is asking, over goals and
-    intentions together.
+    """How much is open and how hard, over goals and intentions together.
+
+    This was the maximum, and a maximum cannot say that she is carrying five
+    urgent things rather than one. Worse, it cannot move: one standing
+    intention near the top pins it, and a probe that adds a sixth open thing
+    at half urgency changes nothing at all. Displacing deliberation then read
+    0.0000 into the body on every trial, bit-identical arms, so the path this
+    module exists to open stayed shut.
+
+    Carrying five is more than carrying one, so it is the sum. Unbounded on
+    purpose: `CarryingLedger` centres it on the middle of her own, which is
+    what makes a load a load, and a bound here would put the ceiling back.
 
     `decided_urgency` before `urgency`, for the reason `core/subject/state.py`
     prefers it: what a proposer declares is a constant chosen at its branch,
     and what the arbiter decides is that proposal shifted by how hard the state
     is pressing. The declared value is a proposal; the decided one is the load.
     """
-    hardest = 0.0
+    carried = 0.0
     for items in collections:
         if not isinstance(items, list):
             continue
@@ -76,8 +86,8 @@ def pressure_of(*collections: Any) -> float:
             except (TypeError, ValueError):
                 continue
             if value == value:
-                hardest = max(hardest, value)
-    return max(0.0, min(1.0, hardest))
+                carried += max(0.0, value)
+    return carried
 
 
 def _median(values: list[float]) -> float:
@@ -94,6 +104,8 @@ def _median(values: list[float]) -> float:
 class Carrying:
     """What she is holding open, against what she usually holds open."""
 
+    #: How much is open and how hard, summed. Unbounded: what makes it a
+    #: reading is the middle it is against.
     pressure: float = 0.0
     middle: float = 0.0
     #: This moment against that middle. Negative when she is carrying less.
@@ -129,7 +141,10 @@ class CarryingLedger:
             return
         if value != value:
             return
-        self._last = max(0.0, min(1.0, value))
+        # Not bounded into [0, 1]. The load is a sum over what is open, and
+        # capping it would restore the ceiling this ledger exists to remove.
+        # What makes it a reading is the middle below, not a bound here.
+        self._last = max(0.0, value)
         self._seen.append(self._last)
 
     def read(self) -> Carrying:
