@@ -1,19 +1,25 @@
 """Inspect the deployed semantic grammar without supplying a target to search."""
 
-from dataclasses import dataclass
 import hashlib
 import math
+from dataclasses import dataclass
+from typing import Any
 
 from core.learning.procedure_induction import Program
 from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
-from core.learning.semantic_graph_counterexamples import argument_graph_order, argument_graph_program
-from core.learning.semantic_operation_search import OperationChartSearch, OperationSearchIncompleteError
+from core.learning.semantic_graph_counterexamples import (
+    argument_graph_order,
+    argument_graph_program,
+)
+from core.learning.semantic_operation_search import (
+    OperationChartSearch,
+    OperationSearchIncompleteError,
+)
 from core.learning.semantic_program_campaign import _sha
 from core.learning.semantic_program_ir import TokenSpan, normalize_semantic_value
 from core.learning.semantic_program_transducer import SemanticTransductionOutcome, _hidden_array
 from core.learning.semantic_program_transducer_fitting import _assign_typed_arguments
 from core.verify.invariants import invariant
-from typing import Any
 
 
 @dataclass(frozen=True)
@@ -133,12 +139,15 @@ def decode_semantic_candidates(
         return SemanticCandidateBank(outcome, tuple(candidates), tuple(spans),
             {**body, "receipt_sha256": _sha(body)})
 
-    # A failed ordinary decode remains a failure; diagnostics grant no fallback.
-    if outcome.ir is None:
+    # Search-budget failure is an observation, not proof that no graph exists.
+    # Keep that public failure while allowing this diagnostic-only bank to
+    # inspect the same builders. Identity and grounding refusals stay closed.
+    if outcome.ir is None and outcome.refusal != "decode_search_budget_exhausted":
         return finish("ordinary_decode_unavailable")
-    spans = outcome.ir.input_spans
-    candidates.append(SemanticCandidate(outcome.ir.to_program(), None,
-        tuple(ins.operation_span for ins in outcome.ir.instructions), None, None))
+    if outcome.ir is not None:
+        spans = outcome.ir.input_spans
+        candidates.append(SemanticCandidate(outcome.ir.to_program(), None,
+            tuple(ins.operation_span for ins in outcome.ir.instructions), None, None))
     inputs = tuple(normalize_semantic_value(value) for value in public_inputs)
     hidden = _hidden_array(hidden_states, expected_width=model.hidden_size)
     tokens = tuple(source_token_ids)
@@ -147,7 +156,7 @@ def decode_semantic_candidates(
         return finish("argument_inventory_unsupported")
     spans, _, argument_scores, charts = model._runtime_operation_charts(
         tokens, hidden, inputs, model.inference_step_limit(len(inputs)))
-    if tuple(spans) != outcome.ir.input_spans:
+    if outcome.ir is not None and tuple(spans) != outcome.ir.input_spans:
         raise ValueError("candidate search changed ordinary input grounding")
     charts = iter(charts)
     relation_scores, relation_vectors = {}, {}

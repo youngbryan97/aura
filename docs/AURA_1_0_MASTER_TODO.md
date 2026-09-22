@@ -1176,6 +1176,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Source-trained candidate selector](evidence/G03_SOURCE_TRAINED_CANDIDATE_SELECTOR_2026-09-22.md):
+  source-only synthetic contrasts did not transfer to the retained real bank;
+  a construction-stratified source-only real-bank pilot is the next experiment.
   tasks using the existing language and computational substrates.
   [Mixed candidate bank](evidence/G03_MIXED_CANDIDATE_BANK_2026-09-22.md)
   finds a correct retained program on all 23 exposed portfolio misses but

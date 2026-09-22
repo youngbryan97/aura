@@ -1,14 +1,17 @@
 """Attribute a fixed candidate bank against separately supplied source evidence."""
 
+from typing import Any
+
 from core.learning.procedure_induction import Instruction, Program
 from core.learning.semantic_candidate_bank import candidate_observation_identity
 from core.learning.semantic_graph_counterexamples import (
-    ProgramObservationCache, compare_program_meanings, counterfactual_inputs,
+    ProgramObservationCache,
+    compare_program_meanings,
+    counterfactual_inputs,
 )
 from core.learning.semantic_joint_graph_learning import align_source_input_registers
 from core.learning.semantic_program_campaign import _sha
 from core.learning.semantic_program_transducer import _hidden_array
-from typing import Any
 
 
 def diagnose_semantic_candidate_bank(
@@ -43,7 +46,7 @@ def diagnose_semantic_candidate_bank(
         body["failure_stage"] = stage
         return {**body, "receipt_sha256": _sha(body)}
 
-    if bank.selected.ir is None:
+    if not bank.candidates:
         return finish("decode_unavailable")
     observed = candidate_observation_identity(item.ir.source_token_ids, item.public_inputs,
                                                _hidden_array(item.hidden_states))
@@ -63,10 +66,10 @@ def diagnose_semantic_candidate_bank(
         if key not in comparisons:
             comparisons[key] = compare_program_meanings(target, candidate.program, probes, observation_cache=cache)
             body["comparisons"].append({"program_sha256": key, **comparisons[key]})
-    selected = bank.selected.ir.to_program().sha()
-    if selected not in comparisons:
+    selected = bank.selected.ir.to_program().sha() if bank.selected.ir is not None else None
+    if selected is not None and selected not in comparisons:
         raise ValueError("candidate bank omitted its selected program")
-    status = comparisons[selected]["status"]
+    status = comparisons[selected]["status"] if selected is not None else "unavailable"
     reachable = any(row["status"] == "equivalent" for row in comparisons.values())
     unknown = any(row["status"] == "unknown" for row in comparisons.values())
     body.update(selected_semantic_status=status, correct_reachable=reachable or

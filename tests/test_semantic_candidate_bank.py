@@ -6,6 +6,7 @@ import pytest
 
 from core.learning.semantic_failure_diagnosis import diagnose_semantic_candidate_bank
 from core.learning.semantic_program_campaign import _sha
+from core.learning.semantic_program_transducer import SemanticTransductionOutcome
 from tests.test_semantic_relation_graph_learning import model_examples
 
 
@@ -160,3 +161,21 @@ def test_progress_covers_selection_and_graph_search(fixture):
     assert progress[0] == {"stage": "ordinary_decode"}
     assert {row["stage"] for row in progress} >= {
         "candidate_chart", "candidate_graph", "candidate_retained"}
+
+
+def test_budget_exhaustion_retains_diagnostic_alternatives_without_answer_rescue(
+        fixture, monkeypatch):
+    model, item, kwargs, _ = fixture
+    monkeypatch.setattr(type(model), "decode", lambda self, **_kwargs:
+                        SemanticTransductionOutcome(None, "decode_search_budget_exhausted", {}, {}))
+    bank = model.decode_candidates(**kwargs, max_charts=2, max_graphs_per_chart=2)
+    bank.validate()
+    assert bank.selected.ir is None
+    assert bank.receipt["selected_refusal"] == "decode_search_budget_exhausted"
+    assert bank.receipt["selected_program_sha256"] is None
+    assert bank.receipt["selection_changed"] is False
+    assert bank.candidates
+    diagnosis = diagnose_semantic_candidate_bank(bank, item)
+    assert diagnosis["selected_semantic_status"] == "unavailable"
+    assert diagnosis["failure_stage"] in {"selection", "incomplete_search",
+                                          "verification_unknown", "reachability"}
