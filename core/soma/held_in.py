@@ -138,16 +138,17 @@ class HeldInLedger:
         return heat * max(0.0, float(last_gap))
 
 
-_LEDGER: HeldInLedger | None = None
+#: Made at import rather than on first use. The subject-core fork carries
+#: module globals that hold state, and one still None when an anchor is taken
+#: is not carried, so a ledger first made inside one arm would reach the next
+#: arm with the first arm's history in it. See core/social/owning_it_first.py.
+_LEDGER: HeldInLedger = HeldInLedger()
 
 
 def get_held_in_ledger() -> HeldInLedger:
-    global _LEDGER
-    if _LEDGER is None:
-        _LEDGER = HeldInLedger()
     return _LEDGER
 
 
 def reset_for_test() -> None:
     global _LEDGER
-    _LEDGER = None
+    _LEDGER = HeldInLedger()

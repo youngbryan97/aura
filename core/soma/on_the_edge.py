@@ -145,16 +145,17 @@ class EdgeLedger:
         return reading.shift if reading.measured else 0.0
 
 
-_LEDGER: EdgeLedger | None = None
+#: Made at import rather than on first use. The subject-core fork carries
+#: module globals that hold state, and one still None when an anchor is taken
+#: is not carried, so a ledger first made inside one arm would reach the next
+#: arm with the first arm's history in it. See core/social/owning_it_first.py.
+_LEDGER: EdgeLedger = EdgeLedger()
 
 
 def get_edge_ledger() -> EdgeLedger:
-    global _LEDGER
-    if _LEDGER is None:
-        _LEDGER = EdgeLedger()
     return _LEDGER
 
 
 def reset_for_test() -> None:
     global _LEDGER
-    _LEDGER = None
+    _LEDGER = EdgeLedger()

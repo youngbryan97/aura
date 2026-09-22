@@ -180,16 +180,17 @@ def important_enough(scores: list[float], share: float) -> list[bool]:
     return [score >= floor or score == top for score in scores]
 
 
-_LEDGER: FatigueLedger | None = None
+#: Made at import rather than on first use. The subject-core fork carries
+#: module globals that hold state, and one still None when an anchor is taken
+#: is not carried, so a ledger first made inside one arm would reach the next
+#: arm with the first arm's history in it. See core/social/owning_it_first.py.
+_LEDGER: FatigueLedger = FatigueLedger()
 
 
 def get_fatigue_ledger() -> FatigueLedger:
-    global _LEDGER
-    if _LEDGER is None:
-        _LEDGER = FatigueLedger()
     return _LEDGER
 
 
 def reset_for_test() -> None:
     global _LEDGER
-    _LEDGER = None
+    _LEDGER = FatigueLedger()
