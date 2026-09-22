@@ -1107,6 +1107,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Architecture reset](evidence/G03_ARCHITECTURE_RESET_2026-09-21.md): stop
+  local coefficient campaigns against the repeatedly exposed validation set.
+  Compare full-request learned recognition on source-construction holdouts,
+  retaining the existing substrate, typed graph, and executor. The converged
+  paired fit is perfect on source boundary sets but transfers to 356/500;
+  this is not an optimizer-completion problem or a closure result.
   [Completed cohort and paired-boundary result](evidence/G03_COMPLETE_LITERAL_AND_PAIRED_BOUNDARY_RESULT_2026-09-21.md):
   literal identity reaches 477/500 validation with one gain and no losses,
   retaining 764/764 training cases. The converged paired-boundary candidate
