@@ -1,6 +1,7 @@
 """Compare the lazy grammar search with exhaustive reference enumeration."""
 
 import itertools
+import heapq
 import json
 import math
 import random
@@ -92,6 +93,48 @@ def test_exact_bound_survives_large_cancellation_and_penalty_rounding():
         assert Fraction(search.remaining_operation_score_upper_bound) >= max(remaining.values())
         remaining.pop(key(next(search)))
     assert list(search) == []
+
+
+def rational_reference(nodes, max_steps, penalty):
+    """Reference the original exact-rational branch order, including ties."""
+    nodes = tuple(sorted(nodes, key=lambda n: key([n])))
+    charts = brute(nodes, max_steps)
+    heap, serial, expanded = [], itertools.count(), 0
+
+    def push(prefix, start, size):
+        available = [chart for chart in charts if len(chart) == size
+                     and chart[:len(prefix)] == prefix
+                     and (len(prefix) == size or nodes.index(chart[len(prefix)]) >= start)]
+        if available:
+            bound = max(score(chart, penalty) for chart in available)
+            heapq.heappush(heap, (-bound, next(serial), prefix, start, size))
+
+    for size in range(1, max_steps + 1):
+        push((), 0, size)
+    while heap:
+        _, _, prefix, start, size = heapq.heappop(heap)
+        expanded += 1
+        if len(prefix) == size:
+            yield prefix, expanded
+            continue
+        push(prefix, start + 1, size)
+        successor = next((i for i, item in enumerate(nodes) if item.span.start >= nodes[start].span.end),
+                         len(nodes))
+        push((*prefix, nodes[start]), successor, size)
+
+
+@pytest.mark.parametrize("seed", range(12))
+def test_exact_encoding_preserves_reference_branch_order_and_work(seed):
+    rng = random.Random(seed)
+    values = (0., .1, -.1, 1e16, -1e16, float.fromhex("0x0.0000000000001p-1022"))
+    nodes = [node(i, i + rng.randrange(1, 3), rng.choice(values)) for i in range(7)]
+    penalty = rng.choice(values)
+    search = OperationChartSearch(nodes, max_steps=3, length_penalty=penalty)
+    for expected, expanded in rational_reference(nodes, 3, penalty):
+        actual = next(search)
+        assert key(actual) == key(expected)
+        assert search.expanded == expanded
+    assert list(search) == [] and search.complete
 
 
 @pytest.mark.parametrize("kwargs", [{"max_steps": 0}, {"max_steps": True},

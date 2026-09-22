@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bounded source-fold feasibility probe; not a full-program promotion gate."""
+"""Source-only contextual fit and explicit development evaluation."""
 
 from __future__ import annotations
 
@@ -16,6 +16,27 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
+def select_populations(examples, folds, *, fold, full_source, limit):
+    """Keep optimizer inputs separate from source folds or exposed development."""
+    if type(limit) is not int or limit < 1 or fold not in range(3):
+        raise ValueError("invalid contextual fit population settings")
+    admitted = sorted((x for x in examples if x.split in {"train", "validation"}),
+                      key=lambda x: x.ir.source_text_sha256)
+    identities = [x.ir.source_text_sha256 for x in admitted]
+    if len(set(identities)) != len(identities):
+        raise ValueError("contextual populations contain repeated source identities")
+    source = [x for x in admitted if x.split == "train"]
+    if full_source:
+        train = source[:limit]
+        evaluation = [x for x in admitted if x.split == "validation"][:limit]
+    else:
+        train = [x for x in source if folds["assignments"][x.ir.source_text_sha256] != fold][:limit]
+        evaluation = [x for x in source if folds["assignments"][x.ir.source_text_sha256] == fold][:limit]
+    if not train or not evaluation:
+        raise ValueError("contextual fit requires nonempty training and evaluation populations")
+    return train, evaluation
+
+
 def restore_fit(checkpoint_path, *, model, optimizer, plan):
     """Restore an epoch boundary without changing the source experiment."""
     import torch
@@ -26,12 +47,14 @@ def restore_fit(checkpoint_path, *, model, optimizer, plan):
                 "config", "labels", "context", "trainable_parameters", "span_width", "capacity"):
         if json.dumps(previous.get(key), sort_keys=True) != json.dumps(plan.get(key), sort_keys=True):
             raise ValueError(f"fit recovery changes {key}")
+    if previous.get("evaluation_split", "train") != plan.get("evaluation_split", "train"):
+        raise ValueError("fit recovery changes evaluation_split")
     tool_path = str(Path(__file__).resolve().relative_to(ROOT))
     for path, digest in previous["source_sha256"].items():
         if path != tool_path and plan["source_sha256"].get(path) != digest:
             raise ValueError(f"fit recovery changes numerical source: {path}")
     epoch = checkpoint["epoch"]
-    if type(epoch) is not int or not 0 < epoch <= plan["epochs"]:
+    if type(epoch) is not int or not 0 < epoch < plan["epochs"]:
         raise ValueError("fit recovery has an invalid epoch")
     model.load_state_dict(checkpoint["model"], strict=True)
     optimizer.load_state_dict(checkpoint["optimizer"])
@@ -56,6 +79,8 @@ def main() -> None:
     parser.add_argument("--examples", type=int, default=16)
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--fold", type=int, default=0)
+    parser.add_argument("--full-source", action="store_true",
+                        help="fit source training only, then measure exposed development; never fresh transfer")
     parser.add_argument("--position-mode", choices=("absolute", "relative", "none"), default="absolute")
     parser.add_argument("--context", choices=("full", "local", "frozen"), default="full")
     parser.add_argument("--resume-checkpoint", type=Path)
@@ -105,8 +130,9 @@ def main() -> None:
         # JSON converts provenance tuples to lists; compare canonical encoding.
         if json.dumps(folds, sort_keys=True) != json.dumps(frozen, sort_keys=True):
             raise ValueError("source folds differ from the frozen plan")
-    train = [x for x in source if folds["assignments"][x.ir.source_text_sha256] != args.fold][:args.examples]
-    held = [x for x in source if folds["assignments"][x.ir.source_text_sha256] == args.fold][:args.examples]
+    train, held = select_populations(examples, folds, fold=args.fold,
+                                    full_source=args.full_source, limit=args.examples)
+    evaluation_split = "validation" if args.full_source else "train"
     labels = tuple(sorted(PRIMITIVES_BY_NAME))
     model = ContextualSpanRecognizer(RequestContextConfig(source[0].hidden_states.shape[1],
                                      width=32, heads=4, layers=1, position_mode=args.position_mode), labels)
@@ -142,8 +168,11 @@ def main() -> None:
                                  "selected": selected, "target": target, "exact": selected == target})
         return {"correct": sum(x["exact"] for x in outcomes), "count": len(outcomes), "rows": outcomes}
 
-    initial = {"train_nll": measure(train), "source_heldout_nll": measure(held)}
-    plan = {"fold_receipt": folds["receipt_sha256"], "fold": args.fold, "seed": 73,
+    initial = {"train_nll": measure(train),
+               "source_heldout_nll": None if args.full_source else measure(held)}
+    plan = {"fold_receipt": folds["receipt_sha256"], "fold": None if args.full_source else args.fold, "seed": 73,
+            "evaluation_split": evaluation_split,
+            "optimizer_split": "train", "evaluation_controls_training": False,
             "epochs": args.epochs, "training_ids": [x.ir.source_text_sha256 for x in train],
             "heldout_ids": [x.ir.source_text_sha256 for x in held],
             "config": vars(model.context.config), "labels": labels,
@@ -185,7 +214,9 @@ def main() -> None:
         item["checkpoint_sha256"] = hashlib.sha256(checkpoint.getvalue()).hexdigest()
         print(json.dumps(item), flush=True)
     result = {"schema": "aura.semantic_context_feasibility_probe.v1",
-              "scope": "source_fold_structured_loss_only", "promotion_authorized": False,
+              "scope": "source_fit_exposed_development" if args.full_source else "source_fold_structured_loss_only",
+              "evaluation_split": evaluation_split,
+              "promotion_authorized": False,
               "full_graph_evaluated": False, "fold_receipt": folds["receipt_sha256"],
               "parent_receipt": parent.receipt_sha256, "seed": 73,
               "span_width": span_width, "operation_capacity": capacity,
@@ -196,7 +227,8 @@ def main() -> None:
               "context_lesion_source_heldout_nll": measure(held, False),
               "train_operation_sets": exact(train), "heldout_operation_sets": exact(held),
               "context_lesion_operation_sets": exact(held, False),
-              "validation_used": False, "test_used": False}
+              "validation_used": args.full_source, "validation_used_for_training": False,
+              "test_used": False}
     if not atomic_write_bytes_if_absent(args.output, (json.dumps(result, sort_keys=True) + "\n").encode()):
         raise RuntimeError("probe output could not be published")
     print(json.dumps({key: ({k: v for k, v in value.items() if k != "rows"}

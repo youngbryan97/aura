@@ -1147,6 +1147,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Full-source comparison and coordinate correction](evidence/G03_FULL_CONTEXT_AND_COORDINATES_2026-09-21.md):
+  437/500 contextual, 477/500 incumbent, 486/500 candidate availability;
+  answer-blind selection stays 477/500. Nine selection misses and fourteen
+  coverage misses remain. Equal-literal coordinate normalization corrects
+  false failures; original reports remain intact. Earlier context source-fold
+  grades below predate that correction and are not re-adjudicated evidence.
+  Exact integer search preserves branch order and work counts while reducing
+  arithmetic cost; its 10.3x microbenchmark is not whole-system speedup.
   [Context and portfolio comparison](evidence/G03_CONTEXT_AND_PORTFOLIO_2026-09-21.md):
   complete constrained decoding reaches 240/256 on the first source fold;
   retaining six methods yields 239/256 selected versus 180/256 for the local

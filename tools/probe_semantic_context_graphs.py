@@ -20,8 +20,11 @@ def recover_rows(previous_output: Path, plan: dict) -> tuple[dict, dict]:
     """Recover paired rows only when the computation and population match."""
     previous_plan_path = previous_output.with_suffix(".plan.json")
     previous_plan = json.loads(previous_plan_path.read_text())
+    if previous_plan.get("evaluation_split", "train") != plan.get("evaluation_split", "train"):
+        raise ValueError("graph recovery changes evaluation_split")
     for key in ("source_ids", "parent_receipt", "arms", "search_time_limit_s",
-                "search_mode", "max_expansions", "legacy_context_override", "checkpoints"):
+                "search_mode", "max_expansions", "legacy_context_override", "checkpoints",
+                "input_coordinates", "implementation_identity"):
         if previous_plan.get(key) != plan.get(key):
             raise ValueError(f"graph recovery changes {key}")
     tool_path = str(Path(__file__).resolve().relative_to(ROOT))
@@ -51,6 +54,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence-root", type=Path, required=True)
     parser.add_argument("--prediction-report", type=Path, action="append", required=True)
+    parser.add_argument("--baseline-candidate", type=Path, action="append", default=[],
+                        help="retain and replay an existing transducer on the same observations")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--search-mode", choices=("map", "typed"), default="map")
@@ -66,6 +71,7 @@ def main() -> None:
 
     configure_refit_environment(args.output)
     from core.learning.semantic_context_graph_probe import resolve_operation_set
+    from core.learning.semantic_graph_coordinates import reanchor_program_inputs
     from core.learning.semantic_graph_counterexamples import (
         compare_program_meanings,
         counterfactual_inputs,
@@ -74,6 +80,7 @@ def main() -> None:
         compositional_semantic_program_transducer_from_dict,
     )
     from core.runtime.atomic_writer import atomic_write_bytes_if_absent
+    from core.learning.semantic_validation_checkpoint import validation_implementation_identity
 
     root = args.evidence_root
     parent = compositional_semantic_program_transducer_from_dict(json.loads(
@@ -82,11 +89,18 @@ def main() -> None:
     examples = load_source_examples(parent, source_report, [name + "=" + str(
         root / "semantic-source-reacquisition-20260915/features" / name)
         for name in source_report["representation_compatibility"]["source_feature_manifest_sha256s"]])
-    source = {x.ir.source_text_sha256: x for x in examples if x.split == "train"}
     arms = []
+    evaluation_split = None
     for path in args.prediction_report:
         report = json.loads(path.read_text())
         plan = json.loads(path.with_suffix(".plan.json").read_text())
+        split = report.get("evaluation_split", "train")
+        if split not in {"train", "validation"} or plan.get("evaluation_split", "train") != split:
+            raise ValueError("prediction evaluation split differs or is inadmissible")
+        if evaluation_split is not None and evaluation_split != split:
+            raise ValueError("paired predictions use different evaluation splits")
+        evaluation_split = split
+        source = {x.ir.source_text_sha256: x for x in examples if x.split == split}
         if report["parent_receipt"] != parent.receipt_sha256:
             raise ValueError("prediction argument parent differs")
         rows = report["heldout_operation_sets"]["rows"]
@@ -128,11 +142,25 @@ def main() -> None:
             arm.update(name=arm["name"] + "-typed", checkpoint_sha256=digest,
                        recognizer=recognizer, cross_token=context != "local", span_width=plan["span_width"])
         arms.append(arm)
+    for path in args.baseline_candidate:
+        baseline = compositional_semantic_program_transducer_from_dict(json.loads(path.read_text()))
+        if (baseline.model_basis_sha256 != parent.model_basis_sha256
+                or baseline.hidden_size != parent.hidden_size):
+            raise ValueError("baseline candidate differs from the bound neural representation")
+        arms.append({"name": path.parent.name + "-baseline", "ids": arms[0]["ids"],
+                     "report_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                     "baseline_model": baseline})
+    if len({arm["name"] for arm in arms}) != len(arms):
+        raise ValueError("graph methods need distinct identities")
     ids = arms[0]["ids"][:args.limit or None]
     plan = {"schema": "aura.semantic_context_graph_probe.v1",
             "source_ids": ids, "parent_receipt": parent.receipt_sha256,
             "arms": [{k: x[k] for k in ("name", "report_sha256")} for x in arms],
-            "argument_fit_includes_heldout_constructions": True,
+            "evaluation_split": evaluation_split,
+            "input_coordinates": "annotated_source_anchors_v1",
+            "implementation_identity": validation_implementation_identity(),
+            "argument_fit_includes_evaluation_examples": evaluation_split == "train",
+            "argument_fit_includes_heldout_constructions": True if evaluation_split == "train" else None,
             "promotable": False, "search_time_limit_s": 10.,
             "search_mode": args.search_mode, "max_expansions": 100_000,
             "legacy_context_override": args.legacy_context,
@@ -163,16 +191,24 @@ def main() -> None:
                     raise RuntimeError("recovered graph row already exists")
                 outcomes.append(recovered_row)
                 continue
-            prediction = arm["rows"][identity]
-            operations = tuple((int(s), int(e), arm["labels"][int(label)])
-                               for s, e, label in prediction["selected"])
+            prediction = arm.get("rows", {}).get(identity)
             started = time.monotonic()
             result = None
+            spans = None
             search_trace = {}
             try:
                 arguments = dict(source_token_ids=example.ir.source_token_ids,
                                  hidden_states=example.hidden_states, public_inputs=example.public_inputs)
-                if args.search_mode == "typed":
+                if "baseline_model" in arm:
+                    baseline = arm["baseline_model"]
+                    decoded = baseline.decode(**arguments, source_text_sha256=identity,
+                                              model_basis_sha256=parent.model_basis_sha256,
+                                              search_time_limit_s=plan["search_time_limit_s"])
+                    result = None if decoded.ir is None else decoded.ir.to_program()
+                    spans = None if decoded.ir is None else decoded.ir.input_spans
+                    refusal = decoded.refusal
+                    search_trace = {"transducer_receipt": baseline.receipt_sha256}
+                elif args.search_mode == "typed":
                     with torch.no_grad():
                         scores = operation_scores(arm["recognizer"],
                             torch.from_numpy(np.array(example.hidden_states, copy=True)),
@@ -181,16 +217,39 @@ def main() -> None:
                         parent, **arguments, scores=scores, labels=arm["labels"],
                         time_limit_s=10., max_expansions=plan["max_expansions"])
                 else:
+                    operations = tuple((int(s), int(e), arm["labels"][int(label)])
+                                       for s, e, label in prediction["selected"])
                     result, refusal = resolve_operation_set(
                         parent, **arguments, operations=operations, time_limit_s=10.)
             except (ValueError, RuntimeError, ArithmeticError) as exc:
                 refusal = f"{type(exc).__name__}:{exc}"
             resolution_s = time.monotonic() - started
-            comparison = ({"status": "refused", "reason": refusal} if result is None else
-                          compare_program_meanings(example.ir.to_program(), result,
-                              counterfactual_inputs(example.public_inputs, count=16)))
+            original_program = None if result is None else result.to_dict()
+            coordinate_status = "no_program"
+            if result is None:
+                comparison = {"status": "refused", "reason": refusal}
+            else:
+                try:
+                    if spans is None:
+                        spans, _, _ = parent._runtime_input_grounding(
+                            example.ir.source_token_ids, example.hidden_states, example.public_inputs)
+                    result = reanchor_program_inputs(result, from_spans=spans,
+                        to_spans=example.ir.input_spans, from_inputs=example.public_inputs,
+                        to_inputs=example.public_inputs)
+                except ValueError as exc:
+                    coordinate_status = "unaligned"
+                    result = None
+                    comparison = {"status": "unknown", "reason": str(exc)}
+                else:
+                    coordinate_status = "aligned"
+                    comparison = compare_program_meanings(example.ir.to_program(), result,
+                        counterfactual_inputs(example.public_inputs, count=16))
             row = {"source": identity, "arm": arm["name"], "comparison": comparison,
-                   "resolution_s": resolution_s, "map_operation_exact": prediction["exact"],
+                   "resolution_s": resolution_s,
+                   "coordinate_status": coordinate_status, "original_program": original_program,
+                   "runtime_input_spans": None if spans is None else [[s.start, s.end] for s in spans],
+                   "source_input_spans": [[s.start, s.end] for s in example.ir.input_spans],
+                   "map_operation_exact": None if prediction is None else prediction["exact"],
                    "search_trace": search_trace,
                    "program": None if result is None else result.to_dict()}
             row_path = args.output.parent / "rows" / f"{index:04d}-{arm['name']}.json"
@@ -199,6 +258,11 @@ def main() -> None:
             outcomes.append(row)
             print(json.dumps({"row": index, "arm": arm["name"],
                               "status": comparison["status"], "resolution_s": resolution_s}), flush=True)
+    if validation_implementation_identity() != plan["implementation_identity"]:
+        raise ValueError("inference implementation changed during graph measurement")
+    for path, digest in plan["source_sha256"].items():
+        if hashlib.sha256((ROOT / path).read_bytes()).hexdigest() != digest:
+            raise ValueError(f"graph source changed during measurement: {path}")
     summary = {arm["name"]: dict(Counter(row["comparison"]["status"] for row in outcomes
                                         if row["arm"] == arm["name"])) for arm in arms}
     result = {"plan": plan, "summary": summary, "rows": outcomes}

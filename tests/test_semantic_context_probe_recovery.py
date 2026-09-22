@@ -3,11 +3,12 @@
 import copy
 import hashlib
 import json
+from types import SimpleNamespace
 
 import pytest
 
 from tools.probe_semantic_context_graphs import recover_rows
-from tools.probe_semantic_request_context import restore_fit
+from tools.probe_semantic_request_context import restore_fit, select_populations
 
 
 @pytest.fixture
@@ -40,7 +41,8 @@ def test_recovery_preserves_even_failed_observations_and_binds_bytes(saved):
 
 
 @pytest.mark.parametrize("key", ["source_ids", "parent_receipt", "arms", "search_time_limit_s",
-                               "search_mode", "max_expansions", "checkpoints"])
+                               "search_mode", "max_expansions", "checkpoints",
+                               "input_coordinates", "implementation_identity"])
 def test_recovery_cannot_change_the_experiment(saved, key):
     output, plan, _ = saved
     current = copy.deepcopy(plan)
@@ -53,6 +55,13 @@ def test_recovery_cannot_change_inference_code(saved):
     output, plan, _ = saved
     plan["source_sha256"]["core/inference.py"] = "changed"
     with pytest.raises(ValueError, match="inference source"):
+        recover_rows(output, plan)
+
+
+def test_recovery_cannot_relabel_a_source_fold_as_validation(saved):
+    output, plan, _ = saved
+    plan["evaluation_split"] = "validation"
+    with pytest.raises(ValueError, match="evaluation_split"):
         recover_rows(output, plan)
 
 
@@ -105,3 +114,50 @@ def test_fit_recovery_cannot_change_population(tmp_path):
                 "plan": plan}, path)
     with pytest.raises(ValueError, match="training_ids"):
         restore_fit(path, model=model, optimizer=optimizer, plan={**plan, "training_ids": ["two"]})
+
+
+def test_fit_recovery_rejects_an_already_complete_fit(tmp_path):
+    import torch
+
+    model = torch.nn.Linear(2, 1)
+    optimizer = torch.optim.AdamW(model.parameters())
+    plan = {"epochs": 2, "source_sha256": {}}
+    path = tmp_path / "fit.pt"
+    torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(),
+                "epoch": 2, "plan": plan}, path)
+    with pytest.raises(ValueError, match="invalid epoch"):
+        restore_fit(path, model=model, optimizer=optimizer, plan=plan)
+
+
+def _example(identity, split):
+    return SimpleNamespace(split=split, ir=SimpleNamespace(source_text_sha256=identity))
+
+
+def test_full_source_uses_training_only_and_measures_validation_separately():
+    examples = [_example("c", "validation"), _example("b", "train"),
+                _example("a", "train"), SimpleNamespace(split="test")]
+    train, evaluation = select_populations(examples, {}, fold=0, full_source=True, limit=100)
+    assert [x.ir.source_text_sha256 for x in train] == ["a", "b"]
+    assert [x.ir.source_text_sha256 for x in evaluation] == ["c"]
+
+
+def test_source_fold_still_excludes_validation_and_test():
+    examples = [_example("a", "train"), _example("b", "train"), _example("c", "validation")]
+    train, evaluation = select_populations(examples, {"assignments": {"a": 0, "b": 1}},
+                                          fold=0, full_source=False, limit=100)
+    assert [x.ir.source_text_sha256 for x in train] == ["b"]
+    assert [x.ir.source_text_sha256 for x in evaluation] == ["a"]
+
+
+@pytest.mark.parametrize("full_source", [False, True])
+def test_training_evaluation_identity_overlap_is_rejected(full_source):
+    examples = [_example("a", "train"), _example("a", "validation")]
+    with pytest.raises(ValueError, match="repeated source"):
+        select_populations(examples, {"assignments": {"a": 0}}, fold=0,
+                           full_source=full_source, limit=100)
+
+
+@pytest.mark.parametrize("examples", [[_example("a", "train")], [_example("b", "validation")]])
+def test_full_source_requires_both_populations(examples):
+    with pytest.raises(ValueError, match="nonempty"):
+        select_populations(examples, {}, fold=0, full_source=True, limit=100)

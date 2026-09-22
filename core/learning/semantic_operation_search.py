@@ -6,23 +6,15 @@ import heapq
 import math
 from bisect import bisect_left
 from collections.abc import Callable, Iterator, Sequence
-from fractions import Fraction
 from itertools import count
 
+from core.learning.dyadic_scores import DyadicScores
 from core.verify.invariants import invariant
 from typing import Any
 
 
 class OperationSearchIncompleteError(RuntimeError):
     """The caller's work allowance ended before the candidate grammar was exhausted."""
-
-
-def _float_upper(value: Fraction) -> float:
-    try:
-        rounded = float(value)
-    except OverflowError:
-        return math.inf if value > 0 else -float.fromhex("0x1.fffffffffffffp+1023")
-    return math.nextafter(rounded, math.inf) if Fraction(rounded) < value else rounded
 
 
 class OperationChartSearch(Iterator):
@@ -58,8 +50,9 @@ class OperationChartSearch(Iterator):
         self.nodes = tuple(sorted(unique.values(), key=lambda n: (n.span.start, n.span.end, n.operation)))
         self.max_steps = max_steps
         self.length_penalty = float(length_penalty)
-        self._penalty = Fraction(self.length_penalty)
-        self._scores = tuple(Fraction(float(node.score)) for node in self.nodes)
+        self._scale = DyadicScores.from_values((*[node.score for node in self.nodes], self.length_penalty))
+        self._scores = self._scale.integers[:-1]
+        self._penalty = self._scale.integers[-1]
         self.max_expansions = max_expansions
         self.feasible = feasible
         self.expanded = 0
@@ -70,7 +63,7 @@ class OperationChartSearch(Iterator):
         starts = [node.span.start for node in self.nodes]
         self._successor = tuple(bisect_left(starts, node.span.end) for node in self.nodes)
         size = len(self.nodes)
-        self._suffix = [[Fraction(0)] * (size + 1)] + [[None] * (size + 1) for _ in range(max_steps)]
+        self._suffix = [[0] * (size + 1)] + [[None] * (size + 1) for _ in range(max_steps)]
         for remaining in range(1, max_steps + 1):
             for index in range(size - 1, -1, -1):
                 tail = self._suffix[remaining - 1][self._successor[index]]
@@ -90,7 +83,7 @@ class OperationChartSearch(Iterator):
 
     @property
     def remaining_operation_score_upper_bound(self) -> float:
-        return _float_upper(-self._heap[0][0]) if self._heap else -math.inf
+        return self._scale.upper_float(-self._heap[0][0]) if self._heap else -math.inf
 
     def __iter__(self) -> Any:
         return self

@@ -45,15 +45,23 @@ def main():
     examples = load_source_examples(parent, source_report, [name + "=" + str(
         root / "semantic-source-reacquisition-20260915/features" / name)
         for name in source_report["representation_compatibility"]["source_feature_manifest_sha256s"]])
-    source = {x.ir.source_text_sha256: x for x in examples if x.split == "train"}
     reports = [json.loads(path.read_text()) for path in args.graph_report]
+    evaluation_split = reports[0]["plan"].get("evaluation_split", "train")
+    if evaluation_split not in {"train", "validation"}:
+        raise ValueError("portfolio split is not source development data")
+    source = {x.ir.source_text_sha256: x for x in examples if x.split == evaluation_split}
     arms = {}
     rows = []
     ids = reports[0]["plan"]["source_ids"]
     for path, report in zip(args.graph_report, reports, strict=True):
         graph_identity = hashlib.sha256(path.read_bytes()).hexdigest()
-        if report["plan"]["parent_receipt"] != parent.receipt_sha256 or report["plan"]["source_ids"] != ids:
+        if (report["plan"]["parent_receipt"] != parent.receipt_sha256 or report["plan"]["source_ids"] != ids
+                or report["plan"].get("evaluation_split", "train") != evaluation_split):
             raise ValueError("portfolio graph observations or argument model differ")
+        if report["plan"].get("input_coordinates") != "annotated_source_anchors_v1":
+            raise ValueError("portfolio requires programs in common source coordinates")
+        if any(row.get("coordinate_status") == "unaligned" for row in report["rows"]):
+            raise ValueError("portfolio cannot select an unaligned program as if it refused")
         for arm in report["plan"]["arms"]:
             if arm["name"] in arms:
                 raise ValueError("portfolio method identity is repeated")
@@ -63,7 +71,7 @@ def main():
     if args.incumbent not in arms:
         raise ValueError("portfolio incumbent is absent")
     if len(set(ids)) != len(ids) or set(ids) - set(source):
-        raise ValueError("portfolio population is not unique source training data")
+        raise ValueError("portfolio population is not unique source development data")
     indexed = {(row["source"], row["arm"]): row for row in rows}
     if len(indexed) != len(rows) or set(indexed) != {(i, a) for i in ids for a in arms}:
         raise ValueError("portfolio graph rows are not complete and paired")
@@ -72,7 +80,11 @@ def main():
             "graph_reports": {str(path): hashlib.sha256(path.read_bytes()).hexdigest()
                               for path in args.graph_report},
             "selection": "existing_necessary_condition_selector_floor_completion",
-            "argument_fit_includes_heldout_constructions": True, "promotable": False,
+            "evaluation_split": evaluation_split,
+            "input_coordinates": "annotated_source_anchors_v1",
+            "argument_fit_includes_evaluation_examples": evaluation_split == "train",
+            "argument_fit_includes_heldout_constructions": True if evaluation_split == "train" else None,
+            "promotable": False,
             "source_sha256": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
                 for p in (Path(__file__).resolve(), ROOT / "core/learning/semantic_program_portfolio.py",
                           ROOT / "core/evidence/candidate_portfolio.py",
