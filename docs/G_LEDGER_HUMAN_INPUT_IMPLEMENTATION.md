@@ -6,7 +6,7 @@ This is a worklist, not a claim that every mechanism is already built.
 
 | Input | Existing implementation to reuse | Remaining acceptance boundary |
 | --- | --- | --- |
-| Shared shape and relations | RelationalGeneralizer, existing partial structure mapper, semantic program graphs, ConceptRegistry, typed cross-method program composition | Partial mappings and recombinations are proposals, not equivalence; measured transfer across changed vocabulary remains. |
+| Shared shape and relations | RelationalGeneralizer, existing partial structure mapper, semantic program graphs, ConceptRegistry, typed cross-method program composition, source-aligned mixed candidate union | Partial mappings and recombinations are proposals, not equivalence; measured transfer across changed vocabulary remains. |
 | Understanding another perspective | AgentModel beliefs, relational prediction registration and resolved outcomes | The local loop measures against the prior; live conversational feedback delivery remains to be connected. |
 | Detect misunderstanding | Semantic counterexamples, portfolio disagreement, information-gain inquiry, source-bound durable feedback reconciliation | Reopened local feedback can select a compatible alternative; trusted live feedback ingress and applicability verification remain. |
 | Revise interpretation and perspective | RelationalGeneralizer.revise, existing belief revision | Preserve observation provenance and goals while allowing new evidence to revise prior factual beliefs. |
