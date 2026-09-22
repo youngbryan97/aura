@@ -114,7 +114,13 @@ def _process_tree_rss_gb() -> float:
     def _rss_bytes(process: psutil.Process) -> int:
         try:
             return _process_memory_bytes_from_process(process)
-        except _MEMORY_MONITOR_RECOVERABLE_ERRORS:
+        except _MEMORY_MONITOR_RECOVERABLE_ERRORS as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); this process contributes 0 bytes to the footprint",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
             return 0
 
     process = psutil.Process(os.getpid())
@@ -323,8 +329,13 @@ def get_memory_pressure_snapshot(
     if provenance.source in {ObservationSource.HOST, ObservationSource.LIVE_PRESSURE}:
         try:
             process_rss_gb = max(process_rss_gb, _process_tree_rss_gb())
-        except _MEMORY_MONITOR_RECOVERABLE_ERRORS:
-            pass
+        except _MEMORY_MONITOR_RECOVERABLE_ERRORS as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the process-tree reading is missing, so the observer's number stands alone",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
 
     system_level = "normal"
     if not memory.available:

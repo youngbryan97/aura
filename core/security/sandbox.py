@@ -70,6 +70,7 @@ def _kernel_enforced(level: Any) -> bool:
         from security.sandbox import SecurityLevel
 
         return sys.platform == "darwin" and level != SecurityLevel.PRIVILEGED
+    # not a failure: the module is optional here, and its absence is the answer.
     except (ImportError, AttributeError):
         return False
 

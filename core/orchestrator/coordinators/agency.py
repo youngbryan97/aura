@@ -45,8 +45,13 @@ def _classify_capability_failure(skill_name: str, detail: str) -> str:
 
             if not get_connectivity_status().online:
                 return "offline"
-        except (OSError, *_CAPABILITY_NOTE_ERRORS):
-            pass
+        except (OSError, *_CAPABILITY_NOTE_ERRORS) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); connectivity is unknown, so this note is not marked offline",
+                "get_connectivity_status",
+                type(exc).__name__,
+                exc,
+            )
     if any(word in low for word in ("denied", "not permitted", "unauthorized", "forbidden")):
         return "unauthorized"
     if any(word in low for word in ("not found", "no such", "missing", "not installed")):

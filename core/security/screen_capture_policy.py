@@ -217,6 +217,7 @@ def _resident_bridge_capture_admission() -> ScreenCaptureAdmission | None:
             timeout=0.75,
             allow_one_shot=False,
         )
+    # not a failure: no resident bridge to ask, so there is no admission to report.
     except (ImportError, OSError, RuntimeError, TimeoutError, TypeError, ValueError):
         return None
     if result.get("bridge_transport") != "resident_ipc" or not result.get("ok"):
@@ -228,6 +229,7 @@ def _resident_bridge_capture_admission() -> ScreenCaptureAdmission | None:
         return None
     try:
         reason = ScreenCaptureDenial(str(receipt.get("reason", "")))
+    # not a failure: a reason that is not a known denial is not one this reports.
     except ValueError:
         return None
     allowed = receipt.get("allowed")
@@ -379,6 +381,7 @@ def _python_macos_capture_admission() -> ScreenCaptureAdmission | None:
             )
             or []
         )
+    # not a failure: no window list to read, so there is no admission to derive.
     except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
         return None
     return _admission_from_visible_windows(

@@ -163,6 +163,7 @@ def parse_instance_lock_pid(raw: str) -> int | None:
 def read_instance_lock_pid(lock_name: str = "singleton") -> int | None:
     try:
         return parse_instance_lock_pid(instance_lock_path(lock_name).read_text(encoding="utf-8"))
+    # not a failure: no lock file means nobody holds the instance lock.
     except OSError:
         return None
 

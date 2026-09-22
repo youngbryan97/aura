@@ -81,6 +81,7 @@ def _runtime_shutdown_requested() -> bool:
         from core.runtime.shutdown_coordinator import is_shutdown_requested
 
         return bool(is_shutdown_requested())
+    # not a failure: the module is optional here, and its absence is the answer.
     except (ImportError, AttributeError, RuntimeError):
         return False
 
@@ -972,6 +973,7 @@ class TaskTracker:
         if exclude_current:
             try:
                 current = asyncio.current_task()
+            # not a failure: off a loop there is no running loop or task to bind to.
             except RuntimeError:
                 current = None
         with self._state_lock:

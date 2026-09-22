@@ -286,6 +286,8 @@ class ExistenceGuard:
                     accelerator_capability="none",
                 )
                 state[relative] = "uchg" in str(completed.stdout or "")
+            # not a failure: a file whose flags will not read is not one this can call
+            # immutable, and False is the refusing direction.
             except (OSError, RuntimeError, ValueError):
                 state[relative] = False
         return state

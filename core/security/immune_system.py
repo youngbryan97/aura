@@ -218,8 +218,13 @@ class ImmuneSystem:
             from core.affect.nociception import DamageChannel, get_nociception_engine
             ch = _NOCI_CHANNEL.get(cls, DamageChannel.GENERIC)
             get_nociception_engine().register_damage(ch, ev.severity)
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the threat was not felt as damage",
+                "DamageChannel",
+                type(exc).__name__,
+                exc,
+            )
 
         # Reflex: hand it to the fast self-preservation layer (snapshot / minimal-mode).
         try:
@@ -231,8 +236,13 @@ class ImmuneSystem:
                 evidence=ev.evidence,
                 threat_class=ev.threat_class.value,
             )
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the threat was not recorded beyond this engine",
+                "get_emergency_protocol",
+                type(exc).__name__,
+                exc,
+            )
 
         return ev
 

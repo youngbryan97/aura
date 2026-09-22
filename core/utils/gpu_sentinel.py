@@ -61,6 +61,7 @@ class GPUSentinel:
                 self._holder_thread = threading.current_thread()
                 try:
                     self._holder_task = asyncio.current_task()
+                # not a failure: off a loop there is no running loop or task to bind to.
                 except RuntimeError:
                     self._holder_task = None
                 self._lock_time_mono = time.monotonic()
@@ -80,6 +81,8 @@ class GPUSentinel:
         """Synchronous lock release."""
         try:
             self._lock.release()
+        # not a failure: the comment below says it: already released, or force-released
+        # by health monitoring.
         except RuntimeError:
             # Already released or not held by us?
             # In health monitoring cases, we might force release.

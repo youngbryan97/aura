@@ -31,6 +31,7 @@ class AutonomousOutputGate:
         try:
             from core.identity.identity_guard import PersonaEnforcementGate
             self.identity_guard = PersonaEnforcementGate()
+        # not a failure: the module is optional here, and its absence is the answer.
         except ImportError:
             self.identity_guard = None
         

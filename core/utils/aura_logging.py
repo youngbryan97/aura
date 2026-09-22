@@ -75,6 +75,7 @@ class SQLiteMemoryHandler(logging.Handler):
                 record.module,
                 record.getMessage(),
             )
+        # not a failure: a record whose message will not format is not one this writes.
         except (TypeError, ValueError):
             return
         try:
@@ -122,6 +123,7 @@ class SQLiteMemoryHandler(logging.Handler):
             try:
                 while len(batch) < self._BATCH_MAX:
                     batch.append(self._queue.get_nowait())
+            # not a failure: an empty queue is what draining it reaches.
             except queue.Empty:
                 pass
             try:
@@ -136,6 +138,8 @@ class SQLiteMemoryHandler(logging.Handler):
                 if conn is not None:
                     try:
                         conn.close()
+                    # not a failure: a connection that will not close is already unusable, and the
+                    # write failure above is what gets recorded.
                     except sqlite3.Error:
                         pass
                     conn = None
@@ -146,6 +150,7 @@ class SQLiteMemoryHandler(logging.Handler):
         if conn is not None:
             try:
                 conn.close()
+            # not a failure: the same, on the clean exit.
             except sqlite3.Error:
                 pass
 

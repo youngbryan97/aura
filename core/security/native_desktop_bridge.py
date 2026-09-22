@@ -156,6 +156,8 @@ def _cached_code_signature_summary(executable: Path | None) -> dict[str, Any]:
         return _code_signature_summary(None)
     try:
         identity_revision = int(executable.stat().st_mtime_ns)
+    # not a failure: a file with no readable mtime has no identity revision, and 0 is
+    # the cache key for that.
     except OSError:
         identity_revision = 0
     cache_key = str(executable)
@@ -311,6 +313,7 @@ def _resident_bridge_process_running(executable: Path | None = None) -> bool:
                     return True
             except (OSError, TypeError, ValueError):
                 continue
+    # not a failure: a process table this cannot read shows no matching process.
     except (ImportError, OSError, RuntimeError, TypeError, ValueError):
         return False
     return False

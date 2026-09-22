@@ -372,8 +372,13 @@ class NetworkSentinel:
                 threat_class=ThreatClass.INTRUSION,
                 evidence=evidence,
             )
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.warning(
+                "%s unavailable (%s: %s); the intrusion was not filed with the immune system",
+                "ThreatClass",
+                type(exc).__name__,
+                exc,
+            )
 
     def recovery_plan(self) -> Dict[str, Any]:
         plan: Dict[str, Any] = {"restore_points": [], "recoverable": False}
@@ -384,8 +389,13 @@ class NetworkSentinel:
             plan["restore_points"].append(
                 {"source": "deletion_guard", "versions": dg.get("versions_kept", 0)}
             )
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); deletion-guard restore points are missing from the recovery plan",
+                "get_deletion_guard",
+                type(exc).__name__,
+                exc,
+            )
         try:
             from core.security.emergency_protocol import get_emergency_protocol
 
@@ -396,8 +406,13 @@ class NetworkSentinel:
                     "snapshot_taken": ep.get("snapshot_taken", False),
                 }
             )
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the emergency snapshot is missing from the recovery plan",
+                "get_emergency_protocol",
+                type(exc).__name__,
+                exc,
+            )
         plan["recoverable"] = any(
             item.get("versions", 0) or item.get("snapshot_taken")
             for item in plan["restore_points"]

@@ -58,6 +58,8 @@ def _lan_ips() -> list[str]:
             primary = probe.getsockname()[0]
             if primary:
                 addresses.append(primary)
+    # not a failure: a host with no route to that address contributes no primary
+    # address.
     except OSError:
         pass
     try:
@@ -65,6 +67,7 @@ def _lan_ips() -> list[str]:
             candidate = info[4][0]
             if candidate not in addresses:
                 addresses.append(candidate)
+    # not a failure: a hostname that does not resolve contributes no addresses.
     except OSError:
         pass
     return addresses

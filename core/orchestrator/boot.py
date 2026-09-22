@@ -227,6 +227,7 @@ async def _skip_the_background_subsystems_in_foreground_only(
 
                             try:
                                 _aio.get_running_loop()
+                            # not a failure: off a loop there is no running loop to schedule on.
                             except RuntimeError:
                                 return  # No event loop — can't schedule repair
                             from core.utils.task_tracker import get_task_tracker

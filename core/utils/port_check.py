@@ -15,6 +15,8 @@ def is_port_open(port: int, host: str = "127.0.0.1") -> bool:
         try:
             s.connect((host, port))
             return True
+        # not a failure: a port that will not connect is not open, which is the question
+        # being asked.
         except _PORT_CHECK_ERRORS:
             return False
 

@@ -199,8 +199,13 @@ class DeletionGuard:
                 origin="local", targeted_vuln="unguarded_delete",
                 threat_class=ThreatClass.DESTRUCTION, evidence={"forced": forced, "path": path},
             )
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.warning(
+                "%s unavailable (%s: %s); the immune system was not told about this delete",
+                "ThreatClass",
+                type(exc).__name__,
+                exc,
+            )
 
     def status(self, *, now: float | None = None) -> dict[str, Any]:
         now = time.time() if now is None else now

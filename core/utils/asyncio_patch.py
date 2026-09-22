@@ -48,6 +48,8 @@ def _call_original(
     try:
         if context is not None:
             return _ORIGINAL_CREATE_TASK(coro, name=name, context=context)
+    # not a failure: an event loop whose create_task predates the context keyword
+    # takes the call below instead.
     except TypeError:
         pass  # no-op: intentional
     if name is not None:
@@ -78,6 +80,7 @@ def install_asyncio_task_patch() -> bool:
                 shutdown_task_creation_allowed,
             )
             tracker = get_task_tracker()
+        # not a failure: no task tracker yet, and the plain create_task below is used.
         except (ImportError, AttributeError, RuntimeError):
             tracker = None
 

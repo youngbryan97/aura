@@ -21,6 +21,8 @@ try:
     # Warm the non-blocking percent counter
     psutil.cpu_percent(interval=None)
     _HAS_PSUTIL = True
+# not a failure: psutil is optional here, and the flag below is how the rest of
+# the module knows.
 except ImportError:
     _HAS_PSUTIL = False
 

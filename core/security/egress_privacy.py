@@ -168,6 +168,8 @@ def destination_is_local(url: str) -> bool:
     """
     try:
         host = (urllib.parse.urlsplit(str(url or "")).hostname or "").strip().lower()
+    # not a failure: the comment below says it: an unparseable URL is not evidence of
+    # a local destination.
     except ValueError:
         # An unparseable URL is not evidence of a local destination.
         return False
@@ -177,6 +179,8 @@ def destination_is_local(url: str) -> bool:
         return True
     try:
         address = ipaddress.ip_address(host)
+    # not a failure: a host that is not an IP address is not a local one, which is
+    # the refusing direction here.
     except ValueError:
         return False
     return bool(

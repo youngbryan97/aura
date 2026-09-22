@@ -121,8 +121,13 @@ async def retry_with_backoff(
             if on_retry:
                 try:
                     on_retry(attempt + 1, e, delay)
-                except (RuntimeError, AttributeError, TypeError, ValueError):
-                    pass  # no-op: intentional
+                except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                    logger.debug(
+                        "%s unavailable (%s: %s); the on_retry callback raised and the retry carried on",
+                        "it",
+                        type(exc).__name__,
+                        exc,
+                    )
 
             logger.info(
                 "Retry %d/%d in %.1fs: %s",

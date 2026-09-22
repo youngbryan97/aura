@@ -364,6 +364,8 @@ class GovernanceVault:
                 return False
             try:
                 self._conn.execute("SELECT 1")
+            # not a failure: a closed connection is what this asks about, and False is the
+            # answer.
             except sqlite3.ProgrammingError:
                 return False
             return True

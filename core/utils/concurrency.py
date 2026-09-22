@@ -194,7 +194,13 @@ class RobustLock:
                 # don't strand the mutex or its watchdog entry forever.
                 try:
                     acquired = await asyncio.wait_for(acquire_task, timeout=1.0)
-                except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError):
+                except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as exc:
+                    logger.warning(
+                        "%s unavailable (%s: %s); the acquire could not be joined, so the lock is reported unheld and may be stranded",
+                        "it",
+                        type(exc).__name__,
+                        exc,
+                    )
                     acquired = False
                 if acquired:
                     try:
@@ -307,6 +313,8 @@ class RobustLock:
         logger.critical("⚠️ FORCE RELEASING LOCK '%s' due to deadlock watchdog!", self.name)
         try:
             self._lock = threading.Lock()
+        # not a failure: the comment below says it: release on an unlocked lock is
+        # harmless.
         except RuntimeError:
             # release() on an unlocked lock — harmless
             pass  # no-op: intentional
@@ -609,6 +617,7 @@ class EventLoopMonitor:
         mark_task_protected(self._task, owner="event_loop_monitor")
         try:
             self._owner_loop = asyncio.get_running_loop()
+        # not a failure: off a loop there is no running loop or task to bind to.
         except RuntimeError:
             self._owner_loop = None
         logger.info(

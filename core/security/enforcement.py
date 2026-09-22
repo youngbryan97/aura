@@ -141,8 +141,13 @@ class Quarantine:
             shutil.move(str(src), str(dest))
             try:
                 dest.chmod(0o400)  # read-only, defang
-            except OSError:
-                pass
+            except OSError as exc:
+                logger.warning(
+                    "%s unavailable (%s: %s); the quarantined file was not defanged to read-only",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
             logger.warning("🔒 [Quarantine] isolated %s → %s", path, dest)
             return str(dest)
         except (OSError, ValueError) as exc:
@@ -390,8 +395,13 @@ def install_default_enforcement() -> dict[str, Any]:
         try:
             from core.security.network_sentinel import get_network_sentinel
             get_network_sentinel().register_scanner(arp_scan)
-        except (ImportError, AttributeError, RuntimeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.warning(
+                "%s unavailable (%s: %s); the ARP scanner is not registered with the network sentinel",
+                "get_network_sentinel",
+                type(exc).__name__,
+                exc,
+            )
 
         _installed = True
         return {"installed": True, "mitigations": sorted(immune._handlers), "scanner": "arp"}

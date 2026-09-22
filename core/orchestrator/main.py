@@ -386,6 +386,7 @@ async def _start_the_reflection_organs(
                     if loop is None:
                         try:
                             loop = asyncio.get_running_loop()
+                        # not a failure: off a loop there is no running loop to schedule on.
                         except RuntimeError:
                             loop = None
                     if loop and loop.is_running():
@@ -2158,6 +2159,8 @@ class RobustOrchestrator(
 
         try:
             task = get_task_tracker().create_task(coro, name=name)
+        # not a failure: no running loop to create the task on; the coroutine is disposed
+        # below rather than left un-awaited.
         except RuntimeError:
             _dispose_awaitable(coro)
             return None
@@ -3108,6 +3111,7 @@ class RobustOrchestrator(
                 if hasattr(self._thread, "is_alive"):
                     try:
                         is_alive = self._thread.is_alive()
+                    # not a failure: a thread handle that will not answer is not a live thread.
                     except _ORCHESTRATOR_RECOVERABLE_ERRORS:
                         is_alive = False
             checks.append(("thread_alive", is_alive))

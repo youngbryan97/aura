@@ -19,6 +19,7 @@ def _shutdown_requested() -> bool:
         from core.runtime.shutdown_coordinator import is_shutdown_requested
 
         return is_shutdown_requested()
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return False
 
@@ -40,6 +41,7 @@ def _register_executor(
             timeout_s=1.0,
             required=True,
         )
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return
 

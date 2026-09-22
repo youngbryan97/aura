@@ -27,6 +27,7 @@ class ResourceLock:
         """Lazily create async primitives for the current event loop."""
         try:
             loop = asyncio.get_running_loop()
+        # not a failure: off a loop there is no running loop or task to bind to.
         except RuntimeError:
             return
 
