@@ -1557,6 +1557,7 @@ def resource_observer(
             "core.social.their_rise",
             "core.social.what_passes_between",
             "core.soma.carrying",
+            "core.soma.pulse",
         ):
             try:
                 __import__(module, fromlist=["reset_for_test"]).reset_for_test()

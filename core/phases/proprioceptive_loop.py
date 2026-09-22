@@ -314,23 +314,22 @@ async def _execute_new_state_new_state(self, state):
             logger.debug("Proprioception token velocity probe failed: %s", _e)
 
     # ── 3. Expressive State (Self-Image) ────────────────────
-    # Map affect to expression for GUI unity
+    # The word from the branch chain; the rate against her own resting rate.
+    #
+    # The rate was the same five branches on fixed cut-offs, and arousal is a
+    # maximum over forty-five emotion channels, so it lived in 0.605 to 1.000
+    # and `arousal > 0.7` held almost always: over a campaign's 79,200 frames
+    # the pulse read 2.0 on 94.3% of them and two of the five branches were
+    # unreachable. Displacing affect moved nothing to measure, and the one
+    # strong edge into the body went from 8.9583 at eight conditions of eight
+    # to 0.4307 at two. See core/soma/pulse.py.
     affect = new_state.affect
-    if affect.valence > 0.5 and affect.arousal > 0.5:
-        soma.expressive["current_expression"] = "engaged"
-        soma.expressive["pulse_rate"] = 1.5
-    elif affect.valence < -0.3:
-        soma.expressive["current_expression"] = "contemplative"
-        soma.expressive["pulse_rate"] = 0.7
-    elif affect.arousal > 0.7:
-        soma.expressive["current_expression"] = "alert"
-        soma.expressive["pulse_rate"] = 2.0
-    elif affect.arousal < 0.3:
-        soma.expressive["current_expression"] = "resting"
-        soma.expressive["pulse_rate"] = 0.5
-    else:
-        soma.expressive["current_expression"] = "neutral"
-        soma.expressive["pulse_rate"] = 1.0
+    from core.soma.pulse import expression_for, rate as pulse_rate
+
+    soma.expressive["current_expression"] = expression_for(
+        affect.valence, affect.arousal
+    )
+    soma.expressive["pulse_rate"] = pulse_rate(affect.arousal)
 
     # And what she is carrying, which her body had no way of knowing.
     #
