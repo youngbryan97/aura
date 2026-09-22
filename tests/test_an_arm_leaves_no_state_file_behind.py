@@ -176,3 +176,34 @@ def test_a_file_named_like_a_database_that_is_not_one_is_copied_as_bytes(root: P
     fake.write_bytes(b"changed by the arm")
     fork._restore_stores(saved)
     assert fake.read_bytes() == b"not a database at all"
+
+
+def test_a_database_the_arm_created_goes_with_its_write_ahead_log(root: Path) -> None:
+    """Whole mode's malformed episodic store, 21 September.
+
+    A database the arm created is deleted by the restore, and its `-wal` and
+    `-shm` were skipped by suffix and left behind. With the testing flag
+    background work is off and no arm creates a database; in whole mode one
+    does, and the next database made under that name opened beside a stale
+    write-ahead log from another file.
+    """
+    (root / "data").mkdir()
+    saved = fork._store_state()
+    episodic = root / "data" / "episodic.db"
+    held = sqlite3.connect(episodic)
+    held.execute("PRAGMA journal_mode=WAL")
+    held.execute("CREATE TABLE memories (id INTEGER PRIMARY KEY, what TEXT)")
+    held.executemany("INSERT INTO memories (what) VALUES (?)", [("the arm",)] * 50)
+    held.commit()
+    assert (root / "data" / "episodic.db-wal").exists()
+    fork._restore_stores(saved)
+    held.close()
+    leftovers = sorted(p.name for p in (root / "data").iterdir())
+    assert leftovers == [], f"the arm's database left {leftovers} behind"
+    again = sqlite3.connect(episodic)
+    again.execute("PRAGMA journal_mode=WAL")
+    again.execute("CREATE TABLE memories (id INTEGER PRIMARY KEY, what TEXT)")
+    again.execute("INSERT INTO memories (what) VALUES ('the next arm')")
+    again.commit()
+    assert again.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+    again.close()

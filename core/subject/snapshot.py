@@ -677,6 +677,9 @@ def _restore_world(root: Path | None, saved: dict[str, Any] | None) -> None:
 #: logs, locks and keys are not state an arm reads back.
 _STORE_SKIP_SUFFIXES: tuple[str, ...] = ("-wal", "-shm", "-journal", ".lock", ".log", ".pem")
 
+#: The files SQLite keeps beside a database, which live and die with it.
+_SQLITE_COMPANIONS: tuple[str, ...] = ("-wal", "-shm", "-journal")
+
 #: What the fork holds in memory for one run's state root. A quick run's root
 #: was 24 MB over 3,178 files, most of them episodic memories and their write
 #: receipts; a root past this bound is not one run's own, and holding it would
@@ -996,8 +999,18 @@ def _restore_stores(saved: dict[str, Any] | None) -> None:
                 name = str(item)
                 if directory and item != place and "logs" in item.relative_to(place).parts:
                     continue
-                if name in keep or name.endswith(_STORE_SKIP_SUFFIXES):
+                if name in keep:
                     continue
+                if name.endswith(_STORE_SKIP_SUFFIXES):
+                    # A database's write-ahead log and shared memory belong to
+                    # SQLite while the database is kept. When the database is
+                    # not, because the arm created it, they go with it: left
+                    # behind, the next database made under that name opened
+                    # beside another file's log and read as malformed, which is
+                    # whole mode's episodic store on 21 September.
+                    companion = next((end for end in _SQLITE_COMPANIONS if name.endswith(end)), None)
+                    if companion is None or name[: -len(companion)] in keep:
+                        continue
                 lease.keep()
                 try:
                     gateway.delete_path(item, recursive=item.is_dir(), source="subject_core.fork")
