@@ -700,7 +700,9 @@ async def main() -> int:
         args.lags = ",".join(str(n) for n in preset["lags"])
         args.deciding_lags = ",".join(str(n) for n in preset["deciding"])
         args.anchors = max(int(args.anchors), int(preset["anchors"]))
-        args.skip_grain = True
+        # The grain is not skipped. v5 does not read it, but the carrier run
+        # refuses authority without one, and it is learned by the coordinator
+        # while the workers sweep, so it costs the run nothing.
     ladder = _ints(args.lags) or LAGS
     sweep_design: dict[str, Any] = {
         "looks": list(_ints(args.looks)),

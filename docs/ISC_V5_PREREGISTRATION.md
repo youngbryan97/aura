@@ -80,8 +80,10 @@ is empty.
 
 `core/subject/isc_v5.py` holds the numbers above and the two lines. The runner
 takes them from there: `tools/run_subject_core_v25.py --v5` sets the looks,
-draws, level, horizons and 128 anchors, and skips the grain, which v5 does not
-read. The design enters the run's fingerprint, so a run to another design is
+draws, level, horizons and 128 anchors. It learns the grain as well, which v5
+does not read and the carrier run needs for its authority, in the coordinator
+while the workers sweep. (Until 22 September 08:30 the preset skipped the grain,
+which would have left J*'s carrier term unresolved; no run under it was scored.) The design enters the run's fingerprint, so a run to another design is
 another campaign. `tools/score_isc_v5.py` joins a campaign report and its v5
 sweep into the verdict, and refuses a sweep not run to this design.
 
