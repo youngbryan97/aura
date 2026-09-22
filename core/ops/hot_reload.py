@@ -291,7 +291,12 @@ class HotReloader:
                     continue
                 try:
                     resolvable = importlib.util.find_spec(target) is not None
-                except (ImportError, AttributeError, ValueError):
+                except (ImportError, AttributeError, ValueError) as exc:
+                    logger.debug(
+                        "the reload target did not resolve to a module (%s: %s)",
+                        type(exc).__name__,
+                        exc,
+                    )
                     resolvable = False
                 if not resolvable:
                     unmatched.append(f"{scope}:{prefix}")

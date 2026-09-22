@@ -517,7 +517,12 @@ class ExperienceSpine:
         """
         try:
             self._resolve_callbacks.remove(callback)
-        except ValueError:
+        except ValueError as exc:
+            logger.debug(
+                "the callback was never subscribed, so there is nothing to remove (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return
 
     def subscriber_count(self) -> int:

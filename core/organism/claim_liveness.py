@@ -169,7 +169,12 @@ def _the_declarations_are_still_there() -> bool:
         from core.fsw.telemetry_dictionary import get_telemetry
 
         return get_telemetry().spec(_A_DECLARED_CHANNEL) is not None
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the telemetry dictionary is unreachable, so the declaration counts as gone (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return False
 
 

@@ -16,8 +16,13 @@ happened rather than things somebody imagined.
 
 from __future__ import annotations
 
+import logging
+
 from core.language.learned_matcher import LearnedMatcher, embed_sentences
 from core.runtime.lockdep import checked_lock
+
+logger = logging.getLogger(__name__)
+
 
 __all__ = ["actuation_surface"]
 
@@ -58,8 +63,12 @@ def actuation_surface() -> LearnedMatcher:
         positives, negatives = mine_desktop_actuation_labels()
         surface.positives = tuple(positives)
         surface.negatives = tuple(negatives)
-    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
-        pass
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "no mined labels, so the desktop matcher starts with none (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
 
     with _LOCK:
         if _SURFACE is None:

@@ -23,11 +23,15 @@ The four that matter:
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 
 from core.ontogeny.experience import OutcomeKind
 from core.runtime.sqlite_support import connecting
 from core.verify.invariants import Severity, Violation, invariant
+
+logger = logging.getLogger(__name__)
+
 
 #: Below this observation rate a deciding head is no longer learning from what
 #: it does. Chosen low on purpose: the check is for collapse, not for a dip.
@@ -43,7 +47,8 @@ def _organ() -> object | None:
         from core.ontogeny.service import get_ontogeny
 
         return get_ontogeny()
-    except (ImportError, RuntimeError, OSError, ValueError, TypeError):
+    except (ImportError, RuntimeError, OSError, ValueError, TypeError) as exc:
+        logger.debug("the ontogeny organ is unreachable (%s: %s)", type(exc).__name__, exc)
         return None
 
 
@@ -204,7 +209,12 @@ def _verbalization_preserves_claims() -> Iterator[Violation]:
         from core.ontogeny.conclusion import get_verbalization_ledger
 
         overstatements = get_verbalization_ledger().recent_overstatements()
-    except (ImportError, RuntimeError, ValueError, TypeError):
+    except (ImportError, RuntimeError, ValueError, TypeError) as exc:
+        logger.debug(
+            "the verbalization ledger is unreachable, so overstatements go unchecked (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return
     for entry in overstatements:
         offending = [v for v in entry["violations"] if v["kind"] == "overstated"]

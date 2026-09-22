@@ -382,7 +382,10 @@ class SensoryRuntime:
     def _synchronizer() -> MultimodalSynchronizer | None:
         try:
             service = optional_service("multimodal_synchronizer")
-        except (AttributeError, LookupError, RuntimeError, TypeError, ValueError):
+        except (AttributeError, LookupError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "no multimodal synchronizer is registered (%s: %s)", type(exc).__name__, exc
+            )
             return None
         return service if isinstance(service, MultimodalSynchronizer) else None
 

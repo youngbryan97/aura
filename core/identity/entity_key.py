@@ -381,7 +381,12 @@ class EntityIdentity:
         try:
             self._public_key().verify(bytes.fromhex(link.signature), link.payload())
             return True
-        except (InvalidSignature, ValueError, TypeError):
+        except (InvalidSignature, ValueError, TypeError) as exc:
+            logger.debug(
+                "the lineage link did not verify against this entity (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     def verify_chain(self, links: list[LineageLink] | None = None) -> dict[str, Any]:
@@ -474,7 +479,12 @@ class EntityIdentity:
             )
             public.verify(bytes.fromhex(record.signature), record.payload())
             return True
-        except (InvalidSignature, ValueError, TypeError):
+        except (InvalidSignature, ValueError, TypeError) as exc:
+            logger.debug(
+                "the succession record did not verify against the predecessor key (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     def successions(self) -> list[SuccessionRecord]:

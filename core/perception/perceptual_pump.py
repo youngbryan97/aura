@@ -441,7 +441,12 @@ def _collect_system_state() -> SystemState:
                 from core.resilience.substrate_monitor import SubstrateMonitor
                 _level, pressure, _source = SubstrateMonitor().thermal()
                 state.thermal_pressure = pressure
-            except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+            except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "thermal pressure is unreadable and reads as zero (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
                 state.thermal_pressure = 0.0
 
         # Disk I/O
@@ -451,8 +456,12 @@ def _collect_system_state() -> SystemState:
                 # Rough heuristic: busy_time / elapsed. Not perfect but directional.
                 state.disk_io_pressure = min(1.0, max(0.0,
                     getattr(disk, 'busy_time', 0) / max(1, state.timestamp) / 1000.0))
-        except (AttributeError, RuntimeError):
-            pass
+        except (AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "disk counters are unreadable, so disk pressure is left as it was (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
 
     except ImportError:
         pass  # psutil not installed — degrade gracefully

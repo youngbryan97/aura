@@ -230,7 +230,12 @@ class EternalMemoryPhase(Phase):
             if lane.get("warmup_in_flight"):
                 return True
             return lane_state in {"cold", "spawning", "handshaking", "warming", "recovering"}
-        except (ImportError, AttributeError, RuntimeError):
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "the conversation lane gave no status, so it does not count as warming (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     async def _generate_eternal_summary(self, history: list[dict]):
@@ -537,7 +542,8 @@ class GodModeToolPhase(Phase):
             from core.runtime.turn_outcome import current_turn
 
             bound = current_turn()
-        except ImportError:
+        except ImportError as exc:
+            logger.debug("no bound turn to read an origin from (%s: %s)", type(exc).__name__, exc)
             bound = None
         turn_origin = str(getattr(bound, "origin", "") or "")
         if turn_origin and a_person_is_waiting(turn_origin):
@@ -697,7 +703,12 @@ class GodModeToolPhase(Phase):
             import ast
 
             tree = ast.parse(raw_code)
-        except (SyntaxError, ValueError):
+        except (SyntaxError, ValueError) as exc:
+            logger.debug(
+                "the generated code does not parse, so it is refused (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
         banned_import_roots = {
@@ -1260,7 +1271,12 @@ class GodModeToolPhase(Phase):
                 objective,
                 origin=getattr(state.cognition, "current_origin", None),
             )
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "the proof policy did not answer, so this is not treated as a proof turn (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             proof_eval_turn = False
         benchmark_turn = str(getattr(state.cognition, "current_origin", "") or "").strip().lower() == "benchmark"
         if benchmark_turn:

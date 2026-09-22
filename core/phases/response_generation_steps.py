@@ -6,8 +6,12 @@ patches a name on it has to reach the code that reads it.
 """
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
 
 
 class _RunsTheGenerationSteps:
@@ -101,7 +105,12 @@ class _RunsTheGenerationSteps:
                 )
 
                 _desktop_objective = bool(looks_like_desktop_objective(objective))
-            except (ImportError, AttributeError, TypeError, ValueError):
+            except (ImportError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "desktop-objective detection is unavailable, so this is not treated as one (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
                 _desktop_objective = False
         if _desktop_objective:
             desktop_block = (

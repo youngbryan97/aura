@@ -21,16 +21,20 @@ this model is built to reject.
 
 from __future__ import annotations
 
+import logging
 import threading
 from typing import Any
 
-from core.runtime.lockdep import LockRank, checked_lock
 from core.metacognition.faculty_model import (
     Faculty,
     FacultyRegistry,
     ImprovementMetric,
     get_faculty_registry,
 )
+from core.runtime.lockdep import LockRank, checked_lock
+
+logger = logging.getLogger(__name__)
+
 
 _declared_lock = checked_lock("metacognition.default_faculties", rank=LockRank.REGISTRY, reentrant=True)
 _declared = False
@@ -52,7 +56,12 @@ def _loop_blocking_holds() -> float | None:
         from core.runtime.lockdep import lockdep_report
 
         report = lockdep_report()
-    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
+    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the lockdep report is unavailable, so loop-blocking reads as unknown (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return None
     splats = report.get("splats")
     if not isinstance(splats, (list, tuple)):
@@ -69,7 +78,12 @@ def _open_degradations() -> float | None:
 
         # count() is per-subsystem; the process-wide total lives in status().
         status = get_degradation_tracker().status()
-    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
+    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the degradation tracker is unavailable, so open degradations read as unknown (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return None
     if not isinstance(status, dict):
         return None
@@ -94,7 +108,12 @@ def _recall_hit_rate() -> float | None:
         from core.memory.recall_telemetry import get_recall_telemetry
 
         snapshot = get_recall_telemetry().snapshot()
-    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
+    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "recall telemetry is unavailable, so the hit rate reads as unknown (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return None
     if not isinstance(snapshot, dict):
         return None
@@ -123,7 +142,12 @@ def _dense_retrieval_available() -> float | None:
         if getattr(rag, "_EMBED_ENGINE_FAILED", False):
             return 0.0
         return 1.0 if getattr(rag, "_EMBED_ENGINE", None) is not None else 0.0
-    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
+    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the embedding engine could not be inspected, so retrieval reach reads as unknown (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return None
 
 

@@ -64,7 +64,8 @@ def get_audit_suite() -> Any:
         from core.consciousness.unified_audit import get_audit_suite as _get_suite
 
         return _get_suite()
-    except ImportError:
+    except ImportError as exc:
+        logger.debug("the unified audit suite is unavailable (%s: %s)", type(exc).__name__, exc)
         return None
 
 
@@ -366,7 +367,12 @@ class KernelInterface:
                     or parameter.kind is inspect.Parameter.VAR_KEYWORD
                     for parameter in inspect.signature(shutdown).parameters.values()
                 )
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as exc:
+                logger.debug(
+                    "the kernel's shutdown signature could not be read, so it is called without the finalizer flag (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
                 supports_finalizer_ownership = False
             if supports_finalizer_ownership:
                 await shutdown(finalize_process_runtime=finalize_process_runtime)

@@ -137,8 +137,12 @@ class CognitiveDaemon:
                         from core.runtime.runtime_hygiene import get_runtime_hygiene
 
                         get_runtime_hygiene().unregister_shutdown_resource(socket_server)
-                    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
-                        pass
+                    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                        logger.debug(
+                            "the socket server stayed registered with shutdown hygiene (%s: %s)",
+                            type(exc).__name__,
+                            exc,
+                        )
                 except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
                     record_degradation("daemon", exc)
                     logger.error("Daemon socket shutdown failed: %s", exc)

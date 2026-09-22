@@ -36,6 +36,7 @@ ones. The receipts are the labels; nobody has to write them down.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import threading
 from collections.abc import Callable, Iterable, Sequence
@@ -48,6 +49,9 @@ from core.language.substrate_store import (
 )
 from core.runtime.errors import record_degradation
 from core.runtime.lockdep import checked_lock
+
+logger = logging.getLogger(__name__)
+
 
 __all__ = [
     "Boundary",
@@ -460,7 +464,12 @@ class LearnedMatcher:
             return (self._store or get_language_substrate_store()).matcher_path(
                 self.name
             )
-        except _RECOVERABLE:
+        except _RECOVERABLE as exc:
+            logger.debug(
+                "the substrate store gave no path, so nothing learned here is kept (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return None
 
     def load(self) -> bool:

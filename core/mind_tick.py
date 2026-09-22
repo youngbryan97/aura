@@ -432,8 +432,12 @@ class MindTick(_RunsTheTickLoopSteps, _KnowsWhetherItIsStillAlive):
 
             if foreground_inference_active():
                 return "foreground_inference_active"
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "foreground activity could not be read, so the tick proceeds (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
 
         try:
             from core.runtime.background_policy import (

@@ -288,7 +288,12 @@ class MeTTaEngine:
                     return None
                 try:
                     return _num_node(fn(left, right))
-                except (ArithmeticError, ValueError):
+                except (ArithmeticError, ValueError) as exc:
+                    logger.debug(
+                        "the arithmetic operation has no defined result for these two atoms (%s: %s)",
+                        type(exc).__name__,
+                        exc,
+                    )
                     return None
 
             return op

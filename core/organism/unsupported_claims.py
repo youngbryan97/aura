@@ -6,7 +6,11 @@ here rather than in the runtime, and the report that says so plainly.
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
 
 
 class _SaysWhichClaimsHaveNoTest:
@@ -18,7 +22,12 @@ class _SaysWhichClaimsHaveNoTest:
             from core.organism.claim_liveness import unmeasured_only_here
 
             return unmeasured_only_here(channels)
-        except (ImportError, AttributeError, TypeError, ValueError):
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "claim liveness is unreachable, so this is not treated as unmeasured (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     def unsupported_claims(self) -> list[dict[str, Any]]:

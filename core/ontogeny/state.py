@@ -346,7 +346,12 @@ def _sparse_reservoir(
     try:
         eigenvalues = np.linalg.eigvals(w)
         radius = float(np.max(np.abs(eigenvalues)))
-    except np.linalg.LinAlgError:
+    except np.linalg.LinAlgError as exc:
+        logger.debug(
+            "the eigenvalues did not converge, so the radius reads as zero (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         radius = 0.0
     if radius > 1e-9:
         w *= spectral_radius / radius

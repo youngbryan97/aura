@@ -116,7 +116,12 @@ class Interoception:
             from core.runtime.resource_observation import get_resource_observer
 
             compute = get_resource_observer().compute()
-        except (ImportError, OSError, AttributeError, RuntimeError, ValueError):
+        except (ImportError, OSError, AttributeError, RuntimeError, ValueError) as exc:
+            logger.debug(
+                "compute load is unreadable, so this returns nothing rather than a guess (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return None
         if not getattr(compute, "available", False):
             return None

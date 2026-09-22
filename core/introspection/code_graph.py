@@ -445,15 +445,23 @@ class CodeGraph:
             if arg.annotation:
                 try:
                     ann = f": {ast.unparse(arg.annotation)}"
-                except (RuntimeError, AttributeError, TypeError, ValueError):
-                    pass  # no-op: intentional
+                except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                    logger.debug(
+                        "an argument annotation would not render, so it is left off the signature (%s: %s)",
+                        type(exc).__name__,
+                        exc,
+                    )
             args.append(f"{arg.arg}{ann}")
         ret = ""
         if node.returns:
             try:
                 ret = f" -> {ast.unparse(node.returns)}"
-            except (RuntimeError, AttributeError, TypeError, ValueError):
-                pass  # no-op: intentional
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "the return annotation would not render, so it is left off the signature (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
         return f"({', '.join(args)}){ret}"
 
     @staticmethod

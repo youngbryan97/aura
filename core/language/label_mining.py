@@ -19,6 +19,7 @@ Two rules keep the mining honest:
 from __future__ import annotations
 
 import json
+import logging
 import re
 import sqlite3
 from collections.abc import Iterable
@@ -26,6 +27,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from core.runtime.errors import record_degradation
+
+logger = logging.getLogger(__name__)
+
 
 __all__ = [
     "ACTUATION_TOOLS",
@@ -66,7 +70,12 @@ def _database() -> Path | None:
         from core.config import config
 
         path = Path(config.paths.data_dir) / "memory" / "intention_loop.db"
-    except _RECOVERABLE:
+    except _RECOVERABLE as exc:
+        logger.debug(
+            "the intention-loop database path is unreachable, so no labels are mined (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return None
     return path if path.is_file() else None
 

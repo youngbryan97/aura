@@ -80,7 +80,12 @@ class MemoryGuard:
                                         (hasattr(gate, "_foreground_user_turn_active") and gate._foreground_user_turn_active())
                                         or (hasattr(gate, "_foreground_owner_active") and gate._foreground_owner_active())
                                     )
-                                except (RuntimeError, AttributeError, TypeError):
+                                except (RuntimeError, AttributeError, TypeError) as exc:
+                                    logger.debug(
+                                        "the inference gate would not say whether a person is waiting (%s: %s)",
+                                        type(exc).__name__,
+                                        exc,
+                                    )
                                     foreground_busy = False
                             if foreground_busy:
                                 logger.warning(

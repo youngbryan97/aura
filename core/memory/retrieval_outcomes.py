@@ -41,12 +41,16 @@ counted it as such would drift confidently upward forever.
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Iterable
 
 from core.runtime.lockdep import LockRank, checked_lock
+
+logger = logging.getLogger(__name__)
+
 
 __all__ = [
     "RetrievalVerdict",
@@ -327,7 +331,12 @@ def _register_runtime_service() -> None:
             owner="core/memory/retrieval_outcomes.py",
             registered_by="core.memory.retrieval_outcomes._register_runtime_service",
         )
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the retrieval outcome ledger did not register, so the surface reports it missing (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         # The surface reports an unregistered ledger as missing, which is the
         # honest reading; nothing here should raise at import time.
         pass

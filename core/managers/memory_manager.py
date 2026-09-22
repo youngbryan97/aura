@@ -37,7 +37,12 @@ class MemoryManager:
         try:
             from core.runtime import resource_psutil as psutil
             return psutil.virtual_memory().percent > self._pressure_threshold
-        except ImportError:
+        except ImportError as exc:
+            logger.debug(
+                "memory pressure is unreadable, so it counts as low (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     # ── Mycelial Integration ──────────────────────────────

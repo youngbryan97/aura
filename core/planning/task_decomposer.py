@@ -165,8 +165,12 @@ class TaskDecomposer:
             _guidance = get_plan_failure_memory().guidance(objective)
             if _guidance.has_lessons:
                 context["plan_failure_guidance"] = _guidance.to_dict()
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "no plan-failure guidance, so decomposition steers by itself (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
 
         # Try LLM decomposition first
         steps = await self._llm_decompose(

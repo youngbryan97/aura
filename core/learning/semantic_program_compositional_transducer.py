@@ -1534,7 +1534,7 @@ __all__ = [
 
 # Lifted to keep this module under the 2000-line ceiling. Imported last so the
 # names above already exist when the child reads them back at call time.
-from core.learning.semantic_program_compositional_refits import (  # noqa: E402
+from core.learning.semantic_program_compositional_refits import (  # noqa: E402,F401
     refit_compositional_argument_proposals,
     refit_compositional_argument_rankings,
     refit_compositional_definition_pointer,

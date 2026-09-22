@@ -279,7 +279,12 @@ class ShadowExecutionPhase(Phase):  # type: ignore[misc]
                 return False
                 
             return True
-        except (json.JSONDecodeError, TypeError, ValueError):
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "the derived state would not serialize, so it is refused (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     async def _validate_mutation(self, mutated_code: str, validator_code: str) -> bool:
@@ -313,8 +318,12 @@ class ShadowExecutionPhase(Phase):  # type: ignore[misc]
                     timeout_s=1.0,
                     name="shadow-result-queue-registration-failure",
                 )
-            except (AttributeError, OSError, RuntimeError, ValueError, TimeoutError):
-                pass
+            except (AttributeError, OSError, RuntimeError, ValueError, TimeoutError) as exc:
+                logger.debug(
+                    "the result queue did not close after its registration failed (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
             return False, "runtime_shutdown" if is_shutdown_requested() else "resource_owner_unavailable"
         process = None
         try:
@@ -409,12 +418,18 @@ class ShadowExecutionPhase(Phase):  # type: ignore[misc]
                     name="shadow-result-queue-close",
                 )
                 queue_cleanup_complete = True
-            except (AttributeError, OSError, RuntimeError, ValueError, TimeoutError):
-                pass
+            except (AttributeError, OSError, RuntimeError, ValueError, TimeoutError) as exc:
+                logger.debug(
+                    "the result queue did not close cleanly (%s: %s)", type(exc).__name__, exc
+                )
             if queue_cleanup_complete:
                 try:
                     from core.runtime.runtime_hygiene import get_runtime_hygiene
 
                     get_runtime_hygiene().unregister_shutdown_resource(result_queue)
-                except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
-                    pass
+                except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                    logger.debug(
+                        "the result queue stayed registered with shutdown hygiene (%s: %s)",
+                        type(exc).__name__,
+                        exc,
+                    )

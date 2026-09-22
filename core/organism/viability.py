@@ -306,7 +306,10 @@ class ViabilityEngine:
         ]
         try:
             return order.index(state)
-        except ValueError:
+        except ValueError as exc:
+            logger.debug(
+                "the viability state is not in the ordered list (%s: %s)", type(exc).__name__, exc
+            )
             return 0
 
     # -------- background loop ---------------------------------------------

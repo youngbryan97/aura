@@ -495,7 +495,12 @@ class InteriorityService:
         """
         try:
             loop = asyncio.get_running_loop()
-        except RuntimeError:
+        except RuntimeError as exc:
+            logger.debug(
+                "no running loop here, so the interiority push is not scheduled (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
         task = create_owned_asyncio_task(self.apply(state))
         self._pending.add(task)

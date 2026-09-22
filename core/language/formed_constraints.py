@@ -33,10 +33,14 @@ running the code.
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
 
 __all__ = [
     "FormedConstraint",
@@ -109,7 +113,10 @@ def _fires_on_the_token_alone(pattern: re.Pattern[str], word: str) -> bool:
 
     try:
         return pattern.search(word) is not None
-    except (re.error, TypeError):
+    except (re.error, TypeError) as exc:
+        logger.debug(
+            "the pattern would not run against this word (%s: %s)", type(exc).__name__, exc
+        )
         return False
 
 
@@ -291,7 +298,10 @@ def span_local(pattern: re.Pattern[str], text: str) -> bool | None:
 
     try:
         hit = pattern.search(text)
-    except (re.error, TypeError):
+    except (re.error, TypeError) as exc:
+        logger.debug(
+            "the pattern would not run against this sentence (%s: %s)", type(exc).__name__, exc
+        )
         return None
     if hit is None:
         return None
@@ -300,7 +310,10 @@ def span_local(pattern: re.Pattern[str], text: str) -> bool | None:
         return None
     try:
         return pattern.search(fragment) is not None
-    except (re.error, TypeError):
+    except (re.error, TypeError) as exc:
+        logger.debug(
+            "the pattern would not run against its own fragment (%s: %s)", type(exc).__name__, exc
+        )
         return None
 
 

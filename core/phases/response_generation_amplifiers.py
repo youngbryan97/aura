@@ -9,8 +9,12 @@ patches a name on it has to reach the code that reads it.
 """
 from __future__ import annotations
 
+import logging
 import re
 from typing import TYPE_CHECKING, Any
+
+logger = logging.getLogger(__name__)
+
 
 if TYPE_CHECKING:
     from .response_generation_unitary import (
@@ -131,8 +135,12 @@ class _AmplifiesTheDraft:
         try:
             if hasattr(state, "metadata") and isinstance(state.metadata, dict):
                 state.metadata["reasoning_receipt"] = receipt
-        except (AttributeError, TypeError):
-            pass
+        except (AttributeError, TypeError) as exc:
+            logger.debug(
+                "the reasoning receipt did not reach the state metadata (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
         logger.info(
             "🧠 [AmplifyV2-live/phase] task=%s mode=%s verified=%s conf=%.2f → %s",
             task_type, receipt.get("mode"), result.verified, result.confidence,
@@ -297,8 +305,12 @@ class _AmplifiesTheDraft:
             try:
                 if hasattr(state, "metadata") and isinstance(state.metadata, dict):
                     state.metadata["conversation_amplification"] = result.to_dict()
-            except (AttributeError, TypeError):
-                pass
+            except (AttributeError, TypeError) as exc:
+                logger.debug(
+                    "the amplification record did not reach the state metadata (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
             # The one that won is what the next candidate is measured against.
             # See core/cognition/convenience.py.
             try:

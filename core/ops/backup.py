@@ -340,7 +340,12 @@ class BackupManager:
                 (item.stat().st_mtime for item in self.backup_dir.glob("aura_state_*.tar.gz")),
                 default=0.0,
             )
-        except OSError:
+        except OSError as exc:
+            logger.debug(
+                "the backup directory could not be read, so no backup time is known (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return 0.0
         return float(newest)
 

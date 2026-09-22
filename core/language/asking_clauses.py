@@ -169,7 +169,10 @@ def _clause_asks(piece: str, *, settled: bool) -> bool:
     if settled:
         try:
             surface.observe(piece, holds=True)
-        except (RuntimeError, TypeError, ValueError):
+        except (RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "the learned surface did not record this clause (%s: %s)", type(exc).__name__, exc
+            )
             # Teaching the surface is a side effect of answering, never the
             # answer. The floor already decided this clause asks, and it is
             # right whether or not the learned surface could record it.
@@ -177,7 +180,12 @@ def _clause_asks(piece: str, *, settled: bool) -> bool:
         return True
     try:
         learned = surface.decide_without_waiting(piece)
-    except (RuntimeError, TypeError, ValueError):
+    except (RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "the learned surface would not decide, so the floor's answer stands (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         learned = None
     return bool(learned)
 

@@ -196,7 +196,12 @@ class GoalHierarchy:
                 try:
                     from ..audits.alignment_auditor import AlignmentAuditor
                     auditor = AlignmentAuditor(self.brain)
-                except ImportError:
+                except ImportError as exc:
+                    logger.debug(
+                        "no alignment auditor, so subtasks are not audited (%s: %s)",
+                        type(exc).__name__,
+                        exc,
+                    )
                     auditor = None
 
                 for task in subtasks:

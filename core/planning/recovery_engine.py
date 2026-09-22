@@ -203,8 +203,12 @@ class RecoveryEngine:
             get_plan_failure_memory().record_outcome(
                 goal, strategy, success=success, failure_mode="" if success else error,
             )
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "the recovery outcome did not reach plan failure memory (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
 
         return success
 

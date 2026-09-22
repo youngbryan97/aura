@@ -452,7 +452,10 @@ class MetaCognitiveMonitor:
                 json.dumps(reflection.to_dict(), default=str) + "\n",
                 source="metacognitive_monitor.log_reflection",
             )
-        except (OSError, IOError):
+        except (OSError, IOError) as exc:
+            logger.debug(
+                "the reflection was not appended to its log (%s: %s)", type(exc).__name__, exc
+            )
             return
 
     # ── Public API ───────────────────────────────────────────────────

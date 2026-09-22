@@ -328,7 +328,12 @@ class LymphaticReaper:
             if path.is_symlink():
                 return path.parent.resolve() == tmp_root
             return path.resolve().parent == tmp_root
-        except OSError:
+        except OSError as exc:
+            logger.debug(
+                "the path would not resolve, so it is not treated as a safe temp child (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     @staticmethod

@@ -14,9 +14,13 @@ about discipline that depends on discipline is not a rule.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 
 from core.verify.invariants import Severity, Violation, invariant
+
+logger = logging.getLogger(__name__)
+
 
 #: Paths that generate or hold text about the self. A constitutive identity
 #: must be computable with every one of them absent.
@@ -40,7 +44,12 @@ def _label_never_writes_coherence() -> Iterator[Violation]:
         return
     try:
         source = path.read_text(encoding="utf-8")
-    except OSError:
+    except OSError as exc:
+        logger.debug(
+            "the identity source could not be read, so no invariant is derived from it (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return
     for line in source.splitlines():
         stripped = line.strip()

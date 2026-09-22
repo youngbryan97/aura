@@ -17,6 +17,9 @@ from structlog.dev import ConsoleRenderer
 from core.observability import handler_reentry
 from core.runtime.state_ownership import state_root
 
+logger = logging.getLogger(__name__)
+
+
 # ── Redaction Patterns ─────────────────────────────────────────
 
 _REDACT_PATTERNS: list[tuple[Pattern[str], str]] = [
@@ -128,8 +131,12 @@ class _DropNewestOnOverflowQueueHandler(logging.handlers.QueueHandler):
         try:
             self.queue.put_nowait(record)
             return
-        except queue.Full:
-            pass
+        except queue.Full as exc:
+            logger.debug(
+                "the log queue is full; the oldest record is dropped for this one (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
         try:
             self.queue.get_nowait()
         except queue.Empty:

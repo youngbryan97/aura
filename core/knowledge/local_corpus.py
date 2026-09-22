@@ -362,7 +362,8 @@ class LocalCorpusStore:
             return False
         try:
             return conn.execute("SELECT 1 FROM docs LIMIT 1").fetchone() is not None
-        except sqlite3.OperationalError:
+        except sqlite3.OperationalError as exc:
+            logger.debug("the corpus has no docs table to count (%s: %s)", type(exc).__name__, exc)
             return False
         finally:
             conn.close()

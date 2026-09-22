@@ -598,7 +598,12 @@ class MemoryGuard:
             from core.runtime.resource_observation import get_resource_observer
 
             return get_resource_observer().memory(include_process_tree=False).available_bytes / 1024**3
-        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "available memory is unreadable, so admission sees zero (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return 0.0
 
     def admit(self, model_dir: Path | str) -> dict[str, Any]:

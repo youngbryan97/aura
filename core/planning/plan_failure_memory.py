@@ -286,8 +286,12 @@ def _register_in_container(engine: PlanFailureMemory) -> None:
             if callable(reg):
                 reg(PlanFailureMemory.SERVICE_NAME, engine,
                     required=False, registered_by="plan_failure_memory")
-    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
-        pass
+    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "plan failure memory did not register in the container (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
 
 
 def reset_plan_failure_memory_for_test() -> None:

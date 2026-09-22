@@ -6,7 +6,11 @@ patches a name on it has to reach the code that reads it.
 """
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
+
+logger = logging.getLogger(__name__)
+
 
 if TYPE_CHECKING:
     from .will import (
@@ -90,7 +94,12 @@ class _ReadsTheContext:
             from core.being.runtime import is_runtime_bound_passive_observation
 
             return is_runtime_bound_passive_observation(domain.value, context)
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "passive-observation status could not be read, so this action is not exempt (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     @staticmethod

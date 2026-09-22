@@ -82,7 +82,12 @@ def _skill_available(name: str) -> bool:
             (active is None or name in active)
             and (skills is None or name in skills)
         )
-    except (ImportError, AttributeError, RuntimeError, TypeError):
+    except (ImportError, AttributeError, RuntimeError, TypeError) as exc:
+        logger.debug(
+            "the capability engine did not answer, so the skill counts as inactive (%s: %s)",
+            type(exc).__name__,
+            exc,
+        )
         return False
 
 

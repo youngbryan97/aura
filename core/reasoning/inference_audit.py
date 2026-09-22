@@ -14,12 +14,16 @@ reasoning as wrong. This makes it safe to run on Aura's own draft replies.
 """
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Literal
 
 from core.reasoning.belief_consistency import encode_belief
 from core.reasoning.natural_deduction import Implies, atoms, entails, is_consistent
+
+logger = logging.getLogger(__name__)
+
 
 Status = Literal["valid", "invalid", "undecidable"]
 
@@ -169,8 +173,12 @@ def audit_self_reasoning(text: str) -> list[InferenceVerdict]:
             get_deduction_governance().record_reasoning_audit(
                 [v.to_dict() for v in non_sequiturs]
             )
-        except (ImportError, AttributeError, RuntimeError, TypeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError, TypeError) as exc:
+            logger.debug(
+                "the non-sequiturs did not reach deduction governance (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
         # Lean's sorry discipline, live: a conclusion Aura asserted that does
         # not follow is an unproven claim — record it as *admitted* in the
         # theorem ledger so it stays visible (and taints anything later proved
@@ -186,6 +194,10 @@ def audit_self_reasoning(text: str) -> list[InferenceVerdict]:
                     source="inference_audit",
                     formula=encode_belief(v.inference.conclusion).formula,
                 )
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "the non-sequiturs were not admitted to the theorem ledger (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
     return non_sequiturs

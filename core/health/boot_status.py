@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from datetime import UTC, datetime
 from typing import Any
@@ -17,6 +18,9 @@ from core.runtime.health_contract import (
     startup_complete_at,
 )
 from core.runtime.version import VERSION, version_string
+
+logger = logging.getLogger(__name__)
+
 
 _BOOT_STATUS_RECOVERABLE_ERRORS = (AttributeError, RuntimeError, TypeError, ValueError)
 
@@ -243,7 +247,12 @@ def build_boot_health_snapshot(
         try:
             runtime_dt = datetime.fromisoformat(str(runtime_timestamp).replace("Z", "+00:00"))
             runtime_fresh = (now - runtime_dt.timestamp()) <= 120.0
-        except ValueError:
+        except ValueError as exc:
+            logger.debug(
+                "the runtime timestamp did not parse, so the report counts as stale (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             runtime_fresh = False
     if not runtime_fresh:
         heartbeat_tick = runtime_payload.get("heartbeat_tick")

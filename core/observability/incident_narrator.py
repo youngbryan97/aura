@@ -712,7 +712,8 @@ def _parse_sentinel_timestamp(raw: str) -> float | None:
 
     try:
         return datetime.strptime(raw, "%Y-%m-%dT%H:%M:%S%z").timestamp()
-    except ValueError:
+    except ValueError as exc:
+        logger.debug("the sentinel timestamp did not parse (%s: %s)", type(exc).__name__, exc)
         return None
 
 

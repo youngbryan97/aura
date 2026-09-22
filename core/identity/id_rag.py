@@ -363,8 +363,12 @@ class IdentityChronicle:
             return
         try:
             self._access_queue.put_nowait((time.time(), fact_ids))
-        except queue.Full:
-            pass # Backpressure: drop access marks if queue is full rather than blocking
+        except queue.Full as exc:
+            logger.debug(
+                "the access queue is full, so this access mark is dropped (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
 
     def _write_access_batch(self, batch: list[tuple[float, list[str]]]) -> None:
         updates = []
@@ -452,8 +456,12 @@ def get_identity_chronicle() -> IdentityChronicle:
     if callable(close):
         try:
             close()
-        except (OSError, RuntimeError, AttributeError):
-            pass
+        except (OSError, RuntimeError, AttributeError) as exc:
+            logger.debug(
+                "a chronicle that lost the construction race would not close (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
     return _chronicle_singleton
 
 

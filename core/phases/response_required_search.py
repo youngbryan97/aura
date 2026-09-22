@@ -327,8 +327,12 @@ class _RunsTheRequiredSearch:
         )
         try:
             state.cognition.trim_working_memory()
-        except AttributeError:
-            pass
+        except AttributeError as exc:
+            logger.debug(
+                "working memory was not trimmed after the search evidence (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
         logger.info(
             "🔎 ResponseGeneration: executed required search evidence via %s (ok=%s query=%s).",
             skill_name,
@@ -434,8 +438,12 @@ class _RunsTheRequiredSearch:
         )
         try:
             state.cognition.trim_working_memory()
-        except AttributeError:
-            pass
+        except AttributeError as exc:
+            logger.debug(
+                "working memory was not trimmed after reading the document (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
         logger.info(
             "🔎 ResponseGeneration: read the named document instead of searching for it (%s).",
             url[:120],

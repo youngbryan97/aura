@@ -9,12 +9,16 @@ that has been smoothed is a confabulation with good manners.
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from typing import Any
 
 from core.conversation.word_markers import names_any
 from core.state.aura_state import AuraState
 from core.utils.intent_normalization import normalize_memory_intent_text
+
+logger = logging.getLogger(__name__)
+
 
 
 class _AnswersFromWhatSheRemembers:
@@ -151,7 +155,12 @@ class _AnswersFromWhatSheRemembers:
                         getattr(ep, "full_description", "") or getattr(ep, "context", ""),
                         340,
                     )
-            except _RESPONSE_RECOVERABLE_ERRORS:
+            except _RESPONSE_RECOVERABLE_ERRORS as exc:
+                logger.debug(
+                    "an episodic match would not render, so it contributes no evidence (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
                 evidence = ""
             if evidence and evidence not in seen:
                 seen.add(evidence)

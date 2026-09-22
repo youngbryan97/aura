@@ -744,8 +744,12 @@ class EmbeddingEngine:
         if not mine:
             try:
                 return np.array(making.result(timeout=_QUERY_WAIT_S))
-            except (FutureTimeout, RuntimeError, AttributeError, TypeError, ValueError):
-                pass  # the maker failed or is stuck; make it here
+            except (FutureTimeout, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "the in-flight embedding did not arrive, so this thread makes it (%s: %s)",
+                    type(exc).__name__,
+                    exc,
+                )
         try:
             vector = self._embed_query_uncached(text, key[0])
         except BaseException as exc:

@@ -1656,14 +1656,22 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                 mem_monitor = self.container.get("memory_monitor", default=None)
                 if mem_monitor is not None:
                     memory_pressure = getattr(mem_monitor, "pressure", None)
-            except (OSError, ConnectionError, TimeoutError):
+            except (OSError, ConnectionError, TimeoutError) as exc:
+                logger.debug(
+                    "the memory monitor did not report pressure (%s: %s)", type(exc).__name__, exc
+                )
                 memory_pressure = None
             if memory_pressure is None:
                 try:
                     from core.runtime import resource_psutil as psutil
 
                     memory_pressure = psutil.virtual_memory().percent
-                except (ImportError, AttributeError, RuntimeError):
+                except (ImportError, AttributeError, RuntimeError) as exc:
+                    logger.debug(
+                        "memory pressure is unreadable and reads as zero (%s: %s)",
+                        type(exc).__name__,
+                        exc,
+                    )
                     memory_pressure = 0.0
 
             generation_temperature, token_budget = self._execute_affect_modulated_generation(deep_handoff, is_background, live_mind_controls_bound, live_mind_generation_controls, runtime_context, state)
@@ -2389,8 +2397,12 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                                 )
 
                                 preserve_draft(response_text_s)
-                            except (ImportError, RuntimeError, TypeError, ValueError):
-                                pass
+                            except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+                                logger.debug(
+                                    "the rejected draft was not preserved (%s: %s)",
+                                    type(exc).__name__,
+                                    exc,
+                                )
                         else:
                             logger.warning(
                                 "🛡️ ResponseGeneration rejected unsafe user-facing draft (%s, len=%d): %r",

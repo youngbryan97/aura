@@ -385,7 +385,12 @@ class StakeFeed:
             for key in keys:
                 try:
                     store = optional_service(key, default=None)
-                except (RuntimeError, AttributeError, TypeError, ValueError, KeyError):
+                except (RuntimeError, AttributeError, TypeError, ValueError, KeyError) as exc:
+                    logger.debug(
+                        "a stakes source is unreachable and contributes nothing this harvest (%s: %s)",
+                        type(exc).__name__,
+                        exc,
+                    )
                     store = None
                 if store is not None:
                     found_key = key

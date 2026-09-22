@@ -1833,7 +1833,7 @@ def log_health_report() -> HealthVerdict:
 
 # Lifted to keep this module under the 2000-line ceiling. Imported last so
 # the names above already exist when the child reads them back at call time.
-from .health_integrity_sections import (  # noqa: E402
+from .health_integrity_sections import (  # noqa: E402,F401  (re-exported for callers)
     _integrity_of_control_and_measured_effect,
     _integrity_of_her_shape_and_boundaries,
     _integrity_of_orchestration_verifier_and_learning,

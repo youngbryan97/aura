@@ -30,7 +30,12 @@ class DriveController:
         """Synchronous liveness probe for the runtime health contract."""
         try:
             status = self.get_status()
-        except (AttributeError, RuntimeError, TypeError, ValueError):
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "the drive controller could not report status, so it counts as not alive (%s: %s)",
+                type(exc).__name__,
+                exc,
+            )
             return False
         return (
             self.orchestrator is not None
