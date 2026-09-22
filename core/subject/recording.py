@@ -23,6 +23,7 @@ from typing import Any
 
 import numpy as np
 
+from core.subject.measured_columns import MEASURED_COLUMNS
 from core.subject.state import (
     DOMAINS,
     CoreState,
@@ -233,7 +234,14 @@ def build_recording(
     states: Sequence[CoreState],
     *,
     notes: dict[str, Any] | None = None,
+    full: bool = False,
 ) -> Recording:
+    """Frames into a recording, on the columns the battery is measured on.
+
+    `full` records every column the schema declares instead, which is for
+    looking at a new reading rather than for scoring one.
+    See core/subject/measured_columns.py for why the set is pinned.
+    """
     if not states:
         raise ValueError("a recording of nothing has no dynamics to measure")
     env_names = tuple(sorted({key for item in states for key in item.env}))
@@ -241,15 +249,30 @@ def build_recording(
         [[float(item.env.get(name, 0.0)) for name in env_names] for item in states],
         dtype=np.float64,
     ).reshape(len(states), len(env_names))
+    x = np.vstack([item.vector() for item in states])
+    columns = feature_names()
+    slices = domain_slices()
+    if not full:
+        wanted = set(MEASURED_COLUMNS)
+        keep = [index for index, name in enumerate(columns) if name in wanted]
+        missing = wanted - set(columns)
+        if missing:
+            raise ValueError(
+                "the instrument names columns this schema does not have: "
+                + ", ".join(sorted(missing)[:8])
+            )
+        x = x[:, keep]
+        columns = tuple(columns[index] for index in keep)
+        slices = slices_from_columns(columns)
     return Recording(
-        x=np.vstack([item.vector() for item in states]),
+        x=x,
         conditions=tuple(item.condition for item in states),
         tags=tuple(item.tag for item in states),
         times=np.array([item.t for item in states], dtype=np.float64),
         env=env,
         env_names=env_names,
-        columns=feature_names(),
-        slices=domain_slices(),
+        columns=columns,
+        slices=slices,
         notes=dict(notes or {}),
         misses=_missingness(states),
     )
