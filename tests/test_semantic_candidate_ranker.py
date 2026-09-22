@@ -15,6 +15,7 @@ from core.learning.semantic_request_context import RequestContextConfig
 from tools.compare_semantic_candidate_methods import _direct_choice, _portfolio_comparison
 from tools.evaluate_semantic_candidate_ranker import _rankable, _training_views
 from tools.materialize_semantic_candidate_training import _plan, _select_source_ids
+from tools.replay_semantic_candidate_ranker_gap import _construction_counts
 
 
 def test_mixed_methods_retain_disagreement_without_oracle_selection():
@@ -32,6 +33,23 @@ def test_mixed_methods_retain_disagreement_without_oracle_selection():
     retained = _portfolio_comparison(**common, incumbent_present=True)
     assert retained["portfolio_selected"] == "incumbent"
     assert not retained["portfolio_correct"]
+
+
+def test_gap_attribution_counts_coverage_separately_from_selection():
+    rows = [
+        {"construction": "role", "ranker_correct": True, "direct_correct": True,
+         "portfolio_correct": False},
+        {"construction": "role", "ranker_correct": False, "direct_correct": True,
+         "portfolio_correct": True},
+        {"construction": "alias", "ranker_correct": False, "direct_correct": False,
+         "portfolio_correct": False},
+    ]
+    assert _construction_counts(rows) == {
+        "alias": {"population": 1, "ranker_correct": 0, "direct_correct": 0,
+                  "either_learned_correct": 0, "portfolio_correct": 0},
+        "role": {"population": 2, "ranker_correct": 1, "direct_correct": 2,
+                 "either_learned_correct": 2, "portfolio_correct": 1},
+    }
 
 
 def _programs():

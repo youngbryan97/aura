@@ -1176,6 +1176,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Direct and mixed exposed-gap attribution](evidence/G03_DIRECT_MIXED_GAP_ATTRIBUTION_2026-09-22.md):
+  7/23 direct, 5/23 ranker, 1/23 answer-blind portfolio; 16/23 have no
+  learned correct selection despite bank coverage. Source-only coverage and
+  independent arbitration evidence remain open.
   [Human relational criteria](evidence/G_HUMAN_RELATIONAL_CRITERIA_2026-09-22.md)
   bind the current selection experiment and later transfer claims to
   relation-preserving and relation-breaking tests without adding eval labels.

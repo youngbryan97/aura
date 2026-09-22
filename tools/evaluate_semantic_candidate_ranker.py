@@ -115,22 +115,28 @@ def _verify_sources(source_report: dict, candidate_report: dict, model, bank_rep
     plan = bank_report["plan"]
     full = sorted(item.ir.source_text_sha256 for item in examples if item.split == "train")
     ids = list(plan["source_ids"])
-    if (candidate_report.get("candidate") != model.receipt_sha256
-            or bank_report.get("schema") != "aura.semantic_candidate_training.v1"
-            or bank_report.get("receipt_sha256") != training_digest(
-                {key: value for key, value in bank_report.items() if key != "receipt_sha256"})
-            or bank_report["population"] != len(ids) or bank_report["observed"] != len(ids)
-            or plan["source_population"] != len(full)
-            or not set(ids) <= set(full) or ids != sorted(ids)
-            or plan["model_receipt_sha256"] != model.receipt_sha256
-            or plan["source_manifest_sha256s"] != source_report[
-                "representation_compatibility"]["source_feature_manifest_sha256s"]
-            or folds.get("schema") != "aura.semantic_construction_folds.v1"
-            or sorted(folds["assignments"]) != full
-            or set(folds["assignments"].values()) != set(range(folds["count"]))
-            or sorted(bank_report["row_receipts"]) != ids
-            or folds["validation_used"] is not False or folds["test_used"] is not False):
-        raise ValueError("source-only ranking inputs do not share a frozen cohort")
+    checks = {
+        "candidate_model": candidate_report.get("candidate") == model.receipt_sha256,
+        "bank_schema": bank_report.get("schema") == "aura.semantic_candidate_training.v1",
+        "bank_receipt": bank_report.get("receipt_sha256") == training_digest(
+            {key: value for key, value in bank_report.items() if key != "receipt_sha256"}),
+        "bank_population": bank_report["population"] == len(ids)
+        and bank_report["observed"] == len(ids),
+        "source_population": plan["source_population"] == len(full),
+        "bank_source_membership": set(ids) <= set(full) and ids == sorted(ids),
+        "bank_model": plan["model_receipt_sha256"] == model.receipt_sha256,
+        "source_features": plan["source_manifest_sha256s"] == source_report[
+            "representation_compatibility"]["source_feature_manifest_sha256s"],
+        "fold_schema": folds.get("schema") == "aura.semantic_construction_folds.v1",
+        "fold_membership": sorted(folds["assignments"]) == full,
+        "fold_coverage": set(folds["assignments"].values()) == set(range(folds["count"])),
+        "bank_row_receipts": sorted(bank_report["row_receipts"]) == ids,
+        "fold_holdout": folds["validation_used"] is False and folds["test_used"] is False,
+    }
+    failed = sorted(name for name, passed in checks.items() if not passed)
+    if failed:
+        raise ValueError("source-only ranking inputs do not share a frozen cohort: "
+                         + ",".join(failed))
     return plan, ids
 
 

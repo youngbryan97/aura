@@ -44,6 +44,21 @@ def _verify_artifacts(training: dict, weights: bytes, gap: dict, bank: dict,
     return wanted
 
 
+def _construction_counts(rows: list[dict]) -> dict[str, dict[str, int]]:
+    counts: dict[str, dict[str, int]] = {}
+    for row in rows:
+        group = counts.setdefault(row["construction"], {
+            "population": 0, "ranker_correct": 0, "direct_correct": 0,
+            "either_learned_correct": 0, "portfolio_correct": 0,
+        })
+        group["population"] += 1
+        for key in ("ranker_correct", "direct_correct", "portfolio_correct"):
+            group[key] += int(row[key])
+        group["either_learned_correct"] += int(
+            row["ranker_correct"] or row["direct_correct"])
+    return dict(sorted(counts.items()))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--transducer", type=Path, required=True)
@@ -54,8 +69,14 @@ def main() -> None:
     parser.add_argument("--bank-report", type=Path, required=True)
     parser.add_argument("--training-report", type=Path, required=True)
     parser.add_argument("--weights", type=Path, required=True)
+    parser.add_argument("--direct-report", type=Path)
+    parser.add_argument("--direct-checkpoint", type=Path)
+    parser.add_argument("--folds", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if any((args.direct_report, args.direct_checkpoint, args.folds)) and not all(
+            (args.direct_report, args.direct_checkpoint, args.folds)):
+        parser.error("direct comparison needs its report, checkpoint, and source folds")
 
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
@@ -93,6 +114,60 @@ def main() -> None:
     ranker = ContextualProgramRanker(config)
     ranker.load_state_dict(load_file(str(args.weights)), strict=True)
     result = _evaluate(ranker, items, rows, list(wanted))
+    direct_comparison = None
+    if args.direct_report is not None:
+        import torch
+
+        from core.learning.semantic_span_pointer import _hidden_array
+        from tools.compare_semantic_candidate_methods import (
+            _direct_choice,
+            _load_direct,
+            _portfolio_comparison,
+        )
+        from tools.evaluate_semantic_candidate_ranker import _rankable
+
+        folds = json.loads(args.folds.read_bytes())
+        direct_report = json.loads(args.direct_report.read_bytes())
+        direct, checkpoint_sha = _load_direct(
+            direct_report, args.direct_checkpoint, fold=training["fold"],
+            folds=folds, source_report=source)
+        ranker_rows = {row["source"]: row for row in result["rows"]}
+        failure_constructions = {row["source"]: row["construction"]
+                                 for row in gap["failures"]}
+        if set(failure_constructions) != set(wanted):
+            raise ValueError("gap constructions do not match the evaluated failures")
+        comparison_rows = []
+        for source_id in wanted:
+            (programs, labels, keys), spans, kinds, _anchors = _rankable(
+                items[source_id], rows[source_id])
+            features = torch.from_numpy(_hidden_array(items[source_id].hidden_states)).float()
+            direct_index = _direct_choice(direct, features, spans, kinds, programs)
+            ranker_index = ranker_rows[source_id]["chosen_index"]
+            portfolio = _portfolio_comparison(
+                programs=programs, keys=keys, labels=labels,
+                incumbent_present=rows[source_id]["bank"]["selected_program_sha256"] is not None,
+                ranker_index=ranker_index, direct_index=direct_index,
+                public_inputs=items[source_id].public_inputs, source=source_id,
+                transducer_receipt=model.receipt_sha256,
+                ranker_receipt=training["receipt_sha256"], direct_receipt=checkpoint_sha)
+            comparison_rows.append({"source": source_id,
+                                    "construction": failure_constructions[source_id],
+                                    "ranker_correct": labels[ranker_index],
+                                    "direct_correct": labels[direct_index],
+                                    "direct_program_sha256": keys[direct_index], **portfolio})
+        direct_comparison = {
+            "source_fold": training["fold"],
+            "checkpoint_sha256": checkpoint_sha,
+            "population": len(comparison_rows),
+            "ranker_correct": sum(row["ranker_correct"] for row in comparison_rows),
+            "direct_correct": sum(row["direct_correct"] for row in comparison_rows),
+            "either_learned_correct": sum(row["ranker_correct"] or row["direct_correct"]
+                                          for row in comparison_rows),
+            "portfolio_correct": sum(row["portfolio_correct"] for row in comparison_rows),
+            "portfolio_inquiries": sum(row["portfolio_inquiries"] for row in comparison_rows),
+            "by_construction": _construction_counts(comparison_rows),
+            "rows": comparison_rows,
+        }
     body = {"schema": "aura.semantic_candidate_ranker_exposed_gap.v1",
             "development_only": True, "fresh_transfer": False, "serving_authority": False,
             "pilot_training": training["pilot_only"],
@@ -100,6 +175,9 @@ def main() -> None:
             "gap_report_sha256": hashlib.sha256(args.gap_report.read_bytes()).hexdigest(),
             "bank_report_sha256": hashlib.sha256(args.bank_report.read_bytes()).hexdigest(),
             "evaluation": result}
+    if direct_comparison is not None:
+        body["schema"] = "aura.semantic_candidate_methods_exposed_gap.v1"
+        body["direct_comparison"] = direct_comparison
     payload = json.dumps({**body, "receipt_sha256": _digest(body)}, sort_keys=True).encode()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     if args.output.exists() and args.output.read_bytes() != payload:
@@ -109,7 +187,11 @@ def main() -> None:
                       "population": result["population"],
                       "bank_reachable": result["bank_reachable"],
                       "incumbent_correct": result["incumbent_correct"],
-                      "ranker_correct": result["ranker_correct"]}), flush=True)
+                      "ranker_correct": result["ranker_correct"],
+                      "direct_correct": (direct_comparison["direct_correct"]
+                                         if direct_comparison is not None else None),
+                      "portfolio_correct": (direct_comparison["portfolio_correct"]
+                                            if direct_comparison is not None else None)}), flush=True)
 
 
 if __name__ == "__main__":
