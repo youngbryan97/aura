@@ -452,12 +452,14 @@ class CuriosityExplorer:
             }
 
     def _choose_action_type(self, question: str) -> str:
+        from core.conversation.word_markers import names_any
+
         normalized = _normalized_question(question)
-        if any(marker in normalized for marker in _MEMORY_MARKERS):
+        if names_any(normalized, _MEMORY_MARKERS):
             return "MEMORY_QUERY"
-        if any(marker in normalized for marker in _INTERNAL_MARKERS):
+        if names_any(normalized, _INTERNAL_MARKERS):
             return "LLM_SYNTHESIS"
-        if any(marker in normalized for marker in _FRESHNESS_MARKERS):
+        if names_any(normalized, _FRESHNESS_MARKERS):
             return "WEB_SEARCH"
         if normalized.startswith("what do i not know about"):
             return "WEB_SEARCH"

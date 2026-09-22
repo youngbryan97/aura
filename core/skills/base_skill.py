@@ -300,7 +300,9 @@ class BaseSkill(ABC):
         # Heuristic: check the error message for transient-sounding keywords
         err_lower = str(exc).lower()
         transient_markers = ("timeout", "timed out", "connection", "network", "retry", "rate limit", "429", "503")
-        if any(marker in err_lower for marker in transient_markers):
+        from core.conversation.word_markers import names_any
+
+        if names_any(err_lower, transient_markers):
             return "transient"
 
         return "transient"  # Default: give the retry loop a chance

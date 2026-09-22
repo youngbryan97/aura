@@ -78,8 +78,9 @@ def label_findings(findings: list[str], parametric: bool) -> list[str]:
 
 def is_transient_failure(error_text: str) -> bool:
     """Whether a failure was about the lane rather than about the goal."""
-    lowered = str(error_text or "").lower()
-    return any(marker in lowered for marker in _TRANSIENT_FAILURE_MARKERS)
+    from core.conversation.word_markers import names_any
+
+    return names_any(str(error_text or "").lower(), _TRANSIENT_FAILURE_MARKERS)
 
 
 def narrative_admits(sentence: str) -> tuple[bool, str]:

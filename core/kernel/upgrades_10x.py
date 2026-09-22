@@ -11,6 +11,7 @@ import time
 from collections import deque
 from typing import TYPE_CHECKING
 
+from core.conversation.word_markers import names_any
 from core.phases.response_contract import (
     _looks_like_search_capability_question,
     build_response_contract,
@@ -844,7 +845,7 @@ class GodModeToolPhase(Phase):
             "manifest_to_device" in matched_skills
             and "desktop" in lower
             and "http" in lower
-            and any(marker in lower for marker in ("save", "manifest"))
+            and names_any(lower, ("save", "manifest"))
         ):
             return "manifest_to_device"
         if "sovereign_terminal" in matched_skills and re.match(
@@ -861,8 +862,8 @@ class GodModeToolPhase(Phase):
             "on my screen",
             "desktop",
         )
-        if any(marker in lower for marker in visible_browser_markers) and any(
-            marker in lower for marker in ("search", "google", "look up", "open", "browser", "tab")
+        if any(marker in lower for marker in visible_browser_markers) and names_any(
+            lower, ("search", "google", "look up", "open", "browser", "tab")
         ):
             return "computer_use"
         if "clock" in matched_skills and any(
@@ -882,9 +883,9 @@ class GodModeToolPhase(Phase):
         if (
             "web_search" in matched_skills
             and not _looks_like_search_capability_question(objective)
-            and any(
-                marker in lower
-                for marker in (
+            and names_any(
+                lower,
+                (
                     "search",
                     "look up",
                     "find out",
@@ -895,13 +896,13 @@ class GodModeToolPhase(Phase):
                     "news",
                     "research about",
                     "research on",
-                )
+                ),
             )
         ):
             return "web_search"
-        if "sovereign_browser" in matched_skills and any(
-            marker in lower
-            for marker in (
+        if "sovereign_browser" in matched_skills and names_any(
+            lower,
+            (
                 "open the browser",
                 "open a browser",
                 "open tab",
@@ -909,7 +910,7 @@ class GodModeToolPhase(Phase):
                 "visit ",
                 "open website",
                 "open webpage",
-            )
+            ),
         ):
             return "sovereign_browser"
         if "memory_ops" in matched_skills and GodModeToolPhase._is_conversational_memory_question(
@@ -1049,10 +1050,7 @@ class GodModeToolPhase(Phase):
             if url_match:
                 normalized["action"] = "open_url"
                 normalized["target"] = url_match.group(0)
-            elif any(
-                marker in lower
-                for marker in ("open a tab", "open tab", "new tab", "browser", "google", "search")
-            ):
+            elif names_any(lower, ("open a tab", "open tab", "new tab", "browser", "google", "search")):
                 query = GodModeToolPhase._extract_search_query(objective)
                 normalized["action"] = "open_url"
                 normalized["target"] = GodModeToolPhase._search_url(query)
@@ -1840,8 +1838,8 @@ class NativeMultimodalBridge(Phase):
             return state
 
         obj_lower = objective.lower()
-        wants_native_vision = any(
-            token in obj_lower for token in ("vision", "visual", "screenshot", "screen", "desktop")
+        wants_native_vision = names_any(
+            obj_lower, ("vision", "visual", "screenshot", "screen", "desktop")
         )
         # Default ON: when the objective is literally about the screen, looking
         # at it is the answer. Gated off, "read my screen" reached the model
