@@ -21,9 +21,19 @@ pytestmark = pytest.mark.unit
 
 @pytest.fixture(autouse=True)
 def _fresh():
-    habits_module.reset_for_test()
+    # Every ledger arbitration reads is process-wide. A worker that had already
+    # run organism turns left her tired, and the fatigue filter set aside the
+    # initiative the habit discount had put last, so the arbiter test failed in
+    # a parallel run and passed alone. Each is emptied for the habits alone to
+    # decide.
+    from core.affect import feelings_about
+    from core.soma import fatigue, good_news
+
+    for module in (habits_module, fatigue, good_news, feelings_about):
+        module.reset_for_test()
     yield
-    habits_module.reset_for_test()
+    for module in (habits_module, fatigue, good_news, feelings_about):
+        module.reset_for_test()
 
 
 def _live(ledger: HabitLedger, act: str, kind: str, after: float, *, valence: float = 0.0) -> float:
