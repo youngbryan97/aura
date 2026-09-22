@@ -43,6 +43,7 @@ class ManimRendererSkill(BaseSkill):
         # Validate that manim is installed
         try:
             import manim
+        # not a failure: the module is optional here, and its absence is the answer.
         except ImportError:
             return {
                 "ok": False,
@@ -91,6 +92,7 @@ class ManimRendererSkill(BaseSkill):
                     process.communicate(), 
                     timeout=self.timeout_seconds - 5
                 )
+            # not a failure: the wait ran out, which is what the timeout was set to decide.
             except asyncio.TimeoutError:
                 process.kill()
                 return {

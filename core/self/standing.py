@@ -137,6 +137,7 @@ class StandingLedger:
         """One paired reading: how she stands with herself, and how useful she was."""
         try:
             a, b = float(regard), float(usefulness)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if a != a or b != b:

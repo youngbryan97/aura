@@ -335,6 +335,7 @@ class CognitiveIntegrationPhase(Phase):
                 else:
                     try:
                         score_val = float(score)
+                    # not a failure: a value that is not a number is not one this can read.
                     except (TypeError, ValueError):
                         score_val = 0.0
 

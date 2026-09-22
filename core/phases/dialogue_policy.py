@@ -778,6 +778,7 @@ async def enforce_dialogue_contract(
     )
     try:
         from core.conversation.surface_disposition import repair_is_an_improvement
+    # not a failure: the module is optional here, and its absence is the answer.
     except (ImportError, RuntimeError, TypeError, ValueError):
         repair_is_an_improvement = None
 

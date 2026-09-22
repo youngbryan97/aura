@@ -274,6 +274,7 @@ def _publish(said: str, *, priority: float) -> None:
         )
         try:
             loop = asyncio.get_running_loop()
+        # not a failure: off a loop there is no running loop or task to report.
         except RuntimeError:
             coroutine.close()
             return

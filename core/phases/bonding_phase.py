@@ -222,6 +222,7 @@ class BondingPhase(Phase):
             if isinstance(together, dict):
                 try:
                     multiplier += max(0.0, min(1.0, float(together.get("together", 0.0) or 0.0)))
+                # not a failure: a value that is not a number is not one this can read.
                 except (TypeError, ValueError):
                     pass
 

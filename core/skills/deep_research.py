@@ -385,8 +385,13 @@ async def run_deep_research(
         if on_phase:
             try:
                 on_phase(phase, state)
-            except (RuntimeError, AttributeError, TypeError, ValueError):
-                pass  # no-op: intentional
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); the phase callback raised and the research carried on",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
 
     # Phase 1: Generate queries
     _notify(ResearchPhase.QUERY_GEN)

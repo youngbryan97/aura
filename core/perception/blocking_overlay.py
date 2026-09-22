@@ -197,6 +197,7 @@ def _region_y(region: dict[str, Any]) -> float | None:
     """Vertical centre of a text run, or None when it has no geometry."""
     try:
         return float(region.get("center_y", region.get("y")))
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
 
@@ -366,6 +367,7 @@ def assess_overlay(observation: dict[str, Any], *, intending: str = "") -> Overl
         try:
             x = float(best.get("center_x", best.get("x")))
             y = float(best.get("center_y", best.get("y")))
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             x = y = None  # type: ignore[assignment]
         if x is not None and y is not None:

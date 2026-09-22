@@ -111,6 +111,7 @@ class DiagnosticsAgent:
             if int(response.get("status_code") or 0) == 200:
                 results["server_online"] = True
                 results["latency_ms"] = (asyncio.get_running_loop().time() - start) * 1000
+        # not a failure: off a loop there is no running loop or task to report.
         except (OSError, ConnectionError, TimeoutError, ValueError):
             results["server_online"] = False
             

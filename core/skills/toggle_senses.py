@@ -43,6 +43,7 @@ def _load_pid(sense_name: str) -> Optional[int]:
         try:
             with open(path, "r") as f:
                 return int(f.read().strip())
+        # not a failure: a pid file that will not read is not a running sense.
         except (OSError, IOError):
             return None
     return None
@@ -70,6 +71,7 @@ def _is_pid_alive(pid: int) -> bool:
     try:
         os.kill(pid, 0)
         return True
+    # not a failure: what is already gone is the state this is reaching.
     except (OSError, ProcessLookupError):
         return False
 

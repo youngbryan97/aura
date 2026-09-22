@@ -316,6 +316,7 @@ Synthesize a short (2-3 sentence) internal reflection that captures your subject
     def _is_high_arousal(self, line: dict[str, Any]) -> bool:
         try:
             arousal = float(line.get("pad_state", {}).get("A", 0) or 0)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return False
         return arousal > self.high_arousal_threshold

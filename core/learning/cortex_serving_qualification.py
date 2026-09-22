@@ -250,6 +250,7 @@ def _resource_sample(
             return 0.0
         try:
             return float(getter()) / 1024**3
+        # not a failure: a value that is not a number is not one this can read.
         except (RuntimeError, TypeError, ValueError):
             return 0.0
 

@@ -84,6 +84,7 @@ class DegradationRepairRouter:
 
         try:
             target = loop or asyncio.get_running_loop()
+        # not a failure: off a loop there is no running loop or task to report.
         except RuntimeError:
             return False
         if target.is_closed() or not target.is_running():
@@ -355,6 +356,7 @@ class DegradationRepairRouter:
             return False, "runtime_shutdown"
         try:
             running_loop = asyncio.get_running_loop()
+        # not a failure: off a loop there is no running loop or task to report.
         except RuntimeError:
             running_loop = None
 

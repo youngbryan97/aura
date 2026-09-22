@@ -528,7 +528,13 @@ def _build_program_dna_chat_params(target: str, objective: str) -> dict[str, Any
 
         paths = extract_target_paths(objective)
         destination = paths[0] if paths else ""
-    except (ImportError, RuntimeError, TypeError, ValueError):
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); no destination path read out of the objective",
+            "extract_target_paths",
+            type(exc).__name__,
+            exc,
+        )
         destination = ""
     if not destination:
         lowered_objective = str(objective or "").lower()

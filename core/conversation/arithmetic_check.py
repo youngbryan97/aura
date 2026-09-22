@@ -276,6 +276,7 @@ def _evaluate_arithmetic(expression: str) -> ArithmeticResult | None:
         return None
     try:
         tree = ast.parse(cleaned, mode="eval")
+    # not a failure: text that does not parse is not the shape this was reading for.
     except (SyntaxError, ValueError):
         return None
 
@@ -310,6 +311,7 @@ def _evaluate_arithmetic(expression: str) -> ArithmeticResult | None:
 
     try:
         result = _eval(tree.body)
+    # not a failure: an expression this evaluator refuses is not one it checks.
     except (ArithmeticError, ValueError, TypeError, RecursionError):
         return None
     if isinstance(result, float) and not math.isfinite(result):
@@ -357,6 +359,7 @@ def _resolve(text: str) -> tuple[ArithmeticResult, str] | None:
                 float(match.group(1)) / 100.0 * float(match.group(2)),
                 f"{__name__}._PERCENT_OF_RE",
             )
+        # not a failure: a percentage that will not compute is not one this checks.
         except (ArithmeticError, ValueError):
             return None
 
@@ -364,6 +367,7 @@ def _resolve(text: str) -> tuple[ArithmeticResult, str] | None:
     if match and _operation_outside(text, *match.span()) is None:
         try:
             base, exponent = int(match.group(1)), int(match.group(2))
+        # not a failure: a value that is not a number is not one this can read.
         except ValueError:
             return None
         # Bounded: a runaway exponent must not become the check's own problem.
@@ -371,6 +375,7 @@ def _resolve(text: str) -> tuple[ArithmeticResult, str] | None:
             return None
         try:
             value = base**exponent
+        # not a failure: a power out of range is not one this checks.
         except ArithmeticError:
             return None
         return value, f"{__name__}._POWER_RE"
@@ -425,10 +430,12 @@ def arithmetic_answer_matches(expected: ArithmeticResult, candidate: Any) -> boo
     if isinstance(expected, int):
         try:
             return Decimal(token) == Decimal(expected)
+        # not a failure: a value that is not a number is not one this can read.
         except InvalidOperation:
             return False
     try:
         value = float(token)
+    # not a failure: a value that is not a number is not one this can read.
     except (OverflowError, ValueError):
         return False
     if not math.isfinite(value):

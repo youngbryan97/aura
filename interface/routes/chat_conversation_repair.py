@@ -253,6 +253,8 @@ def _asks_about_another_time(user_message: str) -> bool:
         from core.phases.response_contract import _NAMES_ANOTHER_TIME
 
         return bool(_NAMES_ANOTHER_TIME.search(str(user_message or "")))
+    # not a failure: the reader could not be asked, so nothing here claims it holds,
+    # which is the refusing direction.
     except (ImportError, AttributeError, TypeError, ValueError):
         return False
 
@@ -951,12 +953,14 @@ def _build_grounded_introspection_reply(
     def _fmt_float(value: Any, digits: int = 4) -> str | None:
         try:
             return f"{float(value):.{digits}f}"
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError, OverflowError):
             return None
 
     def _fmt_percent(value: Any) -> str | None:
         try:
             return f"{int(round(float(value)))}%"
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError, OverflowError):
             return None
 
@@ -1137,7 +1141,13 @@ def _build_grounded_introspection_reply(
                     f"Reading my state directly: valence={float(_val):+.3f} "
                     f"arousal={float(_aro):.3f} (live substrate values, not estimates).",
                 )
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); the live mode label is missing from this repair",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
                 logger.debug("Numeric introspection: unparseable affect values %r/%r", _val, _aro)
 
     # Describe attention focus conversationally

@@ -254,6 +254,7 @@ class ToolOrchestrator:
                 os.killpg(process_group_id, signal.SIGTERM)
             else:
                 proc.terminate()
+        # not a failure: what is already gone is the state this is reaching.
         except (OSError, ProcessLookupError):
             pass
         try:
@@ -266,6 +267,7 @@ class ToolOrchestrator:
                 os.killpg(process_group_id, signal.SIGKILL)
             else:
                 proc.kill()
+        # not a failure: what is already gone is the state this is reaching.
         except (OSError, ProcessLookupError):
             pass
         try:

@@ -94,6 +94,7 @@ class ASumThatDoesNotHold(NamedTuple):
 def _as_number(text: str) -> float | None:
     try:
         return float(str(text).replace(",", "").strip())
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
 
@@ -130,6 +131,7 @@ def _value_of(expression: str) -> float | None:
         return None
     try:
         tree = ast.parse(plain, mode="eval")
+    # not a failure: text that does not parse is not the shape this was reading for.
     except (SyntaxError, ValueError, MemoryError, RecursionError):
         return None
     allowed = (
@@ -143,6 +145,7 @@ def _value_of(expression: str) -> float | None:
             return None
     try:
         value = _work_it_out(tree.body)
+    # not a failure: an expression that refuses has no value to check against.
     except (ArithmeticError, ValueError, TypeError, OverflowError):
         return None
     return float(value) if isinstance(value, (int, float)) else None

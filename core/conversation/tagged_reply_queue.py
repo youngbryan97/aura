@@ -214,6 +214,7 @@ class TaggedReplyQueue:
                 return
             try:
                 waiters.remove(waiter)
+            # not a failure: a waiter already off the list is the state this is removing it into.
             except ValueError:
                 return
             if not waiters:

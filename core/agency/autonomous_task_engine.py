@@ -439,6 +439,8 @@ class AutonomousTaskEngine(_BuildsAPlanWithoutTheModel):
     def _callable_accepts_kwarg(tool_fn: Callable[..., Any], name: str) -> bool:
         try:
             signature = inspect.signature(tool_fn)
+        # not a failure: a callable whose signature cannot be read is not one this can
+        # prove accepts the keyword, and False refuses.
         except (TypeError, ValueError):
             return False
         for parameter in signature.parameters.values():
@@ -1005,6 +1007,8 @@ class AutonomousTaskEngine(_BuildsAPlanWithoutTheModel):
             self._approval_events[plan.plan_id] = event
             try:
                 approved = await asyncio.wait_for(event.wait(), timeout=self.APPROVAL_TIMEOUT)
+            # not a failure: nobody approved inside the window, which is what the timeout
+            # decides.
             except TimeoutError:
                 approved = False
             finally:
@@ -1486,6 +1490,7 @@ The plan is a JSON array of steps:
                 action="used deterministic planner fallback after model decomposition failure",
                 extra={"fallback_available": True},
             )
+        # not a failure: no service here, so the caller falls back to its own default.
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
             logger.debug("TaskEngine: recoverable planning degradation record skipped: %s", exc)
 

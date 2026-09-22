@@ -194,6 +194,7 @@ def _confirm_volume(readback: str, value: str) -> bool:
         # macOS quantizes volume to 16 steps (~6.25% each), so the read-back
         # may differ from the request by up to one step.
         return abs(int(str(readback).strip()) - int(value)) <= 5
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return False
 

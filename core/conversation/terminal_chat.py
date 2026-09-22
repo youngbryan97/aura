@@ -294,6 +294,8 @@ class TerminalFallbackChat:
 
         try:
             chunk = os.read(self._stdin_fd, 4_096)
+        # not a failure: a non-blocking read with nothing ready is the ordinary case this
+        # loop is written around.
         except BlockingIOError:
             return
         except (OSError, TypeError, ValueError):
@@ -371,6 +373,7 @@ class TerminalFallbackChat:
             line = await asyncio.wait_for(
                 self._stdin_lines.get(), timeout=wait_seconds
             )
+        # not a failure: no line within the wait is no line, which None reports.
         except TimeoutError:
             return None
         if line is None:
@@ -412,6 +415,7 @@ class TerminalFallbackChat:
 
                 try:
                     user_input = await self._read_stdin_line(wait_seconds=20.0)
+                # not a failure: end of input is how a terminal session ends.
                 except EOFError:
                     sys.stdout.write("\n[Aura] Terminal session closed.\n\n")
                     sys.stdout.flush()
@@ -495,6 +499,7 @@ class TerminalFallbackChat:
     async def _terminate_shell_process(self, proc, *, cmd: str) -> None:
         try:
             proc.kill()
+        # not a failure: a process already gone is the state this is killing it into.
         except ProcessLookupError:
             return
         except (OSError, RuntimeError, subprocess.SubprocessError) as exc:

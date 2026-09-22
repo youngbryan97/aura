@@ -63,6 +63,7 @@ def _named_place(arrangement: Any, row: int, column: int) -> str:
 def _number(said: str) -> float | None:
     try:
         return float(str(said).replace(",", ""))
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
 

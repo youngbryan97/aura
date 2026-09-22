@@ -157,6 +157,7 @@ def locate_on_screen(needle: str) -> Rect | None:
         return None
     try:
         x, y, width, height = (float(part.strip()) for part in parts)
+    # not a failure: a value that is not a number is not one this can read.
     except ValueError:
         return None
     rect = Rect(x=x, y=y, width=width, height=height)

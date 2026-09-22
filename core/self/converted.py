@@ -85,6 +85,7 @@ class ConversionLedger:
         """One finished attempt: what it took out of her, and what came back."""
         try:
             spent, got = float(effort), float(returned)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if spent != spent or got != got or spent < 0.0:

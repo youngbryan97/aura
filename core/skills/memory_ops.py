@@ -158,6 +158,7 @@ class MemoryOpsSkill(BaseSkill):
         if callable(snapshot):
             try:
                 status = snapshot()
+            # not a failure: a facade that will not report its last write has no status.
             except (AttributeError, RuntimeError, TypeError, ValueError):
                 status = None
             if isinstance(status, dict):

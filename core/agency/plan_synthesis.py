@@ -151,6 +151,8 @@ def read_calls(reply: str) -> list[ProposedCall]:
             # extract_json falls back to literal_eval, which raises SyntaxError
             # on ordinary prose. A reply that is not a plan is not an error.
             payload = extract_json(reply)
+        # not a failure: the comment above says it: a reply that is not a plan is not an
+        # error.
         except (TypeError, ValueError, AttributeError, SyntaxError):
             payload = None
     if isinstance(payload, Mapping):

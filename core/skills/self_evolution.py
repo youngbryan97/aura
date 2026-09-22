@@ -83,6 +83,8 @@ class SelfEvolutionSkill(BaseSkill):
             # Self-evolution may use the running mind, but it does not own the
             # mind's service graph and therefore cannot initialize it ad hoc.
             return ServiceContainer.peek("cognitive_engine", default=None)
+        # not a failure: the comment above says it: a skill does not cold-boot the
+        # service graph, so a container that is not up has no engine.
         except (ImportError, AttributeError, RuntimeError):
             return None
 

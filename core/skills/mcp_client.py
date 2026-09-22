@@ -180,6 +180,7 @@ class MCPClientSkill(BaseSkill):
         try:
             from mcp import ClientSession, StdioServerParameters
             from mcp.client.stdio import stdio_client
+        # not a failure: the module is optional here, and its absence is the answer.
         except ImportError:
             return {
                 "ok": False,

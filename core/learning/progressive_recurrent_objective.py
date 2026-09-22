@@ -168,6 +168,7 @@ def canonical_sha256(value: Any) -> str:
 def _round(value: Any, digits: int = 6) -> float | None:
     try:
         number = float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     if not math.isfinite(number):

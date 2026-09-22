@@ -57,7 +57,13 @@ def _what_she_got_through(completed: int, requested: int) -> str:
             key=lambda record: record.steps,
             default=None,
         )
-    except (ImportError, AttributeError, RuntimeError):
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); no held desktop record, so narrated moves report none",
+            "just_finished",
+            type(exc).__name__,
+            exc,
+        )
         held = None
     if held is None or not held.steps:
         logger.info(

@@ -1,17 +1,20 @@
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
-from core.runtime.errors import record_degradation
-from core.runtime.action_executor import ActionExecutor
-from core.governance.will import ActionDomain
 import contextlib
 import hashlib
 import logging
 import os
-from pathlib import Path
 import tempfile
+from pathlib import Path
 from typing import Any, Dict, Literal, Optional
+
 from pydantic import BaseModel, Field
 
+from core.governance.will import ActionDomain
+from core.runtime.action_executor import ActionExecutor
+from core.runtime.errors import record_degradation
 from core.skills.base_skill import BaseSkill
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
+
+logger = logging.getLogger(__name__)
 
 
 #: The actions this skill performs. Declared once, so the schema, the
@@ -51,7 +54,13 @@ def _the_person_named_this_path(path: str) -> bool:
         from core.conversation.session_scope import the_persons_own_words
 
         said = str(the_persons_own_words("") or "")
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the person's own words are unavailable, so no path is matched against them",
+            "the_persons_own_words",
+            type(exc).__name__,
+            exc,
+        )
         return False
     if not said:
         return False
@@ -69,7 +78,13 @@ def _the_person_named_this_path(path: str) -> bool:
             named = Path(os.path.realpath(candidate))
             if target == named or target.is_relative_to(named):
                 return True
-    except (OSError, ValueError, ImportError):
+    except (OSError, ValueError, ImportError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); named paths could not be compared, so this path is not one the person named",
+            "named_paths",
+            type(exc).__name__,
+            exc,
+        )
         return False
     return False
 
@@ -113,6 +128,8 @@ class FileOperationSkill(BaseSkill):
         target = os.path.realpath(full_path)
         try:
             return os.path.commonpath([root, target]) == root
+        # not a failure: a path outside the root, or one that will not resolve, is the
+        # question being asked and False is the answer.
         except ValueError:
             return False
 

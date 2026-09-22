@@ -104,6 +104,8 @@ def _entropy_source() -> _EntropyAudit | None:
         from core.consciousness.quantum_entropy import get_quantum_entropy
 
         return _EntropyAudit(get_quantum_entropy())
+    # not a failure: the docstring above says it: an entropy bridge that cannot be
+    # initialized is not one to attribute readings to.
     except _QUANTUM_LAB_ERRORS:
         return None
 

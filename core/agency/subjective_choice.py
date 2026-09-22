@@ -695,6 +695,7 @@ class SubjectiveChoiceEngine:
             if not ledger.read().measured:
                 return 0.0
             return float(ledger.pull_for(option_id))
+        # not a failure: no returning ledger means no pull to add to this option.
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
             return 0.0
 

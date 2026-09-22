@@ -74,6 +74,7 @@ def _router() -> Any:
 
     try:
         return get_container().get(ServiceNames.LLM_ROUTER)
+    # not a failure: no service here, so the caller falls back to its own default.
     except (ContainerError, KeyError, AttributeError, RuntimeError):
         return None
 

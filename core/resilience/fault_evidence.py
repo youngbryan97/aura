@@ -233,6 +233,7 @@ class FaultEvidenceStore:
     def _load(self) -> None:
         try:
             envelope = json.loads(self.path.read_text(encoding="utf-8"))
+        # not a failure: what is already gone is the state this is reaching.
         except FileNotFoundError:
             return
         except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:

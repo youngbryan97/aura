@@ -138,6 +138,7 @@ class ProgramDNAReconstructSkill(BaseSkill):
                 materialize_program,
                 resolve_program_spec,
             )
+        # not a failure: the docstring above says it: fall through to the caller.
         except ImportError:
             return None
         spec = resolve_program_spec(params.target)
@@ -183,6 +184,8 @@ class ProgramDNAReconstructSkill(BaseSkill):
                 resolve_target,
                 reverse_engineer_host_binary,
             )
+        # not a failure: the docstring above says it: the caller falls back to structural
+        # reconstruction.
         except ImportError:
             return None
         target = resolve_target(target_label)

@@ -106,6 +106,7 @@ def _bounded_receipt(value: Any) -> dict[str, Any] | None:
         return None
     try:
         recorded_at = float(value.get("recorded_at") or 0.0)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         recorded_at = 0.0
     return {
@@ -130,6 +131,7 @@ def _bounded_sense(value: Any) -> dict[str, Any] | None:
         return None
     try:
         observed_at = float(value.get("observed_at") or 0.0)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         observed_at = 0.0
     return {
@@ -191,6 +193,7 @@ class AnswerProvenance:
         )
         try:
             captured_at = float(value.get("captured_at") or 0.0)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             captured_at = 0.0
         return cls(

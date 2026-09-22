@@ -8,6 +8,7 @@ how "I could not get to an answer" came to mean nothing.
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi.responses import JSONResponse
@@ -68,6 +69,8 @@ from .chat_lane_bookkeeping import (  # noqa: E402
 from .chat_reply_shaping import (  # noqa: E402
     _append_turn_text_mutation,
 )
+
+logger = logging.getLogger(__name__)
 
 #: Internal names for the things that keep her from answering, and what each
 #: of them means to the person waiting.
@@ -306,6 +309,24 @@ async def _refuse_an_empty_canonical_reply(
             lane = _mark_conversation_lane_state(
                 "canonical_chat_no_reply",
                 state="failed",
+            )
+            # A person asked and got nothing, and until now the only trace
+            # was this turn's JSON and one log line.
+            # ``_mark_conversation_lane_state`` builds the dict that goes
+            # back in the response; it touches no durable health record, so
+            # nothing counted these and nothing escalated on a run of them.
+            #
+            # LIVE, 2026-09-21: the same question refused three times in a
+            # row with `canonical_chat_no_reply` while the runtime reported
+            # itself HEALTHY throughout.
+            record_degradation(
+                "chat.canonical_reply",
+                RuntimeError(
+                    "the canonical lane produced nothing for "
+                    f"{str(_semantic_user_message or '')[:120]!r}"
+                ),
+                severity="warning",
+                action="refused the turn and told the person there is no answer",
             )
             # Human prose on the product surface; the machine identity lives
             # in the `status` field where tooling reads it. The old text
@@ -783,6 +804,15 @@ async def _refuse_an_empty_benchmark_reply(
         nonlocal pending_exchange_id
         if not final_benchmark_text:
             empty_reply = "Benchmark request produced no canonical kernel response."
+            record_degradation(
+                "chat.canonical_reply",
+                RuntimeError(
+                    "the kernel produced nothing for the benchmark turn "
+                    f"{str(_semantic_user_message or '')[:120]!r}"
+                ),
+                severity="warning",
+                action="refused the benchmark turn with no canonical response",
+            )
             if pending_exchange_id:
                 await _chat_preflight._complete_logged_exchange(
                     pending_exchange_id,

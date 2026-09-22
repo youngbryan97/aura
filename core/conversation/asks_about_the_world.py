@@ -24,10 +24,13 @@ company nobody has heard of as well as for one that ships in a pattern list.
 
 from __future__ import annotations
 
+import logging
 import re
 
 from core.language.learned_matcher import LearnedMatcher as _LearnedMatcher
 from core.language.model_features import model_hidden_features as _model_hidden_features
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["asks_for_sources", "asks_about_a_named_thing", "wants_outside_evidence"]
 
@@ -267,8 +270,13 @@ def wants_outside_evidence(message: object) -> bool:
             if routed:
                 _teach(text, True)
                 return True
-    except (ImportError, RuntimeError, TypeError, ValueError):
-        pass
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); semantic routing did not decide, so the patterns below do",
+            "it",
+            type(exc).__name__,
+            exc,
+        )
 
     # No semantic measurement is available.  Keep a conservative structural
     # floor for entity-specific relations, but do not make capitalization or
@@ -278,7 +286,13 @@ def wants_outside_evidence(message: object) -> bool:
         return True
     try:
         learned = _NEEDS_OUTSIDE.decide_without_waiting(text)
-    except (RuntimeError, TypeError, ValueError):
+    except (RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the learned surface has no verdict for this text",
+            "it",
+            type(exc).__name__,
+            exc,
+        )
         learned = None
     return bool(learned)
 
@@ -286,5 +300,10 @@ def wants_outside_evidence(message: object) -> bool:
 def _teach(text: str, holds: bool) -> None:
     try:
         _NEEDS_OUTSIDE.observe(text, holds=holds)
-    except (RuntimeError, TypeError, ValueError):
-        pass
+    except (RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); this example was not taught to the surface",
+            "it",
+            type(exc).__name__,
+            exc,
+        )

@@ -1222,6 +1222,7 @@ class OSAutomationCompilerSkill(BaseSkill):  # type: ignore[misc]
                         converted[2],
                         converted[3],
                     )
+                # not a failure: four values that will not convert are not a desktop frame.
                 except (TypeError, ValueError):
                     desktop_frame = None
             arrangement = cls._window_arrangement_script(goal, desktop_frame)

@@ -273,6 +273,9 @@ def _boot_is_still_in_progress(phases: Any) -> bool:
         # bumps on every transition. If nothing is running, it is stale, and
         # the staleness check below already declines to wait.
         last_transition = float(getattr(phases, "last_transition_at", 0.0) or 0.0)
+    # not a failure: phases that will not report their last transition cannot be
+    # waited on, and the docstring above says the staleness check
+    # declines to wait.
     except _CHAT_RECOVERABLE_ERRORS:
         return False
     if last_transition <= 0.0:
@@ -480,6 +483,7 @@ async def _answer_from_fallback_ladder(
                 left,
             )
             await asyncio.sleep(min(2.0, left))
+    # not a failure: a router with no readable background detail adds none to the line.
     except (TimeoutError, *_CHAT_RECOVERABLE_ERRORS) as exc:
         record_degradation(
             "chat.fallback_ladder",

@@ -54,6 +54,7 @@ class _CarriesTheBubble:
         try:
             target_x = float(x)
             target_y = float(y)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return None
         if not (math.isfinite(target_x) and math.isfinite(target_y)):
@@ -100,6 +101,7 @@ class _CarriesTheBubble:
             ack_sequence = int(sequence)
             measured_x = float(x)
             measured_y = float(y)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return False
         if ack_sequence <= 0 or not (
@@ -125,6 +127,7 @@ class _CarriesTheBubble:
 
         try:
             expected = int(sequence)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return None
         deadline = time.monotonic() + max(0.05, min(float(timeout_s), 10.0))

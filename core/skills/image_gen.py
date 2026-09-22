@@ -627,11 +627,20 @@ class ImageGenSkill(BaseSkill):
         """
         try:
             bands = image.convert("RGB").getextrema()
+        # not a failure: an image that will not open in RGB has no extrema to read, and
+        # False is the refusing direction.
         except (AttributeError, ValueError, OSError):
             return False
         try:
             return all(lo == hi for lo, hi in bands)
-        except (TypeError, ValueError):
+        # not a failure: bands that will not unpack are not a collapsed image.
+        except (TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the accelerator cache was not emptied after this generation",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     async def _unload_pipelines(self, *, reason: str) -> None:

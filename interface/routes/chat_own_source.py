@@ -384,8 +384,13 @@ def _self_process_requested_dimensions(user_message: str) -> list[str]:
 
         if detect_positional_recall(user_message):
             return []
-    except (ImportError, AttributeError, ValueError):
-        pass
+    except (ImportError, AttributeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); positional recall was not screened for, so the canned essay stays eligible",
+            "detect_positional_recall",
+            type(exc).__name__,
+            exc,
+        )
     # A hypothetical asks what she would CHOOSE; the self-process block
     # describes how she works. LIVE 2026-08-18: "if your attention could only
     # go one place, where would it go?" was answered "Right now I am attending
@@ -727,8 +732,13 @@ def _turn_may_concern_own_source(user_message: str) -> bool:
 
             if asks_for_own_source(candidate):
                 return True
-        except (ImportError, AttributeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the own-source reader could not be asked about this candidate",
+                "asks_for_own_source",
+                type(exc).__name__,
+                exc,
+            )
         return bool(
             _ASKS_WHERE_CODE_LIVES_RE.search(candidate)
             or (_has_current_shown_source() and _ASKS_TO_INSPECT_SHOWN_SOURCE_RE.search(candidate))

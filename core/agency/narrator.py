@@ -112,6 +112,7 @@ class Narrator:
             from core.container import ServiceContainer  # noqa: PLC0415
 
             return ServiceContainer.get("global_workspace", default=None)
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError, KeyError):
             return None
 
@@ -196,6 +197,7 @@ class Narrator:
                 )
             except TimeoutError:
                 continue
+            # not a failure: nothing to narrate within the idle wait, so the loop goes round.
             except asyncio.CancelledError:
                 return
             await self._speak(winner)
@@ -204,6 +206,7 @@ class Narrator:
         while True:
             try:
                 winner = self._queue.get_nowait()
+            # not a failure: an empty queue is what draining it reaches.
             except asyncio.QueueEmpty:
                 return
             await self._speak(winner)

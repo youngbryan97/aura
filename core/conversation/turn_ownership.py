@@ -62,10 +62,13 @@ class Reader:
             fn: Callable[[str], object] = getattr(
                 importlib.import_module(self.module), self.function
             )
+        # not a failure: a reader that will not import claims no turn.
         except _IMPORT_ERRORS:
             return False
         try:
             return fn(text) is not None
+        # not a failure: a reader that raises on this text has not produced an answer
+        # for it.
         except _IMPORT_ERRORS:
             return False
 

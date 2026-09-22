@@ -768,6 +768,8 @@ def _somewhere_else(place: Any, act: str, expect: Callable[[Any, str], Any]) -> 
     """Where an act leaves things, or nothing when it leaves them as they were."""
     try:
         went_to = expect(place, act)
+    # not a failure: the docstring above says it: nothing when the act leaves things
+    # as they were.
     except (ArithmeticError, AttributeError, KeyError, TypeError, ValueError):
         return None
     if went_to is None or went_to == place:
@@ -931,6 +933,7 @@ def _within_a_move(
     try:
         if wanted(reading):
             return True
+    # not a failure: a reading the rule cannot be applied to has no expectation to give.
     except (ArithmeticError, AttributeError, TypeError, ValueError):
         return False
     for act in names:

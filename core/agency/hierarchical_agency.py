@@ -276,8 +276,13 @@ class HierarchicalAgency:
                     detail={"commonsense_violations": verdict.violations, "spans": verdict.spans[:3]},
                     reason="naive_physics_violation_escalate_to_test",
                 )
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); naive-physics screening did not run on this situation",
+                "get_embodied_commonsense",
+                type(exc).__name__,
+                exc,
+            )
 
         return TierResult(
             tier=AgencyTier.DELIBERATIVE, handled=True,
@@ -395,8 +400,13 @@ class HierarchicalAgency:
                 confidence=0.9 if judgment.permitted else 0.85,
                 detail=detail, reason="value_model_adjudicated",
             )
-        except (ImportError, AttributeError, RuntimeError, OSError, ValueError, TypeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError, OSError, ValueError, TypeError) as exc:
+            logger.warning(
+                "%s unavailable (%s: %s); the value model did not adjudicate, so governance did not settle this tier",
+                "ActionDescriptor",
+                type(exc).__name__,
+                exc,
+            )
 
         try:
             from core.governance.will import ActionDomain

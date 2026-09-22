@@ -100,6 +100,7 @@ class PersonaLedger:
         broadcast explained it."""
         try:
             edge = float(for_the_person) - float(for_the_performance)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if edge != edge:

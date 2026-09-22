@@ -233,6 +233,7 @@ class AudioListenerSkill(BaseSkill):
                 except OSError as exc:
                     logger.debug("Temporary audio cleanup failed: %s", exc)
             
+        # not a failure: the wait ran out, which is what the timeout was set to decide.
         except TimeoutError:
             return {
                 "ok": False,

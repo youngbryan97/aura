@@ -50,6 +50,7 @@ def _load_emitter() -> Any | None:
         from core.thought_stream import get_emitter
 
         return get_emitter()
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return None
     except (AttributeError, RuntimeError, TypeError, ValueError) as exc:

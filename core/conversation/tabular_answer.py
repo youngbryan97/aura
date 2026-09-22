@@ -79,6 +79,7 @@ def _numeric(value: object) -> float | None:
         return None
     try:
         return float(text)
+    # not a failure: a value that is not a number is not one this can read.
     except ValueError:
         return None
 

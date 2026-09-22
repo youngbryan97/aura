@@ -135,6 +135,8 @@ class ReplyStreamChannel:
             return
         try:
             running = asyncio.get_running_loop()
+        # not a failure: off a loop there is no running loop, so the threadsafe path below
+        # is the one that applies.
         except RuntimeError:
             running = None
         if running is loop:
@@ -158,6 +160,7 @@ class ReplyStreamChannel:
             return
         try:
             running = asyncio.get_running_loop()
+        # not a failure: the same: no running loop here.
         except RuntimeError:
             running = None
         if running is loop:

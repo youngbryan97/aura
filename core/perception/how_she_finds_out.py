@@ -371,6 +371,7 @@ def _reported(subject: str) -> Iterator[dict[str, Any]]:
 
     try:
         from core.cognition.what_the_whole_organism_costs import while_doing
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         yield {}
         return

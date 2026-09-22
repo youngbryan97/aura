@@ -250,6 +250,7 @@ class DurableChannelSpool:
             message_path = self._frame_path(self.to_client, ack.message_id)
             try:
                 message_path.unlink()
+            # not a failure: a process or entry already gone is the state this is reaching.
             except FileNotFoundError:
                 pass
             ack_path.unlink()
@@ -275,6 +276,7 @@ class DurableChannelSpool:
         )
         try:
             self._frame_path(self.to_server, message_id).unlink()
+        # not a failure: a process or entry already gone is the state this is reaching.
         except FileNotFoundError:
             pass
 

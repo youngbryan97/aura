@@ -264,8 +264,13 @@ class CommitmentEngine:
 
                 if proof_run_active(origin="commitment_engine"):
                     return True
-            except (ImportError, RuntimeError, AttributeError):
-                pass
+            except (ImportError, RuntimeError, AttributeError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); proof-run context is unknown to this commitment check",
+                    "proof_run_active",
+                    type(exc).__name__,
+                    exc,
+                )
         # A role scaffold is not a promise.
         #
         # LIVE, 2026-08-10: this ledger held 501 entries, 311 of them swarm
@@ -280,8 +285,13 @@ class CommitmentEngine:
 
             if looks_like_scaffold_prompt(description):
                 return True
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
-            pass
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); scaffold prompts are not filtered out of her commitments",
+                "looks_like_scaffold_prompt",
+                type(exc).__name__,
+                exc,
+            )
         try:
             from core.continuity import sanitize_continuity_summary
 
@@ -289,7 +299,13 @@ class CommitmentEngine:
                 part for part in (str(description or "").strip(), str(outcome or "").strip()) if part
             )
             return bool(combined and not sanitize_continuity_summary(combined))
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the continuity sanitiser could not be asked, so this is not treated as scaffold",
+                "sanitize_continuity_summary",
+                type(exc).__name__,
+                exc,
+            )
             return False
 
     def get_context_block(self) -> str:

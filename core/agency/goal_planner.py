@@ -101,8 +101,13 @@ class GoalPlanner:
 
             if looks_computational(g) and _usable("computational"):
                 return "computational"
-        except (ImportError, RuntimeError):
-            pass
+        except (ImportError, RuntimeError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the computational route was not considered for this goal",
+                "looks_computational",
+                type(exc).__name__,
+                exc,
+            )
         # Desktop UI control ("open Notes", "make a folder", "open <url> in Chrome") plans
         # into verified computer-use steps.
         try:
@@ -110,8 +115,13 @@ class GoalPlanner:
 
             if is_desktop_goal(g) and _usable("desktop"):
                 return "desktop"
-        except (ImportError, RuntimeError):
-            pass
+        except (ImportError, RuntimeError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the desktop route was not considered for this goal",
+                "is_desktop_goal",
+                type(exc).__name__,
+                exc,
+            )
         lower = g.lower()
         if (
             self._reach is not None

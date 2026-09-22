@@ -172,7 +172,13 @@ class VoiceOutputSkill(BaseSkill):
             )
             self._piper_available = result.returncode == 0
             self._piper_command = command if self._piper_available else None
-        except _VOICE_RECOVERABLE_ERRORS:
+        except _VOICE_RECOVERABLE_ERRORS as exc:
+            logger.warning(
+                "%s unavailable (%s: %s); piper is reported unavailable and she speaks through the fallback",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
             self._piper_available = False
             self._piper_command = None
         return self._piper_available
@@ -446,6 +452,7 @@ class VoiceOutputSkill(BaseSkill):
         """Try pyttsx3 as a cross-platform fallback."""
         try:
             import pyttsx3
+        # not a failure: the module is optional here, and its absence is the answer.
         except ImportError:
             return None
 

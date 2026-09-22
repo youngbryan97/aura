@@ -215,8 +215,13 @@ def _register_in_container(engine: AutonomyLatitude) -> None:
                 owner="core/agency/autonomy_latitude.py",
                 registered_by="autonomy_latitude",
             )
-    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
-        pass
+    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        logger.warning(
+            "%s unavailable (%s: %s); the latitude engine is not in the container, so callers that look it up will not find it",
+            "it",
+            type(exc).__name__,
+            exc,
+        )
 
 
 def reset_autonomy_latitude_for_test() -> None:

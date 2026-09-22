@@ -27,12 +27,15 @@ Deliberately narrow:
 from __future__ import annotations
 
 import contextvars
+import logging
 import os
 import re
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "FileRead",
@@ -263,12 +266,14 @@ def _allowed_roots() -> list[Path]:
     roots: list[Path] = []
     try:
         roots.append(Path(__file__).resolve().parents[2])
+    # not a failure: a module without that many parents has no repository root to add.
     except (IndexError, OSError):
         pass
     try:
         from core.runtime.state_ownership import state_root
 
         roots.append(Path(str(state_root())).resolve())
+    # not a failure: no state root here means there is no second root to add.
     except (ImportError, RuntimeError, OSError, ValueError):
         pass
     return [r for r in roots if r.exists()]
@@ -604,7 +609,13 @@ def _measured(files: list[Path], measure: str) -> int:
         try:
             with path.open("rb") as handle:
                 total += sum(1 for _ in handle)
-        except OSError:
+        except OSError as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the directory could not be listed, so there is no count",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
             continue
     return total
 
@@ -918,7 +929,13 @@ def _found_by_name(candidate: str) -> tuple[str, ...]:
     for root in _allowed_roots():
         try:
             hits.extend(_name_index(root).get(name, ()))
-        except OSError:
+        except OSError as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the remembered file could not be read",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
             continue
     return tuple(dict.fromkeys(hits))
 
@@ -1033,7 +1050,13 @@ def requested_file_read(user_message: Any) -> FileRead | None:
                 continue
             try:
                 body = target.read_text(encoding="utf-8", errors="replace")
-            except OSError:
+            except OSError as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); the file found by name could not be read",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
                 continue
             topic, mentions = _topic_coverage(body, text, filename=candidate)
             remember_file_read(str(target))

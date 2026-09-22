@@ -149,6 +149,7 @@ class RecognitionLedger:
         """
         try:
             self._pending = (float(claimed), float(predicted))
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             self._pending = None
 

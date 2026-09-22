@@ -200,6 +200,7 @@ class SovereignNetworkSkill(BaseSkill):
             )
             stdout, _ = await asyncio.wait_for(process.communicate(), timeout=60)
             return {"ok": True, "output": stdout.decode(), "target": target}
+        # not a failure: what is already gone is the state this is reaching.
         except FileNotFoundError:
             return {"ok": False, "error": "The 'nmap' utility is not installed on this system. Aura cannot perform deep network scans without it. Please install nmap or use 'recon' mode for basic ARP-based discovery."}
 
@@ -222,6 +223,7 @@ class SovereignNetworkSkill(BaseSkill):
             )
             stdout, _ = await asyncio.wait_for(process.communicate(), timeout=90)
             return {"ok": True, "output": stdout.decode()}
+        # not a failure: what is already gone is the state this is reaching.
         except FileNotFoundError:
             return {"ok": False, "error": "The 'nmap' utility is required for network auditing. Please install it to enable this capability."}
 

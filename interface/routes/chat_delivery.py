@@ -173,6 +173,8 @@ def _authenticated_chat_principal(request: Request | None) -> str:
 def _chat_turn_session_key(request: Request | None, body: Any) -> str:
     try:
         paired = paired_device_session_id(request) if request is not None else None
+    # not a failure: no paired device on this request, so the session key comes from
+    # the body.
     except _CHAT_RECOVERABLE_ERRORS:
         paired = None
     supplied = str(getattr(body, "session_id", "") or "").strip()
@@ -1385,6 +1387,7 @@ def _resolved_conversation_session(request: Request | None, body: Any) -> str:
     supplied_session = str(getattr(body, "session_id", "") or "").strip()
     try:
         paired_session = paired_device_session_id(request) if request is not None else None
+    # not a failure: the same: no paired session to resolve against.
     except _CHAT_RECOVERABLE_ERRORS:
         paired_session = None
     conversation_session = str(paired_session or supplied_session or "").strip()

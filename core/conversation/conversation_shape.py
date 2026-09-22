@@ -21,9 +21,12 @@ arithmetic.
 
 from __future__ import annotations
 
+import logging
 import re
 import time
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "CONVERSATION_SHAPE_HEADER",
@@ -83,7 +86,13 @@ def _entries() -> list[Any] | None:
         from core.conversation.unified_transcript import UnifiedTranscript
 
         return list(UnifiedTranscript.get_instance().entries_for_conversation())
-    except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); no transcript entries, so shape is judged on nothing",
+            "UnifiedTranscript",
+            type(exc).__name__,
+            exc,
+        )
         return None
 
 
@@ -101,7 +110,13 @@ def _shared_entries() -> list[Any] | None:
             history = turn_transcript()
             return list(history) if history is not None else None
         return _entries()
-    except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); no history reached the shape reader",
+            "it",
+            type(exc).__name__,
+            exc,
+        )
         return None
 
 

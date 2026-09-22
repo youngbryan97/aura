@@ -30,8 +30,13 @@ def get_sandbox():
         if _sandbox and hasattr(_sandbox, 'stop'):
             try:
                 _sandbox.stop()
-            except (RuntimeError, AttributeError, TypeError, ValueError):
-                pass  # no-op: intentional
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); the old sandbox was not stopped before a new one replaced it",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
         _sandbox = LocalSandbox(_sandbox_work_dir())
         _sandbox.start()
     return _sandbox

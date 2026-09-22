@@ -108,6 +108,8 @@ def _tcp_https_endpoint_reachable(host: str, port: int) -> bool:
     try:
         with socket.create_connection((host, port), timeout=_PROBE_TIMEOUT_SECONDS):
             return True
+    # not a failure: a port that does not answer is not a reachable endpoint, which
+    # is the question being asked.
     except (OSError, TimeoutError):
         return False
 

@@ -108,6 +108,8 @@ def derive_effect_scope(step_tools: list[str], resolve_scope: Any) -> str:
     for tool in step_tools:
         try:
             scope = str(resolve_scope(tool) or "").strip().lower()
+        # not a failure: a tool whose scope will not resolve widens nothing, and the
+        # status default above stands.
         except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
             scope = ""
         if scope not in VALID_EFFECT_SCOPES:

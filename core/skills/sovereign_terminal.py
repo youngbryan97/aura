@@ -185,8 +185,13 @@ class SovereignTerminalSkill(BaseSkill):
                         if any(p in lower_line for p in interactive_prompts):
                             # If the terminal hasn't flushed a newline and is stalled waiting
                             pass  # no-op: intentional
-                except ValueError:
-                    pass  # no-op: intentional
+                except ValueError as exc:
+                    logger.debug(
+                        "%s unavailable (%s: %s); the stall heuristic did not run on this line",
+                        "it",
+                        type(exc).__name__,
+                        exc,
+                    )
             
             try:
                 await asyncio.wait_for(

@@ -280,6 +280,7 @@ def install_asyncio_exception_handler(loop: Optional[asyncio.AbstractEventLoop] 
     try:
         _install_loop_handler(loop or asyncio.get_running_loop())
         return True
+    # not a failure: off a loop there is no running loop or task to report.
     except RuntimeError:
         return False
 

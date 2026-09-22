@@ -636,6 +636,8 @@ def _this_turn_generated_something() -> bool:
             for row in turn_model_generations()
             if isinstance(row, dict)
         )
+    # not a failure: the reader could not be asked, so nothing here claims it holds,
+    # which is the refusing direction.
     except (ImportError, RuntimeError, TypeError, ValueError):
         return False
 
@@ -1262,6 +1264,8 @@ def _has_current_shown_source() -> bool:
         from core.self.source_excerpt import last_shown_excerpt
 
         return bool(last_shown_excerpt())
+    # not a failure: the reader could not be asked, so nothing here claims it holds,
+    # which is the refusing direction.
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         return False
 
@@ -1279,6 +1283,8 @@ def _reply_claims_own_code(reply: str) -> bool:
         from core.self.source_excerpt import reply_claims_own_code
 
         return reply_claims_own_code(reply)
+    # not a failure: the reader could not be asked, so nothing here claims it holds,
+    # which is the refusing direction.
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         return False
 
@@ -1360,6 +1366,8 @@ def _brevity_requested(user_message: object) -> bool:
         from core.conversation.surface_disposition import requests_a_brief_answer
 
         return requests_a_brief_answer(user_message)
+    # not a failure: the reader could not be asked, so nothing here claims it holds,
+    # which is the refusing direction.
     except _CHAT_RECOVERABLE_ERRORS:
         return False
 

@@ -60,6 +60,8 @@ def _default_filename(url: str, content_type: str) -> str:
     if source_name:
         try:
             return _safe_flat_filename(source_name)
+        # not a failure: a name that will not flatten safely falls through to the
+        # generated one below.
         except ValueError:
             pass
 

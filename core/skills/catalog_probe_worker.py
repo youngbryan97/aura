@@ -72,6 +72,8 @@ def _install_filesystem_audit_guard() -> None:
         try:
             resolved = os.path.realpath(os.fspath(candidate))
             return os.path.commonpath((sandbox_root, resolved)) == sandbox_root
+        # not a failure: a path outside the root, or one that will not resolve, is the
+        # question being asked and False is the answer.
         except (OSError, TypeError, ValueError):
             return False
 

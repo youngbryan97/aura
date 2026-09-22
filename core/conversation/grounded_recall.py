@@ -469,7 +469,13 @@ def _process_start_time() -> float | None:
             return None
         started_at = float(process.create_time)
         return started_at if started_at > 0.0 else None
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); no process start time, so this boot has no anchor",
+            "it",
+            type(exc).__name__,
+            exc,
+        )
         return None
 
 
@@ -540,6 +546,7 @@ def _entry_timestamp(entry: dict) -> float | None:
     try:
         value = entry.get("timestamp")
         return float(value) if value is not None else None
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
 

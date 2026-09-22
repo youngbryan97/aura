@@ -100,6 +100,7 @@ class WeightLedger:
         try:
             w = float(weight)
             c = float(contact)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if c < 0.0 or w != w or c != c:

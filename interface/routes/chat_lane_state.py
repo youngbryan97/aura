@@ -51,6 +51,7 @@ def _host_condition() -> dict[str, Any]:
     if thermal is not None and thermal.present:
         try:
             condition["thermal_pressure"] = round(float(thermal.value), 2)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             pass
     # Absent rather than zero: a load reported as 0% because nothing answered
@@ -82,6 +83,7 @@ def _canonical_runtime_model_label(lane: dict[str, Any] | None) -> str:
             PRIMARY_ENDPOINT,
             lane_display_label,
         )
+    # not a failure: no display labels module, so the lane is named by its endpoint.
     except ImportError:
         lane_display_label = None
     if lane_display_label is not None:
@@ -226,6 +228,7 @@ def _cortex_is_cold_loading(lane: object) -> bool:
         if bool(lane.get("has_generated_successfully")):
             return False  # served once already: this is a recovery, not a cold load
         return float(lane.get("last_ready_at") or 0.0) <= 0.0
+    # not a failure: a lane status this cannot read is not a proven cold load.
     except (AttributeError, TypeError, ValueError):
         return False
 

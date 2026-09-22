@@ -24,6 +24,8 @@ from collections.abc import Callable
 
 from core.language.asking_clauses import asking_clauses
 
+logger = logging.getLogger(__name__)
+
 _LOG = logging.getLogger("Aura.ComposedAnswer")
 
 __all__ = ["compose_measured", "coverage_of",
@@ -73,7 +75,13 @@ def coverage_of(
             continue
         try:
             hit = bool(matches(clause))
-        except (RuntimeError, TypeError, ValueError):
+        except (RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the clause is counted as uncovered",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
             hit = False
         (covered if hit else uncovered).append(clause)
     return tuple(covered), tuple(uncovered)

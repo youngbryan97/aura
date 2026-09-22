@@ -100,6 +100,7 @@ def _explicit_urgency(initiative: dict) -> float | None:
         return None
     try:
         return float(raw)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
 
@@ -410,8 +411,13 @@ class InitiativeArbiter:
                 for dim, boost in mods.items():
                     if dim in effective_weights:
                         effective_weights[dim] = effective_weights[dim] + boost
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # degrade gracefully
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); drive modifiers are missing from the arbiter's weights",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
 
         # Self-authored preference: apply weight multipliers learned from the outcomes of
         # her own past choices, so the dimensions that have served her are weighted up and
@@ -422,8 +428,13 @@ class InitiativeArbiter:
             )
 
             effective_weights = get_decision_preference_learner().effective_weights(effective_weights)
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass  # degrade gracefully — learned preferences are additive
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); learned preferences are missing from the arbiter's weights",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
 
         total_weight = 0.0
         weighted_sum = 0.0
@@ -509,6 +520,7 @@ class InitiativeArbiter:
             if engine is None or not hasattr(engine, "get_action_urgency"):
                 return 0.0
             pressure = float(engine.get_action_urgency())
+        # not a failure: no free-energy engine means no action urgency to add.
         except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
             return 0.0
         if pressure != pressure:

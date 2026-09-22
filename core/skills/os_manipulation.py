@@ -42,6 +42,7 @@ class DesktopControlSkill(BaseSkill):
         try:
             from core.container import ServiceContainer
             from core.security.permission_guard import PermissionType
+        # not a failure: the module is optional here, and its absence is the answer.
         except (ImportError, AttributeError, RuntimeError):
             return None
 

@@ -622,6 +622,8 @@ class RedditAdapterSkill(BaseSkill):
 
             try:
                 username, password = await asyncio.to_thread(self._get_creds)
+            # not a failure: no credentials is a connection state this reports below, not a
+            # failure to look.
             except RuntimeError:
                 await self._set_connection_state(
                     "auth_required",

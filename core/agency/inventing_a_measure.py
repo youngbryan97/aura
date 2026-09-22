@@ -86,6 +86,7 @@ def _what_it_offers(state: Any) -> list[tuple[float, float, int, int]] | None:
         return None
     try:
         given = offers()
+    # not a failure: a state that will not offer its observations has none to measure.
     except (AttributeError, TypeError, ValueError):
         return None
     seen: list[tuple[float, float, int, int]] = []
@@ -322,6 +323,7 @@ class Measure:
         """This property of that situation, between nought and one."""
         try:
             seen = AT[self.at](state)
+        # not a failure: a reading this cannot be applied to has nothing to report.
         except (KeyError, AttributeError, TypeError, ValueError):
             return 0.0
         if not seen:
@@ -329,6 +331,7 @@ class Measure:
         try:
             taken = [OF[self.of](one, state) for one in seen]
             summed = float(SUMMED[self.summed](taken))
+        # not a failure: a value that is not a number is not one this can read.
         except (KeyError, AttributeError, TypeError, ValueError, ZeroDivisionError):
             return 0.0
         summed = max(0.0, min(1.0, summed))

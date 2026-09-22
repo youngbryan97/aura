@@ -17,17 +17,20 @@ and puts it on disk.
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.construction.document import RENDERERS
 from core.language.learned_matcher import LearnedMatcher as _LearnedMatcher
 from core.language.model_features import model_hidden_features as _model_hidden_features
 from core.skills.base_skill import BaseSkill
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
+
+logger = logging.getLogger(__name__)
 
 
 class BuildDocumentInput(BaseModel):
@@ -83,11 +86,11 @@ class BuildDocumentSkill(BaseSkill):
             document_from_plan,
             render_document,
         )
-        from core.runtime.payload_values import payload_path
 
         # What the PERSON asked for, not what the model echoed back, read
         # before anything is decided from it.
         from core.conversation.session_scope import the_persons_own_words
+        from core.runtime.payload_values import payload_path
 
         asked = the_persons_own_words(params.request)
         entries = list(params.sections) or list(params.slides) or list(params.slide_contents)
@@ -154,8 +157,13 @@ class BuildDocumentSkill(BaseSkill):
             from core.conversation.session_scope import record_solved_answer
 
             record_solved_answer("built_artifact", summary)
-        except (ImportError, AttributeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the built artifact was not recorded as a solved answer, which is how a reply comes to re-narrate it",
+                "record_solved_answer",
+                type(exc).__name__,
+                exc,
+            )
         return {
             "ok": True,
             "skill": self.name,
@@ -247,6 +255,7 @@ def _reads_like_the_asking(proposed: str) -> bool:
         return False
     try:
         from core.language.asking_clauses import asking_clauses
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return False
     return bool(asking_clauses(text))
@@ -264,7 +273,13 @@ def _sections_asked_for(request: object) -> int:
         from core.conversation.response_reliability import requested_count
 
         return requested_count(request, *_SECTION_UNITS) or 0
-    except (ImportError, AttributeError, TypeError, ValueError):
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the requested section count reads as unstated",
+            "requested_count",
+            type(exc).__name__,
+            exc,
+        )
         return 0
 
 
@@ -314,6 +329,8 @@ def _form_wanted(given: object, request: object) -> str:
             # What the floor is sure of is what the surface learns from.
             try:
                 _WANTS_A_DECK.observe(text, holds=(form == "deck"))
+            # not a failure: the comment below says it: the form word settles this whether or
+            # not the observation was recorded.
             except (RuntimeError, TypeError, ValueError):
                 # The form word settled this, and it settles it whether or not
                 # the observation was recorded. Failing to learn from a case
@@ -322,6 +339,7 @@ def _form_wanted(given: object, request: object) -> str:
             return form
     try:
         learned = _WANTS_A_DECK.decide_without_waiting(text)
+    # not a failure: a surface that cannot decide yet has not decided.
     except (RuntimeError, TypeError, ValueError):
         learned = None
     if learned is not None:

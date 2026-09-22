@@ -486,6 +486,7 @@ def _judge_for(said: str) -> Any:
                 keeping=held.keeping,
             )
             return 1.0 if ok else 0.0
+        # not a failure: a reading this cannot be applied to has nothing to report.
         except (AttributeError, TypeError, ValueError):
             return 0.0
 
@@ -659,6 +660,7 @@ def _newness(state: Any) -> float:
         return 0.0
     try:
         return max(0.0, min(1.0, float(said())))
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0.0
 
@@ -699,5 +701,6 @@ def _target(toward: str) -> float:
         return 0.0
     try:
         return float(said)
+    # not a failure: a value that is not a number is not one this can read.
     except ValueError:
         return 0.0

@@ -19,12 +19,15 @@ option.
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from pydantic import BaseModel, Field
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.skills.base_skill import BaseSkill
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
+
+logger = logging.getLogger(__name__)
 
 
 class DesignEngineeringInput(BaseModel):
@@ -214,8 +217,13 @@ class DesignEngineeringSkill(BaseSkill):
             from core.conversation.session_scope import record_solved_answer
 
             record_solved_answer("built_artifact", payload["summary"])
-        except (ImportError, AttributeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the built artifact was not recorded as a solved answer",
+                "record_solved_answer",
+                type(exc).__name__,
+                exc,
+            )
         return payload
 
 

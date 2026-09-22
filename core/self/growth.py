@@ -72,6 +72,7 @@ class GrowthLedger:
     def note(self, relative_displacement: float) -> None:
         try:
             value = float(relative_displacement)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if value != value:

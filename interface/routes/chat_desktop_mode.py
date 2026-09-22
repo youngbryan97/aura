@@ -591,6 +591,7 @@ async def _reanswer_when_the_runtime_contradicts_her(
             from core.senses.turn_evidence import TurnSensoryEvidence
 
             evidence = TurnSensoryEvidence.from_value(turn_sensory_evidence)
+        # not a failure: a value that is not turn sensory evidence is not evidence.
         except _CHAT_RECOVERABLE_ERRORS:
             evidence = None
         if evidence is not None and evidence.ok:
@@ -829,6 +830,7 @@ def _is_compact_desktop_chat_contract(
         # Questions about the mechanism itself remain on the deep path above.
         if is_live_self_reflection_turn(user_message):
             lightweight_live_state_or_recall = True
+    # not a failure: no measured rates yet, so the timing carries what it has.
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat", exc)
         logger.debug("Self-process quick-reply classification skipped: %s", exc)
@@ -1013,6 +1015,8 @@ def _build_live_mind_context_payload(
         timescale_reconciliation = (
             get_timescale_bridge().reconcile_foreground_turn(user_message).to_dict()
         )
+    # not a failure: the collection is bounded on purpose; a turn does not wait past
+    # its budget for optional context.
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat", exc)
         logger.debug("Live mind context timescale bridge unavailable: %s", exc)
@@ -1659,5 +1663,7 @@ def _desktop_objective_executable_after_cognitive_attempt(user_message: str) -> 
             DesktopTaskSkill._objective_requests_self_summary(text)
             or DesktopTaskSkill._objective_requests_research_document(text)
         )
+    # not a failure: the reader could not be asked, so nothing here claims it holds,
+    # which is the refusing direction.
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         return False

@@ -1559,6 +1559,7 @@ async def decide_the_next_move(
         foretold_by_the_rule = None
         try:
             foretold_by_the_rule = knows.rules.expect(laid_out, key)
+        # not a failure: a reading the rule cannot be applied to has no expectation to give.
         except (AttributeError, TypeError, ValueError):
             foretold_by_the_rule = None
         if foretold_by_the_rule is not None:

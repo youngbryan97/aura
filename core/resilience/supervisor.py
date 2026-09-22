@@ -25,6 +25,7 @@ from core.runtime.state_ownership import state_root
 
 try:
     import psutil
+# not a failure: the module is optional here, and its absence is the answer.
 except ImportError:
     psutil = None
 
@@ -226,6 +227,7 @@ class SovereignSupervisor:
         try:
             flag_pid = int(payload.get("pid"))
             created_at = float(payload.get("created_at_unix"))
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return False
         if flag_pid != int(self.process.pid):

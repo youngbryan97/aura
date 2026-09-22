@@ -70,6 +70,7 @@ class SelfImprovementSkill(BaseSkill):
             # A skill borrows the live cognitive organ; it must not cold-boot
             # the runtime service graph and its durable resources on demand.
             return ServiceContainer.peek("cognitive_engine", default=None)
+        # not a failure: the comment above says the same: no cold-booting the graph.
         except (ImportError, AttributeError, RuntimeError):
             return None
 

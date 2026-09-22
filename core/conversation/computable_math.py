@@ -190,6 +190,7 @@ def _evaluate_node(node: ast.AST) -> int | float | None:
                 return None
         try:
             return handler(left, right)
+        # not a failure: an operation that refuses these operands has no value to give.
         except (ArithmeticError, TypeError, ValueError):
             return None
     return None
@@ -202,6 +203,7 @@ def _arithmetic(match: re.Match[str]) -> int | float | None:
         return None
     try:
         tree = ast.parse(raw, mode="eval")
+    # not a failure: text that does not parse is not the shape this was reading for.
     except (SyntaxError, ValueError, MemoryError, RecursionError):
         return None
     value = _evaluate_node(tree)
@@ -311,6 +313,8 @@ def _renderable(value: int) -> int | None:
     """
     try:
         str(value)
+    # not a failure: the docstring above says it: an answer that cannot be rendered
+    # is not an answer.
     except ValueError:
         return None
     return value
@@ -460,6 +464,7 @@ def _rectangle_area(match: re.Match[str]) -> int | float | None:
         if "." in left or "." in right:
             return float(left) * float(right)
         return int(left) * int(right)
+    # not a failure: a value that is not a number is not one this can read.
     except (ArithmeticError, ValueError):
         return None
 

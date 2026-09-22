@@ -154,6 +154,7 @@ def novelty_deepens(novelty: float) -> int:
     """
     try:
         reading = float(novelty)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0
     if reading != reading:  # NaN is an absent reading, not a novel moment

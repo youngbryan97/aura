@@ -119,6 +119,7 @@ if __name__ == "__main__":
                     process.communicate(), 
                     timeout=params.timeout_minutes * 60
                 )
+            # not a failure: the wait ran out, which is what the timeout was set to decide.
             except asyncio.TimeoutError:
                 process.kill()
                 return {

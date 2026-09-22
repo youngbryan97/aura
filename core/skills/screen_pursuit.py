@@ -1722,6 +1722,7 @@ def _a_number_in(said: str) -> float:
         return 0.0
     try:
         return float(found.group(0).replace(",", ""))
+    # not a failure: a value that is not a number is not one this can read.
     except ValueError:
         return 0.0
 

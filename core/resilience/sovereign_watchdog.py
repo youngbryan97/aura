@@ -133,6 +133,7 @@ class SovereignWatchdog:
         )
         try:
             request_age = float(lane.get("request_age_s", 0.0) or 0.0)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError, OverflowError):
             request_age = 0.0
         return request_age <= 0.0 or request_age <= max_request_age
@@ -158,6 +159,7 @@ class SovereignWatchdog:
                             self._last_foreground_deferral_log_at = now
                             try:
                                 request_age = float(foreground_lane.get("request_age_s", 0.0) or 0.0)
+                            # not a failure: a value that is not a number is not one this can read.
                             except (TypeError, ValueError, OverflowError):
                                 request_age = 0.0
                             logger.info(

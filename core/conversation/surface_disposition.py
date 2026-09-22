@@ -169,6 +169,7 @@ def _mirror_effect_onto_the_turn(
 
     try:
         from core.runtime.turn_outcome import VerificationGrade, current_turn
+    # not a failure: the module is optional here, and its absence is the answer.
     except (ImportError, AttributeError):
         return
     outcome = current_turn()
@@ -358,6 +359,8 @@ def repair_is_an_improvement(
     try:
         original_reasons = set(assess_user_facing_reply(question, original).reasons)
         replacement_reasons = set(assess_user_facing_reply(question, replacement).reasons)
+    # not a failure: a reply that cannot be assessed is not a proven improvement, and
+    # False is the refusing direction.
     except (RuntimeError, TypeError, ValueError):
         return False
     if (replacement_reasons - original_reasons) - ADVISORY_ONLY_REASONS:
@@ -391,6 +394,7 @@ def repair_is_an_improvement(
             )
             if replacement_missing - original_missing:
                 return False
+        # not a failure: the same: unprovable is refused.
         except (ImportError, RuntimeError, TypeError, ValueError):
             return False
     # Losing a third of the answer is a downgrade even when it silences a

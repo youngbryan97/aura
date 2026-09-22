@@ -351,6 +351,7 @@ def _related_bundle(
     declared: Any = metadata.get(probe.declared_count_field) if probe.declared_count_field else None
     try:
         declared_count = int(declared) if declared is not None else None
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         declared_count = None
     observed = len(files)

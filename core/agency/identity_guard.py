@@ -169,6 +169,7 @@ class IdentityGuard:
                                 f"Forbidden file write: open(..., mode='{kw.value.value}') requires approval."
                             )
                             requires_human = True
+        # not a failure: the comment beside it says it: already caught in step 2.
         except SyntaxError:
             pass  # Already caught in step 2
 

@@ -22,6 +22,7 @@ autonomously-*chosen* initiative rides the existing agency loop.
 from __future__ import annotations
 
 import json
+import logging
 import time
 from collections import Counter
 from dataclasses import asdict, dataclass, field
@@ -32,6 +33,8 @@ from typing import Any
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.runtime_settings import get_runtime_setting
 from core.runtime.state_ownership import state_root
+
+logger = logging.getLogger(__name__)
 
 _SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", "venv", ".mypy_cache",
               ".pytest_cache", ".ruff_cache", "dist", "build", ".aura"}
@@ -149,8 +152,13 @@ def _append_run_ledger(receipt: WorkspaceDigestReceipt, ledger: Path) -> None:
         with local_internal_governed_scope("environment_pipeline.run_ledger", domain="file_write"):
             with ledger.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(receipt.to_dict(), default=str) + "\n")
-    except OSError:
-        pass  # ledger is best-effort; the digest + returned receipt are the proof
+    except OSError as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the run ledger line was not appended; the digest and the returned receipt are the proof",
+            "local_internal_governed_scope",
+            type(exc).__name__,
+            exc,
+        )
 
 
 def run_workspace_digest(

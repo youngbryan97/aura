@@ -233,6 +233,7 @@ class _AmplifiesTheDraft:
         word_budget = 0
         try:
             word_budget = int(state.response_modifiers.get("voice_word_budget", 0) or 0)
+        # not a failure: a value that is not a number is not one this can read.
         except (AttributeError, TypeError, ValueError):
             word_budget = 0
         if word_budget <= 0:

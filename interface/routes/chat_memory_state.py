@@ -1175,7 +1175,13 @@ async def _recall_durable_session_memory_pin(
             operation_name="session_memory_pin_ledger_recall",
             completion_grace_s=0.75,
         )
-    except TimeoutError:
+    except TimeoutError as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the pin ledger did not answer inside its budget",
+            "it",
+            type(exc).__name__,
+            exc,
+        )
         ledger_recall = None
     if ledger_recall:
         return ledger_recall
@@ -2219,6 +2225,8 @@ def _the_recall_is_the_whole_question(user_message: str) -> bool:
         # Exactly one. None means nothing was recognised as asking, and that is
         # not a reason to answer from here either.
         return len(clauses) == 1
+    # not a failure: the comment below says it: unknown means do not short-circuit,
+    # and the model still has the turn.
     except (ImportError, RuntimeError, TypeError, ValueError):
         # Unknown means do not short-circuit: the model still has the turn.
         return False
@@ -2238,6 +2246,7 @@ async def _build_conversation_recall_reply(
         from core.conversation.grounded_recall import detect_positional_recall
 
         _position = detect_positional_recall(user_message)
+    # not a failure: no positional recall reader means no position detected.
     except (ImportError, AttributeError, ValueError):
         _position = None
     if _position in {"first", "last"}:

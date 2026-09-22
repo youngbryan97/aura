@@ -229,7 +229,15 @@ def _is_deep_mind_probe_turn(user_message: str) -> bool:
         from core.runtime.turn_analysis import looks_like_deep_mind_probe
 
         return bool(looks_like_deep_mind_probe(user_message))
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    # not a failure: the reader could not be asked, so nothing here claims it holds,
+    # which is the refusing direction.
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the incomplete-tail checks did not run on this body",
+            "looks_like_deep_mind_probe",
+            type(exc).__name__,
+            exc,
+        )
         return False
 
 
@@ -446,8 +454,13 @@ def _looks_truncated_tail(text: str) -> bool:
             return True
         if _PUNCTUATED_INCOMPLETE_TAIL_RE.search(body):
             return True
-    except _CHAT_RECOVERABLE_ERRORS:
-        pass
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); evaluation contamination was not screened out of this text",
+            "it",
+            type(exc).__name__,
+            exc,
+        )
     if body.endswith(("...", "…")):
         return True
     if re.search(r"(?:^|\n)\s*(?:[-*]|\d+[.)])\s*$", body):
@@ -705,7 +718,13 @@ def _apply_aura_voice_shaping(text: str, user_message: str = "") -> str:
         from core.synthesis import stabilize_user_facing_response
 
         shaped = stabilize_user_facing_response(shaped, user_message)
-    except _CHAT_RECOVERABLE_ERRORS:
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the desktop-objective check did not run on this message",
+            "stabilize_user_facing_response",
+            type(exc).__name__,
+            exc,
+        )
         shaped = re.sub(r"\s+", " ", shaped).strip()
     if shaped.endswith('"') and shaped.count('"') % 2 == 1:
         shaped = shaped[:-1].rstrip()
@@ -1729,6 +1748,8 @@ def _build_bounded_identity_repair_reply(user_message: str) -> str:
         assessment = assess_user_facing_reply(user_message, reply)
         if _reply_assessment_requires_repair(assessment):
             return ""
+    # not a failure: the self-process readers could not be asked, so this does not
+    # claim the turn.
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat", exc)
         logger.debug("Bounded desktop identity repair assessment skipped: %s", exc)

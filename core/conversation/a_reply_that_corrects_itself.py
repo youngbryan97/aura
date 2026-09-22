@@ -75,6 +75,7 @@ class ACorrectedReply(NamedTuple):
 def _as_number(value: str) -> float | None:
     try:
         return float(value.replace(",", ""))
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
 

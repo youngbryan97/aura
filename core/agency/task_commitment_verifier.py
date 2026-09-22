@@ -903,8 +903,12 @@ class TaskCommitmentVerifier(_KeepsTheTaskLedger):
             await asyncio.wait_for(
                 asyncio.shield(execution_task), timeout=self.PLANNING_GRACE_S
             )
+        # not a failure: the comment beside it says it: still running, which is what
+        # STARTED means.
         except (asyncio.TimeoutError, asyncio.CancelledError):
             pass  # Still running, which is what STARTED means.
+        # not a failure: the comment beside it says it: a real failure is the finalizer's
+        # to record.
         except (AttributeError, RuntimeError, TypeError, ValueError):
             pass  # A real failure is the finalizer's to record.
         else:
@@ -953,6 +957,7 @@ class TaskCommitmentVerifier(_KeepsTheTaskLedger):
         try:
             from core.container import ServiceContainer
             return ServiceContainer.get("capability_engine", default=None)
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError):
             return None
 
@@ -960,6 +965,7 @@ class TaskCommitmentVerifier(_KeepsTheTaskLedger):
         try:
             from core.container import ServiceContainer
             return ServiceContainer.get("task_engine", default=None)
+        # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError):
             return None
 

@@ -117,6 +117,7 @@ class PerceptionSentinel:
             try:
                 ident, sim = matcher(np.asarray(obs.descriptor, dtype=np.float64))
                 return ident, _clamp(float(sim))
+            # not a failure: a value that is not a number is not one this can read.
             except (ValueError, TypeError, RuntimeError):
                 pass
         # Otherwise cosine-match against enrolled descriptors.

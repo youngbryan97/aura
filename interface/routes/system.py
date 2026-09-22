@@ -2193,6 +2193,7 @@ def _runtime_manifest_boot_health_payload(reason: str) -> tuple[dict[str, Any], 
     manifest_path = config.paths.project_root / "artifacts" / "current" / "runtime_manifest.json"
     try:
         raw_manifest = manifest_path.read_text(encoding="utf-8")
+    # not a failure: what is already gone is the state this is reaching.
     except FileNotFoundError:
         # The canonical launcher writes this artifact only after bounded boot
         # health has settled. Absence before that write is the normal cold-boot
@@ -2489,6 +2490,7 @@ def _collect_stability_details() -> dict[str, Any]:
 def _normalize_percentish(value: Any) -> float | None:
     try:
         number = float(value)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     if abs(number) <= 1.0:
@@ -2555,6 +2557,7 @@ def _collect_liquid_state_payload(
             valence = float(runtime_affect.get("valence"))
             if valence < 0.0:
                 derived_frustration = min(100.0, abs(valence) * 100.0)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             derived_frustration = None
 

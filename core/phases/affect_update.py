@@ -207,6 +207,7 @@ def bump_emotion(emotions: dict, name: str, delta: float) -> None:
     """
     try:
         current = float(emotions.get(name, 0.0) or 0.0)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         current = 0.0
     room = (1.0 - current) if delta >= 0.0 else current
@@ -267,6 +268,7 @@ class AffectUpdatePhase(Phase):
     def _clip01(value: Any) -> float:
         try:
             return max(0.0, min(1.0, float(value)))
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return 0.0
 
@@ -1024,6 +1026,7 @@ class AffectUpdatePhase(Phase):
             return 0.0
         try:
             tracks = float(reading.get("tracks_use", 0.0) or 0.0)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return 0.0
         return max(0.0, min(1.0, tracks))

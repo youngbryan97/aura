@@ -51,6 +51,7 @@ def _record_custody_degradation(exc: BaseException) -> None:
             severity="warning",
             action="a text mutation went unchecked against the turn's held facts",
         )
+    # not a failure: the comment beside it says it: the reporter itself is missing.
     except _RECOVERABLE:  # pragma: no cover - the reporter itself is missing
         pass
 

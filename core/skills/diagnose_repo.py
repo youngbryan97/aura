@@ -8,12 +8,15 @@ finding; it is not asked to guess at one.
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 from core.skills.base_skill import BaseSkill
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
+
+logger = logging.getLogger(__name__)
 
 
 class DiagnoseRepoInput(BaseModel):
@@ -92,8 +95,13 @@ class DiagnoseRepoSkill(BaseSkill):
 
             if described and not diagnosis.error:
                 record_solved_answer("repo_diagnosis", described)
-        except (ImportError, AttributeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the diagnosis was not recorded as a solved answer",
+                "record_solved_answer",
+                type(exc).__name__,
+                exc,
+            )
         if diagnosis.error:
             return {
                 "ok": False,
@@ -145,14 +153,26 @@ async def _remember_the_failure(diagnosis: Any, path: str) -> None:
 
         live = ServiceContainer.get("error_intelligence", default=None)
         store = getattr(live, "logger_system", None)
-    except (ImportError, AttributeError, RuntimeError, LookupError):
+    except (ImportError, AttributeError, RuntimeError, LookupError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); no live error store, so the fallback below is used",
+            "ServiceContainer",
+            type(exc).__name__,
+            exc,
+        )
         store = None
     if store is None:
         try:
             from core.self_modification.error_intelligence import StructuredErrorLogger
 
             store = StructuredErrorLogger()
-        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.warning(
+                "%s unavailable (%s: %s); no error store at all, so this finding is not written down anywhere",
+                "StructuredErrorLogger",
+                type(exc).__name__,
+                exc,
+            )
             return
     first = diagnosis.failures[0]
     assertion = str(getattr(first, "assertion", "") or "")

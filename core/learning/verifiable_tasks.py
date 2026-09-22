@@ -128,10 +128,12 @@ def _as_number(value: Any) -> float | None:
             try:
                 denominator = float(parts[1])
                 return float(parts[0]) / denominator if denominator else None
+            # not a failure: a value that is not a number is not one this can read.
             except ValueError:
                 return None
     try:
         return float(text)
+    # not a failure: a value that is not a number is not one this can read.
     except ValueError:
         return None
 

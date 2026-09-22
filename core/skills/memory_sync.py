@@ -112,6 +112,7 @@ class MemorySyncSkill(BaseSkill):
                 )
                 data = event.get("data", {})
                 return data.get("approved", False)
+            # not a failure: the wait ran out, which is what the timeout was set to decide.
             except asyncio.TimeoutError:
                 return False
             finally:

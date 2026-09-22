@@ -145,6 +145,8 @@ def _is_relative_to(path: Path, root: Path) -> bool:
     try:
         path.relative_to(root)
         return True
+    # not a failure: a path outside the root is the question being asked, and False
+    # is the answer to it.
     except ValueError:
         return False
 
@@ -592,6 +594,7 @@ def _is_fresh_activity_payload(payload: Any) -> bool:
     )
     try:
         activity_ts = float(timestamp)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return False
     if activity_ts <= 0:

@@ -215,6 +215,7 @@ async def _governance_says(task: ParallelTask) -> Any:
     try:
         from core.governance.will_client import WillClient, WillRequest
         from core.will import ActionDomain
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return None
     try:

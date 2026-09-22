@@ -527,6 +527,7 @@ def _record_the_reads(files: list[tuple[str, str]]) -> None:
     """Put the preflight's file reads on the turn as receipts."""
     try:
         from core.conversation.surface_disposition import record_tool_receipt
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return
     for display_path, content in files:
@@ -1467,7 +1468,13 @@ def _sense_availability_summary() -> list[str]:
         from core.introspection.self_evidence import resolve_shared_present
 
         bundle = resolve_shared_present()
-    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
+    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); active incidents are unknown to this preflight",
+            "resolve_shared_present",
+            type(exc).__name__,
+            exc,
+        )
         return []
     unread = [r for r in bundle.readings if not r.present]
     if not unread:

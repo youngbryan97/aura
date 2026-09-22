@@ -108,6 +108,7 @@ class EnvironmentState:
         try:
             current = float(self.self_state[current_key])
             maximum = float(self.self_state[max_key])
+        # not a failure: a value that is not a number is not one this can read.
         except (KeyError, TypeError, ValueError):
             return None
         if maximum <= 0:

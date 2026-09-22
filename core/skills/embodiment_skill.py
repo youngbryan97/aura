@@ -336,6 +336,7 @@ class EmbodimentSkill(BaseSkill):  # type: ignore[misc]  # skipped import is unt
                     channel_id,
                     actor="aura",
                 )
+            # not a failure: no such alarm channel is the answer this returns to the caller.
             except LookupError:
                 return {
                     "ok": False,

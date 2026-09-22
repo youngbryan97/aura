@@ -54,6 +54,7 @@ def _mapping(value: Any) -> Mapping[str, Any]:
 def _nonnegative_int(value: Any) -> int:
     try:
         return max(0, int(value or 0))
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0
 
@@ -131,6 +132,7 @@ class ActionEpisode:
         )[:_MAX_EVIDENCE_REFS]
         try:
             recorded_at = float(value.get("recorded_at") or 0.0)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             recorded_at = 0.0
         return cls(

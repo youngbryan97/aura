@@ -94,6 +94,7 @@ class PriceLedger:
         try:
             given = float(gave_up)
             gained = float(got)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if given <= 0.0 or given != given or gained != gained:

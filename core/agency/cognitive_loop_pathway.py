@@ -231,6 +231,8 @@ async def cognitive_loop_provider(
             )
             try:
                 agency._cognitive_loop_task = None
+            # not a failure: a latch that will not clear on this object is one this pathway
+            # has nothing more to do with.
             except (AttributeError, TypeError):
                 return None
         elif not pending.done():
@@ -238,6 +240,8 @@ async def cognitive_loop_provider(
         else:
             try:
                 action = pending.result()
+            # not a failure: a cancelled pending action produced no action, and this reader
+            # is not the one that cancelled it.
             except asyncio.CancelledError:
                 action = None
             except Exception as exc:

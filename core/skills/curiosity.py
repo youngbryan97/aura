@@ -102,8 +102,13 @@ class CuriositySkill(BaseSkill):
                         if drive and hasattr(drive, "latent_interests") and drive.latent_interests:
                             import random
                             topic = random.choice(drive.latent_interests)
-                    except (ImportError, AttributeError, RuntimeError):
-                        pass  # no-op: intentional
+                    except (ImportError, AttributeError, RuntimeError) as exc:
+                        logger.debug(
+                            "%s unavailable (%s: %s); no latent interests, so the topic is not drawn from her drives",
+                            "ServiceContainer",
+                            type(exc).__name__,
+                            exc,
+                        )
                 if not topic:
                     return {"ok": False, "error": "No topic to explore. Provide a topic or category."}
 
@@ -123,8 +128,13 @@ class CuriositySkill(BaseSkill):
                         drive = ServiceContainer.get("drive_engine", default=None)
                         if drive:
                             await drive.satisfy("curiosity", 25.0)
-                    except (ImportError, AttributeError, RuntimeError):
-                        pass  # no-op: intentional
+                    except (ImportError, AttributeError, RuntimeError) as exc:
+                        logger.debug(
+                            "%s unavailable (%s: %s); the curiosity drive was not satisfied by this",
+                            "ServiceContainer",
+                            type(exc).__name__,
+                            exc,
+                        )
 
                     # Mark as explored if from curriculum
                     if params.get("title"):

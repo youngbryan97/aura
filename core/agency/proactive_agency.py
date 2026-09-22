@@ -192,6 +192,8 @@ class ProactiveAgency:
             avoid = self._failed_approaches(receipt)
             try:
                 fresh = await planner(goal, avoid=tuple(sorted(avoid)))
+            # not a failure: the comment below says it: a planner that predates failure-aware
+            # routing.
             except TypeError:
                 # A planner that predates failure-aware routing. Re-planning it
                 # can only reproduce the same plan, so there is nothing to try.

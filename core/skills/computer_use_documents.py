@@ -128,6 +128,7 @@ class _MakesFilesToShow:
             body = body.decode("utf-8", errors="replace")
         try:
             pages = (json.loads(body or "{}").get("query") or {}).get("pages") or {}
+        # not a failure: text that does not parse is not the shape this was reading for.
         except (TypeError, ValueError):
             return None
         for page in (pages.values() if isinstance(pages, dict) else []):
@@ -371,6 +372,7 @@ class _MakesFilesToShow:
             )
             from Foundation import NSURL
             from Quartz import CoreGraphics as CG  # noqa: N817 - Apple framework convention
+        # not a failure: no PyObjC here, so there is no Quartz text layout to draw with.
         except ImportError:
             return None
 

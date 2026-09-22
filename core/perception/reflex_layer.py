@@ -224,6 +224,7 @@ class EnvironmentReflexLayer:
             distance = entity.get("distance")
             try:
                 close = distance is not None and float(distance) <= 1.0
+            # not a failure: a value that is not a number is not one this can read.
             except (TypeError, ValueError):
                 close = False
             hostile = entity.get("hostile") is True or entity_type in {"monster", "large_monster", "threat"}

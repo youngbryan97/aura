@@ -13,6 +13,7 @@ from core.utils.task_tracker import get_task_tracker
 # Import metrics if possible
 try:
     from core.resilience.resilience import PROMETHEUS_AVAILABLE
+# not a failure: the module is optional here, and its absence is the answer.
 except ImportError:
     PROMETHEUS_AVAILABLE = False
 

@@ -81,6 +81,8 @@ def _resolved_addresses(host: str) -> list[str]:
 def _address_is_public(address: str) -> bool:
     try:
         parsed = ipaddress.ip_address(address)
+    # not a failure: something that is not an IP address is not a public one, which is
+    # the refusing direction here.
     except ValueError:
         return False
     return not (
@@ -232,6 +234,8 @@ class HttpRequestSkill(BaseSkill):
         if "json" in content_type or text.lstrip()[:1] in {"{", "["}:
             try:
                 result["json"] = json.loads(text)
+            # not a failure: a body that looked like JSON and is not still
+            # reaches the caller as text, which is the field it reads.
             except (json.JSONDecodeError, ValueError):
                 pass
         if not result["ok"]:

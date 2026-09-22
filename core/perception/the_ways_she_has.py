@@ -60,6 +60,7 @@ def _look_at_the_screen(subject: str) -> str | None:
 
     try:
         from core.perception.perception_daemon import PerceptionDaemon
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return None
     try:

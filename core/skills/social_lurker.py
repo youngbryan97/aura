@@ -10,6 +10,8 @@ from core.config import config
 try:
     from playwright.async_api import async_playwright
     PLAYWRIGHT = True
+# not a failure: Playwright is optional, and the flag below is how the rest of
+# the module knows.
 except ImportError:
     PLAYWRIGHT = False
 
@@ -73,8 +75,15 @@ class LurkerSkill(BaseSkill):
                 finally:
                     try:
                         await browser.close()
-                    except (RuntimeError, AttributeError, TypeError, ValueError):
-                        pass  # no-op: intentional
+                    except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                        # In a finally: this must not replace whatever is on
+                        # its way up, and a browser left open is a process
+                        # nobody reaps.
+                        logger.warning(
+                            "the lurker's browser did not close (%s: %s)",
+                            type(exc).__name__,
+                            exc,
+                        )
                 
                 if not headlines:
                     return {"ok": False, "error": "No headlines found."}

@@ -228,6 +228,7 @@ class BorrowedLedger:
         """One scored claim. The edge is how much better they did than she did."""
         try:
             edge = float(her_error) - float(their_error)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if edge != edge:
@@ -313,6 +314,7 @@ def score_claim(claim: Claim, emotions: Mapping[str, float] | None) -> float:
     if emotions:
         try:
             felt = max(0.0, min(1.0, float(emotions.get(claim.feeling, 0.0) or 0.0)))
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             felt = 0.0
     return (1.0 - felt) * claim.weight()

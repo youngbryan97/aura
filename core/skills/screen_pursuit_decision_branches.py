@@ -385,6 +385,7 @@ def _what_she_says_as_she_moves(
         return ""
     try:
         after = rules.expect(laid_out, key)
+    # not a failure: a reading the rule cannot be applied to has no expectation to give.
     except (AttributeError, TypeError, ValueError):
         after = None
     if after is None:

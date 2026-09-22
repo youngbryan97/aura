@@ -865,6 +865,7 @@ def _announce(knowledge: TaskKnowledge) -> None:
         )
         try:
             asyncio.get_running_loop()
+        # not a failure: off a loop there is no running loop or task to report.
         except RuntimeError:
             coroutine.close()
             return

@@ -139,6 +139,7 @@ class FailureLedger:
             )
 
             custody = current_turn_evidence_custody()
+        # not a failure: the module is optional here, and its absence is the answer.
         except (ImportError, RuntimeError):
             custody = None
         if custody is not None:
@@ -181,6 +182,8 @@ class FailureLedger:
 def _execution_identity() -> tuple[int, int]:
     try:
         task = asyncio.current_task()
+    # not a failure: off a loop there is no current task, and the thread identity
+    # below is the whole of it.
     except RuntimeError:
         task = None
     return (threading.get_ident(), id(task) if task is not None else 0)

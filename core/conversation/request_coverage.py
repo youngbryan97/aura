@@ -1142,6 +1142,7 @@ def unanswered_question_parts(body: Any, contract: object | None) -> list[str]:
         answered.add("numbered")
     try:
         numbered_parts = max(0, int(getattr(contract, "numbered_parts", 0) or 0))
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         numbered_parts = 0
     numbered_start = max(0, len(segments) - numbered_parts)

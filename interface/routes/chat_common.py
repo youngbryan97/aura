@@ -339,7 +339,13 @@ def _unanswered_user_surface_obligations(
             0,
             int(getattr(prompt_shape, "numbered_parts", 0) or 0),
         )
-    except (TypeError, ValueError, OverflowError):
+    except (TypeError, ValueError, OverflowError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the numbered-part count reads as none",
+            "it",
+            type(exc).__name__,
+            exc,
+        )
         numbered_parts = 0
     numbered_start = max(0, len(segments) - numbered_parts)
     remaining_counts = collections.Counter(str(item) for item in missing)
@@ -409,6 +415,7 @@ def _user_surface_continuation_budget(prompt_shape: object | None) -> int:
     def _nonnegative_int(name: str) -> int:
         try:
             return max(0, int(getattr(prompt_shape, name, 0) or 0))
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError, OverflowError):
             return 0
 

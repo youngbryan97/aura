@@ -32,11 +32,14 @@ true stays visible rather than being quietly patched over.
 """
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime
 
 from core.runtime.errors import record_degradation
+
+logger = logging.getLogger(__name__)
 
 _RECOVERABLE = (RuntimeError, AttributeError, TypeError, ValueError, OSError, ImportError)
 
@@ -377,6 +380,7 @@ def _minutes_apart(stated: str, stamp: datetime) -> int | None:
     try:
         hour = int(match.group(1))
         minute = int(match.group(2))
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     meridiem = (match.group(3) or "").lower()
@@ -453,7 +457,13 @@ def verify_grounded_claims(reply: str, *, now: datetime | None = None) -> Ground
         return GroundedReply(text=text)
     try:
         stamp = now or datetime.now().astimezone()
-    except _RECOVERABLE:
+    except _RECOVERABLE as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the reconciliation was not recorded as a degradation",
+            "it",
+            type(exc).__name__,
+            exc,
+        )
         return GroundedReply(text=text)
 
     corrections: list[str] = []

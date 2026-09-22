@@ -107,6 +107,7 @@ def _document_from_prose(user_message: object, reply: object) -> str | None:
             title_from_request,
         )
         from core.skills.build_document import _form_wanted
+    # not a failure: the module is optional here, and its absence is the answer.
     except (ImportError, AttributeError):
         return None
     sections = sections_from_prose(reply)
@@ -117,6 +118,7 @@ def _document_from_prose(user_message: object, reply: object) -> str | None:
         return None
     try:
         return render_document(document, form=_form_wanted("", user_message))
+    # not a failure: a document that will not render is not an artifact to hand back.
     except (ValueError, TypeError):
         return None
 
@@ -135,6 +137,8 @@ def save_requested_artifact(
 
         if not asks_for_an_artifact(str(user_message or "")):
             return None
+    # not a failure: no artifact-request reader, so nothing here claims an artifact
+    # was asked for.
     except _RECOVERABLE + (ImportError, AttributeError, RuntimeError):
         return None
 
@@ -206,6 +210,7 @@ async def save_requested_artifact_async(
 
         if not asks_for_an_artifact(str(user_message or "")):
             return None
+    # not a failure: the same, on the loop-safe path.
     except _RECOVERABLE + (ImportError, AttributeError, RuntimeError):
         return None
 

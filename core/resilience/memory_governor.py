@@ -287,6 +287,7 @@ class MemoryGovernor:
                 try:
                     pid = int(getattr(process, "pid", 0) or 0)
                     alive = bool(process is not None and process.is_alive())
+                # not a failure: a value that is not a number is not one this can read.
                 except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
                     pid = 0
                     alive = False

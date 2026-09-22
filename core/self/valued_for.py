@@ -99,6 +99,7 @@ class ValuedForLedger:
     def note(self, own: float, regard: float) -> None:
         try:
             pair = (float(own), max(-1.0, min(1.0, float(regard))))
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return
         if not all(math.isfinite(value) for value in pair) or pair[1] == 0.0:

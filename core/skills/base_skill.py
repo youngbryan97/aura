@@ -112,6 +112,8 @@ def _raw_execute_refusal(skill: "BaseSkill") -> dict[str, Any] | None:
             "summary": "blocked: skill executed outside the governed lane",
             "duration_ms": 0,
         }
+    # not a failure: the comment below says it: governance is not booted, and this
+    # takes the same posture safe_execute does.
     except (ImportError, AttributeError, RuntimeError):
         # Governance is not booted. Same posture `safe_execute` takes: during
         # boot there is no runtime to be ungoverned against.
@@ -390,6 +392,7 @@ class BaseSkill(ABC):
                 f"Ungoverned skill execution blocked: {e}",
                 time.monotonic() - start
             )
+        # not a failure: governance is not booted yet, which the comment beside it says.
         except (ImportError, AttributeError, RuntimeError):
             pass  # governance not booted yet
 

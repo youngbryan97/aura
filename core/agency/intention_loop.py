@@ -317,8 +317,13 @@ class IntentionLoop:
             from core.soma.effort import note_effort
 
             note_effort("tool_calls", 1.0)
-        except (ImportError, RuntimeError, TypeError, ValueError):
-            pass  # no-op: an unreported cost is better than a broken action
+        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); this tool call was not felt as effort; an unreported cost beats a broken action",
+                "note_effort",
+                type(exc).__name__,
+                exc,
+            )
         with self._lock:
             rec = self._active_intentions.get(intention_id)
             if rec is None:

@@ -113,6 +113,7 @@ class XToolsSkill(BaseSkill):
         try:
             from core.container import ServiceContainer
             return ServiceContainer.get("phantom_browser", default=None)
+        # not a failure: no service here, so the caller falls back to its own default.
         except _XTOOLS_RECOVERABLE_ERRORS:
             return None
 

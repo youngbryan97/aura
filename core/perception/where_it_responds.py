@@ -617,6 +617,7 @@ def _the_grid_in_the_pixels(
     # the held ones.
     try:
         cell_w, cell_h = float(best["cell_width"]), float(best["cell_height"])
+    # not a failure: a value that is not a number is not one this can read.
     except (KeyError, TypeError, ValueError):
         cell_w = cell_h = 0.0
     for held in (lattice, like):

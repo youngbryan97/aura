@@ -34,6 +34,7 @@ RecordsADegradation = Callable[..., None]
 def _clip01(value: Any) -> float:
     try:
         return max(0.0, min(1.0, float(value)))
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return 0.0
 

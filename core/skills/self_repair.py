@@ -146,8 +146,13 @@ class SelfRepairSkill(BaseSkill):
                     fix=fix_content[:500],
                     success=True,
                 )
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # no-op: intentional
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the fix was not recorded, so the repair learns nothing from it",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
 
         # 7. Record in WorldState
         try:
@@ -158,8 +163,13 @@ class SelfRepairSkill(BaseSkill):
                 salience=0.5,
                 ttl=3600,
             )
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # no-op: intentional
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the proposal is missing from the world state",
+                "get_world_state",
+                type(exc).__name__,
+                exc,
+            )
 
         return {
             "ok": True,

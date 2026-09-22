@@ -259,6 +259,7 @@ class TurnEvidenceCustody:
             return False
         try:
             observed_at = float(evidence.get("observed_at") or 0.0)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return False
         if not math.isfinite(observed_at) or observed_at <= 0.0:
@@ -520,6 +521,7 @@ def _gave_the_turn_back(lease: Any) -> None:
             _logger.debug(
                 "turn %s finished after being superseded", getattr(lease, "turn_id", "?")
             )
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return
 

@@ -335,6 +335,7 @@ class ComputeOrchestrator:
     def _is_finite_number(value: Any) -> bool:
         try:
             number = float(value)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return False
         return math.isfinite(number)

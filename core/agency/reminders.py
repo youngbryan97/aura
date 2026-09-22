@@ -147,6 +147,7 @@ def add_reminder(text: str, delay_s: float) -> Reminder | None:
         return None
     try:
         seconds = float(delay_s)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError):
         return None
     if seconds < 0 or seconds != seconds:
@@ -271,6 +272,7 @@ def requested_reminder(user_message: Any) -> RequestedReminder | None:
         count = float(count_text) if count_text not in _WORD_COUNTS else float(
             _WORD_COUNTS[count_text]
         )
+    # not a failure: a value that is not a number is not one this can read.
     except ValueError:
         return None
     unit = match.group("unit").lower().rstrip(".")

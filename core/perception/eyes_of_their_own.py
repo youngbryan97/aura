@@ -235,6 +235,7 @@ def _stay_out_of_the_dock() -> None:  # pragma: no cover - runs in the other pro
         return
     try:
         from Foundation import NSBundle
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return
     info = NSBundle.mainBundle().infoDictionary()

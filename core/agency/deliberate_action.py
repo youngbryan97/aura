@@ -946,6 +946,7 @@ async def deliberate(
     if callable(as_shape):
         try:
             shape = str(as_shape() or "")
+        # not a failure: a seeing with no readable shape has none to name.
         except (AttributeError, TypeError, ValueError):
             shape = ""
     like = shape or situation
@@ -978,6 +979,8 @@ async def deliberate(
             # A fast loop spends words where they change the answer.
             raise _NotAskedError
         reply = await think(_objective(goal, options), evidence)
+    # not a failure: the comment above says it: no language this time by the caller's
+    # choice, not by failure.
     except _NotAskedError:
         spoke = False
     except (RuntimeError, AttributeError, TypeError, ValueError, TimeoutError) as exc:
@@ -1233,6 +1236,7 @@ def _offer_to_workspace(workspace: Any, **fields: Any) -> None:
     coroutine = publish(**fields)
     try:
         asyncio.get_running_loop()
+    # not a failure: off a loop there is no running loop or task to report.
     except RuntimeError:
         coroutine.close()
         return

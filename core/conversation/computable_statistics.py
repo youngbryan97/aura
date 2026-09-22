@@ -153,6 +153,8 @@ def _wilson(match: re.Match[str]) -> str | None:
         return None
     try:
         low, high = wilson_interval(counts[0], counts[1], level)
+    # not a failure: an interval that will not compute on these counts is not one
+    # this answers.
     except ValueError:
         return None
     return f"{_round(low)} to {_round(high)}"
@@ -200,6 +202,7 @@ def _percentage_of(match: re.Match[str]) -> str | None:
     try:
         part = float(match.group("part"))
         whole = float(match.group("whole"))
+    # not a failure: a value that is not a number is not one this can read.
     except (IndexError, TypeError, ValueError):
         return None
     if whole == 0:

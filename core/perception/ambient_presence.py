@@ -102,6 +102,7 @@ def _nonnegative_finite_float(value: Any) -> float:
     """Normalize untrusted receipt telemetry without endangering perception."""
     try:
         number = float(value or 0.0)
+    # not a failure: a value that is not a number is not one this can read.
     except (TypeError, ValueError, OverflowError):
         return 0.0
     return number if math.isfinite(number) and number >= 0.0 else 0.0

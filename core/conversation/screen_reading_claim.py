@@ -318,6 +318,8 @@ class ScreenReadingEvidence:
 
             active_session = current_conversation_session()
             active_turn = current_conversation_turn()
+        # not a failure: no session scope here, so there is no active session or turn to
+        # compare against.
         except (ImportError, RuntimeError):
             active_session = active_turn = ""
         if self.session_id and self.session_id != active_session:

@@ -34,6 +34,7 @@ class _DiscreteSpace:
     def contains(self, value) -> bool:
         try:
             item = int(value)
+        # not a failure: a value that is not a number is not one this can read.
         except (TypeError, ValueError):
             return False
         return 0 <= item < self.n

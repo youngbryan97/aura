@@ -779,6 +779,8 @@ def _load_rust_builder() -> Callable[[str], str] | None:
         from aura_m1_ext import build_skill_index
 
         return cast(Callable[[str], str], build_skill_index)
+    # not a failure: the Rust extension is an acceleration path; the Python builder
+    # below is what runs without it.
     except (ImportError, AttributeError):
         return None
 
@@ -788,6 +790,7 @@ def _load_rust_discoverer() -> Callable[[str], str] | None:
         from aura_m1_ext import discover_skill_candidates
 
         return cast(Callable[[str], str], discover_skill_candidates)
+    # not a failure: the same, for the discoverer.
     except (ImportError, AttributeError):
         return None
 
