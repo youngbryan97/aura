@@ -90,13 +90,23 @@ def test_the_three_outcomes_are_told_apart():
 
 
 def test_surface_syntax_is_compiled_rather_than_silently_refused():
-    """An operator that cannot fire looks like one that decided not to."""
+    """An operator that cannot fire looks like one that decided not to.
+
+    The assertion was `do_it(None) is not None`, and None is also what an
+    operator returns when it fired, changed something and was put back for
+    not paying on held-out families. Whether that verdict is even available
+    depends on how many episodes the record of her own work holds on disk, so
+    the same code passed on one run and failed on the next. `last_outcome` is
+    the wrapper's own name for which of those happened; "declined" is the one
+    this test exists to rule out.
+    """
     made = the_action_she_wrote(
         "one written in surface syntax",
         over="the words",
         look_for=QUOTE(build(L("x", V("x")))),
     )
-    assert made.do_it(None) is not None
+    made.do_it(None)
+    assert made.do_it.last_outcome != "declined", "the operator never fired"
 
 
 def test_a_word_she_installed_actually_runs():
