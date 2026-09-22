@@ -864,6 +864,7 @@ class TaskTracker:
         remaining_tasks = []
         try:
             from core.runtime.how_a_task_should_end import the_policy_for
+        # not a failure: the module is optional here, and its absence is the answer.
         except ImportError:  # a tracker in a process without the runtime
             the_policy_for = None  # type: ignore[assignment]
         for task in remaining[:20]:

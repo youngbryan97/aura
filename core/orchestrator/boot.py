@@ -12,6 +12,7 @@ from core.runtime.progress_bound import await_while_the_task_moves
 
 try:
     from core.morality.master_moral_integration import integrate_complete_moral_and_sensory_systems
+# not a failure: the module is optional here, and its absence is the answer.
 except ImportError:
     integrate_complete_moral_and_sensory_systems = None
 

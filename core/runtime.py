@@ -7,6 +7,7 @@ from core.utils.task_tracker import get_task_tracker
 
 try:
     import mlx.core as mx
+# not a failure: the module is optional here, and its absence is the answer.
 except ImportError:
     mx = None
 from dataclasses import dataclass

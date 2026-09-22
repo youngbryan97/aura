@@ -591,6 +591,7 @@ class RealityActuationCoordinator:
                         self._recovery_wake.wait(),
                         timeout=self._recovery_max_retry_s,
                     )
+                # not a failure: the wait ran out, which is what the timeout was set to decide.
                 except TimeoutError:
                     pass
                 continue

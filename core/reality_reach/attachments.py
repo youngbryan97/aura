@@ -1071,6 +1071,7 @@ class DeviceAttachmentBroker:
                     timeout=self._discovery_interval_s,
                 )
                 self._wake.clear()
+            # not a failure: the wait ran out, which is what the timeout was set to decide.
             except TimeoutError:
                 pass
 

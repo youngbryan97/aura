@@ -260,6 +260,7 @@ class ToolOrchestrator:
         try:
             await asyncio.wait_for(proc.wait(), timeout=0.5)
             return
+        # not a failure: the wait ran out, which is what the timeout was set to decide.
         except TimeoutError:
             pass
         try:

@@ -8,6 +8,7 @@ from core.runtime.file_write_gateway import get_file_write_gateway
 
 try:
     from core.brain.cognitive_patch import CognitivePatchStrategy
+# not a failure: the module is optional here, and its absence is the answer.
 except ImportError:
     CognitivePatchStrategy = None  # type: ignore
 

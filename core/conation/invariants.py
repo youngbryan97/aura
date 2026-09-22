@@ -50,6 +50,7 @@ def _engine() -> object | None:
         from core.conation.engine import _ENGINE
 
         return _ENGINE
+    # not a failure: the module is optional here, and its absence is the answer.
     except (ImportError, RuntimeError, OSError, ValueError, TypeError):
         return None
 

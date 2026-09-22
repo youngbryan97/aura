@@ -386,6 +386,7 @@ class ShadowExecutionPhase(Phase):  # type: ignore[misc]
                         timeout_s=1.25,
                         name="shadow-process-terminate-join",
                     )
+                # not a failure: the wait ran out, which is what the timeout was set to decide.
                 except TimeoutError:
                     pass
                 if process.is_alive():
@@ -396,6 +397,7 @@ class ShadowExecutionPhase(Phase):  # type: ignore[misc]
                             timeout_s=1.25,
                             name="shadow-process-kill-join",
                         )
+                    # not a failure: the wait ran out, which is what the timeout was set to decide.
                     except TimeoutError:
                         pass
             queue_cleanup_complete = False

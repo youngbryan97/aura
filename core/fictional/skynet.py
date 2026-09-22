@@ -273,6 +273,7 @@ class DistributedResilienceCore:
                 try:
                     await asyncio.wait_for(self._stop_event.wait(), timeout=60)
                     break  # stop() fired
+                # not a failure: the wait ran out, which is what the timeout was set to decide.
                 except (TimeoutError, asyncio.TimeoutError):
                     pass  # normal interval elapsed
                 if not self._running:

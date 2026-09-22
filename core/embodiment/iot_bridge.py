@@ -322,6 +322,7 @@ class IoTBridge:
                     if self._observation_router is not None:
                         try:
                             self._observation_router.unregister_sampler(adapter.adapter_id)
+                        # not a failure: nothing under that name is the answer to the lookup.
                         except LookupError:
                             pass
                     service.unregister_adapter(adapter.adapter_id)
@@ -663,6 +664,7 @@ class IoTBridge:
                     if self._observation_router is not None:
                         try:
                             self._observation_router.unregister_sampler(adapter.adapter_id)
+                        # not a failure: nothing under that name is the answer to the lookup.
                         except LookupError:
                             pass
                     projection = self._body_projections.pop(adapter.adapter_id, None)

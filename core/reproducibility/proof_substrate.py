@@ -28,6 +28,7 @@ from core.runtime.atomic_writer import atomic_write_bytes
 
 try:
     import blake3  # type: ignore
+# not a failure: the module is optional here, and its absence is the answer.
 except ImportError:  # pragma: no cover - optional acceleration
     blake3 = None
 

@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 try:
     from core.container import ServiceContainer
+# not a failure: the module is optional here, and its absence is the answer.
 except ImportError:
     ServiceContainer = None
 

@@ -47,6 +47,7 @@ async def _await_quietly(task: asyncio.Task) -> None:
     """Await a cancelled task without re-raising its CancelledError."""
     try:
         await task
+    # not a failure: the module is optional here, and its absence is the answer.
     except asyncio.CancelledError:
         return
 

@@ -617,6 +617,7 @@ def _live_service(*names: str) -> Any:
     """The first registered runtime service among ``names``, or None."""
     try:
         from core.runtime.service_registry import get_runtime_service
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return None
     for name in names:

@@ -18,6 +18,7 @@ from core.runtime.subprocess_gateway import get_subprocess_gateway
 
 try:
     from core.runtime import resource_psutil as psutil
+# not a failure: the module is optional here, and its absence is the answer.
 except ImportError:
     psutil = None
 
@@ -25,6 +26,7 @@ _METAL_ALLOWED, _METAL_REASON = inprocess_mlx_metal_enabled()
 if _METAL_ALLOWED:
     try:
         import mlx.core as mx
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         mx = None
 else:

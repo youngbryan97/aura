@@ -300,6 +300,7 @@ class StableVoicePipeline:
                     
             return await self._stt_breaker.execute(_do_capture)
             
+        # not a failure: the wait ran out, which is what the timeout was set to decide.
         except TimeoutError:
             return None
         except (sqlite3.Error, OSError) as e:

@@ -90,6 +90,7 @@ def _quartz() -> Any:
         import Quartz  # noqa: PLC0415
 
         return Quartz
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return None
 

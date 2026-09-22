@@ -300,6 +300,8 @@ class RateGroup:
         while not self._stopping.is_set():
             try:
                 await self.run_cycle()
+            # not a failure: the wait ran out or the work was cancelled, which are the two
+            # ways this bounded join ends without a result.
             except asyncio.CancelledError:
                 return
             except Exception:  # noqa: BLE001 — the group never dies quietly

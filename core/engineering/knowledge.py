@@ -290,6 +290,7 @@ def _memory_facade() -> Any:
         from core.container import get_container
         from core.exceptions import ServiceNotFoundError
         from core.service_names import ServiceNames
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return None
     try:

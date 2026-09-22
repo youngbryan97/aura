@@ -5,6 +5,7 @@ from typing import Any
 
 try:
     import numpy as np
+# not a failure: the module is optional here, and its absence is the answer.
 except ImportError:
     np = None
 

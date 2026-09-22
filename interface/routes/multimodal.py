@@ -25,6 +25,8 @@ async def stream(turn_id: str = Query(...), _: None = Depends(_require_internal)
             async for ev in coordinator.subscribe(turn_id):
                 payload = {"kind": ev.kind, "offset_ms": ev.offset_ms, "seq": ev.seq, "payload": ev.payload}
                 yield f"data: {json.dumps(payload, default=str)}\n\n"
+        # not a failure: the wait ran out or the work was cancelled, which are the two
+        # ways this bounded join ends without a result.
         except asyncio.CancelledError:
             return
 

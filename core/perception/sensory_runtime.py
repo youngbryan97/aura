@@ -184,6 +184,7 @@ class MicProvider:
         try:
             import sounddevice  # noqa: F401
             return True
+        # not a failure: the module is optional here, and its absence is the answer.
         except _SENSORY_IMPORT_ERRORS:
             return False
 

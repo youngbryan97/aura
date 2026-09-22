@@ -321,6 +321,7 @@ class MessagesTransport:
             task.cancel()
         try:
             await task
+        # not a failure: the module is optional here, and its absence is the answer.
         except asyncio.CancelledError:
             pass
         finally:
@@ -392,6 +393,7 @@ class MessagesTransport:
                     self._stop_event.wait(),
                     timeout=self._poll_interval_s,
                 )
+            # not a failure: the wait ran out, which is what the timeout was set to decide.
             except TimeoutError:
                 pass
 

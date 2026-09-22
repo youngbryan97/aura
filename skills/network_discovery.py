@@ -3,11 +3,13 @@ import logging
 
 try:
     import netifaces
+# not a failure: the module is optional here, and its absence is the answer.
 except ImportError:  # pragma: no cover - optional host dependency
     netifaces = None
 
 try:
     import nmap
+# not a failure: the module is optional here, and its absence is the answer.
 except ImportError:  # pragma: no cover - optional host dependency
     nmap = None
 

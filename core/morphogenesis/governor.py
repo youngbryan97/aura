@@ -866,6 +866,7 @@ class MorphGovernor:
         """
         try:
             from core.governance_context import get_active_governance
+        # not a failure: the module is optional here, and its absence is the answer.
         except ImportError:
             return None
         try:

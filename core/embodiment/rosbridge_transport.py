@@ -469,6 +469,7 @@ class RosbridgeWebSocketTransport:
         await self._send({"op": "cancel_action_goal", "id": goal_id, "action": spec.action})
         try:
             event = await asyncio.wait_for(asyncio.shield(result), timeout=float(timeout_s))
+        # not a failure: the wait ran out, which is what the timeout was set to decide.
         except TimeoutError:
             return False
         return event.get("op") == "action_result" and int(event.get("status") or 0) == 5

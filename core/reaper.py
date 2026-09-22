@@ -20,6 +20,7 @@ from core.runtime.state_ownership import state_root
 
 try:
     import psutil
+# not a failure: the module is optional here, and its absence is the answer.
 except ImportError:  # pragma: no cover - exercised on minimal installs
     psutil = None
 

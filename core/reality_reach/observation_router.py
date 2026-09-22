@@ -1593,6 +1593,7 @@ class RealityObservationRouter:
                 if observation is None:
                     try:
                         await asyncio.wait_for(self._wake.wait(), timeout=1.0)
+                    # not a failure: the wait ran out, which is what the timeout was set to decide.
                     except TimeoutError:
                         pass
                     continue

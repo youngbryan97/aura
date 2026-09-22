@@ -1143,6 +1143,7 @@ async def _collect_live_mind_context_payload(
         )
         if isinstance(payload, dict):
             return payload
+    # not a failure: the wait ran out, which is what the timeout was set to decide.
     except TimeoutError:
         pass
     except _CHAT_RECOVERABLE_ERRORS as exc:

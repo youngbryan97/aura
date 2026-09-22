@@ -214,6 +214,7 @@ def sample(report: dict[str, Any]) -> None:
         return
     try:
         from core.fsw.telemetry_dictionary import write
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return
 
@@ -281,6 +282,7 @@ def sample(report: dict[str, Any]) -> None:
 def _emit_calibration_transitions(calibration: dict[str, dict[str, Any]]) -> None:
     try:
         from core.fsw.telemetry_dictionary import EventSeverity, emit_event
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return
     severities = {

@@ -25,6 +25,7 @@ _PERMISSION_RECOVERABLE_ERRORS = (
 def _load_scripting_bridge_application() -> Any | None:
     try:
         from ScriptingBridge import SBApplication  # type: ignore
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return None
 

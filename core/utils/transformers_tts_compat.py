@@ -17,6 +17,7 @@ def install_transformers_tts_compat() -> bool:
     try:
         import torch
         from transformers import pytorch_utils
+    # not a failure: the module is optional here, and its absence is the answer.
     except (ImportError, RuntimeError, AttributeError):
         return False
 

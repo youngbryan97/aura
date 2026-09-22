@@ -547,6 +547,8 @@ class WebSocketManager:
                     logger.warning("🧟 WS ZOMBIE: Reaping connection %s", id(websocket))
                     await self.disconnect(websocket)
                     break
+        # not a failure: the wait ran out or the work was cancelled, which are the two
+        # ways this bounded join ends without a result.
         except asyncio.CancelledError:
             pass  # no-op: intentional
 

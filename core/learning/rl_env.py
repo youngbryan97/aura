@@ -8,6 +8,7 @@ from core.world_model.belief_graph import belief_graph
 try:
     import gymnasium as gym
     from gymnasium import spaces
+# not a failure: the module is optional here, and its absence is the answer.
 except ImportError:
     gym = None
     spaces = None

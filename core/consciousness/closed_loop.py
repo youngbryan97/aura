@@ -911,6 +911,8 @@ class ClosedCausalLoop:
         task.cancel()
         try:
             await asyncio.wait_for(task, timeout=CLOSED_LOOP_TASK_STOP_TIMEOUT_S)
+        # not a failure: the wait ran out or the work was cancelled, which are the two
+        # ways this bounded join ends without a result.
         except asyncio.CancelledError:
             return
         except TimeoutError as exc:

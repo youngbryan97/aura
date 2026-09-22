@@ -846,6 +846,7 @@ class NonceLedger:
     def _read_bytes_locked(self) -> bytes | None:
         try:
             before = self._path.lstat()
+        # not a failure: a file that is not there is the state this reads for.
         except FileNotFoundError:
             return None
         if not stat.S_ISREG(before.st_mode):

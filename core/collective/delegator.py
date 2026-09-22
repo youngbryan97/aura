@@ -1091,6 +1091,7 @@ FINAL SYNTHESIS:"""
                 asyncio.gather(*(agent.done_event.wait() for agent in busy_agents)),
                 timeout=timeout_s,
             )
+        # not a failure: the wait ran out, which is what the timeout was set to decide.
         except TimeoutError:
             return False
         return all(agent.status != "BUSY" for agent in list(self.active_agents.values()))

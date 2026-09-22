@@ -266,6 +266,8 @@ class AutonomousRepairExecutor:
             def _run_in_thread() -> None:
                 try:
                     asyncio.run(coro)
+                # not a failure: the wait ran out or the work was cancelled, which are the two
+                # ways this bounded join ends without a result.
                 except asyncio.CancelledError:
                     return
                 except (RuntimeError, OSError, TypeError, ValueError) as exc:

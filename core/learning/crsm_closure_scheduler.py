@@ -134,6 +134,7 @@ class CRSMClosureScheduler:
         task.cancel()
         try:
             await task
+        # not a failure: the module is optional here, and its absence is the answer.
         except (asyncio.CancelledError, Exception):  # noqa: BLE001 - teardown is bounded upstream
             pass
 

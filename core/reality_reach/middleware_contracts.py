@@ -421,6 +421,7 @@ class ActionContext:
             raise ValueError("timeout_s must lie inside [0.001, 3600]")
         try:
             await asyncio.wait_for(self._cancel_event.wait(), timeout=timeout)
+        # not a failure: the wait ran out, which is what the timeout was set to decide.
         except TimeoutError:
             return False
         return True

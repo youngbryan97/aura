@@ -321,6 +321,7 @@ class MetabolicCoordinator(_TriggersTheImpulses):
             )
         except asyncio.CancelledError:
             raise
+        # not a failure: the wait ran out, which is what the timeout was set to decide.
         except TimeoutError:
             self._record_autonomous_reflection_failure("timeout")
             return
@@ -1256,6 +1257,8 @@ class MetabolicCoordinator(_TriggersTheImpulses):
                 return
             try:
                 task_error = t.exception()
+            # not a failure: the wait ran out or the work was cancelled, which are the two
+            # ways this bounded join ends without a result.
             except asyncio.CancelledError:
                 return
             except _METABOLIC_BOUNDARY_ERRORS as exc:

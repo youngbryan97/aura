@@ -304,6 +304,7 @@ class SensoryGateActor:
     def _parent_alive(self) -> bool:
         try:
             os.kill(self._supervisor_pid, 0)
+        # not a failure: a process that is gone is the state this reaches.
         except ProcessLookupError:
             return False
         except (PermissionError, OSError):

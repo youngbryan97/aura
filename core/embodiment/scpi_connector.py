@@ -528,6 +528,7 @@ class SCPIStreamTransport:
             await asyncio.wait_for(admission.writer.wait_closed(), timeout=2.0)
         except (ConnectionError, OSError, RuntimeError):
             return
+        # not a failure: the wait ran out, which is what the timeout was set to decide.
         except TimeoutError:
             return
 

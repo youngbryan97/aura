@@ -151,6 +151,7 @@ class HealthChecker:
             if asyncio.iscoroutine(outcome):
                 await asyncio.wait_for(outcome, timeout=entry.timeout_s)
             answered = outcome is not False
+        # not a failure: the wait ran out, which is what the timeout was set to decide.
         except TimeoutError:
             answered = False
         except asyncio.CancelledError:

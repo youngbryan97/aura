@@ -265,6 +265,7 @@ class SupervisionTree:
         try:
             os.kill(pid, 0)
             return True
+        # not a failure: a process that is gone is the state this reaches.
         except ProcessLookupError:
             return False
         except PermissionError:

@@ -472,6 +472,7 @@ class WebAssetHandler:
         p = Path(path)
         try:
             size_bytes = await asyncio.to_thread(lambda: p.stat().st_size)
+        # not a failure: a file that is not there is the state this reads for.
         except FileNotFoundError:
             return {"valid": False, "error": "File not found"}
         except OSError as exc:

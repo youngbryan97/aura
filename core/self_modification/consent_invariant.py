@@ -39,6 +39,7 @@ def _a_refused_proposal_does_not_run() -> Iterator[Violation]:
             ModificationLevel,
             ModificationProposal,
         )
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return
 

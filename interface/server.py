@@ -64,6 +64,7 @@ from fastapi.staticfiles import StaticFiles
 
 try:
     import sounddevice as sd
+# not a failure: the module is optional here, and its absence is the answer.
 except ImportError:
     sd = None  # Audio features degrade gracefully
 
@@ -1585,9 +1586,11 @@ async def websocket_endpoint(ws: WebSocket):
                     await ws.send_text(json.dumps({"type": "error", "message": "Unauthorized"}))
                     await ws.close(code=4001, reason="Unauthorized")
                     return
+            # not a failure: the wait ran out, which is what the timeout was set to decide.
             except TimeoutError:
                 await ws.close(code=4001, reason="Auth Timeout")
                 return
+            # not a failure: text that is not JSON is not the record this reads.
             except json.JSONDecodeError:
                 await ws.close(code=4001, reason="Invalid Auth Payload")
                 return
@@ -1603,6 +1606,7 @@ async def websocket_endpoint(ws: WebSocket):
         while not is_shutdown_requested():
             try:
                 msg = await asyncio.wait_for(ws.receive(), timeout=20.0)
+            # not a failure: the wait ran out, which is what the timeout was set to decide.
             except TimeoutError:
                 if device_session is None:
                     continue

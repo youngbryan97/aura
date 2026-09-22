@@ -657,6 +657,7 @@ class EvolutionOrchestrator:
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=self._TICK_INTERVAL)
                 break  # stop was set
+            # not a failure: the wait ran out, which is what the timeout was set to decide.
             except TimeoutError:
                 pass  # normal tick interval
 

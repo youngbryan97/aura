@@ -610,6 +610,8 @@ class RealityMetrologyService:
                     )
                 try:
                     self._inflight_refresh.result()
+                # not a failure: the wait ran out or the work was cancelled, which are the two
+                # ways this bounded join ends without a result.
                 except asyncio.CancelledError:
                     pass
                 except Exception as exc:  # noqa: BLE001 - logged at warning before acquisition continues
@@ -672,6 +674,7 @@ class RealityMetrologyService:
                                 self._stop.wait(),
                                 timeout=task.sample_interval_s,
                             )
+                        # not a failure: the wait ran out, which is what the timeout was set to decide.
                         except TimeoutError:
                             pass
                         if self._stop.is_set():

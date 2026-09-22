@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 
 try:
     import tiktoken
+# not a failure: the module is optional here, and its absence is the answer.
 except ImportError:
     tiktoken = None
 

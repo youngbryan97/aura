@@ -122,6 +122,8 @@ class Supervisor:
         def _on_done(t: asyncio.Task):
             try:
                 exc = t.exception()
+            # not a failure: the wait ran out or the work was cancelled, which are the two
+            # ways this bounded join ends without a result.
             except asyncio.CancelledError:
                 exc = None
             if exc:

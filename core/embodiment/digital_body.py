@@ -12,6 +12,7 @@ from typing import Any
 
 try:
     from core.runtime import resource_psutil as psutil
+# not a failure: the module is optional here, and its absence is the answer.
 except ImportError:
     psutil = None
 

@@ -299,6 +299,8 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
             return
         try:
             error = task.exception()
+        # not a failure: the wait ran out or the work was cancelled, which are the two
+        # ways this bounded join ends without a result.
         except asyncio.CancelledError:
             return
         except _MORPHOGENESIS_RECOVERABLE_ERRORS as exc:

@@ -62,6 +62,7 @@ async def get_vault_stats():
     # Mapping bytes to a fictional energy/radius ratio
     try:
         density = (total_bits / 1000000.0) / radius if radius > 0 else 0
+    # not a failure: a zero denominator has no ratio, which is the answer here.
     except ZeroDivisionError:
         density = 0
     

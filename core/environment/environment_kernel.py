@@ -610,6 +610,7 @@ class EnvironmentKernel:
         """Connect kernel learning to Aura's existing organs when present."""
         try:
             from core.container import ServiceContainer
+        # not a failure: the module is optional here, and its absence is the answer.
         except ImportError:
             return
         self.world_state = ServiceContainer.get("world_state", default=None)

@@ -9,6 +9,7 @@ from core.runtime.service_registry import get_runtime_service
 # Aura Imports
 try:
     from core.config import config
+# not a failure: the module is optional here, and its absence is the answer.
 except ImportError:
     config = None
 

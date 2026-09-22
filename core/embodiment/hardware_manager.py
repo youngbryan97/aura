@@ -191,6 +191,7 @@ class HardwareManager(AuraBaseModule):  # type: ignore[misc]  # skipped import i
             for adapter in self.reality_adapters.values():
                 try:
                     self._observation_router.unregister_sampler(adapter.adapter_id)
+                # not a failure: nothing under that name is the answer to the lookup.
                 except LookupError:
                     pass
         for adapter_id, projection in list(self._body_projections.items()):
@@ -259,6 +260,7 @@ class HardwareManager(AuraBaseModule):  # type: ignore[misc]  # skipped import i
             if self._observation_router is not None:
                 try:
                     self._observation_router.unregister_sampler(adapter.adapter_id)
+                # not a failure: nothing under that name is the answer to the lookup.
                 except LookupError:
                     pass
             self._reality_service.unregister_adapter(adapter.adapter_id)
@@ -329,6 +331,7 @@ class HardwareManager(AuraBaseModule):  # type: ignore[misc]  # skipped import i
             if self._observation_router is not None:
                 try:
                     self._observation_router.unregister_sampler(adapter.adapter_id)
+                # not a failure: nothing under that name is the answer to the lookup.
                 except LookupError:
                     pass
             self.reality_adapters.pop(device_id, None)

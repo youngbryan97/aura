@@ -64,6 +64,7 @@ def _channels_are_declared() -> Iterator[Violation]:
     declare_telemetry()
     try:
         from core.fsw.telemetry_dictionary import get_telemetry
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return
     dictionary = get_telemetry()
@@ -89,6 +90,7 @@ def _mappings_are_falsifiable() -> Iterator[Violation]:
     declare_mappings()
     try:
         from core.science.neuro_reference import get_neuro_reference
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return
     reference = get_neuro_reference()

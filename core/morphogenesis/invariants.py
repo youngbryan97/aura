@@ -26,6 +26,7 @@ def _runtime() -> Any:
     """The live morphogenetic runtime, or None where there is none."""
     try:
         from core.container import ServiceContainer
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return None
     try:
@@ -268,6 +269,7 @@ def _telemetry_declared() -> Iterator[Violation]:
     try:
         from core.fsw.telemetry_dictionary import channel_value
         from core.morphogenesis.telemetry import CHANNEL_GRAPH_VERSION
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return
     try:

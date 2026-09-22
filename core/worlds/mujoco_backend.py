@@ -37,6 +37,7 @@ def mujoco_available() -> bool:
         import mujoco  # noqa: F401
 
         return True
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return False
 

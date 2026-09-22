@@ -378,6 +378,8 @@ class MindTick(_RunsTheTickLoopSteps, _KnowsWhetherItIsStillAlive):
                 return
             try:
                 exc = done_task.exception()
+            # not a failure: the wait ran out or the work was cancelled, which are the two
+            # ways this bounded join ends without a result.
             except asyncio.CancelledError:
                 exc = None
             except _MIND_BOUNDARY_ERRORS as err:

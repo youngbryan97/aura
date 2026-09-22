@@ -154,6 +154,8 @@ class SemanticDefragmenter:
                 await asyncio.sleep(self.interval_s)
                 if self._running:
                     await self.run_defrag_cycle()
+            # not a failure: the wait ran out or the work was cancelled, which are the two
+            # ways this bounded join ends without a result.
             except asyncio.CancelledError:
                 return
             except _SEMANTIC_DEFRAG_ERRORS as exc:

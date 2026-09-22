@@ -73,6 +73,7 @@ class TestRunner:
                 "stderr_tail": stderr[-500:],
             }
 
+        # not a failure: the wait ran out, which is what the timeout was set to decide.
         except TimeoutError:
             return {"all_passed": False, "error": "timeout", "duration_s": timeout}
         except (OSError, RuntimeError) as e:

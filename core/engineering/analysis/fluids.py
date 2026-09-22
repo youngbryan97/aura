@@ -78,6 +78,7 @@ def _working_fluid(design: Any) -> Any:
     if isinstance(name, str) and name:
         try:
             return get_fluid(name)
+        # not a failure: a key that is not present is the answer to the lookup.
         except KeyError:
             pass
     for link in design.connections:

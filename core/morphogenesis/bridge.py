@@ -67,6 +67,7 @@ _CAPABILITY_TISSUE: dict[str, str] = {
 def _runtime() -> Any:
     try:
         from core.container import ServiceContainer
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return None
     try:

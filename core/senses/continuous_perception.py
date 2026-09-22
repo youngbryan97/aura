@@ -13,6 +13,7 @@ import os
 
 try:
     from PIL import Image, ImageChops
+# not a failure: the module is optional here, and its absence is the answer.
 except ImportError:
     Image = None
     ImageChops = None

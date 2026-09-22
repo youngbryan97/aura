@@ -77,6 +77,8 @@ class AutonomicCore:
         # mutation and liveness could never prove the heartbeat had ended.
         try:
             await asyncio.wait_for(asyncio.shield(task), timeout=15.0)
+        # not a failure: the wait ran out or the work was cancelled, which are the two
+        # ways this bounded join ends without a result.
         except (asyncio.CancelledError, TimeoutError):
             pass
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:

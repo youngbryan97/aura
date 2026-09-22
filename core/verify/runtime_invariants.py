@@ -1403,6 +1403,7 @@ def _one_level_per_value() -> Iterator[Violation]:
             disagreements,
             what_she_holds,
         )
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return
     claims = what_she_holds()
@@ -1458,6 +1459,7 @@ def _nothing_reaches_constitutive() -> Iterator[Violation]:
             registry,
         )
         from core.values.what_she_holds import declare_what_she_holds
+    # not a failure: the module is optional here, and its absence is the answer.
     except ImportError:
         return
     declare_what_she_holds()

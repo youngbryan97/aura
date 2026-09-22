@@ -262,6 +262,7 @@ def detect_introductions(text: str) -> list[Introduction]:
             if pattern.role_group is not None:
                 try:
                     role = (match.group(pattern.role_group) or "").strip().lower()
+                # not a failure: an index past the end is the answer to the lookup.
                 except IndexError:
                     role = ""
                 if role:
