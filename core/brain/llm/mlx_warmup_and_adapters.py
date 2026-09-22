@@ -712,6 +712,7 @@ class _WarmsUpAndSwapsAdapters:
             _record_mlx_degradation,
             _runtime_shutdown_requested,
             _WarmupDeferredError,
+            was_declined_before_the_worker,
         )
 
         campaign_deadline = time.monotonic() + max(1.0, float(warmup_timeout))
@@ -737,6 +738,14 @@ class _WarmsUpAndSwapsAdapters:
                     ),
                     timeout=remaining,
                 )
+                if warmup_text is None:
+                    # A generation the runtime DECLINED to run is not a
+                    # warmup that failed. Pressing on to the readiness probe
+                    # only collects a second refusal and records it as the
+                    # lane producing no text.
+                    declined = self.consume_deliberate_no_text_reason()
+                    if was_declined_before_the_worker(declined):
+                        raise _WarmupDeferredError(declined)
                 if warmup_text is None and not self.is_alive():
                     # A worker that was never started is not a worker that
                     # died.
@@ -807,6 +816,10 @@ class _WarmsUpAndSwapsAdapters:
                     foreground_request=foreground_request,
                     owner_label=owner_name,
                 )
+                if proved.startswith("declined:"):
+                    # Nobody asked the worker anything, so there is nothing
+                    # here to hold against the lane.
+                    raise _WarmupDeferredError(proved.split(":", 1)[1])
                 if proved != "proved":
                     self._set_lane_state("recovering", f"warmup_readiness_{proved}")
                     raise RuntimeError(f"warmup_readiness_{proved}")

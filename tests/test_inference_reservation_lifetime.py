@@ -109,3 +109,75 @@ async def test_inference_context_holds_until_cancel_cleanup_has_finished():
         if not task.done():
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_a_model_load_holds_its_lease_for_as_long_as_the_load_runs():
+    """LIVE 2026-09-21: "Model-load admission lease expired before release".
+
+    The cortex load asked for a lease with a TTL derived from the handshake
+    budget and nothing else. On a contended host the read of a 20GB model ran
+    past it, so admission counted the memory as free while it was still being
+    taken, and the release at the end found nothing to release. The whole
+    load runs on the acquiring task, which is the lifetime the controller
+    already knows how to hold.
+    """
+    import asyncio as _asyncio
+
+    from core.brain.llm import mlx_client as mlx
+
+    seen: dict[str, object] = {}
+
+    class _Recorder:
+        async def acquire(self, request, *, on_preempt=None, holder_task=None):
+            seen["request"] = request
+            seen["holder_task"] = holder_task
+            raise _Stop
+
+    class _Stop(Exception):
+        pass
+
+    class _Plane:
+        admission = _Recorder()
+
+    import hashlib
+
+    from core.runtime.model_runtime_assignment import ModelRuntimeAssignment
+
+    class _Client:
+        model_path = "/models/Aura-Qwen3.8-27B-persona-crsm"
+        runtime_assignment = ModelRuntimeAssignment.issue(
+            model_path=model_path,
+            artifact_identity=hashlib.sha256(model_path.encode("utf-8")).hexdigest(),
+            artifact_identity_kind="canonical_locator_sha256",
+            artifact_identity_exact=False,
+            role="cortex",
+            purpose="serve",
+            authority_source="test_model_registry",
+        )
+
+        def _warmup_timeout(self):
+            return 180.0
+
+        def _handshake_timeout(self):
+            return 300.0
+
+    import core.runtime.control_plane as cp
+
+    original_plane = cp.get_runtime_control_plane
+    original_footprint = mlx._declared_mlx_worker_footprint_gb
+    cp.get_runtime_control_plane = lambda: _Plane()
+    mlx._declared_mlx_worker_footprint_gb = lambda _path: 20.0
+    try:
+        with pytest.raises(_Stop):
+            async with mlx._model_load_admission_context(
+                _Client(), foreground_request=True
+            ):
+                pass
+    finally:
+        cp.get_runtime_control_plane = original_plane
+        mlx._declared_mlx_worker_footprint_gb = original_footprint
+
+    assert seen.get("holder_task") is _asyncio.current_task(), (
+        "the model load must hold its lease for the life of the loading task"
+    )

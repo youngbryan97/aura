@@ -6618,6 +6618,23 @@ class InferenceGate(_ServesTheTurn, _SetsTheTurnUp, _BuildsTheLivingContext, _Wa
                     or not hasattr(client, "reboot_worker")
                 ):
                     continue
+                # A worker producing an answer is not a worker to shed.
+                #
+                # LIVE, 2026-09-21 boot: the brainstem was loaded FOR the
+                # foreground turn and rebooted four seconds into its
+                # 144-second first-token ceiling. The turn ended "My
+                # response was cut short". Every rule above is about which
+                # LANE to keep; none asked whether the worker was busy.
+                # Shedding it does not free the memory sooner either — the
+                # weights stay resident until the reboot completes — so the
+                # only thing the shed gains is the destroyed answer.
+                if getattr(client, "generation_in_flight", None) and client.generation_in_flight():
+                    logger.info(
+                        "🛡️ InferenceGate: keeping %s resident — it is producing "
+                        "an answer right now.",
+                        os.path.basename(client_path),
+                    )
+                    continue
                 eligible.append((client_path, client))
             except _INFERENCE_RECOVERABLE_ERRORS as exc:
                 _record_inference_degradation(
