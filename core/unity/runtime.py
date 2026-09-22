@@ -450,6 +450,12 @@ class UnityRuntime:
             from core.social.owning_it_first import get_owning_ledger, lifted
 
             owning = get_owning_ledger().reading()
+            # Angry at them, she does not want to say sorry, even with a voice
+            # saying she should: what she owes them is quieter, not gone.
+            # See core/affect/anger_feeds_itself.py.
+            from core.affect.anger_feeds_itself import get_anger_ledger
+
+            held_off = 1.0 - get_anger_ledger().at(agent_id)
             out: list[BoundContent] = []
             for a in amends[:3]:
                 summary = _normalize_text(f"owed: {a.owed_action} (re: {a.subject})", 180)
@@ -458,11 +464,11 @@ class UnityRuntime:
                     modality="responsibility",
                     source="moral_responsibility",
                     summary=summary,
-                    salience=lifted(_clamp(0.5 + 0.5 * a.severity), owning),
+                    salience=lifted(_clamp(0.5 + 0.5 * a.severity), owning) * held_off,
                     confidence=0.85,
                     timestamp=time.time(),
                     ownership="self",
-                    action_relevance=lifted(_clamp(0.5 + 0.5 * a.severity), owning),
+                    action_relevance=lifted(_clamp(0.5 + 0.5 * a.severity), owning) * held_off,
                     affective_charge=-0.3 * a.severity,
                 ))
             return out

@@ -429,6 +429,9 @@ class AffectUpdatePhase(Phase):
         # And being made minor in somebody's account of a shared past.
         # See core/social/made_minor.py.
         self.readings.made_minor(state, affect)
+        # Anger at whoever raised it, kept up while they are here. See
+        # core/affect/anger_feeds_itself.py.
+        self.readings.anger(state, affect)
 
         # 6b-iv. Whether a pattern she had come to trust just turned. Before
         # delivery, because a chill is a moment the level breaks.

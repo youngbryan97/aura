@@ -268,6 +268,41 @@ class AffectReadings:
                 severity="warning",
             )
 
+    def anger(self, state: AuraState, affect: AffectVector) -> None:
+        """Anger that stays fixed on its source, and what it leaves when it goes.
+
+        While its source is still in front of her, part of what decay took back
+        is returned. When the episode ends, sadness and frustration with herself
+        in proportion to how much of it there was. See
+        core/affect/anger_feeds_itself.py.
+        """
+        try:
+            from core.affect.anger_feeds_itself import get_anger_ledger
+            from core.kernel.turn_door import USER_ORIGINS
+
+            ledger = get_anger_ledger()
+            partner = str(getattr(state.cognition, "current_partner", "") or "")
+            origin = str(getattr(state.cognition, "current_origin", "") or "")
+            present = bool(partner) and origin in USER_ORIGINS and partner == ledger.read().source
+            current = float(affect.emotions.get("anger", 0.0) or 0.0)
+            reading = ledger.note(current, source_present=present)
+            if reading.feed:
+                _set_emotion(affect, "anger", current + reading.feed)
+            if reading.residue and reading.peak:
+                left = reading.residue * reading.peak
+                for emotion in ("sadness", "frustration"):
+                    held = float(affect.emotions.get(emotion, 0.0) or 0.0)
+                    _set_emotion(affect, emotion, held + left)
+            affect.markers["anger"] = reading.as_dict()
+        except AFFECT_UPDATE_ERRORS as exc:
+            self._record(
+                state,
+                exc,
+                stage="anger",
+                action="kept affect state without anger's hold on its source",
+                severity="warning",
+            )
+
     def acting_in_decline(self, state: AuraState, affect: AffectVector) -> None:
         """Whether things are getting worse while what she does still works.
 
