@@ -383,6 +383,7 @@ class _QueueHandler(logging.Handler):
 
         try:
             running = asyncio.get_running_loop()
+        # not a failure: off a loop there is no running loop to use.
         except RuntimeError:
             running = None
 
@@ -899,6 +900,7 @@ async def serve_immutable_runtime_shell(request: Request, call_next):
         referer = str(request.headers.get("referer") or "")
         try:
             referer_url = urlsplit(referer)
+        # not a failure: a value that will not parse as a URL has nothing to read from it.
         except ValueError:
             referer_url = None
         if (
@@ -1005,6 +1007,7 @@ async def add_cache_headers(request: Request, call_next):
     query_params = getattr(request, "query_params", {})
     try:
         revision = str(query_params.get("_aura_runtime") or "")
+    # not a failure: query parameters that will not read hold no revision.
     except (AttributeError, TypeError, ValueError):
         revision = ""
     response_revision = str(

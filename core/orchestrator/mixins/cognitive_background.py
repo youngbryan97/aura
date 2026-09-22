@@ -117,6 +117,8 @@ class CognitiveBackgroundMixin:
                     reflect_coro,
                     name="cognitive_background.reflection",
                 )
+            # not a failure: no loop to create the task on; the coroutine is disposed rather
+            # than left un-awaited.
             except RuntimeError:
                 _dispose_awaitable(reflect_coro)
                 return
@@ -146,6 +148,7 @@ class CognitiveBackgroundMixin:
                     learn_coro,
                     name="cognitive_background.learn_from_exchange",
                 )
+            # not a failure: the same, for the learning coroutine.
             except RuntimeError:
                 _dispose_awaitable(learn_coro)
                 return

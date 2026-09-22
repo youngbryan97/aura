@@ -220,5 +220,6 @@ def _is_countable(toward: str) -> bool:
         from core.agency.how_good_is_this import worth_comparing
 
         return bool(worth_comparing(str(toward or ""), ""))
+    # not a failure: the reader could not be asked, so nothing here claims it holds.
     except (ImportError, AttributeError, TypeError, ValueError):
         return False

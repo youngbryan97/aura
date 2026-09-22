@@ -182,6 +182,7 @@ class ContextStreamingMixin:
                     _dispose_awaitable(social_context)
                     social_context = ""
                 ctx["social_narrative"] = social_context
+            # not a failure: a social narrative that will not build is an empty one.
             except (RuntimeError, AttributeError, TypeError, ValueError):
                 ctx["social_narrative"] = ""
 

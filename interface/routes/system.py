@@ -4408,8 +4408,13 @@ async def readyz(request: Request):
                 admitted=bool(ready),
                 reason=", ".join(issues[:3]),
             )
-        except (ImportError, AttributeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the readyz decision was not recorded",
+                "record_decision",
+                type(exc).__name__,
+                exc,
+            )
         status_code = 200 if ready else 503
         return JSONResponse(result, status_code=status_code)
     except _SYSTEM_RECOVERABLE_ERRORS as e:

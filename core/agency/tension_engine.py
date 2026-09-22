@@ -333,6 +333,7 @@ class TensionEngine:
         try:
             from core.agi.curiosity_explorer import get_curiosity_explorer
             explorer = get_curiosity_explorer()
+        # not a failure: no curiosity explorer, so there is no queue to promote from.
         except (ImportError, AttributeError, RuntimeError):
             return
 

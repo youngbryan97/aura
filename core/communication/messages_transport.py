@@ -422,6 +422,8 @@ class MessagesTransport:
     async def _poll_inbound(self, now: float) -> None:
         try:
             await self._history.probe()
+        # not a failure: message history is unavailable on this host, which is a state
+        # this transport reports rather than a failure to look.
         except MessagesHistoryUnavailableError:
             self._history_state = "permission_or_history_unavailable"
             self._next_history_probe = now + _HISTORY_RETRY_S
@@ -805,6 +807,8 @@ class MessagesTransport:
                 contact.destination,
                 from_me=True,
             )
+        # not a failure: message history is unavailable on this host, which is a state
+        # this transport reports rather than a failure to look.
         except MessagesHistoryUnavailableError:
             baseline = None
         admission = await self._journal.admit_outbound(
@@ -880,6 +884,8 @@ class MessagesTransport:
                     after_row_id=baseline_row_id,
                     limit=_MAX_BATCH,
                 )
+            # not a failure: message history is unavailable on this host, which is a state
+            # this transport reports rather than a failure to look.
             except MessagesHistoryUnavailableError:
                 return None
             for row in rows:

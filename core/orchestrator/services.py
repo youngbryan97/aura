@@ -55,6 +55,8 @@ class OrchestratorServicesMixin:
                 or ServiceContainer.has("kernel_interface")
                 or bool(getattr(ServiceContainer, "_registration_locked", False))
             )
+        # not a failure: the container is not up, and False is what the caller reads as
+        # 'not yet'.
         except (ImportError, AttributeError, RuntimeError):
             return False
 

@@ -100,6 +100,7 @@ _GUI_RECOVERABLE_ERRORS = (
 def _flush_logs_before_forced_exit() -> None:
     try:
         logging.shutdown()
+    # not a failure: logging is already shut down, which is the state this reaches.
     except (RuntimeError, OSError):
         pass
 
@@ -127,6 +128,7 @@ def _heartbeat_response_healthy(resp: Any) -> bool:
         return False
     try:
         payload = resp.json()
+    # not a failure: a response that is not JSON is not a health payload.
     except (AttributeError, TypeError, ValueError):
         return False
     if not bool(payload.get("healthy") is True and payload.get("status") == "healthy"):
@@ -349,6 +351,8 @@ def gui_actor_entry(port: int, token: str = None):
                                 or str(payload.get("status") or "")
                                 in {"ready", "working", "degraded"}
                             )
+                        # not a failure: a health probe that will not answer is not a ready conversation,
+                        # and the retry below is what handles it.
                         except (OSError, RuntimeError, TimeoutError, TypeError, ValueError):
                             conversation_ready = False
                     if (0 < status_code < 500) or conversation_ready:
@@ -369,6 +373,8 @@ def gui_actor_entry(port: int, token: str = None):
                     window.evaluate_js(
                         f'document.getElementById("status").textContent = "Attempt {attempt} \u2013 waiting for runtime\u2026";'
                     )
+                # not a failure: a window that will not take the script is one the person is not
+                # watching this line in.
                 except _GUI_RECOVERABLE_ERRORS:
                     pass
 

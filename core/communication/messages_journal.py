@@ -387,6 +387,8 @@ class MessagesDeliveryJournal:
         except Exception:
             try:
                 connection.execute("ROLLBACK")
+            # not a failure: the transaction is already unwound; the original failure is
+            # re-raised below and is the one that describes what happened.
             except sqlite3.Error:
                 pass
             raise
@@ -468,6 +470,8 @@ class MessagesDeliveryJournal:
         except Exception:
             try:
                 connection.execute("ROLLBACK")
+            # not a failure: the transaction is already unwound; the original failure is
+            # re-raised below and is the one that describes what happened.
             except sqlite3.Error:
                 pass
             raise
@@ -539,6 +543,8 @@ class MessagesDeliveryJournal:
         except Exception:
             try:
                 connection.execute("ROLLBACK")
+            # not a failure: the transaction is already unwound; the original failure is
+            # re-raised below and is the one that describes what happened.
             except sqlite3.Error:
                 pass
             raise
@@ -626,6 +632,8 @@ class MessagesDeliveryJournal:
         except Exception:
             try:
                 connection.execute("ROLLBACK")
+            # not a failure: the transaction is already unwound; the original failure is
+            # re-raised below and is the one that describes what happened.
             except sqlite3.Error:
                 pass
             raise
@@ -688,6 +696,8 @@ class MessagesDeliveryJournal:
         except Exception:
             try:
                 connection.execute("ROLLBACK")
+            # not a failure: the transaction is already unwound; the original failure is
+            # re-raised below and is the one that describes what happened.
             except sqlite3.Error:
                 pass
             raise

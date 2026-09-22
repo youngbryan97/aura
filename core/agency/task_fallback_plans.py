@@ -743,6 +743,8 @@ class _BuildsAPlanWithoutTheModel:
                 from core.runtime.skill_contract import get_skill_registry
                 registry = get_skill_registry()
                 contract = registry.get(skill)
+            # not a failure: no skill registry, so the contract is unknown and the caller
+            # checks for None.
             except (ImportError, AttributeError, RuntimeError):
                 contract = None
 

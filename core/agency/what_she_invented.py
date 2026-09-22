@@ -218,5 +218,11 @@ def forget_everything() -> bool:
         get_file_write_gateway().delete_file(_kept_at(), source="what_she_invented")
         _LAST_KEPT["body"] = None
         return True
-    except (OSError, RuntimeError, AttributeError):
+    except (OSError, RuntimeError, AttributeError) as exc:
+        logger.warning(
+            "%s unavailable (%s: %s); what she invented was not dropped from disk",
+            "get_file_write_gateway",
+            type(exc).__name__,
+            exc,
+        )
         return False

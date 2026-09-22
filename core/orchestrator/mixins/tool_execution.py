@@ -920,6 +920,7 @@ class ToolExecutionMixin:
                     if tool_name not in ("browser", "shell", "file_write")
                     else "success_with_side_effects"
                 )
+            # not a failure: no sandbox to grade the tool run, and the caller checks for None.
             except (ImportError, AttributeError, RuntimeError):
                 _sandbox = None
 

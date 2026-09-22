@@ -215,6 +215,8 @@ class KeychainContactDirectory:
             try:
                 existing = self.load(normalized_alias)
                 created_at = existing.created_at
+            # not a failure: a contact that is not configured yet has no earlier created_at,
+            # and `now` above is the one this writes.
             except ContactNotConfiguredError:
                 pass
             body: dict[str, Any] = {

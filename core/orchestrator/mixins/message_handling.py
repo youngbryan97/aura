@@ -157,6 +157,7 @@ class MessageHandlingMixin:
 
             return message
 
+        # not a failure: an empty queue is what a non-blocking get reaches.
         except asyncio.QueueEmpty:
             return None
         except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as e:
@@ -380,6 +381,7 @@ class MessageHandlingMixin:
 
         try:
             current_loop = asyncio.get_running_loop()
+        # not a failure: off a loop there is no running loop to use.
         except RuntimeError:
             current_loop = None
 
@@ -1274,6 +1276,8 @@ class MessageHandlingMixin:
                 if callable(empty_fn):
                     try:
                         queue_is_empty = bool(empty_fn())
+                    # not a failure: a queue that will not answer whether it is empty is treated as
+                    # not empty, which is the cautious direction for a drain.
                     except _MESSAGE_HANDLING_RECOVERABLE_ERRORS:
                         queue_is_empty = False
                 queue_timeout = 240.0

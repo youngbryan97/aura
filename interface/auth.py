@@ -203,6 +203,8 @@ def _parse_authority(value: str, *, default_port: int) -> tuple[str, int] | None
     try:
         parsed = urlsplit(f"//{raw}")
         port = parsed.port
+    # not a failure: a value that will not parse as a URL has no port or origin to
+    # read, and this refuses rather than guessing.
     except (TypeError, ValueError, UnicodeError):
         return None
     if (
@@ -227,6 +229,8 @@ def _parse_browser_origin(value: str) -> tuple[str, str, int] | None:
     try:
         parsed: SplitResult = urlsplit(raw)
         port = parsed.port
+    # not a failure: a value that will not parse as a URL has no port or origin to
+    # read, and this refuses rather than guessing.
     except (TypeError, ValueError, UnicodeError):
         return None
     scheme = str(parsed.scheme or "").lower()
@@ -357,6 +361,8 @@ def _has_same_origin_browser_context(request: Request) -> bool:
         try:
             parsed = urlsplit(referer)
             referer_origin = f"{parsed.scheme}://{parsed.netloc}"
+        # not a failure: a value that will not parse as a URL has no port or origin to
+        # read, and this refuses rather than guessing.
         except (TypeError, ValueError, UnicodeError):
             return False
     else:

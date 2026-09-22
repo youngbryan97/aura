@@ -341,8 +341,10 @@ def _capability_engine() -> Any:
 
         try:
             return get_container().get("capability_engine")
+        # not a failure: the container is not up, and the caller checks for None.
         except (ContainerError, KeyError):
             return None
+    # not a failure: the container is not up, and the caller checks for None.
     except (ImportError, AttributeError, RuntimeError):
         return None
 
@@ -562,6 +564,7 @@ async def _from_search(question: str, *, engine: Any = None) -> tuple[list[Findi
 
             try:
                 engine = get_container().get("capability_engine")
+            # not a failure: the container is not up, and the caller checks for None.
             except (ContainerError, KeyError):
                 engine = None
         if engine is None:
@@ -646,6 +649,7 @@ def what_it_is_about(goal: str) -> str:
         from core.runtime.watched_goal import read_watched_goal  # noqa: PLC0415
 
         watched = read_watched_goal(text)
+    # not a failure: the reader could not be asked, so nothing here claims it holds.
     except (ImportError, AttributeError, TypeError, ValueError):
         watched = None
     if watched is not None and watched.where:
@@ -687,6 +691,7 @@ def how_is_this_done(goal: str) -> str:
         from core.runtime.watched_goal import read_watched_goal  # noqa: PLC0415
 
         watched = read_watched_goal(str(goal or ""))
+    # not a failure: the reader could not be asked, so nothing here claims it holds.
     except (ImportError, AttributeError, TypeError, ValueError):
         watched = None
     if watched is not None and watched.success_when and watched.where:

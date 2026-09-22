@@ -1277,8 +1277,13 @@ class TaskCommitmentVerifier(_KeepsTheTaskLedger):
                     summary="Task was cancelled",
                     error="cancelled",
                 )
-            except (RuntimeError, AttributeError, TypeError, ValueError):
-                pass  # no-op: intentional
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                logger.warning(
+                    "%s unavailable (%s: %s); a cancelled task's dispatch was not marked failed, so the goal still reads as in flight",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
             if commitment_id:
                 try:
                     from core.agency.commitment_engine import get_commitment_engine

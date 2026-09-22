@@ -67,6 +67,8 @@ def _bg_task_exception_handler(task):
             exc = task.exception()
             if exc:
                 logger.warning("Background task failed: %s", exc)
+    # not a failure: a task that will not report its exception has none this reader
+    # can surface, and the caller is the one that owns it.
     except (RuntimeError, AttributeError, TypeError, ValueError):
         pass  # no-op: intentional
 
@@ -108,8 +110,13 @@ class ResponseProcessingMixin:
 
                 apply_intent_to_context(message, intent_ctx)
                 grounding_ctx.update(intent_ctx)
-            except (ImportError, AttributeError, RuntimeError):
-                pass  # no-op: intentional
+            except (ImportError, AttributeError, RuntimeError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); action intent is missing from this turn's grounding",
+                    "apply_intent_to_context",
+                    type(exc).__name__,
+                    exc,
+                )
 
             existing_receipts = receipts_from_context(
                 {"skill_receipts": [{"skill": s} for s in (successful_tools or [])]}
@@ -134,8 +141,13 @@ class ResponseProcessingMixin:
                         action_taken={"claimed": grounding.claims_without_receipts},
                         result={"ok": False, "reason": "unverified_action_claim"},
                     )
-                except (ImportError, AttributeError, RuntimeError):
-                    pass  # no-op: intentional
+                except (ImportError, AttributeError, RuntimeError) as exc:
+                    logger.warning(
+                        "%s unavailable (%s: %s); an unverified action claim was not recorded anywhere",
+                        "get_life_trace",
+                        type(exc).__name__,
+                        exc,
+                    )
         except (ImportError, AttributeError, RuntimeError) as _ground_err:
             _record_response_processing_degradation(
                 _ground_err,
@@ -883,8 +895,13 @@ class ResponseProcessingMixin:
             get_audit().record_effect(
                 "response", "fast_path_response", response[:80], receipt_id=_fp_receipt_id
             )
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # no-op: intentional
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the fast-path response was not recorded as an effect",
+                "get_audit",
+                type(exc).__name__,
+                exc,
+            )
 
         role = getattr(self, "AI_ROLE", "assistant")
         if isinstance(self.conversation_history, list):

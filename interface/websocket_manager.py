@@ -503,6 +503,7 @@ class WebSocketManager:
                     record_degradation('websocket_manager', e)
                     logger.error("Error in WS pump loop: %s", e)
                     break
+        # not a failure: the socket closed, which is how a pump loop ends.
         except (WebSocketDisconnect, ConnectionClosed):
             pass  # no-op: intentional
         except asyncio.CancelledError:

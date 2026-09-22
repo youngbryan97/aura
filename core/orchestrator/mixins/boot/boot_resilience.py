@@ -48,6 +48,8 @@ def _is_live_mind_tick(candidate: Any) -> bool:
         try:
             if not task.done():
                 return True
+        # not a failure: an object that will not answer is not one this can call alive,
+        # and False is the refusing direction.
         except (AttributeError, RuntimeError, TypeError, ValueError):
             return False
     alive = getattr(candidate, "is_alive", None)
@@ -55,6 +57,8 @@ def _is_live_mind_tick(candidate: Any) -> bool:
         return False
     try:
         return bool(alive())
+    # not a failure: an object that will not answer is not one this can call alive,
+    # and False is the refusing direction.
     except (AttributeError, RuntimeError, TypeError, ValueError):
         return False
 
@@ -279,6 +283,8 @@ class BootResilienceMixin:
         )
         try:
             asyncio.get_running_loop().set_default_executor(cog_executor)
+        # not a failure: the comment beside it says it: no running loop at boot time, and
+        # the executor is picked up when the loop starts.
         except RuntimeError:
             pass  # No running loop at boot time; executor will be picked up when loop starts
 
