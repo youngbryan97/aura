@@ -91,6 +91,7 @@ def _names_something_to_work_on(text: str) -> bool:
         from core.language.named_paths import named_paths
 
         return bool(named_paths(text))
+    # not a failure: the reader could not be asked, so nothing here claims it holds.
     except (ImportError, TypeError, ValueError):
         return False
 
@@ -177,6 +178,7 @@ def _decide(text: str, settled: bool | None) -> bool:
         return settled
     try:
         return bool(_NEEDS_IT_WORKED_OUT.decide_without_waiting(text))
+    # not a failure: a surface that cannot decide yet has not decided.
     except (RuntimeError, TypeError, ValueError):
         return False
 

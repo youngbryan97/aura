@@ -742,6 +742,7 @@ def settles_by_computation(message: object) -> bool:
         from core.brain.reasoning_amplifier_v2 import _looks_like_a_quantitative_puzzle
 
         return bool(_looks_like_a_quantitative_puzzle(str(message or "")))
+    # not a failure: the reader could not be asked, so nothing here claims it holds.
     except (ImportError, AttributeError, TypeError, ValueError):
         return False
 
@@ -794,6 +795,7 @@ def requested_foundational_domains(message: object) -> tuple[str, ...]:
             from core.conversation.arithmetic_check import requested_arithmetic_result
 
             needs_compute = requested_arithmetic_result(body) is not None
+        # not a failure: the reader could not be asked, so nothing here claims it holds.
         except (ImportError, AttributeError, TypeError, ValueError):
             needs_compute = False
     # Being handed a library and asked to use it is a request to run code.
@@ -808,6 +810,7 @@ def requested_foundational_domains(message: object) -> tuple[str, ...]:
             from core.intent.needs_computation import needs_computation
 
             needs_compute = needs_computation(body)
+        # not a failure: the reader could not be asked, so nothing here claims it holds.
         except (ImportError, AttributeError, TypeError, ValueError):
             needs_compute = False
     if needs_compute and "code" not in requested:

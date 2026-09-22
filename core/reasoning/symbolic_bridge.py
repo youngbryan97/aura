@@ -120,6 +120,7 @@ def _safe_arith(expr: str) -> float | None:
     """Evaluate a pure-numeric arithmetic expression safely (no names/calls)."""
     try:
         tree = ast.parse(expr, mode="eval")
+    # not a failure: text that does not parse is not the shape this was reading for.
     except (SyntaxError, ValueError):
         return None
 
@@ -159,6 +160,7 @@ def _safe_arith(expr: str) -> float | None:
     try:
         val = ev(tree)
         return val if val == val else None  # reject NaN
+    # not a failure: an expression this evaluator refuses has no numeric value.
     except (ValueError, TypeError, ZeroDivisionError, OverflowError):
         return None
 
@@ -402,6 +404,8 @@ class SymbolicBridge:
                 return SymbolicResult(
                     True, "farkas_linear", "unsat", "kernel-verified Farkas infeasibility witness"
                 )
+        # not a failure: the comment beside it says it: not linear or not parseable here,
+        # and the z3 path below takes it.
         except (ValueError, RuntimeError, AttributeError, TypeError):
             pass  # not linear / not parseable here — fall through to z3
         try:

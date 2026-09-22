@@ -257,5 +257,6 @@ class ShadowASTHealer:
         try:
             ast.parse(file_path.read_text(encoding="utf-8"))
             return True
+        # not a failure: source that does not parse is not source this can judge.
         except SyntaxError:
             return False

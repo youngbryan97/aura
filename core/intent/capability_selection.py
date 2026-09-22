@@ -49,6 +49,7 @@ def _asks_for_a_thing(text: str) -> bool:
         from core.intent.artifact_request import asks_for_an_artifact
 
         return bool(asks_for_an_artifact(text))
+    # not a failure: the reader could not be asked, so nothing here claims it holds.
     except (ImportError, AttributeError, TypeError, ValueError):
         return False
 
@@ -68,6 +69,7 @@ def _wants_more_than_an_answer(text: str) -> bool:
         from core.intent.artifact_request import asks_for_an_artifact
 
         return bool(asks_for_an_artifact(text))
+    # not a failure: the reader could not be asked, so nothing here claims it holds.
     except (ImportError, AttributeError, TypeError, ValueError):
         return False
 
@@ -84,6 +86,7 @@ def points_at_something_real(text: str) -> bool:
 
         if first_named_url(text):
             return True
+    # not a failure: the reader could not be asked, so nothing here claims it holds.
     except (ImportError, AttributeError, TypeError, ValueError):
         pass
     try:
@@ -92,6 +95,7 @@ def points_at_something_real(text: str) -> bool:
         named = requested_file_read(text)
         if named is not None and getattr(named, "exists", False):
             return True
+    # not a failure: the reader could not be asked, so nothing here claims it holds.
     except (ImportError, AttributeError, TypeError, ValueError):
         pass
     # A directory named outright, which the file check does not claim.
@@ -106,6 +110,7 @@ def points_at_something_real(text: str) -> bool:
 
         if first_existing_path(text) is not None:
             return True
+    # not a failure: the reader could not be asked, so nothing here claims it holds.
     except (ImportError, OSError, ValueError):
         pass
     return False

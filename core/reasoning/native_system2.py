@@ -167,6 +167,7 @@ class NativePlanNode:
             return self.value_sum / self.visits
         try:
             return float(self.metadata.get("estimated_value", 0.0))
+        # not a failure: a node with no readable estimate has no value yet.
         except (OSError, ConnectionError, TimeoutError):
             return 0.0
 

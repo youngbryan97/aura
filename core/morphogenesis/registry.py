@@ -87,6 +87,8 @@ def _atomic_write_json(path: Path, payload: Dict[str, Any], *, schema_name: str)
         try:
             if Path(tmp).exists():
                 Path(tmp).unlink()
+        # not a failure: a temporary already gone is the state this unlink reaches; the
+        # replace above is the write that mattered.
         except (OSError, IOError):
             pass  # no-op: intentional
 

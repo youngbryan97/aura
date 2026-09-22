@@ -72,6 +72,7 @@ def _runtime() -> Any:
         return None
     try:
         return ServiceContainer.peek("morphogenetic_runtime", default=None)
+    # not a failure: no service here, so the caller falls back to its own default.
     except (AttributeError, RuntimeError, TypeError):
         return None
 
@@ -154,6 +155,8 @@ def announce_degradation(subsystem: str, *, detail: str = "", danger: float = 0.
             ttl_ticks=8,
         ))
         return True
+    # not a failure: an organ that will not answer is one this cannot read, and
+    # False is the refusing direction.
     except (AttributeError, RuntimeError, TypeError, ValueError):
         return False
 
@@ -186,6 +189,8 @@ def reaches(source_cell: str, target_cell: str) -> bool:
         return False
     try:
         return bool(graph.path_exists(source_cell, target_cell))
+    # not a failure: an organ that will not answer is one this cannot read, and
+    # False is the refusing direction.
     except (AttributeError, RuntimeError, TypeError):
         return False
 

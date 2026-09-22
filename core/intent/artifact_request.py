@@ -170,6 +170,7 @@ def _floor_says(text: str) -> bool | None:
 
         if asks_to_build_software(text):
             return True
+    # not a failure: the reader could not be asked, so nothing here claims it holds.
     except (ImportError, AttributeError, TypeError, ValueError):
         pass
     if names_an_artifact(text):
@@ -209,6 +210,7 @@ def asks_for_an_artifact(message: object) -> bool:
         return settled
     try:
         learned = _WANTS_A_THING.decide_without_waiting(text)
+    # not a failure: a surface that cannot decide yet has not decided.
     except (RuntimeError, TypeError, ValueError):
         learned = None
     return bool(learned)

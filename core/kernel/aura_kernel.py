@@ -893,6 +893,8 @@ class AuraKernel(_TicksAndShutsDown):
                 )
             try:
                 self._gui_queue.put_nowait({"type": "ORGAN_READY", "name": organ.name})
+            # not a failure: the comment below says it: a non-blocking failsafe, and a full
+            # GUI queue drops this notice rather than stalling the organ.
             except asyncio.QueueFull:
                 # Non-blocking failsafe
                 pass  # no-op: intentional

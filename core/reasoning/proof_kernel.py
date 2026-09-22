@@ -693,6 +693,8 @@ def prove_certified(
                 extra={"goal": str(goal_f), "premises": [str(p) for p in prem]},
                 enforce_failure_policy=False,
             )
+        # not a failure: the comment below says it: degradation reporting must never mask
+        # the already fail-closed verdict.
         except (ImportError, RuntimeError, ValueError, TypeError, AttributeError):
             # Degradation reporting must never mask the (already fail-closed) verdict.
             pass

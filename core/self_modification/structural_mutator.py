@@ -181,8 +181,13 @@ class StructuralMutator:
                 if setter is not None:
                     try:
                         setter(enabled)
-                    except (RuntimeError, AttributeError, TypeError, ValueError):
-                        pass  # no-op: intentional
+                    except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                        logger.warning(
+                            "%s unavailable (%s: %s); a module was not restored to its previous enabled state during rollback",
+                            "it",
+                            type(exc).__name__,
+                            exc,
+                        )
                 self._module_state[target] = enabled
                 post = {"enabled": enabled}
             elif kind == "parameter_band":

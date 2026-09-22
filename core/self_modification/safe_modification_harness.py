@@ -346,8 +346,13 @@ class SafeModificationHarness:
                         for relative in result.stdout.split("\0")
                         if relative and self._workspace_path_allowed(Path(relative))
                     ]
-            except (OSError, RuntimeError, subprocess.SubprocessError):
-                pass
+            except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); the changed-file list could not be read from git; the fallback below is used",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
         return [
             path
             for path in self.codebase_root.rglob("*")
@@ -538,6 +543,8 @@ class SafeModificationHarness:
                     source = (candidate_root / path_part).read_text(
                         encoding="utf-8", errors="ignore"
                     )
+                # not a failure: a file that will not read has no source to judge, and the check
+                # below reads an empty one as not a self-mod test.
                 except OSError:
                     source = ""
                 if SafeModificationHarness._is_recursive_self_mod_test(source):

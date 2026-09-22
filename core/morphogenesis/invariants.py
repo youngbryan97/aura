@@ -36,6 +36,7 @@ def _runtime() -> Any:
             from core.container import ServiceContainer as _SC
 
             return _SC.get("morphogenetic_runtime", default=None)
+        # not a failure: no service here, so the caller falls back to its own default.
         except (AttributeError, RuntimeError, TypeError):
             return None
 
@@ -206,6 +207,8 @@ def _graph_agrees_with_substrate() -> Iterator[Violation]:
         return
     try:
         held = set(substrate.bound_keys())
+    # not a failure: a substrate that will not list its bound keys holds none this
+    # invariant can check.
     except (AttributeError, RuntimeError, TypeError):
         return
     if not held:
@@ -274,6 +277,7 @@ def _telemetry_declared() -> Iterator[Violation]:
         return
     try:
         sample = channel_value(CHANNEL_GRAPH_VERSION)
+    # not a failure: no sample on that channel yet, and the branch below handles it.
     except (KeyError, RuntimeError, TypeError):
         sample = None
     if sample is None:

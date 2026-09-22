@@ -22,6 +22,7 @@ def growth_class(value: object, *, variable: str = "n") -> tuple[int, int] | Non
         return None
     try:
         tree = ast.parse(match[1].replace("^", "**"), mode="eval")
+    # not a failure: text that does not parse is not the shape this was reading for.
     except (SyntaxError, ValueError, RecursionError):
         return None
     if sum(1 for _ in ast.walk(tree)) > 64:
@@ -55,6 +56,8 @@ def growth_class(value: object, *, variable: str = "n") -> tuple[int, int] | Non
 
     try:
         polynomial = sp.Poly(convert(tree.body), n, log_n)
+    # not a failure: an expression that is not a polynomial in n and log n is not a
+    # growth class this compares.
     except (ValueError, sp.PolynomialError):
         return None
     if polynomial.is_zero or any(coefficient <= 0 for coefficient in polynomial.coeffs()):

@@ -353,8 +353,13 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
         try:
             from core.morphogenesis.hooks import heartbeat_self_healing
             heartbeat_self_healing()
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # no-op: intentional
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.warning(
+                "%s unavailable (%s: %s); the self-healing heartbeat did not beat this tick, which is what proves the runtime alive",
+                "heartbeat_self_healing",
+                type(exc).__name__,
+                exc,
+            )
 
         resource = self.metabolism.pulse()
         self._emit_system_signals(resource_pressure=resource.pressure)
@@ -375,8 +380,13 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
             try:
                 from core.morphogenesis.hooks import modulate_metabolic_energy
                 modulate_metabolic_energy()
-            except (ImportError, AttributeError, RuntimeError):
-                pass  # no-op: intentional
+            except (ImportError, AttributeError, RuntimeError) as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); metabolic energy was not modulated this cycle",
+                    "modulate_metabolic_energy",
+                    type(exc).__name__,
+                    exc,
+                )
 
         active_signals = self._consume_signals()
         for sig in active_signals:
@@ -449,8 +459,13 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
                             bounded=True,
                         ) is None:
                             organ_episode.close()
-                    except (ImportError, AttributeError, RuntimeError):
-                        pass  # no-op: intentional
+                    except (ImportError, AttributeError, RuntimeError) as exc:
+                        logger.debug(
+                            "%s unavailable (%s: %s); the organ episode was not recorded",
+                            "record_organ_formation_episode",
+                            type(exc).__name__,
+                            exc,
+                        )
 
         if self.config.topology_enabled:
             self._sync_topology()
@@ -997,7 +1012,13 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
                 try:
                     from core.memory.episodic_memory import get_episodic_memory
                     mem = get_episodic_memory()
-                except (ImportError, AttributeError, RuntimeError):
+                except (ImportError, AttributeError, RuntimeError) as exc:
+                    logger.debug(
+                        "%s unavailable (%s: %s); no episodic memory, so this topology change is not remembered",
+                        "get_episodic_memory",
+                        type(exc).__name__,
+                        exc,
+                    )
                     mem = None
             if mem is None or not hasattr(mem, "record_episode_async"):
                 return

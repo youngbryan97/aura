@@ -105,8 +105,13 @@ class _BridgesSignalsToImmunity:
                         self.emit_signal(MorphogenSignal(kind=SignalKind.CURIOSITY, source="liquid_state", subsystem="cognition", intensity=curiosity, ttl_ticks=3))
                     if energy < 0.25:
                         self.emit_signal(MorphogenSignal(kind=SignalKind.HOMEOSTASIS, source="liquid_state", subsystem="global", intensity=1.0 - energy, ttl_ticks=3))
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # no-op: intentional
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); liquid-state signals are missing from this immunity pass",
+                "ServiceContainer",
+                type(exc).__name__,
+                exc,
+            )
 
     async def _bridge_signals_to_immunity(self, signals: Sequence[MorphogenSignal]) -> None:
         """Queue high-danger signals without coupling immune latency to a tick."""

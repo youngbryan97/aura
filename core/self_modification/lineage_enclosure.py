@@ -251,6 +251,8 @@ class Enclosure:
                 candidate = getattr(config.paths, name, None)
                 if candidate:
                     live.append(Path(str(candidate)).expanduser().resolve())
+        # not a failure: the comment below says it: an enclosure that cannot check its
+        # own boundary refuses to assert one.
         except (ImportError, AttributeError, OSError, RuntimeError, ValueError):
             # No config to ask means no way to prove the path is safe. An
             # enclosure that cannot check its own boundary refuses to assert

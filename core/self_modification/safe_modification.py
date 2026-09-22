@@ -110,6 +110,8 @@ class GitIntegration:
                 accelerator_capability="none",
             )
             return result.returncode == 0
+        # not a failure: no git here, or none that answers, so this reports what it can
+        # prove rather than assuming.
         except (OSError, RuntimeError, TimeoutError, ValueError):
             return False
 
@@ -352,6 +354,8 @@ class GitIntegration:
                 source="core.self_modification.safe_modification.checkout_main",
             )
             return True
+        # not a failure: no git here, or none that answers, so this reports what it can
+        # prove rather than assuming.
         except (subprocess.SubprocessError, OSError):
             return False
 
@@ -368,6 +372,8 @@ class GitIntegration:
                 source="core.self_modification.safe_modification.current_branch",
             )
             return result.stdout.strip()
+        # not a failure: no git here, or none that answers, so this reports what it can
+        # prove rather than assuming.
         except (subprocess.SubprocessError, OSError):
             return None
 

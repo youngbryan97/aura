@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import ast
 import io
+import logging
 import os
 import re
 import tokenize
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 _DEFERRED_TAGS = ("TO" "DO", "FIX" "ME", "X" "XX")
 _DEFERRED_COMMENT_PATTERN = re.compile(
@@ -189,8 +192,13 @@ def analyze_python_file(
                     remediation="Resolve it or link it to an owned tracker item and acceptance test.",
                 )
             )
-    except (IndentationError, tokenize.TokenError):
-        pass
+    except (IndentationError, tokenize.TokenError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the file could not be tokenised, so deferred-work comments in it are not reported",
+            "it",
+            type(exc).__name__,
+            exc,
+        )
 
     issues.sort(key=issue_sort_key)
     return issues

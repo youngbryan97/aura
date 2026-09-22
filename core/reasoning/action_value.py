@@ -488,6 +488,8 @@ def on_outcome_resolved(receipt: Any) -> None:
         # scaled to the decision instead of calling every hard problem a
         # failure.
         correct = float(observed) >= float(expected)
+    # not a failure: an observation that will not compare with its expectation cannot
+    # be graded, and this grades nothing rather than guessing.
     except (TypeError, ValueError, AttributeError):
         return
 
@@ -521,6 +523,8 @@ def _install_observers() -> None:
 
         get_outcome_ledger().add_resolution_observer(on_outcome_resolved)
         _observers_installed = True
+    # not a failure: the comment below says it: the ledger may not be constructible
+    # yet, and the flag stays down so a later call retries.
     except (ImportError, RuntimeError, OSError, AttributeError):
         # The ledger may not be constructible yet (early boot, or a test with
         # no writable home). Leave the flag down so a later call retries; a
@@ -532,6 +536,7 @@ def _on_the_event_loop() -> bool:
     """Whether this call is happening on the thread that must not be blocked."""
     try:
         asyncio.get_running_loop()
+    # not a failure: off a loop there is no running loop to report.
     except RuntimeError:
         return False
     return True

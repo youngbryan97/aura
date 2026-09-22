@@ -509,6 +509,7 @@ class SafeMutationEvaluator:
     def _source_needs_site_packages(source: str) -> bool:
         try:
             tree = ast.parse(source or "")
+        # not a failure: source that does not parse is not source this can judge.
         except SyntaxError:
             return False
         for node in ast.walk(tree):

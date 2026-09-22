@@ -220,6 +220,7 @@ def read_standing_grant(fused_model_dir: Path | str) -> AStandingGrant | None:
             created_at=float(body.get("created_at") or 0.0),
             used=int(body.get("used") or 0),
         )
+    # not a failure: a record whose fields will not coerce is not an authorization.
     except (TypeError, ValueError):
         return None
 

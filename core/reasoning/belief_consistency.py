@@ -169,6 +169,8 @@ def check_beliefs(
             from core.reasoning.proof_kernel import prove_certified
 
             kernel_certified = prove_certified(core, Bot()).verified
+        # not a failure: a kernel that cannot certify has not certified, and False is the
+        # refusing direction.
         except (ValueError, RuntimeError, TypeError, AttributeError, ImportError):
             kernel_certified = False
     # Source beliefs whose formula is in the minimal unsatisfiable core — covers
