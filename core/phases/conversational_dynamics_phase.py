@@ -1062,6 +1062,14 @@ class ConversationalDynamicsPhase(Phase):
             from core.social.the_form_they_welcome import note_heard
 
             note_heard(str(getattr(state.cognition, "current_partner", "") or ""), warm, corrected or difficult)
+            # And how warm it was, which is felt. See core/social/warmth.py.
+            from core.social.warmth import get_warmth_ledger
+
+            get_warmth_ledger().heard(
+                str(getattr(state.cognition, "current_partner", "") or ""),
+                warm=warm,
+                objected=corrected or difficult,
+            )
             # An objection is where anger comes from, and who it is at.
             # See core/affect/anger_feeds_itself.py.
             if corrected or difficult:

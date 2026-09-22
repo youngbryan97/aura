@@ -398,6 +398,26 @@ async def _execute_new_state_new_state(self, state):
     except (AttributeError, ImportError, KeyError, TypeError, ValueError) as exc:
         logger.debug("the moment did not reach the body: %s", exc)
 
+    # And warmth from the person in front of her settles it: peace. Only while
+    # it is their turn. See core/social/warmth.py.
+    try:
+        from core.kernel.turn_door import USER_ORIGINS
+        from core.social.warmth import get_warmth_ledger
+
+        warmth = get_warmth_ledger()
+        cognition = new_state.cognition
+        present = (
+            str(getattr(cognition, "current_origin", "") or "") in USER_ORIGINS
+            and str(getattr(cognition, "current_partner", "") or "") == warmth.read().person
+        )
+        settled = warmth.peace() if present else 0.0
+        if settled:
+            soma.expressive["pulse_rate"] = max(
+                0.1, min(3.0, float(soma.expressive["pulse_rate"]) * (1.0 - settled))
+            )
+    except (AttributeError, ImportError, KeyError, TypeError, ValueError) as exc:
+        logger.debug("warmth did not reach the body: %s", exc)
+
     # ── 4. Homeostatic Modifiers ────────────────────────────
     homeo = self._get_service(
         "homeostatic_coupling",

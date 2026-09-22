@@ -158,10 +158,13 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         MotivationUpdatePhase._spend_from_what_is_burning(state, mot)
 
         # Drive Recovery (Homeostatic Feedback)
-        # Social and Integrity drives recover when affect is high (Trust/Joy)
-        e = state.affect.emotions
+        # Being met brings social and integrity needs back toward rest: warm
+        # contact from the person in front of her this turn. It was her own
+        # trust or joy passing 0.6, a bar chosen once and never cleared in a
+        # 2,400-turn campaign, so the force read a constant. See
+        # core/social/warmth.py.
         warmth_return = 0.0
-        if e.get("trust", 0) > 0.6 or e.get("joy", 0) > 0.6:
+        if MotivationUpdatePhase._met_this_turn(state):
             warmth_return = MotivationUpdatePhase._warmth_returns_a_drive_to_rest(mot, dt) or 0.0
             logger.debug("🧡 Drive Recovery active: social=%s", f"{mot.budgets['social']['level']:.1f}")
 
@@ -1053,6 +1056,24 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
             # not a failure: budgets this cannot read total nothing, and
             # the difference of two such totals is the zero it should be.
             return 0.0
+
+    @staticmethod
+    def _met_this_turn(state: Any) -> bool:
+        """Whether warm contact arrived this turn from the person in front of her."""
+        try:
+            from core.kernel.turn_door import USER_ORIGINS
+            from core.social.warmth import get_warmth_ledger
+
+            warmth = get_warmth_ledger()
+            cognition = state.cognition
+            return (
+                warmth.met()
+                and str(getattr(cognition, "current_origin", "") or "") in USER_ORIGINS
+                and str(getattr(cognition, "current_partner", "") or "") == warmth.read().person
+            )
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            logger.debug("whether she was met this turn was not read: %s", exc)
+            return False
 
     @staticmethod
     def _warmth_returns_a_drive_to_rest(mot: Any, dt: float) -> float:
