@@ -64,6 +64,24 @@ Receipt: `c3a7938ffbdb54374d4761907df076a40eec9d25d0ac3514ad96a2e687a72d10`.
 
 ## Broader Programme
 
+### Source Fold Implementation
+
+The source-only fold builder joins construction families and contrast lineage
+transitively before assignment. It rejects validation/test inputs, repeated
+source identities, and populations with too few independent groups. On the
+764 source examples, it yields 42 independent groups and fold sizes
+256/254/254. Frozen plan receipt:
+`9c6413bfdf573d03b4239ac82577001ee6f7499561ede194b24cc07022801b94`
+at `semantic-architecture-source-folds-20260921/folds.json`.
+Six focused tests pass. This implements the split contract only; the
+full-context architecture comparison has not run.
+
+The subsequent smoke run passed 164 tests but failed the live serving alarm:
+`semantic_neural_activation_invalid:source_drift:core/brain/llm/qualified_recurrent_ingress.py`.
+The inspected change in commit `15d45a58d` adds explanatory comments only.
+Its byte-bound activation still needs an authorized provenance disposition;
+the evidence was not resealed or the alarm suppressed.
+
 G03 is a bounded language-to-program obligation. It must not indefinitely
 serialize the independent G09 ordinary-runtime reasoning experiment behind
 a perfect synthetic parser. Develop the ordinary runtime comparison and
