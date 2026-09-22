@@ -111,7 +111,27 @@ def vec(state: dict) -> np.ndarray:
     return np.concatenate([state[k] for k in DOMAINS])
 
 
-def sweep(step: Step, start: Callable, noise_width: int, *, anchors: int, lag: int, cuts=None, seed: int = 7) -> dict:
+def sweep(
+    step: Step,
+    start: Callable,
+    noise_width: int,
+    *,
+    anchors: int,
+    lag: int,
+    cuts=None,
+    seed: int = 7,
+    looks: tuple[int, ...] = (),
+    alpha: float = 0.05,
+    draws: int = 200,
+) -> dict:
+    """Decide every cut from `anchors` forks, or sequentially at `looks`.
+
+    With `looks`, a cut is scored on its first `looks[0]` anchors, then the
+    first `looks[1]`, and so on, and stops at the first look where its bound
+    clears the sham floor. Each look is read at `alpha / len(looks)`, so the
+    chance that a cut which costs nothing is decided at any look stays below
+    `alpha`; a cut still undecided at the last look is undecided.
+    """
     rng = np.random.default_rng(seed)
     state = start(rng)
     held_states = []
@@ -125,6 +145,9 @@ def sweep(step: Step, start: Callable, noise_width: int, *, anchors: int, lag: i
         inputs = [rng.normal(size=WIDTH) for _ in range(lag)]
         arms.append((anchor, noises, inputs))
     decided, weakest = 0, None
+    spent = 0
+    schedule = tuple(sorted(int(n) for n in looks if 0 < int(n) <= anchors)) or (anchors,)
+    per_look = alpha / len(schedule)
     chosen = list(bipartitions(DOMAINS)) if cuts is None else list(cuts)
     for left, right in chosen:
         samples = {k: [] for k in ("context", "intact", "cut", "sham_a", "sham_b")}
@@ -139,19 +162,38 @@ def sweep(step: Step, start: Callable, noise_width: int, *, anchors: int, lag: i
             samples["sham_b"].append(vec(intact) + 1e-6 * np.random.default_rng(len(samples["sham_b"])).normal(size=len(vec(intact))))
             samples["cut"].append(vec(cut))
         arrays = {k: np.vstack(v) for k, v in samples.items()}
-        # The bootstrap is drawn as many times as the runtime draws it, because
-        # the lower bound is that bootstrap's fifth percentile. The permutation
-        # p-value decides nothing, so it is drawn only as often as it must be.
-        _estimate, excess, lower, _p = decide_cut(
-            arrays, tau_seconds=float(lag), draws=200, permutation_draws=19
-        )
-        # The runtime's rule, core/subject/v25_cut.py: decided when the whole
-        # interval sits above the sham floor, not when the point estimate does.
+        for take in schedule:
+            # The bootstrap is drawn at least as many times as the runtime
+            # draws it, because the lower bound is one of its quantiles. The
+            # permutation p-value decides nothing, so it is drawn only as often
+            # as it must be.
+            _estimate, excess, lower, _p = decide_cut(
+                {k: v[:take] for k, v in arrays.items()},
+                tau_seconds=float(lag),
+                draws=draws,
+                permutation_draws=19,
+                alpha=per_look,
+            )
+            # The runtime's rule, core/subject/v25_cut.py: decided when the
+            # whole interval sits above the sham floor, not when the point
+            # estimate does.
+            if lower > 0.0:
+                break
+        spent += take
         if lower > 0.0:
             decided += 1
         if weakest is None or lower < weakest[1]:
             weakest = (excess, lower, "".join(left) + "|" + "".join(right))
-    return {"decided": decided, "cuts": len(chosen), "weakest_excess": weakest[0], "weakest_lower": weakest[1], "weakest_cut": weakest[2]}
+    return {
+        "decided": decided,
+        "cuts": len(chosen),
+        "weakest_excess": weakest[0],
+        "weakest_lower": weakest[1],
+        "weakest_cut": weakest[2],
+        "anchors_spent": spent,
+        "looks": list(schedule),
+        "alpha_per_look": per_look,
+    }
 
 
 
@@ -164,23 +206,32 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--anchors", type=int, default=96)
     parser.add_argument("--lag", type=int, default=4)
     parser.add_argument("--systems", default="", help="comma-separated names; default is every control")
+    parser.add_argument("--seed", type=int, default=7, help="the draw of each architecture and of its anchors")
+    parser.add_argument(
+        "--looks", default="", help="comma-separated anchor counts for a sequential sweep, e.g. 8,16,32,64,96"
+    )
+    parser.add_argument("--alpha", type=float, default=0.05)
+    parser.add_argument("--draws", type=int, default=200, help="bootstrap draws per decision")
     args = parser.parse_args(argv)
+    looks = tuple(int(item) for item in args.looks.split(",") if item.strip())
+    settings = {"anchors": args.anchors, "lag": args.lag, "seed": args.seed, "looks": looks,
+                "alpha": args.alpha, "draws": args.draws}
     wanted = {name for name in args.systems.split(",") if name}
     out = {}
     for name in ARCHITECTURES_CHECKED:
         label = f"null:{name}"
         if wanted and label not in wanted:
             continue
-        system = architecture(name, seed=7)
+        system = architecture(name, seed=args.seed)
         step, start = toy_step(system)
-        out[label] = sweep(step, start, sum(system.widths.values()) + system.hub_width, anchors=args.anchors, lag=args.lag)
+        out[label] = sweep(step, start, sum(system.widths.values()) + system.hub_width, **settings)
         print(label, json.dumps(out[label]), flush=True)
     for kind in PIPELINES_CHECKED:
         label = f"pipeline:{kind}"
         if wanted and label not in wanted:
             continue
-        step, start = pipeline_step(kind, 0.6, 1)
-        out[label] = sweep(step, start, 10 * WIDTH, anchors=args.anchors, lag=args.lag)
+        step, start = pipeline_step(kind, 0.6, args.seed)
+        out[label] = sweep(step, start, 10 * WIDTH, **settings)
         print(label, json.dumps(out[label]), flush=True)
     return 0
 
