@@ -31,6 +31,8 @@ _registered_shutdown_coordinator: Any | None = None
 def _connection_is_open(connection: sqlite3.Connection) -> bool:
     try:
         connection.execute("SELECT 1")
+    # not a failure: a closed connection is what this asks about, and False is the
+    # answer.
     except sqlite3.ProgrammingError:
         return False
     return True
@@ -129,6 +131,7 @@ def configure_connection(db_path: str) -> sqlite3.Connection:
 
         if is_shutdown_requested():
             raise RuntimeError(f"refused new SQLite connection during shutdown: {normalized_path}")
+    # not a failure: no shutdown coordinator means no shutdown to refuse for.
     except ImportError:
         pass
 

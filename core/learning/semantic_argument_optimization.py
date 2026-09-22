@@ -186,6 +186,7 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
             incumbent = optimize_argument_chart(short, n_inputs=n_inputs, contract=contract,
                 node_limit=node_limit, definition_options=names, definition_scores=definition_scores,
                 excluded_graphs=excluded, time_limit_s=remaining())
+        # not a failure: an optimisation that did not complete has no incumbent to keep.
         except ArgumentOptimizationIncompleteError:
             incumbent = None
     for node, arguments in enumerate(options):

@@ -276,6 +276,7 @@ class PracticeDirector:
         new = 0
         try:
             report_paths = sorted(runs_dir.glob("*/*_eval.json"))
+        # not a failure: a directory that will not list holds no new reports.
         except OSError:
             return 0
         for path in report_paths[-50:]:
@@ -324,6 +325,7 @@ class PracticeDirector:
         new = 0
         try:
             receipt_paths = sorted(specialists_dir.rglob("receipt*.json"))
+        # not a failure: a directory that will not list holds no new receipts.
         except OSError:
             return 0
         for path in receipt_paths[-50:]:

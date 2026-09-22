@@ -444,6 +444,7 @@ def _extract_json_value(response: str) -> Any:
         )
         _validate_json_graph(produced, role="json_scorer_output")
         return produced
+    # not a failure: text that does not parse is not the shape this was reading for.
     except (TypeError, ValueError, RecursionError, VerifiedTrainingTaskError):
         return None
 
@@ -502,6 +503,7 @@ def _parse_terminal_json_object(response: str) -> dict[str, Any] | None:
             parse_constant=lambda _text: (_ for _ in ()).throw(ValueError("constant")),
         )
         _validate_json_graph(parsed, role="terminal_answer")
+    # not a failure: text that does not parse is not the shape this was reading for.
     except (TypeError, ValueError, RecursionError, UnicodeError):
         return None
     return parsed if type(parsed) is dict else None

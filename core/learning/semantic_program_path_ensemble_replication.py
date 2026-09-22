@@ -236,6 +236,8 @@ def _outcome_row(
     if predicted is not None:
         try:
             predicted_answer = execute_semantic_program(predicted, item.public_inputs).result
+        # not a failure: a program that refuses these inputs has not produced an answer,
+        # which is the comparison this is making.
         except (RuntimeError, TypeError, ValueError):
             predicted_answer = None
     expected_answer = item.ir.to_program().run(item.public_inputs)

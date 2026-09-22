@@ -277,6 +277,8 @@ def _resolve_model_dir(model_path: str) -> Path | None:
                 "snapshot_download",
             )
             return Path(snapshot_download(repo_id=model_path, local_files_only=True))
+        # not a failure: no local snapshot for this repo id, which is what local_files_only
+        # was asking.
         except (ImportError, OSError, ValueError):
             return None
     return None
@@ -289,6 +291,7 @@ def _dir_weight_bytes(model_dir: Path) -> int:
             f.stat().st_size
             for f in model_dir.glob("*.safetensors")
         ) or sum(f.stat().st_size for f in model_dir.iterdir() if f.is_file())
+    # not a failure: a path that is not there, or will not list, holds nothing to read.
     except OSError:
         return 0
 
@@ -450,6 +453,8 @@ class WeightCompoundingLoop:
             except (OSError, ValueError, json.JSONDecodeError):
                 try:
                     lock.unlink()
+                # not a failure: a lock file that will not unlink stays held, and False says this
+                # caller did not take it.
                 except OSError:
                     return False
                 return self._acquire_lock()
@@ -1202,6 +1207,7 @@ class WeightCompoundingLoop:
             try:
                 with Path(path).open(encoding="utf-8") as fh:
                     return sum(1 for line in fh if line.strip())
+            # not a failure: a path that is not there, or will not list, holds nothing to read.
             except OSError:
                 return 0
 

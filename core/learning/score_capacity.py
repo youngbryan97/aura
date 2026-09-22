@@ -166,6 +166,8 @@ def verify_score_capacity(report: dict) -> bool:
             return _weights_satisfy(constraints, {k: Fraction(v) for k, v in report["weights"].items()})
         if report["status"] == "infeasible":
             return check_farkas(constraints, FarkasCertificate.from_dict(report["certificate"])).verified
+    # not a failure: a report this cannot read does not verify, and False is the
+    # refusing direction.
     except (KeyError, TypeError, ValueError, ZeroDivisionError, OverflowError):
         return False
     return False

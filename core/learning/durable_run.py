@@ -20,6 +20,7 @@ a torn write leaves the PREVIOUS good checkpoint as the latest valid one.
 from __future__ import annotations
 
 import json
+import logging
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -27,6 +28,8 @@ from typing import Any
 
 from core.governance_context import local_internal_governed_scope
 from core.runtime.file_write_gateway import get_file_write_gateway
+
+logger = logging.getLogger(__name__)
 
 DURABLE_RUN_SCHEMA = "aura.durable_run.v1"
 MANIFEST = "checkpoint_manifest.json"
@@ -178,8 +181,13 @@ class DurableRun:
                         stale,
                         source="durable_run.prune",
                     )
-            except OSError:
-                pass
+            except OSError as exc:
+                logger.debug(
+                    "%s unavailable (%s: %s); a stale run directory was not pruned",
+                    "it",
+                    type(exc).__name__,
+                    exc,
+                )
 
     def resume_step(self) -> int:
         """Where to continue from -- 0 for a fresh run."""

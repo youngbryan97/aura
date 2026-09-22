@@ -68,6 +68,8 @@ def _binding(path: Path, *, max_bytes: int = _MAX_JSON_BYTES) -> dict[str, Any]:
 def _binding_matches(binding: Mapping[str, Any], *, max_bytes: int) -> bool:
     try:
         observed = _binding(Path(str(binding["path"])), max_bytes=max_bytes)
+    # not a failure: a binding whose file will not read does not match, and False is
+    # the refusing direction.
     except (KeyError, OSError, RecurrenceCheckpointMigrationError):
         return False
     return observed == dict(binding)

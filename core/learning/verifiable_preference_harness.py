@@ -273,8 +273,13 @@ def _register_in_container(engine: VerifiablePreferenceHarness) -> None:
             if callable(reg):
                 reg(VerifiablePreferenceHarness.SERVICE_NAME, engine,
                     required=False, registered_by="verifiable_preference_harness")
-    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
-        pass
+    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        logger.warning(
+            "%s unavailable (%s: %s); the harness is not in the container, so callers that look it up will not find it",
+            "ServiceContainer",
+            type(exc).__name__,
+            exc,
+        )
 
 
 def reset_verifiable_preference_harness_for_test() -> None:

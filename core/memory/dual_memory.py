@@ -67,6 +67,8 @@ def _decode_black_hole_value(value: Any, vault_key: str) -> str:
         try:
             decoded = base64.b64decode(payload, validate=True)
             should_try_decode = len(decoded) >= 29
+        # not a failure: a payload that is not base64 is not the encoded form this looks
+        # for.
         except (binascii.Error, ValueError):
             should_try_decode = False
     if should_try_decode:

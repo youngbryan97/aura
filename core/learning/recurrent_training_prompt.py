@@ -15,6 +15,7 @@ def answer_contract_instruction(task: Any) -> str:
 
     try:
         expected = task.expected
+    # not a failure: a task with no readable expectation has no answer keys to name.
     except (AttributeError, TypeError, ValueError):
         expected = None
     keys = sorted(str(key) for key in expected) if isinstance(expected, Mapping) else []

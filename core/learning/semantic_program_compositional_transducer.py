@@ -231,6 +231,7 @@ def _semantic_geometry_envelope(
             observed_max_inputs=max(inputs for inputs, _steps in observed),
             observed_max_steps=max(steps for _inputs, steps in observed),
         )
+    # not a failure: an empty or unusable observation set has no envelope.
     except (TypeError, ValueError):
         return None
 

@@ -1180,8 +1180,13 @@ class LiveLearner:
                         import mlx.core as mx
 
                         await asyncio.to_thread(mx.clear_cache)
-                    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
-                        pass
+                    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                        logger.debug(
+                            "%s unavailable (%s: %s); the MLX cache was not cleared after this training step",
+                            "mlx.core",
+                            type(exc).__name__,
+                            exc,
+                        )
 
             incumbent_responses = await evaluate_artifact(self._current_adapter)
             candidate_source: str | Path | None = (

@@ -289,7 +289,13 @@ class ChatTurnLogger:
             episode_metadata["self_condition_grounded"] = bool(
                 is_self_condition_turn(user_message)
             )
-        except _CHAT_TURN_RECOVERABLE_ERRORS:
+        except _CHAT_TURN_RECOVERABLE_ERRORS as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); the turn is recorded as not self-condition grounded",
+                "is_self_condition_turn",
+                type(exc).__name__,
+                exc,
+            )
             episode_metadata["self_condition_grounded"] = False
         profile_user_id = str(episode_metadata.get("user_id") or "").strip()[:160]
         self._schedule_profile_learning(

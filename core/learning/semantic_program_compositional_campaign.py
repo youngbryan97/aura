@@ -118,6 +118,7 @@ def select_compositional_program_candidate(
                     instructions, _ = align_source_input_registers(item, outcome.ir.input_spans)
                     target = Program(len(item.public_inputs), tuple(
                         Instruction(instruction.op, instruction.args) for instruction in instructions))
+                # not a failure: registers that will not align give no target program to compare.
                 except ValueError:
                     grounding_valid = False
             exact = bool(outcome.ir is not None and grounding_valid and outcome.ir.to_program() == target)

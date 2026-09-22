@@ -754,8 +754,13 @@ class AssociativeEntityMemory:
                     "SELECT alias FROM aliases WHERE entity_id = ?", (row["entity_id"],)
                 )
             }
-        except sqlite3.Error:
-            pass
+        except sqlite3.Error as exc:
+            logger.debug(
+                "%s unavailable (%s: %s); this entity comes back with no aliases",
+                "it",
+                type(exc).__name__,
+                exc,
+            )
         return Entity(
             entity_id=row["entity_id"],
             kind=EntityKind.coerce(row["kind"]),
@@ -818,6 +823,7 @@ class AssociativeEntityMemory:
                 row = self._conn.execute(
                     "SELECT * FROM entities WHERE entity_id = ?", (entity_id,)
                 ).fetchone()
+            # not a failure: a row this query cannot read is an entity this does not have.
             except sqlite3.Error:
                 return None
         return self._row_to_entity(row) if row else None

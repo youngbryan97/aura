@@ -62,6 +62,7 @@ def _resolve_practice_director() -> Any | None:
         from core.runtime.service_access import resolve_practice_director
 
         return resolve_practice_director(default=None)
+    # not a failure: no practice director here, so the caller runs without one.
     except _RECOVERABLE:
         return None
 
@@ -288,6 +289,8 @@ class SelfPlayFlywheel:
             return background_activity_allowed(
                 self._orchestrator, profile=THOUGHT_BACKGROUND_POLICY
             )
+        # not a failure: background activity that cannot be confirmed as allowed is not
+        # allowed, which is the refusing direction.
         except _RECOVERABLE:
             return False
 

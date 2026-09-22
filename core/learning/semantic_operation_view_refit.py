@@ -45,6 +45,8 @@ def valid_operation_view_contract(head: Any, receipt: Any, channels: Any, widths
             for mode, component in zip(head.modes, head.heads, strict=True)
         ):
             return False
+    # not a failure: a head whose modes will not zip is not the shape this receipt
+    # describes.
     except ValueError:
         return False
     selection = receipt.get("operation_view_selection")

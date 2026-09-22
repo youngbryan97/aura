@@ -53,8 +53,11 @@ is detected instead of silently producing confident garbage.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 #: HF repo id. The short name (``all-MiniLM-L6-v2``) was resolvable only
 #: because sentence-transformers special-cases its own org; a fully qualified
@@ -412,8 +415,13 @@ def encode_query(model: Any, texts: list[str], task: str | None = None) -> Any:
     prompt = query_prompt(task)
     try:
         return model.encode(texts, prompt=prompt, show_progress_bar=False)
-    except (TypeError, ValueError, KeyError):
-        pass
+    except (TypeError, ValueError, KeyError) as exc:
+        logger.debug(
+            "%s unavailable (%s: %s); the prompt-aware encode was refused and the plain one below runs",
+            "it",
+            type(exc).__name__,
+            exc,
+        )
     try:
         # Older sentence-transformers: named prompts only, no free-form prompt.
         return model.encode(texts, prompt_name=QUERY_PROMPT_NAME, show_progress_bar=False)

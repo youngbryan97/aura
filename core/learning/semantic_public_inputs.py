@@ -138,12 +138,14 @@ class SemanticPublicInputs:
 def _sequence_value(text: str) -> SemanticValue | None:
     try:
         value = ast.literal_eval(text)
+    # not a failure: text that does not parse is not the shape this was reading for.
     except (SyntaxError, ValueError):
         return None
     if not isinstance(value, (list, tuple)):
         return None
     try:
         normalized = normalize_semantic_value(value)
+    # not a failure: a value that will not normalise is not a semantic value.
     except ValueError:
         return None
     if not isinstance(normalized, tuple) or len(normalized) > MAX_SEMANTIC_SEQUENCE_ITEMS:

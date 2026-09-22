@@ -966,6 +966,7 @@ class RecursiveSelfImprovementLoop:
             import core.learning.live_learner as live_learner_module
 
             return live_learner_module._learner is self.live_learner
+        # not a failure: no live_learner module means this is not the runtime singleton.
         except (ImportError, AttributeError):
             return False
 

@@ -826,6 +826,8 @@ def _write_regular_file_once_at(
             0o600,
             dir_fd=directory_fd,
         )
+    # not a failure: the file is already there, which is what creating it exclusively
+    # was checking for.
     except FileExistsError:
         return
     except OSError as exc:
@@ -842,6 +844,8 @@ def _write_regular_file_once_at(
     except Exception:
         try:
             os.unlink(name, dir_fd=directory_fd)
+        # not a failure: the partial file is already gone; the original failure is
+        # re-raised below.
         except OSError:
             pass
         raise
@@ -1012,6 +1016,7 @@ class TransitionArtifactStore:
     def __del__(self) -> None:
         try:
             self.close()
+        # not a failure: a writer already closed is the state __del__ is reaching.
         except OSError:
             pass
 
@@ -1356,6 +1361,7 @@ def _loaded_callable_source_sha256(callable_object: Callable[..., Any]) -> str |
 
     try:
         return _sha256_bytes(inspect.getsource(callable_object).encode("utf-8"))
+    # not a failure: a callable with no source on disk has none to hash.
     except (OSError, TypeError):
         return None
 
@@ -1486,6 +1492,7 @@ def _runtime_value_identity(
     if isinstance(value, types.ModuleType):
         try:
             module_path = inspect.getsourcefile(value)
+        # not a failure: a module with no source file has no path to record.
         except TypeError:
             module_path = None
         module_file_sha256 = None

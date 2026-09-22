@@ -390,6 +390,8 @@ class UpdateAcceptanceHead:
     def calibrated(self) -> bool:
         try:
             self._validate(allow_uncalibrated=False)
+        # not a failure: an update that fails its own validation is not calibrated, which
+        # is what this property reports.
         except ValueError:
             return False
         return True

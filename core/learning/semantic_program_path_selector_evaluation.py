@@ -47,6 +47,8 @@ def _correct(
         return False
     try:
         actual = execute_semantic_program(outcome.ir, item.public_inputs).result
+    # not a failure: a program that refuses these inputs has not produced an answer,
+    # which is the comparison this is making.
     except (RuntimeError, TypeError, ValueError):
         return False
     return actual == item.ir.to_program().run(item.public_inputs)

@@ -204,6 +204,7 @@ def _greedy_decode(
         if stop_strings:
             try:
                 partial = str(tokenizer.decode(out))
+            # not a failure: a partial the tokenizer will not render matches no stop string.
             except (TypeError, ValueError, KeyError):
                 partial = ""
             if _answer_matches(partial, stop_strings):

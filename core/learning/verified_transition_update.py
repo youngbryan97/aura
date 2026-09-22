@@ -1017,6 +1017,7 @@ def apply_verified_transition_group_update(
         import mlx.core as mx
 
         mx.eval(model.trainable_parameters(), optimizer.state)
+    # not a failure: no MLX here, so there is nothing to evaluate eagerly.
     except (ImportError, AttributeError):
         pass
     policy_after = recurrent_policy_sha256(model, spec)

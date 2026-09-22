@@ -101,6 +101,7 @@ def parse_integral_numeric_claim(text: str) -> int | None:
             value = _decimal_fraction(claim)
         else:
             return None
+    # not a failure: a claim that is not a number is not an answer this scores.
     except (InvalidOperation, ValueError, ZeroDivisionError):
         return None
     return int(value) if value.denominator == 1 else None
