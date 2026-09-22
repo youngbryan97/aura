@@ -2470,6 +2470,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   commit instead of the release.
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
+  2026-09-22, one more root. `test_stabilize_user_facing_reply_clarifies_specificity_push`
+  failed on main after `test_a_fork_hears_what_the_partner_said` and passed alone:
+  the repair's fallback read the organs' singletons that test had built. Stubbed
+  in the test, entered in docs/ORDER_DEPENDENCE_REGISTER.md. Still open and
+  failing on main: `test_the_arbiter_takes_a_bad_habit_on_drive_for_less` (the
+  arbiter's choice call bypassed the test's double in one ordering), and the
+  ghost chain's writer thread reopening `~/.aura-test/data/ghost/chain` after the
+  teardown sweep, a path that does not follow the run's state root.
   2026-09-21, 61, and this one poisons every test that runs after it.
   `tests/test_routing_consults_what_actually_ran.py` called
   `logging.disable(logging.CRITICAL)` at MODULE level, which is

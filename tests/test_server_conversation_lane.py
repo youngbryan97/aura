@@ -17744,6 +17744,10 @@ async def test_stabilize_user_facing_reply_clarifies_specificity_push(monkeypatc
 
     patch_chat_lane(monkeypatch, "_resolve_live_aura_state", lambda: None)
     monkeypatch.setattr(_chat_conversation_repair, "_build_grounded_introspection_reply", lambda _msg: "")
+    # No live state at all: the expression frame reads the organs' process-wide
+    # singletons, and after a test that built an organism it found a free energy
+    # and a dominant pull, and reported them.
+    monkeypatch.setattr(_chat_desktop_repair, "_build_aura_expression_frame", lambda _msg: {})
     monkeypatch.setattr(_chat_desktop_repair, "_apply_aura_voice_shaping", lambda text: str(text))
     patch_chat_lane(monkeypatch, "_has_unexpected_cjk", lambda _msg, _text: False)
     patch_chat_lane(monkeypatch, "_record_recent_response", lambda *_args, **_kwargs: None)
