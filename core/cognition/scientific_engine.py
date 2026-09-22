@@ -124,7 +124,7 @@ class ScientificEngine:
         except (sqlite3.Error, OSError) as e:
             record_degradation("scientific_engine", e)
 
-    def _persist(self, h: Hypothesis) -> None:
+    def _persist(self, h: Hypothesis, *, schema_checked: bool = False) -> None:
         try:
             with connecting(self._connect()) as conn:
                 conn.execute(
@@ -139,6 +139,15 @@ class ScientificEngine:
                     ),
                 )
                 conn.commit()
+        except sqlite3.OperationalError as e:
+            # The table was made when this engine was built, and the file can go
+            # while the engine lives: a restore that rewinds the run's state
+            # removes a database an arm created. Made again once, then written.
+            if not schema_checked and "no such table" in str(e):
+                self._init_schema()
+                self._persist(h, schema_checked=True)
+                return
+            record_degradation("scientific_engine", e)
         except (sqlite3.Error, OSError) as e:
             record_degradation("scientific_engine", e)
 

@@ -85,6 +85,17 @@ class EffortLedger:
         with self._lock:
             return dict(self._lifetime)
 
+    def restore(self, pending: dict[str, float], lifetime: dict[str, float]) -> None:
+        """Put both totals back exactly, for a fork rewinding to a snapshot.
+
+        Not through `note`, which adds to the lifetime as well: a restore that
+        re-noted what was pending counted it a second time, and every arm
+        after the first started with more lifetime effort than the snapshot had.
+        """
+        with self._lock:
+            self._pending = {str(k): float(v) for k, v in pending.items()}
+            self._lifetime = {str(k): float(v) for k, v in lifetime.items()}
+
     @staticmethod
     def exertion(spent: dict[str, float]) -> float:
         """One number for how hard the last cycle was. Half is unremarkable.

@@ -30,11 +30,31 @@ class ContinuousSelfField:
         self.dim = max(8, int(dim))
         self._state = [0.0 for _ in range(self.dim)]
         self._lock = threading.RLock()
-        self._last_step = time.monotonic()
+        #: Where elapsed time is read. The monotonic clock by default: it does
+        #: not advance while the machine sleeps, so one step after a wake is
+        #: not an Euler step over hours. See `use_clock`.
+        self._clock = time.monotonic
+        self._last_step = self._clock()
         self._created = self._last_step
         self._tick = 0
         self._thread: threading.Thread | None = None
         self._running = False
+
+    def use_clock(self, clock: Any) -> None:
+        """Read elapsed time from `clock` from now on, keeping the field's age.
+
+        The subject-core harness gives the organism a clock of its own that
+        advances by a fixed step per frame and rewinds on a restore. Every
+        other integrator in her reads it through `time.time`; this one read the
+        machine's monotonic clock, so two arms from one snapshot stepped it
+        over whatever time each happened to take.
+        """
+        with self._lock:
+            age = self._clock() - self._created
+            now = clock()
+            self._clock = clock
+            self._last_step = now
+            self._created = now - age
 
     def start(self, *, hz: float = 20.0) -> None:
         if self._running:
@@ -63,8 +83,8 @@ class ContinuousSelfField:
         *,
         dt: float | None = None,
     ) -> ContinuousFieldPacket:
-        now = time.monotonic()
         with self._lock:
+            now = self._clock()
             elapsed = max(0.001, float(dt) if dt is not None else now - self._last_step)
             self._last_step = now
             telemetry = telemetry or {}
@@ -88,11 +108,11 @@ class ContinuousSelfField:
     def read(self, *, elapsed_s: float = 0.0) -> ContinuousFieldPacket:
         with self._lock:
             state = tuple(round(float(value), 6) for value in self._state)
-            residue_payload = repr((self._tick, state[:8], round(time.monotonic() - self._created, 3))).encode("utf-8")
+            residue_payload = repr((self._tick, state[:8], round(self._clock() - self._created, 3))).encode("utf-8")
             return ContinuousFieldPacket(
                 tick=self._tick,
                 timestamp=time.time(),
-                monotonic_time=time.monotonic(),
+                monotonic_time=self._clock(),
                 state=state,
                 elapsed_s=max(0.0, float(elapsed_s)),
                 private_residue_hash=hashlib.sha256(residue_payload).hexdigest(),

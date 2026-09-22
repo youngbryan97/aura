@@ -73,8 +73,27 @@ def test_the_subsystems_that_spend_it_report_it() -> None:
         ("core/consciousness/liquid_substrate.py", "substrate_steps"),
         ("core/world_model/learned_world_model.py", "train_steps"),
     ):
-        source = (root / path).read_text()
-        assert f'note_effort("{kind}"' in source, f"{path} stopped reporting {kind}"
+        assert kind in _reported_kinds(root / path), f"{path} stopped reporting {kind}"
+
+
+def _reported_kinds(path) -> set[str]:
+    """The first string argument of every `note_effort` call, read from the syntax tree.
+
+    A text search for `note_effort("kind"` missed the substrate's report,
+    which puts the kind on the line after the call opens.
+    """
+    import ast
+
+    kinds: set[str] = set()
+    for node in ast.walk(ast.parse(path.read_text())):
+        if (
+            isinstance(node, ast.Call)
+            and getattr(node.func, "id", getattr(node.func, "attr", "")) == "note_effort"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+        ):
+            kinds.add(node.args[0].value)
+    return kinds
 
 
 def test_the_body_carries_it_and_the_battery_can_displace_it() -> None:

@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import copy
+import copyreg
 import datetime
 import decimal
 import enum
@@ -24,6 +25,7 @@ import fractions
 import functools
 import importlib
 import inspect
+import itertools
 import logging
 import math
 import os
@@ -85,6 +87,7 @@ def _furniture_types() -> tuple[type, ...]:
 
     return (
         _threading.Event,
+        _threading.Condition,
         _threading.Barrier,
         _threading.Semaphore,
         _threading.Thread,
@@ -203,6 +206,22 @@ def _organ_state(organ: Any, depth: int = 0, skip: frozenset[int] = frozenset())
     return out
 
 
+def _rebuild_mapping_proxy(items: dict) -> types.MappingProxyType:
+    return types.MappingProxyType(items)
+
+
+def _reduce_mapping_proxy(proxy: types.MappingProxyType) -> tuple[Any, tuple[dict]]:
+    return _rebuild_mapping_proxy, (dict(proxy),)
+
+
+#: A read-only mapping copies as a read-only mapping over a copied dict. Without
+#: this `deepcopy` refuses it, the object holding one is taken apart field by
+#: field instead of copied, and a frozen dataclass taken apart cannot be written
+#: back: the affect engine's last stimulus receipt, whose appraisal is one,
+#: survived every restore holding the arm's event.
+copyreg.pickle(types.MappingProxyType, _reduce_mapping_proxy)
+
+
 #: The last copy taken of each field, by the owner's id and the field's name.
 #: A snapshot is never mutated: a restore copies out of it (`_place`,
 #: `np.copyto`, a rebuilt dict). So when a field holds exactly what it held at
@@ -240,8 +259,8 @@ def identical(left: Any, right: Any) -> bool:
 
 #: Immutable types whose equality is their whole content.
 _VALUES: tuple[type, ...] = (
-    str, bytes, int, bool, type(None), complex, PurePath, datetime.date, datetime.time,
-    datetime.timedelta, decimal.Decimal, fractions.Fraction, range,
+    str, bytes, bytearray, int, bool, type(None), complex, PurePath, datetime.date,
+    datetime.time, datetime.timedelta, decimal.Decimal, fractions.Fraction, range,
 )
 
 
@@ -258,6 +277,30 @@ def _identical(left: Any, right: Any, pairs: set[tuple[int, int]]) -> bool:
         return left == right
     if isinstance(left, random.Random):
         return left.getstate() == right.getstate()
+    if isinstance(left, np.random.Generator):
+        return _identical(left.bit_generator.state, right.bit_generator.state, set())
+    if isinstance(left, np.random.RandomState):
+        return _identical(left.get_state(legacy=False), right.get_state(legacy=False), set())
+    if isinstance(left, np.random.BitGenerator):
+        return _identical(left.state, right.state, set())
+    readable = _read_foreign(left, right)
+    if readable is not None:
+        return readable
+    if isinstance(left, itertools.count):
+        return repr(left) == repr(right)
+    if isinstance(left, types.MethodType):
+        # A copied method is bound to a copy of its object: the same function,
+        # and an object holding the same things.
+        return left.__func__ is right.__func__ and _identical(left.__self__, right.__self__, pairs)
+    if isinstance(left, (types.SimpleNamespace, types.MappingProxyType)):
+        return _identical(dict(vars(left) if hasattr(left, "__dict__") else left), dict(vars(right) if hasattr(right, "__dict__") else right), pairs)
+    if isinstance(left, types.BuiltinMethodType):
+        # `dict.items` bound to a dict, as a view keeps it: the same method of
+        # an object holding the same things.
+        return left.__name__ == right.__name__ and _identical(left.__self__, right.__self__, pairs)
+    if isinstance(left, _furniture()):
+        # A lock or a queue handle has no state a restore puts back.
+        return True
     pair = (id(left), id(right))
     if pair in pairs:
         # Already being compared further up a cycle.
@@ -300,9 +343,69 @@ def _identical(left: Any, right: Any, pairs: set[tuple[int, int]]) -> bool:
             and left.requires_grad == right.requires_grad
             and left.detach().cpu().numpy().tobytes() == right.detach().cpu().numpy().tobytes()
         )
-    if _state_is_its_dict(left) and not getattr(type(left), "__slots__", None):
-        return _identical(vars(left), vars(right), pairs)
-    return False
+    slots = _slot_names(type(left))
+    if slots is None:
+        return False
+    if any(
+        hasattr(left, name) != hasattr(right, name)
+        or (hasattr(left, name) and not _identical(getattr(left, name), getattr(right, name), pairs))
+        for name in slots
+    ):
+        return False
+    if hasattr(left, "__dict__"):
+        # An object's attributes, read as a set: the order they were assigned
+        # in is not something a phase can see.
+        mine, theirs = vars(left), vars(right)
+        return set(mine) == set(theirs) and all(_identical(mine[k], theirs[k], pairs) for k in mine)
+    return True
+
+
+def _furniture() -> tuple[type, ...]:
+    global _FURNITURE
+    if not _FURNITURE:
+        _FURNITURE = _furniture_types()
+    return _FURNITURE
+
+
+def _slot_names(klass: type) -> tuple[str, ...] | None:
+    """Every slot a Python-written class declares, or None for a type this cannot read."""
+    names: list[str] = []
+    for base in klass.__mro__[:-1]:
+        if not base.__flags__ & _HEAP_TYPE:
+            return None
+        declared = vars(base).get("__slots__", ())
+        if isinstance(declared, str):
+            declared = (declared,)
+        names.extend(name for name in declared if name not in ("__dict__", "__weakref__"))
+    return tuple(names)
+
+
+def _read_foreign(left: Any, right: Any) -> bool | None:
+    """Exact comparison for the library types an organ holds; None for any other type.
+
+    torch's device, dtype and generator, and scipy's sparse matrices. None of
+    them keeps its content in a `__dict__`, so without this each counted as
+    changed on every snapshot and was copied again.
+    """
+    torch = sys.modules.get("torch")
+    if torch is not None:
+        if isinstance(left, (torch.device, torch.dtype)):
+            return bool(left == right)
+        if isinstance(left, torch.Generator):
+            return bool(torch.equal(left.get_state(), right.get_state()))
+    sparse = sys.modules.get("scipy.sparse")
+    if sparse is not None and sparse.issparse(left):
+        if left.shape != right.shape or left.dtype != right.dtype or left.format != right.format:
+            return False
+        a, b = left.tocsr(copy=True), right.tocsr(copy=True)
+        a.sort_indices()
+        b.sort_indices()
+        return (
+            a.indptr.tobytes() == b.indptr.tobytes()
+            and a.indices.tobytes() == b.indices.tobytes()
+            and a.data.tobytes() == b.data.tobytes()
+        )
+    return None
 
 
 def _tensor_type() -> type | None:
@@ -1444,27 +1547,25 @@ def _republish(name: str, current: Any, saved: Mapping[str, Any]) -> None:
         )
 
 
-def _effort_state() -> dict[str, float] | None:
+def _effort_state() -> dict[str, Any] | None:
     try:
         from core.soma.effort import get_effort_ledger
 
-        return dict(get_effort_ledger().peek())
+        ledger = get_effort_ledger()
+        return {"pending": dict(ledger.peek()), "lifetime": dict(ledger.lifetime())}
     except (ImportError, RuntimeError):
         # not a failure: a runtime without the effort ledger has no effort
         # state to snapshot.
         return None
 
 
-def _restore_effort(saved: dict[str, float] | None) -> None:
+def _restore_effort(saved: dict[str, Any] | None) -> None:
     if saved is None:
         return
     try:
         from core.soma.effort import get_effort_ledger
 
-        ledger = get_effort_ledger()
-        ledger.drain()
-        for kind, amount in saved.items():
-            ledger.note(kind, amount)
+        get_effort_ledger().restore(saved.get("pending", {}), saved.get("lifetime", {}))
     except (ImportError, RuntimeError):
         # not a failure: a runtime without the effort ledger has nowhere to
         # put the saved state, and the rest of the restore continues.
@@ -2090,7 +2191,7 @@ class Snapshot:
     #: an arm that thought harder left its exertion on the counter for the next
     #: arm to drain — six tenths of a standard deviation of the body's newest
     #: channel, before either arm had been displaced.
-    effort: dict[str, float] | None = None
+    effort: dict[str, Any] | None = None
 
     #: Module-level singletons the container does not hold. See
     #: `_MODULE_SINGLETONS`.

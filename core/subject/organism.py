@@ -268,7 +268,55 @@ def _stop_threads() -> list[str]:
         # An absent organ has no thread to stop. What has already been
         # stopped is still reported, because the caller has to know.
         return stopped
+    stopped.extend(_stop_the_self_field())
+    stopped.extend(_stop_ontogeny_loops())
     return stopped
+
+
+def _stop_the_self_field() -> list[str]:
+    """The being runtime's continuous self field steps itself twenty times a second.
+
+    On its own thread, against the machine's clock, so between a restore and
+    the next frame it had already moved, and by how long each arm happened to
+    take: the fork check found its state different after every restore. It
+    still steps once a frame from the being runtime, now over the run's own
+    time, which is what the other integrators read.
+    """
+    import time
+
+    field = getattr(optional_service("being_runtime", default=None), "field", None)
+    if field is None or not hasattr(field, "use_clock"):
+        return []
+    field.stop()
+    # Looked up on each call, so it reads the experiment clock once it is installed.
+    field.use_clock(lambda: time.time())
+    return ["being_runtime.self_field"]
+
+
+def _stop_ontogeny_loops() -> list[str]:
+    """The ontogeny core's maintenance loop and outcome sweeper, on their own timers.
+
+    Maintenance retrains her developmental heads every training interval and
+    the sweeper resolves outcomes on a minute's timer, so over a sweep of many
+    hours both would change her between two arms of one pair. Only the loops
+    are stopped: `OntogenyCore.stop` would also take the core off the spine's
+    resolutions, which is part of what she does in a turn.
+    """
+    from core.ontogeny import service
+
+    core = service._core
+    if core is None:
+        return []
+    names = []
+    halt = getattr(core, "_stopped", None)
+    if halt is not None and hasattr(halt, "set"):
+        halt.set()
+        names.append("ontogeny.maintenance")
+    sweeper = getattr(core, "_sweeper", None)
+    if sweeper is not None:
+        sweeper.stop()
+        names.append("ontogeny.sweeper")
+    return names
 
 
 def _live_tasks() -> list[str]:
