@@ -23,6 +23,19 @@ That is the property a layering rule is for. A taxonomy can be added on top
 later, package by package, by replacing a generated file with a written one;
 the seven existing files are exactly that and are left alone.
 
+A rule narrower than a package survives regeneration. Where a generated file
+already names a module (`"+core.self.what_came_before"` for a package that
+reads one ledger from core.self), and every import the package makes into
+that package is inside the modules it names, the module rules and the comment
+lines above them are written back in place of the package rule. Coverage is
+judged with the layering checker's own import resolution and rule matching,
+so the generator and the gate cannot disagree about what a rule allows. An
+import outside the named modules adds a rule for that module, which is a line
+in a diff like any other new edge; a `from core.X import name` resolves to
+core.X itself and only the package rule covers it. The same regeneration used
+to widen every such rule to the whole package and drop its comment, which is
+why nine packages below are written rather than generated.
+
     python tools/generate_deps.py --check    # regenerate nothing, compare
     python tools/generate_deps.py --write
 """
@@ -32,12 +45,21 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import re
 import subprocess
+import sys
 from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CORE = ROOT / "core"
+
+# Run as `python tools/generate_deps.py`, which puts tools/ on the import path
+# and the repository nowhere on it.
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.check_layering import Rule, imports_of  # noqa: E402
 
 #: Hand-written files, left alone. Each states an architectural intent that a
 #: generated closed-world list would replace with a weaker fact.
@@ -65,35 +87,43 @@ HANDWRITTEN = {
     # rule exists to hold. It was generated once, on 2026-09-07, and the
     # written rule survived by one command.
     "subject",
+    # The next nine are written for one reason each: a rule that names a
+    # MODULE. Until 22 September 2026 the generator wrote package-level rules
+    # only, so regenerating one of these widened its rule to the whole package
+    # and dropped the comment. It now keeps a module rule that still covers
+    # every import (`narrowings`), and a render of all nine that day gave
+    # exactly the rules each file holds. They stay written because their
+    # descriptions and header prose are written too; moving those into
+    # comments above each rule would let the generator take them back.
     # Three packages whose rule names a MODULE rather than a package.
     # Narrative classification reads core.conversation.word_markers, the
     # heuristic imperatives read the same module to match a principle, and
-    # cycle observation reads core.state.percepts; the generator emits
-    # package-level rules only, so regenerating any of them widens it to the
+    # cycle observation reads core.state.percepts; the generator emitted
+    # package-level rules only, so regenerating any of them widened it to the
     # whole of core.conversation or the whole of core.state and the narrowing
-    # is gone with the gate still green. core/values was the third and was not
+    # was gone with the gate still green. core/values was the third and was not
     # listed, so `make deps-check` was red on it and the only way to satisfy
     # the gate was to widen the rule.
     "consciousness", "world_model", "values",
     # Two more with a module-level rule. The post-action verifier and the task
     # graph each register an invariant and take nothing else from core.verify,
-    # so each names core.verify.invariants. Regenerating widens both to the
+    # so each names core.verify.invariants. Regenerating widened both to the
     # whole of core.verify, the verifier that checks them included.
     "capabilities", "planning",
     # And one more. Steering and recurrent evaluation decode the public channel
-    # and take nothing else from core.brain; regenerating widens that to the
+    # and take nothing else from core.brain; regenerating widened that to the
     # cognition the evaluation scores.
     "evaluation",
     # The other direction of that same edge. Frontier certification takes
     # the exact paired test from core.evaluation and nothing else there, so
-    # core/brain names core.evaluation.paired_power. Regenerating widens it to
+    # core/brain names core.evaluation.paired_power. Regenerating widened it to
     # the whole of core.evaluation — the scorers of the cognition this package
     # is — with the gate still green.
     "brain",
     # And one more of the module-level kind. The registered
     # knowledge-revision canary exercises the canonical store and takes
     # nothing else from core.knowledge, so core/organism names
-    # core.knowledge.revision_validation. Regenerating widens that to the
+    # core.knowledge.revision_validation. Regenerating widened that to the
     # whole of core.knowledge with the gate still green — and until this
     # entry, `make deps-check` was red for exactly the reason the comment
     # at the top of this block describes: a real rule written into a
@@ -222,7 +252,95 @@ def imports_by_package() -> dict[str, set[str]]:
     return found
 
 
-def render(package: str, allowed: set[str]) -> str:
+#: The comment lines this tool writes itself. They are never carried over as
+#: the comment of a written rule that happens to follow one.
+_SECTION_COMMENTS = frozenset(
+    {
+        "# What this package reaches for today.",
+        "# Outside core. Each of these is a layering break already in",
+        "# the tree; recorded here so it is visible where the rule is,",
+        "# and so removing it is a one-line diff.",
+        "# Everything else.",
+    }
+)
+
+_MODULE_RULE = re.compile(r'^\s*"\+(core\.[A-Za-z_][\w.]*)",\s*$')
+
+
+def written_narrowings(text: str) -> dict[str, tuple[str, ...]]:
+    """Every module-level `+` rule in a DEPS file, with the comment lines directly above it.
+
+    A module-level rule names something inside a core package, so it has at
+    least three dotted parts: `core.self.what_came_before`. A blank line or
+    any other line ends the comment that belongs to the next rule.
+    """
+    known = set(packages())
+    found: dict[str, tuple[str, ...]] = {}
+    comment: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            if stripped not in _SECTION_COMMENTS:
+                comment.append(stripped)
+            continue
+        matched = _MODULE_RULE.match(line)
+        if matched:
+            parts = matched.group(1).split(".")
+            if len(parts) >= 3 and parts[1] in known:
+                found[matched.group(1)] = tuple(comment)
+        comment = []
+    return found
+
+
+def checker_imports(package: str) -> set[str]:
+    """Every core module a package imports, resolved as tools/check_layering.py resolves it."""
+    found: set[str] = set()
+    for path in sorted((CORE / package).rglob("*.py")):
+        if SKIP_DIRS & set(path.parts):
+            continue
+        found.update(name for name, _line in imports_of(path) if name.startswith("core."))
+    return found
+
+
+def narrowings(
+    package: str,
+    allowed: set[str],
+    written: dict[str, tuple[str, ...]],
+    imported: set[str],
+) -> dict[str, list[tuple[str, tuple[str, ...]]]]:
+    """Which package rules the written module rules can stand in for, and with what.
+
+    Keyed by the package rule (`core.self`); each value is the module rules to
+    write in its place, each with its comment. A written rule no import still
+    needs is dropped, as a package rule is when its last import goes. An
+    import into the package that none of them covers gets a rule of its own
+    at the module the checker resolved. An import of the package itself,
+    `from core.self import name`, can only be covered by the package rule, so
+    that package is written whole.
+    """
+    by_target: dict[str, list[str]] = defaultdict(list)
+    for prefix in written:
+        by_target[".".join(prefix.split(".")[:2])].append(prefix)
+    result: dict[str, list[tuple[str, tuple[str, ...]]]] = {}
+    for target, prefixes in sorted(by_target.items()):
+        if target == f"core.{package}" or target not in allowed:
+            continue
+        reached = {m for m in imported if m == target or m.startswith(target + ".")}
+        if not reached or target in reached:
+            continue
+        rules = [Rule(kind="+", prefix=prefix) for prefix in prefixes]
+        kept = sorted(r.prefix for r in rules if any(r.matches(m) for m in reached))
+        added = sorted(m for m in reached if not any(r.matches(m) for r in rules))
+        result[target] = [(prefix, written.get(prefix, ())) for prefix in sorted(kept + added)]
+    return result
+
+
+def render(
+    package: str,
+    allowed: set[str],
+    narrowed: dict[str, list[tuple[str, tuple[str, ...]]]] | None = None,
+) -> str:
+    narrowed = narrowed or {}
     inside = sorted(a for a in allowed if a.startswith("core."))
     outside = sorted(a for a in allowed if not a.startswith("core."))
 
@@ -242,7 +360,9 @@ def render(package: str, allowed: set[str]) -> str:
     if inside:
         lines.append("\n    # What this package reaches for today.\n")
         for name in inside:
-            lines.append(f'    "+{name}",\n')
+            for prefix, comment in narrowed.get(name, [(name, ())]):
+                lines.extend(f"    {remark}\n" for remark in comment)
+                lines.append(f'    "+{prefix}",\n')
     if outside:
         lines.append(
             "\n    # Outside core. Each of these is a layering break already in\n"
@@ -372,7 +492,10 @@ def main(argv: list[str] | None = None) -> int:
         if package in HANDWRITTEN:
             continue
         target = CORE / package / "DEPS"
-        content = render(package, graph.get(package, set()))
+        allowed = graph.get(package, set())
+        by_hand = written_narrowings(target.read_text("utf-8")) if target.exists() else {}
+        narrowed = narrowings(package, allowed, by_hand, checker_imports(package)) if by_hand else {}
+        content = render(package, allowed, narrowed)
         if args.check:
             if not target.exists() or target.read_text("utf-8") != content:
                 stale.append(f"core/{package}/DEPS")

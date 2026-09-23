@@ -228,3 +228,101 @@ def test_every_registered_name_still_has_a_deps_file():
         if not (CORE / package / "DEPS").is_file()
     ]
     assert not missing, f"HANDWRITTEN names with no DEPS file: {missing}"
+
+
+# ── a rule narrower than a package survives regeneration ─────────────────
+#
+# Five generated files named one module where the generator writes a package
+# (core/affect's `+core.self.what_came_before`, core/unity's
+# `+core.agency.habits_are_hers`), each with a comment saying why. The
+# generator rewrote them to the whole package and dropped the comment, so
+# `make deps-check` was red on all five and the only command that turned it
+# green deleted the narrowing (22 September 2026).
+
+_WRITTEN = '''include_rules = [
+    "+core.affect",
+
+    # What this package reaches for today.
+    "+core.runtime",
+    # Its ledgers are part of her history.
+    "+core.self.what_came_before",
+
+    # Everything else.
+    "-core",
+]
+'''
+
+
+def test_a_module_rule_is_read_with_the_comment_above_it():
+    written = _generator().written_narrowings(_WRITTEN)
+    assert written == {"core.self.what_came_before": ("# Its ledgers are part of her history.",)}
+
+
+def test_the_generators_own_section_comment_is_not_a_rules_comment():
+    # A module rule first in its section sits right under the section comment
+    # this tool writes itself. Only the rule's own comment goes with it.
+    text = _WRITTEN.replace('    "+core.runtime",\n', "")
+    assert "reaches for today.\n    # Its ledgers" in text
+    written = _generator().written_narrowings(text)
+    assert written["core.self.what_came_before"] == ("# Its ledgers are part of her history.",)
+
+
+def test_a_module_rule_that_covers_every_import_is_written_back():
+    generator = _generator()
+    allowed = {"core.runtime", "core.self"}
+    imported = {"core.runtime.errors", "core.self.what_came_before"}
+    narrowed = generator.narrowings("affect", allowed, generator.written_narrowings(_WRITTEN), imported)
+    body = generator.render("affect", allowed, narrowed)
+    assert '"+core.self.what_came_before",' in body
+    assert '"+core.self",' not in body
+    assert "    # Its ledgers are part of her history.\n    \"+core.self.what_came_before\"," in body
+
+
+def test_an_import_outside_the_named_modules_gets_a_module_rule_of_its_own():
+    generator = _generator()
+    allowed = {"core.self"}
+    imported = {"core.self.what_came_before", "core.self.recognition"}
+    narrowed = generator.narrowings("affect", allowed, generator.written_narrowings(_WRITTEN), imported)
+    assert [prefix for prefix, _ in narrowed["core.self"]] == [
+        "core.self.recognition",
+        "core.self.what_came_before",
+    ]
+
+
+def test_an_import_of_the_package_itself_needs_the_package_rule():
+    generator = _generator()
+    allowed = {"core.self"}
+    # `from core.self import what_came_before` resolves to core.self in the
+    # checker, which only a package rule matches.
+    imported = {"core.self", "core.self.what_came_before"}
+    narrowed = generator.narrowings("affect", allowed, generator.written_narrowings(_WRITTEN), imported)
+    assert "core.self" not in narrowed
+    assert '"+core.self",' in generator.render("affect", allowed, narrowed)
+
+
+def test_a_module_rule_no_import_needs_is_dropped():
+    generator = _generator()
+    written = dict(generator.written_narrowings(_WRITTEN))
+    written["core.self.recognition"] = ("# No longer read.",)
+    narrowed = generator.narrowings("affect", {"core.self"}, written, {"core.self.what_came_before"})
+    assert [prefix for prefix, _ in narrowed["core.self"]] == ["core.self.what_came_before"]
+
+
+def test_the_generator_judges_coverage_with_the_checkers_matching():
+    """A rule the generator keeps must be one the gate accepts, and no wider."""
+    generator = _generator()
+    checker = _load_checker()
+    body = generator.render(
+        "affect",
+        {"core.self"},
+        generator.narrowings(
+            "affect", {"core.self"}, generator.written_narrowings(_WRITTEN), {"core.self.what_came_before"}
+        ),
+    )
+    rules = [
+        checker.Rule(kind=line.strip()[1], prefix=line.strip()[2:].rstrip('",'))
+        for line in body.splitlines()
+        if line.strip().startswith('"+') or line.strip().startswith('"-')
+    ]
+    assert checker.check_module("core.self.what_came_before", rules) is None
+    assert checker.check_module("core.self.recognition", rules) is not None

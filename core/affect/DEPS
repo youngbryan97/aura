@@ -6,14 +6,12 @@
 # `make deps-generate`; replace this file with a written one when this
 # package earns a real architectural rule, the way core/runtime/DEPS has.
 #
-# 17 outbound edges when this was generated.
+# 18 outbound edges when this was generated.
 
 description = "core.affect: may import only what it already imports; every new edge is an edit here."
 
 include_rules = [
     "+core.affect",
-    # Its ledgers are part of her history. See core/self/what_came_before.py.
-    "+core.self.what_came_before",
 
     # What this package reaches for today.
     "+core.adaptation",
@@ -28,6 +26,8 @@ include_rules = [
     "+core.memory",
     "+core.phenomenal_substrate",
     "+core.runtime",
+    # Its ledgers are part of her history. See core/self/what_came_before.py.
+    "+core.self.what_came_before",
     "+core.senses",
     "+core.service_names",
     "+core.state",
