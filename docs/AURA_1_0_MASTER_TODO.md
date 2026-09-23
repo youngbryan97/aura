@@ -1176,6 +1176,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Role-alias paired fit](evidence/G03_ROLE_ALIAS_FIT_NEGATIVE_2026-09-22.md)
+  changed the training population but no held-out role-binding outcome;
+  the ordinary decoder still scores reachable, role-swapped graphs above the
+  intended graphs. Training/runtime definition alignment remains open.
   [Suggestions2 review and source-only factor probes](evidence/G03_SUGGESTIONS2_DISPOSITION_2026-09-22.md)
   add opt-in hard negatives and step-local diagnostics; no promotion claim.
   [Paired method overlap and advisory review](evidence/G03_METHOD_OVERLAP_AND_ADVISORY_REVIEW_2026-09-22.md):
