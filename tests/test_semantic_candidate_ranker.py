@@ -7,13 +7,15 @@ import torch
 from torch.nn import functional as functional
 
 from core.learning.procedure_induction import Instruction, Program
-from core.learning.semantic_candidate_contrasts import source_program_contrasts
+from core.learning.semantic_candidate_contrasts import (
+    source_program_contrasts, source_program_factor_contrasts,
+)
 from core.learning.semantic_candidate_ranker import ContextualProgramRanker, candidate_set_loss
 from core.learning.semantic_construction_folds import construction_folds
 from core.learning.semantic_program_ir import TokenSpan
 from core.learning.semantic_request_context import RequestContextConfig
 from tools.compare_semantic_candidate_methods import _direct_choice, _portfolio_comparison
-from tools.evaluate_semantic_candidate_ranker import _rankable, _training_views
+from tools.evaluate_semantic_candidate_ranker import _factor_cases, _rankable, _training_views
 from tools.materialize_semantic_candidate_training import _plan, _select_source_ids
 from tools.replay_semantic_candidate_ranker_gap import _construction_counts
 
@@ -189,6 +191,37 @@ def test_source_contrasts_are_typed_witnessed_and_deterministic():
                for program in first if program != target)
     with pytest.raises(ValueError, match="source identity"):
         source_program_contrasts(target, (5, 2), (peer,), source_sha256="bad")
+
+
+def test_source_factor_contrasts_include_witnessed_swap_and_later_operation():
+    target = Program(3, (Instruction("count_of", (0, 1)), Instruction("sub", (3, 2))))
+    inputs = ((8, 3, 5), 3, 2)
+    rows = source_program_factor_contrasts(target, inputs, source_sha256="a" * 64)
+    assert rows == source_program_factor_contrasts(target, inputs, source_sha256="a" * 64)
+    assert target == rows[0]
+    assert Program(3, (Instruction("count_of", (0, 1)), Instruction("sub", (2, 3)))) in rows
+    assert Program(3, (Instruction("count_of", (0, 1)), Instruction("add", (3, 2)))) in rows
+    assert len({program.sha() for program in rows}) == len(rows)
+    assert all(any(program.run(values) != target.run(values)
+                   for values in (inputs, ((2, 2, 3), 2, 4), ((5, 1), 1, 3)))
+               for program in rows[1:])
+
+
+def test_factor_training_cases_never_read_heldout_examples():
+    target = Program(3, (Instruction("count_of", (0, 1)), Instruction("sub", (3, 2))))
+    source = "a" * 64
+    item = SimpleNamespace(public_inputs=((8, 3, 5), 3, 2),
+                           ir=SimpleNamespace(to_program=lambda: target,
+                                              input_spans=(TokenSpan(0, 1), TokenSpan(2, 3),
+                                                           TokenSpan(4, 5)),
+                                              instructions=(SimpleNamespace(
+                                                  operation_span=TokenSpan(1, 2)),
+                                                  SimpleNamespace(operation_span=TokenSpan(3, 4)))))
+    cases = _factor_cases({source: item}, [source])
+    assert len(cases[source][0][0]) >= 3
+    assert sum(cases[source][0][1]) == 1
+    assert _factor_cases({}, []) == {}
+    assert _training_views(source, {source: cases[source]}, {}) == (cases[source],)
 
 
 def test_candidate_subset_is_selected_by_construction_without_labels():

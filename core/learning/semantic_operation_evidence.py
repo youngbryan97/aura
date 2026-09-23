@@ -34,12 +34,14 @@ class OperationEvidence:
     prototypes: dict[str, np.ndarray]
     support: dict[str, int]
     feature_width: int
+    positioned_prototypes: dict[tuple[int, str], np.ndarray] | None = None
 
     @classmethod
     def fit(cls, examples, *, source_ids: set[str]) -> OperationEvidence:
         if not source_ids:
             raise ValueError("operation prototypes need source training examples")
         vectors: dict[str, list[np.ndarray]] = {}
+        positioned: dict[tuple[int, str], list[np.ndarray]] = {}
         seen = set()
         width = None
         for item in examples:
@@ -54,15 +56,18 @@ class OperationEvidence:
                 width = features.shape[1]
             if features.ndim != 2 or features.shape[1] != width:
                 raise ValueError("operation source feature width changed")
-            for instruction in item.ir.instructions:
-                vectors.setdefault(instruction.op, []).append(
-                    _span_vector(features, instruction.operation_span))
+            for index, instruction in enumerate(item.ir.instructions):
+                vector = _span_vector(features, instruction.operation_span)
+                vectors.setdefault(instruction.op, []).append(vector)
+                positioned.setdefault((index, instruction.op), []).append(vector)
         if seen != source_ids or width is None:
             raise ValueError("operation source training cohort is incomplete")
         return cls({name: _unit(np.mean(rows, axis=0)) for name, rows in vectors.items()},
-                   {name: len(rows) for name, rows in vectors.items()}, width)
+                   {name: len(rows) for name, rows in vectors.items()}, width,
+                   {key: _unit(np.mean(rows, axis=0)) for key, rows in positioned.items()})
 
-    def scores(self, features, programs: tuple[Program, ...], operation_spans) -> np.ndarray:
+    def scores(self, features, programs: tuple[Program, ...], operation_spans,
+               *, positioned: bool = False) -> np.ndarray:
         features = np.asarray(_hidden_array(features), dtype=np.float32)
         if (features.ndim != 2 or features.shape[1] != self.feature_width
                 or not programs or len(programs) != len(operation_spans)):
@@ -73,13 +78,19 @@ class OperationEvidence:
                     or len(spans) != len(program.instructions)):
                 raise ValueError("operation candidate is outside the typed floor")
             evidence = []
-            for instruction, span in zip(program.instructions, spans, strict=True):
-                prototype = self.prototypes.get(instruction.op)
+            for index, (instruction, span) in enumerate(
+                    zip(program.instructions, spans, strict=True)):
+                prototype = ((self.positioned_prototypes or {}).get((index, instruction.op))
+                             if positioned else None)
+                if prototype is None:
+                    prototype = self.prototypes.get(instruction.op)
                 if prototype is None:
                     raise ValueError("operation candidate has no source-trained prototype")
                 evidence.append(float(_span_vector(features, span) @ prototype))
             values.append(float(np.mean(evidence)))
         return np.asarray(values, dtype=np.float32)
 
-    def choose(self, features, programs: tuple[Program, ...], operation_spans) -> int:
-        return int(self.scores(features, programs, operation_spans).argmax())
+    def choose(self, features, programs: tuple[Program, ...], operation_spans,
+               *, positioned: bool = False) -> int:
+        return int(self.scores(features, programs, operation_spans,
+                               positioned=positioned).argmax())

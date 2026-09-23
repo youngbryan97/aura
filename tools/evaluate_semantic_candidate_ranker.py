@@ -114,6 +114,8 @@ def _verify_sources(source_report: dict, candidate_report: dict, model, bank_rep
 
     plan = bank_report["plan"]
     full = sorted(item.ir.source_text_sha256 for item in examples if item.split == "train")
+    withheld = {item.ir.source_text_sha256 for item in examples
+                if item.split in {"validation", "test"}}
     ids = list(plan["source_ids"])
     checks = {
         "candidate_model": candidate_report.get("candidate") == model.receipt_sha256,
@@ -124,6 +126,7 @@ def _verify_sources(source_report: dict, candidate_report: dict, model, bank_rep
         and bank_report["observed"] == len(ids),
         "source_population": plan["source_population"] == len(full),
         "bank_source_membership": set(ids) <= set(full) and ids == sorted(ids),
+        "source_split_disjoint": not (set(full) & withheld),
         "bank_model": plan["model_receipt_sha256"] == model.receipt_sha256,
         "source_features": plan["source_manifest_sha256s"] == source_report[
             "representation_compatibility"]["source_feature_manifest_sha256s"],
@@ -160,12 +163,35 @@ def _contrast_cases(items: dict, train: list[str], held: list[str], *, limit: in
     return cases
 
 
+def _factor_cases(items: dict, train: list[str]) -> dict:
+    from core.learning.semantic_candidate_contrasts import source_program_factor_contrasts
+
+    cases = {}
+    for source in train:
+        item = items[source]
+        target = item.ir.to_program()
+        programs = source_program_factor_contrasts(
+            target, item.public_inputs, source_sha256=source)
+        if len(programs) < 2:
+            continue
+        labels = tuple(program.sha() == target.sha() for program in programs)
+        kinds = tuple("integer_sequence" if isinstance(value, (tuple, list)) else "integer"
+                      for value in item.public_inputs)
+        anchors = tuple(tuple(instruction.operation_span for instruction in item.ir.instructions)
+                        for _ in programs)
+        cases[source] = ((programs, labels, tuple(program.sha() for program in programs)),
+                         item.ir.input_spans, kinds, anchors)
+    return cases
+
+
 def _training_views(source: str, banks: dict, contrasts: dict | None) -> tuple:
     """Keep real proposals and witnessed alternatives as separate evidence."""
     bank = banks[source]
     if contrasts is None:
         return (bank,)
-    contrast = contrasts[source]
+    contrast = contrasts.get(source)
+    if contrast is None:
+        return (bank,)
     if bank[1:3] != contrast[1:3]:
         raise ValueError("mixed candidate evidence changed source grounding")
     return bank, contrast
@@ -199,7 +225,8 @@ def main() -> None:
     parser.add_argument("--candidate-report", type=Path, required=True)
     parser.add_argument("--feature-root", type=Path, required=True)
     parser.add_argument("--bank-directory", type=Path)
-    parser.add_argument("--training-mode", choices=("bank", "source_contrasts", "mixed"),
+    parser.add_argument("--training-mode", choices=("bank", "source_contrasts", "mixed",
+                                                    "bank_factors"),
                         default="source_contrasts")
     parser.add_argument("--contrast-limit", type=int, default=24)
     parser.add_argument("--folds", type=Path, required=True)
@@ -211,8 +238,8 @@ def main() -> None:
     args = parser.parse_args()
     if args.epochs < 1 or args.pilot_rows < 0 or args.contrast_limit < 2:
         parser.error("epochs and contrast-limit must be positive; pilot-rows nonnegative")
-    if args.training_mode in {"bank", "mixed"} and args.bank_directory is None:
-        parser.error("bank or mixed training needs a complete source bank directory")
+    if args.training_mode in {"bank", "mixed", "bank_factors"} and args.bank_directory is None:
+        parser.error("bank training needs a complete source bank directory")
 
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
@@ -245,9 +272,12 @@ def main() -> None:
                                     folds, examples)
     else:
         ids = sorted(item.ir.source_text_sha256 for item in examples if item.split == "train")
+        withheld = {item.ir.source_text_sha256 for item in examples
+                    if item.split in {"validation", "test"}}
         if (candidate_report.get("candidate") != model.receipt_sha256
                 or folds.get("schema") != "aura.semantic_construction_folds.v1"
                 or sorted(folds["assignments"]) != ids
+                or set(ids) & withheld
                 or folds["validation_used"] is not False or folds["test_used"] is not False):
             raise ValueError("source contrast inputs do not share a frozen cohort")
         plan = None
@@ -258,14 +288,15 @@ def main() -> None:
     train = [source for source in ids if folds["assignments"][source] != args.fold]
     if args.pilot_rows:
         train, held = train[:args.pilot_rows], held[:args.pilot_rows]
-    if args.training_mode in {"bank", "mixed"}:
+    if args.training_mode in {"bank", "mixed", "bank_factors"}:
         rows = {source: _read_bank(args.bank_directory / "rows" / f"{source}.json",
                                    source=source, plan_sha=plan["plan_sha256"],
                                    model_receipt=model.receipt_sha256,
                                    expected_receipt=bank_report["row_receipts"][source]) for source in ids}
         cases = {source: _rankable(items[source], rows[source]) for source in train + held}
         contrasts = (_contrast_cases(items, train, held, limit=args.contrast_limit)
-                     if args.training_mode == "mixed" else None)
+                     if args.training_mode == "mixed" else
+                     _factor_cases(items, train) if args.training_mode == "bank_factors" else None)
     else:
         cases = _contrast_cases(items, train, held, limit=args.contrast_limit)
         contrasts = None
@@ -305,10 +336,10 @@ def main() -> None:
         raise ValueError("no source-training candidates had a verified solution")
     train_probe = (train if args.pilot_rows else train[:64])
     training_evaluation = (_evaluate(ranker, items, rows, train_probe)
-                           if args.training_mode in {"bank", "mixed"} else
+                           if args.training_mode in {"bank", "mixed", "bank_factors"} else
                            _evaluate_contrasts(ranker, items, cases, train_probe))
     evaluation = (_evaluate(ranker, items, rows, held)
-                  if args.training_mode in {"bank", "mixed"}
+                  if args.training_mode in {"bank", "mixed", "bank_factors"}
                   else _evaluate_contrasts(ranker, items, cases, held))
     args.output_directory.mkdir(parents=True, exist_ok=True)
     weights = args.output_directory / f"fold-{args.fold}.safetensors"

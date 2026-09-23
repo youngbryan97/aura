@@ -18,14 +18,16 @@ def _digest(body: dict) -> str:
     return hashlib.sha256(json.dumps(body, sort_keys=True, allow_nan=False).encode()).hexdigest()
 
 
-def _evaluate(model, items: dict, rows: dict, sources: set[str]) -> dict:
+def _evaluate(model, items: dict, rows: dict, sources: set[str],
+              *, positioned: bool = False) -> dict:
     from tools.evaluate_semantic_candidate_ranker import _rankable
 
     results = []
     for source in sorted(sources):
         item, row = items[source], rows[source]
         (programs, labels, keys), _spans, _kinds, anchors = _rankable(item, row)
-        selected = model.choose(item.hidden_states, programs, anchors)
+        selected = model.choose(item.hidden_states, programs, anchors,
+                                positioned=positioned)
         results.append({"source": source, "incumbent_correct": bool(
             row["bank"]["selected_program_sha256"] is not None and labels[0]),
             "prototype_correct": labels[selected], "candidate_available": any(labels),
@@ -101,9 +103,13 @@ def main() -> None:
         raise ValueError("operation probe gap bank changed its population")
     source_model = OperationEvidence.fit(examples, source_ids=train)
     source_result = _evaluate(source_model, source_items, source_rows, held)
+    positioned_source = _evaluate(source_model, source_items, source_rows, held,
+                                  positioned=True)
     all_source_model = OperationEvidence.fit(examples, source_ids=set(source_items))
     gap_result = _evaluate(all_source_model, validation_items, gap_rows, set(wanted))
-    body = {"schema": "aura.semantic_operation_evidence_probe.v1",
+    positioned_gap = _evaluate(all_source_model, validation_items, gap_rows, set(wanted),
+                               positioned=True)
+    body = {"schema": "aura.semantic_operation_evidence_probe.v2",
             "serving_authority": False, "development_only": True,
             "fresh_transfer": False, "fold": args.fold,
             "source_bank_receipt_sha256": bank_report["receipt_sha256"],
@@ -113,7 +119,9 @@ def main() -> None:
             "full_source_training_examples": len(source_items),
             "source_operation_support": source_model.support,
             "all_source_operation_support": all_source_model.support,
-            "heldout_source": source_result, "exposed_gap": gap_result}
+            "heldout_source": source_result, "exposed_gap": gap_result,
+            "positioned_heldout_source": positioned_source,
+            "positioned_exposed_gap": positioned_gap}
     payload = json.dumps({**body, "receipt_sha256": _digest(body)}, sort_keys=True).encode()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     if args.output.exists() and args.output.read_bytes() != payload:
@@ -122,6 +130,8 @@ def main() -> None:
     print(json.dumps({"source": {key: source_result[key] for key in (
         "population", "incumbent_correct", "prototype_correct", "gains", "regressions")},
         "exposed_gap": {key: gap_result[key] for key in (
+            "population", "incumbent_correct", "prototype_correct")},
+        "positioned_exposed_gap": {key: positioned_gap[key] for key in (
             "population", "incumbent_correct", "prototype_correct")}}), flush=True)
 
 

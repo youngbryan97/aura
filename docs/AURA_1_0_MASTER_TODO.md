@@ -1176,6 +1176,8 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Suggestions2 review and source-only factor probes](evidence/G03_SUGGESTIONS2_DISPOSITION_2026-09-22.md)
+  add opt-in hard negatives and step-local diagnostics; no promotion claim.
   [Paired method overlap and advisory review](evidence/G03_METHOD_OVERLAP_AND_ADVISORY_REVIEW_2026-09-22.md):
   source-fold oracle 24/24, exposed-failure oracle only 9/23; consensus on
   exposed failures is 4/17. Active inquiries now evaluate the full bounded

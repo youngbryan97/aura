@@ -37,6 +37,47 @@ def _witnessed_difference(target: Program, candidate: Program, probes: Sequence[
     return False
 
 
+def source_program_factor_contrasts(
+    target: Program, public_inputs: Sequence, *, source_sha256: str,
+) -> tuple[Program, ...]:
+    """Build witnessed role swaps and later-operation rivals from source only."""
+    if (len(source_sha256) != 64
+            or any(character not in "0123456789abcdef" for character in source_sha256)):
+        raise ValueError("factor contrasts require a source identity")
+    inputs = tuple(tuple(value) if isinstance(value, list) else value for value in public_inputs)
+    input_kinds = tuple("integer_sequence" if isinstance(value, tuple) else "integer"
+                        for value in inputs)
+    types = _register_types(target, input_kinds)
+    if types is None:
+        raise ValueError("factor contrast target violates the floor type contract")
+    probes = counterfactual_inputs(inputs, count=32, seed=int(source_sha256[:8], 16))
+    candidates = [target]
+    seen = {target.sha()}
+
+    def retain(index: int, instruction: Instruction) -> None:
+        changed = list(target.instructions)
+        changed[index] = instruction
+        candidate = Program(target.n_inputs, tuple(changed))
+        key = candidate.sha()
+        candidate_types = _register_types(candidate, input_kinds)
+        if (key not in seen and candidate_types is not None
+                and candidate_types[-1] == types[-1]
+                and _witnessed_difference(target, candidate, probes)):
+            candidates.append(candidate)
+            seen.add(key)
+
+    for index, instruction in enumerate(target.instructions):
+        if (len(instruction.args) == 2 and instruction.args[0] != instruction.args[1]
+                and types[instruction.args[0]] == types[instruction.args[1]]):
+            retain(index, Instruction(instruction.op, tuple(reversed(instruction.args))))
+        if index > 0:
+            signature = semantic_primitive_type_signature(instruction.op)
+            for name in sorted(PRIMITIVES_BY_NAME):
+                if name != instruction.op and semantic_primitive_type_signature(name) == signature:
+                    retain(index, Instruction(name, instruction.args))
+    return tuple(candidates)
+
+
 def source_program_contrasts(
     target: Program, public_inputs: Sequence, peer_programs: Sequence[Program],
     *, source_sha256: str, limit: int = 32,

@@ -51,3 +51,22 @@ def test_operation_evidence_rejects_unsupported_op_and_span_geometry():
         model.choose(features, (sub,), ((TokenSpan(0, 1),),))
     with pytest.raises(ValueError, match="typed floor"):
         model.choose(features, (add,), ((),))
+
+
+def test_positioned_operation_evidence_distinguishes_later_step():
+    examples = (
+        SimpleNamespace(split="train", hidden_states=np.asarray(((1., 0.), (0., 1.))),
+                        ir=SimpleNamespace(source_text_sha256="a", instructions=(
+                            SimpleNamespace(op="add", operation_span=TokenSpan(0, 1)),
+                            SimpleNamespace(op="sub", operation_span=TokenSpan(1, 2))))),
+        SimpleNamespace(split="train", hidden_states=np.asarray(((0., 1.), (1., 0.))),
+                        ir=SimpleNamespace(source_text_sha256="b", instructions=(
+                            SimpleNamespace(op="sub", operation_span=TokenSpan(0, 1)),
+                            SimpleNamespace(op="add", operation_span=TokenSpan(1, 2))))),
+    )
+    model = OperationEvidence.fit(examples, source_ids={"a", "b"})
+    correct = Program(2, (Instruction("add", (0, 1)), Instruction("sub", (2, 1))))
+    rival = Program(2, (Instruction("add", (0, 1)), Instruction("add", (2, 1))))
+    spans = ((TokenSpan(0, 1), TokenSpan(1, 2)),) * 2
+    assert model.choose(examples[0].hidden_states, (correct, rival), spans,
+                        positioned=True) == 0
