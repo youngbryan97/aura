@@ -2303,7 +2303,6 @@ class UnifiedWill(_ReadsTheContext):
         # Assertiveness is now a learnable parameter reinforced by post-action outcomes
         # via record_outcome(). If no outcome is recorded (e.g. pure responses), we
         # keep the parameter stable.
-        pass
 
         # Periodically refresh identity
         if self._state.total_decisions % 50 == 0:

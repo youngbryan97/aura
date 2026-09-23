@@ -18,7 +18,6 @@ from __future__ import annotations
 from .llm_health_router_endpoint_call import _CallsTheEndpoint
 import asyncio
 import inspect  # noqa: F401  (read at call time by the lifted module)
-import json
 import logging
 import math
 import os
