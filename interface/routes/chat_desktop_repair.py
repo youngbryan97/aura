@@ -1204,8 +1204,12 @@ def _read_capability_catalog_snapshot() -> _CapabilityCatalogSnapshot:
     registered_count = 0
     governance_available = _runtime_tool_governance_available()
     truncated = False
-    started_at = time.monotonic()
     memory_block = _capability_catalog_memory_block_reason()
+    # The budget bounds the read. The pressure check is the gate in front of
+    # it, and its first call imports the memory monitor: 0.19 s on a loaded
+    # host, over half the 0.35 s budget, so the read could expire before its
+    # first entry and report a catalog it never looked at as unavailable.
+    started_at = time.monotonic()
     if memory_block:
         logger.warning(
             "Skipping optional capability catalog read under memory pressure: %s",
