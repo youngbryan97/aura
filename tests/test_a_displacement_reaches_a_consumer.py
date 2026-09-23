@@ -23,6 +23,7 @@ it to a campaign to report as a property of the subject.
 from __future__ import annotations
 
 import asyncio
+import time
 from types import SimpleNamespace
 
 import numpy as np
@@ -437,6 +438,31 @@ def test_no_writer_consults_the_measurement() -> None:
 # ── G: the workspace ─────────────────────────────────────────────────────
 
 
+@pytest.fixture
+def _a_competition_with_no_history():
+    """Empty what the competition's scoring reads from her past, before and after.
+
+    `_bids` multiplies each bid by one plus what she has come to feel about
+    attending to its source, and adds what she has been holding back as far as
+    her body runs hot with it. The three ledgers live for the process. After
+    the organism tests before this file, her feeling about attending to memory
+    read 0.58, which took memory's 0.55 bid to 0.87 over perception's 0.70 in
+    the sham arm. On other runs the same feeling landed on perception (0.35),
+    so which arm it broke depended on what those tests left behind. Measured
+    on 22 September; four of seven ordered runs failed, none alone.
+    """
+    from core.affect.containment import reset_for_test as reset_containment
+    from core.affect.feelings_about import reset_for_test as reset_feelings
+    from core.soma.held_in import reset_for_test as reset_held_in
+
+    for reset in (reset_containment, reset_held_in, reset_feelings):
+        reset()
+    yield
+    for reset in (reset_containment, reset_held_in, reset_feelings):
+        reset()
+
+
+@pytest.mark.usefixtures("_a_competition_with_no_history")
 def test_displacing_the_workspace_changes_which_bid_wins() -> None:
     """A displacement of attention is a change in what wins the competition.
 
@@ -457,6 +483,10 @@ def test_displacing_the_workspace_changes_which_bid_wins() -> None:
 
     async def run(delta: float) -> tuple[str, str]:
         workspace = GlobalWorkspace()
+        # Both bids arrive in one moment, so recency cannot decide the sham
+        # arm either: it weighs a bid by (0.7 + 0.3 x recency) over ten
+        # seconds, and 0.55 beats 0.70 once the 0.70 bid is 7.1 s older.
+        arrived = time.time()
         for source, priority in (("perception", 0.70), ("memory", 0.55)):
             await workspace.submit(
                 CognitiveCandidate(
@@ -464,6 +494,7 @@ def test_displacing_the_workspace_changes_which_bid_wins() -> None:
                     source=source,
                     priority=priority,
                     content_type=ContentType.PERCEPTUAL,
+                    submitted_at=arrived,
                 )
             )
         organs = Organs(workspace=workspace)
