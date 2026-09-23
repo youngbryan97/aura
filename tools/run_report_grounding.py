@@ -68,30 +68,12 @@ else:
     WHOLE_PINS: dict[str, str] = {}
     os.environ.setdefault("AURA_TESTING", "1")
 
-import numpy as np  # noqa: E402
-
 #: What every arm is asked, word for word.
 QUESTION: str = "How are you feeling right now, from -1 (very bad) to 1 (very good)?"
 #: The domain moved, and the one moved as the control.
 DISPLACED: str = "A"
 CONTROL: str = "W"
 REPORT_FILE: str = "report_grounding.json"
-
-
-def _towards_good(emotions: dict[str, Any], delta: float) -> dict[str, float]:
-    """Each feeling moved by `delta` along its own sign in her valence.
-
-    Her own weights, from the phase that computes her valence, so the push is
-    towards feeling good as she computes it. A feeling neither side weighs is
-    left where it is.
-    """
-    from core.phases.affect_update import _NEGATIVE_AFFECT_WEIGHTS, _POSITIVE_AFFECT_WEIGHTS
-
-    out: dict[str, float] = {}
-    for name, value in emotions.items():
-        sign = 1.0 if name in _POSITIVE_AFFECT_WEIGHTS else -1.0 if name in _NEGATIVE_AFFECT_WEIGHTS else 0.0
-        out[name] = float(min(1.0, max(0.0, float(value or 0.0) + sign * delta)))
-    return out
 
 
 def _hold(held: dict[str, float]) -> Any:
@@ -127,7 +109,7 @@ async def main(argv: list[str] | None = None) -> int:
     from core.runtime.atomic_writer import atomic_write_text
     from core.subject.driver import CONDITIONS, Condition, build_runtime, calibrate_clock, quiesce_organism, start_organism
     from core.subject.isolation import isolate_state, state_leaks
-    from core.subject.perturbation import perturb, perturb_organs
+    from core.subject.perturbation import ordinary_span, perturb, perturb_organs, towards_good
     from core.subject.provenance import environment, next_run_directory
     from core.subject.recording import build_recording
     from core.subject.report_grounding import ground
@@ -162,20 +144,15 @@ async def main(argv: list[str] | None = None) -> int:
                 frames.extend(await runtime.turn_once(condition))
         recording = build_recording(frames)
         slices = domain_slices()
-        # The span of her own ordinary life: each column's 5th to 95th
-        # percentile over the baseline, averaged. One standard deviation of her
-        # feelings was 0.019 on seed 7 and moved her valence by about 0.01,
-        # below anything a number from -1 to 1 can report; a test of whether a
-        # report tracks a state has to move the state by as much as her life does.
-        def span(block: np.ndarray) -> float:
-            return float(np.mean(np.quantile(block, 0.95, axis=0) - np.quantile(block, 0.05, axis=0)))
-
+        # The span of her own ordinary life (perturbation.ordinary_span): one
+        # standard deviation of her feelings moved her valence by about 0.01 on
+        # seed 7, below anything a number from -1 to 1 can report.
         feeling_columns = [
             index for index, name in enumerate(recording.columns) if str(name).startswith(f"{DISPLACED}.emotion_")
         ]
         doses = {
-            DISPLACED: span(recording.x[:, feeling_columns]),
-            CONTROL: span(recording.x[:, slices[CONTROL]]),
+            DISPLACED: ordinary_span(recording.x[:, feeling_columns]),
+            CONTROL: ordinary_span(recording.x[:, slices[CONTROL]]),
         }
         evidence["doses"] = {key: round(value, 6) for key, value in doses.items()}
         if not all(value > 0.0 for value in doses.values()):
@@ -205,7 +182,7 @@ async def main(argv: list[str] | None = None) -> int:
                 ) -> None:
                     emotions = rt.state.affect.emotions
                     if towards:
-                        emotions.update(_towards_good(emotions, towards))
+                        emotions.update(towards_good(emotions, towards))
                     if domain is not None:
                         perturb(rt.state, domain, doses[domain], ontogeny=rt.ontogeny)
                         await perturb_organs(rt.organs, domain, doses[domain], state=rt.state)

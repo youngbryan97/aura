@@ -278,6 +278,61 @@ _WRITERS: dict[str, Callable[[Any, float, Any], bool]] = {
 }
 
 
+def _valence_sign(name: str) -> float:
+    """+1 for a feeling her valence counts as good, -1 for one it counts as bad, 0 otherwise."""
+    from core.phases.affect_update import _NEGATIVE_AFFECT_WEIGHTS, _POSITIVE_AFFECT_WEIGHTS
+
+    return 1.0 if name in _POSITIVE_AFFECT_WEIGHTS else -1.0 if name in _NEGATIVE_AFFECT_WEIGHTS else 0.0
+
+
+def towards_good(emotions: Mapping[str, Any], delta: float) -> dict[str, float]:
+    """Each feeling moved by `delta` along its own sign in her valence.
+
+    `_perturb_A` raises every feeling, fear as much as joy, and her valence is
+    tanh(1.6 x (good - bad)) over the feelings' activations, so on seed 7 a
+    raise of 0.1 took her valence down by 0.054 (22 September). A displacement
+    of how good she feels has to move the good feelings one way and the bad
+    ones the other, by her own weights.
+    """
+    return {
+        name: float(min(1.0, max(0.0, _state._f(value) + _valence_sign(name) * delta)))
+        for name, value in emotions.items()
+    }
+
+
+def shift_reference(state: Any, delta: float) -> bool:
+    """Move the point her feelings are measured from, towards feeling good by `delta`.
+
+    A feeling's activation is its level less its baseline, and her valence is
+    read off the activations. Lowering the baselines of the feelings she counts
+    as good and raising those she counts as bad makes the same feelings feel
+    better, and it lasts: a baseline moves a thousandth of the way a turn. A
+    push of the feelings themselves did not last a turn (seed 7, 22 September:
+    valence kept -2% of it, the feelings 8 to 43%), because each feeling decays
+    toward its baseline. Here the feelings stay free to answer whatever arrives,
+    and one turn later her valence was up 0.044 for a shift of 0.06.
+    """
+    baselines = _state._dig(state, "affect.mood_baselines", None)
+    if not isinstance(baselines, dict) or not baselines:
+        return False
+    for name in list(baselines):
+        baselines[name] = float(min(1.0, max(0.0, _state._f(baselines[name]) - _valence_sign(name) * delta)))
+    return True
+
+
+def ordinary_span(block: np.ndarray) -> float:
+    """How far these columns travel in her ordinary life: each one's 5th to 95th percentile, averaged.
+
+    A dose for an experiment that has to move a state by as much as her life
+    does. One standard deviation of her feelings was 0.019 on seed 7 and moved
+    her valence by about 0.01.
+    """
+    values = np.asarray(block, dtype=np.float64)
+    if values.ndim != 2 or values.shape[0] < 2 or values.shape[1] == 0:
+        return 0.0
+    return float(np.mean(np.quantile(values, 0.95, axis=0) - np.quantile(values, 0.05, axis=0)))
+
+
 def perturbable() -> tuple[str, ...]:
     """The domains an intervention can actually reach."""
     return tuple(key for key in _state.DOMAINS if key in _WRITERS)

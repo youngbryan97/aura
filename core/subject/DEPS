@@ -56,6 +56,9 @@ include_rules = [
     "+core.brain.inference_gate",
     "+core.brain.llm_health_router",
     "+core.agency.intention_loop",
+    # Her valence weights, read so that moving how good she feels moves each
+    # feeling along the sign her own affect phase gives it. Read only.
+    "+core.phases.affect_update",
     # Her habits: the driver's acts go on the record as hers, and a habit
     # that has done worse than her weighing is discounted on drive alone.
     "+core.agency.habits_are_hers",

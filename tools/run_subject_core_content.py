@@ -19,11 +19,13 @@ about the same percepts and their answers are compared.
 They share the percepts and nothing else: the state vector records how many
 memories returned and how well the best matched, never which ones.
 
-Then the test that can fail. A domain is displaced, which moves the internal
+Then the test that can fail. Affect is displaced, which moves the internal
 geometry, and the run asks whether the behavioural geometry moved the same way.
 A structure that merely describes the content has no reason to move with it. A
 sham arm, displacing nothing, gives the floor that finite sampling alone
-produces.
+produces. The displacement moves the point her feelings are measured from,
+towards feeling good, by the span her feelings cover in her ordinary life, so
+it lasts through the turn and leaves the feelings free to answer the percept.
 
     python tools/run_subject_core_content.py --quick
     python tools/run_subject_core_content.py --anchors 24 --rounds 24
@@ -40,8 +42,6 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
-
-import numpy as np
 
 REPO = Path(__file__).resolve().parents[1]
 if str(REPO) not in sys.path:
@@ -68,6 +68,21 @@ def _log(message: str) -> None:
 
 def _as_json(mapping: dict[tuple[int, int], float]) -> dict[str, float]:
     return {f"{i}-{j}": round(float(v), 6) for (i, j), v in sorted(mapping.items())}
+
+
+#: The level a geometry has to stand out of its own noise at, the level its
+#: agreement is held to.
+NOISE_LEVEL: float = 0.01
+
+
+def _out_of_noise(between: list[float], floors: list[float]) -> tuple[bool, float]:
+    """Whether the between-class distances exceed the same-class floors, by a one-sided rank test."""
+    from scipy.stats import mannwhitneyu
+
+    if len(between) < 2 or len(floors) < 2:
+        return False, 1.0
+    p_value = float(mannwhitneyu(between, floors, alternative="greater").pvalue)
+    return p_value < NOISE_LEVEL, p_value
 
 
 def _authority(evidence: dict[str, Any]) -> dict[str, Any]:
@@ -97,24 +112,30 @@ def _authority(evidence: dict[str, Any]) -> dict[str, Any]:
             f"{len(silent)} classes brought back nothing at all, so the behavioural "
             f"geometry has no reading for them: {silent[:4]}"
         )
+    # Whether each geometry stands out of its own noise: the distances between
+    # classes, as a set, above the distances of classes from themselves. This
+    # used to ask that the closest of every pair clear the largest of every
+    # floor, the minimum of 190 noisy numbers against the maximum of 20, which
+    # grows harder the more classes are presented and refuses a structure in
+    # which any two classes are alike. Classes the structure cannot tell apart
+    # are what the bridge's gauge is for: they share a cell
+    # (core/subject/bridge.py `orbits`, Theorems 5 and 6), and they do not make
+    # the rest of the structure unmeasured.
     b_floor = evidence.get("behavioural_floor", {})
     behavioural = evidence.get("behavioural", {})
     if behavioural and b_floor:
-        worst = max(b_floor.values())
-        smallest = min(behavioural.values())
-        if smallest <= worst:
+        above, p_value = _out_of_noise(list(behavioural.values()), list(b_floor.values()))
+        if not above:
             blockers.append(
-                f"two classes recall no more differently ({smallest:.5f}) than one class "
-                f"recalls from itself ({worst:.5f}), so retrieval does not separate the percepts"
+                "the classes recall no more differently from each other than each "
+                f"recalls from itself (p={p_value:.3g}), so retrieval does not separate the percepts"
             )
     if internal and floor:
-        worst_floor = max(floor.values())
-        smallest = min(internal.values())
-        if smallest <= worst_floor:
+        above, p_value = _out_of_noise(list(internal.values()), list(floor.values()))
+        if not above:
             blockers.append(
-                f"the closest pair of classes ({smallest:.5f}) is no further apart "
-                f"than a class is from itself ({worst_floor:.5f}), so the internal "
-                "geometry is inside its own noise"
+                "the classes lie no further apart than each lies from itself "
+                f"(p={p_value:.3g}), so the internal geometry is inside its own noise"
             )
     return {
         "authoritative": not blockers,
@@ -188,7 +209,7 @@ async def main() -> int:
     from core.subject.isolation import isolate_state, state_leaks
     from core.subject.provenance import environment, manifest, next_run_directory
     from core.subject.recording import build_recording
-    from core.subject.state import domain_slices
+    from core.subject.perturbation import ordinary_span
     from core.subject.v25_runtime import collect_anchor_bank
 
     conditions = CONDITIONS[: args.conditions] if args.conditions else CONDITIONS
@@ -236,19 +257,24 @@ async def main() -> int:
                 frames.extend(await runtime.turn_once(condition))
         recording = build_recording(frames)
         recording.save(run_dir)
-        # The displacement is one standard deviation of the domain's own
-        # ordinary movement. Not a number chosen here: the recording measured
-        # how far affect travels in an ordinary life and the dose is that.
-        columns = domain_slices()[DISPLACED_DOMAIN]
-        own = recording.x[:, columns]
-        dose = float(np.mean(own.std(axis=0)))
+        # The displacement moves the point her feelings are measured from,
+        # towards feeling good, by the span her feelings cover in her ordinary
+        # life. Not a number chosen here: the recording measured it. The first
+        # design pushed affect once by one standard deviation, and on seed 7
+        # that push was gone by the end of the turn and moved fear as much as
+        # joy (22 September), so "moves together" had nothing to correlate:
+        # the behavioural geometry moved 0.008.
+        feelings = [
+            index for index, name in enumerate(recording.columns) if str(name).startswith(f"{DISPLACED_DOMAIN}.emotion_")
+        ]
+        dose = ordinary_span(recording.x[:, feelings])
         if not (dose > 0.0):
             raise SystemExit(
-                f"refusing: {DISPLACED_DOMAIN} did not move at all over "
-                f"{recording.frames} baseline frames, so there is no dose its "
-                "own life justifies and a displacement would be a number I chose"
+                f"refusing: her feelings did not move over {recording.frames} "
+                "baseline frames, so there is no dose her own life justifies and "
+                "a displacement would be a number I chose"
             )
-        _log(f"  {recording.frames} frames; one {DISPLACED_DOMAIN} sd is {dose:.5g}")
+        _log(f"  {recording.frames} frames; her feelings span {dose:.5g}")
 
         _log(f"collecting {args.anchors} anchors")
         anchors = await collect_anchor_bank(
@@ -290,10 +316,10 @@ async def main() -> int:
         _log(f"  design recovery rho={recovery.rho} p={recovery.p_value}")
 
         # ── the displacement, and the sham that gives its floor ───────
-        _log(f"displacing {DISPLACED_DOMAIN} by one of its own sd")
+        _log("moving her reference point towards feeling good by that span")
         moved = await sample_classes(
             runtime, anchors, conditions, classes,
-            turns=args.turns, lag=args.lag, displace=(DISPLACED_DOMAIN, dose),
+            turns=args.turns, lag=args.lag, reference=dose,
         )
         moved_internal, _ = internal_geometry(moved, classes, seed=args.seed)
         moved_behavioural, _ = behavioural_geometry(moved, classes)
@@ -313,6 +339,7 @@ async def main() -> int:
             seed=args.seed,
         )
         evidence["displacement_dose"] = round(dose, 6)
+        evidence["displacement"] = "reference point towards feeling good, by her feelings' ordinary span"
         evidence["moves_together"] = tracked.__dict__ | {"bar": AGREEMENT_BAR}
         _log(
             f"  moves together rho={tracked.rho} p={tracked.p_value} "

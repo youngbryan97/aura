@@ -37,6 +37,7 @@ import numpy as np
 from core.state.percepts import PERCEPT_EMOTIONS, emit_percept
 from core.subject.content import PerceptClass
 from core.subject.intrinsic_v25 import crossfit_fisher_rao
+from core.subject.perturbation import shift_reference
 from core.subject.state import perturb, perturb_organs
 
 __all__ = [
@@ -164,12 +165,17 @@ async def sample_classes(
     turns: int = 1,
     lag: int = 1,
     displace: tuple[str, float] | None = None,
+    reference: float | None = None,
 ) -> dict[str, ClassSamples]:
     """Present every class from every anchor, and read both geometries' inputs.
 
     `displace` moves one domain before the percept arrives. That is how the
     manifold is perturbed: the same classes are presented into a state that has
     been pushed, and both geometries are recomputed on what comes back.
+
+    `reference` moves the point her feelings are measured from, towards feeling
+    good by that much (`perturbation.shift_reference`). Unlike a push of the
+    feelings it lasts the turn and leaves them free to answer the percept.
     """
     from dataclasses import replace
 
@@ -183,6 +189,8 @@ async def sample_classes(
             domain, delta = displace
             perturb(runtime.state, domain, delta, ontogeny=runtime.ontogeny)
             await perturb_organs(runtime.organs, domain, delta, state=runtime.state)
+        if reference is not None:
+            shift_reference(runtime.state, reference)
         shown = replace(condition, prepare=present(cls))
         rows: list[Any] = []
         for _ in range(turns):
