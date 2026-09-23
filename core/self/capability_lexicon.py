@@ -144,11 +144,9 @@ def _skill_metadata(engine: Any = None) -> dict[str, Any]:
         )
     if engine is None:
         try:
-            from core.capability_engine import CapabilityEngine, live_capability_engine
+            from core.self.capability_sources import catalog_engine
 
-            # The warm engine if the runtime has one; a cold catalog costs a
-            # full rebuild and probe of every skill.
-            engine = live_capability_engine() or CapabilityEngine()
+            engine = catalog_engine()
         except (ImportError, RuntimeError, TypeError, ValueError):
             return {}
     return dict(getattr(engine, "skills", None) or {})

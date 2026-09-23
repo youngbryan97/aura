@@ -18,6 +18,7 @@ from typing import Any
 
 __all__ = [
     "CapabilityRecord",
+    "catalog_engine",
     "register_source",
     "registered_sources",
     "all_capabilities",
@@ -42,6 +43,39 @@ class CapabilityRecord:
 
 _SOURCES: dict[str, Callable[[Any], dict[str, CapabilityRecord]]] = {}
 
+#: The engine a process outside a runtime reads the catalog from, built once.
+_COLD_ENGINE: Any = None
+_COLD_ENGINE_LOCK: Any = None
+
+
+def catalog_engine() -> Any:
+    """The engine to read the skill catalog from when no caller passed one.
+
+    Inside a runtime that is the engine the runtime already uses. Outside one
+    (a test, a tool, an offline organism) every reader used to build its own
+    `CapabilityEngine()`, and a new engine has a cold catalog: a full rebuild
+    and probe of every skill, about three seconds. One question to the
+    capability lexicon read the catalog eleven times, because the lexicon's
+    cache key is itself read off the catalog, and under a loaded host that
+    spent a twenty-second request budget before the request was dispatched.
+    Outside a runtime the catalog is the build's, so one engine per process
+    reads it; a caller that needs another catalog passes its own engine.
+    """
+    from core.capability_engine import CapabilityEngine, live_capability_engine
+
+    live = live_capability_engine()
+    if live is not None:
+        return live
+    global _COLD_ENGINE, _COLD_ENGINE_LOCK
+    if _COLD_ENGINE_LOCK is None:
+        from core.runtime.lockdep import checked_lock
+
+        _COLD_ENGINE_LOCK = checked_lock("capability_sources.cold_engine")
+    with _COLD_ENGINE_LOCK:
+        if _COLD_ENGINE is None:
+            _COLD_ENGINE = CapabilityEngine()
+        return _COLD_ENGINE
+
 
 def register_source(
     name: str, loader: Callable[[Any], dict[str, CapabilityRecord]]
@@ -57,11 +91,7 @@ def registered_sources() -> tuple[str, ...]:
 def _skill_records(engine: Any = None) -> dict[str, CapabilityRecord]:
     if engine is None:
         try:
-            from core.capability_engine import CapabilityEngine, live_capability_engine
-
-            # The warm engine if the runtime has one; a cold catalog costs a
-            # full rebuild and probe of every skill.
-            engine = live_capability_engine() or CapabilityEngine()
+            engine = catalog_engine()
         except _SOURCE_ERRORS:
             return {}
     skills = dict(getattr(engine, "skills", None) or {})
