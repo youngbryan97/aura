@@ -196,16 +196,23 @@ async def bring_up_language(runtime: Any) -> dict[str, Any]:
 
 
 async def keep_language_ready(runtime: Any) -> dict[str, Any]:
-    """Bring her language organ back before a turn if its worker has stopped.
+    """Start her language organ's worker again before a turn if it has stopped.
 
     The router's endpoint timeout stops a model worker as its way of aborting a
-    generation, and nothing in a subject run started it again: the router
-    validates an endpoint before calling it, so the stopped worker opened the
-    circuit, and the gate, which starts a worker when it is called, was never
-    called. The whole report run of 23 September lost her cortex on its first
-    baseline turn this way, and every later turn ended in the failure sentence.
-    The harness stops her background loops so that two arms see the same
-    computation, and anything that might have noticed is stopped with them.
+    generation. When inference comes back empty the router is meant to ask the
+    gate to start the worker again (`_respawn_cortex_if_needed`), but it
+    validates an endpoint first, and a stopped worker failed validation and
+    opened the circuit, so nothing asked. The whole report run of 23 September
+    lost her cortex on its first baseline turn this way, and every later turn
+    ended in the failure sentence. The harness stops her background loops so
+    that two arms see the same computation, and anything else that might have
+    noticed is stopped with them.
+
+    Only a stopped worker is acted on. The gate's own recovery is asked once and
+    then watched, never asked again while it works: asking the gate to warm the
+    lane on every recheck kept its startup quiet window open, and inside that
+    window the warmup itself is refused. A worker that is alive and still coming
+    up is left to the turn's own path.
 
     Checked before a turn's first frame, under the experiment clock, so the
     wait moves nothing in her. A turn her cortex could not serve still counts as
@@ -216,24 +223,21 @@ async def keep_language_ready(runtime: Any) -> dict[str, Any]:
     from core.container import ServiceContainer
 
     gate = ServiceContainer.get("inference_gate", default=None)
-    if gate is None or not hasattr(gate, "get_conversation_status"):
-        return {"checked": False}
-    if gate.get_conversation_status().get("conversation_ready"):
+    client = getattr(gate, "_mlx_client", None)
+    alive = getattr(client, "is_alive", None)
+    respawn = getattr(gate, "_respawn_cortex_if_needed", None)
+    if not callable(alive) or not callable(respawn) or alive():
         return {"checked": True, "recovered": False}
     started = time.monotonic()
-    while (waited := time.monotonic() - started) < FOREGROUND_READY_S:
-        try:
-            await gate.ensure_foreground_ready(timeout=FOREGROUND_READY_S - waited)
-        except RuntimeError as exc:
-            # not a failure: a lane that was ready once is given a short wait
-            # and its warmup carries on behind it; asking again is the design.
-            logger.info("her language organ is still coming back: %s", exc)
-        if gate.get_conversation_status().get("conversation_ready"):
+    logger.warning("her language organ's worker has stopped; asking the gate to start it again")
+    await respawn()
+    while time.monotonic() - started < FOREGROUND_READY_S:
+        if alive() and gate.get_conversation_status().get("conversation_ready"):
             seconds = round(time.monotonic() - started, 1)
-            logger.warning("her language organ's worker had stopped; it was back in %.0fs", seconds)
+            logger.warning("her language organ's worker was back in %.0fs", seconds)
             return {"checked": True, "recovered": True, "seconds": seconds}
         await asyncio.sleep(_RECHECK_S)
-    logger.error("her language organ did not come back within %.0fs", FOREGROUND_READY_S)
+    logger.error("her language organ's worker did not come back within %.0fs", FOREGROUND_READY_S)
     return {"checked": True, "recovered": False, "seconds": round(time.monotonic() - started, 1)}
 
 

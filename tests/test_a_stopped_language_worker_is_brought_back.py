@@ -1,4 +1,4 @@
-"""A whole run brings her language organ back before a turn if its worker stopped.
+"""A whole run starts her language organ's worker again before a turn if it stopped.
 
 The router's endpoint timeout stops a model worker to abort a generation. In the
 whole report run of 23 September nothing started it again, and every turn after
@@ -19,23 +19,33 @@ from core.subject import language_organ
 pytestmark = pytest.mark.unit
 
 
+class _Client:
+    def __init__(self, alive: bool) -> None:
+        self.alive = alive
+
+    def is_alive(self) -> bool:
+        return self.alive
+
+
 class _Gate:
-    def __init__(self, ready: bool, comes_back_after: int = 1, raises_first: bool = False) -> None:
-        self.ready = ready
-        self.calls = 0
-        self.comes_back_after = comes_back_after
-        self.raises_first = raises_first
+    def __init__(self, alive: bool, ready_after_checks: int = 1) -> None:
+        self._mlx_client = _Client(alive)
+        self.respawns = 0
+        self.checks = 0
+        self.ready_after_checks = ready_after_checks
+        self.warmups = 0
 
     def get_conversation_status(self) -> dict:
-        return {"conversation_ready": self.ready}
+        self.checks += 1
+        return {"conversation_ready": self._mlx_client.alive and self.checks >= self.ready_after_checks}
+
+    async def _respawn_cortex_if_needed(self) -> None:
+        self.respawns += 1
+        self._mlx_client.alive = True
 
     async def ensure_foreground_ready(self, timeout: float | None = None) -> dict:  # noqa: ASYNC109
-        self.calls += 1
-        if self.raises_first and self.calls == 1:
-            raise RuntimeError("foreground_warmup_timeout: recovery handed to the background")
-        if self.calls >= self.comes_back_after:
-            self.ready = True
-        return {"state": "ready" if self.ready else "warming"}
+        self.warmups += 1
+        return {}
 
 
 @pytest.fixture
@@ -46,24 +56,27 @@ def gate(monkeypatch):
     return box
 
 
-def test_a_ready_lane_is_left_alone(gate) -> None:
-    gate["inference_gate"] = _Gate(ready=True)
+def test_a_live_worker_is_left_alone(gate) -> None:
+    gate["inference_gate"] = _Gate(alive=True)
     out = asyncio.run(language_organ.keep_language_ready(SimpleNamespace(whole=True)))
     assert out == {"checked": True, "recovered": False}
-    assert gate["inference_gate"].calls == 0
+    assert gate["inference_gate"].respawns == 0
 
 
-def test_a_stopped_worker_is_warmed_until_the_lane_is_ready(gate) -> None:
-    gate["inference_gate"] = _Gate(ready=False, comes_back_after=2, raises_first=True)
+def test_a_stopped_worker_is_started_once_and_watched_until_ready(gate) -> None:
+    gate["inference_gate"] = _Gate(alive=False, ready_after_checks=3)
     out = asyncio.run(language_organ.keep_language_ready(SimpleNamespace(whole=True)))
     assert out["recovered"] is True
-    assert gate["inference_gate"].calls == 2
+    assert gate["inference_gate"].respawns == 1
+    # Asking the gate to warm the lane on every recheck kept its quiet window
+    # open and the warmup refused; the recovery is asked once and watched.
+    assert gate["inference_gate"].warmups == 0
 
 
 def test_a_run_on_the_stub_organ_is_not_checked(gate) -> None:
-    gate["inference_gate"] = _Gate(ready=False)
+    gate["inference_gate"] = _Gate(alive=False)
     assert asyncio.run(language_organ.keep_language_ready(SimpleNamespace(whole=False))) == {"checked": False}
-    assert gate["inference_gate"].calls == 0
+    assert gate["inference_gate"].respawns == 0
 
 
 def test_every_turn_checks_before_its_first_frame() -> None:
