@@ -833,6 +833,7 @@ def _argument_proposal_rows(
     fixed_pointer_scores: list[float] | None = None,
     pointer_scale: float = 0.0,
     factorized_features: bool = False,
+    balance_source_views: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, int, int]:
     from core.learning.semantic_relation_tissue import DirectionalFeatureRows
 
@@ -840,7 +841,16 @@ def _argument_proposal_rows(
     factorized = DirectionalFeatureRows() if factorized_features else None
     labels: list[int] = []
     weights: list[float] = []
-    geometry_counts = Counter(_geometry(item) for item in examples)
+    if balance_source_views:
+        sources = {item.ir.source_text_sha256: item for item in examples}
+        if any(_geometry(item) != _geometry(sources[item.ir.source_text_sha256])
+               for item in examples):
+            raise ValueError("one source has incompatible view geometry")
+        source_counts = Counter(item.ir.source_text_sha256 for item in examples)
+        geometry_counts = Counter(_geometry(item) for item in sources.values())
+    else:
+        source_counts = None
+        geometry_counts = Counter(_geometry(item) for item in examples)
     positive_rows = 0
     negative_rows = 0
     for item in examples:
@@ -913,6 +923,8 @@ def _argument_proposal_rows(
                     features.append(_directional_relation_feature(reference, operation))
             labels.extend((1, *(0 for _ in negatives)))
             decision_weight = 1.0 / geometry_counts[_geometry(item)] / len(spans)
+            if source_counts is not None:
+                decision_weight /= source_counts[item.ir.source_text_sha256]
             weights.extend([decision_weight] * len(spans))
             positive_rows += 1
             negative_rows += len(negatives)

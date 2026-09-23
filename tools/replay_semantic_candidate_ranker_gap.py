@@ -111,7 +111,9 @@ def main() -> None:
     if set(rows) != set(wanted) or not set(wanted) <= set(items):
         raise ValueError("diagnostic bank and frozen validation cohort differ")
     config = RequestContextConfig(**training["config"])
-    ranker = ContextualProgramRanker(config)
+    ranker = ContextualProgramRanker(
+        config, identity_bindings=training.get("identity_bindings", False),
+        argument_evidence=training.get("argument_evidence", False))
     ranker.load_state_dict(load_file(str(args.weights)), strict=True)
     result = _evaluate(ranker, items, rows, list(wanted))
     direct_comparison = None
@@ -139,7 +141,8 @@ def main() -> None:
         comparison_rows = []
         for source_id in wanted:
             (programs, labels, keys), spans, kinds, _anchors = _rankable(
-                items[source_id], rows[source_id])
+                items[source_id], rows[source_id],
+                preserve_evidence=ranker.argument_evidence)[:4]
             features = torch.from_numpy(_hidden_array(items[source_id].hidden_states)).float()
             direct_index = _direct_choice(direct, features, spans, kinds, programs)
             ranker_index = ranker_rows[source_id]["chosen_index"]

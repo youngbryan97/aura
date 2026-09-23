@@ -15,7 +15,10 @@ from core.learning.semantic_construction_folds import construction_folds
 from core.learning.semantic_program_ir import TokenSpan
 from core.learning.semantic_request_context import RequestContextConfig
 from tools.compare_semantic_candidate_methods import _direct_choice, _portfolio_comparison
-from tools.evaluate_semantic_candidate_ranker import _factor_cases, _rankable, _training_views
+from tools.evaluate_semantic_candidate_ranker import (
+    _factor_cases, _rankable, _runtime_factor_cases,
+    _source_runtime_factor_cases, _training_views,
+)
 from tools.materialize_semantic_candidate_training import _plan, _select_source_ids
 from tools.replay_semantic_candidate_ranker_gap import _construction_counts
 
@@ -80,6 +83,71 @@ def test_scores_complete_programs_and_learns_from_set_loss():
     assert model.argument_step.weight_ih.grad.abs().sum() > 0
     assert model.operation.weight.grad.abs().sum() > 0
     assert model.key.weight.grad.abs().sum() > 0
+
+
+def test_identity_binding_distinguishes_equal_value_source_mentions():
+    torch.manual_seed(31)
+    config = RequestContextConfig(8, width=8, heads=2, layers=1,
+                                  position_mode="none", feature_scaling="unit_variance")
+    model = ContextualProgramRanker(config, identity_bindings=True)
+    source = functional.normalize(torch.ones(4, 8), dim=-1)
+    spans = (TokenSpan(0, 1), TokenSpan(2, 3))
+    programs = (Program(2, (Instruction("sub", (0, 1)),)),
+                Program(2, (Instruction("sub", (1, 0)),)))
+    anchors = ((TokenSpan(1, 2),),) * 2
+    legacy = ContextualProgramRanker(config)
+    legacy.load_state_dict({key: value for key, value in model.state_dict().items()
+                            if not key.startswith("binding_")}, strict=True)
+    scores = model(source, spans, ("integer", "integer"), programs,
+                   operation_spans=anchors, cross_token=False)
+    torch.testing.assert_close(scores, legacy(source, spans, ("integer", "integer"),
+                                              programs, operation_spans=anchors,
+                                              cross_token=False))
+    assert torch.isclose(scores[0], scores[1])
+    with torch.no_grad():
+        model.binding_key.weight.copy_(torch.eye(config.width))
+    scores = model(source, spans, ("integer", "integer"), programs,
+                   operation_spans=anchors, cross_token=False)
+    assert not torch.isclose(scores[0], scores[1])
+    candidate_set_loss(scores, (True, False)).backward()
+    assert model.binding_role.weight.grad.abs().sum() > 0
+    assert model.binding_key.weight.grad.abs().sum() > 0
+
+
+def test_argument_evidence_changes_same_program_only_when_its_channel_is_present():
+    torch.manual_seed(37)
+    config = RequestContextConfig(8, width=8, heads=2, layers=1,
+                                  feature_scaling="unit_variance")
+    model = ContextualProgramRanker(config, identity_bindings=True,
+                                    argument_evidence=True).eval()
+    source = functional.normalize(torch.randn(6, 8), dim=-1)
+    program = Program(2, (Instruction("sub", (0, 1)),))
+    programs = (program, program)
+    kwargs = dict(operation_spans=((TokenSpan(2, 3),),) * 2,
+                  argument_spans=(((TokenSpan(1, 2), TokenSpan(4, 5)),),
+                                  ((TokenSpan(4, 5), TokenSpan(1, 2)),)),
+                  definition_spans=(((TokenSpan(0, 1), TokenSpan(5, 6)),),) * 2)
+    spans = (TokenSpan(0, 1), TokenSpan(5, 6))
+    initial = model(source, spans, ("integer", "integer"), programs, **kwargs)
+    torch.testing.assert_close(initial[0], initial[1])
+    with torch.no_grad():
+        model.evidence_key.weight[:, :config.width].copy_(torch.eye(config.width))
+    observed = model(source, spans, ("integer", "integer"), programs, **kwargs)
+    assert not torch.isclose(observed[0], observed[1])
+    with torch.no_grad():
+        model.evidence_key.weight.zero_()
+    lesion = model(source, spans, ("integer", "integer"), programs, **kwargs)
+    torch.testing.assert_close(lesion[0], lesion[1])
+    with pytest.raises(ValueError, match="argument evidence"):
+        model(source, spans, ("integer", "integer"), programs,
+              operation_spans=kwargs["operation_spans"])
+
+
+def test_legacy_ranker_checkpoint_has_no_identity_binding_parameters():
+    model = _model()
+    assert not any(key.startswith("binding_") for key in model.state_dict())
+    restored = ContextualProgramRanker(model.config)
+    restored.load_state_dict(model.state_dict(), strict=True)
 
 
 def test_candidate_order_changes_scores_only_by_permutation():
@@ -162,6 +230,33 @@ def test_proposal_view_separates_programs_from_diagnostic_labels():
     assert labels == (False, True)
 
 
+def test_runtime_evidence_variants_survive_program_hash_deduplication():
+    program = _programs()[0]
+    payload = program.to_dict()
+    mentions = (({"start": 0, "end": 1}, {"start": 2, "end": 3}),)
+    other = (({"start": 2, "end": 3}, {"start": 0, "end": 1}),)
+    candidates = [{"program": payload, "program_sha256": program.sha(),
+                   "operation_spans": [{"start": 1, "end": 2}],
+                   "argument_spans": rows, "definition_spans": None,
+                   "definition_provenance": "unavailable"}
+                  for rows in (mentions, other)]
+    item = SimpleNamespace(public_inputs=(3, 3))
+    row = {"bank": {"schema": "aura.semantic_candidate_bank.v3",
+                    "candidates": candidates,
+                    "input_spans": [{"start": 0, "end": 1}, {"start": 2, "end": 3}],
+                    "selected_program_sha256": program.sha()},
+           "diagnosis": {"comparisons": [{"program_sha256": program.sha(),
+                                           "status": "equivalent"}]}}
+    assert len(_rankable(item, row)[0][0]) == 1
+    case = _rankable(item, row, preserve_evidence=True)
+    assert len(case[0][0]) == 2
+    assert case[4][0] != case[4][1]
+    assert case[0][1] == (True, True)
+    row["bank"]["schema"] = "aura.semantic_candidate_bank.v2"
+    with pytest.raises(ValueError, match="source-evidence"):
+        _rankable(item, row, preserve_evidence=True)
+
+
 def test_training_plan_requires_complete_train_cohort_and_fixed_bounds():
     examples = [SimpleNamespace(ir=SimpleNamespace(source_text_sha256=f"s{i}"), split="train")
                 for i in range(3)]
@@ -224,6 +319,59 @@ def test_factor_training_cases_never_read_heldout_examples():
     assert _training_views(source, {source: cases[source]}, {}) == (cases[source],)
 
 
+def test_runtime_factor_views_use_source_bank_spans_without_bank_labels():
+    source = "a" * 64
+    target = Program(2, (Instruction("sub", (0, 1)),))
+    rival = Program(2, (Instruction("sub", (1, 0)),))
+    spans = (TokenSpan(0, 1), TokenSpan(3, 4))
+    item = SimpleNamespace(public_inputs=(3, 3), ir=SimpleNamespace(
+        to_program=lambda: target, input_spans=spans,
+        instructions=(SimpleNamespace(operation_span=TokenSpan(1, 2)),)))
+    bank = (((target, rival), (False, False), (target.sha(), rival.sha())),
+            spans, ("integer", "integer"),
+            ((TokenSpan(2, 3),), (TokenSpan(1, 3),)))
+    views = _runtime_factor_cases({source: item}, [source], {source: bank})[source]
+    assert len(views) == 2
+    assert [view[3][0] for view in views] == [bank[3][0], bank[3][1]]
+    assert all(view[3][0] == view[3][1] for view in views)
+    assert all(view[0][1][0] for view in views)
+    assert _training_views(source, {source: bank}, {source: views}) == (bank, *views)
+    with pytest.raises(ValueError, match="grounding"):
+        _runtime_factor_cases({source: item}, [source], {source: (
+            bank[0], (TokenSpan(0, 1), TokenSpan(2, 3)), bank[2], bank[3])})
+
+
+def test_full_source_runtime_factors_use_only_declared_training_rows(monkeypatch):
+    source = "a" * 64
+    held = "b" * 64
+    target = Program(2, (Instruction("sub", (0, 1)),))
+    spans = (TokenSpan(0, 1), TokenSpan(3, 4))
+    item = SimpleNamespace(split="train", public_inputs=(3, 3), ir=SimpleNamespace(
+        source_text_sha256=source, to_program=lambda: target, input_spans=spans,
+        instructions=(SimpleNamespace(operation_span=TokenSpan(1, 2)),)))
+    view = SimpleNamespace(split="train", public_inputs=item.public_inputs,
+                           ir=SimpleNamespace(source_text_sha256=source,
+                                              to_program=lambda: target,
+                                              input_spans=spans,
+                                              instructions=(SimpleNamespace(
+                                                  operation_span=TokenSpan(2, 3)),)))
+
+    def acquire(_model, examples, *, max_operation_charts):
+        assert examples == (item,)
+        assert max_operation_charts == 2
+        return (item, view), {"coverage": {"augmented": 1}}
+
+    monkeypatch.setattr("core.learning.semantic_runtime_argument_views.runtime_argument_training_views",
+                        acquire)
+    cases, receipt = _source_runtime_factor_cases(None, {source: item, held: object()},
+                                                   [source], max_charts=2)
+    assert len(cases[source]) == 2
+    assert [case[3][0] for case in cases[source]] == [
+        (TokenSpan(1, 2),), (TokenSpan(2, 3),)]
+    assert receipt["coverage"] == {"augmented": 1}
+    assert held not in cases
+
+
 def test_candidate_subset_is_selected_by_construction_without_labels():
     examples = [SimpleNamespace(ir=SimpleNamespace(source_text_sha256=f"s{i}"), split="train",
                                 construction_id=f"group-{i // 2}", contrast_id=None)
@@ -258,6 +406,9 @@ def test_mixed_training_keeps_two_grounded_candidate_views():
     changed = (contrasts[0], (TokenSpan(0, 1), TokenSpan(1, 2)), kinds, contrasts[3])
     with pytest.raises(ValueError, match="grounding"):
         _training_views("source", {"source": bank}, {"source": changed})
+    permuted = (contrasts[0], spans[::-1], kinds, contrasts[3])
+    assert _training_views("source", {"source": bank}, {"source": [permuted]},
+                           allow_grounding_permutation=True) == (bank, permuted)
 
 
 def test_direct_candidate_choice_uses_program_scores_not_labels():

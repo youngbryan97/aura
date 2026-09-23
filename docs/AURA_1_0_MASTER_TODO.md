@@ -1176,6 +1176,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [PDF architecture disposition and opt-in full-program identity training](evidence/G03_PDF_ARCHITECTURE_DISPOSITION_2026-09-23.md)
+  now covers all four supplied PDFs. The v3 candidate bank retains selected
+  mention/definition evidence for an opt-in complete-program ranker. Two short
+  identity-binding source-fold pilots regressed; the new evidence path has
+  focused contracts only. Fresh source-bank acquisition, paired source-fold
+  measurement, and frozen broad evaluation are still open.
+  [Architecture reuse and runtime-chart training connection](evidence/G03_ARCHITECTURE_REUSE_2026-09-23.md)
+  [Operation-span view diagnosis](evidence/G03_OPERATION_SPAN_VIEW_DIAGNOSIS_2026-09-22.md)
+  finds that the intended binding wins on annotated operation spans but loses
+  on the shorter operation spans selected by the runtime. Source-labeled
+  runtime-view training and complete held-out replay remain open.
   [Role-alias paired fit](evidence/G03_ROLE_ALIAS_FIT_NEGATIVE_2026-09-22.md)
   changed the training population but no held-out role-binding outcome;
   the ordinary decoder still scores reachable, role-swapped graphs above the

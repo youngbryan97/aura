@@ -24,12 +24,31 @@ from core.verify.invariants import invariant
 
 @dataclass(frozen=True)
 class SemanticCandidate:
-    """A program and its operation spans, both in execution order."""
+    """A program and its source evidence, all in execution order."""
     program: Program
     joint_score: float | None
     operation_spans: tuple[TokenSpan, ...]
     chart_index: int | None
     graph_index: int | None
+    argument_spans: tuple[tuple[TokenSpan, ...], ...] | None = None
+    definition_spans: tuple[tuple[TokenSpan, ...], ...] | None = None
+    definition_provenance: str = "unavailable"
+
+    def __post_init__(self) -> None:
+        if len(self.operation_spans) != self.program.depth:
+            raise ValueError("candidate operation evidence differs from program")
+        if (self.definition_provenance not in {
+                "unavailable", "register_anchor", "optimizer_selected"}
+                or (self.definition_spans is None) !=
+                (self.definition_provenance == "unavailable")):
+            raise ValueError("candidate definition evidence lacks its origin")
+        for name, rows in (("argument", self.argument_spans),
+                           ("definition", self.definition_spans)):
+            if rows is not None and (len(rows) != self.program.depth or any(
+                    len(row) != len(ins.args) or any(not isinstance(span, TokenSpan)
+                                                    for span in row)
+                    for row, ins in zip(rows, self.program.instructions, strict=True))):
+                raise ValueError(f"candidate {name} evidence differs from program")
 
     @classmethod
     def from_argument_graph(
@@ -41,16 +60,28 @@ class SemanticCandidate:
         joint_score: float,
         chart_index: int,
         graph_index: int,
+        argument_spans: tuple[tuple[TokenSpan, ...], ...] | None = None,
+        definition_spans: tuple[tuple[TokenSpan, ...], ...] | None = None,
     ) -> Any:
         order = argument_graph_order(nodes, arguments, n_inputs=n_inputs)
         return cls(argument_graph_program(nodes, arguments, n_inputs=n_inputs), joint_score,
-                   tuple(nodes[index].span for index in order), chart_index, graph_index)
+                   tuple(nodes[index].span for index in order), chart_index, graph_index,
+                   tuple(argument_spans[index] for index in order)
+                   if argument_spans is not None else None,
+                   tuple(definition_spans[index] for index in order)
+                   if definition_spans is not None else None,
+                   "optimizer_selected" if definition_spans is not None else "unavailable")
 
     def to_dict(self) -> dict[str, Any]:
         return {"program": self.program.to_dict(), "program_sha256": self.program.sha(),
                 "joint_score": self.joint_score,
                 "operation_spans": [span.to_dict() for span in self.operation_spans],
-                "chart_index": self.chart_index, "graph_index": self.graph_index}
+                "chart_index": self.chart_index, "graph_index": self.graph_index,
+                "argument_spans": ([[span.to_dict() for span in row] for row in self.argument_spans]
+                                   if self.argument_spans is not None else None),
+                "definition_spans": ([[span.to_dict() for span in row] for row in self.definition_spans]
+                                     if self.definition_spans is not None else None),
+                "definition_provenance": self.definition_provenance}
 
 
 @dataclass(frozen=True)
@@ -89,6 +120,16 @@ def candidate_observation_identity(
         "hidden_sha256": hashlib.sha256(hidden.tobytes(order="C")).hexdigest()})
 
 
+def _register_definition_anchors(ir: Any) -> tuple[tuple[TokenSpan, ...], ...]:
+    """Distinguish known IR register anchors from optimizer-selected definitions."""
+    anchors = list(ir.input_spans)
+    rows = []
+    for instruction in ir.instructions:
+        rows.append(tuple(anchors[reference] for reference in instruction.args))
+        anchors.append(instruction.operation_span)
+    return tuple(rows)
+
+
 def decode_semantic_candidates(
     model: Any,
     *,
@@ -120,7 +161,7 @@ def decode_semantic_candidates(
     outcome = model.decode(source_token_ids=source_token_ids, hidden_states=hidden_states,
         public_inputs=public_inputs, source_text_sha256=source_text_sha256,
         model_basis_sha256=model_basis_sha256, search_time_limit_s=solve_time_limit_s)
-    body = {"schema": "aura.semantic_candidate_bank.v2", "source_text_sha256": source_text_sha256,
+    body = {"schema": "aura.semantic_candidate_bank.v3", "source_text_sha256": source_text_sha256,
             "model_basis_sha256": model_basis_sha256, "transducer_receipt_sha256": model.receipt_sha256,
             "expected_answer_available": False, "source_annotations_available": False,
             "serving_authority": False, "selection_changed": False,
@@ -147,7 +188,9 @@ def decode_semantic_candidates(
     if outcome.ir is not None:
         spans = outcome.ir.input_spans
         candidates.append(SemanticCandidate(outcome.ir.to_program(), None,
-            tuple(ins.operation_span for ins in outcome.ir.instructions), None, None))
+            tuple(ins.operation_span for ins in outcome.ir.instructions), None, None,
+            tuple(ins.argument_spans for ins in outcome.ir.instructions),
+            _register_definition_anchors(outcome.ir), "register_anchor"))
     inputs = tuple(normalize_semantic_value(value) for value in public_inputs)
     hidden = _hidden_array(hidden_states, expected_width=model.hidden_size)
     tokens = tuple(source_token_ids)
@@ -192,14 +235,23 @@ def decode_semantic_candidates(
                 for graph_index in range(max_graphs_per_chart + 1):
                     if progress:
                         progress({"stage": "candidate_graph", "chart": chart_index, "graph": graph_index})
-                    result = captured[0].solve(excluded_graphs=excluded, time_limit_s=solve_time_limit_s)
+                    selected_options = []
+                    result = captured[0].solve(excluded_graphs=excluded,
+                                               selection_observer=selected_options.append,
+                                               time_limit_s=solve_time_limit_s)
                     if result is None:
                         row["search_complete"] = True
                         break
                     if graph_index == max_graphs_per_chart:
                         reasons.append("argument_graph_limit")
                         break
-                    score, arguments, _mentions, _dependencies = result
+                    score, arguments, mentions, _dependencies = result
+                    if len(selected_options) != 1:
+                        raise ValueError("candidate graph omitted its selected source evidence")
+                    definition_spans = (tuple(tuple(captured[0].definition_options[node][role][index]
+                                                       for role, index in enumerate(indices))
+                                              for node, indices in enumerate(selected_options[0]))
+                                        if captured[0].definition_options is not None else None)
                     excluded.append(arguments)
                     program = argument_graph_program(nodes, arguments, n_inputs=len(inputs))
                     joint_score = score + sum(node.score for node in nodes) - model.operation_length_penalty * len(nodes)
@@ -207,7 +259,8 @@ def decode_semantic_candidates(
                         raise ValueError("candidate graph score is nonfinite")
                     candidates.append(SemanticCandidate.from_argument_graph(nodes, arguments,
                         n_inputs=len(inputs), joint_score=joint_score,
-                        chart_index=chart_index, graph_index=graph_index))
+                        chart_index=chart_index, graph_index=graph_index,
+                        argument_spans=mentions, definition_spans=definition_spans))
                     row["examined_graphs"] += 1
                     if progress:
                         progress({"stage": "candidate_retained", "chart": chart_index,

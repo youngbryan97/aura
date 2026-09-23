@@ -1,11 +1,14 @@
 """Candidate coverage uses deployed builders and keeps selection and evidence apart."""
 
 from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
 
 from core.learning.semantic_failure_diagnosis import diagnose_semantic_candidate_bank
+from core.learning.semantic_candidate_bank import SemanticCandidate
 from core.learning.semantic_program_campaign import _sha
+from core.learning.semantic_program_ir import TokenSpan
 from core.learning.semantic_program_transducer import SemanticTransductionOutcome
 from tests.test_semantic_relation_graph_learning import model_examples
 
@@ -42,6 +45,30 @@ def test_runtime_selection_and_coefficients_are_unchanged(fixture):
     assert not bank.receipt["expected_answer_available"]
     assert not bank.receipt["source_annotations_available"]
     assert not bank.receipt["serving_authority"]
+    assert bank.receipt["schema"] == "aura.semantic_candidate_bank.v3"
+    assert bank.candidates[0].argument_spans == tuple(
+        ins.argument_spans for ins in ordinary.ir.instructions)
+    assert bank.candidates[0].definition_provenance == "register_anchor"
+    assert bank.candidates[0].definition_spans is not None
+    assert all(candidate.argument_spans is not None for candidate in bank.candidates)
+
+
+def test_graph_evidence_follows_topological_execution_order():
+    nodes = (SimpleNamespace(operation="sub", span=TokenSpan(2, 3)),
+             SimpleNamespace(operation="add", span=TokenSpan(9, 10)))
+    mentions = ((TokenSpan(3, 4), TokenSpan(4, 5)),
+                (TokenSpan(6, 7), TokenSpan(7, 8)))
+    definitions = ((TokenSpan(0, 1), TokenSpan(1, 2)),
+                   (TokenSpan(10, 11), TokenSpan(11, 12)))
+    candidate = SemanticCandidate.from_argument_graph(
+        nodes, ((3, 0), (0, 1)), n_inputs=2, joint_score=1.,
+        chart_index=0, graph_index=0, argument_spans=mentions,
+        definition_spans=definitions)
+    assert candidate.operation_spans == (nodes[1].span, nodes[0].span)
+    assert candidate.argument_spans == (mentions[1], mentions[0])
+    assert candidate.definition_spans == (definitions[1], definitions[0])
+    assert candidate.definition_provenance == "optimizer_selected"
+    assert candidate.to_dict()["argument_spans"][0][0] == mentions[1][0].to_dict()
 
 
 def test_search_limits_do_not_prove_absence(fixture):
@@ -128,6 +155,27 @@ def test_correct_candidate_outranked_is_selection_failure(fixture, monkeypatch):
     result = diagnose_semantic_candidate_bank(bank, item)
     assert result["failure_stage"] == "selection"
     assert result["correct_reachable"] is True
+    assert result["operation_view"]["equivalent_candidates"] > 0
+    assert result["operation_view"]["selected_spans"] == [
+        span.to_dict() for span in bank.candidates[0].operation_spans]
+    assert result["operation_view"]["diagnostic_only"] is True
+
+
+def test_operation_view_diagnosis_separates_source_chart_coverage(fixture, monkeypatch):
+    _, item, _, bank = fixture
+    selected = bank.selected.ir.to_program().sha()
+    monkeypatch.setattr("core.learning.semantic_failure_diagnosis.compare_program_meanings",
+        lambda _target, candidate, *_args, **_kwargs:
+            {"status": "different" if candidate.sha() == selected else "equivalent"})
+    result = diagnose_semantic_candidate_bank(bank, item)
+    source_spans = tuple(ins.operation_span for ins in item.ir.instructions)
+    expected = sum(candidate.program.sha() != selected
+                   and candidate.operation_spans == source_spans
+                   and tuple(ins.op for ins in candidate.program.instructions) ==
+                   tuple(ins.op for ins in item.ir.instructions)
+                   for candidate in bank.candidates)
+    assert result["operation_view"]["equivalent_exact_source_spans"] == expected
+    assert result["failure_stage"] == "selection"
 
 
 def test_receipt_mutation_cannot_certify_exhaustion(fixture):

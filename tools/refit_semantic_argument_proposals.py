@@ -107,6 +107,8 @@ def main() -> int:
     parser.add_argument("--round-checkpoint", type=Path,
                         help="numerical checkpoint bound to the requested round snapshot")
     parser.add_argument("--runtime-operation-views", action="store_true")
+    parser.add_argument("--runtime-operation-view-charts", type=int, default=0)
+    parser.add_argument("--preserve-coreferent-mentions", action="store_true")
     parser.add_argument("--operation-view-mode", action="append",
                         help="operation_views only: explicitly select candidate feature modes")
     parser.add_argument("--conditional-operation-labels", action="store_true",
@@ -170,6 +172,8 @@ def main() -> int:
         parser.error("validation output must not overwrite the numerical checkpoint")
     if args.runtime_operation_views and args.objective != "pairwise_arguments":
         parser.error("runtime operation views require pairwise_arguments")
+    if args.preserve_coreferent_mentions and args.objective != "pairwise_arguments":
+        parser.error("coreferent mention preservation requires pairwise_arguments")
     if args.operation_view_mode and args.objective != "operation_views":
         parser.error("operation view candidates require operation_views")
     if args.conditional_operation_labels and args.objective != "operation_views":
@@ -314,9 +318,14 @@ def main() -> int:
             options["retention_operation_charts"] = args.retention_operation_charts
     if args.runtime_mention_margin:
         options["runtime_mention_margin"] = True
+    if args.preserve_coreferent_mentions:
+        options["preserve_coreferent_mentions"] = True
     if args.runtime_operation_views:
         options["use_runtime_operation_views"] = True
+        options["runtime_operation_view_charts"] = args.runtime_operation_view_charts
         options["progress"] = lambda row: print(json.dumps(row, sort_keys=True), flush=True)
+    elif args.runtime_operation_view_charts:
+        parser.error("--runtime-operation-view-charts requires --runtime-operation-views")
     if args.objective == "ranked_operation_pointer":
         options = {"ranking": True}
     if args.objective == "operation_background":

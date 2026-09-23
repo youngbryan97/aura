@@ -263,6 +263,7 @@ def refit_compositional_argument_rankings(
     *,
     preserve_coreferent_mentions: bool=False,
     use_runtime_operation_views: bool=False,
+    runtime_operation_view_charts: int=0,
     runtime_mention_margin: bool=False,
     progress: Any=None,
 ) -> CompositionalSemanticProgramTransducer:
@@ -300,6 +301,10 @@ def refit_compositional_argument_rankings(
         raise ValueError("argument ranking source splits duplicate or overlap")
     if type(use_runtime_operation_views) is not bool:
         raise ValueError("runtime operation views must be a boolean")
+    if type(runtime_operation_view_charts) is not int or not 0 <= runtime_operation_view_charts <= 64:
+        raise ValueError("runtime operation view charts must be inside [0, 64]")
+    if runtime_operation_view_charts and not use_runtime_operation_views:
+        raise ValueError("runtime operation chart views require runtime operation views")
     if type(runtime_mention_margin) is not bool:
         raise ValueError("runtime mention margin must be a boolean")
     fitting_examples = training
@@ -308,7 +313,8 @@ def refit_compositional_argument_rankings(
         from core.learning.semantic_runtime_argument_views import runtime_argument_training_views
 
         fitting_examples, runtime_view_receipt = runtime_argument_training_views(
-            model, training, progress=progress,
+            model, training, max_operation_charts=runtime_operation_view_charts,
+            progress=progress,
         )
     heads, fits = [], []
     for position, (role, proposal) in enumerate(zip(
@@ -327,6 +333,7 @@ def refit_compositional_argument_rankings(
             fixed_pointer_scores=fixed_scores,
             pointer_scale=model.argument_pointer_scale,
             factorized_features=runtime_mention_margin,
+            balance_source_views=bool(runtime_operation_view_charts),
         )
         weight, fit = fit_pairwise_argument_weight(
             features, labels, weights,

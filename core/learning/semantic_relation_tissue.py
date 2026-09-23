@@ -108,8 +108,13 @@ class DirectionalFeatureRows:
         if isinstance(indices, (int, np.integer)):
             return _directional_relation_feature(*self._pairs[int(indices)])
         selected = range(*indices.indices(len(self._pairs))) if isinstance(indices, slice) else indices
-        rows = [_directional_relation_feature(*self._pairs[int(index)]) for index in selected]
-        return np.stack(rows) if rows else np.empty((0, self.shape[1]), dtype=np.float32)
+        pairs = [self._pairs[int(index)] for index in selected]
+        if not pairs:
+            return np.empty((0, self.shape[1]), dtype=np.float32)
+        references = np.stack([pair[0] for pair in pairs])
+        operations = np.stack([pair[1] for pair in pairs])
+        difference = references - operations
+        return np.concatenate((references * operations, np.abs(difference), difference), axis=1).astype(np.float32)
 
     @property
     def vector_storage_bytes(self) -> int:

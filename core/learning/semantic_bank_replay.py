@@ -37,7 +37,8 @@ def rescore_semantic_candidate_bank(
             or not math.isfinite(solve_time_limit_s) or solve_time_limit_s <= 0):
         raise ValueError("bank replay allowance must be finite and positive")
     bank.validate()
-    if bank.receipt.get("schema") != "aura.semantic_candidate_bank.v2":
+    if bank.receipt.get("schema") not in {
+            "aura.semantic_candidate_bank.v2", "aura.semantic_candidate_bank.v3"}:
         raise ValueError("bank replay requires execution-ordered operation spans")
     if (bank.receipt["source_text_sha256"] != source_text_sha256
             or bank.receipt["model_basis_sha256"] != model_basis_sha256
