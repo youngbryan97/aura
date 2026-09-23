@@ -101,6 +101,16 @@ def _rankable(item, row: dict, *, preserve_evidence: bool = False) -> tuple:
     return (*result, tuple(mentions), tuple(definitions)) if preserve_evidence else result
 
 
+def _rankable_or_none(item, row: dict, *, preserve_evidence: bool = False) -> tuple | None:
+    """Only an explicitly empty ordinary decode may lack a ranking view."""
+    bank = row["bank"]
+    if (not bank["candidates"] and not bank["input_spans"]
+            and bank["selected_program_sha256"] is None
+            and bank["limit_reason"] == "ordinary_decode_unavailable"):
+        return None
+    return _rankable(item, row, preserve_evidence=preserve_evidence)
+
+
 def _evaluate(model, items: dict, rows: dict, source_ids: list[str]) -> dict:
     import torch
 
@@ -111,13 +121,28 @@ def _evaluate(model, items: dict, rows: dict, source_ids: list[str]) -> dict:
     with torch.no_grad():
         for source in source_ids:
             item, row = items[source], rows[source]
-            case = _rankable(item, row, preserve_evidence=model.argument_evidence)
+            case = _rankable_or_none(item, row,
+                                     preserve_evidence=model.retain_evidence_variants)
+            if case is None:
+                results.append({"source": source, "candidate_count": 0,
+                                "bank_reachable": None, "incumbent_correct": False,
+                                "selected_correct": None, "chosen_program_sha256": None,
+                                "chosen_index": None,
+                                "unrankable_reason": "ordinary_decode_unavailable"})
+                continue
             (programs, labels, keys), spans, kinds, anchors = case[:4]
             features = torch.from_numpy(_hidden_array(item.hidden_states)).float()
             kwargs = ({"argument_spans": case[4], "definition_spans": case[5]}
                       if model.argument_evidence else {})
             scores = model(features, spans, kinds, programs, operation_spans=anchors, **kwargs)
-            chosen = int(scores.argmax().item())
+            if model.retain_evidence_variants:
+                from core.learning.semantic_candidate_ranker import aggregate_program_scores
+
+                _programs, grouped, members = aggregate_program_scores(scores, keys)
+                winning = members[int(grouped.argmax().item())]
+                chosen = max(winning, key=lambda index: float(scores[index]))
+            else:
+                chosen = int(scores.argmax().item())
             results.append({"source": source, "candidate_count": len(keys),
                             "bank_reachable": any(labels),
                             "incumbent_correct": bool(row["bank"]["selected_program_sha256"]
@@ -125,11 +150,14 @@ def _evaluate(model, items: dict, rows: dict, source_ids: list[str]) -> dict:
                             "selected_correct": labels[chosen], "chosen_program_sha256": keys[chosen],
                             "chosen_index": chosen})
     return {"population": len(results),
-            "bank_reachable": sum(row["bank_reachable"] for row in results),
+            "bank_reachable": sum(row["bank_reachable"] is True for row in results),
+            "ranker_evaluable": sum(row["selected_correct"] is not None for row in results),
             "incumbent_correct": sum(row["incumbent_correct"] for row in results),
-            "ranker_correct": sum(row["selected_correct"] for row in results),
-            "gains": sum(row["selected_correct"] and not row["incumbent_correct"] for row in results),
-            "regressions": sum(row["incumbent_correct"] and not row["selected_correct"] for row in results),
+            "ranker_correct": sum(row["selected_correct"] is True for row in results),
+            "gains": sum(row["selected_correct"] is True and not row["incumbent_correct"]
+                         for row in results),
+            "regressions": sum(row["incumbent_correct"] and row["selected_correct"] is False
+                               for row in results),
             "rows": results}
 
 
@@ -217,6 +245,8 @@ def _runtime_factor_cases(items: dict, train: list[str], banks: dict,
     factors = _factor_cases(items, train)
     cases = {}
     for source, factor in factors.items():
+        if source not in banks:
+            continue
         bank = banks[source]
         if factor[1:3] != bank[1:3]:
             raise ValueError("runtime factor view changed source grounding")
@@ -311,6 +341,8 @@ def main() -> None:
                         help="train explicit operation-role to source-mention evidence")
     parser.add_argument("--argument-evidence", action="store_true",
                         help="train on exact runtime-selected argument and definition spans")
+    parser.add_argument("--retain-evidence-variants", action="store_true",
+                        help="keep and normalize all runtime evidence paths for each program")
     parser.add_argument("--runtime-charts", type=int, default=4,
                         help="bounded answer-blind operation views per source")
     parser.add_argument("--pilot-rows", type=int, default=0,
@@ -326,6 +358,9 @@ def main() -> None:
         parser.error("bank training needs a complete source bank directory")
     if args.argument_evidence and (not args.identity_bindings or args.training_mode != "bank"):
         parser.error("argument evidence needs identity bindings and real bank training")
+    if args.retain_evidence_variants and args.training_mode != "bank":
+        parser.error("evidence-path retention needs real bank training")
+    retain_evidence_variants = args.retain_evidence_variants or args.argument_evidence
 
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
@@ -384,8 +419,8 @@ def main() -> None:
                                    source=source, plan_sha=plan["plan_sha256"],
                                    model_receipt=model.receipt_sha256,
                                    expected_receipt=bank_report["row_receipts"][source]) for source in ids}
-        cases = {source: _rankable(items[source], rows[source],
-                                  preserve_evidence=args.argument_evidence) for source in ids}
+        cases = {source: case for source in ids if (case := _rankable_or_none(
+            items[source], rows[source], preserve_evidence=retain_evidence_variants)) is not None}
         if args.training_mode == "source_factors_runtime":
             source_cases, runtime_view_receipt = _source_runtime_factor_cases(
                 model, items, train, max_charts=args.runtime_charts)
@@ -408,12 +443,15 @@ def main() -> None:
     else:
         cases = _contrast_cases(items, train, held, limit=args.contrast_limit)
         contrasts = None
+    if args.training_mode in bank_modes:
+        train = [source for source in train if source in cases]
     torch.manual_seed(20260922 + args.fold)
     np.random.seed(20260922 + args.fold)
     config = RequestContextConfig(model.hidden_size, width=64, heads=4, layers=1,
                                   feature_scaling="unit_variance")
     ranker = ContextualProgramRanker(config, identity_bindings=args.identity_bindings,
-                                    argument_evidence=args.argument_evidence)
+                                    argument_evidence=args.argument_evidence,
+                                    retain_evidence_variants=retain_evidence_variants)
     optimizer = torch.optim.AdamW(ranker.parameters(), lr=3e-4, weight_decay=0.01)
     update_count = 0
     learning_curve = []
@@ -433,14 +471,15 @@ def main() -> None:
                 optimizer.zero_grad(set_to_none=True)
             source_losses = []
             for view in valid_views:
-                (programs, labels, _), spans, kinds, anchors = view[:4]
+                (programs, labels, keys), spans, kinds, anchors = view[:4]
                 if args.training_mode not in balanced_modes:
                     optimizer.zero_grad(set_to_none=True)
                 kwargs = ({"argument_spans": view[4], "definition_spans": view[5]}
                           if args.argument_evidence else {})
                 scores = ranker(features, spans, kinds, programs,
                                 operation_spans=anchors, **kwargs)
-                loss = candidate_set_loss(scores, labels)
+                loss = candidate_set_loss(scores, labels,
+                                          program_keys=keys if retain_evidence_variants else None)
                 if args.training_mode in balanced_modes:
                     (loss / len(valid_views)).backward()
                     source_losses.append(float(loss.detach()))
@@ -472,6 +511,15 @@ def main() -> None:
     evaluation = (_evaluate(ranker, items, rows, held)
                   if args.training_mode in bank_modes
                   else _evaluate_contrasts(ranker, items, cases, held))
+    evidence_lesion = None
+    if args.argument_evidence:
+        with torch.no_grad():
+            original = ranker.evidence_key.weight.detach().clone()
+            try:
+                ranker.evidence_key.weight.zero_()
+                evidence_lesion = _evaluate(ranker, items, rows, held)
+            finally:
+                ranker.evidence_key.weight.copy_(original)
     args.output_directory.mkdir(parents=True, exist_ok=True)
     weights = args.output_directory / f"fold-{args.fold}.safetensors"
     if weights.exists():
@@ -487,6 +535,7 @@ def main() -> None:
             "training_mode": args.training_mode,
             "identity_bindings": args.identity_bindings,
             "argument_evidence": args.argument_evidence,
+            "retain_evidence_variants": retain_evidence_variants,
             "source_balanced_runtime_factor_views": args.training_mode in balanced_modes,
             "runtime_charts": args.runtime_charts if args.training_mode in balanced_modes else None,
             "runtime_view_receipt_sha256": (_digest(runtime_view_receipt)
@@ -503,10 +552,13 @@ def main() -> None:
                 "eligible": len(train), "planned": len(planned_train),
                 "without_witnessed_contrasts": sorted(set(planned_train) - set(train)),
             } if args.training_mode == "source_factors_runtime" else None,
+            "bank_unrankable_sources": sorted(set(ids) - set(cases))
+            if args.training_mode in bank_modes else None,
             "epochs": args.epochs, "updates": update_count,
             "learning_curve": learning_curve,
             "training_evaluation": training_evaluation,
             "config": vars(config), "evaluation": evaluation,
+            "same_checkpoint_argument_evidence_lesion": evidence_lesion,
             "weights_sha256": hashlib.sha256(weights.read_bytes()).hexdigest()}
     report = args.output_directory / f"fold-{args.fold}.json"
     report.write_text(json.dumps({**body, "receipt_sha256": _digest(body)}, sort_keys=True))

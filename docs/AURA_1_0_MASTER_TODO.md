@@ -1178,10 +1178,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] G03 Close learned semantic binding/composition failures on development
   [PDF architecture disposition and opt-in full-program identity training](evidence/G03_PDF_ARCHITECTURE_DISPOSITION_2026-09-23.md)
   now covers all four supplied PDFs. The v3 candidate bank retains selected
-  mention/definition evidence for an opt-in complete-program ranker. Two short
-  identity-binding source-fold pilots regressed; the new evidence path has
-  focused contracts only. Fresh source-bank acquisition, paired source-fold
-  measurement, and frozen broad evaluation are still open.
+  mention/definition evidence for an opt-in complete-program ranker. Short
+  source-fold pilots regressed; on a 42-source v3 bank the grouped evidence
+  arm scored 3/12 versus 4/12 for a matched no-evidence arm and 5/12 for the
+  incumbent. Full-source acquisition, paired measurement, and frozen broad
+  evaluation remain open.
   [Architecture reuse and runtime-chart training connection](evidence/G03_ARCHITECTURE_REUSE_2026-09-23.md)
   [Operation-span view diagnosis](evidence/G03_OPERATION_SPAN_VIEW_DIAGNOSIS_2026-09-22.md)
   finds that the intended binding wins on annotated operation spans but loses

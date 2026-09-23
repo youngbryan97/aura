@@ -10,13 +10,15 @@ from core.learning.procedure_induction import Instruction, Program
 from core.learning.semantic_candidate_contrasts import (
     source_program_contrasts, source_program_factor_contrasts,
 )
-from core.learning.semantic_candidate_ranker import ContextualProgramRanker, candidate_set_loss
+from core.learning.semantic_candidate_ranker import (
+    ContextualProgramRanker, aggregate_program_scores, candidate_set_loss,
+)
 from core.learning.semantic_construction_folds import construction_folds
 from core.learning.semantic_program_ir import TokenSpan
 from core.learning.semantic_request_context import RequestContextConfig
 from tools.compare_semantic_candidate_methods import _direct_choice, _portfolio_comparison
 from tools.evaluate_semantic_candidate_ranker import (
-    _factor_cases, _rankable, _runtime_factor_cases,
+    _evaluate, _factor_cases, _rankable, _rankable_or_none, _runtime_factor_cases,
     _source_runtime_factor_cases, _training_views,
 )
 from tools.materialize_semantic_candidate_training import _plan, _select_source_ids
@@ -119,7 +121,8 @@ def test_argument_evidence_changes_same_program_only_when_its_channel_is_present
     config = RequestContextConfig(8, width=8, heads=2, layers=1,
                                   feature_scaling="unit_variance")
     model = ContextualProgramRanker(config, identity_bindings=True,
-                                    argument_evidence=True).eval()
+                                    argument_evidence=True,
+                                    retain_evidence_variants=True).eval()
     source = functional.normalize(torch.randn(6, 8), dim=-1)
     program = Program(2, (Instruction("sub", (0, 1)),))
     programs = (program, program)
@@ -205,6 +208,22 @@ def test_loss_rejects_no_verified_solution():
         candidate_set_loss(torch.zeros(2), (1, 0))
 
 
+def test_extra_evidence_paths_do_not_multiply_a_programs_prior_mass():
+    scores = torch.zeros(4, requires_grad=True)
+    keys, grouped, members = aggregate_program_scores(scores, ("right", "right", "right", "wrong"))
+    assert keys == ("right", "wrong")
+    assert members == ((0, 1, 2), (3,))
+    torch.testing.assert_close(grouped, torch.zeros(2))
+    loss = candidate_set_loss(scores, (True, True, True, False),
+                              program_keys=("right", "right", "right", "wrong"))
+    torch.testing.assert_close(loss, torch.tensor(0.6931472))
+    loss.backward()
+    assert scores.grad is not None and torch.isfinite(scores.grad).all()
+    with pytest.raises(ValueError, match="contradictory"):
+        candidate_set_loss(torch.zeros(2), (True, False),
+                           program_keys=("same", "same"))
+
+
 def test_proposal_view_separates_programs_from_diagnostic_labels():
     programs = _programs()
     candidates = [{"program": program.to_dict(), "program_sha256": program.sha(),
@@ -255,6 +274,23 @@ def test_runtime_evidence_variants_survive_program_hash_deduplication():
     row["bank"]["schema"] = "aura.semantic_candidate_bank.v2"
     with pytest.raises(ValueError, match="source-evidence"):
         _rankable(item, row, preserve_evidence=True)
+
+
+def test_empty_ordinary_decode_stays_in_the_denominator_without_a_gradient():
+    source = "a" * 64
+    item = SimpleNamespace(public_inputs=(3, 3))
+    row = {"bank": {"candidates": [], "input_spans": [],
+                    "selected_program_sha256": None,
+                    "limit_reason": "ordinary_decode_unavailable"}}
+    assert _rankable_or_none(item, row) is None
+    result = _evaluate(_model(), {source: item}, {source: row}, [source])
+    assert result["population"] == 1
+    assert result["ranker_evaluable"] == 0
+    assert result["ranker_correct"] == 0
+    assert result["rows"][0]["selected_correct"] is None
+    row["bank"]["candidates"] = [{}]
+    with pytest.raises((KeyError, ValueError)):
+        _rankable_or_none(item, row)
 
 
 def test_training_plan_requires_complete_train_cohort_and_fixed_bounds():

@@ -28,15 +28,18 @@ class ContextualProgramRanker(nn.Module):
     """
 
     def __init__(self, config: RequestContextConfig, *, identity_bindings: bool = False,
-                 argument_evidence: bool = False):
+                 argument_evidence: bool = False,
+                 retain_evidence_variants: bool = False):
         super().__init__()
         if (type(identity_bindings) is not bool or type(argument_evidence) is not bool
-                or argument_evidence and not identity_bindings):
+                or type(retain_evidence_variants) is not bool
+                or argument_evidence and (not identity_bindings or not retain_evidence_variants)):
             raise ValueError("argument evidence requires explicit identity bindings")
         width = config.width
         self.config = config
         self.identity_bindings = identity_bindings
         self.argument_evidence = argument_evidence
+        self.retain_evidence_variants = retain_evidence_variants
         self.operations = tuple(sorted(PRIMITIVES_BY_NAME))
         self.operation_ids = {name: index for index, name in enumerate(self.operations)}
         self.context = SemanticRequestContext(config)
@@ -205,11 +208,33 @@ class ContextualProgramRanker(nn.Module):
         return torch.stack(scores)
 
 
-def candidate_set_loss(scores: torch.Tensor, correct: Sequence[bool]) -> torch.Tensor:
+def aggregate_program_scores(scores: torch.Tensor, keys: Sequence[str]) -> tuple[
+        tuple[str, ...], torch.Tensor, tuple[tuple[int, ...], ...]]:
+    """Average each program's evidence paths in probability space."""
+    if (scores.ndim != 1 or len(keys) != len(scores) or not keys
+            or any(type(key) is not str or not key for key in keys)
+            or not torch.isfinite(scores).all().item()):
+        raise ValueError("program aggregation requires a finite, identified candidate set")
+    groups: dict[str, list[int]] = {}
+    for index, key in enumerate(keys):
+        groups.setdefault(key, []).append(index)
+    values = [torch.logsumexp(scores[indices], dim=0) - math.log(len(indices))
+              for indices in groups.values()]
+    return tuple(groups), torch.stack(values), tuple(tuple(indices) for indices in groups.values())
+
+
+def candidate_set_loss(scores: torch.Tensor, correct: Sequence[bool],
+                       *, program_keys: Sequence[str] | None = None) -> torch.Tensor:
     """Optimize the probability mass of every independently verified solution."""
     if (scores.ndim != 1 or len(correct) != len(scores)
             or not correct or any(type(value) is not bool for value in correct)
             or not any(correct) or not torch.isfinite(scores).all().item()):
         raise ValueError("candidate loss requires a finite bank with a verified solution")
     mask = torch.tensor(correct, dtype=torch.bool, device=scores.device)
+    if program_keys is not None:
+        _keys, scores, groups = aggregate_program_scores(scores, program_keys)
+        if any(len({correct[index] for index in indices}) != 1 for indices in groups):
+            raise ValueError("one executable program has contradictory meaning labels")
+        mask = torch.tensor([correct[indices[0]] for indices in groups],
+                            dtype=torch.bool, device=scores.device)
     return torch.logsumexp(scores, dim=0) - torch.logsumexp(scores[mask], dim=0)

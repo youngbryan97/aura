@@ -67,6 +67,31 @@ one source row with mention and definition evidence, but search was incomplete
 and semantic verification unknown. Its receipt is under
 `~/.aura/rlc-evidence/semantic-identity-evidence-bank-pilot-20260923/`.
 
+A 42-source target-blind v3 bank was then acquired with four operation charts
+and two argument graphs per chart. Correct programs were retained on 40/42
+source rows; the incumbent selected one on 13/42. Two ordinary decodes yielded
+no candidates. The evaluator now leaves those two in the denominator as
+unavailable and never treats them as training positives. On source fold 0,
+the grouped evidence ranker selected 3/12 correct versus 4/12 for a ranker
+trained on the same evidence-path inventory with the argument-evidence term
+absent, and 5/12 for the incumbent. Both learned arms are negative pilots.
+The bank and fold receipts are under `~/.aura/rlc-evidence/` with names
+`semantic-identity-evidence-bank-4x2-20260923`,
+`semantic-identity-evidence-grouped-fold0-20260923`, and
+`semantic-identity-lesion-grouped-fold0-20260923`. The first two training
+attempts were not matched because one deduplicated same-program evidence paths;
+the grouped rerun corrected that. A same-checkpoint evidence lesion is now
+recorded by the evaluator on subsequent runs. None of these source subsets
+establishes transfer or promotion.
+
+The same-checkpoint lesion receipt at
+`~/.aura/rlc-evidence/semantic-identity-evidence-lesion-fold0-20260923/fold-0.json`
+found seven of twelve program choices changed when the learned evidence term
+was zeroed, but treatment and lesion both scored 3/12. The term reaches the
+decision. It has not earned an accuracy claim. Full-source training is the
+next source-only test of whether the relation generalizes with adequate
+construction coverage.
+
 The immediate experiment remains source-only and opt-in. Focused tests check
 that identical value representations at distinct source spans remain separable,
 that the ranker score is differentiable through the binding terms, that source
