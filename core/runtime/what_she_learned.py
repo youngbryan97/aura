@@ -135,12 +135,12 @@ def remember(world: str, what: dict[str, Any]) -> bool:
                 "what she learned about %r was %d over, so %s",
                 key, len(json.dumps({"_kept_for": key, **what})) - _MOST_KEPT, "; ".join(let_go),
             )
-        get_file_write_gateway().ensure_directory(_kept_in(), source="what_she_learned")
         with local_internal_governed_scope(
             "what_she_learned.remember",
             domain="state_mutation",
             constraints={"world": key},
         ):
+            get_file_write_gateway().ensure_directory(_kept_in(), source="what_she_learned")
             get_file_write_gateway().write_text(
                 _kept_in() / f"{key}.json", body, source="what_she_learned"
             )
