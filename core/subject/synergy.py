@@ -38,7 +38,7 @@ from the Gaussian estimate, so agreement between them means more than either.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
@@ -49,7 +49,7 @@ from core.subject.estimate import fit_predict, split_rows
 from core.subject.irreducibility import LOWER_BOUND_Z, MIN_TRANSITIONS, _folds
 from core.subject.recording import Recording
 
-__all__ = ["SynergyReport", "synergy", "synergy_suite"]
+__all__ = ["SynergyReport", "synergy", "synergy_suite", "without_clocks"]
 
 #: Components kept per domain. Three is enough to carry the shape of a domain
 #: and small enough that the joint covariance stays invertible.
@@ -400,6 +400,27 @@ def _bootstrap_raw_nulls(
 TARGET_READINGS: tuple[str, ...] = ("level", "change")
 
 
+def without_clocks(recording: Recording) -> Recording:
+    """The recording with every column that only ever goes one way held flat.
+
+    A running total is a clock (`Recording.monotone_columns`). Each domain is
+    reduced to its first three components, and a domain carrying counters gives
+    one of those three to elapsed time: on seed 7 at the decisive design the
+    self-model's first component, 47% of its variance, was belief versions,
+    snapshot counts and actions taken. Time then passes for information about
+    the target's change, in the value and in the shifted null alike, and the
+    two sources' own state is read through the components left over. Causal
+    closure drops clocks for the same reason: elapsed time is not a hidden
+    state. A column held flat has no spread, and `_components` drops it.
+    """
+    clocks = recording.monotone_columns()
+    if not clocks.any():
+        return recording
+    x = recording.x.copy()
+    x[:, clocks] = 0.0
+    return replace(recording, x=x)
+
+
 def synergy(
     recording: Recording,
     source_a: str,
@@ -408,15 +429,19 @@ def synergy(
     *,
     seed: int = 0,
     of: str = "level",
+    clocks_out: bool = False,
 ) -> SynergyReport:
     """Syn(A_t, B_t ; Y_{t+1}) with a shifted null and an interaction check.
 
     ``of="change"`` scores Y_{t+1} - Y_t instead of Y_{t+1}. The null and the
     interaction check read the same target, so the comparison stays one
-    comparison.
+    comparison. ``clocks_out`` reads every domain without its counters
+    (`without_clocks`), which is how ISC-v5 scores the line.
     """
     if of not in TARGET_READINGS:
         raise ValueError(f"synergy is about a target's {' or '.join(TARGET_READINGS)}, not {of!r}")
+    if clocks_out:
+        recording = without_clocks(recording)
     raw_a = _components(recording.domain(source_a)[:-1])
     raw_b = _components(recording.domain(source_b)[:-1])
     following = recording.domain(target)
@@ -526,5 +551,9 @@ TRIPLES: tuple[tuple[str, str, str], ...] = (
 )
 
 
-def synergy_suite(recording: Recording, *, seed: int = 0, of: str = "level") -> list[SynergyReport]:
+def synergy_suite(
+    recording: Recording, *, seed: int = 0, of: str = "level", clocks_out: bool = False
+) -> list[SynergyReport]:
+    if clocks_out:
+        recording = without_clocks(recording)
     return [synergy(recording, a, b, y, seed=seed, of=of) for a, b, y in TRIPLES]

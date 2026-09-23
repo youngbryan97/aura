@@ -67,6 +67,19 @@ def main(argv: list[str] | None = None) -> int:
         null_sweeps[name] = json.loads(Path(where).read_text(encoding="utf-8"))
 
     evidence = {key: value for key, value in campaign.items() if key != "verdict"}
+    if "synergy_v4" not in evidence:
+        # A campaign recorded before ISC-v5 read synergy with the clocks out.
+        # The line is computed from the campaign's own recording, as the
+        # campaign would have: turn rows, the target's change, the run's seed.
+        from core.subject.recording import load_recording
+        from core.subject.synergy import synergy_suite
+
+        run_dir = args.campaign if args.campaign.is_dir() else args.campaign.parent
+        seed = int((campaign.get("campaign", {}).get("frozen", {}) or {}).get("seed", 0) or 0)
+        turns = load_recording(run_dir).by_turn()
+        evidence["synergy_v4"] = [
+            item.as_dict() for item in synergy_suite(turns, seed=seed, of="change", clocks_out=True)
+        ]
     evidence["interventional_cut"] = {
         "sweep": sweep,
         "null_sweeps": null_sweeps,

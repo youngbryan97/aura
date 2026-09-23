@@ -169,10 +169,29 @@ def test_the_battery_reports_v5_beside_v3_and_changes_neither() -> None:
     plain = assemble({}).as_dict()
     assert plain["v5_criteria"] == [] and plain["isc_v5_on_this_seed"] is False
     read = assemble({"interventional_cut": {"sweep": _sweep(511), "null_sweeps": {}, "nulls_that_pass": []}}).as_dict()
-    assert [line["criterion"] for line in read["v5_criteria"]] == ["partition_irreducibility", "partition_beats_nulls"]
-    assert all(line["passed"] for line in read["v5_criteria"])
+    assert [line["criterion"] for line in read["v5_criteria"]] == [
+        "partition_irreducibility", "partition_beats_nulls", "synergy",
+    ]
+    assert [line["passed"] for line in read["v5_criteria"]] == [True, True, False], (
+        "a run that did not read synergy with the clocks out fails that line"
+    )
     assert read["criteria"] == plain["criteria"], "v5 moved a v1 line"
     assert read["v3_criteria"] == plain["v3_criteria"], "v5 moved a v3 line"
+
+
+def test_v5_reads_synergy_with_the_clocks_out_and_needs_every_triple() -> None:
+    from core.subject.battery import assemble
+
+    def scored(passing: list[bool]) -> bool:
+        triples = [{"sources": ["A", "S"], "target": "G", "passes_v3": ok, "margin_over_bootstrap": 0.1} for ok in passing]
+        evidence = {"interventional_cut": {"sweep": _sweep(511), "null_sweeps": {}, "nulls_that_pass": []},
+                    "synergy_v4": triples}
+        lines = {line["criterion"]: line for line in assemble(evidence).as_dict()["v5_criteria"]}
+        return lines["synergy"]["passed"]
+
+    assert scored([True, True, True, True])
+    assert not scored([True, True, True, False])
+    assert not scored([])
 
 
 def test_the_runner_takes_its_v5_design_from_one_place() -> None:

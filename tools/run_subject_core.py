@@ -567,6 +567,12 @@ async def main() -> int:
         evidence["synergy_v2"] = [
             item.as_dict() for item in synergy_suite(turns, seed=args.seed, of="change")
         ]
+        # ISC-v5 scores the same line with the counters out of every domain
+        # (core.subject.synergy.without_clocks; docs/ISC_V5_PREREGISTRATION.md).
+        evidence["synergy_v4"] = [
+            item.as_dict()
+            for item in synergy_suite(turns, seed=args.seed, of="change", clocks_out=True)
+        ]
         matrix, names = periphery_read
         turn_rows = recording.turn_rows()
         from core.subject.closure import coverage as periphery_coverage

@@ -436,6 +436,20 @@ def _assemble_v5(out: Verdict, evidence: dict[str, Any]) -> None:
             else "playback decided nowhere, no passing null decided everywhere",
             why=line["why"],
         ))
+    # Synergy, v3's line and bars, read with the counters out of every domain
+    # (core.subject.synergy.without_clocks). A run that did not record it fails
+    # the line rather than falling back to the reading with clocks in.
+    clocks_out = evidence.get("synergy_v4") or []
+    out.v5_criteria.append(_c(
+        "synergy", "27",
+        "domains carry information jointly about the target's change that neither "
+        "carries alone, read without the counters in any domain (ISC-v5)",
+        bool(clocks_out) and all(bool(item.get("passes_v3")) for item in clocks_out),
+        [item.get("margin_over_bootstrap") for item in clocks_out],
+        f">= {THRESHOLDS['synergy_fraction']} on the change, above its shifted null, and above "
+        "its bootstrap null's 99th percentile by that null's spread, with clocks out",
+        triples=[item.get("sources", []) + [item.get("target")] for item in clocks_out],
+    ))
 
 
 def assemble(evidence: dict[str, Any]) -> Verdict:
