@@ -162,3 +162,13 @@ def test_the_steady_mind_records_what_served_each_answer(monkeypatch) -> None:
         assert second == [{"user_facing": True, "endpoint": "Cortex", "steering_alpha": 0.2, "method": "think", "kept": True}]
     finally:
         steady_mind.forget_for_test()
+
+
+def test_a_whole_run_counts_steering_as_attached_only_when_the_worker_said_so() -> None:
+    """None is what a worker whose steering never attached reports, forever."""
+    from tools.run_report_grounding import _steering_attached
+
+    assert _steering_attached({"active": True})
+    assert not _steering_attached({"active": None})
+    assert not _steering_attached({"active": False})
+    assert not _steering_attached({})

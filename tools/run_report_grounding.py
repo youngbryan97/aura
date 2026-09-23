@@ -109,6 +109,16 @@ def _steering_reading() -> dict[str, Any]:
     return dict(reading()) if callable(reading) else {"active": None, "why": "no cortex client"}
 
 
+def _steering_attached(reading: dict[str, Any]) -> bool:
+    """Whether the reading shows steering attached. Only True does.
+
+    The client reports None until the worker's flag has once read live, and a
+    worker whose steering never attached never sets it, so after her language
+    organ is up None means detached, not pending.
+    """
+    return reading.get("active") is True
+
+
 def _log(message: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {message}", flush=True)
 
@@ -156,7 +166,7 @@ async def main(argv: list[str] | None = None) -> int:
         raise SystemExit(f"refusing: a module kept a path into the shared state root: {state_leaks()[:6]}")
     await start_organism(runtime)
     steering = _steering_reading() if args.whole else {}
-    if args.whole and steering.get("active") is False:
+    if args.whole and not _steering_attached(steering):
         raise SystemExit(
             "refusing: her affective steering did not attach to the cortex worker, so the run "
             f"would measure her without the path the desktop runs her with: {steering}"
