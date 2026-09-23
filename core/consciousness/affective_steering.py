@@ -120,6 +120,7 @@ from core.consciousness.mood_weight import (
 from core.consciousness.mood_weight import signed_weight as _signed_weight
 from core.consciousness.phi_residual_sampler import PHI_SAMPLE_EVERY, PhiResidualSampler
 from core.consciousness.residual_injection_geometry import inject as _inject
+from core.consciousness.steering_channel import activation_state, governor_inputs
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.lockdep import checked_lock
 from core.runtime.model_layers import resolve_model_layers
@@ -1611,6 +1612,15 @@ class SubstrateSyncThread:
             if substrate is None:
                 continue
             try:
+                if source == "shared_state" and not isinstance(substrate, dict):
+                    # The parent's published state; the last slot is this worker's liveness flag.
+                    vector = self._coerce_state_vector(list(substrate)[:-1])
+                    if vector is not None:
+                        return vector, source
+                if hasattr(substrate, "_state_snapshot_nowait"):
+                    vector = self._coerce_state_vector(activation_state(substrate))
+                    if vector is not None:
+                        return vector, source
                 if hasattr(substrate, "get_state_vector"):
                     vector = self._coerce_state_vector(substrate.get_state_vector())
                     if vector is not None:
@@ -1664,8 +1674,7 @@ class SubstrateSyncThread:
 
                 if moods or substrate_x is not None:
                     # Governor modulation
-                    arousal = moods.get("arousal", 0.0)
-                    coherence = moods.get("coherence", 1.0)  # assume 1.0 if missing
+                    arousal, coherence = governor_inputs(substrate_x, moods)
                     new_alpha = self._engine.governor.compute_alpha(arousal, coherence)
                     surface_override = getattr(self._engine, "_surface_alpha_override", None)
                     if surface_override is not None:
@@ -1708,14 +1717,8 @@ class SubstrateSyncThread:
                         False,
                         "no live mood available; neutral fallback would leak",
                     )
-                    neutral_moods = {
-                        "valence": 0.0,
-                        "arousal": 0.0,
-                        "motivation": 0.0,
-                        "stress": 0.0,
-                    }
                     for hook in self._hooks:
-                        hook.update_substrate(neutral_moods)
+                        hook.update_substrate_vector(hook._neutral_reference_state(), source="neutral_fallback")
                         try:
                             hook.substrate_source = "neutral_fallback"
                         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
@@ -1769,8 +1772,6 @@ class SteeringGovernor:
         if self.last_kl_shift > self.kl_budget:
             alpha *= 0.5
         return alpha
-
-
 
 
 class AffectiveSteeringEngine(_FindsTheModelsGeometry):

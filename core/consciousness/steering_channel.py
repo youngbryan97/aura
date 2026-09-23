@@ -6,13 +6,16 @@ doubles the client allocates before the worker is started. The worker's sync
 thread reads it twenty times a second as her substrate vector; the last slot is
 the worker's own liveness flag.
 
-Nothing in the parent ever wrote the other fifteen. The worker took the zeros
-for her state, and a hook reads each steered dimension as an activation from 0
-to 1 centred on 0.5, so every attached worker pushed every token towards low
-valence, arousal, frustration, curiosity and energy: a weight of -0.76 on each,
-the same whatever she felt. The fusion certificate that opened the channel on
-user-facing turns was measured by handing states to the hooks directly, never
-through this array, so it certified a path live traffic did not take.
+Until 23 September the path was broken at both ends. Nothing in the parent
+wrote the fifteen state slots, and the sync thread had no way to read a shared
+array at all, so every tick it found no state and fell back to "neutral" moods
+of 0.0. A hook reads each steered dimension as an activation from 0 to 1
+centred on 0.5, so every attached worker steered towards low valence, arousal,
+frustration, curiosity and energy, a weight of -0.76 on each, the same whatever
+she felt, and its governor never ran, so alpha never followed her arousal. The
+fusion certificate that opened the channel on user-facing turns was measured by
+handing states to the hooks directly, so it certified a path live traffic did
+not take.
 
 `publish` writes her substrate into the array, on the scale the hooks read.
 Valence and arousal are signed in the substrate and rest at 0 (valence is
@@ -42,6 +45,7 @@ __all__ = [
     "CHANNEL_LENGTH",
     "activation_state",
     "create_channel",
+    "governor_inputs",
     "her_substrate",
     "publish",
     "steering_now",
@@ -49,6 +53,10 @@ __all__ = [
 
 #: Fifteen state slots and the worker's liveness flag.
 CHANNEL_LENGTH = 16
+
+#: Where arousal sits in the published state. The substrate's idx_arousal and the
+#: steering library's arousal dimension both say 1; a test holds the two together.
+AROUSAL_SLOT = 1
 
 #: The service names the worker's sync thread looked her substrate up by when
 #: it ran in-process, in its order.
@@ -127,3 +135,23 @@ def steering_now() -> list[float] | None:
     if state is None:
         return None
     return [float(value) for value in state[: CHANNEL_LENGTH - 1]]
+
+
+def governor_inputs(substrate_x: Any, moods: dict[str, float] | None) -> tuple[float, float]:
+    """Arousal and coherence for the steering governor, which sets alpha from them.
+
+    In the worker the governor read both from a neurochemical system that exists
+    only in the parent, found an empty mood vector, and took arousal as 0.0. Its
+    sigmoid gave 0.0067 of the base alpha of 0.2, so every hook ran at 0.0013 of
+    the stream, well under the 0.1 the fusion certificate found the least that
+    moves the model's output. Arousal is read from the state the hooks steer by,
+    where the published vector carries it as an activation, so the governor and
+    the arousal hook read one number in either process. No organ publishes a
+    coherence in either process (the mood vector has no such key), so it stays
+    at the 1.0 the governor has always been given.
+    """
+    moods = moods or {}
+    arousal = float(moods.get("arousal", 0.0))
+    if substrate_x is not None and len(substrate_x) > AROUSAL_SLOT:
+        arousal = float(substrate_x[AROUSAL_SLOT])
+    return arousal, float(moods.get("coherence", 1.0))

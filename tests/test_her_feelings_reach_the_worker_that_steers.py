@@ -120,3 +120,109 @@ def test_the_published_state_is_what_the_mixin_writes(monkeypatch) -> None:
     assert written[0] == pytest.approx(0.75) and written[1] == pytest.approx(0.25)
     assert written[3:6] == pytest.approx([0.2, 0.7, 0.4])
     assert steering_channel.steering_now() == pytest.approx(list(written[:15]))
+
+
+# ── The governor, and the path the sync thread takes in each process ───────────
+
+
+class _Hook:
+    """What the sync loop touches on a hook, recorded; stops the loop after one tick."""
+
+    def __init__(self, thread_box: dict) -> None:
+        self.box = thread_box
+        self._alpha = None
+        self.vectors: list[tuple[np.ndarray, str]] = []
+        self.substrate_source = ""
+
+    def update_substrate_vector(self, substrate_x, *, moods=None, source="") -> None:
+        self.vectors.append((np.asarray(substrate_x, dtype=np.float64).copy(), source))
+        self.box["thread"]._running = False
+
+    @staticmethod
+    def _neutral_reference_state() -> np.ndarray:
+        from core.consciousness.affective_steering import AffectiveSteeringHook
+
+        return AffectiveSteeringHook._neutral_reference_state()
+
+
+def _engine() -> Any:
+    import threading
+    from types import SimpleNamespace
+
+    from core.consciousness.affective_steering import DEFAULT_ALPHA, SteeringGovernor
+
+    return SimpleNamespace(
+        _state_control_lock=threading.Lock(),
+        governor=SteeringGovernor(base_alpha=DEFAULT_ALPHA),
+        telemetry=SimpleNamespace(alpha=None),
+        _surface_alpha_override=None,
+    )
+
+
+def _one_tick(monkeypatch, *, shared_state=None, services=None) -> _Hook:
+    """Run the real sync loop for one tick, with the container answering from `services`."""
+    from core.consciousness import affective_steering
+    from core.container import ServiceContainer
+
+    services = services or {}
+    monkeypatch.setattr(ServiceContainer, "get", staticmethod(lambda name, default=None: services.get(name, default)))
+    monkeypatch.setattr(affective_steering, "SUBSTRATE_SYNC_INTERVAL_S", 0.0)
+    box: dict = {}
+    hook = _Hook(box)
+    thread = affective_steering.SubstrateSyncThread([hook], engine=_engine(), shared_state=shared_state)
+    box["thread"] = thread
+    thread._running = True
+    thread._loop()
+    return hook
+
+
+def test_the_arousal_slot_is_where_the_library_steers_arousal() -> None:
+    from core.consciousness.affective_steering import AFFECTIVE_DIMENSIONS
+
+    (arousal,) = [spec for spec in AFFECTIVE_DIMENSIONS if spec["key"] == "arousal"]
+    assert arousal["substrate_idx"] == steering_channel.AROUSAL_SLOT
+
+
+def test_the_governor_reads_arousal_from_the_state_the_hooks_steer_by() -> None:
+    published = np.full(16, 0.5)
+    published[steering_channel.AROUSAL_SLOT] = 0.8
+    assert steering_channel.governor_inputs(published, {}) == (pytest.approx(0.8), 1.0)
+    assert steering_channel.governor_inputs(published, {"arousal": 0.1, "coherence": 0.6}) == (
+        pytest.approx(0.8),
+        pytest.approx(0.6),
+    )
+    assert steering_channel.governor_inputs(None, {"arousal": 0.3}) == (pytest.approx(0.3), 1.0)
+
+
+def test_in_the_worker_alpha_follows_her_arousal(monkeypatch) -> None:
+    """The worker has no neurochemical system; alpha used to sit at 0.0013 of the stream."""
+    import math
+
+    from core.consciousness.affective_steering import DEFAULT_ALPHA
+
+    def alpha_at(x_arousal: float) -> float:
+        channel = _channel()
+        steering_channel.publish(channel, _Substrate([0.0, x_arousal, 0.0, 0.5, 0.5, 0.5, 0.5]))
+        return _one_tick(monkeypatch, shared_state=channel)._alpha
+
+    resting, raised, lowered = alpha_at(0.0), alpha_at(0.6), alpha_at(-0.6)
+    assert resting == pytest.approx(DEFAULT_ALPHA * 0.5)
+    assert raised == pytest.approx(DEFAULT_ALPHA / (1.0 + math.exp(-10.0 * 0.3)))
+    assert lowered < resting < raised
+    assert resting > 50 * DEFAULT_ALPHA / (1.0 + math.exp(5.0))
+
+
+def test_in_process_the_hooks_read_her_substrate_as_activations(monkeypatch) -> None:
+    """Read raw, her resting valence of 0 was a fully negative feeling."""
+    hook = _one_tick(monkeypatch, services={"liquid_substrate": _Substrate([0.0, 0.0, 0.0, 0.5, 0.5, 0.5, 0.5])})
+    (vector, source), = hook.vectors
+    assert source == "liquid_substrate"
+    assert all(abs(weight) < 1e-6 for weight in _weights(vector[:16]).values())
+
+
+def test_with_no_state_anywhere_the_hooks_are_given_neutral(monkeypatch) -> None:
+    """The fallback used to hand them zeros, which they read as feeling low on every dimension."""
+    hook = _one_tick(monkeypatch)
+    (vector, source), = hook.vectors
+    assert source == "neutral_fallback"
+    assert all(abs(weight) < 1e-6 for weight in _weights(vector[:16]).values())

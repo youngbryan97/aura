@@ -804,7 +804,6 @@ class StaticReflexClient:
 
 class StaticReflexRouter(StaticReflexClient):
     """Alias for StaticReflexClient to satisfy victory bundle requirements."""
-    pass  # no-op: intentional
 
 _UNPRESENTABLE_SUBSTRATE_RECORDED = False
 
