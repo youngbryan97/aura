@@ -217,6 +217,84 @@ def _percept_reading(state: Any) -> tuple[str, float, str]:
         )
         return "", 0.0, ""
 
+def _rescored(text: str, bounded: float, updated: float) -> str:
+    if updated != bounded and text.startswith("[memory score="):
+        return f"[memory score={updated:.3f}]" + text.split("]", 1)[1]
+    return text
+
+
+def _cued_by_the_percept(
+    memory_candidates: list[tuple[float, str]],
+    felt_by_text: dict[str, Any],
+    percept_cue: str,
+    percept_salience: float,
+    percept_kind: str,
+) -> list[tuple[float, str]]:
+    """What she perceives changes what a recollection is worth now.
+
+    The same memory bears on a moment differently depending on what is in
+    front of her, and retrieval ranked recollections by how well they matched
+    the question and how they felt, never by the percept that arrived with it.
+    A recollection closes the gap to full relevance in proportion to how much
+    of the percept it carries and how salient the percept was, which is
+    attention's gain with the roles the other way round. It carries the
+    percept in its words or in the feeling it was made in. See
+    core/memory/felt_at_encoding.py.
+    """
+    if not (percept_cue and percept_salience > 0.0):
+        return memory_candidates
+    from core.memory.felt_at_encoding import distinctive, percept_carried
+    from core.state.percepts import PERCEPT_EMOTIONS, word_overlap
+
+    appraisal = tuple(PERCEPT_EMOTIONS.get(percept_kind, ()) or ())
+    set_apart = distinctive(felt_by_text) if appraisal else {}
+    reread: list[tuple[float, str]] = []
+    for score, text in memory_candidates:
+        bounded = max(0.0, min(1.0, float(score)))
+        carried = percept_carried(word_overlap(percept_cue, text), appraisal, set_apart.get(text))
+        updated = bounded + (1.0 - bounded) * carried * percept_salience
+        reread.append((updated, _rescored(text, bounded, updated)))
+    return reread
+
+
+def _cued_by_what_she_feels(
+    memory_candidates: list[tuple[float, str]],
+    felt_by_text: dict[str, Any],
+    affect: Any,
+    memory_salience: float,
+) -> list[tuple[float, str]]:
+    """And what she feels now.
+
+    What was learned in a state comes back more readily in that state (Bower,
+    1981), and in the retrieved-context account the emotional state at
+    encoding is part of the context that the present state cues (Talmi, Lohnas
+    and Daw, 2019). Her mood reached recall only as one valence against
+    another on the scale of -1 to 1, and her memories are felt across a band a
+    fifth of that wide, so every alignment sat near one and a change in how
+    she felt moved a score by a hundredth: on seed 7 a displacement that moved
+    her internal geometry by 0.178 moved what she recalled by 0.011. A
+    recollection now closes the gap to full relevance by the share of its
+    distinctive feeling she holds now, at the gain affect gives memory, the
+    way the percept's does at the percept's salience. See
+    core/memory/felt_at_encoding.py.
+    """
+    if not felt_by_text or memory_salience <= 0.0:
+        return memory_candidates
+    from core.memory.felt_at_encoding import distinctive, felt_now, held_now
+
+    now = felt_now(affect)
+    if not now:
+        return memory_candidates
+    set_apart = distinctive(felt_by_text)
+    gain = min(1.0, memory_salience)
+    reread: list[tuple[float, str]] = []
+    for score, text in memory_candidates:
+        bounded = max(0.0, min(1.0, float(score)))
+        updated = bounded + (1.0 - bounded) * held_now(now, set_apart.get(text)) * gain
+        reread.append((updated, _rescored(text, bounded, updated)))
+    return reread
+
+
 class MemoryRetrievalPhase(BasePhase):
     """
     Phase 2: Memory Retrieval.
@@ -966,30 +1044,13 @@ class MemoryRetrievalPhase(BasePhase):
         # this was constant for the whole of every recording.
         note_effort("recall", max(1, len(memory_candidates)))
 
-        # What she perceives changes what a recollection is worth now. The same
-        # memory bears on a moment differently depending on what is in front of
-        # her, and retrieval ranked recollections by how well they matched the
-        # question and how they felt, never by the percept that arrived with it.
-        # A recollection closes the gap to full relevance in proportion to how
-        # much of the percept it carries and how salient the percept was, which
-        # is attention's gain with the roles the other way round.
-        # It carries the percept in its words or in the feeling it was made in.
-        # See core/memory/felt_at_encoding.py.
-        if percept_cue and percept_salience > 0.0:
-            from core.memory.felt_at_encoding import distinctive, percept_carried
-            from core.state.percepts import PERCEPT_EMOTIONS, word_overlap
-
-            appraisal = tuple(PERCEPT_EMOTIONS.get(percept_kind, ()) or ())
-            set_apart = distinctive(felt_by_text) if appraisal else {}
-            reread: list[tuple[float, str]] = []
-            for score, text in memory_candidates:
-                bounded = max(0.0, min(1.0, float(score)))
-                carried = percept_carried(word_overlap(percept_cue, text), appraisal, set_apart.get(text))
-                updated = bounded + (1.0 - bounded) * carried * percept_salience
-                if updated != bounded and text.startswith("[memory score="):
-                    text = f"[memory score={updated:.3f}]" + text.split("]", 1)[1]
-                reread.append((updated, text))
-            memory_candidates = reread
+        # The percept and what she feels now each cue what comes back.
+        memory_candidates = _cued_by_the_percept(
+            memory_candidates, felt_by_text, percept_cue, percept_salience, percept_kind
+        )
+        memory_candidates = _cued_by_what_she_feels(
+            memory_candidates, felt_by_text, getattr(state, "affect", None), effective_memory_salience
+        )
 
         scores: list[float] = []
         # The feeling stored with what came back, and how many carried one.

@@ -56,6 +56,7 @@ __all__ = [
     "distinctive",
     "encode",
     "felt_now",
+    "held_now",
     "percept_carried",
     "stamp",
     "stamp_from_repository",
@@ -217,3 +218,21 @@ def carries(named: Iterable[str], felt: Any) -> float:
         return 0.0
     names = {str(name) for name in named}
     return max(0.0, min(1.0, sum(value for name, value in feeling.items() if name in names) / total))
+
+
+def held_now(now: Mapping[str, float], felt: Any) -> float:
+    """The share of what she felt then that she holds now, each emotion by how strongly.
+
+    `now` is `felt_now` of her present state. An emotion she holds as strongly
+    as her strongest counts whole and one she barely holds counts barely, so a
+    shift in how she feels moves the share by as much as it moved her, where a
+    set of names above baseline would not move at all until an emotion crossed
+    it. Zero when the memory was made at rest or she holds nothing now.
+    """
+    feeling = decode(felt)
+    total = sum(feeling.values())
+    strongest = max((float(value) for value in now.values()), default=0.0)
+    if total <= 0.0 or strongest <= 0.0:
+        return 0.0
+    held = sum(value * max(0.0, float(now.get(name, 0.0))) / strongest for name, value in feeling.items())
+    return max(0.0, min(1.0, held / total))
