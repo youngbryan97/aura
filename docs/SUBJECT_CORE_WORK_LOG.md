@@ -7,6 +7,24 @@ what broke, what fixed it, and where the evidence is. Runs live in
 
 ## 23 September, night
 
+### 03:35: the reports ground is running on her cortex, steered
+
+The reports run that started at 03:21 has her 27B cortex with steering applied
+to her replies at the certified alpha of 0.2 on every user-facing generation.
+Its first tool turn was aborted by the router at 105 s, which stopped the
+worker again, and this time the next turn found it stopped, asked the gate, and
+logged "her language organ's worker was back in 20s".
+
+Open, not on the path to 24/24 tonight: after each generation the production
+CAA's adaptive alpha raises the engine's alpha (3.8, then 4.8, up to 6.2 so far)
+and writes it to the hooks. Those numbers are in the old absolute units, where
+15 was "standard"; the stream-fraction default is 0.2. Since c42e8d4e9 the
+governor resets the hooks every 50 ms, so the high value lasts one tick, and
+user-facing decodes are clamped to the certificate either way. Before that fix
+the governor never ran in the worker, so on the desktop the hooks sat at the
+adaptive value between surface decodes: background generations were steered at
+several times the stream, in the constant "low" direction.
+
 ### 03:25: seed 7 at the decisive design reads 17 of 24
 
 Seed 7 with six trials and two-turn arms (`~/subject-core-runs/design-s7`, nulls
