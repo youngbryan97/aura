@@ -75,9 +75,31 @@ def test_every_named_asset_is_a_module_and_an_attribute() -> None:
 
 def test_the_model_paths_this_repository_has_are_the_ones_named() -> None:
     """A renamed global would silently start refusing runs again."""
-    from core.brain.llm import model_paths, model_registry
+    import importlib
 
     for name in isolation.NOT_STATE:
         module_name, _, attribute = name.rpartition(".")
-        module = model_paths if module_name.endswith("model_paths") else model_registry
-        assert hasattr(module, attribute), name
+        assert hasattr(importlib.import_module(module_name), attribute), name
+
+
+@pytest.mark.parametrize(
+    ("module", "attribute"),
+    [
+        ("core.brain.llm.latent_cortex.neural_transition_tissue", "DEFAULT_NEURAL_TRANSITION_ARTIFACT"),
+        ("core.brain.llm.latent_cortex.systematic_neural_alu", "DEFAULT_SYSTEMATIC_NEURAL_ALU_ARTIFACT"),
+        ("core.learning.recurrent_work_memory_tissue", "DEFAULT_MATHEMATICS_MEMORY_ARTIFACT"),
+    ],
+)
+def test_a_shipped_tissue_is_an_asset_and_is_tracked_in_the_checkout(module: str, attribute: str) -> None:
+    """A whole run imports the latent cortex; its tissues are read, verified and never written."""
+    import importlib
+    import subprocess
+
+    assert f"{module}.{attribute}" in isolation.NOT_STATE
+    path = Path(getattr(importlib.import_module(module), attribute))
+    repo = Path(__file__).resolve().parents[1]
+    tracked = subprocess.run(
+        ["git", "-c", "core.fsmonitor=false", "ls-files", str(path.relative_to(repo))],
+        cwd=repo, capture_output=True, text=True, check=False,
+    ).stdout.split()
+    assert any(name.endswith("manifest.json") for name in tracked), f"{path} is not a tracked asset"

@@ -49,6 +49,14 @@ NOT_STATE: frozenset[str] = frozenset(
         "core.brain.llm.model_registry._CORTEX_PATH",
         "core.brain.llm.model_registry._IMPORT_MODELS_DIR",
         "core.brain.llm.model_registry._SOLVER_PATH",
+        # Trained tissues shipped in the checkout, loaded only after their
+        # manifest's SHA-256 checks out, and never written by a run. A whole run
+        # imports the latent cortex, and the checkout sits under the live state
+        # root, so each of these read as a leak and refused the report run of
+        # 22 September before it started.
+        "core.brain.llm.latent_cortex.neural_transition_tissue.DEFAULT_NEURAL_TRANSITION_ARTIFACT",
+        "core.brain.llm.latent_cortex.systematic_neural_alu.DEFAULT_SYSTEMATIC_NEURAL_ALU_ARTIFACT",
+        "core.learning.recurrent_work_memory_tissue.DEFAULT_MATHEMATICS_MEMORY_ARTIFACT",
     }
 )
 
