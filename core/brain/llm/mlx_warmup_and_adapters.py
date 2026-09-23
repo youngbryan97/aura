@@ -900,17 +900,23 @@ class _WarmsUpAndSwapsAdapters:
         its own budget to spend; if that budget runs out while a person is
         being served, the honest outcome is a warmup that did not get its
         retry, not a person who did not get her answer.
+
+        The flag is read from the module on every check. Importing it by name
+        copied the value once, so a retry that began during a reply waited out
+        the whole allowance on a copy that could not change and stood down
+        even when the reply had ended in a second. On 23 September that kept
+        her cortex from coming back after a forced abort in a whole run.
         """
-        from .mlx_client import (
-            _FOREGROUND_OWNER_IS_USER_FACING,
-            _WAIT_OUT_A_REPLY_S,
-        )
+        from . import mlx_client as client_module
 
         waited = 0.0
-        while _FOREGROUND_OWNER_IS_USER_FACING and waited < _WAIT_OUT_A_REPLY_S:
+        while (
+            client_module._FOREGROUND_OWNER_IS_USER_FACING
+            and waited < client_module._WAIT_OUT_A_REPLY_S
+        ):
             await asyncio.sleep(0.25)
             waited += 0.25
-        if _FOREGROUND_OWNER_IS_USER_FACING:
+        if client_module._FOREGROUND_OWNER_IS_USER_FACING:
             logger.info(
                 "[MLX] warmup retry stood down: somebody is still being answered"
             )
@@ -1019,8 +1025,11 @@ class _WarmsUpAndSwapsAdapters:
         skip_swap_cooldown: bool = False,
     ) -> bool:
         """Boot the worker and prove the visible conversation path is ready."""
+        # The holder's name is read from the module where it is logged: a name
+        # imported here is a copy, and after the worker comes up it can name a
+        # holder that has already left.
+        from . import mlx_client as client_module
         from .mlx_client import (
-            _FOREGROUND_OWNER_NAME,
             _foreground_owner_active,
             _foreground_owner_context,
             _record_mlx_degradation,
@@ -1140,7 +1149,7 @@ class _WarmsUpAndSwapsAdapters:
                 logger.info(
                     "⏸️ [MLX] Background warmup deferred for %s (before worker spawn) while foreground lane is owned by %s.",
                     os.path.basename(self.model_path),
-                    _FOREGROUND_OWNER_NAME or "foreground",
+                    client_module._FOREGROUND_OWNER_NAME or "foreground",
                 )
                 return False
 
@@ -1160,7 +1169,7 @@ class _WarmsUpAndSwapsAdapters:
                 logger.info(
                     "⏸️ [MLX] Background warmup precompile deferred for %s while foreground lane is owned by %s.",
                     os.path.basename(self.model_path),
-                    _FOREGROUND_OWNER_NAME or "foreground",
+                    client_module._FOREGROUND_OWNER_NAME or "foreground",
                 )
                 return False
 
