@@ -203,3 +203,32 @@ validator has not changed since. The three recurrent-reference jobs and the
 three star jobs are running, and the independent and common-driver jobs are
 queued behind them. Its table goes here, dated, before any seed-23 v5 number
 is read.
+
+## Addendum, 23 September 2026, 06:30: seed 23 at 23650c6c4, with three-turn intervention arms
+
+Seed 23 has been launched and stopped several times since the addendum above,
+each time before any of its numbers was read. The attempts are kept as
+`~/subject-core-runs/*-s23-void-*`; each directory name says why: a fork stall,
+resume ordering, isolation refusals, a descriptor double close through fork
+copies (39bcc5c78, b29b1c39d), and a two-turn campaign stopped for the change
+below.
+
+The decisive campaign's intervention arms run three turns instead of two
+(`--turns 3`). This changes the campaign's edge measurements only; the sweep's
+horizon above is unchanged. It was decided on seed 7, the diagnostic seed, at
+the decisive design otherwise: with two-turn arms kappa was 1, because W had
+one kept in-edge and the next candidates into it peaked late in the arm, still
+rising when the arm ended; with three-turn arms kappa was 2, perturbational
+spread rose, and all eight conditions stayed strongly connected. The one line
+that differed the other way, causal closure, is computed from the recording
+before any arm runs, so arm length cannot move it; the same seed does not
+reproduce the recording, and closure failed in one of four seed-7 readings.
+
+Before the campaign, and on the same commit, the whole reports ground runs with
+the machine to itself.
+
+The power study is still the gate. The recurrent reference decided 511 of 511
+cuts at seeds 3, 7 and 11, and the star null 511, 511 and 508. The six
+independent and common-driver jobs are paused and resume one or two at a time
+beside the decisive run. The table goes here, dated, before any seed-23 v5
+number is read.
