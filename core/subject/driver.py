@@ -219,6 +219,7 @@ from core.subject.snapshot import (  # noqa: E402
     SUBSTRATE_BODY,
     Snapshot,
     _built_services,
+    _carried_by_name,
     _DeclaredHost,
     _differs,
     _effort_state,
@@ -227,10 +228,10 @@ from core.subject.snapshot import (  # noqa: E402
     _held,
     _HeldObserver,
     _intentions_state,
-    _is_published_value,
     _lifetime_last,
     _module_state,
     _moments_of,
+    _organ_ids,
     _organ_state,
     _reanchor,
     _restore_effort,
@@ -281,35 +282,6 @@ HARNESS_ROUTES: dict[str, str] = {
     "read": "instrument: reads the ten domains and writes nothing",
     "capture": "instrument: advances the clock and the layers, then reads a frame",
 }
-
-
-def _organ_ids(runtime: SubjectRuntime) -> frozenset[int]:
-    return frozenset(
-        id(organ)
-        for field_name in runtime.ORGAN_FIELDS
-        if (organ := getattr(runtime.organs, field_name, None)) is not None
-    )
-
-
-def _carried_by_name(runtime: SubjectRuntime) -> frozenset[int]:
-    """What a service or organ holding it as a field must not copy again.
-
-    The objects a snapshot carries under a name of their own and restores in
-    place: every organ and every service it forks. Three kinds stay with
-    whatever holds them, as they always were. A service the fork leaves alone
-    is still rewound through its owners; a service calibration saw stand still
-    is carried only that way; and a published value is replaced on restore, so
-    an owner still holding the old one needs its own copy.
-    """
-    built = _built_services()
-    forked = {
-        id(obj)
-        for name, obj in built.items()
-        if name not in _UNFORKED_SERVICES
-        and (runtime.forked_services is None or name in runtime.forked_services)
-        and not _is_published_value(obj)
-    }
-    return frozenset({*forked, *_organ_ids(runtime)})
 
 
 @dataclass
