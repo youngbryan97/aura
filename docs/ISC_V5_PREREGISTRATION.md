@@ -232,3 +232,48 @@ cuts at seeds 3, 7 and 11, and the star null 511, 511 and 508. The six
 independent and common-driver jobs are paused and resume one or two at a time
 beside the decisive run. The table goes here, dated, before any seed-23 v5
 number is read.
+
+## Addendum, 23 September 2026, 07:05: synergy is scored with the counters out
+
+No v5 number from seed 23 had been read when this was written, and the decisive
+campaign had not started.
+
+v5 now scores synergy, the one v3 line besides irreducibility whose reading it
+changes (`core.subject.battery._assemble_v5`, 09260892d). The line keeps v3's
+triples, bars and nulls (`passes_v3`: the fraction's floor on the target's
+change, the shifted null, and the bootstrap null simulated from a VAR(1) fit to
+the sources) and reads them after `core.subject.synergy.without_clocks` zeroes
+every column that only counts up: turns taken, model steps, loop cycles. A run
+that did not record the reading fails the line.
+
+The reason is a defect in the instrument, shown on known answers before any
+reading of her was taken. Synergy reads each domain through its leading
+principal components, and a domain's counters, which rise with time and nothing
+else, take those components. Two domains' clocks share time and nothing more,
+so a product coupling between their states can sit beneath them. On the v2
+background with three Poisson counters added to each domain
+(`tests/test_synergy_reads_state_not_clocks.py`), the 30 counters are found;
+with them out, a product coupling passes and an additive coupling and drift
+alone do not, on each of three seeds; with them in, v3 misses the product on
+two of the three.
+
+The change was made after reading seed 7, the diagnostic seed, and those
+readings are disclosed here. On `design-s7/run_001` (six trials, two-turn arms):
+
+| triple | v3, clocks in | v3, clocks out |
+|---|---|---|
+| A,S -> G | fails: 0.127, interaction bound -0.069 | fails: 0.045, bound -0.001 |
+| P,M -> W | passes: 0.374 | passes: 0.446 |
+| W,A -> D | passes: 0.296 | passes: 0.364 |
+| S,D -> C | fails: 0.017 | fails: 0.007 |
+
+Reading with the counters out does not change which triples pass on seed 7, so
+the line still fails there. It was not chosen for what it does to her.
+
+Two triples fail on her rather than on the instrument. Her workspace adds a
+feeling's urgency to a bid's salience whatever the bid concerns, so nothing
+makes affect's pull on attention depend on the self-model (A,S -> G), and no
+mechanism lets the self-model and her drives act on recurrent cognition
+jointly (S,D -> C). Any organism change aimed at either is developed and
+checked on seed 7 only, and the commit the decisive campaign runs on is named
+here, with what changed in the organism, before it is launched.
