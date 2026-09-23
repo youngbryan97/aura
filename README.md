@@ -288,6 +288,15 @@ serving authority.
 | Learned programs on the universal floor | **SUPPORTED, BOUNDED** — all 368/368 accepted frozen test programs had identical outcomes under the existing exact executor and Aura's universal metered floor: 366 matching values and two matching typed refusals across all three families, with 20/20 primitive semantics covered |
 | Broad reasoning gain, fusion, frontier performance | **NOT CLAIMED** |
 
+The current [G03 semantic-transfer work](docs/evidence/G03_ROLE_ALIAS_COUNTERFACTUAL_2026-09-22.md)
+tests whether the learned compiler binds a role to its mention when two inputs
+have the same value. Two held-out requests have the correct programs in the
+candidate bank, yet decode the wrong input roles and operation. An experimental
+training cohort now includes equal-valued, distinct-role counterfactuals;
+the held-out requests are unchanged. This is not a promoted gain. It needs
+feature extraction, a fresh fit and matched held-out decoding before it can
+support a broader claim.
+
 `BOUNDED_WOW_SIGNAL` is the adjudicator's own verdict string, and *bounded* is
 load-bearing: the limitations line ships inside the same receipt as the verdict.
 

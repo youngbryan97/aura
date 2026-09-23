@@ -116,6 +116,17 @@ preregistered campaigns with committed seeds.
 | **Recurrence-native backbone training** | **OPEN for broad gain.** The CP566/CP1011 semantic-machine results do not establish that training the resident backbone to repeat its middle layers caused those gains. That path needs its own matched behavioral evidence. |
 | **Broad reasoning gain, fusion, frontier performance** | **NOT CLAIMED.** No checkpoint in this programme authorizes any of them, and each entry in the ledger says so explicitly — including CP566, whose adjudication ships its limitations line inside the same receipt as its verdict. |
 
+**Current G03 boundary (2026-09-22).** A paired full-program replay found that
+expanding definition visibility left all 16 `sequence-role-binding-4`
+decisions unchanged: both arms returned 14/16 correct public values. The two
+misses give the selector and adjustment the same numeric value, although the
+request names their roles separately. The correct programs are in the
+candidate bank. The frozen training cohort contains no such equal-valued
+role pair; validation and test each contain eight. An experimental
+counterfactual corpus now adds role collisions only to training. Corpus gates
+passed, but no model-backed gain or serving authority follows from that.
+See [the paired evidence](evidence/G03_ROLE_ALIAS_COUNTERFACTUAL_2026-09-22.md).
+
 ### What the training front has established
 
 The programme used a 1.5B vehicle while the historical resident 32B stayed live, at
