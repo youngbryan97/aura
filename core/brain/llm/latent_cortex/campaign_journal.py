@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Never, cast
 
+from core.runtime.descriptor_owner import OwnsDescriptors
 from core.runtime.secure_path_custody import DirectoryCustody, SecurePathCustodyError
 
 PLAN_SCHEMA = "aura.latent_cortex.campaign_plan.v1"
@@ -346,7 +347,7 @@ class _ReplayState:
     committed_by_cell: dict[str, str] = field(default_factory=dict)
 
 
-class CampaignJournal:
+class CampaignJournal(OwnsDescriptors):
     """Single-writer append-only campaign journal."""
 
     def __init__(

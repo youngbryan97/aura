@@ -40,6 +40,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from core.runtime.descriptor_owner import OwnsDescriptors
 from core.runtime.lockdep import checked_lock
 from core.runtime.service_registry import runtime_write_bytes, runtime_write_text
 
@@ -115,7 +116,7 @@ class ChainTamperError(RuntimeError):
         self.kind = kind
 
 
-class AuditChain:
+class AuditChain(OwnsDescriptors):
     """Append-only chain stored as JSONL at ``root/_chain.jsonl``.
 
     The chain is its own thread-safe writer.  ``append`` is called from

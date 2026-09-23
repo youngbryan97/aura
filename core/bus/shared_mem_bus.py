@@ -13,6 +13,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
+from core.runtime.descriptor_owner import OwnsDescriptors
 from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Bus.SharedMem")
@@ -33,7 +34,7 @@ def _safe_segment_name(name: str) -> str:
     return "".join(ch if ch.isalnum() or ch in {"-", "_", "."} else "_" for ch in raw)
 
 
-class _FileBackedSharedMemory:
+class _FileBackedSharedMemory(OwnsDescriptors):
     """Fallback transport backed by a tmp file and mmap."""
 
     def __init__(self, name: str, path: Path, fd: int, mm: mmap.mmap):

@@ -51,6 +51,7 @@ from core.brain.llm.latent_cortex.worker_capture_identity import (
     validate_worker_capture_identity,
     validate_worker_capture_origin_binding,
 )
+from core.runtime.descriptor_owner import OwnsDescriptors
 
 ACTION_STATE_CAPTURE_REQUEST_PAYLOAD_SCHEMA: Final = (
     "aura.rlc.action_state_capture.request_payload.v2"
@@ -1021,7 +1022,7 @@ def _crash_boundary(_name: str) -> None:
     """No-op fault-injection seam used by crash-recovery contract tests."""
 
 
-class PrivateActionSnapshotStore:
+class PrivateActionSnapshotStore(OwnsDescriptors):
     """Content-addressed, pair-local private resident-state lifecycle."""
 
     def __init__(self, root: str | Path, *, key_custodian: SnapshotKeyCustodian) -> None:

@@ -37,6 +37,7 @@ import sys
 import time
 from typing import Any
 
+from core.runtime.descriptor_owner import OwnsDescriptors
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.lockdep import LockRank, checked_async_lock
 from core.runtime.shutdown_coordinator import is_shutdown_requested
@@ -91,7 +92,7 @@ def _record_terminal_degradation(
     )
 
 
-class TerminalFallbackChat:
+class TerminalFallbackChat(OwnsDescriptors):
     """Emergency last-resort terminal chat.
 
     Two activation paths:

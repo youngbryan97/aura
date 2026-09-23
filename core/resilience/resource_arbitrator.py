@@ -23,6 +23,7 @@ from core.runtime.control_plane import (
     WorkClass,
     get_runtime_control_plane,
 )
+from core.runtime.descriptor_owner import OwnsDescriptors
 from core.runtime.errors import record_degradation
 from core.runtime.model_runtime_assignment import ModelRuntimeAssignment
 from core.runtime.state_ownership import state_root
@@ -30,7 +31,7 @@ from core.runtime.state_ownership import state_root
 logger = logging.getLogger("Aura.ResourceArbitrator")
 
 
-class ResourceArbitrator:
+class ResourceArbitrator(OwnsDescriptors):
     """Route legacy inference/evolution tokens through canonical admission."""
 
     def __init__(

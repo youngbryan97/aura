@@ -28,6 +28,8 @@ from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from core.runtime.descriptor_owner import OwnsDescriptors
+
 
 class SecurePathCustodyError(RuntimeError):
     """A directory or child path violated descriptor custody."""
@@ -138,7 +140,7 @@ def _open_absolute_directory(path: Path, *, create: bool) -> int:
         raise
 
 
-class DirectoryCustody:
+class DirectoryCustody(OwnsDescriptors):
     """Hold and operate beneath one immutable directory identity."""
 
     def __init__(self, path: Path, fd: int) -> None:

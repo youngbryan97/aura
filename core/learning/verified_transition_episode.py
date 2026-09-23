@@ -50,6 +50,7 @@ from core.brain.llm.latent_cortex.frontier_tasks import (
     score_task,
 )
 from core.runtime.atomic_writer import ensure_private_directory
+from core.runtime.descriptor_owner import OwnsDescriptors
 from core.runtime.resource_observation import (
     HostResourceObserver,
     ObservationSource,
@@ -928,7 +929,7 @@ def _require_exact_frontier_task(task: Any) -> FrontierTask:
     return task
 
 
-class TransitionArtifactStore:
+class TransitionArtifactStore(OwnsDescriptors):
     """Private immutable SHA-256 store for transition evidence payloads."""
 
     def __init__(self, root: str | Path) -> None:

@@ -61,7 +61,14 @@ def _furniture_types() -> tuple[type, ...]:
     import threading as _threading
     from concurrent.futures import Executor, Future
 
+    from core.runtime.descriptor_owner import OwnsDescriptors
+
     return (
+        # An object that holds OS descriptors as ints is a handle too. Copied,
+        # it became a second owner of the same descriptor numbers, and the
+        # whole report run of 23 September died of the double close (EXC_GUARD
+        # on descriptor 39). See core/runtime/descriptor_owner.py.
+        OwnsDescriptors,
         _threading.Event,
         _threading.Condition,
         _threading.Barrier,
