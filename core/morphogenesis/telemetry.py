@@ -42,6 +42,7 @@ CHANNEL_MAX_GENERATION = "morphogenesis.max_generation"
 CHANNEL_ENERGY_SPENT = "morphogenesis.energy_spent"
 CHANNEL_MOTIFS_CREDITED = "morphogenesis.motifs_credited"
 CHANNEL_SUBSTRATE_PARTIALS = "morphogenesis.substrate_partial_failures"
+CHANNEL_UNEXPLAINED_PIECES = "morphogenesis.unexplained_pieces"
 
 EVENT_TOPOLOGY_CHANGED = "morphogenesis_topology_changed"
 EVENT_ROLLBACK = "morphogenesis_rollback"
@@ -88,13 +89,24 @@ def declare() -> list[str]:
         ),
         dict(
             identifier=0x0804, name=CHANNEL_COMPONENTS, type=ChannelType.INT, unit="count",
-            description="connected pieces of the population; above one is a partition",
-            # The limit is read as `value >= yellow_high`, and this said 1 —
-            # the value the description calls healthy. A whole population in
-            # one piece reported yellow on every boot, so the channel that
-            # exists to name a partition said the same thing partitioned or
-            # not. Two is the first partition; three or more is the shape
-            # coming apart.
+            # A count, with no line to cross. A cell alone in its subsystem is
+            # left unbound on purpose (see _attachments_for: covering it is a
+            # decision for the policy, not for the sync), so a healthy runtime
+            # has one piece per such cell and this channel sat red for the
+            # life of every process. What a line belongs on is the piece
+            # nothing explains, below.
+            description="connected pieces of the population",
+            owner=owner, group="morphogenesis", stale_after_s=600.0,
+        ),
+        dict(
+            identifier=0x080D, name=CHANNEL_UNEXPLAINED_PIECES, type=ChannelType.INT,
+            unit="count",
+            description=(
+                "pieces of the population that are not one cell alone in its own "
+                "subsystem; more than one is a population that came apart"
+            ),
+            # Read as `value >= yellow_high`, and one piece is the healthy
+            # population, so two is the first that nothing explains.
             owner=owner, group="morphogenesis", yellow_high=2, red_high=3, stale_after_s=600.0,
         ),
         dict(
@@ -214,6 +226,7 @@ def publish(status: dict[str, Any]) -> None:
         (CHANNEL_CELLS, int(status.get("nodes", 0))),
         (CHANNEL_EDGES, int(status.get("edges", 0))),
         (CHANNEL_COMPONENTS, components),
+        (CHANNEL_UNEXPLAINED_PIECES, int(status.get("unexplained_pieces", components))),
         (CHANNEL_APPLIED, int(stats.get("applied", 0))),
         (CHANNEL_REJECTED, int(stats.get("rejected", 0))),
         (CHANNEL_ROLLED_BACK, int(stats.get("rolled_back", 0))),
@@ -268,6 +281,7 @@ __all__ = [
     "CHANNEL_SUBSTRATE_PARTIALS",
     "EVENT_BOUND_REACHED",
     "EVENT_MOTIF_CREDITED",
+    "CHANNEL_UNEXPLAINED_PIECES",
     "EVENT_PARTITIONED",
     "EVENT_ROLLBACK",
     "EVENT_TOPOLOGY_CHANGED",

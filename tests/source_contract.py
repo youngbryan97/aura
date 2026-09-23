@@ -476,3 +476,4 @@ def module_and_the_mixins_it_builds_with(module: ModuleType, cls: type) -> str:
         if text not in seen:
             seen.append(text)
     return "\n".join(seen)
+

@@ -724,6 +724,15 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
                 severity="warning",
             )
 
+    def _cells_alone_in_their_subsystem(self) -> set[str]:
+        """Cells whose subsystem holds only them, which nothing binds by default."""
+        by_subsystem: dict[str, list[str]] = {}
+        for cell in self.registry.active_cells():
+            by_subsystem.setdefault(cell.manifest.subsystem, []).append(cell.cell_id)
+        return {
+            held[0] for held in by_subsystem.values() if len(held) == 1
+        }
+
     def _attachments_for(self, arrived: set[str], live: set[str]) -> list[Any]:
         """Bindings an arriving cell should come with.
 
@@ -890,6 +899,13 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
             status = self.governor.status()
             pieces = sorted(self.graph.components(), key=len, reverse=True)
             status["component_sizes"] = ",".join(str(len(piece)) for piece in pieces)
+            # A cell alone in its subsystem is left unbound on purpose, so the
+            # piece it makes is explained. What is worth a line is a piece
+            # nothing explains: the population came apart there.
+            alone = self._cells_alone_in_their_subsystem()
+            status["unexplained_pieces"] = sum(
+                1 for piece in pieces if not (len(piece) == 1 and set(piece) <= alone)
+            )
             cut_off = sorted(cell for piece in pieces[1:] for cell in piece)
             if cut_off:
                 # Sizes alone said "44,1,1,1,1,1,1" live (2026-09-19) and no
