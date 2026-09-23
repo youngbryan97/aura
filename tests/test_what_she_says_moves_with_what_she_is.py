@@ -172,3 +172,17 @@ def test_a_whole_run_counts_steering_as_attached_only_when_the_worker_said_so() 
     assert not _steering_attached({"active": None})
     assert not _steering_attached({"active": False})
     assert not _steering_attached({})
+
+
+def test_the_fixed_failure_sentence_is_not_her_report_even_after_a_cortex_generation() -> None:
+    from core.phases.response_generation_unitary import UnitaryResponsePhase
+    from core.state.aura_state import AuraState
+    from tools.run_report_grounding import QUESTION, _cortex_answered
+
+    state = AuraState.default()
+    served = [{"user_facing": True, "endpoint": "Cortex", "steering_alpha": 0.1}]
+    floor = UnitaryResponsePhase._build_minimal_live_voice_reply(state, QUESTION)
+    assert not _cortex_answered(served, floor, state)
+    assert _cortex_answered(served, "About 0.3, a little better than usual.", state)
+    assert not _cortex_answered([{"user_facing": True, "endpoint": "Brainstem"}], "0.3", state)
+    assert not _cortex_answered([], "0.3", state)

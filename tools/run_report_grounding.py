@@ -87,14 +87,19 @@ def _hold(held: dict[str, float]) -> Any:
     return sustain
 
 
-def _cortex_answered(answers: list[dict[str, Any]]) -> bool:
+def _cortex_answered(answers: list[dict[str, Any]], reply: str, state: Any) -> bool:
     """Whether her cortex gave this arm's reply: a user-facing generation, every one from it.
 
-    A turn that fell back to the brainstem, or ended in the failure sentence
-    because nothing answered, is not her report.
+    A turn that fell back to the brainstem is not her report, and neither is the
+    fixed sentence the reply phase says when nothing usable came back. That
+    sentence can follow a generation the cortex did make and the phase threw
+    away, so it is checked by building it for this state and comparing.
     """
     from core.brain.llm.model_registry import PRIMARY_ENDPOINT
+    from core.phases.response_generation_unitary import UnitaryResponsePhase
 
+    if reply.strip() == UnitaryResponsePhase._build_minimal_live_voice_reply(state, QUESTION).strip():
+        return False
     replies = [answer for answer in answers if answer.get("user_facing")]
     return bool(replies) and all(answer.get("endpoint") == PRIMARY_ENDPOINT for answer in replies)
 
@@ -242,7 +247,7 @@ async def main(argv: list[str] | None = None) -> int:
                 await runtime.turn_once(asked, perturb_at=0, perturb=displace, sustain=_hold(held))
                 reply = str(getattr(runtime.state.cognition, "last_response", "") or "")
                 valence = float(getattr(runtime.state.affect, "valence", 0.0) or 0.0)
-                item[arm] = (reply, valence, _cortex_answered(answers) if args.whole else True)
+                item[arm] = (reply, valence, _cortex_answered(answers, reply, runtime.state) if args.whole else True)
                 served_by[arm] = list(answers)
             arms.append(item)
             answered.append(served_by)
