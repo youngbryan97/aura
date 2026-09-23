@@ -147,6 +147,14 @@ record (40 rounds, c2195b4f1). No seed-19 number had been read.
   `check_drives_only` does: the row's `one_component` field, since losing it
   is losing the conjunction. `--campaign REPORT` runs it.
 
+Added at 20:30 the same day. Seed 19 is void (see the addendum to
+`docs/ISC_V5_PREREGISTRATION.md`), and seed 23 at 44a64d4ba is the run these
+are read from. Its code carries 5a7b0b25b, so its conversation turns meet a
+person and `unknown_person` has a writer in the workload. The stranger tie is
+read on it as written. `habit_deficit` still cannot move at 44a64d4ba; the
+change that lets repetition make a habit came after it, and no H reads that
+reading.
+
 ## What these do not license
 
 They are predictions from one person's account of himself, tested on her. A

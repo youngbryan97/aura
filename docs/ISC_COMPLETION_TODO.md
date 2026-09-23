@@ -11,7 +11,7 @@ reverts to open by itself.
 .venv/bin/python tools/isc_completion_status.py --check  # fail if it is out of date
 ```
 
-**764 done, 0 blocked, 0 not applicable, 139 open, of 903.**
+**767 done, 0 blocked, 1 not applicable, 135 open, of 903.**
 
 Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 
@@ -308,7 +308,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [ ] `P10.10` Aura must genuinely reach >= 0.40 anyway. If the goal is the best scientific criterion:
 - [x] `P10.11` Keep ISC-v1 recorded as failed. — every run is kept with its own campaign fingerprint and its criteria, and the generated table in the document lists them all
 - [x] `P10.12` Preregister ISC-v2. — ISC-v2 changes three lines, each with v1's question, why a test built around its positive reference cannot keep asking it, v2's question and the known-answer check that must pass first; every v1 threshold and line stays and is reported
-- [x] `P10.13` Use a better differentiation measure. — `distinguishable_states` in `core/subject/differentiation.py`, reported beside the participation ratio rather than instead of it. Each live column is quantised at its own pooled within-condition spread and the configurations are counted with their occupancy entropy, so nothing is chosen: the resolution comes from her own variation and the ceiling from how many frames were recorded. Measured on run_032 (79,200 frames): participation ratio 0.077 for the real run, 0.998 for a column-shuffled surrogate with no coupling at all, 0.004 for a degenerate all-one-scalar control; distinguishable 0.790, 1.000 and 0.00006. The criterion as preregistered is close to maximised by destroying every coupling, which is the structural problem P10.9 names. The bar is not moved here — both readings are reported and the contrast is recorded
+- [x] `P10.13` Use a better differentiation measure. — `distinguishable_states` in `core/subject/differentiation.py`, reported beside the participation ratio rather than instead of it. Each live column is quantised at its own pooled within-condition spread and the configurations are counted with their occupancy entropy, so the resolution comes from her own variation and the ceiling from how many frames were recorded. The preregistered criterion is close to maximised by destroying every coupling (P10.9); the bar is not moved, and both readings are reported
 - [x] `P10.14` Never retroactively change v1’s threshold. Do not add noise until the number turns green. — the thresholds are hashed into the fingerprint, so moving one starts a different campaign and the scorecard refuses to read across them
 
 ## Phase 11 — Fix measurement geometry for content
@@ -562,7 +562,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P25.12` The environment changes. — the room changes: a room made on one turn is a directory on disk, and the count of rooms grows turn by turn
 - [x] `P25.13` Real sensors detect it. — the outcome is read back off the filesystem and arrives as a percept from the filesystem, carrying what the room now holds
 - [x] `P25.14` Perception changes W/A/M/etc. — perception reaches the world model, affect or memory through edges kept against their shams: P->A and P->W on run_031, P->A and P->M on both run_032s
-- [ ] `P25.15` Those changes affect later action. Desired form: S/W/ D→Act→E→P→W/G/ S/ D. — a later action's outcome depends on what an earlier one left in the room, and perception reaches deliberation within three kept edges (P->A->I->D on run_031, P->S->D and P->S->W->D on the run_032s)
+- [x] `P25.15` Those changes affect later action. Desired form: S/W/ D→Act→E→P→W/G/ S/ D. — a later action's outcome depends on what an earlier one left in the room, and perception reaches deliberation within three kept edges (P->A->I->D on run_031, P->S->D and P->S->W->D on the run_032s)
 
 ## Phase 26 — Generalize agency and ownership
 
@@ -851,7 +851,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [ ] `P45.5` Audit bid types that never win. — the workspace counts what was offered and what won, so a source that never gets in is named rather than looking like one that never spoke
 - [x] `P45.6` Audit consumers that always return early. — every broadcast consumer reports whether it ever did anything, and none of them never did
 - [x] `P45.7` Audit model observers that never receive observations. — the world model's own step count moves across a run, so it received the observations the cycle sends it
-- [x] `P45.8` Audit self-model fields that never change. — a self-model field that never changes is a flat column, and the recording names every one. Audited on run_032: 85 of 280 columns never moved in six hours, 29 of them in S. Three had no writer anywhere in the tree and now have one — `cold.long_term_memory` (the semantic retrieval lane returned nothing on every retrieval), `world.user_preferences` (described in `core/being/individual_preferences.py` as injected into every prompt, and the context assembler found it empty every time), and the evidence phrase they are rendered with. The five `identity.personality_growth` traits are gated on `bonding_level > 0.3`, which rises by 0.0002 a user-facing turn from zero: about fifteen hundred turns, so the gate cannot open inside a 480-turn recording and those five are constant by timescale rather than by defect
+- [ ] `P45.8` Audit self-model fields that never change. — a self-model field that never changes is a flat column, and the recording names every one
 - [x] `P45.9` Audit affect fields overwritten later in the same cycle. — no field is written by one step of a turn and replaced by a later one without reading what was there
 - [x] `P45.10` Audit return paths that terminate in local dictionaries. — a mapping filled in and never read is an audit with a baseline and a worked example, and nothing in cognition or the subject core has one
 - [x] `P45.11` Audit background loops that start but immediately die. — a layer that did not come up is named, and a run with one refuses
@@ -1067,7 +1067,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P57.4` Keep all 511 cuts; take the speed-up from sequential sampling, never from deleting a cut. — no cut is ever deleted; the speed-up is sequential sampling
 - [x] `P57.5` Open every cut with the same anchor set before any of them earns more precision. — every cut opens with the same anchor set
 - [x] `P57.6` Stop allocating to a cut once its lower bound is safely above the sham floor. — a cut whose lower bound clears the floor stops drawing anchors
-- [x] `P57.7` Concentrate further anchors on the cuts still compatible with zero. — further anchors go to the cuts still compatible with zero
+- [x] `P57.7` Concentrate further anchors on the cuts still compatible with zero. — each look draws anchors only for the cuts still undecided at a deciding horizon; a decided cut draws no more
 - [x] `P57.8` Score the system at its weakest cut, as an intersection-union test over all of them. — the score is the weakest cut, as an intersection-union over all of them
 - [x] `P57.9` Report a cut that stayed undecided as UNRESOLVED rather than as a reducible system. — an undecided cut is reported as unresolved rather than as a reducible system
 
@@ -1175,7 +1175,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 ## Phase 67 — Say exactly what the result does and does not establish
 
 - [x] `P67.1` Report INTRINSIC_CARRIER_FOUND, NOT_FOUND or UNRESOLVED, and never CONSCIOUS. — the verdict is INTRINSIC_CARRIER_FOUND, NOT_FOUND or UNRESOLVED, never CONSCIOUS
-- [x] `P67.2` Carry phenomenal_bridge UNVALIDATED in every v25 report. — every v25 report carries the bridge as unvalidated
+- [-] `P67.2` Carry phenomenal_bridge UNVALIDATED in every v25 report. — retired by e49d2beb3. The constant UNVALIDATED rested on Theorem 1 of docs/BRIDGE_PROOFS.md, which holds for a person too, so no mind could meet it. Every v25 report now names the bridge as judged at parity by tools/solve_for_j.py over five grounds, each with a person's counterpart (docs/BRIDGE_PARITY.md)
 - [x] `P67.3` Record the level on the L0 to L7 scale with the evidence that places it there. — the L0 to L7 scale is in the report with the level and the evidence that places it there
 - [x] `P67.4` Document 24/24 as a rich, self-involving, developmentally persistent operational subject architecture rather than as the definition of consciousness. — 24/24 is documented as a rich operational subject architecture rather than as the definition of consciousness
 - [x] `P67.5` Record that 24/24 is not a logically necessary condition for minimal phenomenal consciousness, because several criteria concern rich selfhood and access. — the report records that several criteria concern rich selfhood and access, so 24/24 is not necessary for minimal phenomenal experience

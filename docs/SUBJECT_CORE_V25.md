@@ -287,6 +287,39 @@ a result mean something other than what it said:
 The review supplies the frame. Finding what is wrong inside it is still the
 work.
 
+## Where J* stands on 22 September 2026
+
+The chain has run end to end once, on seed 7 at quick scale: the carrier
+sweep, the content run and `tools/solve_for_j.py`. The decisive run's reports
+therefore meet a pipeline that has already worked. As a quick run should, it
+settled only the lineage:
+
+- **carrier** unresolved. Twelve sampled cuts, two of eight conditions, and a
+  predictive-state rank that moved between folds: 3 on every anchor, 2 or 3
+  with a fold held out, 4 by bi-cross-validation. The rank-stability rule
+  passes its positive control at 128 rows, the decisive run's anchor count.
+- **structure** not measured. The closest pair of classes (0.223) was no
+  further apart than a class is from itself (0.527), so at six anchors the
+  internal geometry was inside its own noise.
+- **lineage** recorded: 328 stages, 204 roots, no branch point.
+
+Two probes on seed 7 changed the content run before the decisive seed. A
+single push of affect was gone by the end of the turn. And recall runs before
+affect in a turn, so a shift of the reference her feelings are judged against
+reached her valence only after that turn's recall: 0 of 72 recalled sets
+changed. Valence pushed directly before the turn, by twice its span, changed
+69 of 72, so her recall is mood-congruent. The displacement now does both
+(43c574800, 44a64d4ba).
+
+The decisive content run is seed 23 under that design. A seed-7 run at 24
+anchors, on the old design, reads first whether 24 anchors bring the static
+geometry out of its noise.
+
+The same call judges the bridge at parity (`docs/BRIDGE_PARITY.md`). Its
+reports ground needs `tools/run_report_grounding.py --whole`, which loads her
+cortex. Until a whole run is read, the bridge reads UNRESOLVED and names that
+ground.
+
 ## Running it
 
 ```bash

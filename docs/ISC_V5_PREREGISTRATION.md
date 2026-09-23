@@ -157,3 +157,49 @@ named above.
   them in 75.7 minutes); the live cortex costs more a turn, so 511 cuts at up
   to 128 anchors is not affordable on this host with it, and no whole-self v5
   verdict is claimed until one is run.
+
+## Addendum, 22 September 2026, 20:30: seed 19 is void and seed 23 replaces it
+
+No v5 number from Aura had been read when this was written.
+
+The decisive run started beside this document used seed 19. The host
+restarted twice that morning and the run was relaunched each time. Its last
+launch (8447bc297, 14:17) died at 18:34. The campaign, the content run and
+the sweep's coordinator were each refused a write, `subject_core.action_probe
+called outside governed context`, after a sixty-second disk stall. The probe
+held one governed scope over a read and a write, and a governance token lives
+thirty seconds, so the stall expired it. Each probe write now opens its own
+scope (0f6c80784). The five sweep workers were stopped by hand. No campaign or
+sweep number from seed 19 was read.
+
+Two numbers from seed 19's content run were read by accident at 18:10, while
+checking whether it had reached its displacement stage: agreement rho 0.414
+(p 0.001) and design recovery rho 0.620 (p 0.001). They belong to the content
+run J*'s structure term reads, not to v5, and that run is void with the rest.
+The content run under the new displacement (44a64d4ba) reads a seed no number
+has come from.
+
+The decisive run is now seed 23 at 44a64d4ba, launched at 19:40: the campaign,
+a v5 sweep with five workers and a coordinator, and the content run. No run of
+seed 23 existed before it. The code that computes v5 did not change between
+8447bc297 and 44a64d4ba: `core/subject/isc_v5.py`, the sweep in
+`core/subject/v25_cut.py`, `tools/validate_interventional_cut.py`,
+`tools/score_isc_v5.py` and the battery are the same files. The one change to
+`tools/run_subject_core_v25.py` (e49d2beb3) is how its report words the
+bridge. The organism did change, and a verdict from seed 23 is a verdict on it:
+
+- a reminder lifts an intention for as long as it is in mind and is then taken
+  back, so finished goals stop climbing to urgency 1.0 (e33940236);
+- a goal takes the pressure its need has now, not the pressure it had when it
+  was chosen (d41fea974);
+- a campaign's conversation turns meet a person, and the partner has a field
+  (5a7b0b25b);
+- the content run's displacement pushes her valence before the turn as well as
+  the reference her feelings are judged against, because recall runs before
+  affect in a turn (43c574800, 44a64d4ba).
+
+The power study is still the gate. It runs at 8447bc297 from its own tree; the
+validator has not changed since. The three recurrent-reference jobs and the
+three star jobs are running, and the independent and common-driver jobs are
+queued behind them. Its table goes here, dated, before any seed-23 v5 number
+is read.

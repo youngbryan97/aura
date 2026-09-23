@@ -1743,7 +1743,7 @@
       {
         "kind": "grep",
         "path": "core/consciousness/liquid_substrate.py",
-        "pattern": "note_effort\\(\"substrate_steps\", 1\\.0\\)"
+        "pattern": "note_effort\\(\\s*\"substrate_steps\","
       },
       {
         "kind": "grep",
@@ -3014,8 +3014,8 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
-        "pattern": "class DeterministicMind"
+        "path": "core/subject/language_organ.py",
+        "pattern": "^class DeterministicMind"
       },
       {
         "kind": "grep",
@@ -4528,7 +4528,7 @@
       },
       {
         "kind": "grep",
-        "path": "core/subject/closure.py",
+        "path": "core/subject/sketch.py",
         "pattern": "^SKETCH_WIDTH: int"
       },
       {
@@ -5482,8 +5482,8 @@
       },
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
-        "pattern": "class DeterministicMind"
+        "path": "core/subject/language_organ.py",
+        "pattern": "^class DeterministicMind"
       }
     ],
     "note": "the run installs a deterministic mind and records which one answered, so decoding cannot differ between arms",
@@ -8949,10 +8949,15 @@
       {
         "kind": "grep",
         "path": "core/subject/v25_cut.py",
-        "pattern": "budget \\+= ANCHOR_STEP"
+        "pattern": "pending = \\[name for name in names if any\\(open_at\\(name, lag\\) for lag in decides\\)\\]"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_cut.py",
+        "pattern": "^ANCHOR_STEP: int"
       }
     ],
-    "note": "further anchors go to the cuts still compatible with zero",
+    "note": "each look draws anchors only for the cuts still undecided at a deciding horizon; a decided cut draws no more",
     "status": "done"
   },
   "P57.8": {
@@ -10102,7 +10107,7 @@
       {
         "kind": "grep",
         "path": "tools/run_subject_core_v25.py",
-        "pattern": "phenomenal subject is the carrier-identity postulate"
+        "pattern": "The carrier-identity postulate links it to a subject"
       }
     ],
     "note": "the carrier-identity postulate is stated wherever a carrier result is reported",
@@ -10113,28 +10118,32 @@
       {
         "kind": "grep",
         "path": "tools/run_subject_core_v25.py",
-        "pattern": "\"phenomenal_bridge\": \"UNVALIDATED\""
+        "pattern": "\"phenomenal_bridge\": \"JUDGED_BY_SOLVE_FOR_J\""
+      },
+      {
+        "kind": "path",
+        "path": "docs/BRIDGE_PARITY.md"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_bridge_is_judged_at_parity.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
       }
     ],
-    "note": "every v25 report carries the bridge as unvalidated",
-    "status": "done"
+    "note": "retired by e49d2beb3. The constant UNVALIDATED rested on Theorem 1 of docs/BRIDGE_PROOFS.md, which holds for a person too, so no mind could meet it. Every v25 report now names the bridge as judged at parity by tools/solve_for_j.py over five grounds, each with a person's counterpart (docs/BRIDGE_PARITY.md)",
+    "status": "not_applicable"
   },
   "P67.3": {
     "checks": [
       {
         "kind": "grep",
         "path": "tools/run_subject_core_v25.py",
-        "pattern": "^LEVELS: tuple\\[tuple\\[str, str\\], \\.\\.\\.\\]"
+        "pattern": "\\(\"L7\", \"at parity"
       },
       {
         "kind": "grep",
         "path": "tools/run_subject_core_v25.py",
-        "pattern": "\"moves_to_L6_only_by\""
-      },
-      {
-        "kind": "grep",
-        "path": "docs/SUBJECT_CORE_V25.md",
-        "pattern": "L5  closed irreducible carrier demonstrated"
+        "pattern": "\"moves_past_L5_by\""
       }
     ],
     "note": "the L0 to L7 scale is in the report with the level and the evidence that places it there",
@@ -11587,7 +11596,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/phases/motivation_update.py",
+        "path": "core/phases/motivation_signals.py",
         "pattern": "return gained\\(world, arousal, usual=0\\.5\\)"
       },
       {
@@ -11662,12 +11671,17 @@
       {
         "kind": "grep",
         "path": "core/phases/memory_retrieval.py",
-        "pattern": "word_overlap\\(percept_cue, text\\) \\* percept_salience"
+        "pattern": "percept_carried\\(word_overlap\\(percept_cue, text\\)"
       },
       {
         "command": "{python} -m pytest tests/test_memory_and_perception_read_each_other.py::test_a_percept_raises_the_recollections_that_carry_it -q -p no:randomly",
         "kind": "command",
         "timeout": 300
+      },
+      {
+        "kind": "grep",
+        "path": "core/phases/memory_retrieval.py",
+        "pattern": "updated = bounded \\+ \\(1\\.0 - bounded\\) \\* carried \\* percept_salience"
       }
     ],
     "note": "a salient percept raises the recollections that carry it before recall keeps its best, so what she perceives changes what a memory is worth now",
@@ -11795,7 +11809,7 @@
       {
         "kind": "grep",
         "path": "core/subject/driver.py",
-        "pattern": "gateway\\.write_text\\(\\s*path, prior \\+ intended \\+ \"\\\\n\", source=\"subject_core\\.action_probe\""
+        "pattern": "path, prior \\+ intended \\+ \"\\\\n\", source=\"subject_core\\.action_probe\""
       },
       {
         "command": "{python} -m pytest tests/test_the_loop_closes_through_a_real_environment.py::test_acting_changes_the_room_and_she_perceives_what_it_now_holds -q -p no:randomly",
@@ -11901,6 +11915,64 @@
       }
     ],
     "note": "persistence on the next level holds with memory left out: lower bounds +0.525 and +0.511 on the two run_032 seeds and +0.380 and +0.287 on the 300-round recordings, computed after the third amendment was committed. Runs record it from e6685d206 on",
+    "status": "done"
+  },
+  "P10.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/differentiation.py",
+        "pattern": "^def distinguishable_states\\("
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "evidence\\[\"differentiation\"\\]\\[\"distinguishable\"\\] = distinguishable_states\\("
+      },
+      {
+        "command": "{python} -m pytest tests/test_differentiation_read_two_ways.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "`distinguishable_states` in `core/subject/differentiation.py`, reported beside the participation ratio rather than instead of it. Each live column is quantised at its own pooled within-condition spread and the configurations are counted with their occupancy entropy, so the resolution comes from her own variation and the ceiling from how many frames were recorded. The preregistered criterion is close to maximised by destroying every coupling (P10.9); the bar is not moved, and both readings are reported",
+    "status": "done"
+  },
+  "P64.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "opening_identity = pin_arm_identity\\(\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "drift = differences\\(opening_identity, closing_identity\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_two_arms_are_one_system.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "every arm pins what served it and two pins name their differences: the registry's pointer and descriptor hashes, a stat digest of the model directory, the content hashes of the tokenizer, chat template and generation config, the sampler settings, the commit, and where each organism module was imported from. The battery pins before it records and again before it reports, and a difference refuses the run",
+    "status": "done"
+  },
+  "P64.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/cortex_campaign_preflight.py",
+        "pattern": "^def _sham_floor\\("
+      },
+      {
+        "command": "{python} -m pytest tests/test_two_arms_are_one_system.py::test_the_cut_sweep_really_draws_a_second_sham -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "campaign B scores its cuts through the same sweep campaign A does, and that sweep draws sham_a against sham_b at every cut, so the floor comes with the protocol rather than with the campaign; the preflight asks the question and a test holds the protocol to it",
     "status": "done"
   }
 }

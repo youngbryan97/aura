@@ -14,6 +14,66 @@ specification rules out solving connectivity with an all-to-all bus or a star
 on attention. A line added because the target wants it would let the matching
 null pass as well, and a pass would then say nothing about Aura.
 
+## Where it stands on 22 September 2026
+
+The sections after this one were written against 670f3e955 and are kept as
+they were. This is what has moved since.
+
+**The peak.** Three seeds at 45a74c913 (runs 029, 030 and 031) scored 18, 19
+and 18. Seventeen criteria held on all three. Five failed on all three:
+`robust_recurrence_kappa`, `partition_irreducibility`,
+`partition_beats_nulls`, `perturbational_spread` and `synergy`. Two changed
+their answer between seeds: `intrinsic_persistence` and `beats_every_null`.
+
+**A fall, and its cause.** camp7 (seed 7, 300 rounds, e22e89192) scored 16.
+Interoception had no kept edge in, and that one fact failed closure, kappa,
+cycles, reentry and per-condition replication. The pulse was five branches on
+fixed cut-offs, and arousal is a maximum over 45 emotions that lives between
+0.605 and 1.0, so the pulse sat at its ceiling on 94.3% of 79,200 frames. It
+is now her rank in her own recent arousal, and A→I came back, kept in 7 of 8
+conditions. D→I read zero because `carrying.pressure_of` took a maximum over
+open goals, and one standing goal near 1.0 pinned it; it is a sum now. With
+D→I and C→I in (proof5, 025edb4ea), all five lines passed again: 17 of 24
+before the nulls stage ran.
+
+**Perturbational spread** passed in camp7 at 0.6889, against 0.6.
+
+**Synergy.** All four triples cleared the 0.10 fraction in camp7. They fail
+on the null bars alone.
+
+**Irreducibility is read by intervention now.** On run_030, the 19, severing
+the cheapest cut raised the held-out loss from 0.2084 to 0.2148, three per
+cent. The regression reading is blind to one kind of integration: on three
+input-driven pipelines it scored the coupled ones no higher than the one with
+no coupling, because each turn's fresh input fills the loss a cut is divided
+by. Aura is that shape. ISC-v5 (`docs/ISC_V5_PREREGISTRATION.md`) holds one
+side of each of the 511 cuts for a turn and asks whether the other side ends
+it somewhere else. The v4 reading was tried and closed: on camp7 it read
+0.0026 against v3's 0.0137.
+
+**The decisive run** is seed 23 at 44a64d4ba, started at 19:40 on 22
+September: a six-trial campaign, the v5 sweep of all 511 cuts, and the content
+run J* reads its structure from. Seed 19 was lost to a governance refusal
+under a disk stall before any number from it was read. The power study on toy
+systems gates the reading: its table is appended to the preregistration
+before any seed-23 v5 number is opened.
+
+**What decides the rest, on seed 23.**
+
+- `partition_irreducibility` and `partition_beats_nulls`: the v5 sweep, every
+  cut decided, and no null architecture that passes the rest of v3 decided at
+  all 511.
+- `synergy`: the null bars, on a campaign whose four fractions already clear
+  0.10.
+- `robust_recurrence_kappa`: a three-trial seed-7 proof at d41fea974 read
+  kappa 1, with I, G, M and W at one kept edge in each. Three trials is
+  under-powered for the replication bar, so the six-trial campaign decides it.
+- `causal_closure_of_the_core` failed only on short runs, and is read at
+  campaign scale.
+
+J* and the bridge are read from the same run (`docs/SUBJECT_CORE_V25.md`,
+`docs/BRIDGE_PARITY.md`).
+
 ## What already holds
 
 Fifteen criteria pass on all three seeds: `causal_closure_scc`,
