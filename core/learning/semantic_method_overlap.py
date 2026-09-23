@@ -10,6 +10,27 @@ from collections import Counter, defaultdict
 METHODS = ("incumbent", "ranker", "direct", "prototype")
 
 
+def classify_program_structure(target: list, selected: list) -> str:
+    """Separate operation and register-binding errors at equal program depth."""
+    if (not isinstance(target, list) or not isinstance(selected, list)
+            or any(not isinstance(step, list) or len(step) != 2
+                   or not isinstance(step[0], str) or not isinstance(step[1], list)
+                   or any(type(register) is not int for register in step[1])
+                   for step in (*target, *selected))):
+        raise ValueError("structural comparison needs typed instruction lists")
+    if len(target) != len(selected):
+        return "depth_mismatch"
+    operations_match = all(a[0] == b[0] for a, b in zip(target, selected, strict=True))
+    bindings_match = all(a[1] == b[1] for a, b in zip(target, selected, strict=True))
+    if operations_match and bindings_match:
+        return "same_program"
+    if operations_match:
+        return "binding_only"
+    if bindings_match:
+        return "operation_only"
+    return "operation_and_binding"
+
+
 def _wilson(successes: int, population: int, z: float = 1.959963984540054) -> tuple[float, float]:
     if population < 1 or not 0 <= successes <= population:
         raise ValueError("Wilson interval needs a nonempty counted population")

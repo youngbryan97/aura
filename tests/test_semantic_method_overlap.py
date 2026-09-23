@@ -2,7 +2,18 @@
 
 import pytest
 
-from core.learning.semantic_method_overlap import _mcnemar_exact, analyze_method_overlap
+from core.learning.semantic_method_overlap import (
+    _mcnemar_exact, analyze_method_overlap, classify_program_structure,
+)
+
+
+def test_structural_diagnostic_separates_operation_and_binding_errors():
+    target = [["count_of", [0, 1]], ["sub", [2, 3]]]
+    assert classify_program_structure(target, target) == "same_program"
+    assert classify_program_structure(target, [["count_of", [0, 1]], ["sub", [3, 2]]]) == "binding_only"
+    assert classify_program_structure(target, [["count_of", [0, 1]], ["add", [2, 3]]]) == "operation_only"
+    assert classify_program_structure(target, [["count_of", [0, 1]], ["add", [3, 2]]]) == "operation_and_binding"
+    assert classify_program_structure(target, [["count_of", [0, 1]]]) == "depth_mismatch"
 
 
 def _row(source, methods):

@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import sys
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -70,7 +71,9 @@ def main() -> None:
         parser.add_argument("--" + name, type=Path, required=True)
     args = parser.parse_args()
 
-    from core.learning.semantic_method_overlap import analyze_method_overlap
+    from core.learning.semantic_method_overlap import (
+        analyze_method_overlap, classify_program_structure,
+    )
     from tools.evaluate_semantic_candidate_ranker import _read_bank
 
     source = _verified(args.source_comparison)
@@ -119,14 +122,42 @@ def main() -> None:
         source_id, gap_rows[source_id]["construction"], gap_bank_rows[source_id],
         gap_ranker[source_id], gap_rows[source_id], prototype_gap[source_id],
         direct_key="direct_program_sha256") for source_id in sorted(gap_rows)]
+    shared_wrong = []
+    structural_counts = {name: Counter() for name in ("incumbent", "ranker", "direct", "prototype")}
+    for row in normalized_gap:
+        if any(outcome["correct"] for outcome in row["methods"].values()):
+            continue
+        bank_row = gap_bank_rows[row["source"]]
+        programs = {candidate["program_sha256"]: candidate["program"]["instructions"]
+                    for candidate in bank_row["bank"]["candidates"]}
+        target_sha = bank_row["diagnosis"]["target_program_sha256"]
+        statuses = {entry["program_sha256"]: entry["status"]
+                    for entry in bank_row["diagnosis"]["comparisons"]}
+        if target_sha not in programs or statuses.get(target_sha) != "equivalent":
+            raise ValueError("shared-failure reference target is not in the verified bank")
+        structure = {}
+        for name, outcome in row["methods"].items():
+            selected_sha = outcome["program_sha256"]
+            category = ("no_program" if selected_sha is None else
+                        classify_program_structure(programs[target_sha], programs[selected_sha]))
+            structural_counts[name][category] += 1
+            structure[name] = category
+        shared_wrong.append({"source": row["source"], "construction": row["construction"],
+                             "structure": structure})
     source_result = analyze_method_overlap(normalized_source)
     gap_result = analyze_method_overlap(normalized_gap)
-    body = {"schema": "aura.semantic_method_overlap.v1", "serving_authority": False,
+    body = {"schema": "aura.semantic_method_overlap.v2", "serving_authority": False,
             "development_only": True, "fresh_transfer": False,
             "source_comparison_sha256": hashlib.sha256(args.source_comparison.read_bytes()).hexdigest(),
             "gap_comparison_sha256": hashlib.sha256(args.gap_comparison.read_bytes()).hexdigest(),
             "prototype_report_sha256": hashlib.sha256(args.prototype_report.read_bytes()).hexdigest(),
             "heldout_source": source_result, "exposed_gap": gap_result,
+            "shared_wrong_structure": {
+                "population": len(shared_wrong),
+                "by_method": {name: dict(sorted(counts.items()))
+                              for name, counts in structural_counts.items()},
+                "rows": shared_wrong,
+            },
             "rows": {"heldout_source": normalized_source, "exposed_gap": normalized_gap}}
     payload = json.dumps({**body, "receipt_sha256": _digest(body)}, sort_keys=True).encode()
     args.output.parent.mkdir(parents=True, exist_ok=True)

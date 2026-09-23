@@ -3,7 +3,7 @@
 The source of suggestions is Bryan's `Suggestions.pdf` and the subsequent
 active-arbitration note. This is a development analysis, not a serving change
 or a fresh transfer result. The immutable paired receipt is
-`~/.aura/rlc-evidence/semantic-real-bank-mixed-fold0-20260922/method-overlap.json`.
+`~/.aura/rlc-evidence/semantic-real-bank-mixed-fold0-20260922/method-overlap-v2.json`.
 `tools/analyze_semantic_method_overlap.py` verifies each input receipt and
 candidate-bank identity before comparing the four selected programs on the
 same item. Outcomes are graded only after choices are frozen.
@@ -68,3 +68,11 @@ The next mechanistic gap is source-grounded discrimination of the 14 shared
 selection failures. If no independently checkable consequence distinguishes
 the retained hypotheses, the correct output is unresolved, not a fabricated
 high-confidence pick. G03 and G04 remain open.
+
+The v2 diagnostic compares the 14 shared-failure selections against frozen
+target programs only after choices are made. Direct decoding keeps the right
+operations but reverses a register role on nine; the other five keep the
+roles but choose a wrong operation. The ranker has five binding-only, five
+operation-only, and four combined misses; the operation prototype has three,
+eight, and three respectively. These are descriptive labels from exposed
+development targets, not routing features or newly acquired answer evidence.
