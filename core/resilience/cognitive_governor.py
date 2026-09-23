@@ -1,4 +1,8 @@
 from core.runtime.errors import describe_error, record_degradation
+from core.runtime.still_getting_somewhere import (
+    a_place_to_report_it,
+    when_it_last_got_somewhere,
+)
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -30,15 +34,40 @@ class CognitiveGovernor:
             return {"status": "bypassed", "reason": "circuit_open"}
 
         async with self.semaphore:
+            budget = float(timeout_seconds or 30.0)
+            # Work that is still getting somewhere is not work that is stuck.
+            #
+            # LIVE 2026-09-20: a game she had been asked to play until the
+            # 2048 tile was killed an hour in — "Task computer_use timed
+            # out" — while it was landing a move every two seconds and had
+            # climbed 32, 64, 128, 256. The deadline answers "has this taken
+            # too long"; what matters about long work is whether it has
+            # stopped. Work that says it moved within the last budget gets
+            # another one; work that says nothing is cancelled, as before.
+            # Work that never reports is unchanged: its first budget is its
+            # only one.
+            slot = a_place_to_report_it()
+            running = asyncio.ensure_future(coroutine(*args, **kwargs))
             try:
-                # Execute the actual cognitive task (e.g., LLM generation, tool use)
-                result = await asyncio.wait_for(
-                    coroutine(*args, **kwargs),
-                    timeout=float(timeout_seconds or 30.0),
-                )
-                self._record_success()
-                return result
-                
+                while True:
+                    try:
+                        result = await asyncio.wait_for(
+                            asyncio.shield(running), timeout=budget
+                        )
+                    except asyncio.TimeoutError:
+                        since = when_it_last_got_somewhere(slot)
+                        if since <= budget:
+                            logger.info(
+                                "Task %s has run past %.0fs and is still getting "
+                                "somewhere (%s %.0fs ago); giving it as long again.",
+                                task_name, budget, slot.get("note") or "it moved", since,
+                            )
+                            continue
+                        running.cancel()
+                        raise
+                    self._record_success()
+                    return result
+
             except asyncio.TimeoutError:
                 logger.error("Task %s timed out.", task_name)
                 await self._record_failure()

@@ -204,6 +204,12 @@ async def carry_out_the_move(
     _bind_delivered_forecast(expected, arrived)
     if not arrived:
         pending["deliberation"] = None
+    if arrived:
+        # A landed key is this work getting somewhere, said to whoever is
+        # holding a deadline over it: an hour's game is long, not stuck.
+        from core.runtime.still_getting_somewhere import it_got_somewhere
+
+        it_got_somewhere(f"{arrived} key(s) landed, {len(moves) + arrived} move(s) in")
     for position, step in enumerate(sequence[:arrived]):
         if position == 0:
             about_to["at"] = time.time()
