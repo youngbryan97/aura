@@ -57,6 +57,20 @@ no scale, so her valence and their frustration are judged alike.
 
 A reflex is not chosen, so it is accounted for and never changed here.
 
+How a habit forms, in Bryan's words of 22 September: something done on
+autopilot, with more agency than a reflex; something she is used to doing, a
+mental shortcut, like stopping at the same gas station before work; not because
+she cannot choose differently, and changeable with conscious effort. So every
+choice she makes at a cue (the condition she is in and what she is attending
+to) is kept, however it was made, and the act she has come to choose there most
+becomes second nature once it has been chosen there at least three times and in
+more than half of her choices there (`habit_at`). At that cue she then takes it
+on autopilot, without weighing and without its effort. She overrides it with
+conscious effort when it has done worse for her than weighing, and only when
+what it has cost her is more than she is tired (`worth_the_effort`): a tired
+mind falls back on its habits. Each override is a repetition of something else,
+so a habit she keeps overriding stops being the one she is used to.
+
 When an act's outcome for her comes in, the same reading closes the receipts it
 opened: the choice engine's appraisal and the preference learner's reward are
 where that change sits among every change she has felt after an act, as
@@ -66,7 +80,7 @@ where that change sits among every change she has felt after an act, as
 from __future__ import annotations
 
 import bisect
-from collections import deque
+from collections import Counter, deque
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -184,6 +198,8 @@ class HabitLedger:
         self._outcomes: dict[tuple[str, str, str], _Outcomes] = {}
         self._automatic_takings: dict[tuple[str, str], int] = {}
         self._changes_felt: deque[float] = deque(maxlen=_WINDOW)
+        #: cue -> the acts she chose there, most recent last, however chosen.
+        self._chosen: dict[str, deque[str]] = {}
 
     # -- what happens --------------------------------------------------------
 
@@ -218,6 +234,31 @@ class HabitLedger:
         self._waiting_on_her.append(event)
         if person:
             self._waiting_on_them.setdefault(person, []).append(event)
+
+    # -- what she is used to doing -------------------------------------------
+
+    def note_choice(self, cue: str, act: str) -> None:
+        """What she chose at this cue. Repetition is what makes a habit, whatever made the choice."""
+        name = str(act or "").strip().lower()
+        if not name or not cue:
+            return
+        self._chosen.setdefault(str(cue), deque(maxlen=_WINDOW)).append(name)
+
+    def habit_at(self, cue: str) -> str:
+        """The act that has become second nature at this cue, or ''.
+
+        The one she has chosen there most, once it has been chosen there at
+        least MIN_SAMPLES times and in more than half of her choices there.
+        """
+        held = self._chosen.get(str(cue))
+        if not held:
+            return ""
+        act, taken = Counter(held).most_common(1)[0]
+        return act if taken >= MIN_SAMPLES and 2 * taken > len(held) else ""
+
+    def worth_the_effort(self, act: str, tired: float) -> bool:
+        """Whether overriding this habit is worth what it takes: it has cost her more than she is tired."""
+        return self.deficit(act) > max(0.0, float(tired))
 
     def felt(self, valence: float, *, situation: str) -> list[tuple[_Event, float, float]]:
         """An affect reading: closes what was waiting on her, and says where she is.
@@ -307,6 +348,7 @@ class HabitLedger:
             "accounted": len(judged),
             "to_change": len(to_change),
             "largest_deficit": round(worst.deficit, 6) if worst else 0.0,
+            "second_nature": sum(1 for cue in self._chosen if self.habit_at(cue)),
             "worst": worst.as_dict() if worst else None,
             "situation": self._situation,
         }

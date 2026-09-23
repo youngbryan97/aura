@@ -44,6 +44,7 @@ from typing import Any, ClassVar
 import numpy as np
 
 from core.soma.effort import note_effort
+from core.subject.choosing import choose
 from core.subject.state import (
     FAST_DOMAINS,
     CoreState,
@@ -790,6 +791,8 @@ class SubjectRuntime:
         if mind is not None and hasattr(mind, "moment"):
             mind.moment = self.turn
         env = {"turn": float(self.turn), "condition_id": float(_condition_index(condition.name))}
+        # Where she is, for the habits she forms there. See `_chosen_action`.
+        self._condition_name = condition.name
         if condition.prepare is not None:
             env.update(condition.prepare(self.state, self.rng))
         declared = getattr(self, "declared_host", None)
@@ -1290,55 +1293,8 @@ class SubjectRuntime:
     forced_action: str | None = None
 
     def _chosen_action(self) -> str:
-        """What she does, decided by what she is attending to.
-
-        Not a constant and not a random draw: the budgets are part of the
-        deliberation domain, so displacing that domain changes what she does,
-        which changes what the filesystem holds, which changes what her senses
-        report back. That is the whole of the return route through the world.
-        """
-        forced = getattr(self, "forced_action", None)
-        if forced in self.ACTIONS:
-            self._how_chosen = "forced"
-            return str(forced)
-        attending = str(getattr(self.state.cognition, "attention_focus", "") or "")
-        source = attending.split(":", 1)[0].strip()
-        if source.startswith("affect_"):
-            source = "self"
-        chosen = self.ATTENTION_ACTIONS.get(source)
-        if chosen:
-            self._how_chosen = "weighed"
-            return chosen
-        budgets = getattr(getattr(self.state, "motivation", None), "budgets", {}) or {}
-        levels = []
-        # Every budget the state carries, read from the state. This listed
-        # `creation` and `rest`, which no budget has ever been called, and
-        # omitted `growth` and `integrity`, which are two of the five that
-        # exist — so the drive that is most depleted on almost every tick was
-        # not among the ones considered.
-        for name in sorted(budgets):
-            entry = budgets.get(name)
-            if isinstance(entry, dict):
-                levels.append((float(entry.get("level", 100.0) or 0.0), name))
-        if not levels:
-            self._how_chosen = "automatic"
-            return self.ACTIONS[0]
-        levels.sort()
-        drive_alone = self.DRIVE_ACTIONS.get(levels[0][1], self.ACTIONS[0])
-        # A habit she means to change does not fire on drive alone. Each drive's
-        # pull is how far it sits below the fullest, less what a habit of its
-        # act has cost; where that moves the pick, her record decided it.
-        # See core/agency/habits_are_hers.py.
-        from core.agency.habits_are_hers import discounted_by_habit
-
-        fullest = levels[-1][0]
-        pulls = [
-            (discounted_by_habit(fullest - level, self.DRIVE_ACTIONS.get(name, self.ACTIONS[0])), -level, name)
-            for level, name in levels
-        ]
-        best = max(pulls)
-        chosen = self.DRIVE_ACTIONS.get(best[2], self.ACTIONS[0]) if best[0] > 0.0 else drive_alone
-        self._how_chosen = "automatic" if chosen == drive_alone else "weighed"
+        """What she does: what she is used to doing here, or what weighing picks (core/subject/choosing.py)."""
+        chosen, self._how_chosen = choose(self)
         return chosen
 
     #: How many lines the action log keeps. Past this an append rolls it,

@@ -202,7 +202,7 @@ def test_the_arbiter_takes_a_bad_habit_on_drive_for_less(monkeypatch) -> None:
     assert all(offered[goal] < raw[goal] for goal in tidied)
 
 
-def test_the_driver_does_something_else_instead_of_a_habit_she_means_to_change() -> None:
+def _driver_at_one_cue():
     from core.subject.driver import SubjectRuntime
 
     runtime = SubjectRuntime.__new__(SubjectRuntime)
@@ -210,20 +210,73 @@ def test_the_driver_does_something_else_instead_of_a_habit_she_means_to_change()
         cognition=SimpleNamespace(attention_focus=""),
         motivation=SimpleNamespace(budgets={"growth": {"level": 1.0}, "curiosity": {"level": 40.0}, "social": {"level": 90.0}}),
     )
-    habit = SubjectRuntime.DRIVE_ACTIONS["growth"]
-    assert runtime._chosen_action() == habit and runtime._how_chosen == "automatic"
-    ledger = habits_module.get_habit_ledger()
+    return runtime, SubjectRuntime
+
+
+def _habit_did_worse(ledger, habit: str, *, mixed: bool = False) -> None:
+    """Outcomes of the habit, and of weighed acts, as she felt them."""
     ledger.felt(0.0, situation="alone")
-    for _ in range(8):
+    for step in range(8):
         ledger.note(habit, kind="automatic")
-        ledger.felt(-0.3, situation="alone")
+        # Mixed: three worse for every one better, a deficit of a half.
+        ledger.felt(0.2 if (mixed and step % 4 == 0) else -0.3, situation="alone")
         ledger.felt(0.0, situation="alone")
         ledger.note("other", kind="weighed")
-        ledger.felt(0.3, situation="alone")
+        ledger.felt(0.3 if not mixed else 0.1, situation="alone")
         ledger.felt(0.0, situation="alone")
-    assert SubjectRuntime.DRIVE_ACTIONS["curiosity"] != habit
-    assert runtime._chosen_action() == SubjectRuntime.DRIVE_ACTIONS["curiosity"]
-    assert runtime._how_chosen == "weighed", "her record decided it, not the drive"
+
+
+def test_repetition_makes_a_habit_she_then_takes_on_autopilot() -> None:
+    runtime, driver = _driver_at_one_cue()
+    habit = driver.DRIVE_ACTIONS["growth"]
+    # Weighed while it is new; the lowest drive is the strongest reason.
+    for _ in range(3):
+        assert runtime._chosen_action() == habit and runtime._how_chosen == "weighed"
+    # Then she is used to it: second nature, taken without weighing.
+    assert runtime._chosen_action() == habit and runtime._how_chosen == "automatic"
+    assert habits_module.get_habit_ledger().reading()["second_nature"] == 1
+
+
+def test_a_habit_that_did_worse_is_overridden_with_effort_when_she_has_it() -> None:
+    runtime, driver = _driver_at_one_cue()
+    habit = driver.DRIVE_ACTIONS["growth"]
+    for _ in range(4):
+        runtime._chosen_action()
+    _habit_did_worse(habits_module.get_habit_ledger(), habit)
+    chosen = runtime._chosen_action()
+    assert runtime._how_chosen == "weighed", "the habit was overridden, at the effort weighing costs"
+    assert chosen == driver.DRIVE_ACTIONS["curiosity"] != habit
+
+
+def test_tired_she_falls_back_on_the_habit() -> None:
+    from core.soma.fatigue import get_fatigue_ledger
+
+    runtime, driver = _driver_at_one_cue()
+    habit = driver.DRIVE_ACTIONS["growth"]
+    for _ in range(4):
+        runtime._chosen_action()
+    ledger = habits_module.get_habit_ledger()
+    _habit_did_worse(ledger, habit, mixed=True)
+    tired = get_fatigue_ledger()
+    for step in range(40):
+        tired.note(0.2 + 0.02 * step)
+    assert 0.0 < ledger.deficit(habit) < tired.read().share
+    assert runtime._chosen_action() == habit and runtime._how_chosen == "automatic"
+
+
+def test_a_habit_forms_only_where_one_act_is_most_of_what_she_chooses() -> None:
+    ledger = habits_module.HabitLedger()
+    for act in ("drive_the_coast", "drive_the_coast", "drive_the_highway", "drive_the_coast"):
+        ledger.note_choice("to_work", act)
+    assert ledger.habit_at("to_work") == "drive_the_coast"
+    for act in ("drive_the_highway", "drive_the_highway", "drive_the_highway"):
+        ledger.note_choice("to_work", act)
+    # Chosen again and again, the highway is what she is used to now.
+    assert ledger.habit_at("to_work") == "drive_the_highway"
+    ledger.note_choice("to_work", "drive_the_coast")
+    # Four and four: nothing is second nature until one of them is again.
+    assert ledger.habit_at("to_work") == ""
+    assert ledger.habit_at("to_the_gym") == ""
 
 
 def test_what_she_owes_them_for_a_habit_enters_the_moment_as_hers() -> None:
