@@ -5214,12 +5214,11 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         self._clock_shift_events = 0
         self._clock_shift_total_s = 0.0
 
-        # The state repository's SharedMemoryTransport may be backed by mmap on
-        # restricted/macOS paths. mmap handles are not picklable under the
-        # Darwin spawn context, so workers get a small multiprocessing bridge
-        # instead of the repository transport itself. The last slot is reserved
-        # for steering liveness.
-        self._substrate_mem = self._mp_context.Array("d", 16, lock=False)
+        # mmap handles do not pickle under the Darwin spawn context, so the worker
+        # gets a small multiprocessing array rather than the state repository's
+        # transport: her steering state, published before each generation, and the
+        # worker's liveness flag in the last slot (core/consciousness/steering_channel.py).
+        self._substrate_mem = self._create_steering_channel()
         # Reverse channel: Grassmann state integers from the worker (where the
         # activations are) back to PhiCore (which lives here). Without it the
         # activation-grounded Φ complex can never fill — the steering hook's
@@ -10136,6 +10135,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             # Awaited rather than fired off, so an injection cannot outlive
             # the turn that produced it and land in the middle of the next.
             await self._drain_latent_readouts()
+            self._publish_steering_state()
 
             # Reliability tracing: inference nests under the HTTP root span
             # (contextvars), so a slow turn reads as one connected trace.

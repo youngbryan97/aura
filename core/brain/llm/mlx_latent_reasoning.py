@@ -1922,3 +1922,34 @@ class _ReasonsInLatentSpace:
                 enforce_failure_policy=False,
             )
             return 0.0
+
+    def _create_steering_channel(self) -> Any:
+        """The forward arrow's shared array, reading neutral until her first publish."""
+        from core.consciousness.steering_channel import create_channel
+
+        return create_channel(self._mp_context)
+
+    def _publish_steering_state(self) -> None:
+        """THE FORWARD ARROW's parent half: her substrate into the worker's steering hooks.
+
+        The worker read this array as her state and nothing here ever wrote it,
+        so an attached worker steered every token the same way whatever she
+        felt (core/consciousness/steering_channel.py). Called before each
+        generation, after the backward arrow's drain, so the state it carries
+        includes what the last generation put into the substrate.
+        """
+        channel = getattr(self, "_substrate_mem", None)
+        if channel is None:
+            return
+        try:
+            from core.consciousness.steering_channel import publish
+
+            self._steering_state_published = publish(channel)
+        except (AttributeError, IndexError, TypeError, ValueError) as exc:
+            record_degradation(
+                "mlx_client",
+                exc,
+                severity="warning",
+                action="left the steering channel at its last state for this generation",
+                enforce_failure_policy=False,
+            )

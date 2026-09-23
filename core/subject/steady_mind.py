@@ -9,11 +9,15 @@ measuring Aura with one organ replaced by a stub.
 This puts the organ back. Calls go to the router the desktop runtime builds,
 which serves her cortex and her faster tiers from the same workers and weights,
 with the temperature set to zero so the decode is the greedy one. Two arms of a
-paired trial that send the same call get the same answer: the first answer is
-kept, keyed on everything the call carried, and the second arm reads it. When
-an intervention changes what reaches the organ, the organ answers differently,
-and that difference is the intervention propagating through her language, not
-sampling noise.
+paired trial that send the same call in the same state get the same answer: the
+first answer is kept, keyed on everything the call carried and on the state her
+steering hooks will read, and the second arm reads it. The state is in the key
+because her feelings reach the forward pass through those hooks and not through
+the call (core/consciousness/steering_channel.py); keyed on the call alone, an
+arm that moved only her feelings would have been handed the other arm's answer.
+When an intervention changes what reaches the organ, the organ answers
+differently, and that difference is the intervention propagating through her
+language, not sampling noise.
 
 The router and the kept answers live here at module scope, in core.subject, on
 purpose. The fork carries every organ attribute and every module global of the
@@ -48,14 +52,14 @@ _TICKETS = itertools.count()
 _TRANSPORT = frozenset({"callback", "on_token", "stream_callback", "cancel_event"})
 
 
-def _key(method: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> str:
+def _key(method: str, args: tuple[Any, ...], kwargs: dict[str, Any], steering: Any = None) -> str:
     request = {
         key: value
         for key, value in kwargs.items()
         if not key.startswith("_") and key not in _TRANSPORT and not callable(value)
     }
     blob = json.dumps(
-        {"method": method, "args": list(args), "kwargs": request},
+        {"method": method, "args": list(args), "kwargs": request, "steering": steering},
         sort_keys=True,
         default=repr,
     )
@@ -98,7 +102,9 @@ class SteadyMind:
         return router
 
     async def _call(self, method: str, *args: Any, **kwargs: Any) -> Any:
-        key = _key(method, args, kwargs)
+        from core.consciousness.steering_channel import steering_now
+
+        key = _key(method, args, kwargs, steering=steering_now())
         if key in _KEPT:
             return _KEPT[key]
         target = getattr(self._router(), method)
