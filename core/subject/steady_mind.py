@@ -39,7 +39,7 @@ import json
 import time
 from typing import Any
 
-__all__ = ["SteadyMind", "forget_for_test", "kept", "waited"]
+__all__ = ["SteadyMind", "forget_for_test", "kept", "record_answers", "waited"]
 
 #: The router the organ speaks through, and every answer it has given.
 _ROUTER: dict[str, Any] = {}
@@ -47,6 +47,12 @@ _KEPT: dict[str, Any] = {}
 _WAITED: list[float] = [0.0]
 _IN_FLIGHT: dict[int, float] = {}
 _TICKETS = itertools.count()
+#: What served each kept answer: the endpoint of the user-facing generation it
+#: came from, if it was one, and the steering the worker applied to it.
+_SERVED: dict[str, dict[str, Any]] = {}
+#: The answers given since `record_answers` was last called, or None when
+#: nobody asked. A run that needs to know what served a turn asks per turn.
+_RECORD: list[list[dict[str, Any]]] = []
 
 #: Call arguments that carry a place to put things rather than a request.
 _TRANSPORT = frozenset({"callback", "on_token", "stream_callback", "cancel_event"})
@@ -77,9 +83,47 @@ def waited() -> float:
     return _WAITED[0] + sum(now - started for started in _IN_FLIGHT.values())
 
 
+def record_answers() -> list[dict[str, Any]]:
+    """Start a fresh record of what serves each answer from here on, and return it.
+
+    Each entry names the call, whether the answer was kept, and for a
+    user-facing generation the endpoint that answered and the steering alpha
+    the worker applied. A kept answer carries what served it the first time.
+    """
+    record: list[dict[str, Any]] = []
+    _RECORD[:] = [record]
+    return record
+
+
+def _served_by(since: float) -> dict[str, Any]:
+    """The user-facing generation the gate finished after `since`, if there was one."""
+    from core.container import ServiceContainer
+
+    gate = ServiceContainer.get("inference_gate", default=None)
+    if gate is None or not hasattr(gate, "get_conversation_status"):
+        return {"user_facing": False}
+    status = gate.get_conversation_status()
+    if float(status.get("last_user_generation_at") or 0.0) < since:
+        return {"user_facing": False}
+    metadata = gate.get_diagnostic_last_generation_metadata() if hasattr(gate, "get_diagnostic_last_generation_metadata") else {}
+    receipt = (metadata or {}).get("surface_control_receipt") or {}
+    return {
+        "user_facing": True,
+        "endpoint": status.get("last_user_generation_endpoint"),
+        "steering_alpha": receipt.get("surface_alpha_applied"),
+    }
+
+
+def _note(entry: dict[str, Any]) -> None:
+    if _RECORD:
+        _RECORD[0].append(entry)
+
+
 def forget_for_test() -> None:
     _ROUTER.clear()
     _KEPT.clear()
+    _SERVED.clear()
+    _RECORD.clear()
     _IN_FLIGHT.clear()
     _WAITED[0] = 0.0
 
@@ -106,9 +150,11 @@ class SteadyMind:
 
         key = _key(method, args, kwargs, steering=steering_now())
         if key in _KEPT:
+            _note({**_SERVED.get(key, {}), "method": method, "kept": True})
             return _KEPT[key]
         target = getattr(self._router(), method)
         kwargs["temperature"] = 0.0
+        asked_at = time.time()
         started = time.monotonic()
         ticket = next(_TICKETS)
         _IN_FLIGHT[ticket] = started
@@ -117,10 +163,14 @@ class SteadyMind:
         finally:
             _IN_FLIGHT.pop(ticket, None)
             _WAITED[0] += time.monotonic() - started
+        served = _served_by(asked_at) if _RECORD else {}
+        _note({**served, "method": method, "kept": False, "answered": bool(answer)})
         # An empty answer is a lane that did not answer, not an answer, and
         # keeping it would replay a transient failure for the rest of the run.
         if answer:
             _KEPT[key] = answer
+            if served:
+                _SERVED[key] = served
         return answer
 
     async def think(self, prompt: Any = None, *args: Any, **kwargs: Any) -> Any:

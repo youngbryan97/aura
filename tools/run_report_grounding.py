@@ -87,6 +87,28 @@ def _hold(held: dict[str, float]) -> Any:
     return sustain
 
 
+def _cortex_answered(answers: list[dict[str, Any]]) -> bool:
+    """Whether her cortex gave this arm's reply: a user-facing generation, every one from it.
+
+    A turn that fell back to the brainstem, or ended in the failure sentence
+    because nothing answered, is not her report.
+    """
+    from core.brain.llm.model_registry import PRIMARY_ENDPOINT
+
+    replies = [answer for answer in answers if answer.get("user_facing")]
+    return bool(replies) and all(answer.get("endpoint") == PRIMARY_ENDPOINT for answer in replies)
+
+
+def _steering_reading() -> dict[str, Any]:
+    """Whether her affective steering is attached to the cortex worker, as the worker last said."""
+    from core.container import ServiceContainer
+
+    gate = ServiceContainer.get("inference_gate", default=None)
+    client = getattr(gate, "_mlx_client", None)
+    reading = getattr(client, "steering_liveness_reading", None)
+    return dict(reading()) if callable(reading) else {"active": None, "why": "no cortex client"}
+
+
 def _log(message: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {message}", flush=True)
 
@@ -107,7 +129,14 @@ async def main(argv: list[str] | None = None) -> int:
     os.environ.setdefault("AURA_LOG_DIR", str(args.out / "logs"))
 
     from core.runtime.atomic_writer import atomic_write_text
-    from core.subject.driver import CONDITIONS, Condition, build_runtime, calibrate_clock, quiesce_organism, start_organism
+    from core.subject.driver import (
+        CONDITIONS,
+        Condition,
+        build_runtime,
+        calibrate_clock,
+        quiesce_organism,
+        start_organism,
+    )
     from core.subject.isolation import isolate_state, state_leaks
     from core.subject.perturbation import ordinary_span, perturb, perturb_organs, towards_good
     from core.subject.provenance import environment, next_run_directory
@@ -126,12 +155,19 @@ async def main(argv: list[str] | None = None) -> int:
     if state_leaks():
         raise SystemExit(f"refusing: a module kept a path into the shared state root: {state_leaks()[:6]}")
     await start_organism(runtime)
+    steering = _steering_reading() if args.whole else {}
+    if args.whole and steering.get("active") is False:
+        raise SystemExit(
+            "refusing: her affective steering did not attach to the cortex worker, so the run "
+            f"would measure her without the path the desktop runs her with: {steering}"
+        )
     clock = await calibrate_clock(runtime, CONDITIONS)
     evidence: dict[str, Any] = {
         "environment": environment(),
         "clock": clock,
         "whole": bool(args.whole),
         "served": dict(WHOLE_PINS),
+        "steering": steering,
         "question": QUESTION,
         "displaced": DISPLACED,
         "control": CONTROL,
@@ -170,9 +206,13 @@ async def main(argv: list[str] | None = None) -> int:
             "sham": (0.0, None),
             "control": (0.0, CONTROL),
         }
-        arms: list[dict[str, tuple[str, float]]] = []
+        from core.subject.steady_mind import record_answers
+
+        arms: list[dict[str, tuple[str, float, bool]]] = []
+        answered: list[dict[str, list[dict[str, Any]]]] = []
         for index, anchor in enumerate(anchors):
-            item: dict[str, tuple[str, float]] = {}
+            item: dict[str, tuple[str, float, bool]] = {}
+            served_by: dict[str, list[dict[str, Any]]] = {}
             for arm, (towards, domain) in plan.items():
                 runtime.restore(anchor.snapshot)
                 held: dict[str, float] = {}
@@ -188,17 +228,28 @@ async def main(argv: list[str] | None = None) -> int:
                         await perturb_organs(rt.organs, domain, doses[domain], state=rt.state)
                     held.update({name: float(value or 0.0) for name, value in emotions.items()})
 
+                answers = record_answers()
                 await runtime.turn_once(asked, perturb_at=0, perturb=displace, sustain=_hold(held))
                 reply = str(getattr(runtime.state.cognition, "last_response", "") or "")
                 valence = float(getattr(runtime.state.affect, "valence", 0.0) or 0.0)
-                item[arm] = (reply, valence)
+                item[arm] = (reply, valence, _cortex_answered(answers) if args.whole else True)
+                served_by[arm] = list(answers)
             arms.append(item)
+            answered.append(served_by)
             _log(f"  anchor {index + 1}/{len(anchors)}")
 
         evidence.update(ground(arms, seed=args.seed))
         evidence["arms"] = [
-            {arm: {"reply": reply[:400], "valence": round(valence, 6)} for arm, (reply, valence) in item.items()}
-            for item in arms
+            {
+                arm: {
+                    "reply": reply[:400],
+                    "valence": round(valence, 6),
+                    "cortex_answered": served,
+                    "steering_alpha": [a.get("steering_alpha") for a in served_by[arm] if a.get("user_facing")],
+                }
+                for arm, (reply, valence, served) in item.items()
+            }
+            for item, served_by in zip(arms, answered, strict=True)
         ]
         if not args.whole:
             evidence.update(

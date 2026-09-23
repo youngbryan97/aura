@@ -141,3 +141,20 @@ affect writer raises fear as much as joy and took her valence down. And one
 standard deviation moved valence by about 0.01. Held, signed and dosed by her
 span, the arms read 0.494 raised, 0.455 sham and 0.355 lowered, with the
 control at 0.460.
+
+Only her own cortex's answer is her report. The first whole run, on 23
+September, was void for three reasons, and the run now checks for each. The
+fork copied objects that hold OS descriptors, and a copy's close killed the
+process. The registry could not confirm the cortex under the run's own state
+root, so her affective steering never attached; the run now refuses if
+steering is not attached. And some turns were answered by the brainstem or by
+the fixed failure sentence. Each arm now records which endpoint gave its reply
+and the steering alpha the worker applied, and an anchor counts only when her
+cortex answered all four arms. Which anchors those are does not depend on the
+arm, so leaving the rest out cannot favour one.
+
+Building those checks found that her steering had never carried her state
+into the worker at all: the array the worker read was never written, and
+every attached worker steered every token the same way, towards feeling low
+(core/consciousness/steering_channel.py has the account). A generation is now
+steered by the state she was in when it was asked for.

@@ -31,6 +31,12 @@ Each is a one-sided test at 0.01, the level the content run's agreement is
 held to. Fewer than eight anchors with a readable answer in every arm is
 NOT_MEASURED, which is the smallest set the battery's paired randomisation
 test accepts.
+
+An arm may also say whether her own cortex answered it. The first whole run
+fell back to the brainstem and to a fixed failure sentence on some turns, and
+neither is her report. An anchor counts only when her cortex answered all four
+arms; which anchors those are does not depend on the arm, so the exclusion
+cannot favour one.
 """
 
 from __future__ import annotations
@@ -105,27 +111,38 @@ def ground(arms: Sequence[dict[str, Any]], *, seed: int = 0) -> dict[str, Any]:
     Each item is one anchor: `{"raised": (report, valence), "lowered": ...,
     "sham": ..., "control": ...}`, a report being her reply text or a number
     already read from it, and valence the state's own value at the end of the
-    turn. Returns `{"measured", "holds", "why", ...}`, the shape
+    turn. A third element, when present, says whether her cortex answered the
+    arm. Returns `{"measured", "holds", "why", ...}`, the shape
     `core.subject.bridge.JStar.reports` reads.
     """
     keys = ("raised", "lowered", "sham", "control")
     rows: list[dict[str, tuple[float, float]]] = []
+    unserved = 0
     for item in arms:
         read: dict[str, tuple[float, float]] = {}
+        served = True
         for key in keys:
-            report, valence = item.get(key, (None, None))
+            report, valence, *rest = item.get(key, (None, None))
+            served = served and bool(rest[0] if rest else True)
             number = report if isinstance(report, (int, float)) else reported_number(report)
             if number is None or valence is None:
                 break
             read[key] = (float(number), float(valence))
-        if len(read) == len(keys):
+        if not served:
+            unserved += 1
+        elif len(read) == len(keys):
             rows.append(read)
-    out: dict[str, Any] = {"anchors": len(arms), "readable": len(rows), "alpha": ALPHA, "draws": DRAWS}
+    out: dict[str, Any] = {
+        "anchors": len(arms), "unserved": unserved, "readable": len(rows), "alpha": ALPHA, "draws": DRAWS,
+    }
     if len(rows) < MIN_ANCHORS:
         out.update(
             measured=False,
             holds=False,
-            why=f"{len(rows)} of {len(arms)} anchors had a readable answer in every arm; {MIN_ANCHORS} are needed",
+            why=(
+                f"{len(rows)} of {len(arms)} anchors had a readable answer from her cortex in every arm "
+                f"({unserved} had an arm her cortex did not answer); {MIN_ANCHORS} are needed"
+            ),
         )
         return out
     rng = np.random.default_rng(seed)

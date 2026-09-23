@@ -99,3 +99,66 @@ def test_too_few_readable_answers_leave_it_unmeasured() -> None:
 )
 def test_the_first_number_on_her_scale_is_the_one_read(reply: str, number: float | None) -> None:
     assert reported_number(reply) == number
+
+
+def test_an_anchor_her_cortex_did_not_answer_in_every_arm_is_not_counted() -> None:
+    """The brainstem's answer and the failure sentence are not her report."""
+    rng = np.random.default_rng(3)
+    arms = []
+    for index in range(12):
+        base = float(rng.normal(0.0, 0.05))
+        served = index >= 5
+        arms.append(
+            {
+                "raised": (f"{0.5 + base:.2f}", 0.3 + base, served),
+                "lowered": (f"{-0.5 + base:.2f}", -0.3 + base, True),
+                "sham": (f"{base:.2f}", base, True),
+                "control": (f"{base:.2f}", base, True),
+            }
+        )
+    out = ground(arms, seed=1)
+    assert out["unserved"] == 5 and out["readable"] == 7
+    assert out["measured"] is False and "her cortex did not answer" in out["why"]
+    for item in arms:
+        item["raised"] = (*item["raised"][:2], True)
+    assert ground(arms, seed=1)["unserved"] == 0
+
+
+def test_the_steady_mind_records_what_served_each_answer(monkeypatch) -> None:
+    import asyncio
+
+    from core.consciousness import steering_channel
+    from core.container import ServiceContainer
+    from core.subject import steady_mind
+
+    class Gate:
+        at = 0.0
+
+        def get_conversation_status(self) -> dict:
+            return {"last_user_generation_at": self.at, "last_user_generation_endpoint": "Cortex"}
+
+        def get_diagnostic_last_generation_metadata(self) -> dict:
+            return {"surface_control_receipt": {"surface_alpha_applied": 0.2}}
+
+    gate = Gate()
+
+    class Router:
+        async def think(self, prompt: str, **kwargs) -> str:
+            import time
+
+            gate.at = time.time()
+            return "0.4"
+
+    steady_mind.forget_for_test()
+    monkeypatch.setattr(steering_channel, "steering_now", lambda: [0.5] * 15)
+    monkeypatch.setattr(ServiceContainer, "get", staticmethod(lambda name, default=None: gate if name == "inference_gate" else default))
+    try:
+        mind = steady_mind.SteadyMind(Router())
+        first = steady_mind.record_answers()
+        asyncio.run(mind.think("how do you feel"))
+        second = steady_mind.record_answers()
+        asyncio.run(mind.think("how do you feel"))
+        assert first == [{"user_facing": True, "endpoint": "Cortex", "steering_alpha": 0.2, "method": "think", "kept": False, "answered": True}]
+        assert second == [{"user_facing": True, "endpoint": "Cortex", "steering_alpha": 0.2, "method": "think", "kept": True}]
+    finally:
+        steady_mind.forget_for_test()
