@@ -425,6 +425,22 @@ async def _stabilize_user_facing_reply_part_3(
     )
     return corrected_text, stabilizer_timeout
 
+def _assessment_or_none(user_message: str, reply: str, recent_user_messages: Any) -> Any:
+    """The reliability verdict on a reply, or None where the assessor refused it."""
+    try:
+        from core.conversation.response_reliability import assess_user_facing_reply
+
+        return assess_user_facing_reply(
+            user_message,
+            reply,
+            recent_user_messages=recent_user_messages,
+        )
+    # not a failure: a reply this assessor refuses has no assessment, and the caller
+    # treats None as no verdict.
+    except _CHAT_RECOVERABLE_ERRORS:
+        return None
+
+
 async def _stabilize_user_facing_reply(
     user_message: str,
     reply_text: Any,
@@ -746,18 +762,9 @@ async def _stabilize_user_facing_reply(
             cleaned_semantic_glitch, _cleaned_semantic_reason = _looks_semantically_glitched(
                 user_message, cleaned
             )
-            try:
-                from core.conversation.response_reliability import assess_user_facing_reply
-
-                cleaned_assessment = assess_user_facing_reply(
-                    user_message,
-                    cleaned,
-                    recent_user_messages=recent_user_messages,
-                )
-            # not a failure: a reply this assessor refuses has no assessment, and the caller
-            # below treats None as no verdict.
-            except _CHAT_RECOVERABLE_ERRORS:
-                cleaned_assessment = None
+            cleaned_assessment = _assessment_or_none(
+                user_message, cleaned, recent_user_messages
+            )
             if (
                 valid_cleaned
                 and not cleaned_generic

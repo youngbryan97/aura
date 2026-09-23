@@ -231,6 +231,18 @@ class SpeechProfile:
 # The Compiler — reads substrate, outputs SpeechProfile
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _unit_share(value: object) -> float:
+    """A reading in [0, 1]; zero for anything that is not a finite number."""
+    try:
+        share = float(value)  # type: ignore[arg-type]
+    # not a failure: a value that is not a number is not one this can read.
+    except (TypeError, ValueError, OverflowError):
+        return 0.0
+    if not math.isfinite(share):
+        return 0.0
+    return max(0.0, min(1.0, share))
+
+
 class SpeechProfileCompiler:
     """Reads ALL substrate systems and compiles a SpeechProfile.
 
@@ -333,14 +345,7 @@ class SpeechProfileCompiler:
 
         # Social context
         sc = social_context or {}
-        try:
-            social_confidence = float(sc.get("social_confidence", 0.0))
-        # not a failure: a value that is not a number is not one this can read.
-        except (TypeError, ValueError, OverflowError):
-            social_confidence = 0.0
-        if not math.isfinite(social_confidence):
-            social_confidence = 0.0
-        social_confidence = max(0.0, min(1.0, social_confidence))
+        social_confidence = _unit_share(sc.get("social_confidence", 0.0))
         social_caution = sc.get("social_caution", "unknown")
 
         # Conversation context

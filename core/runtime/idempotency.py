@@ -65,6 +65,17 @@ class IdempotentOutcome:
     key: str
     replays: int = 0
 
+    def value_saying_so(self, idempotency_key: str) -> Any:
+        """The value, marked as a replay when it is one, so no caller counts it twice.
+
+        A caller that cannot tell a replay from an execution will double-count
+        it somewhere else. Only a mapping is marked; anything else goes back as
+        it came.
+        """
+        if self.replayed and isinstance(self.value, dict):
+            return {**self.value, "idempotent_replay": True, "idempotency_key": idempotency_key}
+        return self.value
+
 
 class IdempotencyLedger:
     """Keyed single-flight with a short-lived result cache."""

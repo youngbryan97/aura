@@ -881,6 +881,23 @@ def _report_an_empty_answer_as_one(response: Any, payload: Any) -> Any:
     return JSONResponse(payload, status_code=response.status_code)
 
 
+def _body_and_request(args: tuple[Any, ...], kwargs: dict[str, Any]) -> tuple[Any, Request | None]:
+    """The body and the request a chat handler was called with, however it was called.
+
+    Positionally they come body first; a handler called with only a request has
+    it where the body would be.
+    """
+    body = kwargs.get("body")
+    if body is None and args:
+        body = args[0]
+    request = kwargs.get("request")
+    if request is None and len(args) > 1:
+        request = args[1]
+    if isinstance(body, Request):
+        return None, body
+    return body, request
+
+
 def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[..., Any]:
     """Fence every chat turn before side effects and durably seal its outcome."""
 
@@ -1362,15 +1379,7 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
     @wraps(handler)
     async def _surface_settled(*args: Any, **kwargs: Any) -> JSONResponse:
         response = await _wrapped(*args, **kwargs)
-        body = kwargs.get("body")
-        if body is None and args:
-            body = args[0]
-        request = kwargs.get("request")
-        if request is None and len(args) > 1:
-            request = args[1]
-        if isinstance(body, Request):
-            request = body
-            body = None
+        body, request = _body_and_request(args, kwargs)
         _note_chat_surface_delivery_response(response, request=request, body=body)
         return response
 

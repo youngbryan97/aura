@@ -8303,6 +8303,9 @@ def test_operator_cli_unknown_command_returns_error():
 def test_backup_then_restore_round_trip(tmp_path, monkeypatch):
     from core.runtime.backup_restore import perform_backup, perform_restore
 
+    # State under HOME, as a runtime with no injected root keeps it. The suite
+    # gives each process a root of its own, and an injected root outranks HOME.
+    monkeypatch.delenv("AURA_STATE_ROOT", raising=False)
     fake_home = tmp_path / "fake_home"
     fake_home.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(Path, "home", lambda: fake_home)
@@ -8334,6 +8337,9 @@ def test_migrations_dry_run_reports_targets(tmp_path, monkeypatch):
     register_migration(
         MigrationStep(from_version=1, to_version=2, transform=lambda p: {**p, "migrated": True})
     )
+    # State under HOME, as a runtime with no injected root keeps it. The suite
+    # gives each process a root of its own, and an injected root outranks HOME.
+    monkeypatch.delenv("AURA_STATE_ROOT", raising=False)
     fake_home = tmp_path / "fakehome"
     fake_home.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(Path, "home", lambda: fake_home)

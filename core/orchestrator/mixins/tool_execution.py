@@ -5,6 +5,7 @@ Extracts browser task and tool execution logic.
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
 import time
 from typing import Any
@@ -87,6 +88,33 @@ def _record_tool_degradation(
         severity=severity,
         action=action,
     )
+
+
+async def _finalize_debate_result_with(
+    response: dict[str, Any],
+    *,
+    success: bool,
+    error: str = "",
+    record: Any,
+    finish: Any,
+) -> dict[str, Any]:
+    """Close a swarm debate's standing lease, then its constitutional bookkeeping.
+
+    The lease first, synchronously, before any cancellation can interrupt the
+    completion. Lifted out of `execute_tool` with the two closures it used
+    passed in, when the reason pass took that method past its size.
+    """
+    record(response, success=success, error=error)
+    drained = await drain_owned_awaitable(
+        finish(response, success=success, error=error),
+        name="ToolExecution.swarm_debate.authority_completion",
+        owner="tool_execution:swarm_debate",
+        allow_during_shutdown=True,
+    )
+    drained.task.result()
+    if drained.cancellation is not None:
+        raise drained.cancellation
+    return response
 
 
 class ToolExecutionMixin:
@@ -731,29 +759,11 @@ class ToolExecutionMixin:
             roles = args.get("roles", ["architect", "critic"])
             self._emit_thought_stream(f"🐝 Engaging Swarm Debate: {topic[:100]}...")
 
-            async def _finalize_debate_result(
-                response: dict[str, Any],
-                *,
-                success: bool,
-                error: str = "",
-            ) -> dict[str, Any]:
-                # Close the synchronous standing lease before any cancellation
-                # can interrupt constitutional completion bookkeeping.
-                _record_coding_tool_event(response, success=success, error=error)
-                drained = await drain_owned_awaitable(
-                    _finish_constitutional_tool_execution(
-                        response,
-                        success=success,
-                        error=error,
-                    ),
-                    name="ToolExecution.swarm_debate.authority_completion",
-                    owner="tool_execution:swarm_debate",
-                    allow_during_shutdown=True,
-                )
-                drained.task.result()
-                if drained.cancellation is not None:
-                    raise drained.cancellation
-                return response
+            _finalize_debate_result = functools.partial(
+                _finalize_debate_result_with,
+                record=_record_coding_tool_event,
+                finish=_finish_constitutional_tool_execution,
+            )
 
             debate_result_ready = False
             debate_terminalized = False

@@ -31,6 +31,7 @@ from .capability_engine_params import (  # noqa: F401  (re-exported: they were d
     _get_base_types,
     _get_field_info,
     _minimal_model_payload,
+    _note_double_nested_params,
     _safe_field_default,
 )
 from .capability_engine_skill_scope import (  # noqa: F401  (re-exported: they were defined here)
@@ -4909,14 +4910,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
         # Sanitize double-nested "params" from LLM hallucinations before execution.
         # Preserve any top-level fields we already inferred instead of discarding them.
         normalized_params = self._normalize_execution_params(params)
-        if (
-            normalized_params != params
-            and "params" in params
-            and isinstance(params["params"], dict)
-        ):
-            self.logger.warning(
-                "[%s] Unpacking double-nested params from LLM hallucination.", skill_name
-            )
+        _note_double_nested_params(self.logger, skill_name, params, normalized_params)
         params = normalized_params
 
         constitution = None
@@ -6291,16 +6285,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                     f"{skill_name}:{idempotency_key}",
                     _execute_wrapped,
                 )
-                wrapped_result = outcome.value
-                if outcome.replayed and isinstance(wrapped_result, dict):
-                    # Say so rather than pretending this was a fresh run.
-                    # A caller that cannot tell a replay from an execution
-                    # will double-count it somewhere else.
-                    wrapped_result = {
-                        **wrapped_result,
-                        "idempotent_replay": True,
-                        "idempotency_key": idempotency_key,
-                    }
+                wrapped_result = outcome.value_saying_so(idempotency_key)
             else:
                 wrapped_result = await _execute_wrapped()
             if not isinstance(wrapped_result, dict):

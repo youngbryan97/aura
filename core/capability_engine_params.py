@@ -232,3 +232,15 @@ def _a_model_from_a_schema(schema: dict[str, Any]) -> Any:
             return dict(self._said)
 
     return _SaysItsSchema(schema)
+
+
+def _note_double_nested_params(log: Any, skill_name: str, params: Any, normalized_params: Any) -> None:
+    """Say so when the model nested the params twice, before they are unpacked."""
+    if (
+        normalized_params != params
+        and "params" in params
+        and isinstance(params["params"], dict)
+    ):
+        log.warning(
+            "[%s] Unpacking double-nested params from LLM hallucination.", skill_name
+        )

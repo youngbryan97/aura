@@ -334,4 +334,8 @@ def test_execute_actually_wires_the_ledger_and_the_requirement():
     assert "requires_idempotency_key(" in source
     assert "await get_idempotency_ledger().run_once(" in source
     assert '"status": "idempotency_key_required"' in source
-    assert '"idempotent_replay": True' in source
+    # The replay is marked by the outcome that knows it was one, and execute
+    # hands back what the outcome says.
+    assert "outcome.value_saying_so(idempotency_key)" in source
+    ledger = Path("core/runtime/idempotency.py").read_text(encoding="utf-8")
+    assert '"idempotent_replay": True' in ledger

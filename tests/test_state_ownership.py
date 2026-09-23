@@ -65,7 +65,10 @@ def test_the_violation_says_how_to_fix_it():
 
 def test_traversal_back_into_live_state_is_caught():
     """Resolved, not string-compared, or the check is decorative."""
-    sneaky = state_root() / ".." / live_state_root().name / "data" / "memory.db"
+    # From the live root's own sibling, whatever root this process was given:
+    # the test suite runs each process on a root of its own in the temp dir.
+    sibling = live_state_root().with_name(f"{live_state_root().name}-test")
+    sneaky = sibling / ".." / live_state_root().name / "data" / "memory.db"
     assert is_live_state_path(sneaky)
     with pytest.raises(StateOwnershipViolation):
         assert_state_path_allowed(sneaky)
@@ -296,7 +299,10 @@ def test_a_spawned_child_is_not_a_test_runtime_just_because_it_inherited_env():
                 " 'root': str(state_root())}))",
             ],
             cwd=str(ROOT),
-            env={**os.environ, "HOME": home},
+            # Its own HOME and no injected root, as a delegated child is
+            # launched. The suite gives this process an AURA_STATE_ROOT of its
+            # own, and that outranks HOME by design.
+            env={**{k: v for k, v in os.environ.items() if k != "AURA_STATE_ROOT"}, "HOME": home},
             capture_output=True,
             text=True,
             timeout=120,
