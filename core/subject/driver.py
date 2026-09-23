@@ -270,6 +270,7 @@ HARNESS_ROUTES: dict[str, str] = {
     "_retrieve": "core/memory/intentional_retrieval.py:IntentionalRetriever, the real retriever, run in the memory condition",
     "_intends_to_act": "core/governance/will.py, whose threshold defers an initiative below three tenths",
     "_act": "core/phases/action_grounding.py:ground_response, a skill she dispatches; a scratch world stands in for the environment",
+    "_meet_the_person": "core/kernel/turn_door.py:observe_the_person, the step the desktop's incoming path runs beside each message",
     "step_once": "core/subject/steppable.py:step_once, the free-running layers the runtime runs on timers, advanced by count",
     "note_effort": "core/soma/effort.py:note_effort, the cost the production phase seam reports",
     "_condition_index": "instrument: labels which condition a frame came from",
@@ -1464,118 +1465,142 @@ class SubjectRuntime:
         # being right and being wrong about her own effect is one of the things
         # the ownership experiment has to span.
         predicted = self._expects_to_succeed(kind)
+        from core.governance_context import GovernanceViolationError
+
         try:
             from core.governance_context import local_internal_governed_scope
             from core.runtime.file_write_gateway import get_file_write_gateway
 
             gateway = get_file_write_gateway()
             room = Path(target)
-            with local_internal_governed_scope("subject_core.action_probe"):
-                if kind == "append_log":
-                    path = room / "actions.log"
-                    prior = path.read_text() if path.exists() else ""
-                    gateway.write_text(
-                        path, prior + intended + "\n", source="subject_core.action_probe"
-                    )
-                    lines = path.read_text().splitlines()
-                    ok = bool(lines) and lines[-1] == intended
-                    observed = f"the log holds {len(lines)} lines"
-                elif kind == "make_room":
-                    path = room / f"room_{self.turn:04d}"
-                    gateway.ensure_directory(path, source="subject_core.action_probe")
-                    rooms = sorted(p.name for p in room.glob("room_*") if p.is_dir())
-                    ok = path.is_dir()
-                    observed = f"{len(rooms)} rooms exist"
-                elif kind == "read_room":
-                    # The one that can fail, and fails for a reason that is
-                    # hers: the room for a turn exists only if she chose to
-                    # make one then. An action repertoire in which nothing can
-                    # fail cannot teach efficacy — every attempt succeeded, so
-                    # the ledger's efficacy and authored share sat at one for
-                    # the whole of every run and the self-state read two
-                    # constants where two of its liveliest columns should be.
-                    path = room / f"room_{max(0, self.turn - 1):04d}"
-                    ok = path.is_dir()
-                    observed = (
-                        f"room {path.name} holds {len(list(path.iterdir()))} things"
-                        if ok
-                        else f"there is no room {path.name}"
-                    )
-                elif kind == "paint_panel":
-                    # A surface rather than a record: what it leaves behind is
-                    # rendered for looking at, and it is correct only if what
-                    # came back can be read as the panel she drew.
-                    path = room / "panel.txt"
-                    body = f"| {intended[:40]:<40} |"
-                    rule = "+" + "-" * 42 + "+"
-                    gateway.write_text(
-                        path, f"{rule}\n{body}\n{rule}\n", source="subject_core.action_probe"
-                    )
-                    drawn = path.read_text().splitlines()
-                    ok = len(drawn) == 3 and drawn[1] == body
-                    observed = f"the panel is {len(drawn)} lines wide {len(rule)}"
-                elif kind == "visit_room":
-                    # Going somewhere rather than changing something. Nothing
-                    # in the world is different afterwards, which is the point:
-                    # an action whose whole effect is on where she is.
-                    rooms = sorted(p.name for p in room.glob("room_*") if p.is_dir())
-                    here = str(self.state.world.facts.get("location", "") or "")
-                    ahead = [name for name in rooms if name > here] or rooms
-                    if ahead:
-                        self.state.world.facts["location"] = ahead[0]
-                        ok = True
-                        observed = f"standing in {ahead[0]} of {len(rooms)}"
-                    else:
-                        observed = "there is nowhere to go"
-                elif kind == "finish_task":
-                    # A thing that takes more than one step, so completion is
-                    # a different outcome from progress. Two steps in is a
-                    # partial success, and a repertoire with no partial success
-                    # has nothing between done and failed.
-                    path = room / "task.txt"
-                    prior = path.read_text().splitlines() if path.exists() else []
-                    steps = prior + [f"step {len(prior) + 1}: {intended[:60]}"]
-                    gateway.write_text(
-                        path, "\n".join(steps) + "\n", source="subject_core.action_probe"
-                    )
-                    done = len(steps) % 3 == 0
-                    ok = done
-                    partial = not done
-                    observed = f"{len(steps)} steps, {'finished' if done else 'still going'}"
-                elif kind == "tidy_room":
-                    # Half works by design. It clears what it can reach and
-                    # leaves the directories, so a room with anything in it
-                    # comes back partly tidy — and the ledger sees an attempt
-                    # that neither succeeded nor failed.
-                    rooms = sorted(
-                        (p for p in room.glob("room_*") if p.is_dir()), reverse=True
-                    )
-                    if not rooms:
-                        observed = "there is nothing to tidy"
-                    else:
-                        target_room = rooms[0]
-                        inside = sorted(target_room.iterdir())
-                        removed = 0
-                        for item in inside:
-                            # Deleted through the gateway, like the write two
-                            # branches up: a raw unlink was the one call here
-                            # the governance lint could not account for.
-                            if item.is_file():
-                                gateway.delete_file(item, source="subject_core.action_probe")
-                                removed += 1
-                        left = len(list(target_room.iterdir()))
-                        ok = removed > 0 and left == 0
-                        partial = removed > 0 and left > 0
-                        observed = f"{target_room.name}: cleared {removed}, {left} left"
+
+            # A governed scope for each write, opened at the call. One scope
+            # held over the whole probe spanned its reads too, and a governance
+            # token lives thirty seconds: on 22 September at 18:34 a disk stall
+            # of sixty seconds held a read of the action log inside the scope,
+            # the token expired before the write, the gateway refused it, and
+            # the seed-19 campaign, its content run and two sweep processes
+            # died of the same refusal within a minute of each other.
+            def governed(call: Any, *args: Any, **kwargs: Any) -> Any:
+                with local_internal_governed_scope("subject_core.action_probe"):
+                    return call(*args, **kwargs)
+
+            if kind == "append_log":
+                path = room / "actions.log"
+                prior = path.read_text() if path.exists() else ""
+                governed(
+                    gateway.write_text,
+                    path, prior + intended + "\n", source="subject_core.action_probe"
+                )
+                lines = path.read_text().splitlines()
+                ok = bool(lines) and lines[-1] == intended
+                observed = f"the log holds {len(lines)} lines"
+            elif kind == "make_room":
+                path = room / f"room_{self.turn:04d}"
+                governed(gateway.ensure_directory, path, source="subject_core.action_probe")
+                rooms = sorted(p.name for p in room.glob("room_*") if p.is_dir())
+                ok = path.is_dir()
+                observed = f"{len(rooms)} rooms exist"
+            elif kind == "read_room":
+                # The one that can fail, and fails for a reason that is
+                # hers: the room for a turn exists only if she chose to
+                # make one then. An action repertoire in which nothing can
+                # fail cannot teach efficacy — every attempt succeeded, so
+                # the ledger's efficacy and authored share sat at one for
+                # the whole of every run and the self-state read two
+                # constants where two of its liveliest columns should be.
+                path = room / f"room_{max(0, self.turn - 1):04d}"
+                ok = path.is_dir()
+                observed = (
+                    f"room {path.name} holds {len(list(path.iterdir()))} things"
+                    if ok
+                    else f"there is no room {path.name}"
+                )
+            elif kind == "paint_panel":
+                # A surface rather than a record: what it leaves behind is
+                # rendered for looking at, and it is correct only if what
+                # came back can be read as the panel she drew.
+                path = room / "panel.txt"
+                body = f"| {intended[:40]:<40} |"
+                rule = "+" + "-" * 42 + "+"
+                governed(
+                    gateway.write_text,
+                    path, f"{rule}\n{body}\n{rule}\n", source="subject_core.action_probe"
+                )
+                drawn = path.read_text().splitlines()
+                ok = len(drawn) == 3 and drawn[1] == body
+                observed = f"the panel is {len(drawn)} lines wide {len(rule)}"
+            elif kind == "visit_room":
+                # Going somewhere rather than changing something. Nothing
+                # in the world is different afterwards, which is the point:
+                # an action whose whole effect is on where she is.
+                rooms = sorted(p.name for p in room.glob("room_*") if p.is_dir())
+                here = str(self.state.world.facts.get("location", "") or "")
+                ahead = [name for name in rooms if name > here] or rooms
+                if ahead:
+                    self.state.world.facts["location"] = ahead[0]
+                    ok = True
+                    observed = f"standing in {ahead[0]} of {len(rooms)}"
                 else:
-                    path = room / "notes.txt"
-                    gateway.write_text(
-                        path, intended, source="subject_core.action_probe"
-                    )
-                    ok = path.read_text() == intended
-                    observed = f"notes.txt holds {len(intended)} characters"
+                    observed = "there is nowhere to go"
+            elif kind == "finish_task":
+                # A thing that takes more than one step, so completion is
+                # a different outcome from progress. Two steps in is a
+                # partial success, and a repertoire with no partial success
+                # has nothing between done and failed.
+                path = room / "task.txt"
+                prior = path.read_text().splitlines() if path.exists() else []
+                steps = prior + [f"step {len(prior) + 1}: {intended[:60]}"]
+                governed(
+                    gateway.write_text,
+                    path, "\n".join(steps) + "\n", source="subject_core.action_probe"
+                )
+                done = len(steps) % 3 == 0
+                ok = done
+                partial = not done
+                observed = f"{len(steps)} steps, {'finished' if done else 'still going'}"
+            elif kind == "tidy_room":
+                # Half works by design. It clears what it can reach and
+                # leaves the directories, so a room with anything in it
+                # comes back partly tidy — and the ledger sees an attempt
+                # that neither succeeded nor failed.
+                rooms = sorted(
+                    (p for p in room.glob("room_*") if p.is_dir()), reverse=True
+                )
+                if not rooms:
+                    observed = "there is nothing to tidy"
+                else:
+                    target_room = rooms[0]
+                    inside = sorted(target_room.iterdir())
+                    removed = 0
+                    for item in inside:
+                        # Deleted through the gateway, like the write two
+                        # branches up: a raw unlink was the one call here
+                        # the governance lint could not account for.
+                        if item.is_file():
+                            governed(gateway.delete_file, item, source="subject_core.action_probe")
+                            removed += 1
+                    left = len(list(target_room.iterdir()))
+                    ok = removed > 0 and left == 0
+                    partial = removed > 0 and left > 0
+                    observed = f"{target_room.name}: cleared {removed}, {left} left"
+            else:
+                path = room / "notes.txt"
+                governed(
+                    gateway.write_text,
+                    path, intended, source="subject_core.action_probe"
+                )
+                ok = path.read_text() == intended
+                observed = f"notes.txt holds {len(intended)} characters"
         except OSError as exc:
             logger.debug("probe action failed: %s", exc)
+        except GovernanceViolationError as exc:
+            # The harness's write was refused, which is not her act failing.
+            # Counted where the run's authority reads failures, and the run
+            # goes on rather than ending two days of measurement.
+            self.failures["action_probe.governance"] = self.failures.get("action_probe.governance", 0) + 1
+            self.failure_notes["action_probe.governance"] = str(exc)[:200]
+            logger.warning("the action probe's write was refused by governance: %s", exc)
         # Through the intention loop, which is the path the live runtime takes:
         # form the intention, record the action, observe the outcome. That is
         # what emits the efference copy and compares it, so the agency
