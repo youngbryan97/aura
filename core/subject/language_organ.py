@@ -19,10 +19,20 @@ from core.kernel.turn_door import USER_ORIGINS
 
 logger = logging.getLogger("Aura.Subject.Driver")
 
+#: How long her language organ may take to come up, the first time and after
+#: its worker has stopped: loading her cortex is the slow part, and it is the
+#: same load either way.
+FOREGROUND_READY_S: float = 900.0
+
+#: How often a lane that is still coming up is asked again.
+_RECHECK_S: float = 10.0
+
 __all__ = [
+    "FOREGROUND_READY_S",
     "DeterministicMind",
     "bring_up_language",
     "install_mind",
+    "keep_language_ready",
     "phase_budget",
     "within_budget",
 ]
@@ -160,7 +170,7 @@ async def bring_up_language(runtime: Any) -> dict[str, Any]:
     await gate.initialize()
     ServiceContainer.register_instance("inference_gate", gate)
     router = build_router_from_config(config)
-    foreground = await gate.ensure_foreground_ready(timeout=900.0)
+    foreground = await gate.ensure_foreground_ready(timeout=FOREGROUND_READY_S)
     warmed: dict[str, bool] = {}
     for tier in ("primary", "tertiary"):
         answer = None
@@ -174,7 +184,7 @@ async def bring_up_language(runtime: Any) -> dict[str, Any]:
                 answer = None
             if answer:
                 break
-            await asyncio.sleep(10.0)
+            await asyncio.sleep(_RECHECK_S)
         warmed[tier] = bool(answer)
     mind = SteadyMind(router)
     install_mind(runtime.kernel, mind)
@@ -183,6 +193,48 @@ async def bring_up_language(runtime: Any) -> dict[str, Any]:
         "foreground": {key: foreground.get(key) for key in ("state", "ready", "model") if isinstance(foreground, dict)},
         "warmed": warmed,
     }
+
+
+async def keep_language_ready(runtime: Any) -> dict[str, Any]:
+    """Bring her language organ back before a turn if its worker has stopped.
+
+    The router's endpoint timeout stops a model worker as its way of aborting a
+    generation, and nothing in a subject run started it again: the router
+    validates an endpoint before calling it, so the stopped worker opened the
+    circuit, and the gate, which starts a worker when it is called, was never
+    called. The whole report run of 23 September lost her cortex on its first
+    baseline turn this way, and every later turn ended in the failure sentence.
+    The harness stops her background loops so that two arms see the same
+    computation, and anything that might have noticed is stopped with them.
+
+    Checked before a turn's first frame, under the experiment clock, so the
+    wait moves nothing in her. A turn her cortex could not serve still counts as
+    one her cortex did not answer; this only keeps one stop from ending the run.
+    """
+    if not getattr(runtime, "whole", False):
+        return {"checked": False}
+    from core.container import ServiceContainer
+
+    gate = ServiceContainer.get("inference_gate", default=None)
+    if gate is None or not hasattr(gate, "get_conversation_status"):
+        return {"checked": False}
+    if gate.get_conversation_status().get("conversation_ready"):
+        return {"checked": True, "recovered": False}
+    started = time.monotonic()
+    while (waited := time.monotonic() - started) < FOREGROUND_READY_S:
+        try:
+            await gate.ensure_foreground_ready(timeout=FOREGROUND_READY_S - waited)
+        except RuntimeError as exc:
+            # not a failure: a lane that was ready once is given a short wait
+            # and its warmup carries on behind it; asking again is the design.
+            logger.info("her language organ is still coming back: %s", exc)
+        if gate.get_conversation_status().get("conversation_ready"):
+            seconds = round(time.monotonic() - started, 1)
+            logger.warning("her language organ's worker had stopped; it was back in %.0fs", seconds)
+            return {"checked": True, "recovered": True, "seconds": seconds}
+        await asyncio.sleep(_RECHECK_S)
+    logger.error("her language organ did not come back within %.0fs", FOREGROUND_READY_S)
+    return {"checked": True, "recovered": False, "seconds": round(time.monotonic() - started, 1)}
 
 
 def phase_budget(runtime: Any, name: str, origin: str, *, fallback: float) -> float:

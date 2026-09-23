@@ -212,6 +212,7 @@ from core.subject.language_organ import (
     DeterministicMind,
     bring_up_language,
     install_mind,
+    keep_language_ready,
     phase_budget,
     within_budget,
 )
@@ -786,6 +787,7 @@ class SubjectRuntime:
         than its consumers sample it cannot be measured any other way: see
         `core.subject.causal.SUSTAINED`.
         """
+        await keep_language_ready(self)
         engine = self.kernel.organs.get("llm") if hasattr(self.kernel, "organs") else None
         mind = getattr(engine, "instance", None) if engine is not None else None
         if mind is not None and hasattr(mind, "moment"):
