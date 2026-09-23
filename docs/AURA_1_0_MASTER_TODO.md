@@ -1176,6 +1176,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Full source-bank repair and construction-fold result](evidence/G03_SEARCH_INTERRUPTION_AND_SOURCE_RANKER_2026-09-23.md)
+  recovers target-blind diagnostic candidates after all typed search
+  interruptions: source reach 764/764 versus 518/764 before. A complete
+  source-only three-fold ranker selects 614/764 with argument evidence versus
+  556/764 for the matched control, but regresses in alias/binding families.
+  On the exposed 23-case validation gap, candidate reach is 18 and the three
+  trained folds select 3, 9, and 13. Wider 12x4 target-blind search reaches
+  23/23, but the narrow-bank fold-2 ranker drops from 13 to 6 selections on
+  that wider distribution. No candidate is promoted; G03 stays open.
   [PDF architecture disposition and opt-in full-program identity training](evidence/G03_PDF_ARCHITECTURE_DISPOSITION_2026-09-23.md)
   now covers all four supplied PDFs. The v3 candidate bank retains selected
   mention/definition evidence for an opt-in complete-program ranker. Short
