@@ -7,6 +7,35 @@ what broke, what fixed it, and where the evidence is. Runs live in
 
 ## 23 September, night
 
+### 03:25: seed 7 at the decisive design reads 17 of 24
+
+Seed 7 with six trials and two-turn arms (`~/subject-core-runs/design-s7`, nulls
+and lesion skipped, 61 minutes) against the one-turn proof's 15:
+
+- **perturbational spread passes, 0.667 against 0.6** (was 0.178). Every source
+  now reaches something: I reaches 0.556 of the other domains, N 0.333, S all
+  of them.
+- **natural-runtime replication passes:** all eight conditions form one
+  strongly connected graph (was two of eight).
+- **kappa is still 1.** W, her world model, has one kept in-edge (S->W, 1.88 in
+  all eight conditions), so removing S cuts it off. The next candidates into W
+  miss the preregistered bars: D->W 0.269 pooled (0.35, 0.40 and 0.42 in
+  autonomy, idle and stress; the bar is 0.3 pooled), M->W 0.241, P->W 0.223.
+  They peak at frame 60 or later of 66, still rising when the arm ends, the
+  shape the edges into I had under one-turn arms. A seed-7 run with three-turn
+  arms (`design-s7-t3`) is measuring whether they clear the bar with the time
+  to arrive.
+- **synergy fails** on its nulls: all four triples must pass and each misses
+  differently on 320 rows (P,M->W clears its shifted null, 0.482 against 0.444,
+  but not the held-out interaction bound; W,A->D has an interaction gain with a
+  lower bound of 0.18 but sits under its null). The decisive campaign records
+  2,400.
+- **lesion and rescue** have never been measured on any run on disk; the
+  seed-7 lesion is running now from the design run's own cheapest cut
+  (`design-s7-lesion.log`).
+- The two partition lines are scored by the v5 sweep in the decisive run, and
+  "beats every null" needs the rest.
+
 ### 03:13: the recovery, second attempt
 
 The first version of the recovery (934564f60) asked the gate to warm the lane
