@@ -211,15 +211,20 @@ def test_progress_covers_selection_and_graph_search(fixture):
         "candidate_chart", "candidate_graph", "candidate_retained"}
 
 
-def test_budget_exhaustion_retains_diagnostic_alternatives_without_answer_rescue(
-        fixture, monkeypatch):
+@pytest.mark.parametrize("refusal", ["decode_search_budget_exhausted",
+                                     "argument_optimizer_budget_exhausted",
+                                     "argument_chart_construction_budget_exhausted",
+                                     "argument_optimizer_status:1"])
+def test_search_interruption_retains_diagnostic_alternatives_without_answer_rescue(
+        fixture, monkeypatch, refusal):
     model, item, kwargs, _ = fixture
     monkeypatch.setattr(type(model), "decode", lambda self, **_kwargs:
-                        SemanticTransductionOutcome(None, "decode_search_budget_exhausted", {}, {}))
+                        SemanticTransductionOutcome(None, refusal, {}, {}, search_interrupted=True))
     bank = model.decode_candidates(**kwargs, max_charts=2, max_graphs_per_chart=2)
     bank.validate()
     assert bank.selected.ir is None
-    assert bank.receipt["selected_refusal"] == "decode_search_budget_exhausted"
+    assert bank.receipt["selected_refusal"] == refusal
+    assert bank.receipt["selected_search_interrupted"] is True
     assert bank.receipt["selected_program_sha256"] is None
     assert bank.receipt["selection_changed"] is False
     assert bank.candidates
@@ -227,3 +232,39 @@ def test_budget_exhaustion_retains_diagnostic_alternatives_without_answer_rescue
     assert diagnosis["selected_semantic_status"] == "unavailable"
     assert diagnosis["failure_stage"] in {"selection", "incomplete_search",
                                           "verification_unknown", "reachability"}
+
+
+def test_pre_search_refusal_does_not_run_diagnostic_search(fixture, monkeypatch):
+    model, _, kwargs, _ = fixture
+    monkeypatch.setattr(type(model), "decode", lambda self, **_kwargs:
+                        SemanticTransductionOutcome(None, "input_value_not_grounded:0", {}, {}))
+    bank = model.decode_candidates(**kwargs, max_charts=2, max_graphs_per_chart=2)
+    bank.validate()
+    assert bank.candidates == ()
+    assert bank.receipt["limit_reason"] == "ordinary_decode_unavailable"
+    assert bank.receipt["selected_search_interrupted"] is False
+
+
+def test_one_incomplete_chart_does_not_discard_later_charts(fixture, monkeypatch):
+    from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
+    from core.learning import semantic_candidate_bank as candidate_bank
+
+    model, _, kwargs, _ = fixture
+    original = candidate_bank._assign_typed_arguments
+    calls = 0
+
+    def interrupt_first(**arguments):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise ArgumentOptimizationIncompleteError("argument_chart_construction_budget_exhausted")
+        return original(**arguments)
+
+    monkeypatch.setattr(candidate_bank, "_assign_typed_arguments", interrupt_first)
+    bank = model.decode_candidates(**kwargs, max_charts=2, max_graphs_per_chart=2)
+    bank.validate()
+    assert bank.receipt["charts"][0]["interruption"] == (
+        "argument_chart_construction_budget_exhausted")
+    assert bank.receipt["charts"][0]["search_complete"] is False
+    assert bank.receipt["search_complete"] is False
+    assert calls >= 2

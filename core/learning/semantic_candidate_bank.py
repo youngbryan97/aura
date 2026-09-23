@@ -100,7 +100,8 @@ class SemanticCandidateBank:
         if (body.get("candidates") != [candidate.to_dict() for candidate in self.candidates]
                 or body.get("input_spans") != [span.to_dict() for span in self.input_spans]
                 or body.get("selected_program_sha256") != selected
-                or body.get("selected_refusal") != self.selected.refusal):
+                or body.get("selected_refusal") != self.selected.refusal
+                or body.get("selected_search_interrupted") != self.selected.search_interrupted):
             raise ValueError("candidate bank payload differs from receipt")
         if body.get("search_complete") is True and (
                 body.get("operation_inventory_exhausted") is not True
@@ -169,6 +170,7 @@ def decode_semantic_candidates(
             "solve_time_limit_s": solve_time_limit_s, "charts": [],
             "operation_inventory_exhausted": False, "operation_search_complete": False,
             "search_complete": False, "selected_refusal": outcome.refusal}
+    body["selected_search_interrupted"] = outcome.search_interrupted
     candidates = []
     spans = ()
 
@@ -180,10 +182,9 @@ def decode_semantic_candidates(
         return SemanticCandidateBank(outcome, tuple(candidates), tuple(spans),
             {**body, "receipt_sha256": _sha(body)})
 
-    # Search-budget failure is an observation, not proof that no graph exists.
-    # Keep that public failure while allowing this diagnostic-only bank to
-    # inspect the same builders. Identity and grounding refusals stay closed.
-    if outcome.ir is None and outcome.refusal != "decode_search_budget_exhausted":
+    # Search interruption is not proof that no graph exists. Keep the public
+    # refusal while inspecting diagnostic alternatives; pre-search failures stay closed.
+    if outcome.ir is None and not outcome.search_interrupted:
         return finish("ordinary_decode_unavailable")
     if outcome.ir is not None:
         spans = outcome.ir.input_spans
@@ -220,14 +221,22 @@ def decode_semantic_candidates(
             captured = []
             if progress:
                 progress({"stage": "candidate_chart", "chart": chart_index})
-            _assign_typed_arguments(model=model, hidden=hidden, inputs=inputs, input_spans=spans,
-                source_token_ids=tokens,
-                operation_nodes=nodes, argument_pointer_scores=argument_scores,
-                relation_score_cache=relation_scores, relation_vector_cache=relation_vectors,
-                definition_pointer_scores=definition_scores, chart_observer=captured.append, build_only=True)
             row = {"operations": [{"op": node.operation, "span": node.span.to_dict()} for node in nodes],
                    "examined_graphs": 0, "search_complete": not captured}
             body["charts"].append(row)
+            try:
+                _assign_typed_arguments(model=model, hidden=hidden, inputs=inputs, input_spans=spans,
+                    source_token_ids=tokens,
+                    operation_nodes=nodes, argument_pointer_scores=argument_scores,
+                    relation_score_cache=relation_scores, relation_vector_cache=relation_vectors,
+                    definition_pointer_scores=definition_scores, chart_observer=captured.append,
+                    build_only=True)
+            except ArgumentOptimizationIncompleteError as exc:
+                row["interruption"] = str(exc)
+                row["search_complete"] = False
+                reasons.append("argument_chart_construction_incomplete")
+                continue
+            row["search_complete"] = not captured
             if not captured:
                 continue
             excluded = []

@@ -1053,7 +1053,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
                 ),
             )
         except (ArgumentOptimizationIncompleteError, OperationSearchIncompleteError) as exc:
-            return SemanticTransductionOutcome(None, str(exc), {}, {})
+            return SemanticTransductionOutcome(None, str(exc), {}, {}, search_interrupted=True)
         if assigned is None:
             return SemanticTransductionOutcome(None, "typed_argument_chart_empty", {}, {})
         selected = assigned.operation_nodes

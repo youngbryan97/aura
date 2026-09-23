@@ -33,6 +33,7 @@ def test_decode_passes_remaining_allowance_and_does_not_accept_unproven_result(f
     outcome = model.decode(**kwargs, search_time_limit_s=3.)
     assert seen and 0 < seen[0] <= 3.
     assert outcome.ir is None and outcome.refusal == 'solver_time_limit'
+    assert outcome.search_interrupted is True
 
 
 def test_real_chart_solver_receives_allowance_and_preserves_completed_answer(fixture, monkeypatch):
@@ -48,6 +49,7 @@ def test_real_chart_solver_receives_allowance_and_preserves_completed_answer(fix
     assert seen and all(value is not None and 0 < value <= 10. for value in seen)
     assert outcome.ir == expected.ir
     assert outcome.pointer_scores == expected.pointer_scores
+    assert outcome.search_interrupted is False
 
 
 def test_default_serving_search_remains_unbounded_by_diagnostic_clock(fixture, monkeypatch):
@@ -67,6 +69,7 @@ def test_expired_decode_budget_is_not_graph_infeasibility(fixture, monkeypatch):
     monkeypatch.setattr(transducer, 'time', SimpleNamespace(monotonic=lambda: next(ticks)))
     outcome = model.decode(**kwargs, search_time_limit_s=1.)
     assert outcome.ir is None and outcome.refusal == 'decode_search_budget_exhausted'
+    assert outcome.search_interrupted is True
 
 
 @pytest.mark.parametrize('value', [0, -1, True, float('inf'), float('nan'), '3'])

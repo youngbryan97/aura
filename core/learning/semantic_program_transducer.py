@@ -521,6 +521,7 @@ class SemanticTransductionOutcome:
     refusal: str
     pointer_scores: dict[str, float]
     classification_confidences: dict[str, float]
+    search_interrupted: bool = False
 
     @property
     def accepted(self) -> bool:
