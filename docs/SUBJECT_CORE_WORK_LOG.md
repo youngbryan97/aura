@@ -7,6 +7,35 @@ what broke, what fixed it, and where the evidence is. Runs live in
 
 ## 23 September, night
 
+### 06:30: seed 7 reads 19 of 24; the decisive run restarts with three-turn arms
+
+**Seed 7, two-turn arms, lesion measured: 19 of 24.** The lesion of the cheapest
+cut (S against the other nine) and its rescue pass, the first time either line
+has been measured on any run. Still failing: kappa, the two partition lines
+(decided by the v5 sweep in the decisive run), synergy (scored on 320 rows; the
+decisive campaign has 2,400), and "beats every null", which needs the rest.
+
+**Kappa.** Every route into W, her world model, goes through one column, the
+surprise of her learned world model. S moves it by 1.9 standard deviations;
+D, M and P by 0.22 to 0.27, under the 0.3 bar, peaking late in the arm. With
+three-turn arms on seed 7 kappa is 2, spread rises (A, C, S and W reach every
+other domain) and all eight conditions stay strongly connected. That run failed
+causal closure, which is computed from the recording before any arm runs; the
+same seed does not reproduce the recording (the two seed-7 recordings differ
+in all 10,560 rows), and closure read -0.004, -0.012, -0.014 and 0.068 across
+four seed-7 runs. So the decisive campaign now runs three-turn arms.
+
+**The reports ground at 03:21 measured nothing, and that was my scheduling.** It
+ran beside the seed-7 runs and six power jobs at a load pressure of 1.92 per
+core. A cortex recovery's warmup timed out behind other work, the lane was
+marked failed, the router's circuit stayed open, and all 96 arms came back
+empty. Six power jobs at once had also taken the host from load 58 to 186. The
+power jobs are paused, and the chain restarted at 06:27 on 23650c6c4: a 1.5B
+dry run, then the reports ground alone on the machine, then the decisive
+campaign with three-turn arms, the sweep and the content run. The two-turn
+decisive run that had started at 03:56 was stopped before any of its numbers was
+read.
+
 ### 03:35: the reports ground is running on her cortex, steered
 
 The reports run that started at 03:21 has her 27B cortex with steering applied
