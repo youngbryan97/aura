@@ -273,6 +273,8 @@ class ExecutiveClosureEngine:
             selected_objective,
             persist_selected=not foreground_chat_active,
             pressure=need_pressure,
+            need=dominant_need,
+            pressures=pressures,
         )
 
         if is_actionable_goal_text(selected_objective) and not getattr(state.cognition, "current_objective", None):
@@ -721,6 +723,8 @@ class ExecutiveClosureEngine:
         *,
         persist_selected: bool = True,
         pressure: float = 0.0,
+        need: str = "",
+        pressures: dict[str, float] | None = None,
     ) -> int:
         head: list[Any] = []
         active = [
@@ -750,11 +754,33 @@ class ExecutiveClosureEngine:
                 # at the neutral default every turn, and two records of one
                 # decision disagreed about how much it mattered.
                 "urgency": round(max(0.0, min(1.0, float(pressure))), 4),
+                # Which need chose it, so its urgency can follow that need.
+                "need": need,
                 "source": "executive_closure",
                 "timestamp": time.time(),
             }
             if not any(goal.get("description") == selected_objective for goal in active if isinstance(goal, dict)):
                 head = [record]
+        # What each of her own goals is asking for now, not the most it asked
+        # for when it was chosen. A record kept the need pressure of the turn
+        # that chose it, and the list below keeps the five pressing hardest,
+        # so a goal chosen once at 0.99 held first place for the rest of the
+        # run whatever its need did: D.goal_urgency read 0.9946 on every one
+        # of 24 offline turns on 22 September, after the reminders had stopped
+        # climbing. executive_authority made the same change for initiatives.
+        # The floor is the need's pressure this turn; whatever lifts the
+        # motivation phase recorded on the goal this turn stay on top of it,
+        # because each is taken back from the urgency before the next goes in.
+        for goal in active:
+            if not isinstance(goal, dict) or goal.get("source") != "executive_closure":
+                continue
+            named = str(goal.get("need") or "")
+            if not pressures or named not in pressures:
+                continue
+            lifted = sum(
+                float(value or 0.0) for key, value in goal.items() if key.endswith("_lift") and isinstance(value, (int, float))
+            )
+            goal["urgency"] = round(max(0.0, min(1.0, float(pressures[named]) + lifted)), 4)
         # Five goals, and the five that are pressing hardest. This was
         # `active[:5]` over a list in the order things had been written to it,
         # so an intention formed this turn because a need had just become
