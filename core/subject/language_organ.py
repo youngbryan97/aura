@@ -10,9 +10,12 @@ that organ.
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import functools
 import hashlib
 import logging
 import time
+from collections.abc import Awaitable, Callable, Iterator
 from typing import Any
 
 from core.kernel.turn_door import USER_ORIGINS
@@ -33,6 +36,8 @@ __all__ = [
     "bring_up_language",
     "install_mind",
     "keep_language_ready",
+    "opens_the_turn",
+    "person_turn",
     "phase_budget",
     "within_budget",
 ]
@@ -239,6 +244,72 @@ async def keep_language_ready(runtime: Any) -> dict[str, Any]:
         await asyncio.sleep(_RECHECK_S)
     logger.error("her language organ's worker did not come back within %.0fs", FOREGROUND_READY_S)
     return {"checked": True, "recovered": False, "seconds": round(time.monotonic() - started, 1)}
+
+
+@contextlib.contextmanager
+def person_turn(runtime: Any, origin: str) -> Iterator[Any]:
+    """Open the turn a person's message opens on the desktop, for a whole run.
+
+    On the desktop a person's message is bound as a turn before any phase runs
+    (the chat route, and `cognitive_engine.think` on the kernel's path), and
+    the runtime's readers ask `current_turn()` whether one is open: the
+    router's endpoint watchdog, the gate, fact custody, turn effects. This
+    driver runs the phases itself and never opened one, so in a whole run a
+    generation somebody waited for was treated as unowned work. The router then
+    armed its thread watchdog at the flat budget for a short reply, and on 23
+    September it stopped her cortex's worker 105 s into a tool call that was
+    still decoding. For an owned turn the desktop lets work that is still
+    advancing run on.
+
+    The reply is marked served, or nothing served, and the turn finalized, as
+    the kernel's path does.
+
+    Only a person's turn in a whole run. The stub organ never reaches the
+    router or the gate, and no path notes the stub's reply, so finalizing
+    there would record a turn that served nothing on every conversation turn
+    of a campaign: the stub organism's error signals changed for bookkeeping.
+    That difference between the two organisms stays, and is said here.
+    """
+    if not getattr(runtime, "whole", False) or origin not in USER_ORIGINS:
+        yield None
+        return
+    from core.runtime.turn_outcome import (
+        TurnOutcome,
+        UserVisibleState,
+        bind_turn,
+        finalize_turn,
+    )
+
+    outcome = TurnOutcome(origin=origin)
+    try:
+        with bind_turn(outcome):
+            yield outcome
+        reply = str(getattr(runtime.state.cognition, "last_response", "") or "").strip()
+        if reply:
+            outcome.mark_served(reply)
+        else:
+            outcome.mark_served("", state=UserVisibleState.NOTHING_SERVED)
+    finally:
+        finalize_turn(outcome, subsystem="cognitive_engine")
+
+
+def opens_the_turn(turn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:
+    """Run a driver turn the way the desktop runs a message.
+
+    A stopped language worker is brought back before anything else, outside
+    any turn, so its warmup is not taken for a person's request. A person's
+    turn in a whole run is then open for every phase (`person_turn`). A
+    decorator rather than a second method, because the driver's class is at
+    its method ceiling.
+    """
+
+    @functools.wraps(turn)
+    async def turn_once(runtime: Any, condition: Any, **kwargs: Any) -> Any:
+        await keep_language_ready(runtime)
+        with person_turn(runtime, condition.origin):
+            return await turn(runtime, condition, **kwargs)
+
+    return turn_once
 
 
 def phase_budget(runtime: Any, name: str, origin: str, *, fallback: float) -> float:

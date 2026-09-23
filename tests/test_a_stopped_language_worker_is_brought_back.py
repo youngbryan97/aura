@@ -8,7 +8,7 @@ the first ended in the failure sentence.
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
+import inspect
 from types import SimpleNamespace
 
 import pytest
@@ -80,7 +80,27 @@ def test_a_run_on_the_stub_organ_is_not_checked(gate) -> None:
 
 
 def test_every_turn_checks_before_its_first_frame() -> None:
-    source = (Path(__file__).resolve().parents[1] / "core" / "subject" / "driver.py").read_text(encoding="utf-8")
-    body = source[source.index("    async def turn_once("):]
-    first_statement = body[body.index('"""', body.index('"""') + 3) + 3 :].lstrip()
-    assert first_statement.startswith("await keep_language_ready(self)")
+    """The check runs before the turn's body, and outside any turn it opens."""
+    from core.runtime.turn_outcome import current_turn
+    from core.subject.driver import SubjectRuntime
+
+    assert inspect.unwrap(SubjectRuntime.turn_once) is not SubjectRuntime.turn_once
+    order: list[str] = []
+
+    async def fake_ready(runtime):
+        order.append("ready" if current_turn() is None else "ready inside a turn")
+        return {"checked": True}
+
+    async def body(runtime, condition, **_):
+        order.append("body")
+        return []
+
+    runtime = SimpleNamespace(whole=True, state=SimpleNamespace(cognition=SimpleNamespace(last_response="")))
+    original = language_organ.keep_language_ready
+    language_organ.keep_language_ready = fake_ready
+    try:
+        asyncio.run(language_organ.opens_the_turn(body)(runtime, SimpleNamespace(origin="user")))
+    finally:
+        language_organ.keep_language_ready = original
+    assert order == ["ready", "body"]
+

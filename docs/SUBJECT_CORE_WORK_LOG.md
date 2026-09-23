@@ -5,6 +5,58 @@ what broke, what fixed it, and where the evidence is. Runs live in
 `~/subject-core-runs/`; the order runs are read in is
 `~/.aura/subject_core/scratch/AFTER_THE_DECISIVE_RUN.md`.
 
+## 23 September, morning
+
+### 07:20: the reports ground lost her cortex again, and the two reasons why
+
+The reports ground that started at 06:34 on 23650c6c4, with the machine to
+itself, measured nothing and is `reports-s23-void-lane-0707`. Its first tool
+turn ("Write today's plan into notes.txt") was decoding at about ten tokens a
+second, thinking before its call, when the router stopped the model worker at
+105 s. The worker came back and failed its first warmup probe, the retry stood
+down because "somebody is still being answered", and the lane never became
+ready: the rest of the baseline ran without her cortex and every anchor turn
+ended in the failure sentence.
+
+- **The retry waited on a copy of its own flag** (e8da9a89e). It imported the
+  client's "a person is being answered" flag by name and polled that name, so a
+  retry that began during a reply waited the full 30 s and stood down however
+  soon the reply ended. The flag is now read from the module on each check.
+- **A person's turn in a whole run was never an open turn** (this batch). The
+  desktop binds a turn for every message, and the router's thread watchdog
+  stands down for a bound turn with a person waiting, leaving the endpoint's
+  own liveness to judge a slow answer. The subject driver runs the phases
+  itself and bound nothing, so every generation somebody waited for was killed
+  at the flat budget for a short reply. `person_turn` opens the turn the
+  desktop opens, marks what was served and finalizes it, for a person's turn
+  in a whole run only. The stub organ never reaches the router, and binding
+  there would change the stub organism's error records for bookkeeping.
+
+The reports ground is relaunched on the fix after a 1.5B dry run, with nothing
+else on the machine.
+
+### 07:15: at 320 rows the synergy line cannot see a strong product
+
+Before building anything for the two triples that fail on her, the seed-7
+recording was given synthetic product terms of known size
+(`synergy_dose*.py` in the session scratchpad). A product of the self-model's
+and the drives' own first principal components, integrated into all eight of
+the mesh's population columns at one standard deviation per unit, lifted the
+synergy over its shifted null (0.048 against 0.040) and left the interaction
+gain's lower bound at 0.000. At that size the bar is out of reach. The
+decisive campaign records 300 rounds, 2,400 turn rows, so a seed-7 recording
+of that length is running (`~/subject-core-runs/record-s7-300`). All four
+triples are read from it, clocks out, before any mechanism is designed.
+
+What the design would have to move, from the seed-7 recordings: C's change is
+led by the mesh's population statistics (a quarter of its variance), then
+substrate arousal and frustration, then the reactive-deliberate switch; S's
+first component is how well her self-model predicts her; D's first is her
+drives' energy against growth and social need. If S,D->C still fails at scale,
+the mechanism with a published basis is control allocation as incentive times
+efficacy (Shenhav, Botvinick and Cohen, 2013), carried by gain in the mesh's
+executive tier.
+
 ## 23 September, night
 
 ### 06:40: synergy, read on the line that counts

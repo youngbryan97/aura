@@ -212,7 +212,7 @@ from core.subject.language_organ import (
     DeterministicMind,
     bring_up_language,
     install_mind,
-    keep_language_ready,
+    opens_the_turn,
     phase_budget,
     within_budget,
 )
@@ -767,6 +767,7 @@ class SubjectRuntime:
             self.failures["turn_door.person"] = self.failures.get("turn_door.person", 0) + 1
             logger.warning("the person's turn was not observed: %s", exc)
 
+    @opens_the_turn
     async def turn_once(
         self,
         condition: Condition,
@@ -786,8 +787,10 @@ class SubjectRuntime:
         where it was put, and a domain whose own dynamics pull it back faster
         than its consumers sample it cannot be measured any other way: see
         `core.subject.causal.SUSTAINED`.
+
+        A stopped language worker is brought back first, and a person's turn in
+        a whole run is opened around the phases (`opens_the_turn`).
         """
-        await keep_language_ready(self)
         engine = self.kernel.organs.get("llm") if hasattr(self.kernel, "organs") else None
         mind = getattr(engine, "instance", None) if engine is not None else None
         if mind is not None and hasattr(mind, "moment"):

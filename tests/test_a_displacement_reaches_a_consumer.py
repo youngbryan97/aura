@@ -575,7 +575,7 @@ def test_the_sustained_write_reaches_every_frame_after_the_injection() -> None:
 
     from core.subject.driver import SubjectRuntime
 
-    source = inspect.getsource(SubjectRuntime.turn_once)
+    source = inspect.getsource(inspect.unwrap(SubjectRuntime.turn_once))
     assert "sustain" in source
     assert "len(frames) - 1 > perturb_at" in source
 
