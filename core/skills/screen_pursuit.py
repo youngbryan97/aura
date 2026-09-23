@@ -1166,6 +1166,16 @@ async def pursue_on_screen(
     matters = WhatMakesItGoodHere.from_memory(
         knew.get("matters") or {}, TRUST_CARRIED_OVER
     )
+    # Each discounted memory as it came back, before this sitting added to it.
+    # A part that is still exactly this at the end learned nothing here, and is
+    # written back as it was remembered — see _kept_as_it_was.
+    loaded_as = {
+        "moves": knows.rules.as_memory() if knows.rules is not None else {},
+        "skill": skilled.as_memory(),
+        "world": world.as_memory(),
+        "lines": lines.as_memory(),
+        "matters": matters.as_memory(),
+    }
     # And the properties she invented here and proved worth steering by.
     #
     # A measure she composed lived in the process that composed it. Inventing
@@ -1536,7 +1546,7 @@ async def pursue_on_screen(
     # What she worked out about this thing, for the next time she is in it.
     remember(
         this_world,
-        {
+        _kept_as_it_was(knew, loaded_as, {
             "responds": responds["state"].as_memory(),
             # The largest thing she has made here — the carried record only
             # where this sitting saw something at least as big, so a reading
@@ -1598,7 +1608,7 @@ async def pursue_on_screen(
                 if said in (lines.known.get(A_LINE_HERE) or {})
             },
             "approach": plan["held"].as_memory() if plan["held"] is not None else {},
-        },
+        }),
     )
     # And the half of it that is about the KIND of world rather than this one,
     # filed under the kind, so the next world that moves like this starts
@@ -1647,6 +1657,31 @@ async def pursue_on_screen(
     return result
 
 
+def _kept_as_it_was(
+    knew: dict[str, Any], loaded_as: dict[str, Any], now: dict[str, Any]
+) -> dict[str, Any]:
+    """What to write back: a part that learned nothing here, as it was remembered.
+
+    What she carries comes back discounted, and it was written back
+    discounted, so a sitting that added nothing halved it. LIVE: her rule for
+    2048 held "slides and combines", 90 of 92 moves right, in the memory of
+    the kind of world; in this world's own memory every count was nought by
+    2026-09-20, after a run of sittings that ended at their first reading
+    ("already true after 0 moves") and each wrote back half. Each new run
+    then started from nothing and spent its first moves finding out again
+    how the board moves.
+
+    A part that is exactly what it was when it came back gathered no
+    evidence, so the record of it is the record she had. A part that moved
+    is written as it now is.
+    """
+    kept = dict(now)
+    for part, as_loaded in loaded_as.items():
+        if part in kept and kept[part] == as_loaded and knew.get(part):
+            kept[part] = knew[part]
+    return kept
+
+
 def _judge_what_she_judges_by_in_her_model(
     knows: Any,
     world: Any,
@@ -1671,7 +1706,16 @@ def _judge_what_she_judges_by_in_her_model(
     # finished position, and from there every way of judging goes nowhere.
     start = pending.get("first_arranged") or pending.get("arranged")
     rules = getattr(knows, "rules", None)
-    if start is None or rules is None or getattr(rules, "rule", lambda: None)() is None or not INVENTED:
+    # Each way of having nothing to rehearse is said, at info: a faculty that
+    # returns without a word looks, from outside, like one that never ran.
+    if not INVENTED:
+        logger.info("nothing to rehearse: she judges by no property she invented here")
+        return None
+    if start is None or rules is None or getattr(rules, "rule", lambda: None)() is None:
+        logger.info(
+            "nothing to rehearse in yet: %s",
+            "no board to start from" if start is None else "no rule of how this moves",
+        )
         return None
 
     def rehearse_them() -> None:
@@ -1692,7 +1736,13 @@ def _judge_what_she_judges_by_in_her_model(
                 weights=without, trying={name: worth}, toward=toward,
             )
             if rehearsed is None:
+                logger.info(
+                    "could not rehearse %r: her model of this world does not compile "
+                    "from where this game began", name,
+                )
                 return
+            if not rehearsed.hurts():
+                logger.info("kept judging by %r: %s", name, rehearsed.says())
             if rehearsed.hurts():
                 forget(name)
                 let_go.append(name)

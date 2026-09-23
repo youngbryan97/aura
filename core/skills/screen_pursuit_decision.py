@@ -723,6 +723,13 @@ async def decide_the_next_move(
                 success_when or _what_there_is_to_aim_at(laid_out),
                 foreseen,
             )
+            if laid_out is not None and pending.pop("judge_on_the_next_board", False):
+                # The first board read after a restart is the new game's
+                # first board, which is where judging has the most to decide.
+                pending["first_arranged"] = laid_out
+                judge = pending.get("when_a_game_ends")
+                if callable(judge):
+                    judge()
             if len(moves) % 6 == 0 and knows.rules is not None:
                 logger.info(
                     "after %d move(s): %s%s | reading %dx%d%s | %s",
@@ -1537,12 +1544,14 @@ async def decide_the_next_move(
                 responds["state"].began_again()
                 logger.info("began again: %s", label or "restart")
                 # One game, played through by what she judges by. Rehearsing
-                # them here rather than only at the end of the run is the
+                # them at a game's end rather than only at the run's is the
                 # difference between carrying a measure for one game and
-                # carrying it for hours.
-                judge = pending.get("when_a_game_ends")
-                if callable(judge):
-                    judge()
+                # carrying it for hours. Rehearsed from the NEW game's first
+                # board once it is read: the run's first board can be the
+                # last one of an old game, where every way of judging goes
+                # nowhere and nothing is learned (live, 2026-09-23).
+                pending.pop("first_arranged", None)
+                pending["judge_on_the_next_board"] = True
                 return True
 
             return Step(name=f"begin again with {label!r}", action=begin_again)

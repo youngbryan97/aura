@@ -21,13 +21,22 @@ def test_the_run_installs_what_to_do_when_a_game_ends():
     assert "_judge_what_she_judges_by_in_her_model" in body
 
 
-def test_a_confirmed_restart_calls_it():
+def test_a_confirmed_restart_asks_for_it_on_the_new_games_first_board():
     from core.skills import screen_pursuit_decision
 
     _name, body = function_containing(screen_pursuit_decision, 'responds["state"].began_again()')
-    assert 'pending.get("when_a_game_ends")' in body
     # Only after the restart is confirmed by the screen, never on the click.
-    assert body.index("the restart did not take") < body.index('pending.get("when_a_game_ends")')
+    assert body.index("the restart did not take") < body.index('pending["judge_on_the_next_board"] = True')
+    # And the old game's first board is not where it starts from.
+    assert 'pending.pop("first_arranged", None)' in body
+
+    _name, reading = function_containing(
+        screen_pursuit_decision, 'pending.pop("judge_on_the_next_board", False)'
+    )
+    at = reading.index('pending.pop("judge_on_the_next_board", False)')
+    after = reading[at : at + 500]
+    assert 'pending["first_arranged"] = laid_out' in after
+    assert 'pending.get("when_a_game_ends")' in after
 
 
 def test_the_run_end_still_rehearses_and_forgets_the_hook():
