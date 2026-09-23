@@ -62,6 +62,9 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         # that did not hold it left interoception moving inside its own lesion.
         "soma.exertion",
         "soma.effort",
+        # And what that exertion has added up to, which I reads since the
+        # fatigue ledger was built. See core/soma/fatigue.py.
+        "soma.fatigue",
     ),
     "A": (
         "affect.valence",
@@ -100,6 +103,9 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "affect.borrowed_feeling",
         "affect.decline_press",
         "affect.elsewhere_lift",
+        # Whether what somebody just said was a moment that fits her.
+        # See core/affect/a_moment_that_fits.py.
+        "cognition.moment",
     ),
     "G": (
         "cognition.attention_focus",
@@ -189,8 +195,13 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         # Being made minor in an account of a shared past.
         # See core/social/made_minor.py.
         "cognition.made_minor",
+        # Who she is talking to. See core/state/aura_state.py.
+        "cognition.current_partner",
     ),
     "D": (
+        # Her habits and reflexes, and how the worst of them is doing against
+        # weighing. See core/agency/habits_are_hers.py.
+        "cognition.habits",
         # The kind of act that arrived and the regard she has gone without,
         # which deliberation reads since 743c2a208. A clamp that left them free
         # let D's columns move inside D's own lesion.

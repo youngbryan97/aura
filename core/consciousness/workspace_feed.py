@@ -29,7 +29,7 @@ from core.runtime.errors import record_degradation
 from core.soma.effort import note_effort
 from core.state.percepts import read_percept
 
-__all__ = ["build_candidates", "feed_workspace", "surprise_ratio"]
+__all__ = ["FINISHED_STATUSES", "build_candidates", "feed_workspace", "surprise_ratio"]
 
 logger = logging.getLogger("Aura.Consciousness.WorkspaceFeed")
 
@@ -47,6 +47,9 @@ _BROADCAST_MARK: str = "[broadcast: "
 #: Statuses that mean a goal is no longer an intention. A finished goal is a
 #: record of what happened and has no claim on attention.
 _FINISHED: frozenset[str] = frozenset({"done", "failed", "complete", "completed", "cancelled"})
+#: The same set, for the other readers of an intention's status. Deliberation's
+#: reminders skip a finished goal on the same words the workspace drops it on.
+FINISHED_STATUSES: frozenset[str] = _FINISHED
 
 
 def _clamp(value: Any, default: float = 0.0) -> float:

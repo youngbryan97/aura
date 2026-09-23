@@ -590,7 +590,7 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
 
     @staticmethod
     def _reminded(state: AuraState) -> int:
-        """Raise the intentions a recollection bears on. Returns how many moved.
+        """Raise the intentions a recollection bears on, while it is in mind. Returns how many moved.
 
         Prospective memory: something comes back to mind and brings with it
         the thing she meant to do about it. Memory reached deliberation only
@@ -603,48 +603,65 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         intention's cues it carries, times how strongly it was recalled, and
         the urgency moves that far of the way to one. The cues are the ones
         recall itself hooks on, from the hippocampal index, so "the" and "from"
-        remind her of nothing. Both readings already
-        exist on the scale urgency is read on, so nothing here is chosen. A
-        recollection reminds each intention once, and urgency is never lowered:
-        being reminded does not make a thing matter less.
+        remind her of nothing. Both readings already exist on the scale urgency
+        is read on, so nothing here is chosen.
+
+        The lift lasts as long as the reminder does. It used to be a ratchet:
+        each new recollection raised an intention once and nothing took it
+        back, so over a run every intention climbed to the ceiling, finished
+        ones included. In 24 offline turns on 22 September, "write_notes for
+        turn 7", done since turn 7, went from 0.9735 to 0.9911, 0.9972 and
+        1.0, and `D.goal_urgency` read 1.0 on all 320 turns of that day's
+        whole-system proof, where no displacement of deliberation could move
+        it. An unfinished intention stays more active than a neutral memory
+        until it is carried out (Goschke and Kuhl 1993), and that is the
+        urgency underneath, which this leaves alone. A finished one is held
+        below neutral (Marsh, Hicks and Bink 1998), so a finished intention is
+        not reminded, and a lift it carried when it finished is taken back.
+        The lift is recorded and taken back each turn before this turn's goes
+        in, the way `_explored` does novelty's.
         """
         cognition = getattr(state, "cognition", None)
         if cognition is None:
             return 0
         recalled = list(getattr(cognition, "long_term_memory", []) or [])
         scores = list(getattr(cognition, "memory_scores", []) or [])
-        pairs = [
-            (str(text), max(0.0, min(1.0, float(score or 0.0))))
-            for text, score in zip(recalled, scores, strict=False)
-            if str(text).strip()
-        ]
-        if not pairs:
-            return 0
+        from core.consciousness.workspace_feed import FINISHED_STATUSES
         from core.memory.hippocampus import HippocampalIndex
         from core.state.aura_state import _normalize_goal_text
 
+        carried = [
+            (str(text), max(0.0, min(1.0, float(score or 0.0))), set(HippocampalIndex.extract_cues(context=str(text))))
+            for text, score in zip(recalled, scores, strict=False)
+            if str(text).strip()
+        ]
         moved = 0
         for bucket in ("pending_initiatives", "active_goals"):
             for intention in list(getattr(cognition, bucket, None) or []):
                 if not isinstance(intention, dict):
                     continue
-                words = set(HippocampalIndex.extract_cues(context=_normalize_goal_text(intention)))
-                if not words:
-                    continue
-                already = set(intention.get("reminded_by") or ())
+                previous = float(intention.get("reminder_lift", 0.0) or 0.0)
                 best, by = 0.0, ""
-                for text, score in pairs:
-                    if text in already:
-                        continue
-                    carried = set(HippocampalIndex.extract_cues(context=text))
-                    share = len(words & carried) / len(words)
-                    if share * score > best:
-                        best, by = share * score, text
-                if best <= 0.0:
+                if carried and str(intention.get("status", "")) not in FINISHED_STATUSES:
+                    words = set(HippocampalIndex.extract_cues(context=_normalize_goal_text(intention)))
+                    for text, score, cues in carried if words else ():
+                        share = len(words & cues) / len(words)
+                        if share * score > best:
+                            best, by = share * score, text
+                if best <= 0.0 and previous <= 0.0:
                     continue
                 urgency = max(0.0, min(1.0, float(intention.get("urgency", 0.0) or 0.0)))
-                intention["urgency"] = round(urgency + best * (1.0 - urgency), 4)
-                intention["reminded_by"] = sorted(already | {by})
+                base = max(0.0, min(1.0, urgency - previous))
+                lift = round(best * (1.0 - base), 4)
+                if lift == round(previous, 4):
+                    continue
+                intention["urgency"] = round(base + lift, 4)
+                if lift > 0.0:
+                    intention["reminder_lift"] = lift
+                    intention["reminded_by"] = by
+                else:
+                    intention.pop("reminder_lift", None)
+                    intention.pop("reminded_by", None)
                 moved += 1
         return moved
 

@@ -408,6 +408,11 @@ _SCHEMAS: dict[str, Schema] = {
             ("sensor_threat", "soma.sensors.threat"),
             ("sensor_novelty", "soma.sensors.novelty"),
             ("sensor_load", "soma.sensors"),
+            # What her exertion has added up to over a stretch, against her
+            # ordinary. It holds back what is not important enough to start and
+            # is paid back as she rests, so it decides what she does next and
+            # no column read it. See core/soma/fatigue.py.
+            ("fatigue", "soma.fatigue.share"),
         ),
     ),
     "A": _sch(
@@ -485,6 +490,14 @@ _SCHEMAS: dict[str, Schema] = {
             # deciding what wins the competition, and no column read it.
             ("mood_baseline", "affect.mood_baselines"),
             ("mood_baseline_spread", "affect.mood_baselines"),
+            # Whether what somebody just said was a moment that fits her: how
+            # particular it was to her, how far it met her where she is, and
+            # the weight with which it lifts joy and trust. The weight moves
+            # her emotions on the turn it arrives, and no column read any of
+            # it. See core/affect/a_moment_that_fits.py.
+            ("moment_particular", "cognition.moment.particular"),
+            ("moment_meets", "cognition.moment.meets"),
+            ("moment_weight", "cognition.moment.weight"),
         ),
     ),
     "G": _sch(
@@ -745,6 +758,12 @@ _SCHEMAS: dict[str, Schema] = {
             # Being made minor in their account of a shared past.
             # See core/social/made_minor.py.
             ("made_minor", "cognition.made_minor.minor"),
+            # Whether she knows who she is talking to. Her warmth and trust
+            # toward them, which habit fits and what she can recall of them all
+            # key on it, and it was never set until 5a7b0b25b, so every
+            # campaign before that met nobody. A name is not a magnitude; what
+            # the core can read of it is whether there is one.
+            ("partner_known", "cognition.current_partner"),
             ("partner_turn_chars", "cognition.partner_cadence.chars"),
             ("partner_turn_gap", "cognition.partner_cadence.gap"),
             ("her_placement", "cognition.partner_cadence.placement"),
@@ -886,6 +905,12 @@ _SCHEMAS: dict[str, Schema] = {
             *((f"force_{name}", f"motivation.forces.{name}")
               for name in ("pressure", "social_hold", "warmth_return",
                            "attended_credit", "resolve_hold")),
+            # Her habits and reflexes, taken as hers: how many are doing worse
+            # than weighing would, and by how much the worst one is. A habit
+            # with a deficit is changed, so this decides what she does next and
+            # no column read it. See core/agency/habits_are_hers.py.
+            ("habits_to_change", "cognition.habits.to_change"),
+            ("habit_deficit", "cognition.habits.largest_deficit"),
         ),
     ),
     "N": _sch(
@@ -1247,6 +1272,7 @@ def _read_I(state: Any) -> np.ndarray:
                 for channel in _SENSE_CHANNELS
             )
             / float(len(_SENSE_CHANNELS)),
+            _f((_dig(state, "soma.fatigue", {}) or {}).get("share")),
         ],
         dtype=np.float64,
     )
@@ -1305,6 +1331,8 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
     values = [_f(v) for v in baselines.values()] if isinstance(baselines, dict) else []
     head.append(float(np.mean(values)) if values else 0.0)
     head.append(float(np.std(values)) if len(values) > 1 else 0.0)
+    moment = _dig(state, "cognition.moment", {}) or {}
+    head.extend(_f(moment.get(key)) for key in ("particular", "meets", "weight"))
     return np.array(head, dtype=np.float64)
 
 
@@ -1580,6 +1608,7 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
             _f(_we.get("together")),
             _f(_we.get("edge")),
             _f((_dig(state, "cognition.made_minor", {}) or {}).get("minor")),
+            1.0 if str(_dig(state, "cognition.current_partner", "") or "").strip() else 0.0,
             _sat(_f(_pulse.get("chars")), 400.0),
             _sat(_f(_pulse.get("gap")), 60.0),
             _f(_pulse.get("placement")),
@@ -1709,6 +1738,9 @@ def _read_D(state: Any, organs: Organs) -> np.ndarray:
     forces = _dig(state, "motivation.forces", {}) or {}
     for name in ("pressure", "social_hold", "warmth_return", "attended_credit", "resolve_hold"):
         head.append(_f(forces.get(name)))
+    habits = _dig(state, "cognition.habits", {}) or {}
+    head.append(_sat(_f(habits.get("to_change")), 4.0))
+    head.append(_f(habits.get("largest_deficit")))
     return np.array(head, dtype=np.float64)
 
 
