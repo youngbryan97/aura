@@ -1153,10 +1153,11 @@ def build_semantic_program_sequence_role_binding_corpus(
     *,
     seed: int = 2828427,
     examples_per_operation_pair: int = 2,
+    training_role_alias_pairs: int = 0,
 ) -> tuple[SemanticProgramExample, ...]:
     """Build non-arithmetic programs with implicit functional-role binding."""
 
-    if examples_per_operation_pair < 1:
+    if examples_per_operation_pair < 1 or training_role_alias_pairs < 0:
         raise ValueError("sequence role-binding corpus needs at least one sample")
     rng = random.Random(seed)
     examples: list[SemanticProgramExample] = []
@@ -1169,12 +1170,18 @@ def build_semantic_program_sequence_role_binding_corpus(
             if construction_index < 6
             else "test"
         )
-        for sample_index in range(examples_per_operation_pair):
-            selector = rng.randint(1, 4)
-            values = [rng.randint(1, 20) for _ in range(rng.randint(6, 8))]
-            values[rng.randrange(len(values))] = selector
+        sample_count = examples_per_operation_pair + (training_role_alias_pairs if split == "train" else 0)
+        for sample_index in range(sample_count):
+            role_alias = sample_index >= examples_per_operation_pair
+            sample_rng = (
+                random.Random(f"{seed}|role-alias|{construction_index}|{sample_index}")
+                if role_alias else rng
+            )
+            selector = sample_rng.randint(2 if role_alias else 1, 4)
+            values = [sample_rng.randint(1, 20) for _ in range(sample_rng.randint(6, 8))]
+            values[sample_rng.randrange(len(values))] = selector
             public_sequence = tuple(values)
-            adjustment = rng.randint(2, 7)
+            adjustment = selector if role_alias else sample_rng.randint(2, 7)
             inputs = (public_sequence, selector, adjustment)
             contrast_id = hashlib.sha256(
                 f"sequence-role-binding|{construction_id}|{inputs}|{sample_index}".encode()

@@ -583,6 +583,24 @@ def test_sequence_role_binding_corpus_is_deterministic_and_seeded() -> None:
     assert tuple(item.inputs for item in first) != tuple(item.inputs for item in changed)
 
 
+def test_role_alias_counterfactuals_keep_roles_distinct_and_holdouts_frozen() -> None:
+    baseline = build_semantic_program_sequence_role_binding_corpus()
+    augmented = build_semantic_program_sequence_role_binding_corpus(training_role_alias_pairs=2)
+    replay = build_semantic_program_sequence_role_binding_corpus(training_role_alias_pairs=2)
+
+    assert augmented == replay
+    assert tuple(item for item in augmented if item.split != "train") == tuple(
+        item for item in baseline if item.split != "train"
+    )
+    baseline_ids = {item.example_id for item in baseline}
+    aliases = [item for item in augmented if item.example_id not in baseline_ids]
+    assert len(aliases) == 3 * 2 * 2 * 4
+    assert all(item.split == "train" and item.inputs[1] == item.inputs[2] for item in aliases)
+    assert all(item.instructions[0].instruction.args == (0, 1) for item in aliases)
+    assert all(2 in item.instructions[1].instruction.args for item in aliases)
+    assert all(type(item.program.run(item.inputs)) is int for item in aliases)
+
+
 def test_natural_request_corpus_withholds_three_complete_linear_schemas() -> None:
     examples = build_semantic_program_natural_request_corpus()
 

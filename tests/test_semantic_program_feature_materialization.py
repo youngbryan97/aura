@@ -53,6 +53,7 @@ from core.learning.semantic_program_feature_materialization import (
     SEQUENCE_CATAPHORIC_CORPUS_KIND,
     SEQUENCE_CHAIN_CORPUS_KIND,
     SEQUENCE_RESERVED_ALIAS_CORPUS_KIND,
+    SEQUENCE_ROLE_BINDING_ALIAS_CORPUS_KIND,
     SEQUENCE_ROLE_BINDING_CORPUS_KIND,
     SemanticFeatureConfig,
     SemanticFeatureMaterializationError,
@@ -569,6 +570,28 @@ def test_sequence_role_binding_family_reconstructs_from_declared_config() -> Non
         split: sum(item.split == split for item in corpus)
         for split in ("train", "validation", "test")
     } == {"train": 48, "validation": 48, "test": 48}
+
+
+def test_role_alias_counterfactual_family_is_train_only_expansion() -> None:
+    config = SemanticFeatureConfig(
+        seed=2828427,
+        examples_per_operation_pair=2,
+        max_examples=192,
+        corpus_kind=SEQUENCE_ROLE_BINDING_ALIAS_CORPUS_KIND,
+        schema=FAMILY_FEATURE_CONFIG_SCHEMA,
+    )
+
+    corpus = build_semantic_program_corpus_for_config(config)
+
+    assert corpus == build_semantic_program_sequence_role_binding_corpus(
+        seed=2828427,
+        examples_per_operation_pair=2,
+        training_role_alias_pairs=2,
+    )
+    assert {
+        split: sum(item.split == split for item in corpus)
+        for split in ("train", "validation", "test")
+    } == {"train": 96, "validation": 48, "test": 48}
 
 
 def test_natural_request_family_reconstructs_from_declared_config() -> None:

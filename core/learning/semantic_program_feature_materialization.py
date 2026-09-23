@@ -82,6 +82,7 @@ SEQUENCE_BINARY_CHAIN_CORPUS_KIND: Final = "sequence_binary_chain_3x2_factorial"
 SEQUENCE_CATAPHORIC_CORPUS_KIND: Final = "sequence_cataphoric_chain_3x2_factorial"
 SEQUENCE_RESERVED_ALIAS_CORPUS_KIND: Final = "sequence_reserved_alias_chain_3x2_factorial"
 SEQUENCE_ROLE_BINDING_CORPUS_KIND: Final = "sequence_role_binding_chain_3x2_factorial"
+SEQUENCE_ROLE_BINDING_ALIAS_CORPUS_KIND: Final = "sequence_role_binding_chain_3x2_alias_counterfactual"
 NATURAL_REQUEST_CORPUS_KIND: Final = "natural_request_linear_4x3"
 NATURAL_REPLICATION_CORPUS_KIND: Final = "natural_replication_linear_4x3"
 NATURAL_SOURCE_CORPUS_KIND: Final = "natural_source_linear_3x2"
@@ -111,6 +112,7 @@ SEMANTIC_CORPUS_KINDS: Final = frozenset(
         SEQUENCE_CATAPHORIC_CORPUS_KIND,
         SEQUENCE_RESERVED_ALIAS_CORPUS_KIND,
         SEQUENCE_ROLE_BINDING_CORPUS_KIND,
+        SEQUENCE_ROLE_BINDING_ALIAS_CORPUS_KIND,
         SEQUENCE_CHAIN_CORPUS_KIND,
     }
 )
@@ -264,6 +266,12 @@ def build_semantic_program_corpus_for_config(
         return build_semantic_program_sequence_role_binding_corpus(
             seed=config.seed,
             examples_per_operation_pair=config.examples_per_operation_pair,
+        )
+    if config.corpus_kind == SEQUENCE_ROLE_BINDING_ALIAS_CORPUS_KIND:
+        return build_semantic_program_sequence_role_binding_corpus(
+            seed=config.seed,
+            examples_per_operation_pair=config.examples_per_operation_pair,
+            training_role_alias_pairs=config.examples_per_operation_pair,
         )
     if config.corpus_kind == NATURAL_REQUEST_CORPUS_KIND:
         return build_semantic_program_natural_request_corpus(
@@ -1609,6 +1617,7 @@ __all__ = [
     "SEQUENCE_CATAPHORIC_CORPUS_KIND",
     "SEQUENCE_RESERVED_ALIAS_CORPUS_KIND",
     "SEQUENCE_ROLE_BINDING_CORPUS_KIND",
+    "SEQUENCE_ROLE_BINDING_ALIAS_CORPUS_KIND",
     "build_semantic_program_corpus_for_config",
     "load_semantic_feature_bundle",
     "load_semantic_feature_record",
