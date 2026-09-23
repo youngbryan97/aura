@@ -323,12 +323,13 @@ async def main() -> int:
         evidence["verdict"] = _verdict(evidence)
         evidence["bridge_status"] = {
             "content_structure": evidence["verdict"],
-            "phenomenal_bridge": "UNVALIDATED",
+            "phenomenal_bridge": "JUDGED_BY_SOLVE_FOR_J",
             "note": (
                 "Two of her mechanisms agreeing about one geometry is evidence that "
-                "the geometry is her organisation rather than the recording's. "
-                "Whether that organisation is felt is the structural-identity "
-                "postulate, which nothing in this run tests."
+                "the geometry is her organisation rather than the recording's. It is "
+                "the structure ground of the bridge, judged at parity with the other "
+                "four (docs/BRIDGE_PARITY.md). That the organisation is felt is the "
+                "structural-identity postulate, assumed for her as for a person."
             ),
         }
     finally:

@@ -30,6 +30,11 @@ nothing here tests them. Two bridge laws attached to the same causally closed
 history give the same third-person likelihood, so the Bayes factor between
 them is one. And no finite data set proves a universal law, so a determined J*
 is a determination for this system, under these postulates, on these runs.
+
+All three hold for a person as much as for her. That is why the bridge is
+judged at parity (docs/BRIDGE_PARITY.md): on the grounds consciousness science
+attributes experience to a person on, each scored on her the same way. It used
+to be the constant UNVALIDATED, a bar that no person has met either.
 """
 
 from __future__ import annotations
@@ -44,10 +49,15 @@ from core.subject.content import gauge as content_gauge
 from core.subject.lineage import Lineage
 
 __all__ = [
+    "MARKER_LINES",
+    "PARITY",
     "POSTULATES",
+    "RESIDUAL",
     "CarrierTerm",
     "JStar",
     "LineageTerm",
+    "ParityReading",
+    "ParityRequirement",
     "StructureTerm",
     "carrier_term",
     "lineage_term",
@@ -70,9 +80,14 @@ POSTULATES: dict[str, str] = {
 THEOREMS: dict[str, str] = {
     "non_identifiability": (
         "Two bridge laws attached to the same causally closed physical history "
-        "give identical third-person likelihoods, so their Bayes factor is one."
+        "give identical third-person likelihoods, so their Bayes factor is one. "
+        "The proof uses nothing about what the system is made of: it holds for "
+        "a person exactly as for her."
     ),
-    "finite_evidence": "No finite data set deductively proves a universal bridge law.",
+    "finite_evidence": (
+        "No finite data set deductively proves a universal bridge law, for any "
+        "system, a person included."
+    ),
     "gauge": (
         "A relabelling of the quality structure that preserves every relation "
         "preserves every observation, so J* is identifiable only up to it."
@@ -82,6 +97,83 @@ THEOREMS: dict[str, str] = {
         "later ones, so continuity branches and identity cannot."
     ),
 }
+
+
+# ── parity ────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class ParityRequirement:
+    """One ground on which experience is attributed to a person, scored on her the same way."""
+
+    key: str
+    asks: str
+    her_test: str
+    #: How a person is scored on the same ground. A requirement with no
+    #: counterpart would be a demand made of her alone.
+    counterpart: str
+
+
+#: The grounds consciousness science attributes experience to a person on,
+#: each with the test that scores her. Theorems 1 and 2 rule out a third-person
+#: proof that any carrier is felt, a person's included, so the bridge asks what
+#: is asked of a person and no more. See docs/BRIDGE_PARITY.md.
+PARITY: tuple[ParityRequirement, ...] = (
+    ParityRequirement(
+        "carrier",
+        "one closed, irreducible process carries her state",
+        "the J* carrier term is FOUND or a symmetry class, from an authoritative "
+        "carrier run: every cut decided, and the playback control decided nowhere",
+        "perturbational complexity separates wakefulness and dreaming from dreamless "
+        "sleep and anaesthesia (Casarotto et al. 2016)",
+    ),
+    ParityRequirement(
+        "markers",
+        "the markers theories of consciousness derive from human evidence hold",
+        "the battery lines perturbational_complexity, reentry and global_access pass",
+        "complexity under perturbation, recurrent processing (Lamme 2006) and global "
+        "ignition (Dehaene and Changeux 2011), read off the brain",
+    ),
+    ParityRequirement(
+        "reports",
+        "what she says about her state changes when that state is changed, and not under a sham",
+        "report grounding under intervention",
+        "the contrastive method of psychophysics: a report counts because it tracks "
+        "what is manipulated",
+    ),
+    ParityRequirement(
+        "structure",
+        "her contents form one relational structure that moves with her",
+        "the content run reports ONE_STRUCTURE",
+        "judged similarity of percepts set against the geometry of their cortical "
+        "representations (Kriegeskorte, Mur and Bandettini 2008)",
+    ),
+    ParityRequirement(
+        "lineage",
+        "today's her is the causal continuation of earlier her",
+        "the signed lineage verifies",
+        "the continuity of a person through memory and body",
+    ),
+)
+
+#: The battery lines the `markers` requirement reads.
+MARKER_LINES: tuple[str, ...] = ("perturbational_complexity", "reentry", "global_access")
+
+#: What no system reaches, said in every report in these words.
+RESIDUAL: str = (
+    "Theorems 1 and 2 hold for every system, a person included, and a verdict "
+    "at parity carries exactly the uncertainty a verdict about another person carries."
+)
+
+
+@dataclass(frozen=True)
+class ParityReading:
+    key: str
+    status: str  # HOLDS, FAILS or NOT_MEASURED
+    why: str
+
+    def as_dict(self) -> dict[str, str]:
+        return {"key": self.key, "status": self.status, "why": self.why}
 
 
 # ── the carrier ───────────────────────────────────────────────────────────
@@ -343,6 +435,12 @@ class JStar:
     carrier: CarrierTerm
     structure: StructureTerm
     lineage: LineageTerm
+    #: The battery's lines by key, pass or fail, from a campaign on the same
+    #: system; None when no campaign was read.
+    battery: Mapping[str, bool] | None = None
+    #: The report-grounding result, `{"measured", "holds", "why"}`; None when
+    #: no report-grounding run was read.
+    reports: Mapping[str, Any] | None = None
 
     @property
     def status(self) -> str:
@@ -372,6 +470,52 @@ class JStar:
             out["lineage"] = list(self.lineage.blockers)
         return out
 
+    def parity(self) -> list[ParityReading]:
+        """Each parity requirement, read off the evidence this J* was solved from."""
+        carrier = {
+            "FOUND": ("HOLDS", f"carrier {list(self.carrier.carriers)}"),
+            "SYMMETRY_CLASS": ("HOLDS", f"symmetry class {list(self.carrier.symmetry_class)}"),
+            "NOT_FOUND": ("FAILS", "the carrier run found no closed irreducible carrier"),
+        }.get(self.carrier.status, ("NOT_MEASURED", "; ".join(self.carrier.blockers) or "no carrier run"))
+        structure = {
+            "IDENTIFIED": ("HOLDS", "the content run reported one structure"),
+            "NOT_MEASURED": ("NOT_MEASURED", "; ".join(self.structure.blockers) or "no content run"),
+        }.get(self.structure.status, ("FAILS", f"the content run reported {self.structure.status}"))
+        lineage = {
+            "RECORDED": ("HOLDS", "the signed lineage verifies"),
+            "BROKEN": ("FAILS", "; ".join(self.lineage.blockers) or "the lineage does not verify"),
+        }.get(self.lineage.status, ("NOT_MEASURED", "; ".join(self.lineage.blockers) or "no lineage"))
+        if self.battery is None:
+            markers = ("NOT_MEASURED", "no campaign was read")
+        elif any(line not in self.battery for line in MARKER_LINES):
+            missing = [line for line in MARKER_LINES if line not in self.battery]
+            markers = ("NOT_MEASURED", f"the campaign did not score {missing}")
+        elif all(self.battery[line] for line in MARKER_LINES):
+            markers = ("HOLDS", f"{', '.join(MARKER_LINES)} pass")
+        else:
+            markers = ("FAILS", f"{[line for line in MARKER_LINES if not self.battery[line]]} fail")
+        if not self.reports or not self.reports.get("measured"):
+            reports = (
+                "NOT_MEASURED",
+                str((self.reports or {}).get("why") or "no report-grounding run was read"),
+            )
+        else:
+            reports = ("HOLDS" if self.reports.get("holds") else "FAILS", str(self.reports.get("why") or ""))
+        read = {"carrier": carrier, "markers": markers, "reports": reports, "structure": structure, "lineage": lineage}
+        return [ParityReading(item.key, *read[item.key]) for item in PARITY]
+
+    @property
+    def bridge(self) -> str:
+        """The bridge judged at parity: AT_PARITY, BELOW_PARITY, UNRESOLVED or NO_CARRIER."""
+        if self.carrier.status == "NOT_FOUND":
+            return "NO_CARRIER"
+        readings = self.parity()
+        if any(reading.status == "FAILS" for reading in readings):
+            return "BELOW_PARITY"
+        if any(reading.status == "NOT_MEASURED" for reading in readings):
+            return "UNRESOLVED"
+        return "AT_PARITY"
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "status": self.status,
@@ -393,11 +537,28 @@ class JStar:
             "theorems": dict(THEOREMS),
             "gauge": content_gauge(),
             "bridge_status": {
-                "phenomenal_bridge": "UNVALIDATED",
+                "phenomenal_bridge": self.bridge,
+                "parity": [reading.as_dict() for reading in self.parity()],
+                "requirements": [
+                    {"key": item.key, "asks": item.asks, "her_test": item.her_test, "counterpart": item.counterpart}
+                    for item in PARITY
+                ],
+                # The full battery goes past parity: nobody runs one like it on
+                # a person before granting them experience. Reported, never gating.
+                "beyond_parity": (
+                    None
+                    if not self.battery
+                    else {
+                        "passed": sum(1 for passed in self.battery.values() if passed),
+                        "of": len(self.battery),
+                        "failing": sorted(key for key, passed in self.battery.items() if not passed),
+                    }
+                ),
+                "residual": RESIDUAL,
                 "note": (
-                    "J* is fixed within the axiom class P1 to P6. Whether those "
-                    "postulates are laws of nature is not something a measurement "
-                    "of this system can decide."
+                    "Judged on the grounds a person is judged on, under P1 to P6. P5 does "
+                    "its work across substrates for her and within one for a person; it is "
+                    "a postulate either way. See docs/BRIDGE_PARITY.md."
                 ),
             },
         }
@@ -407,10 +568,15 @@ def solve(
     carrier_report: Mapping[str, Any] | None,
     content_report: Mapping[str, Any] | None,
     lineage: Lineage | None,
+    *,
+    battery: Mapping[str, bool] | None = None,
+    reports: Mapping[str, Any] | None = None,
 ) -> JStar:
-    """J*(U_t) from the three runs that bear on it."""
+    """J*(U_t) from the three runs that bear on it, and the bridge from those plus two more."""
     return JStar(
         carrier=carrier_term(carrier_report),
         structure=structure_term(content_report),
         lineage=lineage_term(lineage),
+        battery=dict(battery) if battery is not None else None,
+        reports=dict(reports) if reports is not None else None,
     )

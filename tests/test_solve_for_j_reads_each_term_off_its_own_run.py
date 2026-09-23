@@ -83,7 +83,8 @@ def test_the_tool_writes_the_triple_with_each_terms_own_reasons(tool: Any, tmp_p
     assert report["structure"]["status"] == "IDENTIFIED" and report["structure"]["rigid"]
     assert report["lineage"]["status"] == "RECORDED"
     assert len(report["lineage"]["graph"]["stages"]) == 3
-    assert report["bridge_status"]["phenomenal_bridge"] == "UNVALIDATED"
+    # The carrier run sampled its cuts, so the carrier ground is unmeasured.
+    assert report["bridge_status"]["phenomenal_bridge"] == "UNRESOLVED"
 
 
 def test_a_missing_state_log_leaves_the_lineage_unmeasured_and_says_where_it_looked(tool: Any, tmp_path: Path) -> None:

@@ -300,7 +300,9 @@ def test_the_verdict_is_never_the_word_conscious() -> None:
     """The report says what was measured. The bridge is a postulate, not a finding."""
     source = (REPO / "tools" / "run_subject_core_v25.py").read_text(encoding="utf-8")
     assert '"reported_as": "INTRINSIC_CARRIER_" + status' in source
-    assert '"phenomenal_bridge": "UNVALIDATED"' in source
+    # The carrier run settles one ground of the bridge; the bridge is judged
+    # at parity from all five by tools/solve_for_j.py (docs/BRIDGE_PARITY.md).
+    assert '"phenomenal_bridge": "JUDGED_BY_SOLVE_FOR_J"' in source
     for verdict in ('"CONSCIOUS"', "'CONSCIOUS'"):
         assert verdict not in source, "a v25 run must never report that word"
 

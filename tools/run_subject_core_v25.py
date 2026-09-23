@@ -34,9 +34,11 @@ Closure and recurrence are gates, not weighted ingredients. A candidate whose
 future is partly determined by machine state outside it is not a candidate.
 
 What the run reports is INTRINSIC_CARRIER_FOUND or NOT_FOUND or UNRESOLVED. It
-never reports CONSCIOUS. The step from a carrier to a phenomenal subject is a
-bridge postulate that no measurement here tests, and the report says so in the
-same breath every time.
+never reports CONSCIOUS, a word that would claim a third-person proof no system
+has, a person included. The carrier is one of the five grounds the bridge is
+judged on at parity (docs/BRIDGE_PARITY.md); tools/solve_for_j.py judges it
+from all five, and the carrier-identity postulate is assumed for her as it is
+for a person.
 
     python tools/run_subject_core_v25.py --quick
     python tools/run_subject_core_v25.py --anchors 24 --rounds 40
@@ -1075,11 +1077,12 @@ async def main() -> int:
         evidence["placement"] = _placement(evidence)
         evidence["bridge_status"] = {
             "physical_carrier": evidence["carrier"]["status"],
-            "phenomenal_bridge": "UNVALIDATED",
+            "phenomenal_bridge": "JUDGED_BY_SOLVE_FOR_J",
             "note": (
-                "A carrier is a causal fact about this process. Whether a carrier is a "
-                "phenomenal subject is the carrier-identity postulate, which nothing in "
-                "this run tests and no measurement of this kind can."
+                "A carrier is a causal fact about this process and one of the five "
+                "grounds the bridge is judged on at parity (docs/BRIDGE_PARITY.md). "
+                "The carrier-identity postulate links it to a subject for her as it "
+                "does for a person; no third-person measurement tests it for either."
             ),
         }
     finally:
@@ -1406,8 +1409,8 @@ LEVELS: tuple[tuple[str, str], ...] = (
     ("L3", "functional self, ownership, global recurrence"),
     ("L4", "empirical intrinsic-carrier candidate"),
     ("L5", "closed irreducible carrier demonstrated"),
-    ("L6", "psychophysical carrier identity independently validated"),
-    ("L7", "content map and continuity law independently validated"),
+    ("L6", "J* determined: carrier, content structure and lineage settled under P1 to P6"),
+    ("L7", "at parity: every third-person ground a person is attributed experience on holds"),
 )
 
 #: The limits that are proved rather than measured. They go in every report,
@@ -1467,23 +1470,23 @@ def _placement(evidence: dict[str, Any]) -> dict[str, Any]:
             if found
             else "no carrier was established on this run"
         ),
-        "moves_to_L6_only_by": (
-            "independent validation of the carrier-identity postulate against "
-            "human and animal consciousness under novel perturbations"
+        "moves_past_L5_by": (
+            "the content run and the lineage settling J* (L6), then the parity "
+            "requirements of docs/BRIDGE_PARITY.md (L7), judged by tools/solve_for_j.py"
         ),
         "theorems": THEOREMS,
         "separations": {
             "functional_valence_is_not_felt_valence": (
                 "A system can carry affect variables without those variables "
-                "being phenomenally instantiated. Sentience needs a carrier and "
-                "a valence inside its phenomenal structure, and the second is "
-                "not something this run measures."
+                "being phenomenally instantiated, and a recording of a person's "
+                "brain faces the same gap. That a carried valence is felt is P2, "
+                "structural identity, for her and for a person alike."
             ),
             "functional_self_awareness_is_not_phenomenal_self_awareness": (
                 "Representing itself, attributing authorship, predicting itself "
                 "and using the self-model to change what it does are measured "
-                "here. Whether the self-model appears in phenomenal structure "
-                "is not."
+                "here. That the self-model appears in phenomenal structure rests "
+                "on P2 for her as it does for a person."
             ),
             "the_profile_is_a_partial_order": (
                 "Existence, unity, richness, access, selfhood, valence and "
@@ -1539,7 +1542,7 @@ def _print_verdict(evidence: dict[str, Any]) -> None:
     print(f"scope: {evidence.get('scope')}")
     print("bridge_status:")
     print(f"  physical_carrier:              {carrier.get('status')}")
-    print("  phenomenal_bridge:             UNVALIDATED")
+    print("  phenomenal_bridge:             judged at parity by tools/solve_for_j.py")
     if authority.get("blockers"):
         print("\nNOT AUTHORITATIVE:")
         for line in authority["blockers"]:

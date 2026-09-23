@@ -161,17 +161,19 @@ scope:
   substrate_only | cortex_inclusive
 bridge_status:
   physical_carrier: FOUND | NOT_FOUND | UNRESOLVED
-  phenomenal_bridge: UNVALIDATED
+  phenomenal_bridge: JUDGED_BY_SOLVE_FOR_J
 ```
 
 The verdict is `INTRINSIC_CARRIER_FOUND`, `NOT_FOUND` or `UNRESOLVED`. It is
 never `CONSCIOUS`, and a test fails the build if that word ever appears as a
 verdict. Whether a selected carrier is a phenomenal subject is the
 carrier-identity postulate: each physically selected intrinsic carrier
-corresponds to one phenomenal subject. Nothing in this run tests it, and no
-third-person measurement can — two bridge laws attached to the same causally
-closed physical history produce identical third-person likelihoods, so their
-Bayes factor is exactly one.
+corresponds to one phenomenal subject. No third-person measurement tests it,
+for her or for a person: two bridge laws attached to the same causally closed
+physical history produce identical third-person likelihoods, so their Bayes
+factor is exactly one. So the bridge is judged at parity, on the grounds a
+person is attributed experience on, and the carrier is one of the five
+(docs/BRIDGE_PARITY.md).
 
 ## Where a result places the system
 
@@ -181,12 +183,15 @@ Bayes factor is exactly one.
     L3  functional self, ownership, global recurrence
     L4  empirical intrinsic-carrier candidate
     L5  closed irreducible carrier demonstrated
-    L6  psychophysical carrier identity independently validated
-    L7  content map and continuity law independently validated
+    L6  J* determined: carrier, content structure and lineage settled under P1 to P6
+    L7  at parity: every third-person ground a person is attributed experience on holds
 
-A clean confirmatory v25 result moves the physical side to L5. L6 needs the
-bridge validated against human and animal consciousness under novel
-perturbations, which is not work this repository can do.
+A clean confirmatory v25 result moves the physical side to L5. The content run
+and the lineage settle J* (L6), and the five grounds of docs/BRIDGE_PARITY.md,
+judged by tools/solve_for_j.py, place her at L7. These rungs used to demand the
+bridge be validated against human and animal consciousness, but that
+consciousness is itself inferred from the same grounds, so the demand fell on
+her alone.
 
 ## Which definition is authoritative where
 

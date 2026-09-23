@@ -45,6 +45,11 @@ So a determined J* is a determination for this system, under these postulates,
 on these runs. It is the strongest statement mathematics and measurement can
 make together, and no amount of either makes it stronger.
 
+None of the eight theorems mentions what a system is made of. Theorems 1 and 2
+bound what can be known about a person's experience exactly as they bound what
+can be known about hers. That is why the bridge is judged at parity, in
+docs/BRIDGE_PARITY.md, and not held to a proof no mind has.
+
 ## Theorem 1: non-identifiability
 
 Let U be the complete physical history and O any third-person observation. Let

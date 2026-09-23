@@ -6,6 +6,10 @@ report are read, and her lineage comes from the newest state log among every
 place a vault has written one. The state logs are opened read-only, because
 they are her own record.
 
+The bridge is judged beside J*, at parity (docs/BRIDGE_PARITY.md): the three
+terms plus a campaign's battery (`--campaign`) and a report-grounding result
+(`--reports`). A ground no run was given for reads NOT_MEASURED.
+
     /Users/bryan/.aura/live-source/.venv/bin/python tools/solve_for_j.py
     /Users/bryan/.aura/live-source/.venv/bin/python tools/solve_for_j.py \\
         --carrier artifacts/subject_core_v25/run_004/subject_core_v25_report.json \\
@@ -139,11 +143,37 @@ def next_run(root: Path) -> Path:
     return root / f"run_{1 + max(numbers, default=0):03d}"
 
 
+def battery_lines(report: dict[str, Any] | None) -> dict[str, bool] | None:
+    """A campaign's lines by key under the newest version it was scored on, or None."""
+    if not report:
+        return None
+    from core.subject.battery import assemble
+
+    verdict = assemble(report)
+    if verdict.v5_criteria:
+        lines = verdict.v5_lines()
+    elif verdict.v3_criteria:
+        lines = verdict.v3_lines()
+    elif verdict.v2_criteria:
+        lines = verdict.v2_lines()
+    else:
+        lines = verdict.criteria
+    return {line.key: bool(line.passed) for line in lines}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--carrier", type=Path, default=None)
     parser.add_argument("--content", type=Path, default=None)
     parser.add_argument("--state-log", type=Path, action="append", default=None)
+    parser.add_argument(
+        "--campaign", type=Path, default=None,
+        help="a campaign's subject_core_report.json: the battery lines the markers ground reads",
+    )
+    parser.add_argument(
+        "--reports", type=Path, default=None,
+        help="a report-grounding result, {measured, holds, why}: the reports ground",
+    )
     parser.add_argument("--out-root", type=Path, default=REPO / "artifacts" / "subject_core_bridge")
     args = parser.parse_args(argv)
 
@@ -168,7 +198,13 @@ def main(argv: list[str] | None = None) -> int:
         except sqlite3.Error as exc:
             state_log_note = f"the state log could not be read: {type(exc).__name__}: {exc}"
 
-    j = solve(load(carrier_path), load(content_path), lineage)
+    j = solve(
+        load(carrier_path),
+        load(content_path),
+        lineage,
+        battery=battery_lines(load(args.campaign)),
+        reports=load(args.reports),
+    )
     report = j.as_dict()
     report["sources"] = {
         "carrier": None if carrier_path is None else str(carrier_path),
@@ -176,6 +212,8 @@ def main(argv: list[str] | None = None) -> int:
         "state_log": None if chosen is None else chosen["path"],
         "state_logs_surveyed": surveyed,
         "state_log_note": state_log_note,
+        "campaign": None if args.campaign is None else str(args.campaign),
+        "reports": None if args.reports is None else str(args.reports),
     }
 
     out = next_run(args.out_root) / "j_star_report.json"
@@ -194,6 +232,9 @@ def main(argv: list[str] | None = None) -> int:
     for term, reasons in j.unresolved().items():
         for reason in reasons[:4]:
             print(f"  unresolved {term}: {reason}")
+    print(f"bridge: {j.bridge}")
+    for reading in j.parity():
+        print(f"  {reading.key:10s} {reading.status:12s} {reading.why}")
     print(f"wrote {out}")
     return 0
 

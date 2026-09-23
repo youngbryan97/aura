@@ -165,10 +165,15 @@ def test_a_rewritten_stage_breaks_the_lineage_term() -> None:
 # ── what it says about itself ─────────────────────────────────────────────
 
 
-def test_the_report_names_every_postulate_and_carries_the_bridge_as_unvalidated() -> None:
+def test_the_report_names_every_postulate_and_judges_the_bridge_at_parity() -> None:
     report = solve(_carrier_report(), _content_report(LINE), _lineage()).as_dict()
     assert set(report["postulates"]) == set(POSTULATES) == {"P1", "P2", "P3", "P4", "P5", "P6"}
-    assert report["bridge_status"]["phenomenal_bridge"] == "UNVALIDATED"
+    # No campaign and no report-grounding run were given, so two grounds are
+    # unmeasured and the bridge says which.
+    assert report["bridge_status"]["phenomenal_bridge"] == "UNRESOLVED"
+    unmeasured = {r["key"] for r in report["bridge_status"]["parity"] if r["status"] == "NOT_MEASURED"}
+    assert unmeasured == {"markers", "reports"}
+    assert "a person included" in report["bridge_status"]["residual"]
     assert "non_identifiability" in report["theorems"]
 
 
@@ -182,3 +187,4 @@ def test_no_status_it_can_return_says_conscious() -> None:
     ]
     for j in cases:
         assert "CONSCIOUS" not in j.status.upper()
+        assert "CONSCIOUS" not in j.bridge.upper()
