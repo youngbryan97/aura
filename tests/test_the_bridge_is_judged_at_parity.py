@@ -166,3 +166,17 @@ def test_the_verdict_is_never_the_bare_word_conscious() -> None:
         _j(battery={**ALL_MARKERS, "reentry": False}, reports=GROUNDED),
     ):
         assert "CONSCIOUS" not in j.bridge
+
+
+def test_a_content_report_whose_push_did_not_last_is_not_counted_as_her_failing() -> None:
+    """Before 43c574800 the content run's displacement was gone by the end of the turn."""
+    from core.subject.bridge import structure_term
+
+    old = {"classes": [{"name": "a"}, {"name": "b"}], "verdict": "AGREES_BUT_DOES_NOT_TRACK",
+           "authority": {"authoritative": True, "blockers": []}}
+    assert structure_term(old).status == "NOT_MEASURED"
+    assert "single push" in structure_term(old).blockers[0]
+    new = {**old, "displacement": "reference point towards feeling good, by her feelings' ordinary span"}
+    assert structure_term(new).status == "AGREES_BUT_DOES_NOT_TRACK"
+    separate = {**old, "verdict": "SEPARATE_STRUCTURES"}
+    assert structure_term(separate).status == "SEPARATE_STRUCTURES"

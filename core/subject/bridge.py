@@ -384,6 +384,16 @@ def structure_term(report: Mapping[str, Any] | None) -> StructureTerm:
         cells = orbits(names, matrix, tolerance)
     blockers = tuple(str(b) for b in (report.get("authority") or {}).get("blockers") or ())
     verdict = str(report.get("verdict") or "NOT_MEASURED")
+    if verdict == "AGREES_BUT_DOES_NOT_TRACK" and not report.get("displacement") and not blockers:
+        # A report from before 43c574800 displaced affect with one push, which
+        # was gone by the end of the turn (seed 7, 22 September: valence kept
+        # -2% of it), so "does not track" was the instrument, not her. Counting
+        # it as a failure would hold her to a test that could not have been
+        # passed.
+        blockers = (
+            "the content run displaced affect with a single push that did not last the turn, "
+            "so whether the two geometries move together was not measured",
+        )
     status = "NOT_MEASURED" if blockers else _CONTENT_VERDICTS.get(verdict, "NOT_MEASURED")
     if status == "NOT_MEASURED" and not blockers:
         blockers = (f"the content run reported {verdict}",)
