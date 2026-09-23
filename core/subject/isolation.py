@@ -57,6 +57,18 @@ NOT_STATE: frozenset[str] = frozenset(
         "core.brain.llm.latent_cortex.neural_transition_tissue.DEFAULT_NEURAL_TRANSITION_ARTIFACT",
         "core.brain.llm.latent_cortex.systematic_neural_alu.DEFAULT_SYSTEMATIC_NEURAL_ALU_ARTIFACT",
         "core.learning.recurrent_work_memory_tissue.DEFAULT_MATHEMATICS_MEMORY_ARTIFACT",
+        # The rest of what a whole run imports that points into the checkout or
+        # at weights. The checkout is code wherever it sits; it is under ~/.aura
+        # only because this repository lives there.
+        "core.brain.llm.model_paths._SOURCE_CHECKOUT",
+        "core.brain.llm.model_registry._BRAINSTEM_PATH",
+        "core.config.PROJECT_ROOT",
+        "core.utils.paths.PROJECT_ROOT",
+        "core.utils.paths.CORE_DIR",
+        # A relative path searched to read forensics written under an older
+        # convention. Nothing is written there: `forensics_root` follows
+        # AURA_LOG_DIR, which every run sets.
+        "core.utils.paths._LEGACY_FORENSICS_RELATIVE",
     }
 )
 
