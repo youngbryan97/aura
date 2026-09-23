@@ -8,20 +8,37 @@ from torch.nn import functional as functional
 
 from core.learning.procedure_induction import Instruction, Program
 from core.learning.semantic_candidate_contrasts import (
-    source_program_contrasts, source_program_factor_contrasts,
+    source_program_contrasts,
+    source_program_factor_contrasts,
 )
 from core.learning.semantic_candidate_ranker import (
-    ContextualProgramRanker, aggregate_program_scores, candidate_set_loss,
+    ContextualProgramRanker,
+    aggregate_program_scores,
+    candidate_set_loss,
 )
 from core.learning.semantic_construction_folds import construction_folds
+from core.learning.semantic_program_campaign import _sha as semantic_sha
 from core.learning.semantic_program_ir import TokenSpan
 from core.learning.semantic_request_context import RequestContextConfig
 from tools.compare_semantic_candidate_methods import _direct_choice, _portfolio_comparison
 from tools.evaluate_semantic_candidate_ranker import (
-    _evaluate, _factor_cases, _rankable, _rankable_or_none, _runtime_factor_cases,
-    _source_runtime_factor_cases, _training_views,
+    _evaluate,
+    _factor_cases,
+    _rankable,
+    _rankable_or_none,
+    _runtime_factor_cases,
+    _source_runtime_factor_cases,
+    _training_views,
+    _verify_augmentation,
+    _verify_sources,
 )
-from tools.materialize_semantic_candidate_training import _plan, _select_source_ids
+from tools.materialize_semantic_candidate_training import (
+    _digest as training_digest,
+)
+from tools.materialize_semantic_candidate_training import (
+    _plan,
+    _select_source_ids,
+)
 from tools.replay_semantic_candidate_ranker_gap import _construction_counts
 
 
@@ -445,6 +462,61 @@ def test_mixed_training_keeps_two_grounded_candidate_views():
     permuted = (contrasts[0], spans[::-1], kinds, contrasts[3])
     assert _training_views("source", {"source": bank}, {"source": [permuted]},
                            allow_grounding_permutation=True) == (bank, permuted)
+
+
+def test_wide_bank_augmentation_requires_source_only_compatible_basis():
+    base = {"model_receipt_sha256": "m", "source_manifest_sha256s": ["f"],
+            "source_population": 3, "max_charts": 4, "max_graphs_per_chart": 2}
+    wide = {**base, "max_charts": 12, "max_graphs_per_chart": 4,
+            "source_selection": {
+                "method": "lowest_source_identity_per_construction",
+                "labels_used_for_selection": False}}
+    _verify_augmentation(base, ["a", "b", "c"], wide, ["a", "b"])
+    for changed, ids, reason in (
+        (wide, ["x"], "subset"),
+        ({**wide, "model_receipt_sha256": "other"}, ["a"], "model"),
+        ({**wide, "source_manifest_sha256s": ["other"]}, ["a"], "features"),
+        ({**wide, "max_charts": 4, "max_graphs_per_chart": 2}, ["a"], "search_width"),
+        ({**wide, "source_selection": {**wide["source_selection"],
+                                      "labels_used_for_selection": True}}, ["a"],
+         "source_only_selection"),
+    ):
+        with pytest.raises(ValueError, match=reason):
+            _verify_augmentation(base, ["a", "b", "c"], changed, ids)
+
+
+def test_wide_bank_augmentation_keeps_source_views_separate():
+    spans = (TokenSpan(0, 1), TokenSpan(2, 3))
+    base = ((_programs()[:1], (False,), (_programs()[0].sha(),)),
+            spans, ("integer", "integer"), ((TokenSpan(0, 1),),))
+    wide = ((_programs(), (False, True), tuple(p.sha() for p in _programs())),
+            spans, ("integer", "integer"), ((TokenSpan(0, 1),),) * 2)
+    assert _training_views("a", {"a": base}, {"a": wide}) == (base, wide)
+    assert _training_views("b", {"b": base}, {}) == (base,)
+
+
+def test_source_fold_receipt_rejects_unknown_proposer_training_cohort():
+    examples = [SimpleNamespace(ir=SimpleNamespace(source_text_sha256=source), split="train")
+                for source in ("a", "b")]
+    source_report = {"representation_compatibility": {
+        "source_feature_manifest_sha256s": {"source": "feature"}}}
+    model = SimpleNamespace(receipt_sha256="model", training_receipt={
+        "training_example_ids_sha256": semantic_sha(["a", "b"])})
+    plan = {"source_ids": ["a", "b"], "source_population": 2,
+            "model_receipt_sha256": "model", "source_manifest_sha256s": {
+                "source": "feature"}}
+    body = {"schema": "aura.semantic_candidate_training.v1", "plan": plan,
+            "population": 2, "observed": 2, "row_receipts": {"a": "ra", "b": "rb"}}
+    bank_report = {**body, "receipt_sha256": training_digest(body)}
+    folds = {"schema": "aura.semantic_construction_folds.v1",
+             "assignments": {"a": 0, "b": 1}, "count": 2,
+             "validation_used": False, "test_used": False}
+    _verify_sources(source_report, {"candidate": "model"}, model,
+                    bank_report, folds, examples)
+    model.training_receipt["training_example_ids_sha256"] = "unrelated"
+    with pytest.raises(ValueError, match="proposal_training_cohort"):
+        _verify_sources(source_report, {"candidate": "model"}, model,
+                        bank_report, folds, examples)
 
 
 def test_direct_candidate_choice_uses_program_scores_not_labels():
