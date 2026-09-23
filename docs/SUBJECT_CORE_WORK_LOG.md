@@ -7,6 +7,26 @@ what broke, what fixed it, and where the evidence is. Runs live in
 
 ## 23 September, night
 
+### 06:35: why synergy will not pass on more data alone
+
+Synergy must pass on all four preregistered triples. On seed 7 three of them
+sit below the null's median, not only below its 99th percentile: A,S->G at a
+synergy fraction of 0.116 against a null median of 0.348, W,A->D 0.250
+against 0.381, S,D->C 0.134 against 0.358. More rows narrow a null around its
+median and cannot lift a value that sits under it, so the decisive campaign's
+2,400 rows are unlikely to change this line.
+
+The comparison itself looks unsound. The null slides the sources against the
+target, which sends every mutual information towards zero, so the null's
+fraction (synergy over joint information) is a ratio of near-zero terms that
+scatters widely and centres high. Her own fraction has a denominator of about
+1.4 bits. Compared in bits instead, against the same null, two triples pass
+(P,M->W by 0.40, W,A->D by 0.17) and two do not (A,S->G by 0.016, S,D->C by
+0.18). So correcting the comparison would not pass the line on seed 7 either,
+and changing a preregistered criterion needs a known-answer demonstration and a
+written amendment before any seed-23 number is read. Left for a decision, not
+changed tonight.
+
 ### 06:30: seed 7 reads 19 of 24; the decisive run restarts with three-turn arms
 
 **Seed 7, two-turn arms, lesion measured: 19 of 24.** The lesion of the cheapest
