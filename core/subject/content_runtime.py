@@ -166,6 +166,7 @@ async def sample_classes(
     lag: int = 1,
     displace: tuple[str, float] | None = None,
     reference: float | None = None,
+    valence: float | None = None,
 ) -> dict[str, ClassSamples]:
     """Present every class from every anchor, and read both geometries' inputs.
 
@@ -176,6 +177,12 @@ async def sample_classes(
     `reference` moves the point her feelings are measured from, towards feeling
     good by that much (`perturbation.shift_reference`). Unlike a push of the
     feelings it lasts the turn and leaves them free to answer the percept.
+
+    `valence` moves how good she feels now by that much, before the turn. Recall
+    runs before the affect phase in a turn and reads the valence she arrived
+    with, so a reference shift alone never reaches this turn's recall: on seed
+    7 it changed none of 72 recalled sets at twice her span, where valence moved
+    by twice its span changed 69 and 66 of 72 (22 September).
     """
     from dataclasses import replace
 
@@ -191,6 +198,9 @@ async def sample_classes(
             await perturb_organs(runtime.organs, domain, delta, state=runtime.state)
         if reference is not None:
             shift_reference(runtime.state, reference)
+        if valence is not None:
+            affect = runtime.state.affect
+            affect.valence = float(min(1.0, max(-1.0, float(affect.valence or 0.0) + valence)))
         shown = replace(condition, prepare=present(cls))
         rows: list[Any] = []
         for _ in range(turns):

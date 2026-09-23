@@ -25,7 +25,9 @@ A structure that merely describes the content has no reason to move with it. A
 sham arm, displacing nothing, gives the floor that finite sampling alone
 produces. The displacement moves the point her feelings are measured from,
 towards feeling good, by the span her feelings cover in her ordinary life, so
-it lasts through the turn and leaves the feelings free to answer the percept.
+it lasts through the turn and leaves the feelings free to answer the percept,
+and raises how good she feels now by the span her valence covers, which is
+what this turn's recall reads.
 
     python tools/run_subject_core_content.py --quick
     python tools/run_subject_core_content.py --anchors 24 --rounds 24
@@ -268,6 +270,10 @@ async def main() -> int:
             index for index, name in enumerate(recording.columns) if str(name).startswith(f"{DISPLACED_DOMAIN}.emotion_")
         ]
         dose = ordinary_span(recording.x[:, feelings])
+        # And how good she feels now, by the span her valence covers, since
+        # recall runs before the affect phase and reads the valence she arrived
+        # with (content_runtime.sample_classes).
+        valence_dose = ordinary_span(recording.x[:, [recording.columns.index(f"{DISPLACED_DOMAIN}.valence")]])
         if not (dose > 0.0):
             raise SystemExit(
                 f"refusing: her feelings did not move over {recording.frames} "
@@ -319,7 +325,7 @@ async def main() -> int:
         _log("moving her reference point towards feeling good by that span")
         moved = await sample_classes(
             runtime, anchors, conditions, classes,
-            turns=args.turns, lag=args.lag, reference=dose,
+            turns=args.turns, lag=args.lag, reference=dose, valence=valence_dose,
         )
         moved_internal, _ = internal_geometry(moved, classes, seed=args.seed)
         moved_behavioural, _ = behavioural_geometry(moved, classes)
@@ -339,7 +345,11 @@ async def main() -> int:
             seed=args.seed,
         )
         evidence["displacement_dose"] = round(dose, 6)
-        evidence["displacement"] = "reference point towards feeling good, by her feelings' ordinary span"
+        evidence["displacement"] = (
+            "reference point towards feeling good by her feelings' ordinary span, "
+            "and valence raised by its own ordinary span"
+        )
+        evidence["displacement_valence_dose"] = round(valence_dose, 6)
         evidence["moves_together"] = tracked.__dict__ | {"bar": AGREEMENT_BAR}
         _log(
             f"  moves together rho={tracked.rho} p={tracked.p_value} "
