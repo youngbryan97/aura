@@ -65,6 +65,7 @@ NOT_STATE: frozenset[str] = frozenset(
         "core.config.PROJECT_ROOT",
         "core.utils.paths.PROJECT_ROOT",
         "core.utils.paths.CORE_DIR",
+        "core.subject.provenance.REPO",
         # A relative path searched to read forensics written under an older
         # convention. Nothing is written there: `forensics_root` follows
         # AURA_LOG_DIR, which every run sets.
