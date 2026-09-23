@@ -54,6 +54,29 @@ Every attempt died or ran degraded. The causes, in the order they were found:
    batch): `remember` made its directory outside its governed scope, so in every
    campaign the write was refused and `recall` came back empty.
 
+### J* structure at 24 anchors (seed 7, read 02:20)
+
+The seed-7 content run at 24 anchors finished after 10.5 hours. It ran at
+8447bc297, before the displacement was redesigned (valence plus a
+reference-point shift, held for the turn) and before the noise rule became a
+rank test, and it reads NOT_MEASURED under the old rule: the closest pair of
+classes (0.044) was no further apart than a class from itself (0.058). Its
+other numbers:
+
+- agreement between her internal geometry and her recall geometry: rho 0.386,
+  p 0.001, bar 0.3, passes;
+- design recovery: rho 0.654, p 0.001, passes;
+- moves together under displacement: rho 0.228, p 0.003, bar 0.3, fails.
+
+Under the current rule the same data is out of its noise: between-class
+distances exceed the within-class floors with a one-sided Mann-Whitney p of
+1.2e-5, and 48% of class pairs sit above the largest floor. So at 24 anchors
+the structure question comes down to "moves together". The redesigned
+displacement moves the internal geometry about thirty times as far (shift
+0.178 against 0.006). In two six-class quick runs the recall geometry did not
+move with it (rho 0.0 and -0.30, 15 pairs each), which is weak evidence
+either way. The seed-23 content run under the new design decides it.
+
 ### What seed 7 says about the lines still failing
 
 The seed-7 whole-system proof (3 trials, one-turn arms) failed kappa,
