@@ -493,6 +493,19 @@ class _ForkLease:
     def __exit__(self, *exc: Any) -> None:
         self._close()
 
+    def call(self, fn: Any, *args: Any, **kwargs: Any) -> Any:
+        """One gateway call, under a lease opened at the call.
+
+        `keep` renewed at half a lease, and then a read or a stat came between
+        it and the write. A sixty-second disk stall on one of those (a v5 sweep
+        worker, 22 September 22:21) outlasted the whole lease, and the write was
+        refused and the worker died. A lease opened at the call leaves nothing
+        between the token and the gateway's check.
+        """
+        self._close()
+        self._open()
+        return fn(*args, **kwargs)
+
     def keep(self) -> None:
         """Renew when the lease is halfway through, before a sink refuses."""
         token = self._token
@@ -531,21 +544,20 @@ def _restore_world(root: Path | None, saved: dict[str, Any] | None) -> None:
                 continue
             lease.keep()
             try:
-                gateway.delete_path(
+                lease.call(
+                    gateway.delete_path,
                     item, recursive=item.is_dir(), source="subject_core.fork"
                 )
             except OSError:
                 continue
         for name in saved["directories"]:
-            lease.keep()
-            gateway.ensure_directory(root / name, source="subject_core.fork")
+            lease.call(gateway.ensure_directory, root / name, source="subject_core.fork")
         for name, payload in saved["files"].items():
             target = root / name
-            lease.keep()
-            gateway.ensure_directory(target.parent, source="subject_core.fork")
+            lease.call(gateway.ensure_directory, target.parent, source="subject_core.fork")
             try:
                 if not target.exists() or target.read_bytes() != payload:
-                    gateway.write_bytes(target, payload, source="subject_core.fork")
+                    lease.call(gateway.write_bytes, target, payload, source="subject_core.fork")
                 # An arm reading a modification time would be reading which arm
                 # it is. Nothing in the probe does today; putting the stamp back
                 # costs nothing and stops that from becoming true by accident.
@@ -894,7 +906,7 @@ def _restore_stores(saved: dict[str, Any] | None) -> None:
                         continue
                 lease.keep()
                 try:
-                    gateway.delete_path(item, recursive=item.is_dir(), source="subject_core.fork")
+                    lease.call(gateway.delete_path, item, recursive=item.is_dir(), source="subject_core.fork")
                 except OSError:
                     continue
                 _STORE_CACHE.pop(name, None)
@@ -910,8 +922,7 @@ def _restore_stores(saved: dict[str, Any] | None) -> None:
         )
         wanted.update(Path(name).parent for name in entries)
         for directory_path in sorted(wanted, key=lambda path: len(str(path))):
-            lease.keep()
-            gateway.ensure_directory(directory_path, source="subject_core.fork")
+            lease.call(gateway.ensure_directory, directory_path, source="subject_core.fork")
         failures: list[str] = []
         for name, (kind, stamp, payload) in entries.items():
             target = Path(name)
@@ -926,7 +937,7 @@ def _restore_stores(saved: dict[str, Any] | None) -> None:
                     continue
                 if _stamp(target) == stamp:
                     continue
-                gateway.write_bytes(target, payload, source="subject_core.fork")
+                lease.call(gateway.write_bytes, target, payload, source="subject_core.fork")
                 # Its old modification time back, so a service caching on the
                 # stamp reloads the restored bytes, and the next snapshot finds
                 # the cached copy still current instead of reading it again.

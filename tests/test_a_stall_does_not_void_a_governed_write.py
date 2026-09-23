@@ -74,3 +74,24 @@ def test_a_refused_write_is_counted_and_the_run_goes_on(tmp_path: Path, monkeypa
     runtime._act("keep the workshop in order")
     assert runtime.failures["action_probe.governance"] == 1
     assert "outside governed context" in runtime.failure_notes["action_probe.governance"]
+
+
+def test_a_fork_write_is_governed_by_a_lease_opened_at_the_call() -> None:
+    """The fork renewed its lease, read or statted a file, then wrote: a stall there outlived the lease."""
+    import dataclasses
+
+    from core.subject.snapshot import _ForkLease
+
+    with _ForkLease("subject_core.fork") as lease:
+        first = lease._token
+        # The token the lease was opened with, aged past its whole life, as it
+        # was under the sixty-second stall of 22 September.
+        aged = first.mono_timestamp - 10 * first.ttl
+        if dataclasses.is_dataclass(first) and first.__dataclass_params__.frozen:
+            object.__setattr__(first, "mono_timestamp", aged)
+        else:
+            first.mono_timestamp = aged
+        assert not first.valid
+        seen = lease.call(is_governed)
+    assert seen is True
+    assert lease._token is None  # closed with the lease
