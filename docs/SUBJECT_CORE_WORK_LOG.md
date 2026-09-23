@@ -7,6 +7,17 @@ what broke, what fixed it, and where the evidence is. Runs live in
 
 ## 23 September, night
 
+### 03:13: the recovery, second attempt
+
+The first version of the recovery (934564f60) asked the gate to warm the lane
+every ten seconds. Each request extended the gate's startup quiet window, and
+inside that window the warmup it had just started was refused as background
+work, so a 1.5B dry run spent every turn in that loop. 39656c6fe acts only on a
+stopped worker: it calls the gate's own restart hook once
+(`_respawn_cortex_if_needed`, which the router was meant to call and never did
+once its circuit opened) and watches the lane. The chain restarted at 03:13 on
+that commit.
+
 ### 02:50: the first whole run with her feelings steering her cortex
 
 At 02:27 the reports ground started on her 27B cortex with affective steering
