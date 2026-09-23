@@ -14,6 +14,7 @@ import ast
 import copy
 import importlib
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -35,11 +36,16 @@ OWNERS = [
 ]
 
 
+def _inert(klass: type) -> Any:
+    """An instance built without __init__, whose finalizer has nothing to close."""
+    return object.__new__(type(f"Inert{klass.__name__}", (klass,), {"__del__": lambda self: None}))
+
+
 @pytest.mark.parametrize(("module", "name"), OWNERS)
 def test_a_copy_of_a_descriptor_owner_is_the_owner_itself(module: str, name: str) -> None:
     klass = getattr(importlib.import_module(module), name)
     assert issubclass(klass, OwnsDescriptors)
-    owner = object.__new__(klass)
+    owner = _inert(klass)
     assert copy.copy(owner) is owner
     assert copy.deepcopy(owner) is owner
     assert copy.deepcopy({"held": [owner]})["held"][0] is owner
@@ -49,7 +55,7 @@ def test_the_fork_treats_a_descriptor_owner_as_furniture() -> None:
     from core.subject.copies import _holds_furniture, _is_process_furniture
 
     klass = importlib.import_module("core.runtime.secure_path_custody").DirectoryCustody
-    owner = object.__new__(klass)
+    owner = _inert(klass)
     assert _is_process_furniture(owner)
 
     class Service:
@@ -93,3 +99,53 @@ def test_every_class_that_keeps_a_descriptor_says_it_owns_one() -> None:
             if "OwnsDescriptors" not in bases:
                 missing.append(f"{path.relative_to(REPO)}:{node.name}")
     assert not missing, f"classes keeping OS descriptors without OwnsDescriptors: {missing}"
+
+
+def test_a_pipe_a_queue_and_shared_memory_are_furniture() -> None:
+    """What a model client holds to talk to its worker is never copied by the fork."""
+    import gc
+    import multiprocessing
+
+    from core.subject.copies import _holds_furniture, _is_process_furniture
+    from core.subject.snapshot import _organ_state
+
+    context = multiprocessing.get_context("spawn")
+    reader, writer = context.Pipe(duplex=False)
+    held = [
+        reader,
+        writer,
+        context.Queue(),
+        context.SimpleQueue(),
+        context.Lock(),
+        context.Event(),
+        context.Value("i", 0),
+        context.Value("b", 0, lock=False),
+        context.Array("d", 4, lock=False),
+    ]
+    for thing in held:
+        assert _is_process_furniture(thing), type(thing)
+
+    class Client:
+        def __init__(self) -> None:
+            self.pipe = writer
+            self.channel = held[-1]
+            self.generations = 3
+
+    client = Client()
+    assert _holds_furniture(client)
+    captured = _organ_state(client)
+    gc.collect()
+    assert "pipe" not in captured and "channel" not in captured
+    writer.send("still open")
+    assert reader.recv() == "still open"
+
+
+def test_a_model_client_is_never_copied_or_rewound() -> None:
+    """A restore once orphaned its request lock; see mlx_client_worker_lifecycle.py."""
+    from core.brain.llm.mlx_client import MLXLocalClient
+    from core.subject.copies import _is_process_furniture
+
+    assert issubclass(MLXLocalClient, OwnsDescriptors)
+    client = _inert(MLXLocalClient)
+    assert copy.deepcopy(client) is client
+    assert _is_process_furniture(client)

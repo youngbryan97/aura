@@ -54,8 +54,13 @@ _FURNITURE_DEPTH: int = 3
 
 
 def _furniture_types() -> tuple[type, ...]:
+    import ctypes
     import io
     import multiprocessing
+    import multiprocessing.connection
+    import multiprocessing.queues
+    import multiprocessing.sharedctypes
+    import multiprocessing.synchronize
     import socket as _socket_module
     import sqlite3
     import threading as _threading
@@ -69,6 +74,21 @@ def _furniture_types() -> tuple[type, ...]:
         # whole report run of 23 September died of the double close (EXC_GUARD
         # on descriptor 39). See core/runtime/descriptor_owner.py.
         OwnsDescriptors,
+        # A pipe, a queue, a lock or a value shared with a model worker. A copy
+        # of a pipe closed the worker's descriptor when it was collected, even
+        # from a copy that failed part-way, and the dry run of 23 September
+        # 01:44 died of it with the report run's EXC_GUARD. A shared value
+        # copied and restored into the client is private memory the worker
+        # never reads. Raw ctypes values in this tree are that shared memory.
+        multiprocessing.connection.Connection,
+        multiprocessing.queues.Queue,
+        multiprocessing.queues.SimpleQueue,
+        multiprocessing.synchronize.SemLock,
+        multiprocessing.synchronize.Condition,
+        multiprocessing.synchronize.Event,
+        multiprocessing.sharedctypes.SynchronizedBase,
+        ctypes.Array,
+        ctypes._SimpleCData,
         _threading.Event,
         _threading.Condition,
         _threading.Barrier,

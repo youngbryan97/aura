@@ -30,6 +30,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from core.runtime.descriptor_owner import OwnsDescriptors
 from core.runtime.process_privilege import Privilege, ProcessRole
 from core.runtime.subprocess_gateway import (
     AcceleratorCapability,
@@ -40,8 +41,16 @@ from .mlx_worker import _mlx_worker_loop
 from .worker_progress import create_channel as create_worker_progress_channel
 
 
-class _KeepsTheWorkerAlive:
-    """The worker lifecycle half of MLXLocalClient; see mlx_client.py."""
+class _KeepsTheWorkerAlive(OwnsDescriptors):
+    """The worker lifecycle half of MLXLocalClient; see mlx_client.py.
+
+    A client owns a worker process and the pipes, locks and shared memory it
+    talks to it through, so a copy is the client itself and the subject fork
+    never rewinds one. It did: a restore reset the request lock's owner record
+    while a request still held the lock, the request could not release a lock
+    no longer recorded as its own, and every call after it waited on "another
+    request, held 0.0s" until it timed out.
+    """
 
     async def _renew_durable_lane_lease(
         self,
