@@ -58,6 +58,21 @@ def _checkpoint(args: Any, stage: str, evidence: dict[str, Any]) -> None:
     write_json(args.out, "checkpoint.json", {"stage": stage, "evidence": evidence})
 
 
+#: The frozen settings that belong to one stage and to nothing measured before
+#: it. A resume may change these while that stage has not run: settings of a
+#: stage that never ran cannot have touched anything on disk. A campaign run with
+#: --skip-lesion froze a lesion of 0 rounds, and resuming it to measure the
+#: lesion was refused as a different experiment.
+_SETTINGS_OF_STAGE: dict[str, str] = {"lesion": "lesion"}
+
+
+def _moved_only_ahead(moved: list[str], done: tuple[str, ...]) -> bool:
+    """Whether every frozen setting that changed belongs to a stage not yet run."""
+    return bool(moved) and all(
+        key in _SETTINGS_OF_STAGE and _SETTINGS_OF_STAGE[key] not in done for key in moved
+    )
+
+
 def _resume(args: Any) -> dict[str, Any] | None:
     """The checkpoint a resumed run carries forward, or None for a fresh run."""
     if not args.resume:
@@ -357,12 +372,19 @@ async def main() -> int:
                 for key in set(was) | set(now)
                 if was.get(key) != now.get(key)
             )
-            raise SystemExit(
-                "refusing: the checkpoint was written by campaign "
-                f"{evidence['campaign']['fingerprint']} and this one is "
-                f"{started_again['fingerprint']} — two settings are two "
-                f"experiments. What moved: {moved or 'the seed alone'}"
+            if not _moved_only_ahead(moved, done):
+                raise SystemExit(
+                    "refusing: the checkpoint was written by campaign "
+                    f"{evidence['campaign']['fingerprint']} and this one is "
+                    f"{started_again['fingerprint']} — two settings are two "
+                    f"experiments. What moved: {moved or 'the seed alone'}"
+                )
+            _log(f"settings of stages not yet run changed on resume: {moved}")
+            evidence["campaign"].setdefault("settings_changed_on_resume", []).append(
+                {"moved": moved, "was": evidence["campaign"]["fingerprint"], "is": started_again["fingerprint"]}
             )
+            evidence["campaign"]["frozen"] = now
+            evidence["campaign"]["fingerprint"] = started_again["fingerprint"]
         evidence["campaign"].setdefault("resumes", []).append(
             {
                 "from_stage": resumed["stage"],
