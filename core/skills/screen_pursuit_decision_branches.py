@@ -405,6 +405,20 @@ def _what_she_says_as_she_moves(
                 weights or AS_GOOD_A_GUESS_AS_ANY,
                 runner_up_name=runner_up,
             )
+        if not because:
+            # Nothing separates the two on the board right after the move,
+            # and she still chose this one: for what her search saw further
+            # on. That is the reason, and it was going unsaid — live, a line
+            # of the game read "Left." and nothing else (2026-09-23).
+            mine = (ahead or {}).get(key, (None, ""))[0]
+            if mine is not None and _value is not None:
+                if float(mine) > float(_value) + 1e-9:
+                    because = f"played a few moves on, it ends better placed than {runner_up} would"
+                elif abs(float(mine) - float(_value)) <= 1e-9:
+                    because = f"it comes out as well as {runner_up} a few moves on, and no better"
+                # Rated below the runner-up, it was chosen for something the
+                # search did not weigh — a line she is holding — and the
+                # search is not the reason to give.
     return what_a_move_does(laid_out, key, after, biggest_so_far=biggest_so_far, because=because)
 
 
