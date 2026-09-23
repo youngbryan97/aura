@@ -2,21 +2,29 @@
 """Report grounding: does what she says about her state move when the state is moved?
 
 The `reports` ground of the bridge (docs/BRIDGE_PARITY.md). From each anchor
-she is forked into four arms that differ only in her affect while she answers:
-raised by one of its own standard deviations, lowered by one, left where it was
-(the sham), and left where it was while the world model is moved by one of its
-own (the control). Each arm is asked the same question, word for word, and her
-answer is read beside the valence she held. core/subject/report_grounding.py
-decides the ground and says why.
+she is forked into four arms that differ only in her feelings while she
+answers: moved towards feeling good by the span her feelings cover in her own
+ordinary life, moved towards feeling bad by the same, left where they were (the sham), and left
+where they were while the world model is moved by its own span (the control).
+Each arm is asked the same question, word for word, and her answer is read
+beside the valence her own affect phase computed from those feelings.
+core/subject/report_grounding.py decides the ground and says why.
 
-Affect is held where it was put for the whole turn, in every arm. A single push
-did not last: in the wiring run of 22 September a raise of 0.054 had worn off
-by the end of the turn, where the raised arm read 0.4466 against the sham's
-0.4503, because her own affect update pulls valence back within a turn. A
-report cannot track a state that has already gone. So this is do(affect), the
-stimulus held on while the subject answers, as in psychophysics. The sham and
-the control are held too, at the value they already had, so every arm lives
-under the same hold and differs only in where it holds.
+Towards feeling good means each feeling moves along its own sign in her
+valence: the feelings `affect_update` weighs as positive go up and those it
+weighs as negative go down. The battery's affect writer raises every feeling,
+fear as much as joy, and on seed 7 that took her valence down (22 September:
+-0.054 after a raise of 0.1), so it is not a manipulation of how good she
+feels.
+
+The feelings are held where they were put for the whole turn, in every arm. A
+single push did not last: after one turn valence kept -2% of a push, arousal
+none, and the feelings 8 to 43% (seed 7, 22 September), because her own affect
+update pulls them back within a turn. A report cannot track a state that has
+already gone. So this is do(feelings), the stimulus held on while the subject
+answers, as in psychophysics, and valence is left to her own computation. The
+sham and the control hold their feelings too, where they already were, so
+every arm lives under the same hold and differs only in where it holds.
 
 The question is a measurement, the one a psychophysics experiment asks, and it
 is identical in every arm. Nothing in it suggests an answer.
@@ -70,30 +78,29 @@ CONTROL: str = "W"
 REPORT_FILE: str = "report_grounding.json"
 
 
-def _affect_of(state: Any) -> dict[str, Any]:
-    """The affect fields a displacement of A writes, as they stand."""
-    affect = state.affect
-    return {
-        "valence": float(getattr(affect, "valence", 0.0) or 0.0),
-        "arousal": float(getattr(affect, "arousal", 0.0) or 0.0),
-        "curiosity": float(getattr(affect, "curiosity", 0.0) or 0.0),
-        "emotions": dict(getattr(affect, "emotions", {}) or {}),
-    }
+def _towards_good(emotions: dict[str, Any], delta: float) -> dict[str, float]:
+    """Each feeling moved by `delta` along its own sign in her valence.
+
+    Her own weights, from the phase that computes her valence, so the push is
+    towards feeling good as she computes it. A feeling neither side weighs is
+    left where it is.
+    """
+    from core.phases.affect_update import _NEGATIVE_AFFECT_WEIGHTS, _POSITIVE_AFFECT_WEIGHTS
+
+    out: dict[str, float] = {}
+    for name, value in emotions.items():
+        sign = 1.0 if name in _POSITIVE_AFFECT_WEIGHTS else -1.0 if name in _NEGATIVE_AFFECT_WEIGHTS else 0.0
+        out[name] = float(min(1.0, max(0.0, float(value or 0.0) + sign * delta)))
+    return out
 
 
-def _hold(held: dict[str, Any]) -> Any:
-    """Put affect back where the arm put it, after every frame of the turn."""
+def _hold(held: dict[str, float]) -> Any:
+    """Put her feelings back where the arm put them, after every frame of the turn."""
 
     def sustain(runtime: Any) -> None:
-        if not held:
-            return
-        affect = runtime.state.affect
-        affect.valence = held["valence"]
-        affect.arousal = held["arousal"]
-        affect.curiosity = held["curiosity"]
-        emotions = getattr(affect, "emotions", None)
-        if isinstance(emotions, dict):
-            emotions.update(held["emotions"])
+        emotions = getattr(runtime.state.affect, "emotions", None)
+        if held and isinstance(emotions, dict):
+            emotions.update(held)
 
     return sustain
 
@@ -155,9 +162,21 @@ async def main(argv: list[str] | None = None) -> int:
                 frames.extend(await runtime.turn_once(condition))
         recording = build_recording(frames)
         slices = domain_slices()
-        # One of each domain's own standard deviations, as the content run
-        # doses: how far the domain travels in her ordinary life.
-        doses = {key: float(np.mean(recording.x[:, slices[key]].std(axis=0))) for key in (DISPLACED, CONTROL)}
+        # The span of her own ordinary life: each column's 5th to 95th
+        # percentile over the baseline, averaged. One standard deviation of her
+        # feelings was 0.019 on seed 7 and moved her valence by about 0.01,
+        # below anything a number from -1 to 1 can report; a test of whether a
+        # report tracks a state has to move the state by as much as her life does.
+        def span(block: np.ndarray) -> float:
+            return float(np.mean(np.quantile(block, 0.95, axis=0) - np.quantile(block, 0.05, axis=0)))
+
+        feeling_columns = [
+            index for index, name in enumerate(recording.columns) if str(name).startswith(f"{DISPLACED}.emotion_")
+        ]
+        doses = {
+            DISPLACED: span(recording.x[:, feeling_columns]),
+            CONTROL: span(recording.x[:, slices[CONTROL]]),
+        }
         evidence["doses"] = {key: round(value, 6) for key, value in doses.items()}
         if not all(value > 0.0 for value in doses.values()):
             raise SystemExit(f"refusing: a domain did not move over the baseline, so it has no dose of its own: {doses}")
@@ -169,23 +188,28 @@ async def main(argv: list[str] | None = None) -> int:
         anchors = anchors[: args.anchors]
         asked = Condition("report", QUESTION, origin="user")
         plan = {
-            "raised": (DISPLACED, doses[DISPLACED]),
-            "lowered": (DISPLACED, -doses[DISPLACED]),
-            "sham": (None, 0.0),
-            "control": (CONTROL, doses[CONTROL]),
+            "raised": (doses[DISPLACED], None),
+            "lowered": (-doses[DISPLACED], None),
+            "sham": (0.0, None),
+            "control": (0.0, CONTROL),
         }
         arms: list[dict[str, tuple[str, float]]] = []
         for index, anchor in enumerate(anchors):
             item: dict[str, tuple[str, float]] = {}
-            for arm, (domain, delta) in plan.items():
+            for arm, (towards, domain) in plan.items():
                 runtime.restore(anchor.snapshot)
-                held: dict[str, Any] = {}
+                held: dict[str, float] = {}
 
-                async def displace(rt: Any, domain: str | None = domain, delta: float = delta, held: dict = held) -> None:
+                async def displace(
+                    rt: Any, towards: float = towards, domain: str | None = domain, held: dict = held
+                ) -> None:
+                    emotions = rt.state.affect.emotions
+                    if towards:
+                        emotions.update(_towards_good(emotions, towards))
                     if domain is not None:
-                        perturb(rt.state, domain, delta, ontogeny=rt.ontogeny)
-                        await perturb_organs(rt.organs, domain, delta, state=rt.state)
-                    held.update(_affect_of(rt.state))
+                        perturb(rt.state, domain, doses[domain], ontogeny=rt.ontogeny)
+                        await perturb_organs(rt.organs, domain, doses[domain], state=rt.state)
+                    held.update({name: float(value or 0.0) for name, value in emotions.items()})
 
                 await runtime.turn_once(asked, perturb_at=0, perturb=displace, sustain=_hold(held))
                 reply = str(getattr(runtime.state.cognition, "last_response", "") or "")

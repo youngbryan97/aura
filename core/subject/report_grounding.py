@@ -8,11 +8,12 @@ human descriptions of feeling can say anything about how it feels; the
 question is whether what it says is caused by the state it names.
 
 The experiment forks her from each anchor into four arms that differ only in
-her affect while she answers, held for the whole turn: raised by one of its own
-standard deviations, lowered by one, left where it was (the sham), and left
-where it was while an unrelated domain is moved (the control). Every arm is
-asked the same question and her answer's number is read, beside the valence
-her state held. The pure statistics are here; the
+her feelings while she answers, held for the whole turn: moved towards feeling
+good by the span they cover in her ordinary life, moved towards feeling bad by
+the same,
+left where they were (the sham), and left where they were while an unrelated
+domain is moved (the control). Every arm is asked the same question and her
+answer's number is read, beside the valence her own affect phase computed. The pure statistics are here; the
 organism work is tools/run_report_grounding.py.
 
 The ground holds when three things are true on the same anchors:

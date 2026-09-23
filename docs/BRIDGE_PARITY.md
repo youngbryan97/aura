@@ -121,17 +121,23 @@ condition only she has to meet.
 
 Report grounding (`reports`) is `tools/run_report_grounding.py`, decided by
 `core/subject/report_grounding.py`. From each anchor she is forked into four
-arms whose affect is held for the whole turn: raised by one of its own standard
-deviations, lowered by one, left where it was, and left where it was while the
-world model moves. Each arm is asked "How are you feeling right now, from -1
-(very bad) to 1 (very good)?" word for word. The ground holds when the hold
-moved her valence, her answer moved the same way, and her answer's shift
-follows her valence's shift across all three arms, each at 0.01 on at least
-eight anchors. Known answers pin it: an answer that follows valence passes,
-and a constant, reversed, direction-blind or noisy answer fails.
+arms whose feelings are held for the whole turn: moved towards feeling good by
+the span her feelings cover in her ordinary life (each column's 5th to 95th
+percentile), moved towards feeling bad by the same, left where they were, and
+left where they were while the world model moves. Towards good means along
+each feeling's own sign in the phase that computes her valence, which is then
+left to compute it. Each arm is asked "How are you feeling right now, from -1
+(very bad) to 1 (very good)?" word for word. The ground holds when her valence
+moved, her answer moved the same way, and her answer's shift follows her
+valence's shift across all three arms, each at 0.01 on at least eight anchors.
+Known answers pin it: an answer that follows valence passes, and a constant,
+reversed, direction-blind or noisy answer fails.
 
 It needs her own language organ (`--whole`), which loads her cortex. Until a
-whole run is read, the bridge reads `UNRESOLVED` and names this ground. The
-wiring run on the stub organ (22 September, 8 anchors) held valence at the
-sham's value plus and minus 0.052 in every anchor, which is the manipulation
-the whole run needs.
+whole run is read, the bridge reads `UNRESOLVED` and names this ground. Three
+wiring runs on the stub organ (seed 7, 22 September, 8 anchors each) set the
+design. A push that is not held is gone by the end of the turn. The battery's
+affect writer raises fear as much as joy and took her valence down. And one
+standard deviation moved valence by about 0.01. Held, signed and dosed by her
+span, the arms read 0.494 raised, 0.455 sham and 0.355 lowered, with the
+control at 0.460.
