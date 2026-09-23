@@ -53,3 +53,25 @@ def test_a_whole_run_pins_the_key_the_desktop_would_read(monkeypatch, tmp_path: 
     monkeypatch.delenv(authority.AUTHORITY_KEY_FILE_ENV, raising=False)
     resolved = eval(whole_environment._CUSTODY[authority.AUTHORITY_KEY_FILE_ENV], {"a": authority})  # noqa: S307
     assert resolved == str(tmp_path / "desktop" / "private/cortex-upgrade/migration-authority.key")
+
+
+def test_the_pin_reaches_a_model_worker(monkeypatch, tmp_path: Path) -> None:
+    """A worker's environment is scrubbed of anything that looks like a secret.
+
+    The variable names a path, and "AUTHORITY" contains the marker "auth", so it
+    was scrubbed: the worker confirmed nothing, and steering stayed detached.
+    """
+    import os
+
+    from core.runtime import subprocess_gateway
+
+    seen: dict[str, str] = {}
+    pinned = str(tmp_path / "migration-authority.key")
+    monkeypatch.setattr(
+        os, "environ", {authority.AUTHORITY_KEY_FILE_ENV: pinned, "AURA_API_TOKEN": "x"}
+    )
+    subprocess_gateway._python_process_entrypoint(
+        lambda: seen.update(os.environ), (), {}, {}, True
+    )
+    assert seen.get(authority.AUTHORITY_KEY_FILE_ENV) == pinned
+    assert "AURA_API_TOKEN" not in seen

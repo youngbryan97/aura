@@ -76,6 +76,11 @@ SENSITIVE_KEY_EXEMPTIONS: frozenset[str] = frozenset({
     # environment carries ... OLDPWD, PWD". A guard that fires on the current
     # directory teaches people to route around it.
     "oldpwd", "pwd",
+    # Where the cortex migration key lives, not the key. A whole run pins it so
+    # the model worker can confirm the cortex it loaded; scrubbed from the
+    # worker's environment, the worker looked under the run's own state root,
+    # found nothing, and her affective steering never attached.
+    "aura_cortex_authority_key_file",
     "requires_auth", "secret_count", "token_budget", "token_count",
     "token_limit", "tokens_used",
 })
