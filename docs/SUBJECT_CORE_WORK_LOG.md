@@ -7,7 +7,26 @@ what broke, what fixed it, and where the evidence is. Runs live in
 
 ## 23 September, night
 
-### Where things stand at 02:15
+### 02:50: the first whole run with her feelings steering her cortex
+
+At 02:27 the reports ground started on her 27B cortex with affective steering
+attached for the first time in a whole run: 80 qualified vectors, byte for byte
+the desktop's, 16 hooks, engine online. It measured nothing. Its first baseline
+turn offered a tool, ran past the router's 105 s endpoint budget at about five
+tokens a second, and the router aborted it by stopping the model worker.
+Nothing started the worker again: with the circuit open the router never
+called the gate, which is what starts a stopped worker, and recovery counts as
+background work, held until a first visible conversation that a dead worker
+cannot give. Every later turn ended in the failure sentence. It was stopped at
+02:45 (`reports-s23-void-cortex-0245`). Since 934564f60 each turn of a whole
+run first brings a stopped language worker back, and the chain restarted at
+02:50 on that commit.
+
+Meanwhile: seed 7 at the decisive design (six trials, two-turn arms) is
+running in `~/subject-core-runs/design-s7`; the recurrent reference decided all
+511 cuts on all three power seeds, and the star nulls are still running.
+
+### Where things stood at 02:15
 
 - **Decisive run (seed 23): not yet started.** The first seed-23 run at
   68922b866 was stopped at 01:22 and is `v5-s23-void-fd-0122`; no number was
