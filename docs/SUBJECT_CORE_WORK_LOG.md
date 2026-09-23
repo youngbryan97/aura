@@ -7,25 +7,34 @@ what broke, what fixed it, and where the evidence is. Runs live in
 
 ## 23 September, night
 
-### 06:35: why synergy will not pass on more data alone
+### 06:40: synergy, read on the line that counts
 
-Synergy must pass on all four preregistered triples. On seed 7 three of them
-sit below the null's median, not only below its 99th percentile: A,S->G at a
-synergy fraction of 0.116 against a null median of 0.348, W,A->D 0.250
-against 0.381, S,D->C 0.134 against 0.358. More rows narrow a null around its
-median and cannot lift a value that sits under it, so the decisive campaign's
-2,400 rows are unlikely to change this line.
+The 24 lines are scored with ISC-v3's synergy (`passes_v3`), which already
+replaced the v2 fraction's nulls with a null that simulates her sources' own
+dynamics (a VAR(1) fit), keeps both interaction bars, and leaves the fraction
+only an absolute floor. That is the revision the 15 September session found
+necessary, when her sources' persistence (lag-1 of 0.98 to 0.998) made the v2
+fraction unable to see a coupling of two spreads.
 
-The comparison itself looks unsound. The null slides the sources against the
-target, which sends every mutual information towards zero, so the null's
-fraction (synergy over joint information) is a ratio of near-zero terms that
-scatters widely and centres high. Her own fraction has a denominator of about
-1.4 bits. Compared in bits instead, against the same null, two triples pass
-(P,M->W by 0.40, W,A->D by 0.17) and two do not (A,S->G by 0.016, S,D->C by
-0.18). So correcting the comparison would not pass the line on seed 7 either,
-and changing a preregistered criterion needs a known-answer demonstration and a
-written amendment before any seed-23 number is read. Left for a decision, not
-changed tonight.
+On seed 7 at the decisive design, v3 passes two of the four preregistered
+triples: P,M->W (synergy 0.374 against a simulated null of 0.010 +- 0.005) and
+W,A->D (0.296 against 0.055 +- 0.014). The other two fail on her, not on the
+instrument:
+
+- A,S->G, affect and self-model on the workspace: 0.127 clears the simulated
+  null but not the shifted one (0.156), and the interaction gain's lower bound
+  is negative (-0.069);
+- S,D->C, self-model and drives on recurrent cognition: synergy 0.017, and no
+  interaction at all.
+
+The workspace sums its terms: base salience, the urgency affect lends (its
+weight times 0.3), and a free-energy boost for bids aligned with her dominant
+action. Nothing makes a feeling's pull on attention depend on how much the
+content concerns her, which is the joint dependence A,S->G asks about. So this
+line will fail on seed 23 as she is now. Passing it needs mechanisms, such as
+appraisal-style gating where a feeling's pull scales with its relevance to
+her, designed and checked on seed 7 before a decisive run. The decisive run
+goes ahead as planned, because partition, the largest unknown, needs it.
 
 ### 06:30: seed 7 reads 19 of 24; the decisive run restarts with three-turn arms
 
