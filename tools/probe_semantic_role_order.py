@@ -34,10 +34,33 @@ def _role_row(item):
         raise ValueError("role order probe needs finite measured operation features")
     operation = hidden[span.start:span.end].mean(axis=0)
     context = hidden.mean(axis=0)
+    reference = None
+    reference_label = None
+    if (item.register_definition_origin == "explicit_annotation"
+            and len(item.register_definition_spans) > result
+            and len(instructions[1].argument_spans) == 2):
+        def vector(bound):
+            bound.validate_bound(len(hidden))
+            return hidden[bound.start:bound.end].mean(axis=0)
+
+        surface = sorted(zip(instructions[1].argument_spans, args, strict=True),
+                         key=lambda pair: (pair[0].start, pair[0].end))
+        if surface[0][0] == surface[1][0]:
+            raise ValueError("reference probe cannot order identical mentions")
+        left, right = (vector(bound) for bound, _owner in surface)
+        reference_label = int(surface[0][1] == result)
+        result_definition = vector(item.register_definition_spans[result])
+        other = args[1] if args[0] == result else args[0]
+        reserved_definition = vector(item.register_definition_spans[other])
+        reference = np.asarray((left @ result_definition, left @ reserved_definition,
+                                right @ result_definition, right @ reserved_definition,
+                                (left - right) @ (result_definition - reserved_definition)),
+                               dtype=np.float32)
     return {"source": item.ir.source_text_sha256,
             "construction": item.construction_id,
             "label": int(args[0] == result),
-            "operation": operation, "context": context}
+            "operation": operation, "context": context, "reference": reference,
+            "reference_label": reference_label}
 
 
 def _accuracy(rows, predicted):
@@ -66,7 +89,8 @@ def main() -> None:
         compositional_semantic_program_transducer_from_dict,
     )
     from tools.refit_semantic_argument_proposals import (
-        configure_refit_environment, load_source_examples,
+        configure_refit_environment,
+        load_source_examples,
     )
 
     configure_refit_environment(args.output)
@@ -87,32 +111,46 @@ def main() -> None:
         raise ValueError("source training lacks independent role-order contrasts")
     majority = Counter(row["label"] for row in train).most_common(1)[0][0]
     results = {}
-    for view in ("operation", "context", "operation_context"):
-        def matrix(rows):
+    for view in ("operation", "context", "operation_context", "reference"):
+        view_groups = ({split: [{**row, "label": row["reference_label"]}
+                                for row in rows if row["reference"] is not None]
+                        for split, rows in groups.items()} if view == "reference" else groups)
+        view_train = view_groups["train"]
+        if not view_train or len({row["label"] for row in view_train}) < 2:
+            continue
+        def matrix(rows, *, view=view):
             if view == "operation_context":
                 return np.stack([np.concatenate((row["operation"], row["context"]))
                                  for row in rows])
             return np.stack([row[view] for row in rows])
 
         scaler = StandardScaler()
-        source_features = scaler.fit_transform(matrix(train))
+        source_features = scaler.fit_transform(matrix(view_train))
         classifier = LogisticRegression(solver="liblinear", max_iter=300, random_state=0)
-        classifier.fit(source_features, [row["label"] for row in train])
+        classifier.fit(source_features, [row["label"] for row in view_train])
         results[view] = {}
-        for split, rows in groups.items():
+        for split, rows in view_groups.items():
             if not rows:
                 continue
             predicted = classifier.predict(scaler.transform(matrix(rows))).tolist()
             results[view][split] = _accuracy(rows, predicted)
     baseline = {split: _accuracy(rows, [majority] * len(rows))
                 for split, rows in groups.items() if rows}
-    body = {"schema": "aura.semantic_role_order_identifiability.v1",
+    reference_counts = {
+        split: dict(sorted(Counter(row["reference_label"] for row in rows
+                                  if row["reference"] is not None).items()))
+        for split, rows in groups.items()
+    }
+    body = {"schema": "aura.semantic_role_order_identifiability.v4",
             "serving_authority": False, "development_only": True,
             "feature_source_report_sha256": hashlib.sha256(source_raw).hexdigest(),
             "transducer_sha256": hashlib.sha256(args.transducer.read_bytes()).hexdigest(),
             "majority_label": majority,
             "source_labels_used_only_for_training": True,
             "validation_and_test_labels_used_only_for_grading": True,
+            "reference_view_uses_gold_spans_for_upper_bound_only": True,
+            "reference_mentions_sorted_by_text_position": True,
+            "reference_label_counts": reference_counts,
             "baseline": baseline, "views": results}
     digest = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
     payload = json.dumps({**body, "receipt_sha256": digest}, sort_keys=True).encode()
