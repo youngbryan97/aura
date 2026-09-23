@@ -27,7 +27,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from core.subject.snapshot import identical
+from core.subject.copies import identical
 
 pytestmark = pytest.mark.unit
 

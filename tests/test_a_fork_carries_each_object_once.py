@@ -19,8 +19,10 @@ from collections import deque
 import numpy as np
 import pytest
 
+from core.subject import copies
 from core.subject import snapshot as snap
-from core.subject.snapshot import _organ_state, _restore_organ, _service_state, identical
+from core.subject.copies import identical
+from core.subject.snapshot import _organ_state, _restore_organ, _service_state
 
 pytestmark = pytest.mark.unit
 
@@ -57,7 +59,7 @@ def container(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
         "neurochemistry": chemistry,
     }
     monkeypatch.setattr(snap, "_built_services", lambda: dict(built))
-    monkeypatch.setattr(snap, "_LAST_COPY", {})
+    monkeypatch.setattr(copies, "_LAST_COPY", {})
     return built
 
 
