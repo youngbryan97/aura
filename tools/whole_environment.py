@@ -37,6 +37,15 @@ _LANES: dict[str, str] = {
     "AURA_LLM__MLX_BRAINSTEM_PATH": "str(m.get_brainstem_path())",
 }
 
+#: The key that signs the promotion evidence behind the active cortex, pinned the
+#: same way. Under a campaign's own state root the registry looked for it there,
+#: found nothing, and could not confirm the model it had loaded, so her affective
+#: steering stayed detached for the whole run of 23 September and the substrate
+#: modulated none of what she said.
+_CUSTODY: dict[str, str] = {
+    "AURA_CORTEX_AUTHORITY_KEY_FILE": "str(a.default_authority_key_path())",
+}
+
 #: Variables that make a process a campaign rather than the desktop.
 _ISOLATION = ("AURA_STATE_ROOT", "AURA_TESTING", "AURA_PROOF_RUN", "AURA_LOG_DIR")
 
@@ -84,13 +93,15 @@ def enter_whole_environment(repo: Path, python: str | None = None) -> dict[str, 
     if env_file is not None:
         for key, value in _read_env_file(env_file).items():
             os.environ.setdefault(key, value)
-    wanted = {name: call for name, call in _LANES.items() if not os.environ.get(name)}
-    pinned: dict[str, str] = {name: os.environ[name] for name in _LANES if os.environ.get(name)}
+    pins = {**_LANES, **_CUSTODY}
+    wanted = {name: call for name, call in pins.items() if not os.environ.get(name)}
+    pinned: dict[str, str] = {name: os.environ[name] for name in pins if os.environ.get(name)}
     if wanted:
         child_env = {key: value for key, value in os.environ.items() if key not in _ISOLATION}
         script = (
             "import json\n"
             "from core.brain.llm import model_registry as m\n"
+            "from core.learning import cortex_migration_authority as a\n"
             f"print(json.dumps({{{', '.join(f'{name!r}: {call}' for name, call in wanted.items())}}}))\n"
         )
         result = subprocess.run(

@@ -680,6 +680,7 @@ NOT_STORES: dict[str, str] = {
     "AURA_MODELS_DIR": "model weights",
     "AURA_CODE_MODEL_PATH": "model weights",
     "AURA_FUSED_MODEL_ROOT": "model weights",
+    "AURA_CORTEX_AUTHORITY_KEY_FILE": "the key that signs the installation's promotion evidence, read and never written by a run",
     "AURA_LORA_PATH": "adapter weights, read",
     "AURA_SPECULATIVE_DRAFT_PATH": "draft model weights",
     "AURA_MODEL_LANE_INHERITED_MODEL_PATH": "model weights a child worker inherits",

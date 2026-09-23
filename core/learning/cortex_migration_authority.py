@@ -89,7 +89,19 @@ def _is_sha(value: Any) -> bool:
     )
 
 
+#: Names the key file outright. The key signs the installation's promotion
+#: evidence, which is found by the absolute custody path inside each signed
+#: record, so only the key moves when a run gives itself a state root of its
+#: own. A run of her whole self pins it here (tools/whole_environment.py), or
+#: the registry cannot confirm the cortex it has loaded and her affective
+#: steering never attaches.
+AUTHORITY_KEY_FILE_ENV: Final[str] = "AURA_CORTEX_AUTHORITY_KEY_FILE"
+
+
 def default_authority_key_path() -> Path:
+    pinned = os.environ.get(AUTHORITY_KEY_FILE_ENV, "").strip()
+    if pinned:
+        return Path(pinned).expanduser()
     return state_root() / "private/cortex-upgrade/migration-authority.key"
 
 
