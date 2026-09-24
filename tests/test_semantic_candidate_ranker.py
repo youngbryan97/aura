@@ -15,6 +15,7 @@ from core.learning.semantic_candidate_ranker import (
     ContextualProgramRanker,
     aggregate_program_scores,
     candidate_set_loss,
+    triadic_evidence_lesion,
 )
 from core.learning.semantic_construction_folds import construction_folds
 from core.learning.semantic_program_campaign import _sha as semantic_sha
@@ -161,6 +162,42 @@ def test_argument_evidence_changes_same_program_only_when_its_channel_is_present
     with pytest.raises(ValueError, match="argument evidence"):
         model(source, spans, ("integer", "integer"), programs,
               operation_spans=kwargs["operation_spans"])
+
+
+def test_three_way_evidence_can_be_lesioned_without_removing_pairwise_evidence():
+    torch.manual_seed(41)
+    config = RequestContextConfig(8, width=8, heads=2, layers=1,
+                                  feature_scaling="unit_variance")
+    model = ContextualProgramRanker(config, identity_bindings=True,
+                                    argument_evidence=True,
+                                    retain_evidence_variants=True).eval()
+    source = functional.normalize(torch.randn(6, 8), dim=-1)
+    program = Program(2, (Instruction("sub", (0, 1)),))
+    programs = (program, program)
+    spans = (TokenSpan(0, 1), TokenSpan(5, 6))
+    kwargs = dict(operation_spans=((TokenSpan(2, 3),),) * 2,
+                  argument_spans=(((TokenSpan(1, 2), TokenSpan(4, 5)),),
+                                  ((TokenSpan(4, 5), TokenSpan(1, 2)),)),
+                  definition_spans=(((TokenSpan(0, 1), TokenSpan(5, 6)),),) * 2)
+    with torch.no_grad():
+        model.evidence_key.weight.zero_()
+        model.evidence_key.weight[:, 3 * config.width:].copy_(torch.eye(config.width))
+    triadic = model(source, spans, ("integer", "integer"), programs, **kwargs)
+    assert not torch.isclose(triadic[0], triadic[1])
+    original = model.evidence_key.weight.detach().clone()
+    with triadic_evidence_lesion(model):
+        lesioned = model(source, spans, ("integer", "integer"), programs, **kwargs)
+        torch.testing.assert_close(model.evidence_key.weight[:, :3 * config.width],
+                                   original[:, :3 * config.width])
+    torch.testing.assert_close(lesioned[0], lesioned[1])
+    torch.testing.assert_close(model.evidence_key.weight, original)
+    with pytest.raises(RuntimeError, match="probe failed"):
+        with triadic_evidence_lesion(model):
+            raise RuntimeError("probe failed")
+    torch.testing.assert_close(model.evidence_key.weight, original)
+    with pytest.raises(ValueError, match="argument-evidence ranker"):
+        with triadic_evidence_lesion(_model()):
+            pass
 
 
 def test_legacy_ranker_checkpoint_has_no_identity_binding_parameters():

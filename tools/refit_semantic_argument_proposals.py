@@ -120,7 +120,7 @@ def main() -> int:
     parser.add_argument("--joint-operation-argument-scores", action="store_true")
     parser.add_argument("--conditional-argument-choices", action="store_true",
                         help="compare complete graphs with source-learned local categorical evidence")
-    parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "graph_factors", "graph_relations", "joint_graphs", "operation_pointer", "argument_pointer", "definition_pointer", "operation_views", "paired_operation_pointer", "ranked_operation_pointer", "operation_background", "span_set_pointer", "labeled_spans"),
+    parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "triadic_bindings", "graph_factors", "graph_relations", "joint_graphs", "operation_pointer", "argument_pointer", "definition_pointer", "operation_views", "paired_operation_pointer", "ranked_operation_pointer", "operation_background", "span_set_pointer", "labeled_spans"),
                         default="binary_proposals")
     parser.add_argument("--graph-rounds", type=int, default=3)
     parser.add_argument("--graph-update-steps", type=int, default=100)
@@ -170,8 +170,8 @@ def main() -> int:
     if (args.round_checkpoint is not None and args.validation_output is not None
             and args.round_checkpoint.resolve() == args.validation_output.resolve()):
         parser.error("validation output must not overwrite the numerical checkpoint")
-    if args.runtime_operation_views and args.objective != "pairwise_arguments":
-        parser.error("runtime operation views require pairwise_arguments")
+    if args.runtime_operation_views and args.objective not in {"pairwise_arguments", "triadic_bindings"}:
+        parser.error("runtime operation views require pairwise_arguments or triadic_bindings")
     if args.preserve_coreferent_mentions and args.objective != "pairwise_arguments":
         parser.error("coreferent mention preservation requires pairwise_arguments")
     if args.operation_view_mode and args.objective != "operation_views":
@@ -232,6 +232,9 @@ def main() -> int:
     from core.learning.semantic_program_compositional_campaign import (
         select_compositional_program_candidate,
     )
+    from core.learning.semantic_program_compositional_refits import (
+        refit_compositional_triadic_bindings,
+    )
     from core.learning.semantic_program_compositional_transducer import (
         compositional_semantic_program_transducer_from_dict,
         refit_compositional_argument_proposals,
@@ -286,6 +289,7 @@ def main() -> int:
         "ranked_operation_pointer": refit_compositional_paired_operation_pointer,
         "span_set_pointer": refit_compositional_span_set_pointer,
         "labeled_spans": refit_compositional_labeled_spans,
+        "triadic_bindings": refit_compositional_triadic_bindings,
     }[args.objective]
     options = {"refit_pointer": True} if args.objective == "argument_pointer" else {}
     if args.objective == "span_set_pointer":
@@ -321,7 +325,8 @@ def main() -> int:
     if args.preserve_coreferent_mentions:
         options["preserve_coreferent_mentions"] = True
     if args.runtime_operation_views:
-        options["use_runtime_operation_views"] = True
+        if args.objective == "pairwise_arguments":
+            options["use_runtime_operation_views"] = True
         options["runtime_operation_view_charts"] = args.runtime_operation_view_charts
         options["progress"] = lambda row: print(json.dumps(row, sort_keys=True), flush=True)
     elif args.runtime_operation_view_charts:

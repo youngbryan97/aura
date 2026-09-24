@@ -64,6 +64,7 @@ from core.learning.semantic_program_transducer import (
     _operation_feature,
 )
 from core.learning.semantic_relation_tissue import valid_relation_rank_contract
+from core.learning.semantic_triadic_binding import TriadicBindingHead
 
 from .semantic_program_transducer_amendments import _CarriesItsAmendments
 from .semantic_program_transducer_fitting import (
@@ -95,7 +96,7 @@ from .semantic_program_transducer_fitting import (
     LinearArgumentRoleHead,
     RegisterUseContract,
     _all_semantic_spans,
-    _argument_proposal_rows,
+    _argument_proposal_rows,  # noqa: F401
     _argument_proposals_by_operation,  # noqa: F401
     _assign_typed_arguments,
     _best_nonoverlapping_node_charts,  # noqa: F401
@@ -410,6 +411,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
     training_receipt: dict[str, Any]
     schema: str = COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA
     definition_attachment_head: LinearArgumentRoleHead | None = None
+    triadic_binding_heads: tuple[TriadicBindingHead, ...] | None = None
 
     def __post_init__(self) -> None:
         receipt = json.loads(_canonical_bytes(self.training_receipt))
@@ -469,6 +471,16 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
                 for head in (*self.argument_role_heads, *self.argument_proposal_heads)
             )
             or self.definition_relation_head.channel_width != relation_end - relation_start
+            or ((self.triadic_binding_heads is None) != (receipt.get("triadic_binding_fit") is None))
+            or (self.triadic_binding_heads is not None and (
+                len(self.triadic_binding_heads) != len(self.argument_role_heads)
+                or any(head.channel_width != relation_end - relation_start
+                       for head in self.triadic_binding_heads)
+                or not isinstance(receipt.get("triadic_binding_fit"), Mapping)
+                or receipt["triadic_binding_fit"].get("schema")
+                != "aura.semantic_triadic_binding_fit.v1"
+                or receipt["triadic_binding_fit"].get("serving_authority") is not False
+            ))
             or ((self.definition_attachment_head is None) != (receipt.get("definition_attachment_fit") is None))
             or (self.definition_attachment_head is not None and (
                 self.definition_attachment_head.channel_width != relation_end - relation_start
@@ -661,6 +673,8 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
         return {
             **({"definition_attachment_head": self.definition_attachment_head.to_dict()}
                if self.definition_attachment_head is not None else {}),
+            **({"triadic_binding_heads": [head.to_dict() for head in self.triadic_binding_heads]}
+               if self.triadic_binding_heads is not None else {}),
             "operation_pointer": self.operation_pointer.to_dict(),
             "argument_pointer": self.argument_pointer.to_dict(),
             "definition_pointer": self.definition_pointer.to_dict(),
@@ -705,6 +719,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
     def _with_coefficients(self, **changes: Any) -> CompositionalSemanticProgramTransducer:
         values = {
             "definition_attachment_head": changes.get("definition_attachment_head", self.definition_attachment_head),
+            "triadic_binding_heads": changes.get("triadic_binding_heads", self.triadic_binding_heads),
             "operation_pointer": changes.get("operation_pointer", self.operation_pointer),
             "argument_pointer": changes.get("argument_pointer", self.argument_pointer),
             "definition_pointer": changes.get("definition_pointer", self.definition_pointer),
@@ -739,6 +754,8 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
         coefficient = {
             **({"definition_attachment_head": values["definition_attachment_head"].to_dict()}
                if values["definition_attachment_head"] is not None else {}),
+            **({"triadic_binding_heads": [head.to_dict() for head in values["triadic_binding_heads"]]}
+               if values["triadic_binding_heads"] is not None else {}),
             "operation_pointer": values["operation_pointer"].to_dict(),
             "argument_pointer": values["argument_pointer"].to_dict(),
             "definition_pointer": values["definition_pointer"].to_dict(),
@@ -776,6 +793,11 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
             np.zeros_like(head.pair_weight) if head.pair_weight is not None else None,
         )
         return self._with_coefficients(
+            triadic_binding_heads=(
+                tuple(TriadicBindingHead(np.zeros_like(head.weight), head.bias)
+                      for head in self.triadic_binding_heads)
+                if self.triadic_binding_heads is not None else None
+            ),
             definition_attachment_head=(
                 LinearArgumentRoleHead(np.zeros_like(self.definition_attachment_head.weight), self.definition_attachment_head.bias)
                 if self.definition_attachment_head is not None else None
@@ -827,6 +849,11 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
             np.zeros_like(self.definition_pointer.pair_weight) if self.definition_pointer.pair_weight is not None else None,
         )
         return self._with_coefficients(
+            triadic_binding_heads=(
+                tuple(TriadicBindingHead(np.zeros_like(head.weight), head.bias)
+                      for head in self.triadic_binding_heads)
+                if self.triadic_binding_heads is not None else None
+            ),
             definition_pointer=zero_definition_pointer,
             argument_role_heads=tuple(
                 LinearArgumentRoleHead(np.zeros_like(head.weight), head.bias)
@@ -856,6 +883,17 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
                 head.pointer_scale,
                 np.zeros_like(head.query_projection),
                 np.zeros_like(head.definition_projection),
+            )
+        )
+
+    def triadic_binding_lesion(self) -> CompositionalSemanticProgramTransducer:
+        """Remove only learned operation-conditioned mention/definition evidence."""
+        if self.triadic_binding_heads is None:
+            return self
+        return self._with_coefficients(
+            triadic_binding_heads=tuple(
+                TriadicBindingHead(np.zeros_like(head.weight), head.bias)
+                for head in self.triadic_binding_heads
             )
         )
 
@@ -1515,6 +1553,11 @@ def compositional_semantic_program_transducer_from_dict(
         definition_attachment_head=(
             LinearArgumentRoleHead(np.asarray(payload["definition_attachment_head"]["weight"], dtype=np.float32), float(payload["definition_attachment_head"]["bias"]))
             if payload.get("definition_attachment_head") is not None else None
+        ),
+        triadic_binding_heads=(
+            tuple(TriadicBindingHead(np.asarray(value["weight"], dtype=np.float32), float(value["bias"]))
+                  for value in payload["triadic_binding_heads"])
+            if payload.get("triadic_binding_heads") is not None else None
         ),
     )
 

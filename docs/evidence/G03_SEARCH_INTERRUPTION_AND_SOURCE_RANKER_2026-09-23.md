@@ -192,6 +192,72 @@ enumeration and source-grounded ranking both need improvement.
 
 Artifact: `~/.aura/rlc-evidence/semantic-proposer-crossfit-fold0-unresolved-wide-20260923/report.json`.
 
+The other two full held folds are complete at the same 4x2, one-second bound.
+Each row is proposed by a model that excluded its entire construction fold
+from both fitting and calibration:
+
+| Held fold | Sources | Correct observed reachable | Ordinary correct | Top joint score correct |
+| --- | ---: | ---: | ---: | ---: |
+| 0 | 256 | 205 | 179 | 192 |
+| 1 | 254 | 249 | 190 | 226 |
+| 2 | 254 | 175 | 127 | 149 |
+| Total | 764 | 629 | 496 | 567 |
+
+All 135 not observed reachable have `correct_reachable=null`, not false;
+the candidate searches were incomplete. Fold heterogeneity is substantial,
+and the earlier 42-group pilot concealed it. The full-source proposer fitted
+on all 764 requests had 764/764 observed reach at these bounds, which cannot
+be used as end-to-end source-fold transfer evidence. This out-of-fold bank
+does not itself qualify a selector: candidate models for the *other* folds
+were fitted using a selector-held fold, so a selector cross-validation over
+these combined banks would have a second-order training overlap. A nested
+proposer fit or a separate untouched validation set is required. Improving
+the proposer/search distribution comes before spending more on a selector
+whose maximum is capped by the current bank reach.
+
+Artifacts: `~/.aura/rlc-evidence/semantic-proposer-crossfit-all-fold{0,1,2}-20260923/report.json`.
+
+## Three-way binding and reasoning-loop review
+
+Bryan proposed a three-body analogy and supplied three notes on human general
+reasoning, temporary programs, and discovery. The useful computational claim
+is that operation, argument mention, and definition can interact jointly;
+literal three-body dynamics have no role in the semantic decoder. We traced
+the factors before adding one. The proposal chart scores operation-to-mention
+and mention-to-definition links separately, plus shared-definition constraints.
+The complete-program ranker already has a learned operation-conditioned
+mention-by-definition product. Its focused unit test shows that this term can
+distinguish two evidence paths for one program and that removing only the
+product restores the pairwise tie. The archived fold-2 checkpoint has a
+nonzero product block (L2 norm 0.70861); this proves the term was trained,
+not that it improves held-out correctness. The evaluation and frozen-gap replay
+now report a same-checkpoint product-only lesion separately from the full
+argument-evidence lesion. No new proposer tissue or serving decision is
+authorized by this result.
+
+The notes' proposed loops mostly have existing owners: `semantic_argument_chart`
+backtracks over typed graph assignments; `semantic_program_floor` executes a
+selected graph; `semantic_graph_counterexamples` compares programs under
+counterfactual inputs; `semantic_program_portfolio` retains disagreements;
+and `semantic_program_inquiry` asks for an independent observation that could
+separate them. `semantic_program_symbolic` checks some equalities without
+sampled execution. `core/cognition/operator_invention` and
+`core/cognition/concept_handle` own new operators and cross-substrate concept
+identity, but neither is a proof that a new source sentence has been parsed
+correctly. A simulated consequence is a prediction, not an observed label.
+
+The missing edge is earlier than the complete-program ranker. In the full
+construction-held replay, the proposer observed a correct candidate on
+629/764 requests under 4x2, one-second search; 135 remain unresolved under
+that incomplete bound. A ranker cannot recover a program never proposed.
+
+The next causal experiment must change target-blind proposal reach, preserve
+fit/calibration exclusion by construction, and compare the same frozen held
+requests. Only after reach improves should a product-only lesion be read as
+selection evidence. Concept invention, tool use, memory, and broader world
+simulation remain separate capabilities; importing them as unmeasured votes
+would not make source interpretation correct.
+
 On exactly the same 500 archived validation identities, the original
 source-fit candidate has 472 equivalent answers and the later literal-identity
 candidate has 477. **These are not matched search protocols:** the old
@@ -235,3 +301,34 @@ Artifacts: `~/.aura/rlc-evidence/semantic-proposer-crossfit-fold2-v2-20260923/re
 `~/.aura/rlc-evidence/semantic-proposer-lineage-source-decision-fold2-20260923/report.json`,
 `~/.aura/rlc-evidence/semantic-source-fit-20260915/validation.checkpoint.json`, and
 `~/.aura/rlc-evidence/semantic-literal-identity-cohort-20260921/report.json`.
+
+## Frozen-bank audit and opt-in triadic factor
+
+A read-only audit verifies the archived report, plan, and each row receipt
+before profiling the frozen candidates (`tools/audit_semantic_proposer_reach.py`).
+The observed reachable counts by fold are 205/256, 249/254, and 175/254.
+Generation-order Recall@1 is 179, 226, and 149; scored Recall@1 is 192,
+226, and 149. A correct program is among the first four scored proposals
+on 205, 249, and 171 rows respectively. These are observed recalls within
+the bounded generated bank, not estimates of complete semantic reach. The
+audit neither trains nor changes a checkpoint.
+
+An opt-in triadic binding head is attached to the existing proposer rather
+than replacing its pointer, role, proposal, relation, and graph factors.
+It scores the operation-conditioned argument mention and candidate definition
+jointly. It trains only on source-split runtime views, with same-type
+alternative definitions and alternative mentions as contrasts; validation
+identities are reserved and test examples are excluded. Its coefficients and
+fit lineage are receipt-bound, and an isolated lesion removes only that
+factor. Focused tests verify fitting, serialization, isolation, and that an
+ordinary decode invokes the head. This is an architectural candidate, not
+evidence of held-out gain or serving authority. The existing four-factor
+diagnostic path explicitly refuses to omit this fifth factor rather than
+silently produce an incomplete attribution.
+
+The supplied assessment's suggestion to add temperature to a family softmax
+cannot change an argmax unless another decision rule or evidence source also
+changes. Its claim that only 16 construction-held examples were measured is
+stale relative to the signed 764-row audit. Internal execution and simulated
+consequences remain useful for program equivalence and counterexamples, but
+cannot alone establish that a candidate parses the source sentence correctly.

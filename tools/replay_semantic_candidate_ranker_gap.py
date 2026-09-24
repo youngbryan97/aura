@@ -117,6 +117,12 @@ def main() -> None:
         retain_evidence_variants=training.get("retain_evidence_variants", False))
     ranker.load_state_dict(load_file(str(args.weights)), strict=True)
     result = _evaluate(ranker, items, rows, list(wanted))
+    triadic_lesion = None
+    if ranker.argument_evidence:
+        from core.learning.semantic_candidate_ranker import triadic_evidence_lesion
+
+        with triadic_evidence_lesion(ranker):
+            triadic_lesion = _evaluate(ranker, items, rows, list(wanted))
     direct_comparison = None
     if args.direct_report is not None:
         import torch
@@ -178,7 +184,8 @@ def main() -> None:
             "training_receipt_sha256": training["receipt_sha256"],
             "gap_report_sha256": hashlib.sha256(args.gap_report.read_bytes()).hexdigest(),
             "bank_report_sha256": hashlib.sha256(args.bank_report.read_bytes()).hexdigest(),
-            "evaluation": result}
+            "evaluation": result,
+            "same_checkpoint_triadic_evidence_lesion": triadic_lesion}
     if direct_comparison is not None:
         body["schema"] = "aura.semantic_candidate_methods_exposed_gap.v1"
         body["direct_comparison"] = direct_comparison

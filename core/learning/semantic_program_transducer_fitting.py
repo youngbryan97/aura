@@ -19,20 +19,29 @@ from typing import TYPE_CHECKING, Any, Final
 
 import numpy as np
 
-from core.verify.invariants import invariant
-
+from core.learning.semantic_argument_chart import ScoredArgumentChart
 from core.learning.semantic_definition_candidates import (
     _LEGACY_DEFINITION_CANDIDATE_STRATEGY as _LEGACY_DEFINITION_CANDIDATE_STRATEGY,
+)
+from core.learning.semantic_definition_candidates import (
     _LOCAL_DEFINITION_CANDIDATE_STRATEGY as _LOCAL_DEFINITION_CANDIDATE_STRATEGY,
-    _STABLE_REGISTER_TABLE_STRATEGY as _STABLE_REGISTER_TABLE_STRATEGY,
+)
+from core.learning.semantic_definition_candidates import (
     _LOCAL_DEFINITION_CANDIDATES as _LOCAL_DEFINITION_CANDIDATES,
+)
+from core.learning.semantic_definition_candidates import (
+    _STABLE_REGISTER_TABLE_STRATEGY as _STABLE_REGISTER_TABLE_STRATEGY,
+)
+from core.learning.semantic_definition_candidates import (
     _definition_span_candidates as _definition_span_candidates,
+)
+from core.learning.semantic_definition_candidates import (
     _register_definition_candidates as _register_definition_candidates,
+)
+from core.learning.semantic_definition_candidates import (
     _register_definition_spans as _register_definition_spans,
 )
-
 from core.learning.semantic_program_floor import semantic_primitive_type_signature
-from core.learning.semantic_argument_chart import ScoredArgumentChart
 from core.learning.semantic_program_ir import (
     SemanticValue,
     TokenSpan,
@@ -74,6 +83,7 @@ from core.learning.semantic_relation_tissue import (
 from core.learning.semantic_relation_tissue import (
     _RelationDecisionBatch as _RelationDecisionBatch,
 )
+from core.verify.invariants import invariant
 
 if TYPE_CHECKING:  # the model this module fits imports this module, so the
     # name is needed for the annotation and must not be needed at import time
@@ -1485,6 +1495,8 @@ def _assign_typed_arguments(
         or model.training_receipt.get("relation_score_strategy") != "categorical_log_margin_v1"
     ):
         raise ValueError("relation training needs a joint categorical chart with score factors")
+    if retain_score_factors and model.triadic_binding_heads is not None:
+        raise ValueError("four-factor graph diagnostics cannot omit triadic binding scores")
     if build_only and (chart_observer is None or model.training_receipt.get("argument_search_strategy") != "global_constraint_v1"):
         raise ValueError("chart construction needs a global chart observer")
     if (
@@ -1702,6 +1714,10 @@ def _assign_typed_arguments(
                         + model.definition_relation_scale * candidate_relation_evidence
                         + model.argument_pointer_scale * _log_sigmoid(pointer_score)
                     )
+                    if model.triadic_binding_heads is not None:
+                        definition = definition_vectors[candidate_index][0][1]
+                        score += model.triadic_binding_heads[position].score(
+                            operation_vector, reference, definition)
                     by_register.setdefault(candidate_index, []).append((score, span))
                     if factor_lookup is not None:
                         factor_lookup[candidate_index, span] = (
@@ -1772,7 +1788,9 @@ def _assign_typed_arguments(
             return None
         remaining = None if deadline is None else deadline - time.monotonic()
         if remaining is not None and remaining <= 0:
-            from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
+            from core.learning.semantic_argument_optimization import (
+                ArgumentOptimizationIncompleteError,
+            )
 
             raise ArgumentOptimizationIncompleteError("argument_chart_construction_budget_exhausted")
         optimized = chart.solve(time_limit_s=remaining)

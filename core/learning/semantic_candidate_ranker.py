@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from contextlib import contextmanager
 
 import torch
 from torch import nn
@@ -16,6 +17,24 @@ from core.learning.semantic_program_floor import (
 )
 from core.learning.semantic_program_ir import TokenSpan
 from core.learning.semantic_request_context import RequestContextConfig, SemanticRequestContext
+
+
+@contextmanager
+def triadic_evidence_lesion(ranker: ContextualProgramRanker):
+    """Remove only the operation-conditioned mention/definition product."""
+    if not ranker.argument_evidence:
+        raise ValueError("triadic lesion needs an argument-evidence ranker")
+    width = ranker.config.width
+    if ranker.evidence_key.weight.shape[1] != 4 * width:
+        raise ValueError("argument evidence geometry differs")
+    original = ranker.evidence_key.weight[:, 3 * width:].detach().clone()
+    try:
+        with torch.no_grad():
+            ranker.evidence_key.weight[:, 3 * width:].zero_()
+        yield ranker
+    finally:
+        with torch.no_grad():
+            ranker.evidence_key.weight[:, 3 * width:].copy_(original)
 
 
 class ContextualProgramRanker(nn.Module):

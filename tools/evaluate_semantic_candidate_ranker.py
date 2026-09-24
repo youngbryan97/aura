@@ -574,7 +574,12 @@ def main() -> None:
     wide_evaluation = (_evaluate(ranker, items, wide_rows, wide_held)
                        if augmentation_report is not None else None)
     evidence_lesion = None
+    triadic_lesion = None
     if args.argument_evidence:
+        from core.learning.semantic_candidate_ranker import triadic_evidence_lesion
+
+        with triadic_evidence_lesion(ranker):
+            triadic_lesion = _evaluate(ranker, items, rows, held)
         with torch.no_grad():
             original = ranker.evidence_key.weight.detach().clone()
             try:
@@ -631,6 +636,7 @@ def main() -> None:
             "training_evaluation": training_evaluation,
             "config": vars(config), "evaluation": evaluation,
             "same_checkpoint_argument_evidence_lesion": evidence_lesion,
+            "same_checkpoint_triadic_evidence_lesion": triadic_lesion,
             "weights_sha256": hashlib.sha256(weights.read_bytes()).hexdigest()}
     report = args.output_directory / f"fold-{args.fold}.json"
     report.write_text(json.dumps({**body, "receipt_sha256": _digest(body)}, sort_keys=True))

@@ -20,6 +20,60 @@ if TYPE_CHECKING:
     )
 
 
+def refit_compositional_triadic_bindings(
+    model: CompositionalSemanticProgramTransducer,
+    examples: Sequence[SemanticTransducerTrainingExample], *,
+    runtime_operation_view_charts: int = 0,
+    progress: Any = None,
+) -> CompositionalSemanticProgramTransducer:
+    """Fit operation-conditioned mention/definition links on source-only views."""
+    from dataclasses import replace
+
+    from core.learning.semantic_program_campaign import _sha
+    from core.learning.semantic_runtime_argument_views import runtime_argument_training_views
+    from core.learning.semantic_triadic_binding import fit_triadic_binding_heads
+
+    training = tuple(item for item in examples if item.split == "train")
+    validation = tuple(item for item in examples if item.split == "validation")
+    if (not training or not validation or model.triadic_binding_heads is not None
+            or type(runtime_operation_view_charts) is not int
+            or not 0 <= runtime_operation_view_charts <= 64):
+        raise ValueError("triadic refit needs disjoint source splits and an unfitted parent")
+    ids = [item.ir.source_text_sha256 for item in training]
+    calibration_ids = [item.ir.source_text_sha256 for item in validation]
+    if (len(set(ids)) != len(ids) or len(set(calibration_ids)) != len(calibration_ids)
+            or set(ids) & set(calibration_ids)
+            or {item.ir.model_basis_receipt_sha256 for item in (*training, *validation)}
+            != {model.model_basis_sha256}
+            or {(item.hidden_channels, item.hidden_channel_widths)
+                for item in (*training, *validation)}
+            != {(model.hidden_channels, model.hidden_channel_widths)}
+            or {item.tokenizer_identity_sha256 for item in (*training, *validation)}
+            != {model.input_grounding.tokenizer_identity_sha256}):
+        raise ValueError("triadic refit source population or representation differs")
+    views, view_receipt = runtime_argument_training_views(
+        model, training, max_operation_charts=runtime_operation_view_charts,
+        progress=progress)
+    heads, fit = fit_triadic_binding_heads(
+        views, max_arity=len(model.argument_role_heads),
+        hidden_channels=model.hidden_channels,
+        hidden_channel_widths=model.hidden_channel_widths)
+    coefficient = model._coefficient_body()
+    coefficient["triadic_binding_heads"] = [head.to_dict() for head in heads]
+    body = {key: value for key, value in model.training_receipt.items()
+            if key != "receipt_sha256"}
+    body["coefficient_sha256"] = _sha(coefficient)
+    body["triadic_binding_fit"] = {
+        "schema": "aura.semantic_triadic_binding_fit.v1",
+        "parent_transducer_receipt_sha256": model.receipt_sha256,
+        "training_example_ids_sha256": _sha(sorted(ids)),
+        "validation_example_ids_sha256": _sha(sorted(calibration_ids)),
+        "runtime_views": view_receipt,
+        "fit": fit, "test_examples_used": 0, "serving_authority": False,
+    }
+    return replace(model, triadic_binding_heads=heads,
+                   training_receipt={**body, "receipt_sha256": _sha(body)})
+
 def refit_compositional_operation_pointer(
     model: CompositionalSemanticProgramTransducer,
     examples: Sequence[SemanticTransducerTrainingExample],

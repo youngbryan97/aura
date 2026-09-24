@@ -86,6 +86,66 @@ def _save_if_absent(path: Path, body: dict) -> None:
         raise ValueError(f"crossfit artifact changed: {path}")
 
 
+def proposal_reach_profile(rows: list[dict]) -> dict:
+    """Separate construction order, scored rank, and unscored incumbent reach."""
+    scored_ranks = []
+    generation_ranks = []
+    counts = []
+    unscored_only = 0
+    for row in rows:
+        statuses = {record["program_sha256"]: record["status"]
+                    for record in row["diagnosis"]["comparisons"]}
+        generated = list(dict.fromkeys(candidate["program_sha256"]
+                                       for candidate in row["bank"]["candidates"]))
+        if any(identity not in statuses for identity in generated):
+            raise ValueError("candidate has no independent comparison")
+        generated_rank = next((index for index, identity in enumerate(generated, 1)
+                               if statuses[identity] == "equivalent"), None)
+        generation_ranks.append(generated_rank)
+        scored = sorted(enumerate(row["bank"]["candidates"]),
+                        key=lambda pair: (pair[1]["joint_score"] is None,
+                                          -(pair[1]["joint_score"] or 0.), pair[0]))
+        seen = set()
+        ordered = []
+        for _index, candidate in scored:
+            if candidate["joint_score"] is None:
+                continue
+            identity = candidate["program_sha256"]
+            if identity not in statuses:
+                raise ValueError("candidate has no independent comparison")
+            if identity not in seen:
+                seen.add(identity)
+                ordered.append(identity)
+        counts.append(len(ordered))
+        scored_rank = next((index for index, identity in enumerate(ordered, 1)
+                            if statuses[identity] == "equivalent"), None)
+        scored_ranks.append(scored_rank)
+        unscored_only += generated_rank is not None and scored_rank is None
+    return {
+        "population": len(rows),
+        "distinct_generated_proposals": sum(len(set(candidate["program_sha256"]
+                                                    for candidate in row["bank"]["candidates"]))
+                                            for row in rows),
+        "distinct_scored_proposals": sum(counts),
+        "observed_reachable": sum(rank is not None for rank in generation_ranks),
+        "unscored_only_reachable": unscored_only,
+        "generation_recall_at_1": sum(rank is not None and rank <= 1 for rank in generation_ranks),
+        "generation_recall_at_2": sum(rank is not None and rank <= 2 for rank in generation_ranks),
+        "generation_recall_at_4": sum(rank is not None and rank <= 4 for rank in generation_ranks),
+        "scored_recall_at_1": sum(rank is not None and rank <= 1 for rank in scored_ranks),
+        "scored_recall_at_2": sum(rank is not None and rank <= 2 for rank in scored_ranks),
+        "scored_recall_at_4": sum(rank is not None and rank <= 4 for rank in scored_ranks),
+        "mean_first_correct_generation_index": (
+            sum(rank for rank in generation_ranks if rank is not None)
+            / sum(rank is not None for rank in generation_ranks)
+            if any(rank is not None for rank in generation_ranks) else None),
+        "mean_first_correct_scored_rank": (
+            sum(rank for rank in scored_ranks if rank is not None)
+            / sum(rank is not None for rank in scored_ranks)
+            if any(rank is not None for rank in scored_ranks) else None),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--parent", type=Path, required=True)
@@ -215,6 +275,7 @@ def main() -> None:
             "ordinary_correct": sum(row["diagnosis"]["selected_semantic_status"] == "equivalent"
                                     for row in rows),
             "top_joint_score_correct": top_correct,
+            "proposal_reach_profile": proposal_reach_profile(rows),
             "row_receipts": {row["source"]: row["receipt_sha256"] for row in rows},
             "serving_authority": False, "qualification_evidence": False}
     report = {**body, "receipt_sha256": _digest(body)}
