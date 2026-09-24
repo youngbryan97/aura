@@ -653,7 +653,13 @@ class LockdepValidator:
                     # stall, and a second record for the same starvation
                     # fed the resilience engine's frustration (0.99, 2026-09-15)
                     # for something no subsystem did.
-                    logger.warning("🔒 LOCKDEP %s: %s", splat.kind, splat.message)
+                    #
+                    # At info for the same reason. A warning is a thing to fix,
+                    # and there is no section here to fix: six of them in one
+                    # boot on 2026-09-23, every one at 0 ms on CPU while a test
+                    # suite and two other jobs had the host. The stall is the
+                    # loop monitor's to report, and the hold stays in report().
+                    logger.info("🔒 LOCKDEP %s: %s", splat.kind, splat.message)
                     continue
                 logger.error("🔒 LOCKDEP %s: %s", splat.kind, splat.message)
                 try:

@@ -561,7 +561,7 @@ def test_a_hold_spent_waiting_is_named_as_waiting(caplog):
     was off the CPU for the window — the host, not the section."""
     validator = lockdep_mod.get_validator()
     validator.note_loop_thread()
-    with caplog.at_level(logging.WARNING, logger="Aura.Lockdep"):
+    with caplog.at_level(logging.INFO, logger="Aura.Lockdep"):
         with checked_lock("sleeping_section"):
             time.sleep(lockdep_mod.LOOP_BLOCKING_HOLD_S * 1.5)  # no CPU
     splat = next(s for s in lockdep_report()["splats"] if "sleeping_section" in s["signature"])
@@ -569,7 +569,9 @@ def test_a_hold_spent_waiting_is_named_as_waiting(caplog):
     assert "off the CPU" in splat["message"]
     assert "ms on CPU" in splat["message"]
     record = next(r for r in caplog.records if "sleeping_section" in r.getMessage())
-    assert record.levelno == logging.WARNING
+    # Said, at info: a warning is a thing to fix, and there is no section to
+    # fix (six in one boot on 2026-09-23, every one at 0 ms on CPU).
+    assert record.levelno == logging.INFO
     # Listed as evidence, and not a finding against the ordering.
     assert lockdep_report()["clean"] is True
     assert lockdep_mod.lockdep_clean()
