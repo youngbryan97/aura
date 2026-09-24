@@ -127,6 +127,11 @@ CREATE INDEX IF NOT EXISTS idx_intentions_completed_at ON intentions(completed_a
 
 # ── Intention Loop ──────────────────────────────────────────────────────────
 
+#: How many intentions' last outcomes are kept. Her standing intentions are a
+#: few dozen; this is room for all of them and a bound on everything else.
+_OUTCOMES_REMEMBERED = 256
+
+
 class IntentionLoop:
     """Manages the full Say-Do-Observe-Revise cycle.
 
@@ -155,6 +160,8 @@ class IntentionLoop:
         self._lock = threading.Lock()
         self._conn: Optional[sqlite3.Connection] = None
         self._active_intentions: Dict[str, IntentionRecord] = {}
+        #: What each intention came to the last time, oldest first.
+        self._last_outcome_of: Dict[str, str] = {}
         self._completed_intentions: deque[IntentionRecord] = deque(maxlen=self.COMPLETED_HISTORY)
         self._persist_count: int = 0
 
@@ -432,12 +439,32 @@ class IntentionLoop:
             # A governed deferral is not a contradiction of the intention; it means
             # runtime policy intentionally postponed the action to protect a higher
             # priority foreground lane.
-            if self._actual_outcome_is_success(observation, actual_outcome):
+            succeeded = self._actual_outcome_is_success(observation, actual_outcome)
+            if succeeded:
                 rec.surprise = 0.0
             elif self._actual_outcome_is_deferred(actual_outcome):
                 rec.surprise = 0.0
             else:
                 rec.surprise = self._calculate_surprise(rec.expected_outcome, actual_outcome)
+                # Against the better of two expectations: what the caller said
+                # would happen, and what this same intention did last time.
+                #
+                # The caller's is written before anything is tried and is
+                # nearly always "it works". A failure that is a standing
+                # condition — a login nobody has given her — then scored full
+                # surprise every time it was met, and fed frustration on a
+                # schedule: LIVE 2026-09-23, "Reddit inbox unavailable; login
+                # required (surprise=1.00)" every forty-five minutes all day.
+                # Her own record says what to expect, and meeting it again is
+                # not news.
+                before = self._last_outcome_of.get(rec.intention)
+                if before is not None:
+                    rec.surprise = min(
+                        rec.surprise, self._calculate_surprise(before, actual_outcome)
+                    )
+            self._last_outcome_of[rec.intention] = actual_outcome
+            while len(self._last_outcome_of) > _OUTCOMES_REMEMBERED:
+                self._last_outcome_of.pop(next(iter(self._last_outcome_of)))
 
         self._persist(rec)
 
