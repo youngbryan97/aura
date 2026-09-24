@@ -99,6 +99,10 @@ class SelfPredictionLoop:
         self._valence_error_ema: float = 0.0
         self._drive_error_ema: float = 0.0
         self._focus_error_ema: float = 0.0
+        #: What "nothing changes" would have missed by on each channel, on
+        #: the same smoothing: the reference her own errors are scored
+        #: against (`_skill_confidence`).
+        self._persistence_error_ema: dict[str, float] = {"valence": 0.0, "drive": 0.0, "focus": 0.0}
 
         logger.info("SelfPredictionLoop initialized.")
 
@@ -129,6 +133,7 @@ class SelfPredictionLoop:
                     actual_focus_source,
                 )
                 self._record_error(error)
+                self._record_persistence_error(actual_valence, actual_drive, actual_focus_source)
                 # And the two halves of being right, which one confidence
                 # cannot hold: the direction and the size. Scored here rather
                 # than inside `_record_error`, where this turn's actual has not
@@ -405,7 +410,7 @@ class SelfPredictionLoop:
         # anyone else has of her. When she is the better model of herself the
         # factor is one and this is what it always was.
         # See core/self/recognition.py.
-        confidence = 1.0 - self._smoothed_error
+        confidence = self._skill_confidence()
         try:
             from core.self.recognition import get_recognition_ledger
 
@@ -424,6 +429,55 @@ class SelfPredictionLoop:
     # ------------------------------------------------------------------
     # Internal: error computation
     # ------------------------------------------------------------------
+
+    def _record_persistence_error(self, valence: float, drive: str, focus: str) -> None:
+        """What predicting "as I was" would have missed by this turn."""
+        if not self._valence_history:
+            return
+        missed = {
+            "valence": abs(float(valence) - float(self._valence_history[-1])),
+            "drive": 0.0 if drive == self._drive_history[-1] else 1.0,
+            "focus": 0.0 if focus == self._focus_history[-1] else 1.0,
+        }
+        for name, value in missed.items():
+            self._persistence_error_ema[name] = (
+                self._ERROR_SMOOTHING * value
+                + (1 - self._ERROR_SMOOTHING) * self._persistence_error_ema[name]
+            )
+
+    def _skill_confidence(self) -> float:
+        """How much better than "nothing changes" her model of herself has been.
+
+        Confidence was one less the composite error, and the composite weighs
+        valence on the scale of -1 to 1. Her valence moves about 0.02 a turn,
+        so her valence error weighed about 0.005, her dominant drive never
+        changed in a recording, and confidence sat at 1.0 at the median of
+        seed 7 while her valence error was 1.03 times what predicting no change
+        at all would have missed by. A forecast is scored against a reference
+        forecast (Murphy, "Skill scores based on the mean square error and
+        their relationships to the correlation coefficient", Monthly Weather
+        Review 116, 1988); for a state, the reference is persistence. Each
+        channel's skill is one less her error over what persistence missed, on
+        the composite's own weights. A channel that did not move says nothing
+        about how well she knows herself and is left out; with none, the old
+        reading stands.
+        """
+        own = {
+            "valence": self._valence_error_ema,
+            "drive": self._drive_error_ema,
+            "focus": self._focus_error_ema,
+        }
+        weights = {"valence": 0.3, "drive": 0.4, "focus": 0.3}
+        total = weight = 0.0
+        for name, share in weights.items():
+            reference = self._persistence_error_ema.get(name, 0.0)
+            if reference <= 1e-9:
+                continue
+            total += share * (1.0 - own[name] / reference)
+            weight += share
+        if weight <= 0.0:
+            return 1.0 - self._smoothed_error
+        return max(0.0, min(1.0, total / weight))
 
     def _compute_error(
         self,
