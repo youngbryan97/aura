@@ -6191,7 +6191,7 @@
       ],
       "evidence": [
         "core/sandbox/macos_sandbox.py",
-        "core/security/sandbox.py"
+        "security/sandbox.py"
       ],
       "note": "The audit reports this absent. It is implemented and not universally enforced, which is a different and cheaper problem.",
       "plan": "sandbox-exec profiles already exist in core/sandbox/macos_sandbox.py with file, network and exec constraints. The gap is COVERAGE: host action does not universally pass through it.",
