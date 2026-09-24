@@ -7,6 +7,7 @@ test that patches a name on it has to reach the code that reads it.
 """
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -20,6 +21,69 @@ if TYPE_CHECKING:
     )
 
 
+_TRIADIC_SCORE_SCALES = (0.0, 0.015625, 0.0625, 0.25, 1.0, 4.0)
+
+
+def select_triadic_score_calibration_sources(
+    population: Sequence[SemanticTransducerTrainingExample], *, limit: int = 0,
+) -> tuple[tuple[SemanticTransducerTrainingExample, ...], dict[str, Any]]:
+    """Select a bounded, construction-spread source cohort before scoring."""
+    from core.learning.semantic_program_campaign import _sha
+
+    population = tuple(population)
+    ids = tuple(item.ir.source_text_sha256 for item in population)
+    if (not population or len(set(ids)) != len(ids) or type(limit) is not int
+            or limit < 0 or limit > len(population)):
+        raise ValueError("invalid triadic score calibration population")
+    groups: dict[str, list[SemanticTransducerTrainingExample]] = defaultdict(list)
+    for item in population:
+        groups[item.construction_id].append(item)
+    for rows in groups.values():
+        rows.sort(key=lambda item: item.ir.source_text_sha256)
+    selected = []
+    group_names = sorted(groups, key=lambda name: _sha(name))
+    target = limit or len(population)
+    for index in range(max(map(len, groups.values()))):
+        for name in group_names:
+            if index < len(groups[name]):
+                selected.append(groups[name][index])
+                if len(selected) == target:
+                    break
+        if len(selected) == target:
+            break
+    return tuple(selected), {
+        "schema": "aura.semantic_triadic_calibration_cohort.v1",
+        "population_ids_sha256": _sha(sorted(ids)),
+        "selected_ids_sha256": _sha(sorted(item.ir.source_text_sha256 for item in selected)),
+        "population_sources": len(population), "selected_sources": len(selected),
+        "selection": "construction_round_robin_v1",
+    }
+
+
+def partition_triadic_projection_sources(
+    training: Sequence[SemanticTransducerTrainingExample],
+) -> tuple[tuple[SemanticTransducerTrainingExample, ...],
+           tuple[SemanticTransducerTrainingExample, ...], dict[str, Any]]:
+    """Hold out connected source constructions to select the relation basis."""
+    from core.learning.semantic_construction_folds import construction_folds
+    from core.learning.semantic_program_campaign import _sha
+
+    training = tuple(training)
+    minimum_folds = construction_folds(training, count=2)
+    folds = construction_folds(training, count=min(5, minimum_folds["independent_groups"]))
+    index = min(range(folds["count"]), key=lambda value: (folds["fold_sizes"][value], value))
+    fit = tuple(item for item in training if folds["assignments"][item.ir.source_text_sha256] != index)
+    calibration = tuple(item for item in training
+                        if folds["assignments"][item.ir.source_text_sha256] == index)
+    if not fit or not calibration:
+        raise ValueError("triadic projection construction partition is empty")
+    return fit, calibration, {
+        "folds_receipt_sha256": folds["receipt_sha256"],
+        "calibration_fold": index,
+        "fit_ids_sha256": _sha(sorted(item.ir.source_text_sha256 for item in fit)),
+        "calibration_ids_sha256": _sha(sorted(item.ir.source_text_sha256 for item in calibration)),
+    }
+
 def attach_compositional_triadic_bindings(
     model: CompositionalSemanticProgramTransducer,
     heads: Sequence[Any], *,
@@ -29,6 +93,8 @@ def attach_compositional_triadic_bindings(
     fit: dict[str, Any],
     projection_fit: dict[str, Any] | None = None,
     source_fold_provenance: dict[str, Any] | None = None,
+    score_scale: float = 1.0,
+    score_calibration: dict[str, Any] | None = None,
 ) -> CompositionalSemanticProgramTransducer:
     """Attach fitted heads with the one receipt required by the transducer."""
     from dataclasses import replace
@@ -43,6 +109,9 @@ def attach_compositional_triadic_bindings(
             or len(set(calibration_ids)) != len(calibration_ids)
             or set(training_ids) & set(calibration_ids)):
         raise ValueError("triadic attachment needs disjoint sources and an unfitted parent")
+    if score_scale not in _TRIADIC_SCORE_SCALES:
+        raise ValueError("triadic score scale is outside its calibration support")
+    heads = tuple(head.scaled(score_scale) for head in heads)
     coefficient = model._coefficient_body()
     coefficient["triadic_binding_heads"] = [head.to_dict() for head in heads]
     body = {key: value for key, value in model.training_receipt.items()
@@ -55,13 +124,94 @@ def attach_compositional_triadic_bindings(
         "validation_example_ids_sha256": _sha(sorted(calibration_ids)),
         "runtime_views": runtime_views,
         "fit": fit, "projection_fit": projection_fit,
+        "score_scale": score_scale,
         "test_examples_used": 0, "serving_authority": False,
     }
     if source_fold_provenance is not None:
         binding_fit["source_fold_provenance"] = source_fold_provenance
+    if score_calibration is not None:
+        binding_fit["score_calibration"] = score_calibration
     body["triadic_binding_fit"] = binding_fit
     return replace(model, triadic_binding_heads=tuple(heads),
                    training_receipt={**body, "receipt_sha256": _sha(body)})
+
+
+def calibrate_compositional_triadic_score(
+    model: CompositionalSemanticProgramTransducer,
+    heads: Sequence[Any],
+    calibration: Sequence[SemanticTransducerTrainingExample], *,
+    training_source_ids: Sequence[str],
+    runtime_views: dict[str, Any],
+    fit: dict[str, Any],
+    projection_fit: dict[str, Any] | None = None,
+    source_fold_provenance: dict[str, Any] | None = None,
+    progress: Any = None,
+) -> CompositionalSemanticProgramTransducer:
+    """Learn the added factor's dose from complete source-only decodes."""
+    from dataclasses import replace
+
+    from core.learning.semantic_program_campaign import _sha
+    from core.learning.semantic_program_shared_evaluation import (
+        evaluate_shared_semantic_program_transducer,
+    )
+
+    calibration = tuple(calibration)
+    if not calibration or any(item.split not in {"train", "validation"} for item in calibration):
+        raise ValueError("triadic graph calibration has no source examples")
+    ids = tuple(item.ir.source_text_sha256 for item in calibration)
+    if len(set(ids)) != len(ids) or set(ids) & set(training_source_ids):
+        raise ValueError("triadic graph calibration overlaps fitted sources")
+    selected = tuple(replace(item, split="validation") for item in calibration)
+    incumbent = evaluate_shared_semantic_program_transducer(
+        model, selected, split="validation", arm="incumbent").to_dict()
+    rows = []
+    for index, scale in enumerate(_TRIADIC_SCORE_SCALES, 1):
+        candidate = attach_compositional_triadic_bindings(
+            model, heads,
+            training_source_ids=training_source_ids,
+            calibration_source_ids=ids,
+            runtime_views=runtime_views, fit=fit,
+            projection_fit=projection_fit,
+            source_fold_provenance=source_fold_provenance,
+            score_scale=scale)
+        measured = evaluate_shared_semantic_program_transducer(
+            candidate, selected, split="validation", arm="triadic").to_dict()
+        if tuple(row["source_text_sha256"] for row in incumbent["rows"]) != tuple(
+                row["source_text_sha256"] for row in measured["rows"]):
+            raise ValueError("triadic graph calibration changed source order")
+        gains = sum(new["program_exact"] and not old["program_exact"] for old, new in
+                    zip(incumbent["rows"], measured["rows"], strict=True))
+        regressions = sum(old["program_exact"] and not new["program_exact"] for old, new in
+                          zip(incumbent["rows"], measured["rows"], strict=True))
+        if scale == 0.0 and measured["rows"] != incumbent["rows"]:
+            raise ValueError("zero triadic score changed the incumbent")
+        rows.append({"score_scale": scale, "program_exact": measured["program_exact"],
+                     "answer_exact": measured["answer_exact"],
+                     "program_gains": gains, "program_regressions": regressions,
+                     "calibration_sources": len(calibration)})
+        if progress is not None:
+            progress({"stage": "triadic_score_calibration", "done": index,
+                      "total": len(_TRIADIC_SCORE_SCALES), **rows[-1]})
+    winner = min(rows, key=lambda row: (-row["program_exact"], -row["answer_exact"],
+                                        row["program_regressions"], row["score_scale"]))
+    score_calibration = {
+        "schema": "aura.semantic_triadic_graph_calibration.v1",
+        "objective": "complete_program_then_answer_exact_v1",
+        "calibration_ids_sha256": _sha(sorted(ids)),
+        "incumbent_program_exact": incumbent["program_exact"],
+        "incumbent_answer_exact": incumbent["answer_exact"],
+        "rows": [{**row, "selected": row is winner} for row in rows],
+        "test_examples_used": 0,
+        "serving_authority": False,
+    }
+    return attach_compositional_triadic_bindings(
+        model, heads,
+        training_source_ids=training_source_ids,
+        calibration_source_ids=ids,
+        runtime_views=runtime_views, fit=fit,
+        projection_fit=projection_fit,
+        source_fold_provenance=source_fold_provenance,
+        score_scale=winner["score_scale"], score_calibration=score_calibration)
 
 
 def refit_compositional_triadic_bindings(
@@ -69,6 +219,7 @@ def refit_compositional_triadic_bindings(
     examples: Sequence[SemanticTransducerTrainingExample], *,
     runtime_operation_view_charts: int = 0,
     feature_schema: str = "triple_product_v1",
+    calibrate_score: bool = False,
     progress: Any = None,
 ) -> CompositionalSemanticProgramTransducer:
     """Fit operation-conditioned mention/definition links on source-only views."""
@@ -101,15 +252,26 @@ def refit_compositional_triadic_bindings(
         progress=progress)
     projection_basis = projection_fit = None
     if feature_schema == "projected_joint_v4":
+        projection_training, projection_calibration = training, validation
+        if calibrate_score:
+            projection_training, projection_calibration, partition = (
+                partition_triadic_projection_sources(training))
         projection_basis, projection_fit = fit_source_triadic_projection(
-            training, validation,
+            projection_training, projection_calibration,
             hidden_channels=model.hidden_channels,
             hidden_channel_widths=model.hidden_channel_widths)
+        if calibrate_score:
+            projection_fit["source_partition"] = partition
     heads, fit = fit_triadic_binding_heads(
         views, max_arity=len(model.argument_role_heads),
         hidden_channels=model.hidden_channels,
         hidden_channel_widths=model.hidden_channel_widths,
         feature_schema=feature_schema, projection_basis=projection_basis)
+    if calibrate_score:
+        return calibrate_compositional_triadic_score(
+            model, heads, validation,
+            training_source_ids=ids, runtime_views=view_receipt,
+            fit=fit, projection_fit=projection_fit, progress=progress)
     return attach_compositional_triadic_bindings(
         model, heads,
         training_source_ids=ids, calibration_source_ids=calibration_ids,

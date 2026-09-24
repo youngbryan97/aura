@@ -210,10 +210,17 @@ class TriadicBindingHead:
         return body
 
     def score_lesion(self) -> TriadicBindingHead:
-        return TriadicBindingHead(np.zeros_like(self.weight), self.bias,
+        return TriadicBindingHead(np.zeros_like(self.weight), 0.0,
             self.feature_schema,
             (np.zeros_like(self.query_projection) if self.query_projection is not None else None),
             (np.zeros_like(self.definition_projection) if self.definition_projection is not None else None))
+
+    def scaled(self, factor: float) -> TriadicBindingHead:
+        if not np.isfinite(factor) or factor < 0:
+            raise ValueError("triadic factor scale must be finite and nonnegative")
+        return TriadicBindingHead(self.weight * factor, self.bias * factor,
+                                  self.feature_schema, self.query_projection,
+                                  self.definition_projection)
 
     def role_lesion(self, removed: str) -> TriadicBindingHead:
         """Remove one role's evidence without refitting the other coefficients."""

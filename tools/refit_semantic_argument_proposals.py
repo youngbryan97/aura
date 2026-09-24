@@ -111,6 +111,7 @@ def main() -> int:
     parser.add_argument("--triadic-feature-schema", choices=("triple_product_v1", "joint_source_v2",
                                                            "joint_representation_v3", "projected_joint_v4"),
                         default="triple_product_v1")
+    parser.add_argument("--calibrate-triadic-score", action="store_true")
     parser.add_argument("--preserve-coreferent-mentions", action="store_true")
     parser.add_argument("--operation-view-mode", action="append",
                         help="operation_views only: explicitly select candidate feature modes")
@@ -177,6 +178,8 @@ def main() -> int:
         parser.error("runtime operation views require pairwise_arguments or triadic_bindings")
     if args.triadic_feature_schema != "triple_product_v1" and args.objective != "triadic_bindings":
         parser.error("triadic feature schema requires triadic_bindings")
+    if args.calibrate_triadic_score and args.objective != "triadic_bindings":
+        parser.error("triadic score calibration requires triadic_bindings")
     if args.preserve_coreferent_mentions and args.objective != "pairwise_arguments":
         parser.error("coreferent mention preservation requires pairwise_arguments")
     if args.operation_view_mode and args.objective != "operation_views":
@@ -299,6 +302,7 @@ def main() -> int:
     options = {"refit_pointer": True} if args.objective == "argument_pointer" else {}
     if args.objective == "triadic_bindings":
         options["feature_schema"] = args.triadic_feature_schema
+        options["calibrate_score"] = args.calibrate_triadic_score
     if args.objective == "span_set_pointer":
         options["learn_pair"] = args.learn_span_pairs
         options["checkpoint_path"] = (

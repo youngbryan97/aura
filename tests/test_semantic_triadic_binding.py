@@ -7,7 +7,9 @@ import numpy as np
 import pytest
 
 from core.learning.semantic_program_compositional_refits import (
+    partition_triadic_projection_sources,
     refit_compositional_triadic_bindings,
+    select_triadic_score_calibration_sources,
 )
 from core.learning.semantic_program_compositional_transducer import (
     compositional_semantic_program_transducer_from_dict,
@@ -89,16 +91,20 @@ def test_projected_feature_preserves_roles_without_source_geometry():
     assert feature.shape == (8,)
     assert not np.array_equal(feature, projected_joint_binding_feature(
         operation, definition, mention, query, key))
-    head = TriadicBindingHead(np.ones(8, dtype=np.float32), 0., "projected_joint_v4", query, key)
+    head = TriadicBindingHead(np.ones(8, dtype=np.float32), 2., "projected_joint_v4", query, key)
     assert head.channel_width == 2
-    assert head.score(operation, mention, definition) == pytest.approx(feature.sum())
+    assert head.score(operation, mention, definition) == pytest.approx(feature.sum() + 2.)
     assert head.score_lesion().score(operation, mention, definition) == 0.
+    assert head.scaled(0.25).score(operation, mention, definition) == pytest.approx(
+        (feature.sum() + 2.) / 4.)
+    with pytest.raises(ValueError, match="scale"):
+        head.scaled(-1.)
     assert head.role_lesion("operation").score(operation, mention, definition) == pytest.approx(
-        feature[[1, 2, 5, 7]].sum())
+        feature[[1, 2, 5, 7]].sum() + 2.)
     assert head.role_lesion("mention").score(operation, mention, definition) == pytest.approx(
-        feature[[0, 2, 4]].sum())
+        feature[[0, 2, 4]].sum() + 2.)
     assert head.role_lesion("definition").score(operation, mention, definition) == pytest.approx(
-        feature[[0, 1, 3]].sum())
+        feature[[0, 1, 3]].sum() + 2.)
     with pytest.raises(ValueError, match="unknown triadic role"):
         head.role_lesion("source")
     with pytest.raises(ValueError, match="invalid"):
@@ -183,6 +189,47 @@ def test_refit_round_trip_and_isolated_lesion(monkeypatch, feature_schema):
 def test_head_rejects_nonfinite_coefficients():
     with pytest.raises(ValueError, match="invalid"):
         TriadicBindingHead(np.asarray([float("nan")] * 12), 0.0)
+
+
+def test_projected_refit_calibrates_graph_score_on_disjoint_sources():
+    examples = _examples()
+    training = tuple(item for item in examples if item.split == "train")
+    projection_fit, projection_calibration, partition = partition_triadic_projection_sources(
+        training)
+    assert set(item.construction_id for item in projection_fit).isdisjoint(
+        item.construction_id for item in projection_calibration)
+    assert partition["fit_ids_sha256"] != partition["calibration_ids_sha256"]
+
+    parent = fit_compositional_semantic_program_transducer(
+        examples, input_grounding=_grounding())
+    candidate = refit_compositional_triadic_bindings(
+        parent, examples, feature_schema="projected_joint_v4", calibrate_score=True)
+    receipt = candidate.training_receipt["triadic_binding_fit"]
+    assert receipt["projection_fit"]["source_partition"] == partition
+    calibration = receipt["score_calibration"]
+    assert calibration["test_examples_used"] == 0
+    assert len(calibration["rows"]) == 6
+    assert sum(row["selected"] for row in calibration["rows"]) == 1
+    assert calibration["rows"][0]["score_scale"] == 0.0
+    assert calibration["rows"][0]["program_exact"] == calibration["incumbent_program_exact"]
+    replay = compositional_semantic_program_transducer_from_dict(candidate.to_dict())
+    assert replay.receipt_sha256 == candidate.receipt_sha256
+    assert replay.training_receipt["triadic_binding_fit"]["score_scale"] == receipt["score_scale"]
+
+
+def test_score_calibration_cohort_spreads_constructions_without_overlap():
+    validation = tuple(item for item in _examples() if item.split == "validation")
+    selected, receipt = select_triadic_score_calibration_sources(validation, limit=2)
+    replay, replay_receipt = select_triadic_score_calibration_sources(
+        tuple(reversed(validation)), limit=2)
+    assert receipt == replay_receipt
+    assert {item.ir.source_text_sha256 for item in selected} == {
+        item.ir.source_text_sha256 for item in replay}
+    assert len(selected) == receipt["selected_sources"] == 2
+    assert receipt["population_sources"] == len(validation)
+    assert len({item.construction_id for item in selected}) == 2
+    with pytest.raises(ValueError, match="population"):
+        select_triadic_score_calibration_sources(validation, limit=len(validation) + 1)
 
 
 def test_gold_binding_probe_keeps_held_sources_and_counts_ties():

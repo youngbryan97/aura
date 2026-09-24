@@ -44,3 +44,54 @@ classifier's accuracy does not calibrate that addition or establish
 independent information. Further work must train and validate its marginal
 weight on source-disjoint complete-graph decisions, including runtime spans,
 then measure a frozen candidate on new constructions. G03 stays open.
+
+## Score calibration on complete programs
+
+The opt-in refit now separates projection selection, binding-head fit, and
+complete-program score calibration. The projection's epoch is selected on a
+construction-disjoint subset of the fit sources. A deterministic,
+construction-spread cohort is used to select one of six nonnegative binding
+scales (including zero) by whole-program exactness, then answer exactness and
+regressions. Zero must reproduce every incumbent evaluation row exactly. The
+score lesion removes the bias as well as the weights. The calibrated factor
+uses the ordinary argument-graph decoder; this is not a separate answer path.
+
+On the original full-source parent, all 102 calibration programs were already
+correct. Scales 0 through 1/4 tied, while 1 regressed 16 programs and 4
+regressed 82. The selected zero coefficient makes this candidate inert. The
+receipt is at
+`~/.aura/rlc-evidence/semantic-triadic-v4-calibrated-fold1-20260924/report.json`.
+The parent had trained on these source constructions, so this experiment
+cannot establish the value of triadic evidence on genuinely new programs.
+
+A second run attached the same mechanism to the existing fold-1 cross-fit
+proposer, whose semantic coefficients excluded the held constructions. Its
+projection was selected on a separate subset of its 408 fit sources, heads
+were trained on those 408, and the score scale was selected on 24 additional
+source-validation examples, separate from its 102 proposer calibration
+examples. At scale 1/16, complete-program calibration rose from 20/24 to
+21/24 with one gain and no regression. On a source-hash-ordered
+40-source slice of the held fold (offset 24), exact programs were 32/40 for
+the parent, 33/40 for the candidate, and 32/40 for the triadic lesion. The
+one additional correct program was an arithmetic construction. Receipts:
+
+- `~/.aura/rlc-evidence/semantic-triadic-v4-oof-fold1-20260924/report.json`
+- `~/.aura/rlc-evidence/semantic-triadic-v4-oof-fold1-20260924/pair40.json`
+
+The independent fold-2 cross-fit proposer selected scale zero on the same
+24-source calibration design: incumbent 18/24 exact, no gains at scales up
+to 1/4, and 7 program regressions at scale 1. Its diagnostic gold-span
+binding reached 925/1,086, but it supplied no score-calibration gain. Receipt:
+`~/.aura/rlc-evidence/semantic-triadic-v4-oof-fold2-20260924/report.json`.
+
+The source feature admission and input-grounding contract were inherited from
+the full-source parent in both cross-fit probes. The fold-1 paired receipt and
+fold-2 source receipt explicitly say `end_to_end_source_disjoint=false`;
+the retained semantic proposer
+coefficients were source-disjoint, but the complete system was not. The
+fold-1 gain is development evidence for a nonzero causal score contribution,
+not evidence of broad or family transfer. A new source-disjoint grounding
+contract and wider frozen comparison are required before promotion. The
+102-source six-scale decode took roughly 17 minutes on this host; the
+construction-spread 24-source screen is only a development filter, not a
+replacement for full validation.
