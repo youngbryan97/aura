@@ -76,6 +76,20 @@ def test_selected_factors_follow_the_actual_latent_definition_choice():
         replace(value, option_factors=((((),),),))
 
 
+def test_selected_factors_include_triadic_score_without_changing_graph_choice():
+    from dataclasses import replace
+
+    value = chart()
+    factors = tuple(tuple(tuple((option[0], 0., 0., 0., option[0] / 2)
+                                 for option in slot) for slot in node) for node in value.options)
+    value = replace(value, option_factors=factors)
+    assert value.solve_with_factors()[1] == (15., 0., 0., 0., 7.5)
+    assert value.restrict_arguments(((1, 0),)).solve_with_factors()[1] == (12., 0., 0., 0., 6.)
+    with pytest.raises(ValueError, match="factors differ"):
+        replace(value, option_factors=tuple(tuple(tuple(row[:-1] if i else row
+            for i, row in enumerate(slot)) for slot in node) for node in factors))
+
+
 def test_graph_scale_gradient_and_fit_use_complete_margin():
     import numpy as np
     from core.learning.semantic_graph_margin import _graph_margin_loss, fit_graph_score_scales
@@ -121,3 +135,37 @@ def test_source_graph_fit_preserves_heads_and_excludes_test_examples():
             assert candidate._coefficient_body()[key] == value
     assert compositional_semantic_program_transducer_from_dict(candidate.to_dict()).receipt_sha256 == candidate.receipt_sha256
     assert refit_compositional_graph_scales(model, tuple(item for item in examples if item.split != "test")).receipt_sha256 == candidate.receipt_sha256
+
+
+def test_source_graph_fit_retains_triadic_factor_in_complete_contrasts():
+    import numpy as np
+
+    from core.learning.semantic_graph_margin import refit_compositional_graph_scales
+    from core.learning.semantic_program_compositional_refits import attach_compositional_triadic_bindings
+    from core.learning.semantic_program_compositional_transducer import (
+        compositional_semantic_program_transducer_from_dict,
+        fit_compositional_semantic_program_transducer,
+    )
+    from core.learning.semantic_triadic_binding import TriadicBindingHead
+    from tests.test_semantic_program_shared_transducer import _examples, _grounding
+
+    examples = _examples()
+    model = fit_compositional_semantic_program_transducer(
+        examples, input_grounding=_grounding()).with_global_constraint_arguments()
+    width = model.hidden_channel_widths[model.hidden_channels.index("middle_causal_hidden")]
+    heads = tuple(TriadicBindingHead(np.zeros(8 * width), .2, "joint_representation_v3")
+                  for _ in model.argument_role_heads)
+    model = attach_compositional_triadic_bindings(
+        model, heads,
+        training_source_ids=[item.ir.source_text_sha256 for item in examples if item.split == "train"],
+        calibration_source_ids=[item.ir.source_text_sha256 for item in examples if item.split == "validation"],
+        runtime_views={}, fit={},
+    )
+    progress = []
+    candidate = refit_compositional_graph_scales(model, examples, progress=progress.append)
+    report = candidate.training_receipt["argument_graph_factor_refit"]
+    assert report["triadic_score_fitted"]
+    contrasts = [event["row"] for event in progress if event["row"]["status"] == "contrast"]
+    assert contrasts and all(len(row["factor_difference"]) == 5 for row in contrasts)
+    assert compositional_semantic_program_transducer_from_dict(
+        candidate.to_dict()).receipt_sha256 == candidate.receipt_sha256

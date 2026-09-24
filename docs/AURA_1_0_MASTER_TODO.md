@@ -1176,6 +1176,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Full-fold triadic addendum](evidence/G03_TRIADIC_FULL_FOLD_ADDENDUM_2026-09-24.md):
+  the frozen fold-1 candidate falls from 214/254 to 210/254 exact programs
+  despite its 40-source pilot gain; it is rejected, and graph-level factor
+  training remains open. Tokenizer-compiled grounding matches its inherited
+  contract, but this does not establish end-to-end unseen-input transfer.
   [Projected triadic binding and paired decode](evidence/G03_PROJECTED_TRIADIC_BINDING_2026-09-24.md)
   improves gold-span binding on two construction folds, but its first paired
   decode regresses two answers with no gains. Source-disjoint score calibration

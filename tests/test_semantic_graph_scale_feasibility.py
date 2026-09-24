@@ -54,6 +54,17 @@ def test_existing_fit_reports_representability_without_replacing_learned_scales(
     assert receipt["fitted_scales"] == scales.tolist()
 
 
+def test_graph_fit_can_zero_a_harmful_triadic_factor():
+    differences = np.asarray([[1., 0., 0., -4.], [0., 1., 0., -3.],
+                              [0., 0., 1., -2.]], dtype=float)
+    offsets = np.zeros(3)
+    initial = np.ones(4)
+    scales, receipt = fit_graph_score_scales(differences, offsets, np.ones(3), initial)
+    assert scales[3] < initial[3]
+    assert receipt["fitted_loss"] < receipt["initial_loss"]
+    assert graph_scale_feasibility(differences, offsets)["status"] == "verified_witness"
+
+
 @pytest.mark.parametrize("differences,offsets", [([], []), ([[1., 2.]], [0.]),
     ([[np.nan, 0., 0.]], [0.]), ([[1., 0., 0.]], [np.inf])])
 def test_invalid_evidence_is_not_a_feasibility_result(differences, offsets):
