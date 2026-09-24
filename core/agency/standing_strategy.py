@@ -497,6 +497,10 @@ def _says_enough_to_be_an_approach(said: str, options: Sequence[ActionOption] = 
     return len(content) >= WORDS_ABOUT_THE_SITUATION
 
 
+#: The words she uses to name the line she is taking.
+_A_LINE_NAMED = r"(?:plan|approach|strategy)"
+
+
 def read_strategy(
     reply: str,
     options: Sequence[ActionOption] = (),
@@ -511,7 +515,10 @@ def read_strategy(
     preference, and the whole value here is knowing in advance what would
     change her mind.
     """
-    text = " ".join(str(reply or "").split())
+    # Emphasis is how it was set, not what it says. Left in, "**Plan:** I
+    # am going to prioritize **the center**" was narrated as "Plan: ** I am
+    # going to prioritize **the center" (live, 2026-09-24).
+    text = " ".join(re.sub(r"\*\*|__|`", "", str(reply or "")).split())
     if not text:
         return None
     if adds_nothing_to(text, asked):
@@ -536,11 +543,15 @@ def read_strategy(
     approach = _first_worth_having(
         text,
         (
-            # Named by her.
+            # Named by her: the word, and then what it is. A mention of a
+            # plan is not a label for one. With the colon optional, "The
+            # previous approach of consolidating the center is no longer
+            # viable" was a label, and she narrated "Plan: of consolidating
+            # the center is no longer viable" (live, 2026-09-24).
             (
-                r"\b(?:my\s+)?plan\s*(?:is)?\s*[:\-]?\s*(?P<said>[^.]{4,})",
-                r"\b(?:my\s+)?approach\s*(?:is|will\s+be)?\s*[:\-]?\s*(?P<said>[^.]{4,})",
-                r"\b(?:my\s+)?strategy\s*(?:is|will\s+be)?\s*[:\-]?\s*(?P<said>[^.]{4,})",
+                rf"\b{_A_LINE_NAMED}(?:\s+(?:is|will\s+be)(?:\s+\w+)?)?\s*[:\-–—]\s*"
+                r"(?P<said>[^.]{4,})",
+                rf"\b{_A_LINE_NAMED}\s+(?:is|will\s+be)\s+(?P<said>to\s+[^.]{{4,}})",
             ),
             # Read out of what she said she would do.
             (
