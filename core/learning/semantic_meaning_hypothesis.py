@@ -8,11 +8,22 @@ what the source meant and carry no serving authority.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from core.learning.procedure_induction import PRIMITIVES_BY_NAME, Instruction, Program
 from core.learning.semantic_candidate_bank import SemanticCandidateBank
+from core.learning.semantic_graph_counterexamples import (
+    ProgramObservationCache,
+    compare_program_meanings,
+    counterfactual_inputs,
+)
 from core.learning.semantic_program_campaign import _sha
+from core.learning.semantic_program_portfolio import (
+    SemanticProgramPortfolio,
+    select_semantic_program_portfolio,
+)
 from core.learning.semantic_program_ir import TokenSpan, _is_sha256
 
 
@@ -142,6 +153,65 @@ class GroundedProgramProposal:
                      "program": self.program.sha(),
                      "source": self.hypothesis.source_text_sha256,
                      "bank": self.hypothesis.bank_receipt_sha256})
+
+
+def compare_source_bound_meanings(
+    left: GroundedProgramProposal,
+    right: GroundedProgramProposal,
+    public_inputs: tuple[Any, ...],
+    *,
+    counterfactual_count: int=32,
+    seed: int=0,
+    fuel: int=100000,
+    observation_cache: ProgramObservationCache | None=None,
+) -> dict[str, Any]:
+    """Test proposed consequences without treating execution as source truth."""
+    if (left.hypothesis.source_text_sha256 != right.hypothesis.source_text_sha256
+            or left.hypothesis.bank_receipt_sha256 != right.hypothesis.bank_receipt_sha256):
+        raise ValueError("meaning comparison requires one immutable source bank")
+    if len(public_inputs) != left.program.n_inputs or left.program.n_inputs != right.program.n_inputs:
+        raise ValueError("meaning comparison public input geometry differs")
+    probes = counterfactual_inputs(public_inputs, count=counterfactual_count, seed=seed)
+    comparison = compare_program_meanings(left.program, right.program, probes,
+        fuel=fuel, observation_cache=observation_cache)
+    return {
+        "schema": "aura.source_bound_meaning_comparison.v1",
+        "source_text_sha256": left.hypothesis.source_text_sha256,
+        "bank_receipt_sha256": left.hypothesis.bank_receipt_sha256,
+        "left_receipt_sha256": left.receipt_sha256,
+        "right_receipt_sha256": right.receipt_sha256,
+        "proposed_consequence_comparison": comparison,
+        "source_interpretation_status": "unresolved",
+        "claim": "program_consequences_only_not_source_interpretation_or_phenomenology",
+    }
+
+
+def select_source_bound_portfolio(
+    proposals: Sequence[GroundedProgramProposal],
+    public_inputs: tuple[Any, ...],
+    *,
+    incumbent_receipt_sha256: str,
+    fuel: int=2_000_000,
+) -> SemanticProgramPortfolio:
+    """Keep source ancestry through the canonical execution and inquiry loop."""
+    if not proposals:
+        raise ValueError("meaning portfolio needs source-bound proposals")
+    source = proposals[0].hypothesis.source_text_sha256
+    bank = proposals[0].hypothesis.bank_receipt_sha256
+    if any(proposal.hypothesis.source_text_sha256 != source
+           or proposal.hypothesis.bank_receipt_sha256 != bank for proposal in proposals):
+        raise ValueError("meaning inquiry requires one immutable source bank")
+    if any(proposal.program.n_inputs != len(public_inputs) for proposal in proposals):
+        raise ValueError("meaning inquiry public input geometry differs")
+    names = [proposal.receipt_sha256 for proposal in proposals]
+    if len(names) != len(set(names)):
+        raise ValueError("meaning portfolio has duplicate proposal receipts")
+    return select_semantic_program_portfolio(
+        proposals={proposal.receipt_sha256: proposal.program for proposal in proposals},
+        provenance={proposal.receipt_sha256: proposal.receipt_sha256 for proposal in proposals},
+        public_inputs=public_inputs, observation_sha256=source,
+        incumbent=incumbent_receipt_sha256, fuel=fuel,
+    )
 
 
 def meaning_hypotheses_from_bank(bank: SemanticCandidateBank) -> tuple[MeaningHypothesis, ...]:
