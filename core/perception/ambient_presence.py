@@ -135,6 +135,18 @@ class SkipReason(StrEnum):
     CAPTURE_FAILED = "capture_failed"
 
 
+def _the_screen_is_locked() -> bool:
+    """Whether the session's screen is locked, where the host can say. False where it cannot."""
+    try:
+        import Quartz
+
+        session = Quartz.CGSessionCopyCurrentDictionary() or {}
+    # not a failure: a host with no session dictionary has no lock to report.
+    except (ImportError, AttributeError, RuntimeError, OSError):
+        return False
+    return bool(session.get("CGSSessionScreenIsLocked", False))
+
+
 #: Skips that mean the organ is broken rather than behaving. PRIVATE_WINDOW,
 #: UNCHANGED, HIDDEN and SUPPRESSED are all the design working — they must
 #: never raise an alarm, or the alarm becomes noise and stops being read.
@@ -534,6 +546,12 @@ class AmbientPresence(_CarriesTheBubble):
             # Not looking is part of not intruding. Reading someone's screen
             # unprompted is not a lesser act than speaking to them unprompted.
             return self._skip(SkipReason.SUPPRESSED)
+        if _the_screen_is_locked():
+            # Nothing is showing, and asking which window is in front of a
+            # locked screen waited out the whole tick: twenty seconds, four
+            # times in a row, then a warning that the organ was failing
+            # (live, 2026-09-23, all evening on a locked Mac).
+            return self._skip(SkipReason.SESSION_LOCKED, detail="the screen is locked")
 
         context = await self._current_context()
         if context is None:

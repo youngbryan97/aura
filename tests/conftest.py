@@ -1427,6 +1427,22 @@ def _environment_learning_isolation(_global_state_contamination_guard):
 
 
 @pytest.fixture(autouse=True)
+def _a_test_does_not_see_the_real_lock_screen(request, monkeypatch):
+    """Whether the Mac's screen is locked is a fact about the host, not the test.
+
+    Read for real, an evening on a locked Mac made every ambient tick in the
+    suite skip before it looked, and forty-three tests of what a tick does
+    failed for a reason none of them was about (2026-09-23). A test that is
+    about the host opts in with ``host_observation``.
+    """
+    if request.node.get_closest_marker("host_observation"):
+        return
+    monkeypatch.setattr(
+        "core.perception.ambient_presence._the_screen_is_locked", lambda: False
+    )
+
+
+@pytest.fixture(autouse=True)
 def resource_observer(
     request,
     monkeypatch,
