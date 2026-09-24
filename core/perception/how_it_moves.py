@@ -54,6 +54,10 @@ __all__ = [
 
 logger = logging.getLogger("Aura.HowItMoves")
 
+#: How many of the held rule's misses are said in full, per model. Enough to
+#: see which places disagree and why; a count covers the rest.
+_MISSES_WORTH_SAYING = 12
+
 #: How many of her own moves a rule has to have survived before it is worth
 #: predicting from. Below this the leader is whichever rule happened to match
 #: the first thing she did.
@@ -626,6 +630,7 @@ class HowItMoves:
         if told_apart:
             self.moved += 1
         agreed: set[str] = set()
+        held = self.rule()
         for rule in RULES:
             predicted = rule.apply(here, action)
             if predicted is None:
@@ -635,6 +640,8 @@ class HowItMoves:
             if right:
                 self.right[rule.name] = self.right.get(rule.name, 0) + 1
                 agreed.add(rule.name)
+            elif held is not None and rule.name == held.name and told_apart:
+                self._say_what_it_missed(here, action, predicted, there)
             # An act that changed nothing is agreed about by every rule that
             # ALSO said nothing would change, and counting that would let a
             # rule ride to certainty on the many acts that did nothing.
@@ -675,6 +682,33 @@ class HowItMoves:
                 )
 
     # ── using it ─────────────────────────────────────────────────────────
+
+    def _say_what_it_missed(
+        self, before: Arrangement, action: str, predicted: Arrangement, seen: Arrangement
+    ) -> None:
+        """Where the rule she holds was wrong, the first few times, in full.
+
+        A rate says how often and nothing about why. LIVE 2026-09-24 the rule
+        she held for a sliding game was right 39% of the time on the real
+        board and 100% in her own model of it, and nothing said which places
+        disagreed: a misread tile, a picture taken mid-slide and a wrong rule
+        all look the same as a count.
+        """
+        missed = int(getattr(self, "_misses_said", 0) or 0)
+        if missed >= _MISSES_WORTH_SAYING:
+            return
+        self._misses_said = missed + 1
+        claimed = {(cell.row, cell.column): cell.says for cell in predicted.cells}
+        actual = {(cell.row, cell.column): cell.says for cell in seen.cells}
+        wrong = sorted(
+            f"({row},{column}) said {said!r} saw {actual.get((row, column))!r}"
+            for (row, column), said in claimed.items()
+            if actual.get((row, column)) != said
+        )
+        logger.info(
+            "her rule missed on %s: %s | before %s | expected %s | saw %s",
+            action, "; ".join(wrong[:6]), before.as_text(), predicted.as_text(), seen.as_text(),
+        )
 
     def rule(self) -> Rule | None:
         """The one that has been right most often, once there is enough to say."""
