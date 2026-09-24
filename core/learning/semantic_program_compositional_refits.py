@@ -24,6 +24,7 @@ def refit_compositional_triadic_bindings(
     model: CompositionalSemanticProgramTransducer,
     examples: Sequence[SemanticTransducerTrainingExample], *,
     runtime_operation_view_charts: int = 0,
+    feature_schema: str = "triple_product_v1",
     progress: Any = None,
 ) -> CompositionalSemanticProgramTransducer:
     """Fit operation-conditioned mention/definition links on source-only views."""
@@ -57,7 +58,8 @@ def refit_compositional_triadic_bindings(
     heads, fit = fit_triadic_binding_heads(
         views, max_arity=len(model.argument_role_heads),
         hidden_channels=model.hidden_channels,
-        hidden_channel_widths=model.hidden_channel_widths)
+        hidden_channel_widths=model.hidden_channel_widths,
+        feature_schema=feature_schema)
     coefficient = model._coefficient_body()
     coefficient["triadic_binding_heads"] = [head.to_dict() for head in heads]
     body = {key: value for key, value in model.training_receipt.items()

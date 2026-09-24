@@ -1176,6 +1176,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Source-bound meaning and gold-span triadic diagnostic](evidence/G03_SEMANTIC_BELIEF_REVIEW_2026-09-23.md)
+  preserve a shadow meaning graph and locate a strong positional shortcut:
+  joint binding reached 952/1,096 on held fold 0, but geometry alone retained
+  944/1,096. This is not semantic transfer or a promoted candidate.
   [Full source-bank repair and construction-fold result](evidence/G03_SEARCH_INTERRUPTION_AND_SOURCE_RANKER_2026-09-23.md)
   recovers target-blind diagnostic candidates after all typed search
   interruptions: source reach 764/764 versus 518/764 before. A complete

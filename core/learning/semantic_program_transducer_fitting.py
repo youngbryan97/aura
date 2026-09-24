@@ -1717,7 +1717,10 @@ def _assign_typed_arguments(
                     if model.triadic_binding_heads is not None:
                         definition = definition_vectors[candidate_index][0][1]
                         score += model.triadic_binding_heads[position].score(
-                            operation_vector, reference, definition)
+                            operation_vector, reference, definition,
+                            operation_span=node.span, mention_span=span,
+                            definition_span=definition_vectors[candidate_index][0][0],
+                            token_count=len(hidden))
                     by_register.setdefault(candidate_index, []).append((score, span))
                     if factor_lookup is not None:
                         factor_lookup[candidate_index, span] = (

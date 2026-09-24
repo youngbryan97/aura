@@ -794,7 +794,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
         )
         return self._with_coefficients(
             triadic_binding_heads=(
-                tuple(TriadicBindingHead(np.zeros_like(head.weight), head.bias)
+                tuple(TriadicBindingHead(np.zeros_like(head.weight), head.bias, head.feature_schema)
                       for head in self.triadic_binding_heads)
                 if self.triadic_binding_heads is not None else None
             ),
@@ -850,7 +850,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
         )
         return self._with_coefficients(
             triadic_binding_heads=(
-                tuple(TriadicBindingHead(np.zeros_like(head.weight), head.bias)
+                tuple(TriadicBindingHead(np.zeros_like(head.weight), head.bias, head.feature_schema)
                       for head in self.triadic_binding_heads)
                 if self.triadic_binding_heads is not None else None
             ),
@@ -892,7 +892,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
             return self
         return self._with_coefficients(
             triadic_binding_heads=tuple(
-                TriadicBindingHead(np.zeros_like(head.weight), head.bias)
+                TriadicBindingHead(np.zeros_like(head.weight), head.bias, head.feature_schema)
                 for head in self.triadic_binding_heads
             )
         )
@@ -1555,7 +1555,8 @@ def compositional_semantic_program_transducer_from_dict(
             if payload.get("definition_attachment_head") is not None else None
         ),
         triadic_binding_heads=(
-            tuple(TriadicBindingHead(np.asarray(value["weight"], dtype=np.float32), float(value["bias"]))
+            tuple(TriadicBindingHead(np.asarray(value["weight"], dtype=np.float32), float(value["bias"]),
+                                     value.get("feature_schema", "triple_product_v1"))
                   for value in payload["triadic_binding_heads"])
             if payload.get("triadic_binding_heads") is not None else None
         ),

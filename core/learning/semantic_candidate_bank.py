@@ -91,6 +91,12 @@ class SemanticCandidateBank:
     input_spans: tuple[TokenSpan, ...]
     receipt: dict
 
+    def meaning_hypotheses(self):
+        """Expose source-bound proposal meanings without claiming a posterior."""
+        from core.learning.semantic_meaning_hypothesis import meaning_hypotheses_from_bank
+
+        return meaning_hypotheses_from_bank(self)
+
     def validate(self) -> None:
         """Reject modified payloads before they can become diagnostic evidence."""
         body = {key: value for key, value in self.receipt.items() if key != "receipt_sha256"}
