@@ -11,4 +11,4 @@ def test_the_verdict_is_published_off_the_loop():
     from core.ops import graceful_shutdown
 
     source = inspect.getsource(graceful_shutdown)
-    assert "await asyncio.to_thread(lambda: publish_shutdown_verdict(**verdict))" in source
+    assert "await off_the_loop(publish_shutdown_verdict, **verdict)" in source

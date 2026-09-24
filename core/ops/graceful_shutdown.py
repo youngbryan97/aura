@@ -205,12 +205,12 @@ class GracefulShutdown:
                 )
                 # Off the loop: the verdict is written atomically, with an
                 # fsync, and every task still finishing waited on the disk
-                # for it (lockdep, every shutdown). Inline only where the
-                # executor has already gone, which late in a shutdown it can.
-                try:
-                    await asyncio.to_thread(lambda: publish_shutdown_verdict(**verdict))
-                except RuntimeError:
-                    publish_shutdown_verdict(**verdict)
+                # for it (lockdep, every shutdown). Late in a shutdown the
+                # executor can already be gone; off_the_loop then gives the
+                # write a thread of its own rather than the loop.
+                from core.runtime.executors import off_the_loop
+
+                await off_the_loop(publish_shutdown_verdict, **verdict)
             except (OSError, RuntimeError, TypeError, ValueError) as exc:
                 record_degradation("graceful_shutdown", exc)
                 logger.error("Final shutdown verdict persistence failed: %s", exc)

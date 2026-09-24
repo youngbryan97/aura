@@ -26,6 +26,7 @@ and raise ``asyncio.TimeoutError`` if the worker exceeds the budget.
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import functools
 import logging
 import threading
@@ -369,7 +370,41 @@ async def off_the_loop[T](fn: Callable[..., T], *args: Any, **kwargs: Any) -> T:
     except RuntimeError as exc:
         if "shutdown" not in str(exc).lower() and "cannot schedule" not in str(exc).lower():
             raise
-        return fn(*args, **kwargs)
+        # The loop's executor has gone and the loop has not. Inline, the call
+        # held every task still finishing: LIVE 2026-09-24, the last verdict
+        # of a shutdown fsynced on the loop thread. A thread of its own still
+        # keeps it off.
+        return await _on_a_thread_of_its_own(functools.partial(fn, *args, **kwargs))
+
+
+async def _on_a_thread_of_its_own[T](call: Callable[[], T]) -> T:
+    """Await ``call`` on a new thread, for when no pool will take it."""
+    loop = asyncio.get_running_loop()
+    done: asyncio.Future[T] = loop.create_future()
+
+    def settle(result: Any, error: BaseException | None) -> None:
+        if done.cancelled():
+            return
+        if error is not None:
+            done.set_exception(error)
+        else:
+            done.set_result(result)
+
+    # In the caller's context, as asyncio.to_thread would have run it. A bare
+    # thread starts with none, and a governed write made from it was refused
+    # for want of the scope its caller held.
+    context = contextvars.copy_context()
+
+    def run() -> None:
+        try:
+            result = context.run(call)
+        except BaseException as error:  # noqa: BLE001 - handed to the awaiting coroutine
+            loop.call_soon_threadsafe(settle, None, error)
+        else:
+            loop.call_soon_threadsafe(settle, result, None)
+
+    threading.Thread(target=run, name="aura-off-the-loop", daemon=True).start()
+    return await done
 
 
 #: Keys with a run queued or in flight, and whether it was asked for again.

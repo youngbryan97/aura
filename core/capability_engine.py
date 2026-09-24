@@ -5892,7 +5892,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                     if "CoreRuntime not initialized" not in str(exc):
                         raise
                     rt = await CoreRuntime.get()
-                gov = rt.container.get("memory_governor", default=None)
+                gov = await rt.container.get_async("memory_governor", default=None)
                 if gov:
                     check = getattr(gov, "check", None)
                     if callable(check):
@@ -5901,7 +5901,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                             await check_result
                     elif hasattr(gov, "_enforce_policy"):
                         await gov._enforce_policy()
-                orm = rt.container.get("persistent_state", default=None)
+                orm = await rt.container.get_async("persistent_state", default=None)
             except (RuntimeError, OSError, ConnectionError, TimeoutError, ContainerError) as exc:
                 _record_capability_degradation(
                     exc,

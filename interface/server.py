@@ -1123,6 +1123,26 @@ def _phenomenal_error_status(envelope) -> int:
     return 500
 
 
+async def _nobody_is_waiting(request: Request, exc: Exception) -> str:
+    """Why a request that ended without a response has nobody to answer, or nothing.
+
+    A route cancelled under a middleware reaches here as "No response
+    returned." That is an error when somebody is still waiting for the answer,
+    and an ending when the client has gone or Aura is shutting down: LIVE
+    2026-09-24, logged as an unhandled exception on a clean shutdown.
+    """
+    if not (isinstance(exc, RuntimeError) and str(exc) == "No response returned."):
+        return ""
+    try:
+        if await request.is_disconnected():
+            return "the client went away"
+    except (RuntimeError, OSError) as gone:
+        logger.debug("could not ask whether the client is still there: %s", gone)
+    from core.runtime.shutdown_coordinator import is_shutdown_requested
+
+    return "Aura is shutting down" if is_shutdown_requested() else ""
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Phenomenal error envelope for every unhandled exception.
@@ -1133,6 +1153,10 @@ async def global_exception_handler(request: Request, exc: Exception):
     that the frontend's error_banner.js renders automatically.
     """
     request_id = getattr(request.state, "request_id", "unknown")
+    why = await _nobody_is_waiting(request, exc)
+    if why:
+        logger.info("request [req=%s] %s ended without a response: %s", request_id, request.url.path, why)
+        return Response(status_code=499)
     logger.error(
         "Unhandled exception [req=%s] %s: %s",
         request_id, type(exc).__name__, exc,
