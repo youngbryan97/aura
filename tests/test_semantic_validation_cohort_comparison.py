@@ -31,6 +31,7 @@ def test_comparison_keeps_oracle_separate_from_real_candidate_scores():
     result = compare(old, new, old_name="incumbent")
     assert result["counts"] == {"both": 1, "old_only": 1, "new_only": 1, "neither": 1}
     assert (result["old_correct"], result["new_correct"], result["oracle_union"]) == (2, 2, 3)
+    assert not result["protocol_matched"]
     assert not result["serving_authority"]
     assert not result["qualification_evidence"]
 
