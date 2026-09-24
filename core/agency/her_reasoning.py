@@ -165,8 +165,17 @@ def generator(
     tier: str = "primary",
     max_tokens: int = CHOICE_TOKENS,
     timeout_s: float = DECISION_BUDGET_S,
+    role: str | None = CHOOSING_ROLE,
 ):
-    """A generate function over the resident model, shaped for the amplifier."""
+    """A generate function over the resident model, shaped for the amplifier.
+
+    ``role`` is the role that belongs to the question being asked, and None
+    where the question states itself. A line to take across a game was sent
+    under the role for choosing one move, which says to name the move and
+    give one sentence of why, and she did: LIVE 2026-09-24, asked how she
+    would go about the game, "I am going to play **up**", read correctly as
+    a move and not a line, and dropped.
+    """
 
     async def generate(prompt: str, temperature: float) -> str:
         router = _router()
@@ -174,7 +183,7 @@ def generator(
             raise RuntimeError("no model router is registered")
         allow_s = time_this_question_needs(prompt, max_tokens, timeout_s)
         messages = [
-            {"role": "system", "content": CHOOSING_ROLE},
+            *([{"role": "system", "content": role}] if role else []),
             {"role": "user", "content": prompt},
         ]
         out = await router.think(
@@ -309,7 +318,9 @@ def reasoning_for_a_plan():
     # The run is its own verifier and a better one: every approach names the
     # thing that would end it, and every move under it is checked against
     # what actually happened.
-    return quick_reasoning(origin="agency_settling_on_an_approach", max_tokens=PLAN_TOKENS)
+    return quick_reasoning(
+        origin="agency_settling_on_an_approach", max_tokens=PLAN_TOKENS, role=None
+    )
 
 
 def deep_reasoning(*, budget: int = 2, timeout_s: float = DELIBERATE_BUDGET_S):
@@ -340,7 +351,12 @@ def deep_reasoning(*, budget: int = 2, timeout_s: float = DELIBERATE_BUDGET_S):
     return think
 
 
-def quick_reasoning(*, origin: str = "agency_next_move", max_tokens: int = CHOICE_TOKENS):
+def quick_reasoning(
+    *,
+    origin: str = "agency_next_move",
+    max_tokens: int = CHOICE_TOKENS,
+    role: str | None = CHOOSING_ROLE,
+):
     """One pass at the model, for a decision that has to keep up with a loop.
 
     The amplifier's value is agreement between several attempts and a
@@ -352,7 +368,7 @@ def quick_reasoning(*, origin: str = "agency_next_move", max_tokens: int = CHOIC
     So effort follows what rides on the decision — one pass here, agreement
     when something is at stake, a sharpened question when a lot is.
     """
-    produce = generator(origin=origin, max_tokens=max_tokens, timeout_s=DECISION_BUDGET_S)
+    produce = generator(origin=origin, max_tokens=max_tokens, timeout_s=DECISION_BUDGET_S, role=role)
 
     async def think(objective: str, evidence: Sequence[str]) -> str:
         # Bounded here as well as at the endpoint: a client that never
