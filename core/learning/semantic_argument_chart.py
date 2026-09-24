@@ -71,13 +71,14 @@ class ScoredArgumentChart:
         if self.option_factors is not None:
             factors = tuple(tuple(tuple(tuple(float(value) for value in row) for row in slot)
                                   for slot in node) for node in self.option_factors)
+            widths = {len(row) for node in factors for slot in node for row in slot}
             if len(factors) != len(self.options) or any(
                 len(node) != len(options) or any(
-                    len(slot) != len(choices) or any(len(row) != 4 or not all(map(math.isfinite, row))
+                    len(slot) != len(choices) or any(not all(map(math.isfinite, row))
                                                    for row in slot)
                     for slot, choices in zip(node, options)
                 ) for node, options in zip(factors, self.options)
-            ):
+            ) or len(widths) != 1 or next(iter(widths)) not in (4, 5):
                 raise ValueError("argument score factors differ from chart")
             object.__setattr__(self, "option_factors", factors)
         if self.option_relation_evidence is not None:
@@ -160,7 +161,8 @@ class ScoredArgumentChart:
                 raise ValueError("chart did not retain relation evidence")
             relation_observer(tuple(self.option_relation_evidence[node][position][index]
                 for node, positions in enumerate(selected[0]) for position, index in enumerate(positions)))
-        return result, tuple(math.fsum(row[column] for row in rows) for column in range(4))
+        return result, tuple(math.fsum(row[column] for row in rows)
+                             for column in range(len(rows[0])))
 
     def restrict_arguments(self, targets: Sequence[Sequence[int]]) -> ScoredArgumentChart:
         """Keep every mention realizing a supplied training/diagnostic graph."""

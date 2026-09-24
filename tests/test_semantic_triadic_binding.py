@@ -7,7 +7,9 @@ import numpy as np
 import pytest
 
 from core.learning.semantic_program_compositional_refits import (
+    partition_triadic_projection_sources,
     refit_compositional_triadic_bindings,
+    select_triadic_score_calibration_sources,
 )
 from core.learning.semantic_program_compositional_transducer import (
     compositional_semantic_program_transducer_from_dict,
@@ -16,9 +18,11 @@ from core.learning.semantic_program_compositional_transducer import (
 from core.learning.semantic_triadic_binding import (
     TriadicBindingHead,
     evaluate_triadic_gold_binding,
+    fit_source_triadic_projection,
     fit_triadic_binding_heads,
-    joint_source_binding_feature,
     joint_representation_binding_feature,
+    joint_source_binding_feature,
+    projected_joint_binding_feature,
     triadic_binding_feature,
 )
 from tests.test_semantic_program_shared_transducer import _examples, _grounding
@@ -77,8 +81,63 @@ def test_fit_requires_source_only_contrasts():
     assert all(np.isfinite(head.weight).all() for head in heads)
 
 
+def test_projected_feature_preserves_roles_without_source_geometry():
+    operation = np.asarray([1., 2.], dtype=np.float32)
+    mention = np.asarray([3., 4.], dtype=np.float32)
+    definition = np.asarray([5., 6.], dtype=np.float32)
+    query = np.asarray([[1.], [0.]], dtype=np.float32)
+    key = np.asarray([[0.], [1.]], dtype=np.float32)
+    feature = projected_joint_binding_feature(operation, mention, definition, query, key)
+    assert feature.shape == (8,)
+    assert not np.array_equal(feature, projected_joint_binding_feature(
+        operation, definition, mention, query, key))
+    head = TriadicBindingHead(np.ones(8, dtype=np.float32), 2., "projected_joint_v4", query, key)
+    assert head.channel_width == 2
+    assert head.score(operation, mention, definition) == pytest.approx(feature.sum() + 2.)
+    assert head.score_lesion().score(operation, mention, definition) == 0.
+    assert head.scaled(0.25).score(operation, mention, definition) == pytest.approx(
+        (feature.sum() + 2.) / 4.)
+    with pytest.raises(ValueError, match="scale"):
+        head.scaled(-1.)
+    assert head.role_lesion("operation").score(operation, mention, definition) == pytest.approx(
+        feature[[1, 2, 5, 7]].sum() + 2.)
+    assert head.role_lesion("mention").score(operation, mention, definition) == pytest.approx(
+        feature[[0, 2, 4]].sum() + 2.)
+    assert head.role_lesion("definition").score(operation, mention, definition) == pytest.approx(
+        feature[[0, 1, 3]].sum() + 2.)
+    with pytest.raises(ValueError, match="unknown triadic role"):
+        head.role_lesion("source")
+    with pytest.raises(ValueError, match="invalid"):
+        TriadicBindingHead(np.ones(8), 0., "projected_joint_v4")
+
+
+def test_projection_fit_refuses_source_overlap():
+    examples = _examples()
+    fit = tuple(item for item in examples if item.split == "train")
+    with pytest.raises(ValueError, match="disjoint"):
+        fit_source_triadic_projection(fit, tuple(replace(item, split="validation")
+                                                 for item in fit),
+            hidden_channels=fit[0].hidden_channels,
+            hidden_channel_widths=fit[0].hidden_channel_widths)
+
+
+def test_projection_fit_accepts_disjoint_training_labeled_calibration():
+    examples = _examples()
+    fit = tuple(item for item in examples if item.split == "train")
+    calibration = tuple(replace(item, split="train") for item in examples
+                        if item.split == "validation")
+    basis, receipt = fit_source_triadic_projection(
+        fit, calibration,
+        hidden_channels=fit[0].hidden_channels,
+        hidden_channel_widths=fit[0].hidden_channel_widths)
+    assert basis[0].shape == basis[1].shape
+    assert receipt["training_sources"] > 0
+    assert receipt["calibration_sources"] > 0
+
+
 @pytest.mark.parametrize("feature_schema", (
-    "triple_product_v1", "joint_source_v2", "joint_representation_v3"))
+    "triple_product_v1", "joint_source_v2", "joint_representation_v3",
+    "projected_joint_v4"))
 def test_refit_round_trip_and_isolated_lesion(monkeypatch, feature_schema):
     examples = _examples()
     parent = fit_compositional_semantic_program_transducer(examples, input_grounding=_grounding())
@@ -95,6 +154,9 @@ def test_refit_round_trip_and_isolated_lesion(monkeypatch, feature_schema):
     assert replay.triadic_binding_heads is not None
     assert all(head.feature_schema == feature_schema for head in replay.triadic_binding_heads)
     assert any(np.any(head.weight) for head in replay.triadic_binding_heads)
+    if feature_schema == "projected_joint_v4":
+        assert all(head.query_projection is not None for head in replay.triadic_binding_heads)
+        assert replay.training_receipt["triadic_binding_fit"]["projection_fit"]["inherited_relation_score"] is False
     lesion = replay.triadic_binding_lesion()
     assert all(not np.any(head.weight) for head in lesion.triadic_binding_heads)
     assert all(not np.any(head.weight) for head in replay.coefficient_lesion().triadic_binding_heads)
@@ -129,6 +191,47 @@ def test_head_rejects_nonfinite_coefficients():
         TriadicBindingHead(np.asarray([float("nan")] * 12), 0.0)
 
 
+def test_projected_refit_calibrates_graph_score_on_disjoint_sources():
+    examples = _examples()
+    training = tuple(item for item in examples if item.split == "train")
+    projection_fit, projection_calibration, partition = partition_triadic_projection_sources(
+        training)
+    assert set(item.construction_id for item in projection_fit).isdisjoint(
+        item.construction_id for item in projection_calibration)
+    assert partition["fit_ids_sha256"] != partition["calibration_ids_sha256"]
+
+    parent = fit_compositional_semantic_program_transducer(
+        examples, input_grounding=_grounding())
+    candidate = refit_compositional_triadic_bindings(
+        parent, examples, feature_schema="projected_joint_v4", calibrate_score=True)
+    receipt = candidate.training_receipt["triadic_binding_fit"]
+    assert receipt["projection_fit"]["source_partition"] == partition
+    calibration = receipt["score_calibration"]
+    assert calibration["test_examples_used"] == 0
+    assert len(calibration["rows"]) == 6
+    assert sum(row["selected"] for row in calibration["rows"]) == 1
+    assert calibration["rows"][0]["score_scale"] == 0.0
+    assert calibration["rows"][0]["program_exact"] == calibration["incumbent_program_exact"]
+    replay = compositional_semantic_program_transducer_from_dict(candidate.to_dict())
+    assert replay.receipt_sha256 == candidate.receipt_sha256
+    assert replay.training_receipt["triadic_binding_fit"]["score_scale"] == receipt["score_scale"]
+
+
+def test_score_calibration_cohort_spreads_constructions_without_overlap():
+    validation = tuple(item for item in _examples() if item.split == "validation")
+    selected, receipt = select_triadic_score_calibration_sources(validation, limit=2)
+    replay, replay_receipt = select_triadic_score_calibration_sources(
+        tuple(reversed(validation)), limit=2)
+    assert receipt == replay_receipt
+    assert {item.ir.source_text_sha256 for item in selected} == {
+        item.ir.source_text_sha256 for item in replay}
+    assert len(selected) == receipt["selected_sources"] == 2
+    assert receipt["population_sources"] == len(validation)
+    assert len({item.construction_id for item in selected}) == 2
+    with pytest.raises(ValueError, match="population"):
+        select_triadic_score_calibration_sources(validation, limit=len(validation) + 1)
+
+
 def test_gold_binding_probe_keeps_held_sources_and_counts_ties():
     examples = _examples()
     training = tuple(item for item in examples if item.split == "train")
@@ -143,6 +246,8 @@ def test_gold_binding_probe_keeps_held_sources_and_counts_ties():
         training_source_ids=training_ids)
     assert result["source_count"] == len(held)
     assert result["opposed_roles"] == result["correct"] + result["wrong"] + result["tied"]
+    assert sum(row["correct"] for row in result["by_family"].values()) == result["correct"]
+    assert sum(row["wrong"] for row in result["by_family"].values()) == result["wrong"]
     assert result["opposed_roles"] > 0
     assert result["gold_operation_and_mention_spans"] is True
     zero = tuple(TriadicBindingHead(np.zeros_like(head.weight), head.bias) for head in heads)

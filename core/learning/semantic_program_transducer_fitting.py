@@ -1495,8 +1495,6 @@ def _assign_typed_arguments(
         or model.training_receipt.get("relation_score_strategy") != "categorical_log_margin_v1"
     ):
         raise ValueError("relation training needs a joint categorical chart with score factors")
-    if retain_score_factors and model.triadic_binding_heads is not None:
-        raise ValueError("four-factor graph diagnostics cannot omit triadic binding scores")
     if build_only and (chart_observer is None or model.training_receipt.get("argument_search_strategy") != "global_constraint_v1"):
         raise ValueError("chart construction needs a global chart observer")
     if (
@@ -1714,20 +1712,22 @@ def _assign_typed_arguments(
                         + model.definition_relation_scale * candidate_relation_evidence
                         + model.argument_pointer_scale * _log_sigmoid(pointer_score)
                     )
+                    triadic_score = None
                     if model.triadic_binding_heads is not None:
                         definition = definition_vectors[candidate_index][0][1]
-                        score += model.triadic_binding_heads[position].score(
+                        triadic_score = model.triadic_binding_heads[position].score(
                             operation_vector, reference, definition,
                             operation_span=node.span, mention_span=span,
                             definition_span=definition_vectors[candidate_index][0][0],
                             token_count=len(hidden))
+                        score += triadic_score
                     by_register.setdefault(candidate_index, []).append((score, span))
                     if factor_lookup is not None:
                         factor_lookup[candidate_index, span] = (
                             role_score if score_strategy == "conditional_log_odds_v1" else _log_sigmoid(role_score),
                             proposal_score if score_strategy == "conditional_log_odds_v1" else _log_sigmoid(proposal_score),
                             candidate_relation_evidence, _log_sigmoid(pointer_score),
-                        )
+                        ) + ((triadic_score,) if triadic_score is not None else ())
             if not by_register:
                 return None
             options, ranked_options = _assign_typed_arguments_ranked_options(by_register, definition_registers, evidence_by_position, evidence_lookup, factor_lookup, factors_by_position, input_spans, inputs, model)
