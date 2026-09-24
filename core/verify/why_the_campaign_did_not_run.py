@@ -168,12 +168,19 @@ def _snapshot() -> str:
 def _write(body: str) -> None:
     """Put it on disk, outside the lock, and never raise from doing so."""
     try:
+        from core.governance_context import local_internal_governed_scope
         from core.runtime.file_write_gateway import get_file_write_gateway
 
         gateway = get_file_write_gateway()
         path = where_it_is_kept()
-        gateway.ensure_directory(path.parent, source="influence_campaign")
-        gateway.write_text(path, body, source="influence_campaign")
+        # Inside the scope its own maintenance writes are governed by, as the
+        # campaign ledger's are. Written bare, the live runtime refused it as
+        # a governance violation every time the job came up (six on one
+        # evening, 2026-09-23), and the record of why it did not run was the
+        # thing that never got written.
+        with local_internal_governed_scope("influence_campaign", domain="state_mutation"):
+            gateway.ensure_directory(path.parent, source="influence_campaign")
+            gateway.write_text(path, body, source="influence_campaign")
     except Exception as exc:  # noqa: BLE001 — recording must not stop the job
         logger.debug("campaign considerations not written down: %s", exc)
 

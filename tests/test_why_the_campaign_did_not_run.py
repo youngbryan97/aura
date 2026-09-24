@@ -118,3 +118,28 @@ def test_the_conductor_records_through_this() -> None:
         "produced_nothing",
     ):
         assert ending in endings, ending
+
+
+def test_the_record_is_written_inside_its_governed_scope(monkeypatch, tmp_path):
+    """Written bare, the live runtime refused it as a governance violation."""
+    from core.verify import why_the_campaign_did_not_run as record
+
+    seen: list[bool] = []
+
+    class _Gateway:
+        def ensure_directory(self, path, *, source):
+            from core.governance_context import _active_receipt
+
+            seen.append(_active_receipt.get() is not None)
+
+        def write_text(self, path, body, *, source):
+            from core.governance_context import _active_receipt
+
+            seen.append(_active_receipt.get() is not None)
+
+    monkeypatch.setattr(
+        "core.runtime.file_write_gateway.get_file_write_gateway", lambda: _Gateway()
+    )
+    monkeypatch.setattr(record, "where_it_is_kept", lambda: tmp_path / "considerations.json")
+    record._write("{}")
+    assert seen == [True, True]
