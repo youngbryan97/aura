@@ -86,11 +86,20 @@ def test_the_pursuit_drops_the_whole_group_together() -> None:
     """All three were read through the same grid, so all three go together."""
     from core.skills import screen_pursuit
 
+    import inspect
+
+    from core.skills import screen_pursuit_decision_reading as reading
+
     text = pursuit_source()
-    at = text.index("learned_through_a_different_reading()")
-    near = text[at : at + 900]
-    assert "skilled.forget_what_was_read_differently()" in near
+    at = text.index("skilled.forget_what_was_read_differently()")
+    near = text[at - 900 : at + 200]
+    assert "learned_through_a_different_reading()" in near
     assert "world.forget_what_was_read_differently()" in near
+    # And when the grid changes shape mid-run, not only when a sitting begins.
+    mid_run = inspect.getsource(reading._decide_the_next_move_part_4)
+    assert "learned_through_a_different_reading()" in mid_run
+    assert "for kept in (skilled, world):" in mid_run
+    assert "skilled=skilled, world=world" in pursuit_source()
 
 
 def test_she_will_not_borrow_from_a_world_shaped_differently() -> None:

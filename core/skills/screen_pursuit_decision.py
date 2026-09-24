@@ -500,7 +500,9 @@ async def decide_the_next_move(
 
     band, looking_at_the_thing = await _decide_the_next_move_what_she_looking(anchor, drawn, narrate, observation, responds, target_app)
     lattice, seen = await _decide_the_next_move_seen(band, coming, in_the_way, observation, responds, target_app)
-    answering, lattice = _decide_the_next_move_part_4(knows, lattice, move_keys, responds)
+    answering, lattice = _decide_the_next_move_part_4(
+        knows, lattice, move_keys, responds, skilled=skilled, world=world
+    )
     # The same reading, with a place for each thing in it. What she reads
     # is the string; what her claims are checked against is this.
     # The thing she is acting on, not the page it is drawn on.

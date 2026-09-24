@@ -197,6 +197,9 @@ def _decide_the_next_move_part_4(
     lattice: Any,
     move_keys: Any,
     responds: Any,
+    *,
+    skilled: Any = None,
+    world: Any = None,
 ) -> tuple[Any, Any]:
     from .screen_pursuit_decision import (
         _placed_in,
@@ -249,6 +252,17 @@ def _decide_the_next_move_part_4(
                     # Everything counted while the grid was the wrong
                     # shape was counted about a thing that does not exist.
                     knows.rules.learned_through_a_different_reading()
+                    # All of it, as when a sitting begins on another grid:
+                    # what worked is looked up by the shape of the situation
+                    # and what the world does is learned between two
+                    # arrangements, and both were read through the grid that
+                    # has just turned out to be the wrong shape. Only the rule
+                    # was dropped here, so the other two carried the wrong
+                    # grid's shapes for the rest of the run.
+                    for kept in (skilled, world):
+                        forget = getattr(kept, "forget_what_was_read_differently", None)
+                        if callable(forget):
+                            forget()
         # And which of its places only report, told rather than re-derived.
         #
         # The rule learner works this out for itself, and needs many
