@@ -134,10 +134,24 @@ def why_this_one(
             best_name, best_gap = name, gap
     if not best_name:
         return ""
-    plain, compared = _WHAT_A_TERM_MEANS.get(
-        best_name, (f"it scores better on {best_name}", f"it scores better on {best_name} than {{other}}")
-    )
+    plain, compared = _WHAT_A_TERM_MEANS.get(best_name) or _by_her_own_measure(best_name)
     return compared.format(other=runner_up_name) if runner_up_name else plain
+
+
+def _by_her_own_measure(name: str) -> tuple[str, str]:
+    """A reason given by a property she invented, said as hers.
+
+    Its name is a recipe — what it looks at, how it adds them up — and read
+    into the old frame it made no sentence: "it scores better on how small it
+    is between neighbours, on average than right" (live, 2026-09-23). Said as
+    what it is, a measure she worked out herself, it is also the part of the
+    reason a person watching would most want to know about.
+    """
+    braces = str(name).replace("{", "{{").replace("}", "}}")
+    return (
+        f"by a measure I worked out myself ({braces}), it comes out ahead",
+        f"by a measure I worked out myself ({braces}), it comes out ahead of {{other}}",
+    )
 
 
 def what_a_move_does(
