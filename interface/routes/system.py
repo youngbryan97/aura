@@ -6073,7 +6073,20 @@ async def api_interiority_state():
             if census.get("turns")
             else []
         ),
+        # Which channel has adapted away its gain. interiority.worst_tolerance
+        # goes red with a number and no name, and the name is the diagnosis.
+        "receptors": _interiority_receptors(),
     }
+
+
+def _interiority_receptors() -> dict[str, object]:
+    try:
+        from core.interiority.receptors import get_receptor_bank
+
+        return get_receptor_bank().snapshot()
+    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        record_degradation("interface.system", exc, action="receptor snapshot unavailable")
+        return {}
 
 
 def _interiority_faculty_ids() -> tuple[str, ...]:
