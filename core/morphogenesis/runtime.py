@@ -771,6 +771,12 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
             existing.add((edge.source, edge.target, edge.edge_type, edge.port or ""))
         max_out = self.graph.max_out_degree
         max_in = self.graph.max_in_degree
+        # And the envelope the governor holds the whole topology to. This sync
+        # is not a proposal, so nothing refused it, and it carried the graph
+        # to 258 bindings against a ceiling of 256 on every boot:
+        # morphogenesis.edges red_high before a single transition was asked
+        # for (2026-09-21, and again 23 Sep).
+        room = max(0, int(self.governor.bounds.max_edges) - len(existing))
         clipped = 0
 
         def admit(source: str, target: str) -> bool:
@@ -778,7 +784,11 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
             identity = (source, target, EdgeType.OBSERVE, "")
             if identity in existing:
                 return False
-            if out_degree.get(source, 0) >= max_out or in_degree.get(target, 0) >= max_in:
+            if (
+                out_degree.get(source, 0) >= max_out
+                or in_degree.get(target, 0) >= max_in
+                or len(edges) >= room
+            ):
                 clipped += 1
                 return False
             out_degree[source] = out_degree.get(source, 0) + 1
@@ -789,6 +799,18 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
             ))
             return True
 
+        reverse: list[tuple[str, str]] = []
+        # Where each arriving cell may bind: its organ's members, or its
+        # subsystem's peers where it names none or they have no room left.
+        #
+        # The fallback to subsystem peers ran only when the member list was
+        # EMPTY, so an organ whose members are all at the degree cap got
+        # nothing at all and stayed its own component — while peers with room
+        # sat beside it. Measured on the live graph (2026-09-20): six organs,
+        # every one of their members at exactly 16/16, and 29 of 29 `global`
+        # peers under the cap. "Cannot be reached" includes "has no room left"
+        # as well as "is not there".
+        reaches: dict[str, tuple[list[str], list[str]]] = {}
         for cell_id in sorted(arrived):
             cell = self.registry.get(cell_id)
             if cell is None:
@@ -802,55 +824,40 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
                 if str(m) in live and str(m) != cell_id
             ]
             if not members:
-                members = peers
-                peers = []
-            # Attach to the peers with the most room, not the first four by
-            # name. Twenty cells arriving into one subsystem all chose the
-            # same alphabetically-first peers, saturated them, and left the
-            # last four with no binding at all — connected to nothing, which
-            # is the partition the budget was supposed to prevent.
-            candidates = sorted(
-                members,
-                key=lambda peer: (
-                    out_degree.get(peer, 0) + in_degree.get(peer, 0), peer
-                ),
+                members, peers = peers, []
+            reaches[cell_id] = (members, peers)
+
+        def with_the_most_room(names: list[str]) -> list[str]:
+            # The peers with the most room, not the first by name. Twenty
+            # cells arriving into one subsystem all chose the same
+            # alphabetically-first peers, saturated them, and left the last
+            # four with no binding at all.
+            return sorted(
+                names, key=lambda peer: (out_degree.get(peer, 0) + in_degree.get(peer, 0), peer)
             )
-            taken = 0
-            for member in candidates:
-                if taken >= 4:
-                    break
-                # The forward edge is what joins the arriving cell to its
-                # component, so it is offered first and the reverse one only
-                # if there is room. A dropped reverse edge costs symmetry,
-                # not connectivity.
-                forward = admit(cell_id, member)
-                admit(member, cell_id)
-                if forward:
-                    taken += 1
-            if not taken and peers:
-                # Its members are full. The fallback to subsystem peers ran
-                # only when the member list was EMPTY, so an organ whose
-                # members are all at the degree cap got nothing at all and
-                # stayed its own component — while peers with room sat beside
-                # it. Measured on the live graph (2026-09-20): six organs,
-                # every one of their members at exactly 16/16, and 29 of 29
-                # `global` peers under the cap. Six of fifty nodes were
-                # saturated and they were precisely the ones named.
-                #
-                # Binding to the subsystem is what the rule already says to do
-                # when the members cannot be reached; "cannot be reached" now
-                # includes "has no room left" as well as "is not there".
-                for peer in sorted(
-                    peers,
-                    key=lambda name: (
-                        out_degree.get(name, 0) + in_degree.get(name, 0), name
-                    ),
-                ):
-                    if taken >= 4:
+
+        # One binding for every arriving cell before a second for any. The
+        # first joins a cell to its component; the rest are redundancy, and
+        # where the envelope runs short it is redundancy that goes.
+        taken: dict[str, int] = {cell_id: 0 for cell_id in reaches}
+        for round_cap in range(1, 5):
+            for cell_id, (members, peers) in reaches.items():
+                if taken[cell_id] >= round_cap:
+                    continue
+                choices = with_the_most_room(members)
+                for target in choices + (with_the_most_room(peers) if not taken[cell_id] else []):
+                    if taken[cell_id] >= round_cap:
                         break
-                    if admit(cell_id, peer):
-                        taken += 1
-                    admit(peer, cell_id)
+                    # The forward edge is what joins the arriving cell to its
+                    # component; the reverse one waits for the end.
+                    if admit(cell_id, target):
+                        taken[cell_id] += 1
+                        reverse.append((target, cell_id))
+        # The reverse edges last. Each costs symmetry and not connectivity, so
+        # where the envelope runs short it is these that go, never the edge
+        # that joins a cell to its component.
+        for source, target in reverse:
+            admit(source, target)
         if clipped:
             logger.debug(
                 "Morphogenesis population sync left %d attachment(s) unbound at the "

@@ -111,3 +111,24 @@ def test_connectivity_survives_the_budget() -> None:
     edges = runtime._attachments_for(set(live), live)
     touched = {edge.source for edge in edges} | {edge.target for edge in edges}
     assert live <= touched, f"unattached after the budget: {sorted(live - touched)}"
+
+
+def test_attachments_stay_inside_the_governors_envelope() -> None:
+    """The sync is not a proposal, so nothing refused it past the governor's cap.
+
+    Live on every boot from 2026-09-21: 258 bindings against a ceiling of 256,
+    morphogenesis.edges red_high before a single transition was asked for.
+    """
+    runtime = MorphogeneticRuntime(config=MorphogenesisConfig(enabled=False))
+    for subsystem in range(8):
+        for index in range(6):
+            runtime.registry.register_cell(
+                CellManifest(name=f"cell_{subsystem}_{index}", subsystem=f"system_{subsystem}")
+            )
+    live = {cell.cell_id for cell in runtime.registry.active_cells()}
+    runtime.governor.bounds.max_edges = 100
+    edges = runtime._attachments_for(set(live), live)
+    assert len(edges) <= 100
+    # And every arriving cell still has its way into its component.
+    joined = {edge.source for edge in edges}
+    assert joined == live
