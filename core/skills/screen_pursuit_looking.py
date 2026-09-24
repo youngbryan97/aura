@@ -868,7 +868,13 @@ def _it_was_ready(waited: float, first_look: bool, reading: dict[str, Any]) -> N
         _STILL_FLOOR["seconds"] = min(_STILL_FLOOR["seconds"], took)
     floor = _STILL_FLOOR["seconds"] if math.isfinite(_STILL_FLOOR["seconds"]) else took
     pictures = int(reading.get("pictures_to_still") or 0)
-    was_moving = pictures > 2 if pictures else took > floor
+    # Pictures spent on a place that would not read were spent on
+    # recognition, not on the world, which was at rest the whole time.
+    was_moving = (
+        False
+        if reading.get("still_but_unread")
+        else (pictures > 2 if pictures else took > floor)
+    )
     short_by = max(0.0, took - floor) if was_moving else 0.0
     if first_look and not was_moving:
         _WAIT["seconds"] = waited / 2.0
@@ -881,10 +887,16 @@ def _how_long_to_wait() -> float:
 
     Nothing is chosen here. Before she has seen a change there is no
     measurement, so the old default stands; after that it is a little more
-    than the longest one she has seen, which is what "long enough" means when
+    than the longest of the last few, which is what "long enough" means when
     the thing being waited on is the same thing every time.
+
+    The last few, not the longest ever. One slow answer — a dialog over the
+    window, a machine busy for a minute — set every wait after it for the rest
+    of the run, and nothing could bring it down. LIVE 2026-09-24: a press that
+    changed nothing took 105 seconds before she moved again, on a game that
+    answers in under a second.
     """
-    longest = _ANSWERING_TOOK["longest"]
+    longest = max(_ANSWERS) if _ANSWERS else _ANSWERING_TOOK["longest"]
     return max(1.0, longest * 2) if longest else 4.0
 
 
@@ -956,25 +968,41 @@ async def _settled_after(
     started = time.monotonic()
     seen = before
     moved = False
-    first_look = True
+    # Whether a look has found the world itself not yet at rest. A look that
+    # timed out, or that waited out a place it could not read, says nothing
+    # about the world; counted as the world being late, each one doubled the
+    # next pause (live, 2026-09-24: 51 seconds before the first look).
+    early = False
+    first_pause: float | None = None
     while time.monotonic() - started < (patience or _how_long_to_wait()):
         pause = 0.3 if before.get("settled") is None else _before_looking_again()
         await asyncio.sleep(pause)
         looked_after = time.monotonic() - started
+        if first_pause is None:
+            first_pause = looked_after
         try:
             now = await asyncio.wait_for(read_screen(app), timeout=OBSERVE_TIMEOUT_S)
         except TimeoutError:
-            first_look = False
             continue
         said = _reading(now)
+        at_rest = now.get("settled") is True or bool(now.get("still_but_unread"))
         # A reading that was only taken once its pixels had stopped changing
         # is already the second look. Changed and still is finished, and the
-        # extra reading used to confirm it cost most of a move.
-        if said != was and now.get("settled") is True:
-            _answering_took(time.monotonic() - started)
-            _it_was_ready(looked_after, first_look, now)
+        # extra reading used to confirm it cost most of a move. Still apart
+        # from a place that would not read is still: the next look would
+        # carry that place as unsure too.
+        if said != was and at_rest:
+            if not moved:
+                # When the change was first seen; a look that saw it moving
+                # has already said so.
+                _answering_took(time.monotonic() - started)
+            if early:
+                _it_was_ready(looked_after, False, now)
+            else:
+                _it_was_ready(first_pause, True, now)
             return now, True
-        first_look = False
+        # Unchanged, or changed and still moving: either way she was early.
+        early = True
         if not moved and said != was:
             moved = True
             _answering_took(time.monotonic() - started)

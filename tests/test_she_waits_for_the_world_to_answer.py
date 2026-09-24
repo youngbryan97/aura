@@ -56,6 +56,9 @@ async def test_a_move_that_really_changes_nothing_says_so(monkeypatch) -> None:
         return _reading("before")
 
     patch_pursuit(monkeypatch, "read_screen", read)
+    from core.skills import screen_pursuit_looking as looking
+
+    looking._ANSWERS.clear()
     screen_pursuit._ANSWERING_TOOK["longest"] = 0.4
     seen, moved = await screen_pursuit._settled_after(_reading("before"), "a thing")
     assert not moved
@@ -65,7 +68,10 @@ async def test_a_move_that_really_changes_nothing_says_so(monkeypatch) -> None:
 def test_how_long_to_wait_comes_from_how_long_it_has_taken() -> None:
     """Nothing is chosen. Before she has seen a change there is no
     measurement, so the old default stands; after that it is a little more
-    than the longest she has seen."""
+    than the longest she has seen lately."""
+    from core.skills import screen_pursuit_looking as looking
+
+    looking._ANSWERS.clear()
     screen_pursuit._ANSWERING_TOOK["longest"] = 0.0
     assert screen_pursuit._how_long_to_wait() == 4.0
     screen_pursuit._ANSWERING_TOOK["longest"] = 0.9

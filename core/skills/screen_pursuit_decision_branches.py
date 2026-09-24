@@ -278,6 +278,11 @@ def _a_move_here(run: Any) -> float:
     return (sum(looks) / len(looks)) if looks else 0.0
 
 
+#: The ending was decided on nothing answering and nothing else. A game that
+#: has finished and a dialog that has taken the keyboard both look like this.
+ONLY_SILENCE = "nothing answers"
+
+
 def _decide_the_next_move_nothing_task_working(
     can_do: Any,
     move_keys: Any,
@@ -312,6 +317,9 @@ def _decide_the_next_move_nothing_task_working(
     # were happening. LIVE 2026-08-29: the page said "Game Over, 940
     # points scored in 100 moves" and she went on saying "Going right".
     ended = responds["state"].nothing_answers()
+    # Which evidence said so. Silence alone is also what a dialog over the
+    # thing looks like, and the caller treats the two differently.
+    responds["ended_by"] = ONLY_SILENCE if ended else ""
     # A way to start again, offered where there was none before, is the
     # thing saying it has finished.
     #
@@ -338,6 +346,7 @@ def _decide_the_next_move_nothing_task_working(
                 "a way to start again has appeared, so this has ended"
             )
         ended = True
+        responds["ended_by"] = "a way to start again appeared"
     # And what her own model says. Where the rule she trusts says that none of
     # her acts would change anything, the thing has finished, and pressing
     # each of them to find that out is asking a question she has the answer
@@ -364,6 +373,7 @@ def _decide_the_next_move_nothing_task_working(
                     offered_a_restart["model_said"] = True
                     logger.info("none of her acts would change anything here, so this has ended")
                 ended = True
+                responds["ended_by"] = "her rule says nothing would change"
     return available, ended
 
 def _what_she_says_as_she_moves(

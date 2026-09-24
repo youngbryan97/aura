@@ -463,6 +463,9 @@ class Looker:
     #: as unsure, which is what unsure is for. A place leaves this set the
     #: moment it reads.
     would_not_read: set[tuple[int, ...]] = field(default_factory=set)
+    #: What the last reading taken without learning would have taught: kept
+    #: until the caller knows whether that picture was of a world at rest.
+    held_lessons: list[tuple[str, tuple[Any, ...]]] = field(default_factory=list)
 
     def places_still(
         self,
@@ -582,6 +585,40 @@ class Looker:
             return None
         return best[1].says
 
+    def _lesson(self, now: bool, kind: str, *what: Any) -> None:
+        """Learn this at once, or hold it until the picture is known to be still."""
+        if now:
+            self._take(kind, what)
+        else:
+            self.held_lessons.append((kind, what))
+
+    def _take(self, kind: str, what: tuple[Any, ...]) -> None:
+        if kind == "seen":
+            self.learned(*what)
+        elif kind == "blank":
+            shape, look = what
+            if self.blank.get(shape) is None:
+                self.blank[shape] = look
+        elif kind == "blank from":
+            grid, looks, says = what
+            self._blank_look(grid, looks, says, keep=True)
+
+    def learn_what_was_read(self) -> None:
+        """Learn what the last reading taken without learning would have taught.
+
+        A picture taken while things were still moving has a tile half way
+        between two places, or growing into its square, and what it says
+        there is not what that look is. Learned, such a look was believed
+        from then on: it named a tile wrongly, or made a tile read correctly
+        a hundred times look like two things, so it was never read again.
+        LIVE 2026-09-24 her eyes had places that "would not read through a
+        whole look" on nearly every move, on a board a looker with nothing
+        learned read without a single unsure place.
+        """
+        held, self.held_lessons = self.held_lessons, []
+        for kind, what in held:
+            self._take(kind, what)
+
     def learned(self, look: Any, says: str) -> None:
         if look is None or not says:
             return
@@ -595,13 +632,25 @@ class Looker:
             self.seen.sort(key=lambda s: s.times, reverse=True)
             del self.seen[300:]
 
-    def read(self, image: Any, *, words: Sequence[dict[str, Any]] | None = None) -> dict[str, Any]:
+    def read(
+        self,
+        image: Any,
+        *,
+        words: Sequence[dict[str, Any]] | None = None,
+        learn: bool = True,
+    ) -> dict[str, Any]:
         """One reading of a window: its words, its panels and its grids.
 
         The shape matches every other screen reading here — ``text`` and a
         ``layout`` of positioned runs — with ``grids`` added, each carrying
         what every one of its places says, empty places included.
+
+        ``learn`` False holds what the picture would teach until
+        ``learn_what_was_read``: a caller waiting for the world to stop does
+        not yet know whether this picture is of a thing at rest.
         """
+        if not learn:
+            self.held_lessons = []
         if image is None:
             return {"ok": False, "text": "", "layout": [], "grids": [], "error": "no picture"}
         panels = panels_in(image)
@@ -658,8 +707,10 @@ class Looker:
             learning = not covered
             if learning:
                 for spot, text in says.items():
-                    self.learned(looks.get(spot), text)
-            blank = self._blank_look(grid, looks, says, keep=learning)
+                    self._lesson(learn, "seen", looks.get(spot), text)
+            blank = self._blank_look(grid, looks, says, keep=learning and learn)
+            if learning and not learn:
+                self._lesson(learn, "blank from", grid, dict(looks), dict(says))
             unread: list[tuple[int, int]] = []
             remembered: dict[tuple[int, int], str] = {}
             for spot, look in looks.items():
@@ -689,7 +740,7 @@ class Looker:
                     if text:
                         says[spot] = text
                         if learning:
-                            self.learned(looks.get(spot), text)
+                            self._lesson(learn, "seen", looks.get(spot), text)
             else:
                 says.update(remembered)
             # A place read beside the others that still says nothing, and has
@@ -704,8 +755,8 @@ class Looker:
                     look = looks.get(spot)
                     if self._nothing_drawn_in(look) and not self._resembles_something_read(look):
                         unread.remove(spot)
-                        if self.blank.get((grid.rows, grid.columns)) is None and learning:
-                            self.blank[(grid.rows, grid.columns)] = look
+                        if learning:
+                            self._lesson(learn, "blank", (grid.rows, grid.columns), look)
             unsure = [spot for spot in unread if spot not in says]
             places = []
             for row in range(grid.rows):
@@ -948,25 +999,29 @@ def settled_reading(
     picture = take()
     if picture is None:
         return None, None, False
-    reading = looker.read(picture)
+    # Learned from only once the picture is known to be of a world at rest.
+    reading = looker.read(picture, learn=not wait)
     said, looks = what_a_reading_says(reading), looker.last_looks
     unread = _places_unread(reading)
     pictures = 1
     still = not wait
+    agreed = False
     while not still and time.monotonic() - began < within_s:
         again = take()
         if again is None:
             break
         picture = again
         pictures += 1
-        reading_again = looker.read(picture)
+        reading_again = looker.read(picture, learn=False)
         said_again, looks_again = what_a_reading_says(reading_again), looker.last_looks
         unread = _places_unread(reading_again)
         looker.would_not_read &= set(unread)
+        still_places = looker.places_still(looks, looks_again)
+        agreed = said_again == said and still_places
         still = it_has_come_to_rest(
             said=said,
             said_again=said_again,
-            still_places=looker.places_still(looks, looks_again),
+            still_places=still_places,
             waiting_on=tuple(spot for spot in unread if spot not in looker.would_not_read),
         )
         reading, said, looks = reading_again, said_again, looks_again
@@ -975,6 +1030,9 @@ def settled_reading(
     # from this rather than from the clock.
     if isinstance(reading, dict):
         reading["_pictures"] = pictures
+        reading["_still_but_unread"] = still_but_unread(still, agreed, unread)
+    if wait and (still or still_but_unread(still, agreed, unread)):
+        looker.learn_what_was_read()
     if not still and wait:
         # This look spent its whole window on them; the next one does not.
         looker.would_not_read |= set(unread)
@@ -997,6 +1055,19 @@ def _places_unread(reading: dict[str, Any]) -> tuple[tuple[int, ...], ...]:
             for spot in (grid.get("unsure") or ())
         )
     )
+
+
+def still_but_unread(still: bool, agreed: bool, unread: Sequence[Any]) -> bool:
+    """Whether a look ended unsettled only because some places would not read.
+
+    Such a look found the world at rest: what it said and how every place
+    looked agreed with the picture before. A caller that pauses between looks
+    has to tell this apart from a world still moving. LIVE 2026-09-24: every
+    look that waited out an unreadable tile counted as a world still moving,
+    each one doubled her pause before the next look, and her moves slowed to
+    one every minute and a half on a board at rest.
+    """
+    return (not still) and agreed and bool(unread)
 
 
 def it_has_come_to_rest(
@@ -1222,6 +1293,7 @@ async def look_at_window(
         reading = elsewhere
         looked_took = float(reading.pop("_looked_took", 0.0) or 0.0)
         pictures = int(reading.pop("_pictures", 0) or 0)
+        at_rest_but_unread = bool(reading.pop("_still_but_unread", False))
     else:
         async def take() -> Any:
             return _crop(await _the_pixels_of(window), over)
@@ -1234,28 +1306,36 @@ async def look_at_window(
         # before. Pixels agreeing across the whole window let a tile that was
         # still growing into its square be read as an empty one.
         looker = looker_for(window.owner)
-        reading = await asyncio.to_thread(looker.read, picture)
+        reading = await asyncio.to_thread(
+            looker.read, picture, learn=not wait_for_stillness
+        )
         said, looks = what_a_reading_says(reading), looker.last_looks
         unread = _places_unread(reading)
         pictures = 1
         still = not wait_for_stillness
+        agreed = False
         while not still and time.monotonic() - began < still_within_s:
             again = await take()
             if again is None:
                 break
             picture = again
             pictures += 1
-            reading_again = await asyncio.to_thread(looker.read, picture)
+            reading_again = await asyncio.to_thread(looker.read, picture, learn=False)
             said_again, looks_again = what_a_reading_says(reading_again), looker.last_looks
             unread = _places_unread(reading_again)
             looker.would_not_read &= set(unread)
+            still_places = looker.places_still(looks, looks_again)
+            agreed = said_again == said and still_places
             still = it_has_come_to_rest(
                 said=said,
                 said_again=said_again,
-                still_places=looker.places_still(looks, looks_again),
+                still_places=still_places,
                 waiting_on=tuple(spot for spot in unread if spot not in looker.would_not_read),
             )
             reading, said, looks = reading_again, said_again, looks_again
+        at_rest_but_unread = still_but_unread(still, agreed, unread)
+        if wait_for_stillness and (still or at_rest_but_unread):
+            looker.learn_what_was_read()
         if not still and wait_for_stillness:
             looker.would_not_read |= set(unread)
         looked_took = time.monotonic() - began
@@ -1295,6 +1375,9 @@ async def look_at_window(
             # world still moving. The clock cannot tell those apart, because
             # a look's cost varies for its own reasons.
             "pictures_to_still": pictures,
+            # Not settled only because places would not read: the world was
+            # at rest, and what the extra pictures waited on was recognition.
+            "still_but_unread": at_rest_but_unread,
             "seconds_reading": round(time.monotonic() - began - looked_took, 3),
         }
     )

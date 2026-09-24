@@ -609,6 +609,17 @@ class HowItMoves:
             # worked out, on a board she was reading perfectly well.
             self.unreadable += 1
             return
+        # A place that held something she could not read is not an empty one.
+        #
+        # The readings carried such places from 2026-09-18, and nothing here
+        # looked at them: every rule was graded as if the tile were not there.
+        # LIVE 2026-09-24, "her rule missed on right: (0,2) said '8' saw None",
+        # and the true rule for a sliding game fell from all of its moves to
+        # 12 of 50 on a board her eyes read correctly whenever it was still.
+        # What is there is not known, so the pair is not evidence either way.
+        if self._blind_in(before) or self._blind_in(after):
+            self.unreadable += 1
+            return
         self._note_counters(before, after)
         # The part that behaves like one thing, with its furniture cropped out.
         here, there = self.the_thing(before), self.the_thing(after)
@@ -955,6 +966,15 @@ class HowItMoves:
         fresh = told - self.counters
         self.counters |= told
         return len(fresh)
+
+    def _blind_in(self, arrangement: Arrangement) -> bool:
+        """Whether the thing has a place in this reading that could not be read.
+
+        A place found to be furniture is left out: a score that would not read
+        says nothing about how the thing moves.
+        """
+        unread = {tuple(place) for place in (getattr(arrangement, "unknown", ()) or ())}
+        return bool(unread - self.counters)
 
     def the_thing(self, arrangement: Arrangement) -> Arrangement:
         """The part of a reading that behaves like one thing.

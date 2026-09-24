@@ -1068,6 +1068,25 @@ async def decide_the_next_move(
                     # back and there is a move to choose.
                     responds["state"].began_again()
                     ended = False
+                elif responds.get("ended_by") == ONLY_SILENCE:
+                    # Something over it that will not move is still not an
+                    # ending. Silence was the only evidence, and silence is
+                    # what a dialog holding the keyboard looks like; the
+                    # thing is still there under it. Kept as an ending, it
+                    # offered starting again without needing a reason, and
+                    # LIVE 2026-09-24 she threw away a board with a 64 on it
+                    # to a notification she could not close. It is somebody
+                    # else's to answer, so she says so once and keeps trying
+                    # the thing she was asked to do.
+                    responds["state"].began_again()
+                    ended = False
+                    if narrate and not said_it_ended.get("blocked"):
+                        said_it_ended["blocked"] = True
+                        _tell(
+                            f"{why.what} will not close, and it is not mine to "
+                            "answer. What I am working on is still under it, so "
+                            "I am carrying on."
+                        )
             elif why.because == ENDED and narrate and not said_it_ended["value"]:
                 said_it_ended["value"] = True
                 _tell(why.says())
@@ -1827,6 +1846,7 @@ async def decide_the_next_move(
 # the split — a silent change of meaning, which is what a move must not do.
 from core.skills.screen_pursuit_decision_branches import (  # noqa: E402
     _FALL_THROUGH,
+    ONLY_SILENCE,
     _a_move_here,
     _decide_the_next_move_act_has_done,
     _decide_the_next_move_blocker,
