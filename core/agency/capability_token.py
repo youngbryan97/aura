@@ -5,7 +5,8 @@ TTL, domain, requested action, approver, revocation status, parent receipt,
 child execution receipt, and side-effect log.
 
 Tokens are bound to:
-  * the issuing thread / asyncio task (cross-thread use is rejected)
+  * the issuing thread / asyncio task and the tasks it starts (cross-thread
+    use, and use from an unrelated task, is rejected)
   * the issuing process generation (post-shutdown use is rejected)
   * the originally requested domain (wrong-domain use is rejected)
   * a wall-clock TTL (expired use is rejected)
@@ -23,12 +24,27 @@ import os
 import secrets
 import threading
 import time
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 
 logger = logging.getLogger("Aura.CapabilityToken")
 
 
 _PROCESS_GEN = f"{os.getpid()}-{int(time.time())}"
+
+
+#: Tokens issued in this context, and so held by the task that issued them
+#: and by every task it starts afterwards, which copy the context when they
+#: are created. An unrelated task never has them.
+#:
+#: The binding was to the issuing task alone, and work a request starts runs
+#: in tasks of its own: LIVE 2026-09-23, the chat turn issued the token for a
+#: desktop action, the desktop task it started asked for computer_use, and
+#: the check refused the request's own token as capability_token_cross_task
+#: on every launch.
+_ISSUED_HERE: ContextVar[frozenset[str]] = ContextVar(
+    "aura_capability_tokens_issued_here", default=frozenset()
+)
 
 
 def _current_task_id() -> int | None:
@@ -100,6 +116,7 @@ class CapabilityTokenStore:
         )
         with self._lock:
             self._tokens[token_str] = tok
+        _ISSUED_HERE.set(_ISSUED_HERE.get() | {token_str})
         return tok
 
     def validate(
@@ -125,7 +142,11 @@ class CapabilityTokenStore:
             if tok.thread_id != threading.get_ident():
                 raise PermissionError("capability_token_cross_thread")
             current_task_id = _current_task_id()
-            if tok.task_id is not None and tok.task_id != current_task_id:
+            if (
+                tok.task_id is not None
+                and tok.task_id != current_task_id
+                and token_str not in _ISSUED_HERE.get()
+            ):
                 raise PermissionError("capability_token_cross_task")
             if tok.domain != domain:
                 raise PermissionError(f"capability_token_wrong_domain:{tok.domain}!={domain}")

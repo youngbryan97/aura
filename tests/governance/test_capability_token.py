@@ -95,3 +95,63 @@ def test_revoke_all_marks_all():
     n = s.revoke_all(reason="shutdown")
     assert n == 2
     assert a.revoked and b.revoked
+
+
+def _issued(store):
+    return store.issue(
+        origin="chat", scope="tool_execution:desktop_task:user", ttl_seconds=60.0,
+        domain="tool_execution", requested_action="foreground_desktop_action",
+        approver="gateway", parent_receipt="r",
+    )
+
+
+def test_a_task_the_request_started_may_use_its_token():
+    """The work a request starts runs in tasks of its own.
+
+    LIVE 2026-09-23: the desktop task a chat turn started asked for
+    computer_use, and the turn's own token was refused as cross-task on every
+    launch.
+    """
+    import asyncio
+
+    async def request():
+        store = CapabilityTokenStore()
+        tok = _issued(store)
+
+        async def its_own_step():
+            return store.validate(
+                tok.token, domain="tool_execution", action="foreground_desktop_action"
+            )
+
+        return await asyncio.create_task(its_own_step())
+
+    assert asyncio.run(request()).token.startswith("CT-")
+
+
+def test_an_unrelated_task_still_may_not():
+    import asyncio
+
+    import pytest
+
+    async def two_requests():
+        store = CapabilityTokenStore()
+        issued: dict = {}
+        ready = asyncio.Event()
+
+        async def first():
+            issued["token"] = _issued(store).token
+            ready.set()
+
+        async def second():
+            await ready.wait()
+            store.validate(
+                issued["token"], domain="tool_execution", action="foreground_desktop_action"
+            )
+
+        # Both started before the token existed, so neither inherits it.
+        one, other = asyncio.create_task(first()), asyncio.create_task(second())
+        await one
+        await other
+
+    with pytest.raises(PermissionError, match="capability_token_cross_task"):
+        asyncio.run(two_requests())
