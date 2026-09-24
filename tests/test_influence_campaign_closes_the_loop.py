@@ -340,3 +340,21 @@ async def test_the_receipt_reports_what_the_campaign_measured():
     assert unmeasured in receipt.unmeasured
     assert receipt.bound is True
     assert receipt.status == "measured_influential"
+
+
+def test_a_campaign_waits_while_something_is_in_the_foreground(monkeypatch):
+    """The probe promised the model time it takes is time nobody was waiting for.
+
+    Live 2026-09-23, mid-game: a probe clocked at 328 s held the cortex while
+    every line she asked for how to play timed out behind it.
+    """
+    from core.runtime import foreground_guard
+    from core.verify.influence_campaign import campaign_admission_reason
+
+    foreground_guard._reset_for_tests()
+    lease = foreground_guard.begin_foreground_turn(owner="screen_pursuit", quiet_seconds=0.0)
+    try:
+        assert campaign_admission_reason(min_free_gb=0.0) == "foreground_chat_active"
+    finally:
+        lease.close()
+        foreground_guard._reset_for_tests()

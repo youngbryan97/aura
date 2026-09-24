@@ -262,6 +262,26 @@ def campaign_admission_reason(*, min_free_gb: float = MIN_FREE_GB_FOR_CAMPAIGN) 
         )
         return "shutdown_probe_unavailable"
 
+    # Nothing in the foreground, which the probe's own account of itself
+    # promised and this never checked. A campaign turn is a thousand-token
+    # generation on the resident model, and the model does one thing at a
+    # time: LIVE 2026-09-23, mid-game, a probe clocked at 328 s held the cortex
+    # while every line she asked for how to play timed out behind it.
+    try:
+        from core.runtime.foreground_guard import foreground_activity_reason
+
+        busy = foreground_activity_reason()
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        record_degradation(
+            "influence_campaign",
+            exc,
+            severity="debug",
+            action="refused a campaign because the foreground probe failed",
+        )
+        return "foreground_probe_unavailable"
+    if busy:
+        return busy
+
     try:
         from core.runtime.resource_observation import get_resource_observer
 
