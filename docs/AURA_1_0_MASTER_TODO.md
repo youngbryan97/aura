@@ -1185,6 +1185,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   trained folds select 3, 9, and 13. Wider 12x4 target-blind search reaches
   23/23, but the narrow-bank fold-2 ranker drops from 13 to 6 selections on
   that wider distribution. No candidate is promoted; G03 stays open.
+  The proposer was trained on all 764 source-fold requests; these folds hold
+  out only the selector, not end-to-end interpretation. A stratified 12x4
+  source-bank pilot reached 42/42, but adding its views reduced fold-2
+  selection from 204/254 to 186/254 at 4x2 and from 11/16 to 8/16 on matched
+  wide held rows. See the linked full source-bank evidence. Genuine unseen
+  proposer-and-selector evaluation remains open.
+  A source-construction cross-fit pilot excluded held groups from proposer
+  fitting and calibration (14/16 ordinary correct at a one-second bound).
+  The later refit's 1/16 on that same short replay was mostly typed search
+  interruption, not evidence of wrong completed programs: its archived
+  20-second source cohort was 764/764. On paired 500-case validation receipts,
+  the original and later candidates score 472 and 477, with an oracle union
+  of 488; 12 cases defeat both. The union is diagnostic, not a serving result.
+  Independent candidate coverage and target-free arbitration remain open.
   [PDF architecture disposition and opt-in full-program identity training](evidence/G03_PDF_ARCHITECTURE_DISPOSITION_2026-09-23.md)
   now covers all four supplied PDFs. The v3 candidate bank retains selected
   mention/definition evidence for an opt-in complete-program ranker. Short

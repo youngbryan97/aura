@@ -163,6 +163,7 @@ def _evaluate(model, items: dict, rows: dict, source_ids: list[str]) -> dict:
 
 def _verify_sources(source_report: dict, candidate_report: dict, model, bank_report: dict,
                     folds: dict, examples: list) -> tuple[dict, list[str]]:
+    from core.learning.semantic_program_campaign import _sha
     from tools.materialize_semantic_candidate_training import _digest as training_digest
 
     plan = bank_report["plan"]
@@ -188,12 +189,39 @@ def _verify_sources(source_report: dict, candidate_report: dict, model, bank_rep
         "fold_coverage": set(folds["assignments"].values()) == set(range(folds["count"])),
         "bank_row_receipts": sorted(bank_report["row_receipts"]) == ids,
         "fold_holdout": folds["validation_used"] is False and folds["test_used"] is False,
+        "proposal_training_cohort": model.training_receipt.get(
+            "training_example_ids_sha256") == _sha(full),
     }
     failed = sorted(name for name, passed in checks.items() if not passed)
     if failed:
         raise ValueError("source-only ranking inputs do not share a frozen cohort: "
                          + ",".join(failed))
     return plan, ids
+
+
+def _verify_augmentation(base_plan: dict, base_ids: list[str], wide_plan: dict,
+                         wide_ids: list[str]) -> None:
+    selection = wide_plan.get("source_selection") or {}
+    checks = {
+        "subset": bool(wide_ids) and set(wide_ids) <= set(base_ids),
+        "model": wide_plan["model_receipt_sha256"] == base_plan["model_receipt_sha256"],
+        "features": wide_plan["source_manifest_sha256s"] == base_plan[
+            "source_manifest_sha256s"],
+        "population": wide_plan["source_population"] == base_plan["source_population"],
+        "search_width": (wide_plan["max_charts"] >= base_plan["max_charts"]
+                         and wide_plan["max_graphs_per_chart"] >= base_plan[
+                             "max_graphs_per_chart"]
+                         and (wide_plan["max_charts"] > base_plan["max_charts"]
+                              or wide_plan["max_graphs_per_chart"] > base_plan[
+                                  "max_graphs_per_chart"])),
+        "source_only_selection": (selection.get("method") ==
+                                  "lowest_source_identity_per_construction"
+                                  and selection.get("labels_used_for_selection") is False),
+    }
+    failed = sorted(name for name, passed in checks.items() if not passed)
+    if failed:
+        raise ValueError("augmented bank is not source-only and basis-compatible: "
+                         + ",".join(failed))
 
 
 def _contrast_cases(items: dict, train: list[str], held: list[str], *, limit: int) -> dict:
@@ -328,6 +356,8 @@ def main() -> None:
     parser.add_argument("--candidate-report", type=Path, required=True)
     parser.add_argument("--feature-root", type=Path, required=True)
     parser.add_argument("--bank-directory", type=Path)
+    parser.add_argument("--augmentation-bank-directory", type=Path,
+                        help="source-only wider bank; one balanced training view per source")
     parser.add_argument("--training-mode", choices=("bank", "source_contrasts", "mixed",
                                                     "bank_factors", "bank_factors_runtime",
                                                     "source_factors_runtime"),
@@ -360,6 +390,8 @@ def main() -> None:
         parser.error("argument evidence needs identity bindings and real bank training")
     if args.retain_evidence_variants and args.training_mode != "bank":
         parser.error("evidence-path retention needs real bank training")
+    if args.augmentation_bank_directory and args.training_mode != "bank":
+        parser.error("wide-bank augmentation needs real bank training")
     retain_evidence_variants = args.retain_evidence_variants or args.argument_evidence
 
     from tools.refit_semantic_argument_proposals import (
@@ -373,6 +405,7 @@ def main() -> None:
     from safetensors.torch import save_file
 
     from core.learning.semantic_candidate_ranker import ContextualProgramRanker, candidate_set_loss
+    from core.learning.semantic_program_campaign import _sha as semantic_sha
     from core.learning.semantic_program_compositional_transducer import (
         compositional_semantic_program_transducer_from_dict,
     )
@@ -402,6 +435,17 @@ def main() -> None:
                 or folds["validation_used"] is not False or folds["test_used"] is not False):
             raise ValueError("source contrast inputs do not share a frozen cohort")
         plan = None
+    proposal_trained_on_source_folds = (model.training_receipt.get(
+        "training_example_ids_sha256") == semantic_sha(sorted(
+            item.ir.source_text_sha256 for item in examples if item.split == "train")))
+    augmentation_report = None
+    augmentation_ids = []
+    if args.augmentation_bank_directory:
+        augmentation_report = json.loads(
+            (args.augmentation_bank_directory / "report.json").read_bytes())
+        wide_plan, augmentation_ids = _verify_sources(
+            source_report, candidate_report, model, augmentation_report, folds, examples)
+        _verify_augmentation(plan, ids, wide_plan, augmentation_ids)
     if not 0 <= args.fold < folds["count"]:
         parser.error("fold lies outside the frozen source partition")
     items = {item.ir.source_text_sha256: item for item in examples if item.split == "train"}
@@ -421,6 +465,18 @@ def main() -> None:
                                    expected_receipt=bank_report["row_receipts"][source]) for source in ids}
         cases = {source: case for source in ids if (case := _rankable_or_none(
             items[source], rows[source], preserve_evidence=retain_evidence_variants)) is not None}
+        wide_rows = {}
+        wide_cases = {}
+        if augmentation_report is not None:
+            wide_rows = {source: _read_bank(
+                args.augmentation_bank_directory / "rows" / f"{source}.json",
+                source=source, plan_sha=wide_plan["plan_sha256"],
+                model_receipt=model.receipt_sha256,
+                expected_receipt=augmentation_report["row_receipts"][source])
+                for source in augmentation_ids}
+            wide_cases = {source: case for source in augmentation_ids if (
+                case := _rankable_or_none(items[source], wide_rows[source],
+                                          preserve_evidence=retain_evidence_variants)) is not None}
         if args.training_mode == "source_factors_runtime":
             source_cases, runtime_view_receipt = _source_runtime_factor_cases(
                 model, items, train, max_charts=args.runtime_charts)
@@ -435,7 +491,9 @@ def main() -> None:
                 contrasts[source] = views
             train = [source for source in train if source in cases]
         else:
-            contrasts = (_contrast_cases(items, train, held, limit=args.contrast_limit)
+            contrasts = ({source: wide_cases[source] for source in train
+                          if source in wide_cases} if augmentation_report is not None else
+                     _contrast_cases(items, train, held, limit=args.contrast_limit)
                      if args.training_mode == "mixed" else
                      _factor_cases(items, train) if args.training_mode == "bank_factors" else
                      _runtime_factor_cases(items, train, cases)
@@ -445,6 +503,7 @@ def main() -> None:
         contrasts = None
     if args.training_mode in bank_modes:
         train = [source for source in train if source in cases]
+    balanced_views = args.training_mode in balanced_modes or augmentation_report is not None
     torch.manual_seed(20260922 + args.fold)
     np.random.seed(20260922 + args.fold)
     config = RequestContextConfig(model.hidden_size, width=64, heads=4, layers=1,
@@ -467,12 +526,12 @@ def main() -> None:
                 source, cases, contrasts,
                 allow_grounding_permutation=args.training_mode == "source_factors_runtime")
             valid_views = [view for view in training_views if any(view[0][1])]
-            if args.training_mode in balanced_modes and valid_views:
+            if balanced_views and valid_views:
                 optimizer.zero_grad(set_to_none=True)
             source_losses = []
             for view in valid_views:
                 (programs, labels, keys), spans, kinds, anchors = view[:4]
-                if args.training_mode not in balanced_modes:
+                if not balanced_views:
                     optimizer.zero_grad(set_to_none=True)
                 kwargs = ({"argument_spans": view[4], "definition_spans": view[5]}
                           if args.argument_evidence else {})
@@ -480,7 +539,7 @@ def main() -> None:
                                 operation_spans=anchors, **kwargs)
                 loss = candidate_set_loss(scores, labels,
                                           program_keys=keys if retain_evidence_variants else None)
-                if args.training_mode in balanced_modes:
+                if balanced_views:
                     (loss / len(valid_views)).backward()
                     source_losses.append(float(loss.detach()))
                     continue
@@ -511,6 +570,9 @@ def main() -> None:
     evaluation = (_evaluate(ranker, items, rows, held)
                   if args.training_mode in bank_modes
                   else _evaluate_contrasts(ranker, items, cases, held))
+    wide_held = [source for source in held if source in wide_rows] if augmentation_report else []
+    wide_evaluation = (_evaluate(ranker, items, wide_rows, wide_held)
+                       if augmentation_report is not None else None)
     evidence_lesion = None
     if args.argument_evidence:
         with torch.no_grad():
@@ -527,16 +589,26 @@ def main() -> None:
     save_file({key: value.detach().cpu().contiguous() for key, value in ranker.state_dict().items()},
               weights)
     body = {"schema": "aura.semantic_candidate_ranker_source_fold.v1",
-            "pilot_only": bool(args.pilot_rows or (bank_report and bank_report["pilot_only"])),
+            "pilot_only": bool(args.pilot_rows or (bank_report and bank_report["pilot_only"])
+                               or augmentation_report is not None),
             "serving_authority": False,
+            "qualification_evidence": False,
+            "proposal_model_trained_on_source_fold_held_rows": proposal_trained_on_source_folds,
             "fold": args.fold, "folds_sha256": hashlib.sha256(args.folds.read_bytes()).hexdigest(),
             "source_bank_receipt_sha256": (bank_report["receipt_sha256"]
                                            if bank_report else None),
+            "augmentation_bank_receipt_sha256": (augmentation_report["receipt_sha256"]
+                                                   if augmentation_report else None),
+            "augmentation_source_ids": augmentation_ids,
+            "augmentation_train_sources": sorted(set(train) & set(augmentation_ids)),
+            "augmentation_held_sources": wide_held,
+            "augmentation_held_evaluation": wide_evaluation,
             "training_mode": args.training_mode,
             "identity_bindings": args.identity_bindings,
             "argument_evidence": args.argument_evidence,
             "retain_evidence_variants": retain_evidence_variants,
             "source_balanced_runtime_factor_views": args.training_mode in balanced_modes,
+            "source_balanced_training_views": balanced_views,
             "runtime_charts": args.runtime_charts if args.training_mode in balanced_modes else None,
             "runtime_view_receipt_sha256": (_digest(runtime_view_receipt)
                                              if runtime_view_receipt is not None else None),
