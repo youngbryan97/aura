@@ -19,7 +19,9 @@ def _digest(value: dict) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, allow_nan=False).encode()).hexdigest()
 
 
-def crossfit_partition(examples: list, folds: dict, fold: int) -> tuple[list, list, list]:
+def crossfit_partition(examples: list, folds: dict, fold: int,
+                       *, all_held: bool = False,
+                       held_source_ids: tuple[str, ...] = ()) -> tuple[list, list, list]:
     """Keep a group's examples together in fit, calibration, or holdout."""
     from core.learning.semantic_construction_folds import construction_folds
     from core.learning.semantic_program_campaign import _sha
@@ -56,9 +58,17 @@ def crossfit_partition(examples: list, folds: dict, fold: int) -> tuple[list, li
         item.ir.source_text_sha256] != calibration_index]
     calibration = [item for item in available if calibration_folds["assignments"][
         item.ir.source_text_sha256] == calibration_index]
-    held = [min(items, key=lambda item: item.ir.source_text_sha256)
-            for construction, items in sorted(groups.items())
-            if folds["assignments"][items[0].ir.source_text_sha256] == fold]
+    held = [item for construction, items in sorted(groups.items())
+            if folds["assignments"][items[0].ir.source_text_sha256] == fold
+            for item in (sorted(items, key=lambda item: item.ir.source_text_sha256)
+                         if all_held else [min(items, key=lambda item: item.ir.source_text_sha256)])]
+    if held_source_ids:
+        if len(held_source_ids) != len(set(held_source_ids)):
+            raise ValueError("diagnostic held source identities must be unique")
+        by_id = {item.ir.source_text_sha256: item for item in held}
+        if not set(held_source_ids) <= set(by_id):
+            raise ValueError("diagnostic source is outside the held construction fold")
+        held = [by_id[source] for source in held_source_ids]
     if (not fit or not calibration or not held
             or set(item.construction_id for item in fit)
             & set(item.construction_id for item in calibration + held)
@@ -87,6 +97,12 @@ def main() -> None:
     parser.add_argument("--max-charts", type=int, default=4)
     parser.add_argument("--max-graphs", type=int, default=2)
     parser.add_argument("--solve-seconds", type=float, default=1.)
+    parser.add_argument("--all-held", action="store_true",
+                        help="acquire every source in the held fold, not one per construction")
+    parser.add_argument("--reuse-candidate", type=Path,
+                        help="reuse a signed candidate fit from the same fold and calibration")
+    parser.add_argument("--held-source-id", action="append", default=[],
+                        help="diagnostic replay of specified held identities only")
     args = parser.parse_args()
     if (args.max_charts < 1 or args.max_graphs < 1 or
             not 0 < args.solve_seconds <= 60):
@@ -113,7 +129,9 @@ def main() -> None:
     bundles = [name + "=" + str(args.feature_root / name) for name in
                source_report["representation_compatibility"]["source_feature_manifest_sha256s"]]
     examples = load_source_examples(parent, source_report, bundles)
-    fit, calibration, held = crossfit_partition(examples, folds, args.fold)
+    fit, calibration, held = crossfit_partition(
+        examples, folds, args.fold, all_held=args.all_held,
+        held_source_ids=tuple(args.held_source_id))
     all_sources = sorted(item.ir.source_text_sha256 for item in examples if item.split == "train")
     if parent.training_receipt.get("training_example_ids_sha256") != _sha(all_sources):
         raise ValueError("parent training cohort cannot be established")
@@ -125,6 +143,9 @@ def main() -> None:
                  "fit_ids": sorted(item.ir.source_text_sha256 for item in fit),
                  "calibration_ids": sorted(item.ir.source_text_sha256 for item in calibration),
                  "held_ids": sorted(item.ir.source_text_sha256 for item in held),
+                 "held_selection": "declared_diagnostic_subset" if args.held_source_id else
+                                   "all_fold_sources" if args.all_held else
+                                   "lowest_source_identity_per_construction",
                  "max_charts": args.max_charts, "max_graphs_per_chart": args.max_graphs,
                  "solve_seconds": args.solve_seconds,
                  "implementation": validation_implementation_identity(),
@@ -137,6 +158,10 @@ def main() -> None:
     if candidate_path.exists():
         candidate = compositional_semantic_program_transducer_from_dict(
             json.loads(candidate_path.read_bytes()))
+    elif args.reuse_candidate is not None:
+        candidate = compositional_semantic_program_transducer_from_dict(
+            json.loads(args.reuse_candidate.read_bytes()))
+        _save_if_absent(candidate_path, candidate.to_dict())
     else:
         candidate = fit_compositional_semantic_program_transducer(
             [*(replace(item, split="train") for item in fit),
@@ -151,7 +176,9 @@ def main() -> None:
                      .with_joint_definition_graph()
                      .with_categorical_relation_scores())
         _save_if_absent(candidate_path, candidate.to_dict())
-    if (candidate.training_receipt["training_example_ids_sha256"] != _sha(plan["fit_ids"])
+    if (candidate.model_basis_sha256 != parent.model_basis_sha256
+            or candidate.input_grounding != parent.input_grounding
+            or candidate.training_receipt["training_example_ids_sha256"] != _sha(plan["fit_ids"])
             or candidate.training_receipt["validation_example_ids_sha256"] != _sha(
                 plan["calibration_ids"])):
         raise ValueError("crossfit model saw a held construction")
