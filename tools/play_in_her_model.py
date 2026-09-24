@@ -69,12 +69,21 @@ def main() -> int:
     parser.add_argument("--toward", default="2048")
     parser.add_argument("--without-invented", action="store_true")
     parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument(
+        "--budget-by-room", action="store_true",
+        help="think as the live loop does: --budget on an open board, rising to 2 s as it fills",
+    )
+    parser.add_argument(
+        "--lean", type=float, default=0.0,
+        help="add the live loop's lean on what the world could swing, from -1 (avoid) to 1 (seek)",
+    )
     args = parser.parse_args()
 
     from core.agency.a_world_compiled import compiled
     from core.agency.how_good_is_this import AS_GOOD_A_GUESS_AS_ANY, INVENTED, forget, promote
     from core.agency.inventing_a_measure import measure_named
-    from core.agency.looking_ahead import look_ahead
+    from core.agency.looking_ahead import at_the_worlds_mercy, look_ahead
+    from core.skills.screen_pursuit_decision_branches import _how_long_to_think
     from core.agency.what_makes_it_good_here import WhatMakesItGoodHere
     from core.perception.how_it_moves import HowItMoves
     from core.perception.what_the_world_does import WhatTheWorldDoes
@@ -119,12 +128,29 @@ def main() -> int:
         state = start
         furthest, began, moves = 0.0, time.monotonic(), 0
         for moves in range(1, args.moves + 1):
+            budget = (
+                _how_long_to_think(state, least=args.budget, most=2.0)
+                if args.budget_by_room
+                else args.budget
+            )
             scores = look_ahead(
                 rules, state, acts, toward=args.toward, world=world, weights=weights,
-                depth=args.depth, budget_s=args.budget,
+                depth=args.depth, budget_s=budget,
             )
             if not scores:
                 break
+            if args.lean:
+                # The same adjustment the live loop makes, from the same measure.
+                exposed = at_the_worlds_mercy(
+                    rules, state, acts, toward=args.toward, world=world
+                )
+                worths = [value for value, _why in scores.values()]
+                spread = max(worths) - min(worths)
+                if exposed and spread > 0.0:
+                    scores = {
+                        name: (value + args.lean * spread * exposed.get(name, 0.0), why)
+                        for name, (value, why) in scores.items()
+                    }
             act = max(scores, key=lambda name: scores[name][0])
             after = made.act(board, act)
             if after == board:
