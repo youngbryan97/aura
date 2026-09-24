@@ -261,7 +261,9 @@ def at_the_worlds_mercy(
     }
 
 
-def whether_to_take_the_wide_option(left: float, gaining: float) -> float:
+def whether_to_take_the_wide_option(
+    left: float, gaining: float, *, against_a_clock: bool = True
+) -> float:
     """Which way to lean on a position the world could swing, from -1 to 1.
 
     A fighter takes a shot at nineteen seconds that he would not take at
@@ -279,6 +281,15 @@ def whether_to_take_the_wide_option(left: float, gaining: float) -> float:
     worth seeking, because the average outcome of what she is doing is
     already a loss and the spread is the only thing that contains a win.
     """
+    # Only against a clock. A goal that names its own end is kept at until it
+    # is met, and its budget is set far past what it needs, so no deadline is
+    # being raced and the trade of what a move is worth against how widely it
+    # could land has no reason to be made either way. Taken anyway, the whole
+    # budget read as time to spare and she leaned fully away from every swing
+    # all game: played out in her own model with her live search, 3 of 6
+    # games reached 2048 leaning at -0.99 and 6 of 6 without (2026-09-24).
+    if not against_a_clock:
+        return 0.0
     share = max(0.0, min(1.0, float(left)))
     # Losing counts for more the less time is left to recover from it: the
     # same deficit is a reason to steady early and a reason to gamble late.

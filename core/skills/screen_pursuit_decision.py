@@ -1373,6 +1373,7 @@ async def decide_the_next_move(
             lean = whether_to_take_the_wide_option(
                 max(0.0, ends_at - time.monotonic()) / max(1e-9, ends_at - began),
                 _how_it_has_been_going(began_at, laid_out),
+                against_a_clock=not success_when,
             )
             if spread > 0.0 and lean:
                 ahead = {

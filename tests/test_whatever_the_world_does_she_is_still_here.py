@@ -132,3 +132,19 @@ def test_it_stays_between_taking_and_avoiding():
     for left in (0.0, 0.25, 0.5, 0.75, 1.0):
         for gaining in (-2.0, 0.0, 2.0):
             assert -1.0 <= whether_to_take_the_wide_option(left, gaining) <= 1.0
+
+
+def test_with_no_clock_to_race_there_is_no_lean():
+    """A goal that names its own end is not racing a deadline.
+
+    Played out in her own model with her live search, leaning at -0.99 reached
+    2048 in 3 of 6 games and not leaning in 6 of 6 (2026-09-24).
+    """
+    for left, gaining in ((0.99, 0.5), (0.1, -0.5), (0.5, 0.0)):
+        assert whether_to_take_the_wide_option(left, gaining, against_a_clock=False) == 0.0
+
+
+def test_the_live_loop_leans_only_where_a_clock_is_being_raced():
+    from screen_pursuit_support import pursuit_source
+
+    assert "against_a_clock=not success_when" in pursuit_source()
