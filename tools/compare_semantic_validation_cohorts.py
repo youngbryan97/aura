@@ -53,6 +53,10 @@ def compare(old: dict, new: dict, *, old_name: str) -> dict:
             "new_correct": counts["both"] + counts["new_only"],
             "oracle_union": len(ids) - counts["neither"],
             "residual": sorted(residual, key=lambda item: item["source"]),
+            "protocol_matched": False,
+            "protocol_note": "old checkpoint has no search bound or row-level program; "
+                             "new cohort binds a separate implementation and search allowance",
+            "new_search_allowances": new.get("search_allowances"),
             "serving_authority": False, "qualification_evidence": False}
 
 

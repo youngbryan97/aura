@@ -1195,9 +1195,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   fitting and calibration (14/16 ordinary correct at a one-second bound).
   The later refit's 1/16 on that same short replay was mostly typed search
   interruption, not evidence of wrong completed programs: its archived
-  20-second source cohort was 764/764. On paired 500-case validation receipts,
-  the original and later candidates score 472 and 477, with an oracle union
-  of 488; 12 cases defeat both. The union is diagnostic, not a serving result.
+  20-second source cohort was 764/764. On the same 500 validation identities,
+  the archived original and later candidates score 472 and 477, with an
+  observed oracle union of 488; 12 cases defeat both. The old checkpoint has
+  no search bound while the newer cohort uses 20 seconds, so this is not a
+  matched-protocol or serving result. A bound-matched replay remains open.
   Independent candidate coverage and target-free arbitration remain open.
   [PDF architecture disposition and opt-in full-program identity training](evidence/G03_PDF_ARCHITECTURE_DISPOSITION_2026-09-23.md)
   now covers all four supplied PDFs. The v3 candidate bank retains selected

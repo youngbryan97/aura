@@ -150,18 +150,23 @@ a real latency regression and a mismatch between the bank and serving bounds.
 The cross-fit result is a small source-construction pilot, not validation
 transfer or a reason to promote its candidate.
 
-On exactly the same 500 archived validation identities, with their original
-cohort bounds, the original source-fit candidate has 472 equivalent answers
-and the later literal-identity candidate has 477. They agree correct on 461;
+On exactly the same 500 archived validation identities, the original
+source-fit candidate has 472 equivalent answers and the later literal-identity
+candidate has 477. **These are not matched search protocols:** the old
+checkpoint does not record a search allowance and its evaluator called decode
+without a time bound, whereas the later cohort records a 20-second bound and
+a different implementation identity. The observations agree correct on 461;
 the original alone gets 11, the later candidate alone gets 16, and neither
-gets 12. The *oracle* union is 488/500, not a deployable score: no target-free
-arbiter has identified which candidate is right on disagreements. The 12
+gets 12. The cross-protocol *observed oracle* union is 488/500, not a
+deployable score or a matched-protocol upper bound: no target-free arbiter has
+identified which candidate is right on disagreements. The 12
 shared misses are concentrated in cataphoric (2), reserved alias (8), and
 role binding (2). A router between these two archived outputs cannot reach
 500/500, even with perfect selection. The evidence calls for both genuinely
 new candidate coverage and an independent, calibrated selection mechanism.
 These validation labels are exposed development evidence and cannot qualify a
-newly tuned selector.
+newly tuned selector. Replaying both candidates under one bound and evaluator
+is required before treating the overlap as a causal model comparison.
 
 Artifacts: `~/.aura/rlc-evidence/semantic-proposer-crossfit-fold2-v2-20260923/report.json`,
 `~/.aura/rlc-evidence/semantic-proposer-lineage-base-fold2-20260923/report.json`,
