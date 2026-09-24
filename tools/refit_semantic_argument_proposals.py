@@ -108,7 +108,8 @@ def main() -> int:
                         help="numerical checkpoint bound to the requested round snapshot")
     parser.add_argument("--runtime-operation-views", action="store_true")
     parser.add_argument("--runtime-operation-view-charts", type=int, default=0)
-    parser.add_argument("--triadic-feature-schema", choices=("triple_product_v1", "joint_source_v2"),
+    parser.add_argument("--triadic-feature-schema", choices=("triple_product_v1", "joint_source_v2",
+                                                           "joint_representation_v3"),
                         default="triple_product_v1")
     parser.add_argument("--preserve-coreferent-mentions", action="store_true")
     parser.add_argument("--operation-view-mode", action="append",

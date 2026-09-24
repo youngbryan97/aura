@@ -21,7 +21,8 @@ def main() -> None:
     parser.add_argument("--feature-root", type=Path, required=True)
     parser.add_argument("--folds", type=Path, required=True)
     parser.add_argument("--fold", type=int, required=True)
-    parser.add_argument("--feature-schema", choices=("triple_product_v1", "joint_source_v2"),
+    parser.add_argument("--feature-schema", choices=("triple_product_v1", "joint_source_v2",
+                                                     "joint_representation_v3"),
                         default="triple_product_v1")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()

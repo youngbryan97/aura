@@ -18,6 +18,7 @@ from core.learning.semantic_triadic_binding import (
     evaluate_triadic_gold_binding,
     fit_triadic_binding_heads,
     joint_source_binding_feature,
+    joint_representation_binding_feature,
     triadic_binding_feature,
 )
 from tests.test_semantic_program_shared_transducer import _examples, _grounding
@@ -44,6 +45,8 @@ def test_joint_feature_keeps_source_occurrences_and_schema():
                  definition_span=TokenSpan(1, 2), token_count=5)
     feature = joint_source_binding_feature(op, mention, definition, **spans)
     assert feature.shape == (8 * len(op) + 8,)
+    assert np.array_equal(feature[:-8], joint_representation_binding_feature(
+        op, mention, definition))
     moved = {**spans, "definition_span": TokenSpan(2, 3)}
     assert not np.array_equal(feature, joint_source_binding_feature(op, mention, definition, **moved))
     weight = np.zeros_like(feature)
@@ -74,7 +77,8 @@ def test_fit_requires_source_only_contrasts():
     assert all(np.isfinite(head.weight).all() for head in heads)
 
 
-@pytest.mark.parametrize("feature_schema", ("triple_product_v1", "joint_source_v2"))
+@pytest.mark.parametrize("feature_schema", (
+    "triple_product_v1", "joint_source_v2", "joint_representation_v3"))
 def test_refit_round_trip_and_isolated_lesion(monkeypatch, feature_schema):
     examples = _examples()
     parent = fit_compositional_semantic_program_transducer(examples, input_grounding=_grounding())

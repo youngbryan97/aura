@@ -64,6 +64,19 @@ def joint_source_binding_feature(
                            mention - definition, geometry))
 
 
+def joint_representation_binding_feature(operation: np.ndarray,
+                                         mention: np.ndarray,
+                                         definition: np.ndarray) -> np.ndarray:
+    """Use the same joint vector basis without token-position shortcuts."""
+    if (operation.ndim != 1 or mention.shape != operation.shape
+            or definition.shape != operation.shape):
+        raise ValueError("joint representation spans differ in width")
+    return np.concatenate((operation, mention, definition,
+                           operation * mention, operation * definition,
+                           mention * definition, operation * mention * definition,
+                           mention - definition))
+
+
 @dataclass(frozen=True, slots=True)
 class TriadicBindingHead:
     weight: np.ndarray
@@ -77,7 +90,9 @@ class TriadicBindingHead:
             and weight.size % _DIRECTIONAL_RELATION_PARTS == 0
         ) if self.feature_schema == "triple_product_v1" else (
             weight.size > 8 and (weight.size - 8) % 8 == 0
-        ) if self.feature_schema == "joint_source_v2" else False
+        ) if self.feature_schema == "joint_source_v2" else (
+            weight.size >= 8 and weight.size % 8 == 0
+        ) if self.feature_schema == "joint_representation_v3" else False
         if (not valid_width
                 or not np.all(np.isfinite(weight)) or not np.isfinite(self.bias)):
             raise ValueError("triadic binding head is invalid")
@@ -87,6 +102,8 @@ class TriadicBindingHead:
     def channel_width(self) -> int:
         if self.feature_schema == "joint_source_v2":
             return int((self.weight.size - 8) // 8)
+        if self.feature_schema == "joint_representation_v3":
+            return int(self.weight.size // 8)
         return int(self.weight.size // _DIRECTIONAL_RELATION_PARTS)
 
     def score(self, operation: np.ndarray, mention: np.ndarray,
@@ -101,6 +118,8 @@ class TriadicBindingHead:
             feature = joint_source_binding_feature(operation, mention, definition,
                 operation_span=operation_span, mention_span=mention_span,
                 definition_span=definition_span, token_count=token_count)
+        elif self.feature_schema == "joint_representation_v3":
+            feature = joint_representation_binding_feature(operation, mention, definition)
         else:
             feature = triadic_binding_feature(operation, mention, definition)
         if feature.shape != self.weight.shape:
@@ -135,7 +154,8 @@ def fit_triadic_binding_heads(
     examples = tuple(examples)
     if not examples or any(item.split != "train" for item in examples):
         raise ValueError("triadic fit needs source-only training examples")
-    if feature_schema not in {"triple_product_v1", "joint_source_v2"}:
+    if feature_schema not in {"triple_product_v1", "joint_source_v2",
+                              "joint_representation_v3"}:
         raise ValueError("triadic feature schema is unsupported")
     sources = {item.ir.source_text_sha256: item for item in examples}
     if any(_geometry(item) != _geometry(sources[item.ir.source_text_sha256])
@@ -192,6 +212,9 @@ def fit_triadic_binding_heads(
                             operation_span=instruction.operation_span,
                             mention_span=choice, definition_span=definition,
                             token_count=len(item.hidden_states))
+                    elif feature_schema == "joint_representation_v3":
+                        feature = joint_representation_binding_feature(
+                            operation, vectors[choice], vectors[definition])
                     else:
                         feature = triadic_binding_feature(
                             operation, vectors[choice], vectors[definition])
