@@ -434,10 +434,7 @@ class _QueueHandler(logging.Handler):
                     self._dropped_warn_count += 1
                     if record.created - self._last_overflow_warning_at >= 60.0:
                         rotated = self._dropped_warn_count - self._last_reported_warn_drops
-                        # At info. This is the display ring turning over; the
-                        # file log keeps every record, and a warning about
-                        # warnings leaving a display counted itself among them.
-                        logger.info(
+                        logger.warning(
                             "UI log buffer at capacity: rotated out %d warning+ records "
                             "since last report (session totals: %d warning+, %d all levels); "
                             "newest records preserved.",
