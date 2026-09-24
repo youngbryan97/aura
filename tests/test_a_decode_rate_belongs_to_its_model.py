@@ -71,12 +71,21 @@ def test_readings_survive_a_round_trip_per_model(tmp_path, monkeypatch):
     assert thinking_reserve.seconds_to_decode(600, "a 27B") == pytest.approx(slow, rel=0.01)
 
 
-def test_a_file_written_before_models_were_kept_still_reads(tmp_path, monkeypatch):
+def test_stream_time_rates_are_not_read_as_decoding(tmp_path, monkeypatch):
+    """The old key timed the whole stream, reading included.
+
+    LIVE 2026-09-23: 61 tokens MLX decoded at 6.1 a second were stored as 2.0,
+    and a 96-token move was given 79 seconds. Those rows measure something
+    else, so a reader that wants decoding must not find them.
+    """
     import json
 
     target = tmp_path / "rates.json"
-    target.write_text(json.dumps({"rates": [[600, 7.0]] * 12}))
+    target.write_text(
+        json.dumps({"rates": {"a 27B": [[600, 2.0]] * 12, "": [[600, 2.0]] * 12}})
+    )
     monkeypatch.setattr(thinking_reserve, "_store_path", lambda: target)
 
     thinking_reserve.load()
-    assert thinking_reserve.seconds_to_decode(600) > 0.0
+    assert thinking_reserve.seconds_to_decode(600, "a 27B") == 0.0
+    assert thinking_reserve.seconds_to_decode(600) == 0.0

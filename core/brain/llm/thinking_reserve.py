@@ -689,6 +689,16 @@ _STORE = "decode_measurements.json"
 #: models, in core/brain/llm/mlx_client.py.
 _READ_RATE_KEY = "read_rates"
 
+#: Which clock the stored decode rates were taken with.
+#:
+#: "rates" held tokens over the whole stream, and the stream starts before the
+#: prompt is read. On a 27B reading at 130 tokens a second and decoding at six,
+#: a short answer's reading is most of its stream: 61 tokens MLX decoded at 6.1
+#: a second were stored as 2.0. Those rows measure a different quantity, and
+#: every clock that read them added the reading a second time. Renaming the key
+#: retires them once, on the first write after the fix.
+_DECODE_RATE_KEY = "decode_rates"
+
 
 def _store_path() -> Path | None:
     try:
@@ -713,15 +723,10 @@ def _merge_in_what_is_already_stored(target: Path) -> None:
         return
     with _lock:
         _merge_reasoning_measurements(stored)
-        held = stored.get("rates")
+        held = stored.get(_DECODE_RATE_KEY)
         if isinstance(held, dict):
             for name, rows in held.items():
                 _put_older_readings_first(_window_for(str(name)), rows, _one_pair)
-        else:
-            # Written before the readings were kept per model. They belong to
-            # whichever model was running, which nothing recorded, so they go
-            # in unnamed and are used only where a model has none of its own.
-            _put_older_readings_first(_window_for(_ANY_MODEL), held, _one_pair)
         _read_rates[:0] = [
             row
             for row in (_one_pair(item) for item in (stored.get(_READ_RATE_KEY) or ()))
@@ -860,7 +865,7 @@ def save() -> bool:
                 "proved_insufficient": _proved_insufficient_by_model.get(
                     _ANY_MODEL, 0
                 ),
-                "rates": {
+                _DECODE_RATE_KEY: {
                     name: [[length, rate] for length, rate in window]
                     for name, window in _rates.items()
                 },
@@ -929,8 +934,8 @@ def load() -> int:
             + sum(len(window) for window in _observed_by_model.values())
             - before
         )
-        held = raw.get("rates") or ()
-        by_model = held.items() if isinstance(held, dict) else ((_ANY_MODEL, held),)
+        held = raw.get(_DECODE_RATE_KEY) or {}
+        by_model = held.items() if isinstance(held, dict) else ()
         for name, rows in by_model:
             window = _window_for(str(name))
             for row in rows or ():

@@ -381,12 +381,17 @@ def _within_the_run(think: Any, ends_at: float, a_move_takes: float = 0.0) -> An
         return think
 
     async def bounded(objective: str, evidence: Any) -> Any:
+        from core.agency.her_reasoning import answering_by
+
         left = ends_at - time.monotonic()
         if left <= 1.0:
             raise TimeoutError("the run is out of time to think")
         if a_move_takes > 0.0:
             left = min(left, max(2.0, 10.0 * a_move_takes))
-        return await asyncio.wait_for(think(objective, evidence), timeout=left)
+        # And her voice is told when, so a question it cannot answer in that
+        # time is not put to it only to be cancelled.
+        with answering_by(time.monotonic() + left):
+            return await asyncio.wait_for(think(objective, evidence), timeout=left)
 
     return bounded
 

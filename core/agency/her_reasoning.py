@@ -19,7 +19,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Sequence
+import time
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any
 
 from core.runtime.errors import record_degradation
@@ -97,6 +100,42 @@ def time_this_question_needs(prompt: str, max_tokens: int, floor_s: float) -> fl
     except (ImportError, AttributeError, TypeError, ValueError):
         return float(floor_s)
     return max(float(floor_s), needed)
+
+
+#: When whatever asked needs the answer by, on the monotonic clock.
+#:
+#: A caller bounded her thinking from outside and she started anyway. LIVE
+#: 2026-09-23, a game answering in two and a half seconds a move: every
+#: question was given the eight seconds ten moves take, the 27B needs about
+#: thirty-five to read one and answer it, and each was cancelled at eight with
+#: nothing said — twenty-five of them, and the cortex had not finished one
+#: generation that boot. The deadline travels down with the question, so a
+#: question that cannot be answered in time is not started.
+_ANSWER_BY: ContextVar[float | None] = ContextVar("aura_answer_by", default=None)
+
+
+@contextmanager
+def answering_by(deadline: float) -> Iterator[None]:
+    """Hold the time the caller needs an answer by while it waits for one."""
+    token = _ANSWER_BY.set(float(deadline))
+    try:
+        yield
+    finally:
+        _ANSWER_BY.reset(token)
+
+
+def _not_started_if_it_cannot_finish(asked: str, max_tokens: int) -> None:
+    """Refuse at once, before the model reads a word, what it cannot answer in time."""
+    by = _ANSWER_BY.get()
+    if by is None:
+        return
+    left = by - time.monotonic()
+    needs = time_this_question_needs(asked, max_tokens, 0.0)
+    if needs > left:
+        raise TimeoutError(
+            f"my voice needs about {needs:.0f}s to answer this and it is wanted in "
+            f"{max(0.0, left):.0f}s, so it was not asked"
+        )
 
 
 def generator(
@@ -201,6 +240,7 @@ def her_reasoning(
         from core.brain.reasoning_amplifier_v2 import amplify_turn  # noqa: PLC0415
 
         asked = "\n".join([objective, *evidence])
+        _not_started_if_it_cannot_finish(asked, max_tokens)
         allow_s = time_this_question_needs(asked, max_tokens, time_budget_s)
         amplified = await asyncio.wait_for(
             amplify_turn(
@@ -298,6 +338,7 @@ def quick_reasoning(*, origin: str = "agency_next_move", max_tokens: int = CHOIC
         # returns is the same to this loop as one that returns nothing, and
         # only one of those is visible without a deadline of its own.
         asked = "\n".join([objective, *evidence])
+        _not_started_if_it_cannot_finish(asked, max_tokens)
         allow_s = time_this_question_needs(asked, max_tokens, DECISION_BUDGET_S)
         said = await asyncio.wait_for(produce(asked, 0.3), timeout=allow_s + 2.0)
         answer = str(said or "").strip()

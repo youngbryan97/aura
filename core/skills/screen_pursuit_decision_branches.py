@@ -671,3 +671,43 @@ def _decide_the_next_move_while_there_something(
                 )
                 return None
     return _FALL_THROUGH
+
+
+def _thought_over_beside_the_play(question: Any) -> Any:
+    """Put a question to her voice without holding the play still for it.
+
+    Returns the thought in flight, to be taken up on whichever move it lands.
+    None where it could not be started, and the question is then not asked.
+    """
+    from core.runtime.errors import record_degradation
+    from core.utils.task_tracker import get_task_tracker
+
+    try:
+        return get_task_tracker().create_task(question, name="screen_pursuit.a_line_to_take")
+    except (RuntimeError, TypeError) as exc:
+        question.close()
+        record_degradation(
+            "screen_pursuit", exc, severity="info", action="played on without asking for a line"
+        )
+        return None
+
+
+def _what_the_thought_came_to(thought: Any) -> Any:
+    """What a finished thought answered, or None when it answered nothing.
+
+    A thought that ran out of time or found its voice unavailable has
+    answered nothing, which is an ordinary answer: she played on with the line
+    she had.
+    """
+    from .screen_pursuit import logger
+
+    if thought.cancelled():
+        logger.info("the line she was thinking over was dropped before it was answered")
+        return None
+    failed = thought.exception()
+    if failed is not None:
+        logger.info(
+            "thinking over a line came to nothing (%s): %s", type(failed).__name__, failed
+        )
+        return None
+    return thought.result()

@@ -5323,19 +5323,30 @@ def _mlx_worker_loop_current_response(deadline_hit, logger, max_tokens, model_pa
         )
     return current_response
 
-def _mlx_worker_loop_total_generated_tokens(_prompt_chars_for_rate, generation_performance, generation_stream_started_at, logger, model_path, surface_control_state, token_count):
+def _mlx_worker_loop_total_generated_tokens(_prompt_chars_for_rate, generation_performance, generation_stream_started_at, logger, model_path, surface_control_state, token_count, first_token_s=None):
     total_generated_tokens = token_count
     # How fast this actually decoded. A deadline that cannot deliver
     # the budget it was given is a contradiction between two derived
     # numbers, and neither side could see the other without this.
-    _elapsed_decode_s = (
-        time.perf_counter() - generation_stream_started_at
-    )
-    _record_decode_rate(
+    #
+    # Decoding only. This was timed from the start of the stream, which
+    # is before the prompt is read, so every rate carried the reading
+    # too, and the answer clock then added the reading again from its
+    # own rate. LIVE 2026-09-23 on the 27B: MLX timed 61 tokens at 6.1 a
+    # second, the store kept 2.0, and a 96-token move was put at 79
+    # seconds when it needed about 17 after its reading.
+    _decode_tokens, _elapsed_decode_s = _what_decoding_took(
+        generation_performance,
         token_count,
-        _elapsed_decode_s,
-        os.path.basename(str(model_path or "")),
+        time.perf_counter() - generation_stream_started_at,
+        first_token_s,
     )
+    if _decode_tokens > 0 and _elapsed_decode_s > 0.0:
+        _record_decode_rate(
+            _decode_tokens,
+            _elapsed_decode_s,
+            os.path.basename(str(model_path or "")),
+        )
     # And how long it took to READ, which is
     # the same kind of fact and was never
     # written down anywhere a deadline could
@@ -5373,11 +5384,30 @@ def _mlx_worker_loop_total_generated_tokens(_prompt_chars_for_rate, generation_p
     # that produced them.
     if _read_s > 0.0:
         _record_read_rate(_prompt_chars_for_rate, _read_s)
-    if token_count > 0 and _elapsed_decode_s > 0.0:
+    if _decode_tokens > 0 and _elapsed_decode_s > 0.0:
         surface_control_state["decode_tokens_per_second"] = (
-            token_count / _elapsed_decode_s
+            _decode_tokens / _elapsed_decode_s
         )
     return total_generated_tokens
+
+
+def _what_decoding_took(performance, token_count, stream_s, first_token_s):
+    """Tokens decoded and the seconds decoding them took, reading left out.
+
+    MLX's own timing where it gave one. Otherwise the stream after its first
+    token, which arrives when the reading is done. Neither, and nothing: an
+    unmeasured rate extends no deadline.
+    """
+    try:
+        tokens = int((performance or {}).get("generation_tokens") or 0)
+        seconds = float((performance or {}).get("decode_seconds") or 0.0)
+    except (AttributeError, TypeError, ValueError):
+        tokens, seconds = 0, 0.0
+    if tokens > 0 and seconds > 0.0:
+        return tokens, seconds
+    if first_token_s is None or token_count <= 1:
+        return 0, 0.0
+    return token_count - 1, max(0.0, float(stream_s) - float(first_token_s))
 
 def _mlx_worker_loop_reasons_name_removable():
     # Reasons that name a REMOVABLE
@@ -8241,7 +8271,7 @@ def _mlx_worker_loop(
                                                 len(trimmed_response or ""),
                                             )
                                             response_text = trimmed_response
-                                    total_generated_tokens = _mlx_worker_loop_total_generated_tokens(_prompt_chars_for_rate, generation_performance, generation_stream_started_at, logger, model_path, surface_control_state, token_count)
+                                    total_generated_tokens = _mlx_worker_loop_total_generated_tokens(_prompt_chars_for_rate, generation_performance, generation_stream_started_at, logger, model_path, surface_control_state, token_count, first_token_latency_s)
 
                                     if soft_cancelled or deadline_hit:
                                         # Preempted or deadline-stopped turn: retries

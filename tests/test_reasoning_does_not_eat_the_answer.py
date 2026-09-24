@@ -222,7 +222,9 @@ def test_a_process_that_learned_nothing_cannot_erase_a_proof() -> None:
     target = thinking_reserve._store_path()
     assert target is not None
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps({"proved_insufficient": 1024, "rates": [[64, 9.0]]}))
+    target.write_text(
+        json.dumps({"proved_insufficient": 1024, "decode_rates": {"": [[64, 9.0]]}})
+    )
 
     # A process that has learned nothing saves. It must not lower the proof.
     assert thinking_reserve.save()
@@ -232,11 +234,7 @@ def test_a_process_that_learned_nothing_cannot_erase_a_proof() -> None:
     thinking_reserve.record_decode_rate(generated_tokens=100, elapsed_s=10.0)
     assert thinking_reserve.save()
     stored = json.loads(target.read_text())
-    unnamed_rates = (
-        stored["rates"].get("", [])
-        if isinstance(stored["rates"], dict)
-        else stored["rates"]
-    )
+    unnamed_rates = stored["decode_rates"].get("", [])
     assert [64, 9.0] in unnamed_rates
     assert [100, 10.0] in unnamed_rates
 

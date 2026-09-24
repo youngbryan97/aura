@@ -927,70 +927,96 @@ async def decide_the_next_move(
                     lines.learned(A_LINE_HERE, plan["held"].approach, False)
                 going.it_was_reassessed()
                 logger.info("the approach is being looked at again: %s", stalled)
-        time_to_ask = lost and _decide_the_next_move_part_14(ended, holding, looking_at_the_thing, moves, plan, costs)
-        if not holding and time_to_ask:
+        # The line is thought over beside the play, not in place of it.
+        #
+        # Asked in line, the question held the board still until it was
+        # answered, so it was given the time ten moves take and no more.
+        # LIVE 2026-09-23: the 27B needs about a hundred seconds to read the
+        # question and write a line, the board moved every two and a half,
+        # and every question was cancelled at eight with nothing said. A
+        # person playing fast thinks about how to play while their hands keep
+        # going, and takes up the answer when it comes. Asked that way it
+        # costs no move, so it is not kept for when she is lost.
+        thinking = plan.get("thinking")
+        fresh = None
+        if thinking is not None and thinking.done():
+            plan["thinking"] = None
+            fresh = _what_the_thought_came_to(thinking)
+            ended = plan.pop("asked_because", ended)
+            # Counted from the answer, so the next question waits for her to
+            # have played under this one.
             plan["asked_at"] = len(moves)
-            fresh = await settle_on_an_approach(
-                goal,
-                seen,
-                screen_options(move_keys),
-                # Deciding the line she will hold across a hundred moves
-                # is not the same question as deciding one of them, and
-                # asking it with the thinking that suits a move got the
-                # model's own warm-up handed back as a plan.
-                think=_within_the_run(
-                    think or _reasoning_for_a_plan(), ends_at, _a_move_here(run)
-                ),
-                knowledge=learned,
-                history=history[-RECENT_ATTEMPTS:],
-                previous=plan["held"],
-                moves_made=len(moves),
-            )
-            if fresh is not None:
-                changing = plan["held"] is not None
-                # The same line again is not a new line. Asking and getting the
-                # answer she already had says the question is not what is
-                # changing, so it is not said again and she waits longer before
-                # putting it again. LIVE 2026-09-17, a plan about a corner the
-                # board did not yet hold: judged broken on every move, asked
-                # again on every move, and announced on every move.
-                same = changing and " ".join(fresh.approach.split()).casefold() == " ".join(
-                    plan["held"].approach.split()
-                ).casefold()
-                plan["same_again"] = plan.get("same_again", 0) + 1 if same else 0
-                plan["held"] = fresh
-                plan["changes"] += 1 if changing and not same else 0
-                # Held where the rest of her can see it, not in this loop.
-                doing.going_about_it(
-                    fresh.approach,
-                    because=fresh.because,
-                    watching_for=fresh.holds_while.describes,
-                    alternatives=fresh.otherwise,
-                    spine=spine,
-                    lived=lived,
+        a_line_is_due = (
+            plan.get("thinking") is None
+            and fresh is None
+            and _decide_the_next_move_part_14(ended, holding, looking_at_the_thing, moves, plan, costs)
+        )
+        if not holding and a_line_is_due:
+            plan["asked_at"] = len(moves)
+            plan["asked_because"] = ended
+            plan["thinking"] = _thought_over_beside_the_play(
+                settle_on_an_approach(
+                    goal,
+                    seen,
+                    screen_options(move_keys),
+                    # Deciding the line she will hold across a hundred moves
+                    # is not the same question as deciding one of them, and
+                    # asking it with the thinking that suits a move got the
+                    # model's own warm-up handed back as a plan.
+                    #
+                    # Bounded by the run and not by a move: nothing waits.
+                    think=_within_the_run(think or _reasoning_for_a_plan(), ends_at),
+                    knowledge=learned,
+                    history=history[-RECENT_ATTEMPTS:],
+                    previous=plan["held"],
+                    moves_made=len(moves),
                 )
-                if narrate and not same:
-                    said = fresh.narrate()
-                    # And what she expects it to do, which is what makes it a
-                    # line rather than a remark: the rung it is for, and what
-                    # a rung has cost here.
-                    if going is not None:
-                        wants = going.expecting(fresh.approach, len(moves))
-                        if wants:
-                            said = f"{said} — {wants}"
-                    # And whether anything she read bears it out. Her voice
-                    # is one witness; what she read is another, and a line
-                    # only her own voice vouches for is held knowing that.
-                    read = knowledge["held"].findings if knowledge["held"] is not None else []
-                    if read:
-                        from core.agency.what_agrees import borne_out
+            )
+        if fresh is not None:
+            changing = plan["held"] is not None
+            # The same line again is not a new line. Asking and getting the
+            # answer she already had says the question is not what is
+            # changing, so it is not said again and she waits longer before
+            # putting it again. LIVE 2026-09-17, a plan about a corner the
+            # board did not yet hold: judged broken on every move, asked
+            # again on every move, and announced on every move.
+            same = changing and " ".join(fresh.approach.split()).casefold() == " ".join(
+                plan["held"].approach.split()
+            ).casefold()
+            plan["same_again"] = plan.get("same_again", 0) + 1 if same else 0
+            plan["held"] = fresh
+            plan["changes"] += 1 if changing and not same else 0
+            # Held where the rest of her can see it, not in this loop.
+            doing.going_about_it(
+                fresh.approach,
+                because=fresh.because,
+                watching_for=fresh.holds_while.describes,
+                alternatives=fresh.otherwise,
+                spine=spine,
+                lived=lived,
+            )
+            if narrate and not same:
+                said = fresh.narrate()
+                # And what she expects it to do, which is what makes it a
+                # line rather than a remark: the rung it is for, and what
+                # a rung has cost here.
+                if going is not None:
+                    wants = going.expecting(fresh.approach, len(moves))
+                    if wants:
+                        said = f"{said} — {wants}"
+                # And whether anything she read bears it out. Her voice
+                # is one witness; what she read is another, and a line
+                # only her own voice vouches for is held knowing that.
+                read = knowledge["held"].findings if knowledge["held"] is not None else []
+                if read:
+                    from core.agency.what_agrees import borne_out
 
-                        borne = borne_out(fresh.approach, read)
-                        said = f"{said} ({borne.says_so()})"
-                        logger.info("the line she took, against what she read: %s", borne.says_so())
-                    _tell(f"{said} ({ended})" if changing and ended else said)
-                elif going is not None:
-                    going.expecting(fresh.approach, len(moves))
+                    borne = borne_out(fresh.approach, read)
+                    said = f"{said} ({borne.says_so()})"
+                    logger.info("the line she took, against what she read: %s", borne.says_so())
+                _tell(f"{said} ({ended})" if changing and ended else said)
+            elif going is not None:
+                going.expecting(fresh.approach, len(moves))
         if plan["held"] is not None:
             learned = learned + plan["held"].as_evidence()
 
@@ -1780,5 +1806,7 @@ from core.skills.screen_pursuit_decision_branches import (  # noqa: E402
     _decide_the_next_move_what_she_what,
     _decide_the_next_move_where_move_she,
     _decide_the_next_move_while_there_something,
+    _thought_over_beside_the_play,
     _what_she_says_as_she_moves,
+    _what_the_thought_came_to,
 )

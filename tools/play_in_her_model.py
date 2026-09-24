@@ -90,6 +90,11 @@ def main() -> int:
     world = WhatTheWorldDoes.from_memory(richer, TRUST_CARRIED_OVER)
     print(f"her rule: {rules.says()}")
     matters = WhatMakesItGoodHere.from_memory(knew.get("matters") or {}, TRUST_CARRIED_OVER)
+    # The properties she invented, put back the way a sitting puts them back:
+    # the world's own record names them, and only the recipes can make them.
+    from core.agency.what_she_invented import recall
+
+    recall()
     for name, worth in (knew.get("judging") or {}).items():
         found = measure_named(str(name))
         if found is not None:

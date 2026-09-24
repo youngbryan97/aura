@@ -352,7 +352,11 @@ def test_language_is_asked_where_it_changes_the_answer():
     source = pursuit_loop_source()
     assert "lost = not sees and (stuck(history) or (tried_everything and no_model))" in source
     assert "if asking and not (lost or offered_pacing):" in source
-    assert "time_to_ask = lost and" in source
+    # A line to take is thought over beside the play, so the world does not
+    # wait for it at all, lost or not (live, 2026-09-23: every question asked
+    # in line was cancelled at eight seconds with nothing said).
+    assert 'plan["thinking"] = _thought_over_beside_the_play(' in source
+    assert "await settle_on_an_approach(" not in source
     # Only when lost — and not while a lookup that timed out is waiting.
     assert "if lost and may_look and (knowledge[" in source
     assert screen_pursuit._ask_again_after(0) == screen_pursuit.LANGUAGE_EVERY
