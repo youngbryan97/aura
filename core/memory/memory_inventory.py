@@ -177,6 +177,26 @@ def _count_items(store: Any) -> tuple[int | None, bool, str]:
     return None, False, "store exposes no cheap count"
 
 
+def _built_in_the_container(service_key: str) -> Any:
+    """The store the container has built under this key, without building it."""
+    try:
+        from core.container import ServiceContainer
+
+        return ServiceContainer.peek(service_key, default=None)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def _registered_in_the_container(service_key: str) -> bool:
+    """Whether anything is registered under this key, built or not."""
+    try:
+        from core.container import ServiceContainer
+
+        return bool(ServiceContainer.has(service_key))
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return False
+
+
 def collect_memory_inventory(facade: Any) -> MemoryInventory:
     """Read the register off a live facade.
 
@@ -190,13 +210,25 @@ def collect_memory_inventory(facade: Any) -> MemoryInventory:
     for name, service_key, durable in MEMORY_STORES:
         store = getattr(facade, name, None)
         if store is None:
+            # The facade keeps the handles it resolved when it was made, and
+            # early in a boot that can be before the stores exist. Read that
+            # way, eight durable stores were "absent" while all of them were
+            # registered and about to start (LIVE 2026-09-24, at boot).
+            store = _built_in_the_container(service_key)
+        if store is None:
+            registered = _registered_in_the_container(service_key)
             statuses.append(
                 MemoryStoreStatus(
                     name=name,
                     service_key=service_key,
                     durable=durable,
-                    present=False,
-                    detail="not registered in the service container",
+                    present=registered,
+                    backend="not started yet" if registered else "unresolved",
+                    detail=(
+                        "registered in the service container, not started yet"
+                        if registered
+                        else "not registered in the service container"
+                    ),
                 )
             )
             continue
