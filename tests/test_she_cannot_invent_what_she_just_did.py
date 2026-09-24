@@ -138,7 +138,16 @@ def test_the_block_stays_small_enough_to_carry_every_turn() -> None:
 # ── One delivery owner, because duplicated grounding drifted independently ─
 
 def test_inference_gate_owns_the_relevance_scoped_receipt_projection() -> None:
-    gate = GATE.read_text(encoding="utf-8")
+    """The gate and the modules it was split into, read as one owner.
+
+    The present-moment grounding moved to inference_gate_present_moment.py
+    when the gate was split, and this read only inference_gate.py, so it went
+    red on the file layout while the gate still owned the projection.
+    """
+    gate = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(GATE.parent.glob("inference_gate*.py"))
+    )
     assert "recent_actions_block" in gate
     assert "asks_what_she_recently_did" in gate
     assert "ambient_grounding_blocks.append(_actions)" in gate
