@@ -688,11 +688,19 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
 
     @staticmethod
     def _credit_attended_drive(mot: Any, dt: float) -> float:
-        """Replenish whichever drive last won the broadcast. Never raises.
+        """Replenish the drive the last broadcast served, once. Never raises.
 
         Returns what it credited, so the turn can record the force as well as
         its effect: the budget moves over minutes and the credit is a fact
         about this turn.
+
+        The reading is taken when it is credited. It was left in place, and the
+        broadcast consumer replaces it only when a winner serves some drive, so
+        a win that served growth early in a run was credited again on every
+        turn after it: on seed 7 the same priority, 0.9105007597813606, raised
+        growth by 0.015 a turn for 300 rounds while the winner, `affect_engine`,
+        served no drive at all. Growth climbed from 50 to 84, passed curiosity
+        near turn 2,030, and her dominant drive changed for no reason in her.
         """
         try:
             from core.runtime.service_registry import get_runtime_service
@@ -701,6 +709,7 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
             reading = getattr(workspace, "last_drive_attention", None)
             if not isinstance(reading, dict):
                 return 0.0
+            workspace.last_drive_attention = None
             budget = mot.budgets.get(str(reading.get("drive", "")))
             if not isinstance(budget, dict):
                 return 0.0
