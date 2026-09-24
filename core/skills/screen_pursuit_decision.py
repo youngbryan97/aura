@@ -606,6 +606,9 @@ async def decide_the_next_move(
             # A key that never changes anything is not one of her actions
             # in this world, whoever wrote it down.
             can_do.tried(previous.chosen.name, attempt.verdict.observed_change)
+            _it_did_nothing_from_here(
+                pending, laid_out, previous.chosen.name, attempt.verdict.observed_change
+            )
             # And whether the way it was sent reaches the thing at all.
             from .screen_pursuit_surface import it_answered
 
@@ -942,6 +945,11 @@ async def decide_the_next_move(
         if thinking is not None and thinking.done():
             plan["thinking"] = None
             fresh = _what_the_thought_came_to(thinking)
+            # A voice that came back with nothing is asked again later each
+            # time, the way a lookup that timed out is. Asked again five moves
+            # on, it was put the same question every ten seconds while it
+            # could not answer any of them (live, 2026-09-23).
+            plan["unanswered"] = 0 if fresh is not None else plan.get("unanswered", 0) + 1
             ended = plan.pop("asked_because", ended)
             # Counted from the answer, so the next question waits for her to
             # have played under this one.
@@ -1023,6 +1031,8 @@ async def decide_the_next_move(
         available, ended = _decide_the_next_move_nothing_task_working(
             can_do, move_keys, observation, offered_a_restart, responds, knows=knows, laid_out=laid_out
         )
+        if not ended:
+            available, ended = _leaving_out_what_just_did_nothing(available, pending, laid_out)
         if ended:
             mine_now = target_app or anchor["app"]
             why = work_out_why(
@@ -1059,7 +1069,13 @@ async def decide_the_next_move(
             elif why.because == ENDED and narrate and not said_it_ended["value"]:
                 said_it_ended["value"] = True
                 _tell(why.says())
-        if (stuck(history) or ended) and not seen_through["value"]:
+        # Seeing it through is a choice about something still going. Chosen
+        # once while a game was going badly, it closed this door for the rest
+        # of the run, so when the game really ended no way to begin again was
+        # offered: LIVE 2026-09-23, eighteen minutes of pressing right into
+        # "Game over!". An ending is offered its way out whatever was chosen
+        # before it.
+        if ended or (stuck(history) and not seen_through["value"]):
             out = ways_out(observation, ended=ended)
             if ended and out:
                 # Pressing a move key into something that has finished is
@@ -1814,6 +1830,8 @@ from core.skills.screen_pursuit_decision_branches import (  # noqa: E402
     _decide_the_next_move_what_she_what,
     _decide_the_next_move_where_move_she,
     _decide_the_next_move_while_there_something,
+    _it_did_nothing_from_here,
+    _leaving_out_what_just_did_nothing,
     _thought_over_beside_the_play,
     _what_she_says_as_she_moves,
     _what_the_thought_came_to,

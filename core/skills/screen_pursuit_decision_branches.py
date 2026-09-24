@@ -255,7 +255,8 @@ def _decide_the_next_move_part_14(
     # the time of ten moves: then it is most of what she does.
     dear = max(1.0, _a_pass_in_moves(costs or {}))
     # And each time the same line came back, twice as long before asking again.
-    patience = 2 ** min(6, int(plan.get("same_again", 0)))
+    # And each time it came back with nothing at all.
+    patience = 2 ** min(6, int(plan.get("same_again", 0)) + int(plan.get("unanswered", 0)))
     time_to_ask = (
         holding is False
         and plan["held"] is not None
@@ -711,3 +712,47 @@ def _what_the_thought_came_to(thought: Any) -> Any:
         )
         return None
     return thought.result()
+
+
+def _the_view(laid_out: Any) -> str:
+    said = getattr(laid_out, "as_text", None)
+    return str(said()) if callable(said) else ""
+
+
+def _it_did_nothing_from_here(pending: Any, laid_out: Any, key: str, changed: bool) -> None:
+    """Keep which acts have just done nothing from the view she is looking at.
+
+    Only while the view stays the same: the moment anything changes, what did
+    nothing before may do something now.
+    """
+    view = _the_view(laid_out) if laid_out is not None else ""
+    if changed or not view:
+        pending.pop("did_nothing_from", None)
+        return
+    held = pending.get("did_nothing_from")
+    if not held or held.get("view") != view:
+        held = {"view": view, "acts": set()}
+        pending["did_nothing_from"] = held
+    held["acts"].add(str(key))
+
+
+def _leaving_out_what_just_did_nothing(available: Any, pending: Any, laid_out: Any) -> tuple[Any, bool]:
+    """The acts worth making from this view.
+
+    An act that did nothing from the very view she is still looking at will
+    do nothing again. Her rule can say otherwise, because it is applied to
+    what she reads, and what she reads can be wrong: LIVE 2026-09-23 the
+    "Game over!" overlay covered five tiles, she read those places as empty,
+    her rule said right would slide into them, and she pressed right into a
+    finished game for eighteen minutes, the one act she kept choosing never
+    letting "nothing answers" see the others fail. Left out, she tries the
+    others. Whether the thing has ended stays the business of the test built
+    for it, which needs every act to have failed, and now gets to see them.
+    Once every act has done nothing from here, all of them are offered again,
+    so that test can count.
+    """
+    held = pending.get("did_nothing_from")
+    if not held or laid_out is None or held.get("view") != _the_view(laid_out):
+        return available, False
+    left = [option for option in available if getattr(option, "name", option) not in held["acts"]]
+    return (left or available), False
