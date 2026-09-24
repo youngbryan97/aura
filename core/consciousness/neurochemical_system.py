@@ -755,6 +755,16 @@ class NeurochemicalSystem:
             gain, plasticity, noise = self.get_mesh_modulation()
             try:
                 self._mesh_ref.set_modulatory_state(gain, plasticity, noise)
+                # And the executive tier's share, from what control is worth
+                # now. See core/consciousness/control_allocation.py.
+                from core.consciousness.control_allocation import (
+                    ControlAllocation,
+                    allocate_control,
+                )
+
+                if getattr(self, "_control", None) is None:
+                    self._control = ControlAllocation()
+                allocate_control(self._mesh_ref, self._control)
             except _RECOVERABLE_NEUROCHEMICAL_ERRORS as exc:
                 _record_neurochemical_degradation(
                     exc,

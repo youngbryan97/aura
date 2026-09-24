@@ -67,6 +67,10 @@ class _CarriesModulation:
         transmitter's effect depends on where it lands and what receptor is
         there — and until a measurement fills these in they stay at one, which
         says the structure is unmeasured rather than guessing at it.
+
+        The executive tier's gain is set from what control is worth to her now
+        (core/consciousness/control_allocation.py), pushed with the global
+        state on each neurochemical tick; the other tiers stay at one.
         """
         wanted = {"sensory": (1.0, 1.0), "association": (1.0, 1.0), "executive": (1.0, 1.0)}
         if multipliers:
