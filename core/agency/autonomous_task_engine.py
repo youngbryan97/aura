@@ -1433,14 +1433,27 @@ The plan is a JSON array of steps:
             TypeError,
             ValueError,
         ) as e:
-            self._record_recoverable_decomposition_failure(e)
-            logger.error("TaskEngine: decomposition failed: %s", e)
+            # A background call that ran out of time is the model being busy
+            # with something that matters more, which is what a background
+            # call is for. Recorded as a planning failure it fed frustration
+            # from every one: from one boot's log on 2026-09-23, 54 timeouts,
+            # each a warning, a logged error and a failure against her
+            # resilience, for a plan the deterministic fallback then made
+            # anyway. An empty reply is not the same: a deferral is recorded
+            # as one and handled above, so an empty reply without one is the
+            # model answering nothing.
+            busy = isinstance(e, TimeoutError)
+            if busy:
+                logger.info("TaskEngine: planner model busy (%s); planning without it", type(e).__name__)
+            else:
+                self._record_recoverable_decomposition_failure(e)
+                logger.info("TaskEngine: decomposition failed: %s", e)
 
             # Record planning failure to ResilienceEngine
             try:
                 from core.container import ServiceContainer
                 resilience = ServiceContainer.get("resilience_engine", default=None)
-                if resilience:
+                if resilience and not busy:
                     resilience.record_failure("planning", severity=0.5, stakes=0.6)
             except (ImportError, AttributeError, KeyError, RuntimeError) as res_err:
                 logger.debug("Failed to record planning failure: %s", res_err)
@@ -1486,7 +1499,8 @@ The plan is a JSON array of steps:
             record_degradation(
                 "autonomous_task_engine_planning",
                 error,
-                severity="warning",
+                # Info: the fallback is the designed path, and it planned.
+                severity="info",
                 action="used deterministic planner fallback after model decomposition failure",
                 extra={"fallback_available": True},
             )
