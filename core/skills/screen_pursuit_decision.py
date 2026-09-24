@@ -1578,6 +1578,14 @@ async def decide_the_next_move(
                 # nowhere and nothing is learned (live, 2026-09-23).
                 pending.pop("first_arranged", None)
                 pending["judge_on_the_next_board"] = True
+                # And what she has been getting per act is counted from this
+                # game's start. Counted from the board before the restart, a
+                # finished game whose tiles summed to far more than a new one,
+                # every board of the new game read as a loss, and the lean on
+                # what the world could swing said "behind, take the wide
+                # option" for a whole game, harder as the clock went (live,
+                # 2026-09-23: +0.03 rising to +0.33 over 175 moves).
+                began_at["worth"], began_at["seen"] = None, 0
                 return True
 
             return Step(name=f"begin again with {label!r}", action=begin_again)
