@@ -158,3 +158,14 @@ into the worker at all: the array the worker read was never written, and
 every attached worker steered every token the same way, towards feeling low
 (core/consciousness/steering_channel.py has the account). A generation is now
 steered by the state she was in when it was asked for.
+
+Two more reasons whole runs measured nothing were found on 23 September, and
+both are fixed. The router stops a model worker to abort a generation that runs
+past a flat budget, 105 s for a short reply, unless the call belongs to an open
+turn with a person waiting, in which case the endpoint's own liveness decides.
+The desktop opens a turn for every message. The subject driver ran the phases
+itself and opened none, so her cortex was stopped mid-answer on its first tool
+turn (e8da9a89e and 6b0e46e2b: a person's turn in a whole run is now an open
+turn, and the warmup that brings the worker back reads its flag live). The
+reports ground is queued to run alone on the decisive commit once seed 7 at the
+decisive design has been read on it (`~/.aura/subject_core/scratch/reports_alone.sh`).
