@@ -37,12 +37,14 @@ def test_a_broken_bus_never_breaks_the_work(monkeypatch):
     def explode():
         raise RuntimeError("bus down")
 
-    monkeypatch.setattr("core.event_bus.get_event_bus", explode)
     recorded = []
     monkeypatch.setattr(
         thought_stream, "record_degradation", lambda *a, **k: recorded.append(a)
     )
-
-    ThoughtEmitter().emit("Browsing", "still working")
+    # Broken for the emit alone: the fixtures that close the test down ask for
+    # the bus as well, and with it still broken the test errored every run.
+    with monkeypatch.context() as broken:
+        broken.setattr("core.event_bus.get_event_bus", explode)
+        ThoughtEmitter().emit("Browsing", "still working")
 
     assert recorded, "a thought that cannot be shown must degrade, not vanish silently"

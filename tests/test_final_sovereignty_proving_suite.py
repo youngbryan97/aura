@@ -434,7 +434,9 @@ def test_integrity_guard_uses_project_root_not_cwd_substring(monkeypatch, tmp_pa
         def parents(self):
             return [SimpleNamespace(name=lambda: "zsh")]
 
-    monkeypatch.setattr(psutil, "Process", _SafeProcess)
-
-    guard = IntegrityGuard()
-    assert guard.verify_sovereignty() == 1.0
+    # Faked for the check alone: the fixtures that close the test down take a
+    # real process snapshot, and with this still in place they errored.
+    with monkeypatch.context() as faked:
+        faked.setattr(psutil, "Process", _SafeProcess)
+        verdict = IntegrityGuard().verify_sovereignty()
+    assert verdict == 1.0

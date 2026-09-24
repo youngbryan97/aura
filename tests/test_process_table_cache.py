@@ -91,10 +91,12 @@ def test_own_rss_never_pays_for_the_tree_walk(monkeypatch):
     def forbidden(*args, **kwargs):  # pragma: no cover - only runs on regression
         raise AssertionError("include_process_tree=False must not enumerate the host")
 
-    monkeypatch.setattr(psutil.Process, "children", forbidden)
-    monkeypatch.setattr(psutil, "pids", forbidden)
-
-    own = observer.memory(include_process_tree=False)
+    # Armed for the measurement alone: the fixtures that close the test down
+    # list processes, and with the tripwire still armed the test errored.
+    with monkeypatch.context() as tripwire:
+        tripwire.setattr(psutil.Process, "children", forbidden)
+        tripwire.setattr(psutil, "pids", forbidden)
+        own = observer.memory(include_process_tree=False)
     assert own.process_rss_bytes > 0
 
 
@@ -106,8 +108,9 @@ def test_tree_walk_failures_are_not_cached(monkeypatch):
     def broken_children(self, *args, **kwargs):
         raise OSError("simulated tree walk failure")
 
-    monkeypatch.setattr(psutil.Process, "children", broken_children)
-    observer.memory()
+    with monkeypatch.context() as broken:
+        broken.setattr(psutil.Process, "children", broken_children)
+        observer.memory()
     assert not observer._tree_children_rss_cache, (
         "a failed tree walk must not be served to later callers"
     )

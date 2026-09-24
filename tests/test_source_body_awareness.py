@@ -403,11 +403,15 @@ def test_awaken_survives_bus_failure(organ, body_repo, fake_memory, monkeypatch)
     def _broken_bus():
         raise RuntimeError("bus offline")
 
-    monkeypatch.setattr(event_bus_module, "get_event_bus", _broken_bus)
     _write(body_repo, "core/memory/engine.py", "x = 9\n")
     _commit(body_repo, "surgery three")
-    asyncio.run(organ.awaken())
-    delta = asyncio.run(_fresh_organ(organ).awaken())
+    # Broken for the awakenings alone. Left broken until the test's own
+    # teardown, the fixtures that close the test down asked for the bus too,
+    # and the test errored on every run.
+    with monkeypatch.context() as broken:
+        broken.setattr(event_bus_module, "get_event_bus", _broken_bus)
+        asyncio.run(organ.awaken())
+        delta = asyncio.run(_fresh_organ(organ).awaken())
     assert isinstance(delta, BodyDelta)  # no raise
 
 

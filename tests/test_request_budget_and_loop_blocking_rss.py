@@ -64,10 +64,13 @@ def test_flight_recorder_rss_sample_never_enumerates_host_pids(monkeypatch) -> N
             "this blocks the event loop from record_degradation"
         )
 
-    monkeypatch.setattr(psutil, "pids", _forbidden)
-    monkeypatch.setattr(psutil.Process, "children", _forbidden)
-
-    rss_mb = get_flight_recorder()._sample_rss_mb()
+    # Armed for the sample alone. Left armed until the test's own teardown,
+    # it went off in the fixtures that close the test down, which are allowed
+    # to list processes, and the test errored on every run.
+    with monkeypatch.context() as tripwire:
+        tripwire.setattr(psutil, "pids", _forbidden)
+        tripwire.setattr(psutil.Process, "children", _forbidden)
+        rss_mb = get_flight_recorder()._sample_rss_mb()
     assert rss_mb > 0.0, "the sample must still be a real measurement"
 
 
