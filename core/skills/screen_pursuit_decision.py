@@ -1250,7 +1250,11 @@ async def decide_the_next_move(
             if a_read <= 0.0:
                 looks = list(getattr(run, "reading_took", None) or [])
                 a_read = (sum(looks) / len(looks)) if looks else 0.3
-            thinking_for = max(0.05, min(2.0, (ends_at - time.monotonic()) * 0.02, max(0.3, a_read)))
+            thinking_for = _how_long_to_think(
+                laid_out,
+                least=max(0.3, a_read),
+                most=min(2.0, (ends_at - time.monotonic()) * 0.02),
+            )
             thought_from = time.monotonic()
             # No deeper than her model has been worth here.
             #
@@ -1833,6 +1837,7 @@ from core.skills.screen_pursuit_decision_branches import (  # noqa: E402
     _decide_the_next_move_what_she_what,
     _decide_the_next_move_where_move_she,
     _decide_the_next_move_while_there_something,
+    _how_long_to_think,
     _it_did_nothing_from_here,
     _leaving_out_what_just_did_nothing,
     _thought_over_beside_the_play,

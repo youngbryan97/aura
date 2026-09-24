@@ -758,3 +758,32 @@ def _leaving_out_what_just_did_nothing(available: Any, pending: Any, laid_out: A
         return available, False
     left = [option for option in available if getattr(option, "name", option) not in held["acts"]]
     return (left or available), False
+
+
+def _how_long_to_think(laid_out: Any, *, least: float, most: float) -> float:
+    """As long as a look costs her where there is room, and longer as it fills.
+
+    A move made with room to spare can be undone by the next one; a move made
+    into the last free places decides whether there is a next one at all. The
+    time was flat — as long as looking costs, about 0.3 s — and in her own
+    model of 2048 that reached 2048 in one game of four. Scaled by how little
+    room is left, with the same floor and the same ceiling, it reached 2048 in
+    four of four at about a second a move, where a flat half-second reached it
+    in three (2026-09-23).
+
+    Room is her own term for any laid-out thing: the share of its places that
+    are free. Where it cannot be read, she thinks for the floor.
+    """
+    from core.agency.how_good_is_this import _room
+
+    floor = max(0.05, float(least))
+    ceiling = max(floor, float(most))
+    # _room says nought for what it cannot read, which would be read here as
+    # a thing with no room at all.
+    if not (callable(getattr(laid_out, "empty", None)) and callable(getattr(laid_out, "places", None))):
+        return floor
+    try:
+        crowded = 1.0 - max(0.0, min(1.0, float(_room(laid_out))))
+    except (AttributeError, TypeError, ValueError):
+        return floor
+    return floor + (ceiling - floor) * crowded * crowded
