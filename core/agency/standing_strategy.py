@@ -553,9 +553,16 @@ def read_strategy(
                 # "My Approach: 1. Keep the 128 in the corner" stopped at the
                 # "1." and fell through to "help you play toward the goal: My
                 # Approach: 1" (live, 2026-09-24).
+                # "Why this approach:" heads her reasons, not her line.
+                r"(?<!why this )(?<!why the )(?<!why my )"
                 rf"\b{_A_LINE_NAMED}(?:\s+(?:is|will\s+be)(?:\s+\w+)?)?\s*[:\-–—]\s*"
                 r"(?:\d{1,2}[.)]\s+)?(?P<said>[^.]{4,})",
                 rf"\b{_A_LINE_NAMED}\s+(?:is|will\s+be)\s+(?P<said>to\s+[^.]{{4,}})",
+                # Hers, said plainly: "My new approach is aggressive
+                # consolidation toward the top-left corner". Only with "my":
+                # "the previous approach is no longer viable" is a verdict.
+                rf"\bmy\s+(?:new\s+|current\s+)?{_A_LINE_NAMED}\s+(?:is|will\s+be)\s+"
+                r"(?!to\b)(?P<said>[^.:]{4,})",
             ),
             # Read out of what she said she would do.
             (

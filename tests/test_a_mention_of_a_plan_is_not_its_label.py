@@ -73,3 +73,16 @@ def test_a_numbered_plan_is_read_from_its_first_step():
     held = read_strategy(said, MOVES, situation=BOARD)
     assert held is not None
     assert held.approach.startswith("Keep the largest tile"), held.approach
+
+
+def test_her_line_said_plainly_is_taken_over_the_heading_of_her_reasons():
+    """LIVE 2026-09-24: "Why this approach: The board has: 2 8 2 64" was narrated as the plan."""
+    said = (
+        "The previous cycle of up, down, and right moves shuffled the mid-range tiles. "
+        "My new approach is **aggressive consolidation toward the top-left corner**. "
+        "I will treat the top-left as my home base. **Why this approach:** The board has: "
+        "`2 8 2 64` `4 2 16 128`. The 128 is in row 2."
+    )
+    held = read_strategy(said, MOVES, situation=BOARD)
+    assert held is not None
+    assert held.approach.startswith("aggressive consolidation"), held.approach
