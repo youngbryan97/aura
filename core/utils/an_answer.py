@@ -72,6 +72,24 @@ def was_cut_off(said: str) -> bool:
     return any(mark in text[:-1] for mark in ".!?。！？")
 
 
+def what_was_finished(said: str) -> str:
+    """The part of an answer that was finished, up to its last whole sentence.
+
+    Empty where nothing was finished. An answer cut off by its budget often
+    said what it was asked in the first sentences and ran on after them, and
+    the unfinished tail is the only part that is not an answer.
+    """
+    text = " ".join(str(said or "").split())
+    if not was_cut_off(text):
+        return text
+    for end in range(len(text) - 1, -1, -1):
+        if text[end] in ".!?。！？":
+            kept = text[: end + 1]
+            if not was_cut_off(kept):
+                return kept
+    return ""
+
+
 #: How a passage refers to the person it is supposed to be addressing.
 #:
 #: A reply speaks TO someone. There is no third party in it called "the user",

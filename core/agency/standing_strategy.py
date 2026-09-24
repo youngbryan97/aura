@@ -30,7 +30,7 @@ from typing import Any, Sequence
 
 from core.agency.deliberate_action import ActionOption, Expectation
 from core.runtime.errors import record_degradation
-from core.utils.an_answer import adds_nothing_to, was_cut_off
+from core.utils.an_answer import adds_nothing_to, was_cut_off, what_was_finished
 
 logger = logging.getLogger("Aura.Strategy")
 
@@ -135,10 +135,19 @@ class Strategy:
         a narration that appends all three unconditionally reads it back to
         the listener three times over.
         """
-        said = f"Plan: {self.approach.rstrip(' .')}"
+        line = self.approach.rstrip(" .")
+        said = f"Plan: {line}"
         if self.because and not _already_said(self.because, said):
             said = f"{said} — {self.because.rstrip(' .')}"
         watching = self.holds_while.describes
+        if watching and watching.startswith(line):
+            # Where she named nothing to watch, the condition is the line
+            # itself bound to what is on the board, and read out whole it said
+            # the line twice: "Plan: keep the largest tile in a corner...
+            # Watching for: keep the largest tile in a corner... (while the 256
+            # is still there)" (live, 2026-09-24). Only the binding is new.
+            bound = watching[len(line):].strip(" .()")
+            return f"{said}, {bound}" if bound else said
         if watching and not _already_said(watching, said):
             said = f"{said}. Watching for: {watching.rstrip(' .')}"
         return said
@@ -509,8 +518,21 @@ def read_strategy(
         logger.info("her answer was the question handed back: %r", text[:900])
         return None
     if was_cut_off(text):
-        logger.info("her answer stopped in the middle: %r", text[-90:])
-        return None
+        # What she finished, and not nothing. A line asked for is usually said
+        # first and run on from: LIVE 2026-09-24, "a simple, repeatable plan:
+        # keep the largest tile anchored in a corner, slide everything toward
+        # it, and only change direction when a move would trap a big tile",
+        # then two hundred words of reading the board aloud until the budget
+        # ran out, and all of it was dropped for the last half-sentence.
+        finished = what_was_finished(text)
+        if not finished:
+            logger.info("her answer stopped in the middle: %r", text[-90:])
+            return None
+        logger.info(
+            "her answer ran past its budget; reading the %d characters she finished",
+            len(finished),
+        )
+        text = finished
     approach = _first_worth_having(
         text,
         (
