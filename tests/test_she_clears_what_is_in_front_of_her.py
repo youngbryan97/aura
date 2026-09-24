@@ -113,10 +113,26 @@ async def test_nothing_in_front_is_nothing_to_clear(keyboard):
 # ── when she tries ───────────────────────────────────────────────────────
 
 def test_she_clears_it_before_reading_or_acting():
-    source = pursuit_source()
-    clears = source.index("in_front = await _whats_on_top(")
-    blocker = source.index("blocker = await clear_blocker(observation)")
-    assert clears < blocker
+    """In the order the move loop calls them, not the order the files are read.
+
+    The two lines now live in helpers in different modules, so their positions
+    in the concatenated source said which file sorts first and nothing about
+    which runs first.
+    """
+    import inspect
+
+    from core.skills import screen_pursuit_decision as decision
+
+    assert "in_front = await _whats_on_top(" in inspect.getsource(
+        decision._decide_the_next_move_how_long_whole
+    )
+    assert "blocker = await clear_blocker(observation)" in inspect.getsource(
+        decision._decide_the_next_move_blocker
+    )
+    loop = inspect.getsource(decision.decide_the_next_move)
+    assert loop.index("await _decide_the_next_move_how_long_whole(") < loop.index(
+        "await _decide_the_next_move_blocker("
+    )
 
 
 def test_one_that_will_not_close_is_not_pressed_at_once_a_cycle():

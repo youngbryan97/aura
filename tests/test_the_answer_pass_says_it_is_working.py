@@ -47,7 +47,17 @@ def test_it_uses_the_same_emitter_as_the_first_pass() -> None:
     """One rule for when a generation says it is alive, not two."""
 
     body = ast.unparse(_the_shared_pass_loop())
-    assert "generation_passes.continue_with" in body
+    # The answer pass is started from the hook the passes object calls when a
+    # pass ends, so it arrives in this same loop. It used to be started from
+    # inside the loop body, which is what this looked for.
+    functions = {
+        node.name: ast.unparse(node)
+        for node in ast.walk(ast.parse(WORKER.read_text(encoding="utf-8")))
+        if isinstance(node, ast.FunctionDef)
+    }
+    assert "passes.continue_with(" in functions["_continue_into_the_answer"]
+    assert "_continue_into_the_answer(" in functions["_when_a_pass_ends"]
+    assert "when_a_pass_ends=_when_a_pass_ends" in WORKER.read_text(encoding="utf-8")
     assert "tokens.append(response.token)" in body
     assert "soft_cancel_requested" in body
     assert "sentinel.feed(response.text)" in body
