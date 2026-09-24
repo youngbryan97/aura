@@ -150,6 +150,24 @@ a real latency regression and a mismatch between the bank and serving bounds.
 The cross-fit result is a small source-construction pilot, not validation
 transfer or a reason to promote its candidate.
 
+The remaining two frozen construction folds were then measured with the same
+source-only fit/calibration exclusion and 4x2, one-second diagnostic search:
+
+| Held construction fold | Groups | Correct reachable | Ordinary correct | Top joint score correct |
+| --- | ---: | ---: | ---: | ---: |
+| 0 | 12 | 12 | 10 | 12 |
+| 1 | 14 | 14 | 14 | 14 |
+| 2 | 16 | 15 | 14 | 14 |
+| Total | 42 | 41 | 38 | 40 |
+
+Only the lowest-hash source identity per held construction was decoded. A
+correct program remains unavailable on one held group at these bounds, and
+the source-blind top-score diagnostic rescues two ordinary selections but
+loses one ordinary success on fold 2. These 42 source-derived examples are
+neither independent held-out families nor a qualification population. The
+result does, however, rule out the stronger claim that every source-fold gain
+required proposal training on its own held request.
+
 On exactly the same 500 archived validation identities, the original
 source-fit candidate has 472 equivalent answers and the later literal-identity
 candidate has 477. **These are not matched search protocols:** the old
@@ -168,7 +186,27 @@ These validation labels are exposed development evidence and cannot qualify a
 newly tuned selector. Replaying both candidates under one bound and evaluator
 is required before treating the overlap as a causal model comparison.
 
+That replay is now complete on all 500 exposed validation identities using
+the same current implementation, source features, structural comparator,
+16x16 graph limits, and 20-second solve bound for both frozen candidates.
+The older source-fit candidate reaches 488/500 ordinary equivalent answers;
+the later literal-identity candidate reaches 477/500. There are 475 shared
+wins, 13 older-only wins, two later-only wins, and ten shared misses. The
+diagnostic oracle union is 490/500, still not a serving policy or a route to
+perfect coverage. The ten residuals are two cataphoric and eight reserved
+alias requests. Both models' archived scores must not be compared directly
+to this replay because their implementation/budget provenance differs. The
+newer candidate takes substantially longer on this same cohort; no latency
+claim is made beyond these observed runs without a dedicated timer receipt.
+The 39 previously exposed disagreement/failure identities were also replayed
+as a diagnostic subset before the full run and match the full-run overlap.
+
+Matched artifacts: `~/.aura/rlc-evidence/semantic-base-full-validation-matched-20260923/report.json`
+and `~/.aura/rlc-evidence/semantic-literal-full-validation-matched-20260923/report.json`.
+
 Artifacts: `~/.aura/rlc-evidence/semantic-proposer-crossfit-fold2-v2-20260923/report.json`,
+`~/.aura/rlc-evidence/semantic-proposer-crossfit-fold0-20260923/report.json`,
+`~/.aura/rlc-evidence/semantic-proposer-crossfit-fold1-20260923/report.json`,
 `~/.aura/rlc-evidence/semantic-proposer-lineage-base-fold2-20260923/report.json`,
 `~/.aura/rlc-evidence/semantic-proposer-lineage-source-decision-fold2-20260923/report.json`,
 `~/.aura/rlc-evidence/semantic-source-fit-20260915/validation.checkpoint.json`, and

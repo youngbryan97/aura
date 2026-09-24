@@ -1191,16 +1191,23 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   selection from 204/254 to 186/254 at 4x2 and from 11/16 to 8/16 on matched
   wide held rows. See the linked full source-bank evidence. Genuine unseen
   proposer-and-selector evaluation remains open.
-  A source-construction cross-fit pilot excluded held groups from proposer
-  fitting and calibration (14/16 ordinary correct at a one-second bound).
+  Three source-construction cross-fits excluded held groups from proposer
+  fitting and calibration: 41/42 correct reachable, 38/42 ordinary correct,
+  and 40/42 top-joint-score correct at a one-second diagnostic bound, with
+  one source identity per held construction. This is development evidence,
+  not independent family transfer or a candidate promotion.
   The later refit's 1/16 on that same short replay was mostly typed search
   interruption, not evidence of wrong completed programs: its archived
   20-second source cohort was 764/764. On the same 500 validation identities,
   the archived original and later candidates score 472 and 477, with an
   observed oracle union of 488; 12 cases defeat both. The old checkpoint has
   no search bound while the newer cohort uses 20 seconds, so this is not a
-  matched-protocol or serving result. A bound-matched replay remains open.
-  Independent candidate coverage and target-free arbitration remain open.
+  matched-protocol or serving result. The completed 20-second, same-code
+  replay instead scores 488/500 for the older candidate and 477/500 for the
+  later one: 475 shared wins, 13 older-only, two later-only, ten shared misses,
+  and a diagnostic oracle union of 490. These exposed labels do not authorize
+  a router. Out-of-fold candidate-bank training, independent selection,
+  candidate coverage, and fresh transfer remain open.
   [PDF architecture disposition and opt-in full-program identity training](evidence/G03_PDF_ARCHITECTURE_DISPOSITION_2026-09-23.md)
   now covers all four supplied PDFs. The v3 candidate bank retains selected
   mention/definition evidence for an opt-in complete-program ranker. Short
