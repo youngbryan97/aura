@@ -62,3 +62,14 @@ def test_a_label_with_a_word_before_its_colon_is_still_a_label():
     )
     assert held is not None
     assert held.approach.startswith("keep the largest tile"), held.approach
+
+
+def test_a_numbered_plan_is_read_from_its_first_step():
+    """LIVE 2026-09-24: "Plan: help you play toward the goal: My Approach: 1."."""
+    said = (
+        "I will help you play toward the goal. My Approach: 1. Keep the largest tile "
+        "in the bottom-left corner and build the bottom row toward it. 2. Never press up."
+    )
+    held = read_strategy(said, MOVES, situation=BOARD)
+    assert held is not None
+    assert held.approach.startswith("Keep the largest tile"), held.approach

@@ -549,8 +549,12 @@ def read_strategy(
             # viable" was a label, and she narrated "Plan: of consolidating
             # the center is no longer viable" (live, 2026-09-24).
             (
+                # A numbered list after the label is the plan's first step:
+                # "My Approach: 1. Keep the 128 in the corner" stopped at the
+                # "1." and fell through to "help you play toward the goal: My
+                # Approach: 1" (live, 2026-09-24).
                 rf"\b{_A_LINE_NAMED}(?:\s+(?:is|will\s+be)(?:\s+\w+)?)?\s*[:\-–—]\s*"
-                r"(?P<said>[^.]{4,})",
+                r"(?:\d{1,2}[.)]\s+)?(?P<said>[^.]{4,})",
                 rf"\b{_A_LINE_NAMED}\s+(?:is|will\s+be)\s+(?P<said>to\s+[^.]{{4,}})",
             ),
             # Read out of what she said she would do.
