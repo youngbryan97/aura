@@ -118,6 +118,17 @@ def compute_mlx_cache_limit(total_ram_bytes: int, env: Mapping[str, str] | None 
     return max(8 * _GIB, limit)
 
 
+def _a_setting_or_nothing(value: object) -> str:
+    """A configured ceiling, or empty where it says to compute one.
+
+    "auto" is what the launcher and aura_main set on purpose, and it means
+    exactly what an empty value means. Read as a malformed number it put a
+    warning in every boot's log for a setting that was working as intended.
+    """
+    said = str(value or "").strip()
+    return "" if said.lower() == "auto" else said
+
+
 def compute_mlx_memory_limit(total_ram_bytes: int, env: Mapping[str, str] | None = None) -> int:
     """Return the active MLX memory ceiling for model/KV allocations."""
 
@@ -125,7 +136,7 @@ def compute_mlx_memory_limit(total_ram_bytes: int, env: Mapping[str, str] | None
     total_ram_bytes = max(int(total_ram_bytes), 8 * _GIB)
     resource_guard = desktop_resource_guard_enabled(env)
     unsafe_allowed = _unsafe_memory_limits_allowed(env)
-    configured = str(env.get("AURA_MLX_MEMORY_LIMIT_GB", "") or "").strip()
+    configured = _a_setting_or_nothing(env.get("AURA_MLX_MEMORY_LIMIT_GB"))
     if configured:
         try:
             configured_gb = float(configured)
@@ -234,7 +245,7 @@ def compute_process_rss_limit(total_ram_bytes: int, env: Mapping[str, str] | Non
     )
     canonical_limit = max(min(int(floor_gb * _GIB), host_safe_cap), canonical_limit)
 
-    configured = str(env.get("AURA_PROCESS_RSS_LIMIT_GB", "") or "").strip()
+    configured = _a_setting_or_nothing(env.get("AURA_PROCESS_RSS_LIMIT_GB"))
     if configured:
         try:
             configured_gb = float(configured)

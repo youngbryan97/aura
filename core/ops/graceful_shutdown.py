@@ -196,13 +196,21 @@ class GracefulShutdown:
                 record_degradation("graceful_shutdown", exc)
                 logger.error("Runtime hygiene shutdown report unavailable: %s", exc)
             try:
-                publish_shutdown_verdict(
+                verdict = dict(
                     coordinator_report=coordinator_report,
                     container_report=container_report,
                     runtime_hygiene_report=runtime_hygiene_report,
                     stage="graceful_shutdown_complete",
                     final=True,
                 )
+                # Off the loop: the verdict is written atomically, with an
+                # fsync, and every task still finishing waited on the disk
+                # for it (lockdep, every shutdown). Inline only where the
+                # executor has already gone, which late in a shutdown it can.
+                try:
+                    await asyncio.to_thread(lambda: publish_shutdown_verdict(**verdict))
+                except RuntimeError:
+                    publish_shutdown_verdict(**verdict)
             except (OSError, RuntimeError, TypeError, ValueError) as exc:
                 record_degradation("graceful_shutdown", exc)
                 logger.error("Final shutdown verdict persistence failed: %s", exc)

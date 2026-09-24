@@ -1241,3 +1241,17 @@ async def test_continuous_vision_defers_screen_backend_without_permission(monkey
     assert fake_mss.mss_calls == 0
     assert buffer.sct is None
     assert buffer.monitor is None
+
+
+def test_auto_means_the_computed_ceiling_and_is_not_warned_about(caplog):
+    """The launcher sets "auto" on purpose; it is not a malformed number."""
+    import logging
+
+    from core.runtime import desktop_boot_safety as safety
+
+    total = 64 * 1024**3
+    with caplog.at_level(logging.WARNING):
+        mlx_auto = safety.compute_mlx_memory_limit(total, {"AURA_MLX_MEMORY_LIMIT_GB": "auto"})
+        mlx_unset = safety.compute_mlx_memory_limit(total, {})
+    assert mlx_auto == mlx_unset
+    assert "is not a number" not in caplog.text
