@@ -78,3 +78,24 @@ def test_the_run_tells_her_voice_when(monkeypatch):
     assert seen[0] is not None
     assert seen[0] - began == pytest.approx(8.0, abs=0.5)
     assert her_reasoning._ANSWER_BY.get() is None
+
+
+def test_her_wait_is_the_gates_clock_where_that_is_longer(monkeypatch):
+    """LIVE 2026-09-24: the gate gave a line 210 s and her own wait cut it at 67 s."""
+    import core.brain.llm.generation_allowance as allowance
+    import core.brain.llm.mlx_client as client
+
+    monkeypatch.setattr(client, "time_a_prompt_needs", lambda chars, tokens: 65.0)
+    monkeypatch.setattr(
+        allowance, "resident_generation_seconds", lambda messages, tokens, **kw: 210.0
+    )
+    assert her_reasoning.time_this_question_needs("how to play", 497, 8.0) == 210.0
+
+
+def test_with_no_measured_clock_the_clients_estimate_stands(monkeypatch):
+    import core.brain.llm.generation_allowance as allowance
+    import core.brain.llm.mlx_client as client
+
+    monkeypatch.setattr(client, "time_a_prompt_needs", lambda chars, tokens: 65.0)
+    monkeypatch.setattr(allowance, "resident_generation_seconds", lambda messages, tokens, **kw: 0.0)
+    assert her_reasoning.time_this_question_needs("how to play", 497, 8.0) == 65.0

@@ -99,7 +99,28 @@ def time_this_question_needs(prompt: str, max_tokens: int, floor_s: float) -> fl
         needed = time_a_prompt_needs(len(str(prompt or "")), max_tokens)
     except (ImportError, AttributeError, TypeError, ValueError):
         return float(floor_s)
-    return max(float(floor_s), needed)
+    # And by the clock the gate itself will hold the answer to.
+    #
+    # The client's rates start each boot at a guessed decode rate of eight
+    # tokens a second until it has watched some decoding, while the gate
+    # sizes the same answer from the rates the worker has measured and kept.
+    # The two disagreed, and the shorter one was the wait around the call:
+    # LIVE 2026-09-24, a line to take was given 210 s by the gate and cut
+    # here at 67 s, 339 tokens into an answer the 27B was writing at 5.8 a
+    # second. Her calls run without a private channel, so none is reserved.
+    try:
+        from core.brain.llm.generation_allowance import (  # noqa: PLC0415
+            resident_generation_seconds,
+        )
+
+        measured = resident_generation_seconds(
+            [{"role": "user", "content": str(prompt or "")}],
+            int(max_tokens),
+            private_tokens_included=True,
+        )
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        measured = 0.0
+    return max(float(floor_s), needed, float(measured or 0.0))
 
 
 #: When whatever asked needs the answer by, on the monotonic clock.
