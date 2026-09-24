@@ -80,7 +80,9 @@ def test_it_reports_and_never_enforces() -> None:
     assert "raise" not in source.replace("raises", ""), (
         "this module must never raise; it is the thing that watches for gates"
     )
-    health = Path("core/runtime/health_contract.py").read_text()
+    # Where the integrity block is assembled now. It moved out of
+    # health_contract.py when that was split, and this read the old file.
+    health = Path("core/runtime/health_integrity_sections.py").read_text()
     start = health.index('block["one_way_decisions"]')
     assert "healthy" not in health[start : start + 600], (
         "the census must not be allowed to flip the health verdict"

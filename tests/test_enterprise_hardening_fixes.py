@@ -535,10 +535,13 @@ def test_integrity_guard_does_not_abort_when_process_parent_scan_is_denied(monke
         def name(self):
             return "python"
 
-    monkeypatch.setattr(psutil, "Process", DeniedProcess)
-
-    guard = IntegrityGuard()
-    assert guard.verify_sovereignty() == 1.0
+    # Scoped to the guard's own call. Patched for the whole test, the fake
+    # was still installed when the fixtures that watch for leaked processes
+    # tore down, and their psutil comparison failed on it as an error.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(psutil, "Process", DeniedProcess)
+        verdict = IntegrityGuard().verify_sovereignty()
+    assert verdict == 1.0
 
 
 def test_dialogue_policy_import_does_not_require_numpy(monkeypatch):
