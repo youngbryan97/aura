@@ -656,15 +656,43 @@ class Looker:
         panels = panels_in(image)
         grids = grids_in(panels)
         if words is not None:
-            layout = list(words)
-        elif grids and self._same_around(image, grids):
+            return self._read_placed(image, panels, grids, list(words), learn=learn)
+        if grids and self._same_around(image, grids):
             # Words she has already read, in a part of the picture that has
             # not changed, are the same words. What is inside the grids is
             # read from the places themselves, so nothing here is kept stale.
-            layout = [dict(one) for one in self.around_says]
-        else:
-            layout = recognize_text(image)
-            self._remember_around(image, grids, layout)
+            #
+            # Kept only where it read every place. A place with no look she
+            # knows went to the strip reader, which reads a lone 8 as "00" or
+            # as nothing, depending on what sits beside it; and with the words
+            # around the grid unchanged, nothing else ever read that place
+            # again. LIVE 2026-09-24 an 8 at rest went unread for 65 pictures
+            # running, and 472 of her 794 moves taught her nothing, on pictures
+            # that a whole reading got right every time.
+            cheap = self._read_placed(
+                image, panels, grids, [dict(one) for one in self.around_says], learn=False
+            )
+            if not any(grid.get("unsure") for grid in cheap["grids"]):
+                if learn:
+                    self.learn_what_was_read()
+                return cheap
+            self.held_lessons = []
+        layout = recognize_text(image)
+        self._remember_around(image, grids, layout)
+        return self._read_placed(image, panels, grids, layout, learn=learn)
+
+    def _read_placed(
+        self,
+        image: Any,
+        panels: Sequence[Panel],
+        grids: Sequence[Grid],
+        layout: list[dict[str, Any]],
+        *,
+        learn: bool,
+    ) -> dict[str, Any]:
+        """The places of each grid, from these words and from how each place looks."""
+        if not learn:
+            self.held_lessons = []
         read_grids: list[dict[str, Any]] = []
         extra: list[dict[str, Any]] = []
         every_look: list[dict[tuple[int, int], Any]] = []
@@ -855,6 +883,14 @@ class Looker:
             # became a 2, and every 2 after it was read as nothing.
             and not self._resembles_something_read(look)
         ]
+        # Nothing drawn is what empty looks like, wherever anything silent is
+        # flat. Three tiles that would not read look alike as well, and taken
+        # for the empty look they read as empty from then on: LIVE 2026-09-24,
+        # "her rule missed on up: (0,1) said '8' saw None", an 8 at rest read
+        # as an empty place. Where nothing silent is flat, as in a world whose
+        # empty places are patterned, the commonest silent look still stands.
+        flat = [look for look in silent if self._nothing_drawn_in(look)]
+        silent = flat or silent
         best: tuple[int, Any] | None = None
         for look in silent:
             alike = sum(1 for other in silent if self._apart(look, other) < _SAME_LOOK)

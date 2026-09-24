@@ -193,6 +193,23 @@ def time_for(cycles: int = PURSUIT_CYCLES) -> float:
     return max(PURSUIT_SECONDS, min(PURSUIT_CEILING_S, float(cycles) * measured))
 
 
+def time_until_met() -> float:
+    """How long a goal that names its own end may run: as long as its cycles take.
+
+    The ceiling is the most anyone is asked to wait for a budget that IS the
+    end. A goal with an end of its own is bounded by that end, by her cycles
+    and by her stopping getting anywhere; an hour on top of those is a fourth
+    bound nobody chose for it. LIVE 2026-09-24: "play until you get the 2048
+    tile" ended out of time an hour in, 794 moves and two new games later,
+    while every move was landing. A game that reaches 2048 is about a
+    thousand moves, which at her pace is more than an hour on its own.
+    """
+    measured = seconds_a_cycle()
+    if measured <= 0.0:
+        return PURSUIT_CEILING_S
+    return max(PURSUIT_CEILING_S, float(UNTIL_IT_IS_MET_CYCLES) * measured)
+
+
 @dataclass(frozen=True)
 class WatchedGoal:
     """A goal to keep at, and the thing on screen that means it is finished."""
@@ -1003,7 +1020,7 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
         # the condition before a single move is made.
         region_top=CHROME_BAND_TOP if in_browser else 0.0,
         region_bottom=1.0,
-        max_seconds=time_for() if open_ended else PURSUIT_CEILING_S,
+        max_seconds=time_for() if open_ended else time_until_met(),
         max_cycles=PURSUIT_CYCLES if open_ended else UNTIL_IT_IS_MET_CYCLES,
         detail={"continuation": cue},
     )

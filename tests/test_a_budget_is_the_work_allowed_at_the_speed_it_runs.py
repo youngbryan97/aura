@@ -133,3 +133,17 @@ def test_thinking_follows_the_reading_not_the_waiting():
         "max(0.3, a_read)",
         "budget_s=thinking_for",
     )
+
+
+def test_a_goal_that_names_its_end_runs_as_long_as_its_cycles_take():
+    """LIVE 2026-09-24: an hour stopped a game to 2048, every move landing, 794 moves in."""
+    watched_goal.a_cycle_took(4.5)
+    watched = read_watched_goal("play the 2048 app until you get the 2048 tile")
+    assert watched is not None and watched.success_when
+    assert watched.max_seconds == pytest.approx(watched_goal.UNTIL_IT_IS_MET_CYCLES * 4.5)
+    assert watched.max_seconds > PURSUIT_CEILING_S
+
+
+def test_a_goal_that_names_its_end_on_an_unmeasured_machine_gets_the_ceiling():
+    watched = read_watched_goal("play the 2048 app until you get the 2048 tile")
+    assert watched.max_seconds == PURSUIT_CEILING_S
