@@ -246,7 +246,10 @@ class AutonomousSelfModificationEngine:
         logger.info("✓ Autonomous Self-Modification Engine initialized")
 
         if auto_fix_enabled and not self.auto_fix_enabled:
-            logger.warning(
+            # The normal session, said at info. It is what every boot does on
+            # purpose, and as a warning it sat in each boot's list of things
+            # to fix.
+            logger.info(
                 "Runtime self-modification promotion DISABLED. Normal Aura sessions "
                 "run self-repair in proposal/quarantine mode. Set %s=1, %s=1, and "
                 "%s=1 only inside an operator-controlled repair-lab profile to allow "
