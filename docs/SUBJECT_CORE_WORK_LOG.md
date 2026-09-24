@@ -43,11 +43,19 @@ change no seed reaches both, with it seeds 7 and 17 do. The change stays.
 
 What agreement loses has a likely cause. Recall runs before the turn's percept
 reaches affect, so the mood a memory is cued by is the same for every class at
-an anchor and pulls every class towards the same memories. A variant that cues
+an anchor and pulls every class towards the same memories. A variant that cued
 only on the emotions the percept moves, the affective tone of the material in
-front of her, is running on the same six seeds
-(`~/subject-core-runs/content-quick-appraised-s*`, uncommitted, in the
-habit-sep22 tree).
+front of her, was run on the same six seeds and is falsified: agreement +0.122,
+moves together -0.174, recall shift 0.0095 (the change on main: +0.238, +0.222,
+0.0165), no seed reaching both bars. Restricting the cue took away the movement
+"moves together" needs. It was never committed
+(`~/subject-core-runs/content-quick-appraised-s*`).
+
+Those runs also showed where the load comes from. Three organisms at once took
+the load average to 124 with a third of the processors idle and about 3 MB/s
+of disk: each runs the neural mesh on the GPU through MLX, and their threads
+wait on it. With them finished the load fell to 9. Organisms now run one or
+two at a time.
 
 ### 21:30: her confidence in herself could not fall
 
