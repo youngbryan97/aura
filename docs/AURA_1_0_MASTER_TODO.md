@@ -1176,6 +1176,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Projected triadic binding and paired decode](evidence/G03_PROJECTED_TRIADIC_BINDING_2026-09-24.md)
+  improves gold-span binding on two construction folds, but its first paired
+  decode regresses two answers with no gains; no candidate is promoted.
   [Causal-role comparison and independent inquiry](evidence/G03_CAUSAL_MEANING_AND_EPISTEMIC_CONTROL_2026-09-24.md)
   [Representation-only binding control](evidence/G03_REPRESENTATION_ONLY_CONTROL_2026-09-24.md)
   reached 555/1,096 held gold-span roles without source geometry.

@@ -794,7 +794,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
         )
         return self._with_coefficients(
             triadic_binding_heads=(
-                tuple(TriadicBindingHead(np.zeros_like(head.weight), head.bias, head.feature_schema)
+                tuple(head.score_lesion()
                       for head in self.triadic_binding_heads)
                 if self.triadic_binding_heads is not None else None
             ),
@@ -850,7 +850,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
         )
         return self._with_coefficients(
             triadic_binding_heads=(
-                tuple(TriadicBindingHead(np.zeros_like(head.weight), head.bias, head.feature_schema)
+                tuple(head.score_lesion()
                       for head in self.triadic_binding_heads)
                 if self.triadic_binding_heads is not None else None
             ),
@@ -892,7 +892,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
             return self
         return self._with_coefficients(
             triadic_binding_heads=tuple(
-                TriadicBindingHead(np.zeros_like(head.weight), head.bias, head.feature_schema)
+                head.score_lesion()
                 for head in self.triadic_binding_heads
             )
         )
@@ -1556,7 +1556,11 @@ def compositional_semantic_program_transducer_from_dict(
         ),
         triadic_binding_heads=(
             tuple(TriadicBindingHead(np.asarray(value["weight"], dtype=np.float32), float(value["bias"]),
-                                     value.get("feature_schema", "triple_product_v1"))
+                                     value.get("feature_schema", "triple_product_v1"),
+                                     (np.asarray(value["query_projection"], dtype=np.float32)
+                                      if "query_projection" in value else None),
+                                     (np.asarray(value["definition_projection"], dtype=np.float32)
+                                      if "definition_projection" in value else None))
                   for value in payload["triadic_binding_heads"])
             if payload.get("triadic_binding_heads") is not None else None
         ),

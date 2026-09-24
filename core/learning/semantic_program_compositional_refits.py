@@ -20,6 +20,50 @@ if TYPE_CHECKING:
     )
 
 
+def attach_compositional_triadic_bindings(
+    model: CompositionalSemanticProgramTransducer,
+    heads: Sequence[Any], *,
+    training_source_ids: Sequence[str],
+    calibration_source_ids: Sequence[str],
+    runtime_views: dict[str, Any],
+    fit: dict[str, Any],
+    projection_fit: dict[str, Any] | None = None,
+    source_fold_provenance: dict[str, Any] | None = None,
+) -> CompositionalSemanticProgramTransducer:
+    """Attach fitted heads with the one receipt required by the transducer."""
+    from dataclasses import replace
+
+    from core.learning.semantic_program_campaign import _sha
+
+    training_ids = tuple(training_source_ids)
+    calibration_ids = tuple(calibration_source_ids)
+    if (model.triadic_binding_heads is not None or not heads
+            or not training_ids or not calibration_ids
+            or len(set(training_ids)) != len(training_ids)
+            or len(set(calibration_ids)) != len(calibration_ids)
+            or set(training_ids) & set(calibration_ids)):
+        raise ValueError("triadic attachment needs disjoint sources and an unfitted parent")
+    coefficient = model._coefficient_body()
+    coefficient["triadic_binding_heads"] = [head.to_dict() for head in heads]
+    body = {key: value for key, value in model.training_receipt.items()
+            if key != "receipt_sha256"}
+    body["coefficient_sha256"] = _sha(coefficient)
+    binding_fit = {
+        "schema": "aura.semantic_triadic_binding_fit.v1",
+        "parent_transducer_receipt_sha256": model.receipt_sha256,
+        "training_example_ids_sha256": _sha(sorted(training_ids)),
+        "validation_example_ids_sha256": _sha(sorted(calibration_ids)),
+        "runtime_views": runtime_views,
+        "fit": fit, "projection_fit": projection_fit,
+        "test_examples_used": 0, "serving_authority": False,
+    }
+    if source_fold_provenance is not None:
+        binding_fit["source_fold_provenance"] = source_fold_provenance
+    body["triadic_binding_fit"] = binding_fit
+    return replace(model, triadic_binding_heads=tuple(heads),
+                   training_receipt={**body, "receipt_sha256": _sha(body)})
+
+
 def refit_compositional_triadic_bindings(
     model: CompositionalSemanticProgramTransducer,
     examples: Sequence[SemanticTransducerTrainingExample], *,
@@ -28,11 +72,11 @@ def refit_compositional_triadic_bindings(
     progress: Any = None,
 ) -> CompositionalSemanticProgramTransducer:
     """Fit operation-conditioned mention/definition links on source-only views."""
-    from dataclasses import replace
-
-    from core.learning.semantic_program_campaign import _sha
     from core.learning.semantic_runtime_argument_views import runtime_argument_training_views
-    from core.learning.semantic_triadic_binding import fit_triadic_binding_heads
+    from core.learning.semantic_triadic_binding import (
+        fit_source_triadic_projection,
+        fit_triadic_binding_heads,
+    )
 
     training = tuple(item for item in examples if item.split == "train")
     validation = tuple(item for item in examples if item.split == "validation")
@@ -55,26 +99,21 @@ def refit_compositional_triadic_bindings(
     views, view_receipt = runtime_argument_training_views(
         model, training, max_operation_charts=runtime_operation_view_charts,
         progress=progress)
+    projection_basis = projection_fit = None
+    if feature_schema == "projected_joint_v4":
+        projection_basis, projection_fit = fit_source_triadic_projection(
+            training, validation,
+            hidden_channels=model.hidden_channels,
+            hidden_channel_widths=model.hidden_channel_widths)
     heads, fit = fit_triadic_binding_heads(
         views, max_arity=len(model.argument_role_heads),
         hidden_channels=model.hidden_channels,
         hidden_channel_widths=model.hidden_channel_widths,
-        feature_schema=feature_schema)
-    coefficient = model._coefficient_body()
-    coefficient["triadic_binding_heads"] = [head.to_dict() for head in heads]
-    body = {key: value for key, value in model.training_receipt.items()
-            if key != "receipt_sha256"}
-    body["coefficient_sha256"] = _sha(coefficient)
-    body["triadic_binding_fit"] = {
-        "schema": "aura.semantic_triadic_binding_fit.v1",
-        "parent_transducer_receipt_sha256": model.receipt_sha256,
-        "training_example_ids_sha256": _sha(sorted(ids)),
-        "validation_example_ids_sha256": _sha(sorted(calibration_ids)),
-        "runtime_views": view_receipt,
-        "fit": fit, "test_examples_used": 0, "serving_authority": False,
-    }
-    return replace(model, triadic_binding_heads=heads,
-                   training_receipt={**body, "receipt_sha256": _sha(body)})
+        feature_schema=feature_schema, projection_basis=projection_basis)
+    return attach_compositional_triadic_bindings(
+        model, heads,
+        training_source_ids=ids, calibration_source_ids=calibration_ids,
+        runtime_views=view_receipt, fit=fit, projection_fit=projection_fit)
 
 def refit_compositional_operation_pointer(
     model: CompositionalSemanticProgramTransducer,
