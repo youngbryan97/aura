@@ -593,7 +593,9 @@ def _seconds_left_on(job: dict[str, Any]) -> float:
         return 0.0
     if not (deadline > 0.0):
         return 0.0
-    return max(0.0, deadline - time.time())
+    from core.runtime.wall_clock import wall_time
+
+    return max(0.0, deadline - wall_time())
 
 
 def _generation_deadline_open(job: dict[str, Any], *, started: bool) -> bool:
@@ -609,7 +611,11 @@ def _generation_deadline_open(job: dict[str, Any], *, started: bool) -> bool:
     ):
         return True
     deadline = _safe_float(job.get("deadline_unix"), 0.0)
-    return deadline <= 0.0 or time.time() < deadline
+    # The machine's clock, the one the client stamped with. In process the
+    # worker shares an experiment run's `time.time`, which a restore rewinds.
+    from core.runtime.wall_clock import wall_time
+
+    return deadline <= 0.0 or wall_time() < deadline
 
 
 def _seconds_to_decode(tokens: int) -> float:

@@ -2927,6 +2927,18 @@ _DOCUMENT_ARGUMENT_NAMES = frozenset(
 )
 
 
+def _worker_deadline(budget_s: float) -> float:
+    """The worker's deadline, on the clock the worker reads.
+
+    The worker is another process and compares against the machine's clock. An
+    experiment run replaces `time.time` with a clock a restore rewinds, so a
+    deadline stamped with it arrived already past. See core/runtime/wall_clock.py.
+    """
+    from core.runtime.wall_clock import wall_time
+
+    return wall_time() + float(budget_s)
+
+
 def _tool_call_budget(requested: Any, configured: Any, tools: Any) -> int:
     """How many tokens one tool call may take.
 
@@ -10352,7 +10364,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 _worker_budget_s = max(
                     _remaining_s * 0.5, _remaining_s - _delivery_margin_s
                 )
-                req["deadline_unix"] = time.time() + _worker_budget_s
+                req["deadline_unix"] = _worker_deadline(_worker_budget_s)
         except (AttributeError, TypeError, ValueError):
             logger.debug("Request deadline unavailable; worker decodes unbounded.")
         # CP126 a838a49b: this used to read
