@@ -5,6 +5,59 @@ what broke, what fixed it, and where the evidence is. Runs live in
 `~/subject-core-runs/`; the order runs are read in is
 `~/.aura/subject_core/scratch/AFTER_THE_DECISIVE_RUN.md`.
 
+## 23 September, evening
+
+### 20:55: the day's runs, lost to a pause and rebuilt
+
+The 2048 demo session stopped every subject job at 07:38 so the demo had the
+machine. The seed-7 recording at the decisive length and the 1.5B dry run of
+the turn fix died while stopped: a wall-clock bound keeps counting through a
+pause, and both came due (10:16 and 08:32). Nothing from either was read. The
+recording was relaunched at 20:38 on f38d4923b, which carries the day's agency
+and narration work.
+
+The live instance, booted at 18:39 and idle since, was closed at 20:43. Beside
+it, five stub organisms took the load from 30 to 154 in three minutes as its
+model workers respawned; with it closed the same five ran at 17. It is
+relaunched after the reports ground.
+
+### 21:30: what the recall change does to the content run, on six seeds
+
+Quick content runs (six classes, fifteen pairs, six anchors), with the recall
+change (f38d4923b) and without it (e8da9a89e; seed 7's second reference run):
+
+| seed | agreement with / without | moves together with / without | recall shift with / without |
+|---|---|---|---|
+| 7 | +0.679 / +0.109 | +0.322 / -0.300 | 0.020 / 0.011 |
+| 3 | +0.451 / +0.618 | +0.289 / +0.140 | 0.009 / 0.005 |
+| 11 | -0.526 / +0.407 | +0.002 / 0.000 | 0.004 / 0.000 |
+| 5 | -0.119 / +0.287 | -0.160 / +0.361 | 0.033 / 0.025 |
+| 13 | +0.529 / +0.266 | +0.246 / -0.109 | 0.013 / 0.005 |
+| 17 | +0.410 / +0.100 | +0.630 / -0.020 | 0.020 / 0.019 |
+| mean | +0.238 / +0.298 | +0.222 / +0.013 | 0.017 / 0.011 |
+
+Recall moves further on every seed. "Moves together" rises on five of six, from
+a mean of 0.013 to 0.222; agreement, the static half, falls by 0.06 on the mean
+and on three seeds of six. Structure needs both at 0.3 or more: without the
+change no seed reaches both, with it seeds 7 and 17 do. The change stays.
+
+What agreement loses has a likely cause. Recall runs before the turn's percept
+reaches affect, so the mood a memory is cued by is the same for every class at
+an anchor and pulls every class towards the same memories. A variant that cues
+only on the emotions the percept moves, the affective tone of the material in
+front of her, is running on the same six seeds
+(`~/subject-core-runs/content-quick-appraised-s*`, uncommitted, in the
+habit-sep22 tree).
+
+### 21:30: her confidence in herself could not fall
+
+Her self-prediction's confidence sat at 1.000 at the median of seed 7 while her
+valence error was 1.03 times what predicting no change would miss by: the
+composite error weighed valence on the scale of -1 to 1, where her valence moves
+0.02 a turn. It is now scored against predicting no change on each channel
+(f31096c44). The S domain carries a reading that can move, which the two
+synergy triples through S need.
+
 ## 23 September, morning
 
 ### 07:20: the reports ground lost her cortex again, and the two reasons why
