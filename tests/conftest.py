@@ -1579,6 +1579,18 @@ def resource_observer(
                 __import__(module, fromlist=["reset_for_test"]).reset_for_test()
             except (ImportError, AttributeError):
                 continue
+        # The health report's two snapshots are kept for a while so a probe
+        # never collects on the loop, and a test's report was the next test's:
+        # the shutdown tests took one before any memory facade existed, and the
+        # inventory test after them read "no memory_facade registered" with a
+        # facade registered a line earlier.
+        try:
+            from core.runtime import health_contract
+
+            health_contract.reset_integrity_snapshot_for_test()
+            health_contract.reset_health_fragments_snapshot_for_test()
+        except (ImportError, AttributeError):
+            pass
 
     host_markers = ("host_observation", "live", "hardware", "longrun")
     host_backed = any(request.node.get_closest_marker(name) for name in host_markers)
