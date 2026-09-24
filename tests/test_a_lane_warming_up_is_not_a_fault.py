@@ -105,3 +105,13 @@ def test_an_admission_refusal_is_not_the_endpoints_failure(caplog):
         if literal in ("admitted", "unknown"):
             continue
         assert literal.startswith(ADMISSION_REASON_PREFIXES) or literal in ("fairness_wait",), literal
+
+
+def test_a_lane_on_its_way_up_is_said_at_info():
+    """Routed round by design, so not a warning (eleven in one boot, 2026-09-23)."""
+    from core.brain.llm_health_router_endpoint_call import _a_lane_still_coming_up
+
+    for state in ("recovering", "spawning", "handshaking", "warming"):
+        assert _a_lane_still_coming_up(f"lane_not_ready:{state}")
+    assert not _a_lane_still_coming_up("lane_not_ready:cold")
+    assert not _a_lane_still_coming_up("worker_died_during_generation")

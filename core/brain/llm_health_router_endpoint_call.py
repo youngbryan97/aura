@@ -972,6 +972,14 @@ class _CallsTheEndpoint:
                         self.last_user_error = last_error
                     if is_bg and _background_error_is_quiet(last_error):
                         logger.debug("Endpoint %s background validation skipped: %s", ep.name, last_error)
+                    elif _a_lane_still_coming_up(last_error):
+                        # Routed round, which is the design: a lane that is
+                        # spawning, handshaking, warming or recovering is not
+                        # given work, so the turn stays fast and the lane gets
+                        # to finish. As a warning it was eleven lines of one
+                        # boot's list of things to fix (2026-09-23), each one
+                        # the router doing what it was built to do.
+                        logger.info("Endpoint %s is still coming up: %s", ep.name, last_error)
                     else:
                         logger.warning(
                             "Endpoint %s failed validation: %s",
@@ -1709,3 +1717,13 @@ class _CallsTheEndpoint:
             exc._aura_endpoint_failure_recorded = True  # type: ignore[attr-defined]
             raise
 
+
+#: The states a lane passes through on its way up. Not given work, and not
+#: failing: see ``_extract_lane_failure`` in the router.
+_ON_THE_WAY_UP = frozenset({"recovering", "spawning", "handshaking", "warming"})
+
+
+def _a_lane_still_coming_up(error: object) -> bool:
+    said = str(error or "")
+    prefix = "lane_not_ready:"
+    return said.startswith(prefix) and said[len(prefix):] in _ON_THE_WAY_UP
