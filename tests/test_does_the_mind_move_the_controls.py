@@ -127,8 +127,12 @@ def test_health_reads_it_through_the_registry_and_not_by_importing():
     """A health block that needed that edge is a layering violation dressed up."""
     from pathlib import Path
 
-    source = (
-        Path(__file__).resolve().parents[1] / "core" / "runtime" / "health_contract.py"
-    ).read_text("utf-8")
+    runtime = Path(__file__).resolve().parents[1] / "core" / "runtime"
+    # The contract and the integrity sections lifted out of it, read as one:
+    # the block moved with the sections, and the file was never the point.
+    source = "".join(
+        (runtime / name).read_text("utf-8")
+        for name in ("health_contract.py", "health_integrity_sections.py")
+    )
     assert "does_the_mind_move_the_controls" not in source
     assert 'get_runtime_service("the_control_policy_sweep"' in source

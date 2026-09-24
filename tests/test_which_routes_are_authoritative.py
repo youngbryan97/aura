@@ -104,6 +104,10 @@ def test_the_states_are_in_the_health_report():
 
 
 def test_health_reads_them_through_the_registry_and_not_by_importing():
-    source = (ROOT / "core" / "runtime" / "health_contract.py").read_text("utf-8")
+    # The contract and the integrity sections lifted out of it, read as one.
+    source = "".join(
+        (ROOT / "core" / "runtime" / name).read_text("utf-8")
+        for name in ("health_contract.py", "health_integrity_sections.py")
+    )
     assert "which_routes_are_authoritative import" not in source
     assert 'get_runtime_service("which_routes_are_authoritative"' in source
