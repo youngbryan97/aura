@@ -168,6 +168,30 @@ neither independent held-out families nor a qualification population. The
 result does, however, rule out the stronger claim that every source-fold gain
 required proposal training on its own held request.
 
+The fold-0 candidate was subsequently replayed on **all 256** held source
+identities, reusing its signed fit and calibration receipt. At the same 4x2,
+one-second diagnostic bound, 205/256 have an observed equivalent candidate,
+179/256 have an ordinary equivalent selection, and 192/256 have an equivalent
+top-joint-score selection. The other 51 have `correct_reachable=null`, not
+`false`: every one ended with incomplete bounded search. The 12-group pilot
+therefore overstated apparent whole-fold reach. This is an opt-in source
+development bank, not a serving decision or complete-search proof. Artifacts:
+`~/.aura/rlc-evidence/semantic-proposer-crossfit-all-fold0-20260923/report.json`.
+
+The same frozen fold-0 proposer was then replayed on precisely those 51
+unresolved identities, with 12 charts, four graphs per chart, and a 20-second
+allowance. It found a correct candidate on 30/51; 21 remain unresolved, none
+proved unreachable. All 51 banks hit explicit chart/graph limits, not a
+time-budget refusal. Ordinary selection was correct on 0/51 and top joint
+score on 3/51. Combining non-overlapping source IDs with the 4x2 bank gives
+**235/256 observed reachable** at these two diagnostic widths, but not
+235/256 correctly selected. This is selected-failure development analysis,
+not a coverage-complete or representative wider-bank rate. It rules out
+"give the current proposer more seconds" as a sufficient repair: search
+enumeration and source-grounded ranking both need improvement.
+
+Artifact: `~/.aura/rlc-evidence/semantic-proposer-crossfit-fold0-unresolved-wide-20260923/report.json`.
+
 On exactly the same 500 archived validation identities, the original
 source-fit candidate has 472 equivalent answers and the later literal-identity
 candidate has 477. **These are not matched search protocols:** the old

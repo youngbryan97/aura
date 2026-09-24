@@ -1196,6 +1196,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   and 40/42 top-joint-score correct at a one-second diagnostic bound, with
   one source identity per held construction. This is development evidence,
   not independent family transfer or a candidate promotion.
+  Expanding fold 0 from 12 sampled constructions to all 256 held source
+  identities yields only 205 observed reachable, 179 ordinary correct, and
+  192 top-joint correct at 4x2 and one second. The remaining 51 are explicitly
+  incomplete search, not proved unreachable. The small pilot was not a
+  whole-fold estimate; matched-width, normal-budget acquisition remains open.
+  A target-blind 12x4, 20-second replay of those 51 unresolved rows recovers
+  30 correct candidates, leaving 21 unresolved under chart/graph limits.
+  Ordinary selection is 0/51 and top-joint selection 3/51. Search width and
+  source-grounded ranking must both improve; more seconds alone cannot close it.
   The later refit's 1/16 on that same short replay was mostly typed search
   interruption, not evidence of wrong completed programs: its archived
   20-second source cohort was 764/764. On the same 500 validation identities,

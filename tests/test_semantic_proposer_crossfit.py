@@ -33,6 +33,31 @@ def test_crossfit_excludes_held_sources_from_fit_and_calibration():
     assert all(folds["assignments"][item.ir.source_text_sha256] == 2 for item in held)
 
 
+def test_all_held_reuses_partition_without_omitting_contrasts():
+    examples = _examples()
+    folds = json.loads(json.dumps(construction_folds(examples)))
+    fit, calibration, held = crossfit_partition(examples, folds, 2, all_held=True)
+    wanted = {item.ir.source_text_sha256 for item in examples
+              if folds["assignments"][item.ir.source_text_sha256] == 2}
+    assert {item.ir.source_text_sha256 for item in held} == wanted
+    assert not wanted & {item.ir.source_text_sha256 for item in fit + calibration}
+
+
+def test_diagnostic_subset_is_ordered_and_confined_to_held_fold():
+    examples = _examples()
+    folds = json.loads(json.dumps(construction_folds(examples)))
+    wanted = [item.ir.source_text_sha256 for item in examples
+              if folds["assignments"][item.ir.source_text_sha256] == 2][:2]
+    _fit, _calibration, held = crossfit_partition(
+        examples, folds, 2, all_held=True, held_source_ids=tuple(reversed(wanted)))
+    assert [item.ir.source_text_sha256 for item in held] == list(reversed(wanted))
+    outside = next(item.ir.source_text_sha256 for item in examples
+                   if folds["assignments"][item.ir.source_text_sha256] != 2)
+    with pytest.raises(ValueError, match="outside"):
+        crossfit_partition(examples, folds, 2, all_held=True,
+                           held_source_ids=(outside,))
+
+
 def test_crossfit_rejects_relabelled_frozen_fold():
     examples = _examples()
     folds = json.loads(json.dumps(construction_folds(examples)))
