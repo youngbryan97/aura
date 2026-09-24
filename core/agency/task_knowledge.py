@@ -303,6 +303,18 @@ def _what_her_machine_says_about_a_network() -> bool:
     return True if known is None else bool(known)
 
 
+#: Whose reading this is, for the authority that decides whether she may.
+#:
+#: It named nobody, so the engine filed it under itself, which is neither a
+#: person's request nor her own initiative, and no standing grant covers that.
+#: LIVE 2026-09-23, mid-game: "Tool execution 'local_reference_search' blocked
+#: by Constitution ... signed_standing_authority_lease_missing", on every
+#: lookup, for the one tool on her introspection grant precisely so she could
+#: read her own shelf. Reading up for a goal she is pursuing is her own
+#: read-only research, which is what this origin is.
+READING_UP = "research_cycle"
+
+
 async def _from_her_own_shelf(question: str, *, engine: Any = None) -> list[Finding]:
     """What her offline encyclopedia says, which is instant and needs no network.
 
@@ -317,7 +329,11 @@ async def _from_her_own_shelf(question: str, *, engine: Any = None) -> list[Find
         result = await engine.execute(
             "local_reference_search",
             {"query": question, "limit": 3},
-            {"requested_via": "task_knowledge", "purpose": "background on a task"},
+            {
+                "requested_via": "task_knowledge",
+                "purpose": "background on a task",
+                "origin": READING_UP,
+            },
         )
     except (AttributeError, RuntimeError, TypeError, ValueError, TimeoutError) as exc:
         record_degradation("task_knowledge", exc, severity="info", action="read her own reference shelf")
@@ -572,7 +588,11 @@ async def _from_search(question: str, *, engine: Any = None) -> tuple[list[Findi
         result = await engine.execute(
             "web_search",
             {"query": question, "num_results": 5},
-            {"requested_via": "task_knowledge", "purpose": "how a task is done"},
+            {
+                "requested_via": "task_knowledge",
+                "purpose": "how a task is done",
+                "origin": READING_UP,
+            },
         )
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, TimeoutError) as exc:
         record_degradation("task_knowledge", exc, severity="info", action="looked up how a task is done")
