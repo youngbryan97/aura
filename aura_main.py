@@ -765,19 +765,47 @@ def kill_port(port: int, pattern: str = "aura"):
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, PermissionError, SystemError, OSError) as exc:
             logger.debug("Skipping process during port cleanup: %s", exc)
 
-def clean_artifacts():
-    """Purge stale bytecode and temporary caches."""
+#: What the purge never walks into: installed dependencies, whose bytecode
+#: Python keeps current by itself, and the tooling that holds other checkouts.
+_NOT_THIS_CHECKOUTS_SOURCES = frozenset(
+    {".venv", ".venv_aura", ".git", ".claude", "node_modules", "site-packages"}
+)
+
+
+def clean_artifacts(root: Path | None = None) -> None:
+    """Purge stale bytecode from this checkout's own sources.
+
+    Only its own. It walked everything under the project root, which holds
+    the virtualenv and every worktree of every session: LIVE 2026-09-24 a
+    reboot spent 29.9 s here over 926 bytecode directories in the virtualenv
+    and 61 worktrees (114 GB), every dependency then imported cold (the first
+    skill after that boot held the event loop for 5.1 s importing
+    sqlalchemy), and bytecode was deleted under other checkouts' running jobs.
+    """
+    base = Path(root) if root is not None else PROJECT_ROOT
     logger.info("🧹 Purging runtime artifacts...")
-    for p in PROJECT_ROOT.rglob("__pycache__"):
-        try:
-            shutil.rmtree(p)
-        except OSError as exc:
-            logger.debug("Unable to remove cache directory %s: %s", p, exc)
-    for p in PROJECT_ROOT.rglob("*.pyc"):
-        try:
-            p.unlink()
-        except OSError as exc:
-            logger.debug("Unable to remove bytecode file %s: %s", p, exc)
+    for here, dirs, files in os.walk(base):
+        path = Path(here)
+        if path != base and (path / ".git").exists():
+            # Another checkout nested under this one: its bytecode is its own.
+            dirs[:] = []
+            continue
+        for name in [one for one in dirs if one == "__pycache__"]:
+            try:
+                shutil.rmtree(path / name)
+            except OSError as exc:
+                logger.debug("Unable to remove cache directory %s: %s", path / name, exc)
+        dirs[:] = [
+            one for one in dirs
+            if one != "__pycache__" and one not in _NOT_THIS_CHECKOUTS_SOURCES
+        ]
+        for name in files:
+            if not name.endswith(".pyc"):
+                continue
+            try:
+                (path / name).unlink()
+            except OSError as exc:
+                logger.debug("Unable to remove bytecode file %s: %s", path / name, exc)
 
 
 def _select_preferred_launcher_python(current_executable: str | None = None) -> Path | None:
