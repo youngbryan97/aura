@@ -7950,6 +7950,22 @@ class InferenceGate(_ServesTheTurn, _SetsTheTurnUp, _BuildsTheLivingContext, _Wa
                         len(cleaned),
                     )
                     return self._strip_silence(cleaned)
+                if bool(kwargs.get("internal_inference", False)) and integrity_reasons <= {
+                    "truncated_tail"
+                }:
+                    # An answer read by code that ran into its budget. The
+                    # reader takes what it needs from the front — the move it
+                    # names, the line and what would end it — and knows what
+                    # to do with less. Refused here, a hundred seconds of the
+                    # model's time went to nothing and the lane was counted as
+                    # failed (live, 2026-09-23, a plan of 1,138 characters).
+                    logger.info(
+                        "🛡️ %s answer for code ran into its budget (len=%d); "
+                        "handing its reader what it has.",
+                        label,
+                        len(cleaned),
+                    )
+                    return self._strip_silence(cleaned)
                 if benchmark_integrity_context:
                     logger.info(
                         "🛡️ %s produced non-conforming benchmark draft (%s, len=%d). "
@@ -10661,6 +10677,14 @@ class InferenceGate(_ServesTheTurn, _SetsTheTurnUp, _BuildsTheLivingContext, _Wa
                     "🛡️ [CASCADE CLEANUP] Not killing pid=%s: the worker is "
                     "actively generating. A slow answer is not a wedged lane, "
                     "and killing it costs a cold reload the next turn pays for.",
+                    getattr(proc, "pid", "unknown"),
+                )
+                return
+            if self._cortex_worker_just_answered(client):
+                logger.info(
+                    "🛡️ [CASCADE CLEANUP] Not killing pid=%s: it finished a "
+                    "generation within the generation deadline. What it said "
+                    "may have been refused; a worker that answers is not wedged.",
                     getattr(proc, "pid", "unknown"),
                 )
                 return

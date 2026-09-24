@@ -61,3 +61,19 @@ def test_and_still_keeps_the_thinking_channel_shut():
     import core.agency.her_reasoning as her
 
     assert 'cognitive_mode="fast"' in inspect.getsource(her)
+
+
+def test_an_answer_for_code_that_ran_into_its_budget_goes_to_its_reader():
+    """A plan cut at its budget still names its line, and its reader parses that.
+
+    LIVE 2026-09-23: a plan of 1,138 characters was refused as truncated_tail
+    after a hundred seconds of the model's time, the lane was counted as
+    failed, and the worker that wrote it was killed as stuck.
+    """
+    import core.brain.inference_gate as gate
+
+    source = inspect.getsource(gate)
+    at = source.index('bool(kwargs.get("internal_inference", False)) and integrity_reasons <= {')
+    refused = source.index("produced malformed model text", at)
+    assert '"truncated_tail"' in source[at : at + 200]
+    assert "return self._strip_silence(cleaned)" in source[at:refused]

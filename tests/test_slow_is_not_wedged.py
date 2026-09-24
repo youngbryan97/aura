@@ -106,3 +106,23 @@ class TestTheGenerationClockIsStamped:
             "the clock must be initialised so a fresh client is not treated "
             "as mid-generation"
         )
+
+
+def test_a_worker_that_just_answered_is_not_wedged():
+    """What the gate made of its text is a verdict on the text.
+
+    LIVE 2026-09-23: the 27B returned 1,138 characters of a plan, the gate
+    refused them as cut off, the fallback had nothing, and the worker that had
+    answered a second earlier was force-killed as stuck.
+    """
+    import time
+    from types import SimpleNamespace
+
+    from core.brain.inference_gate import InferenceGate
+
+    answered = SimpleNamespace(_last_generation_completed_at=time.time() - 1.0)
+    assert InferenceGate._cortex_worker_just_answered(answered)
+    long_ago = SimpleNamespace(_last_generation_completed_at=time.time() - 10_000.0)
+    assert not InferenceGate._cortex_worker_just_answered(long_ago)
+    never = SimpleNamespace(_last_generation_completed_at=0.0)
+    assert not InferenceGate._cortex_worker_just_answered(never)

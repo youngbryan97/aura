@@ -122,6 +122,36 @@ class _WatchesTheCortexComeUp:
         return (time.time() - started_at) < deadline_s
 
     @staticmethod
+    def _cortex_worker_just_answered(client: Any) -> bool:
+        """True when the worker finished a generation inside the generation deadline.
+
+        The idle-but-running case the cleanup exists for is a worker that
+        stopped answering. One that has just answered is idle because it is
+        done, and what the gate made of its text is a verdict on the text.
+        LIVE 2026-09-23: the 27B returned 1,138 characters of a plan, the gate
+        refused them as cut off, the fallback had nothing, and the worker that
+        had answered a second earlier was force-killed as stuck and reloaded
+        while a game was being played.
+
+        The same deadline that spares a generation in progress: a worker that
+        answered more recently than a generation may run cannot be one whose
+        generation hung.
+        """
+        from .inference_gate import (
+            InferenceGate,
+        )
+
+        if client is None:
+            return False
+        done = float(getattr(client, "_last_generation_completed_at", 0.0) or 0.0)
+        if done <= 0.0:
+            return False
+        deadline_s = InferenceGate._env_float(
+            "AURA_CORTEX_GENERATION_DEADLINE_S", 600.0
+        )
+        return (time.time() - done) < deadline_s
+
+    @staticmethod
     def _recent_virtual_memory() -> Any:
         """psutil.virtual_memory(), at most once per _VIRTUAL_MEMORY_MEMO_TTL_S.
 
