@@ -1202,6 +1202,7 @@ async def pursue_on_screen(
     pending["when_a_game_ends"] = lambda: _judge_what_she_judges_by_in_her_model(
         knows, world, pending, matters, move_keys,
         success_when or pending.get("aiming_at") or "", narrate,
+        within_s=max(0.0, ends_at - time.monotonic()),
     )
     try:
         furthest["here"] = float(knew.get("furthest") or 0.0)
@@ -1650,8 +1651,11 @@ async def pursue_on_screen(
     # And what she judges by, played out in her own model of this world before
     # she carries it into the next run. After the run, and beside it rather
     # than in front of it, so nothing she says about this run waits on it.
+    # No longer than the run she is judging was given: a rehearsal is not
+    # worth more time than the living it stands in for.
     _judge_what_she_judges_by_in_her_model(
-        knows, world, pending, matters, move_keys, success_when or pending.get("aiming_at") or "", narrate
+        knows, world, pending, matters, move_keys, success_when or pending.get("aiming_at") or "", narrate,
+        within_s=max(1.0, ends_at - began),
     )
     pending.pop("when_a_game_ends", None)
     return result
@@ -1690,6 +1694,8 @@ def _judge_what_she_judges_by_in_her_model(
     move_keys: Sequence[str],
     toward: str,
     narrate: bool,
+    *,
+    within_s: float = 0.0,
 ) -> Any:
     """Rehearse every property she invented, and let go of any that does worse.
 
@@ -1731,15 +1737,21 @@ def _judge_what_she_judges_by_in_her_model(
             if worth <= 0.0:
                 continue
             without = {key: value for key, value in judged_by.items() if key != name}
+            began_rehearsing = time.monotonic()
             rehearsed = rehearse(
                 rules, world, start, list(move_keys),
-                weights=without, trying={name: worth}, toward=toward,
+                weights=without, trying={name: worth}, toward=toward, within_s=within_s,
             )
             if rehearsed is None:
-                logger.info(
-                    "could not rehearse %r: her model of this world does not compile "
-                    "from where this game began", name,
-                )
+                if within_s and time.monotonic() - began_rehearsing >= within_s:
+                    logger.info(
+                        "could not finish rehearsing %r in the %.0fs there was", name, within_s
+                    )
+                else:
+                    logger.info(
+                        "could not rehearse %r: her model of this world does not compile "
+                        "from where this game began", name,
+                    )
                 return
             if not rehearsed.hurts():
                 logger.info("kept judging by %r: %s", name, rehearsed.says())

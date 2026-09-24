@@ -27,6 +27,7 @@ from __future__ import annotations
 import logging
 import math
 import random
+import time as _clock
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -39,9 +40,15 @@ __all__ = ["Rehearsed", "rehearse"]
 #: what differs between the two is the change and not the luck.
 TIMES = 3
 
-#: How far each goes, in acts. Long enough for a way of judging to show what
-#: it builds rather than what it grabs first.
-HOW_FAR = 200
+#: How far each goes, in acts: nought is until the world stops answering or
+#: what she is after is reached.
+#:
+#: It was two hundred. On 2048 two hundred moves reach about 256 whichever
+#: way she judges, and a game that reaches 2048 takes about a thousand, so
+#: every rehearsal came out level and a property measured to cost her three
+#: games in four was kept after every game (2026-09-20 to 23). Played to its
+#: end, a game takes her search a few seconds at this depth.
+HOW_FAR = 0
 
 #: How far ahead she looks while rehearsing. Shallower than when she plays:
 #: this asks which way of judging is better, and a shallow search leans on the
@@ -108,18 +115,31 @@ def _one(
     looks_ahead: int,
     seed: int,
     choose: Callable[..., dict[str, tuple[float, str]]],
+    until: float = 0.0,
 ) -> float | None:
-    """One rehearsal: her own search, her own model, her own dice. How far it got."""
+    """One rehearsal: her own search, her own model, her own dice. How far it got.
+
+    None where there is no model to play in, or where ``until`` came first: a
+    game cut off by the clock is not evidence about how far it would have got.
+    """
     from core.agency.a_world_compiled import compiled  # noqa: PLC0415
+    from core.agency.how_good_is_this import _target  # noqa: PLC0415
 
     made = compiled(knows, world, start, actions)
     if made is None:
         return None
+    aim = _target(toward)
     roll = random.Random(seed)
     board = made.board(start)
     state = start
     furthest = _furthest(state)
-    for _ in range(how_far):
+    moves = 0
+    while how_far <= 0 or moves < how_far:
+        moves += 1
+        if aim and furthest >= aim:
+            break
+        if until and _clock.monotonic() > until:
+            return None
         scores = choose(
             knows, state, list(actions), toward=toward, world=world, weights=weights, depth=looks_ahead
         )
@@ -157,13 +177,16 @@ def rehearse(
     looks_ahead: int = LOOKS_AHEAD,
     seed: int = 0,
     choose: Callable[..., dict[str, tuple[float, str]]] | None = None,
+    within_s: float = 0.0,
 ) -> Rehearsed | None:
     """Play a change to her judging out in her own model, against not making it.
 
     ``trying`` is what the change adds to her weights, by name — a property
     she invented at the worth she would give it. None where she has no model
-    to rehearse in, which is most of the time early in a world.
+    to rehearse in, which is most of the time early in a world, or where
+    ``within_s`` ran out before every game was played to its end.
     """
+    until = _clock.monotonic() + within_s if within_s > 0.0 else 0.0
     if choose is None:
         from core.agency.looking_ahead import look_ahead as choose  # noqa: PLC0415
     without: list[float] = []
@@ -171,7 +194,8 @@ def rehearse(
     changed = {**weights, **{name: float(worth) for name, worth in trying.items()}}
     for time in range(max(1, int(times))):
         kwargs = dict(
-            toward=toward, how_far=how_far, looks_ahead=looks_ahead, seed=seed + time, choose=choose
+            toward=toward, how_far=how_far, looks_ahead=looks_ahead, seed=seed + time,
+            choose=choose, until=until,
         )
         before = _one(knows, world, start, actions, weights=dict(weights), **kwargs)
         after = _one(knows, world, start, actions, weights=changed, **kwargs)

@@ -143,3 +143,40 @@ def test_it_is_played_out_from_where_the_run_began():
     source = pursuit_source()
     in_order(source, "going.starting_from(made)", 'pending.setdefault("first_arranged", laid_out)')
     assert 'pending.get("first_arranged") or pending.get("arranged")' in source
+
+
+def test_a_rehearsal_plays_to_what_she_is_after_rather_than_a_count():
+    """Two hundred moves reach about 256 on 2048 whichever way she judges.
+
+    So every rehearsal came out level, and a property measured to cost her
+    three games in four was kept after every game (2026-09-20 to 23).
+    """
+    knows, world, start = _a_world_she_has_learned()
+    played: list[int] = []
+
+    def her_search(knows_, state, actions, *, toward, world, weights, depth):
+        played.append(1)
+        return {action: (1.0 if action == "left" else 0.0, "") for action in actions}
+
+    rehearsed = rehearse(
+        knows, world, start, MOVES, weights={"room": 0.15}, trying={"a property": 0.4},
+        times=1, toward="64", choose=her_search,
+    )
+    assert rehearsed is not None
+    # Already at 64, so what she is after is reached before a move.
+    assert played == []
+
+
+def test_a_rehearsal_the_clock_cut_off_gives_no_verdict():
+    knows, world, start = _a_world_she_has_learned()
+
+    def her_search(knows_, state, actions, *, toward, world, weights, depth):
+        import time
+
+        time.sleep(0.02)
+        return {action: (1.0 if action == "up" else 0.5, "") for action in actions}
+
+    assert rehearse(
+        knows, world, start, MOVES, weights={"room": 0.15}, trying={"a property": 0.4},
+        times=1, toward="1000000", choose=her_search, within_s=0.05,
+    ) is None
