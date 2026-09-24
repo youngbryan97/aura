@@ -133,3 +133,38 @@ Artifacts: `~/.aura/rlc-evidence/semantic-interruption-recovery-bank-stratified-
 and `~/.aura/rlc-evidence/semantic-wide-augment-fold2-treatment-20260923/fold-2.json`.
 Next, measure the proposer and selector on genuinely unseen requests together.
 More source-fold training cannot by itself establish that claim.
+
+## Same-source proposer replay and budget correction
+
+The one-second source bank above is a *search-interruption stress test*, not a
+fair estimate of the refitted proposer's ordinary answer accuracy. Replaying
+the same 16 fold-2 source identities at the same 4x2, one-second bounds gave
+16/16 ordinary correct for the original source-fit proposer, 14/16 for a
+newly cross-fitted proposer that excluded held constructions from both fit and
+calibration, and 1/16 for the later refit. The later refit's 15 misses were
+typed budget interruptions: eight decode-search, five chart-construction, and
+two argument-optimizer. At the normal 20-second cohort bound its archived
+source result is 764/764. The apparent 1/16 semantic collapse was therefore
+an invalid inference from a much shorter diagnostic budget. It still exposes
+a real latency regression and a mismatch between the bank and serving bounds.
+The cross-fit result is a small source-construction pilot, not validation
+transfer or a reason to promote its candidate.
+
+On exactly the same 500 archived validation identities, with their original
+cohort bounds, the original source-fit candidate has 472 equivalent answers
+and the later literal-identity candidate has 477. They agree correct on 461;
+the original alone gets 11, the later candidate alone gets 16, and neither
+gets 12. The *oracle* union is 488/500, not a deployable score: no target-free
+arbiter has identified which candidate is right on disagreements. The 12
+shared misses are concentrated in cataphoric (2), reserved alias (8), and
+role binding (2). A router between these two archived outputs cannot reach
+500/500, even with perfect selection. The evidence calls for both genuinely
+new candidate coverage and an independent, calibrated selection mechanism.
+These validation labels are exposed development evidence and cannot qualify a
+newly tuned selector.
+
+Artifacts: `~/.aura/rlc-evidence/semantic-proposer-crossfit-fold2-v2-20260923/report.json`,
+`~/.aura/rlc-evidence/semantic-proposer-lineage-base-fold2-20260923/report.json`,
+`~/.aura/rlc-evidence/semantic-proposer-lineage-source-decision-fold2-20260923/report.json`,
+`~/.aura/rlc-evidence/semantic-source-fit-20260915/validation.checkpoint.json`, and
+`~/.aura/rlc-evidence/semantic-literal-identity-cohort-20260921/report.json`.
