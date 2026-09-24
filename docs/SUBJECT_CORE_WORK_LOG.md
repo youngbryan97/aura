@@ -7,6 +7,50 @@ what broke, what fixed it, and where the evidence is. Runs live in
 
 ## 23 September, evening
 
+### 23:30: synergy at the decisive length, and a drive nobody was feeding
+
+Seed 7 recorded at the decisive campaign's length (300 rounds, 2,400 turn
+rows, f38d4923b; `~/subject-core-runs/record-s7-300`), read with the counters
+out:
+
+| triple | synergy | shifted null | interaction lower bound | at 320 rows |
+|---|---|---|---|---|
+| A,S->G | 0.080 | 0.064 | -0.115 | fail |
+| P,M->W | 0.307 | 0.162 | -0.009 | pass |
+| W,A->D | 0.028 | 0.107 | -0.069 | pass |
+| S,D->C | 0.060 | 0.048 | -0.001 | fail |
+
+All four fail, the two that passed at 320 rows among them. Causal closure holds
+at this length (closed=True).
+
+The interaction bound is read over five forward-chaining folds, and one fold
+broke three of the triples. The fold testing turns 1,919 to 2,159 read -0.21,
+-0.13 and -0.16 where the folds before it read up to +0.25. In that block her
+dominant drive changed. Growth's budget climbed in a straight line from 50 to
+84 across the run and passed curiosity near turn 2,030; her self-prediction's
+drive error, flat for 1,900 turns, began to move, and ambivalence pressure fell
+21 standard deviations.
+
+Nothing in her fed growth. A probe on seed 7 printed the drive the motivation
+phase credited each turn: the same `{'drive': 'growth', 'priority':
+0.9105007597813606}` on every turn, while the winner of every broadcast was
+`affect_engine`, which serves no drive. The broadcast consumer replaces its
+record only when a winner serves a drive, and the motivation phase credited the
+record on every tick without taking it, so one early win for growth paid out for
+the whole run. The reading is now taken when it is credited (75149ff26).
+
+S,D->C read no interaction in any fold (the largest gain 0.003). The dose test
+at this length says a product can register here: goal urgency times her
+self-prediction confidence, integrated into the mesh's population columns,
+passes at a quarter of a spread per unit and above, where urgency times her
+agency's efficacy does not register at any size. Control allocation, the
+executive tier's gain set from urgency times self-confidence, is built for it
+(cherry-picked onto main after the drive fix).
+
+Next: seed 7 at the decisive design on the commit that carries the drive fix,
+the confidence fix and control allocation, read at 2,400 rows before any
+seed-23 run.
+
 ### 20:55: the day's runs, lost to a pause and rebuilt
 
 The 2048 demo session stopped every subject job at 07:38 so the demo had the
