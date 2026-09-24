@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.errors import record_degradation
-from core.runtime.state_ownership import state_root
 
 
 def _attach_certified_recurrent_adapter(
@@ -41,7 +40,13 @@ def _attach_certified_recurrent_adapter(
         "AURA_RLC_ACTIVATION_POINTER",
         "",
     ).strip()
-    activation_root = state_root() / "data/adapters/latent-cortex"
+    # Through the worker, at call time, as this module's own note says it
+    # takes what it needs: bound here at import, a patch of the worker's
+    # state root never reached it, and the certified-activation test read the
+    # live state root instead of its own.
+    from core.brain.llm import mlx_worker
+
+    activation_root = mlx_worker.state_root() / "data/adapters/latent-cortex"
     pointer_path = (
         Path(configured_pointer).expanduser()
         if configured_pointer
