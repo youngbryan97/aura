@@ -1176,6 +1176,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Complete-graph triadic factor fit](evidence/G03_TRIADIC_GRAPH_REFIT_2026-09-24.md)
+  recovers 227/254 exact programs on the exposed fold versus 214/254 for
+  the original cross-fit proposer, with 15 gains and two regressions; all
+  changed cases are confined to two arithmetic constructions. No broad
+  transfer or serving claim follows; G03 remains open.
   [Full-fold triadic addendum](evidence/G03_TRIADIC_FULL_FOLD_ADDENDUM_2026-09-24.md):
   the frozen fold-1 candidate falls from 214/254 to 210/254 exact programs
   despite its 40-source pilot gain; it is rejected, and graph-level factor
