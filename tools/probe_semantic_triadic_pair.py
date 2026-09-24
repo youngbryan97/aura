@@ -82,14 +82,27 @@ def main() -> None:
     report = json.loads(args.candidate_report.read_bytes())
     source_report = json.loads(args.source_report.read_bytes())
     folds = json.loads(args.folds.read_bytes())
-    if (report.get("parent_file_sha256") != hashlib.sha256(parent_raw).hexdigest()
-            or report.get("source_parent_file_sha256", report.get("parent_file_sha256"))
-            != hashlib.sha256(source_parent_raw).hexdigest()
-            or report.get("source_fold_candidate_file_sha256")
-            != hashlib.sha256(candidate_raw).hexdigest()
-            or report.get("fold") != args.fold
-            or candidate.model_basis_sha256 != parent.model_basis_sha256):
+    if report.get("receipt_sha256") != _sha({
+            key: value for key, value in report.items() if key != "receipt_sha256"}):
+        raise ValueError("paired candidate report receipt differs from its contents")
+    graph_refit = report.get("schema") == "aura.semantic_triadic_graph_source_probe.v1"
+    if graph_refit:
+        source_hashes = report.get("input_sha256", {})
+        if (source_hashes.get("candidate") != hashlib.sha256(parent_raw).hexdigest()
+                or source_hashes.get("source_parent") != hashlib.sha256(source_parent_raw).hexdigest()
+                or source_hashes.get("source_report") != hashlib.sha256(args.source_report.read_bytes()).hexdigest()
+                or source_hashes.get("folds") != hashlib.sha256(args.folds.read_bytes()).hexdigest()
+                or report.get("candidate_file_sha256") != hashlib.sha256(candidate_raw).hexdigest()
+                or candidate.training_receipt.get("argument_graph_factor_refit", {}).get(
+                    "parent_transducer_receipt_sha256") != parent.receipt_sha256):
+            raise ValueError("paired graph refit differs from its frozen source parent")
+    elif (report.get("parent_file_sha256") != hashlib.sha256(parent_raw).hexdigest()
+          or report.get("source_parent_file_sha256", report.get("parent_file_sha256"))
+          != hashlib.sha256(source_parent_raw).hexdigest()
+          or report.get("source_fold_candidate_file_sha256") != hashlib.sha256(candidate_raw).hexdigest()):
         raise ValueError("paired triadic candidate differs from source-fold proof")
+    if report.get("fold") != args.fold or candidate.model_basis_sha256 != parent.model_basis_sha256:
+        raise ValueError("paired candidate differs in fold or model basis")
     if (source_parent.model_basis_sha256 != parent.model_basis_sha256
             or source_parent.input_grounding != parent.input_grounding):
         raise ValueError("paired triadic source parent differs in basis or grounding")
@@ -97,7 +110,11 @@ def main() -> None:
                source_report["representation_compatibility"]["source_feature_manifest_sha256s"]]
     examples = load_source_examples(source_parent, source_report, bundles)
     fit, calibration, held = crossfit_partition(examples, folds, args.fold, all_held=True)
-    if "graph_calibration_cohort" in report:
+    if graph_refit:
+        population = tuple(item for item in examples if item.split == "validation")
+        count = candidate.training_receipt["triadic_binding_fit"]["score_calibration"]["rows"][0]["calibration_sources"]
+        graph_calibration, _ = select_triadic_score_calibration_sources(population, limit=count)
+    elif "graph_calibration_cohort" in report:
         graph_population = (tuple(item for item in examples if item.split == "validation")
                             if report.get("graph_calibration_population") == "source_validation"
                             else tuple(calibration))
@@ -121,7 +138,9 @@ def main() -> None:
             or (args.source_parent is not None and not parent_cohort_matches)):
         raise ValueError("paired triadic parent or graph calibration saw held sources")
     fit_receipt = candidate.training_receipt.get("triadic_binding_fit", {})
-    if (fit_receipt.get("parent_transducer_receipt_sha256") != parent.receipt_sha256
+    if (fit_receipt.get("parent_transducer_receipt_sha256")
+            != (parent.training_receipt["triadic_binding_fit"]["parent_transducer_receipt_sha256"]
+                if graph_refit else parent.receipt_sha256)
             or fit_receipt.get("training_example_ids_sha256")
             != _sha(sorted(item.ir.source_text_sha256 for item in fit))
             or fit_receipt.get("validation_example_ids_sha256")
@@ -135,18 +154,22 @@ def main() -> None:
         held = sorted(held, key=lambda item: hashlib.sha256(
             item.ir.source_text_sha256.encode("ascii")).hexdigest())[
                 args.offset:args.offset + args.limit]
-    arms = {
-        "incumbent": evaluate_shared_semantic_program_transducer(
-            parent, held, split="train", arm="incumbent").to_dict(),
-        "candidate": evaluate_shared_semantic_program_transducer(
-            candidate, held, split="train", arm="candidate").to_dict(),
-        "lesion": evaluate_shared_semantic_program_transducer(
-            candidate.triadic_binding_lesion(), held, split="train", arm="lesion").to_dict(),
-    }
+    arms = {}
+    for name, model in (("incumbent", parent), ("candidate", candidate),
+                        ("lesion", candidate.triadic_binding_lesion())):
+        print(json.dumps({"stage": "paired_arm", "arm": name, "sources": len(held)},
+                         sort_keys=True), flush=True)
+        arms[name] = evaluate_shared_semantic_program_transducer(
+            model, held, split="train", arm=name).to_dict()
+        print(json.dumps({"stage": "paired_arm_complete", "arm": name,
+                          "program_exact": arms[name]["program_exact"],
+                          "answer_exact": arms[name]["answer_exact"]},
+                         sort_keys=True), flush=True)
     body = {"schema": "aura.semantic_triadic_pair_probe.v1",
             "parent_file_sha256": hashlib.sha256(parent_raw).hexdigest(),
             "candidate_file_sha256": hashlib.sha256(candidate_raw).hexdigest(),
             "candidate_report_receipt_sha256": report["receipt_sha256"],
+            "graph_refit_comparison": graph_refit,
             "source_parent_file_sha256": hashlib.sha256(source_parent_raw).hexdigest(),
             "fold": args.fold, "held_ids_sha256": _sha(sorted(
                 item.ir.source_text_sha256 for item in held)),
