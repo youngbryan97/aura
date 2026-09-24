@@ -376,6 +376,7 @@ def _what_she_says_as_she_moves(
     toward: str,
     approach: str,
     biggest_so_far: float,
+    last_said: dict[str, str] | None = None,
 ) -> str:
     """One line for the move she is about to make. Empty when there is no model to say it from."""
     from core.agency.how_good_is_this import AS_GOOD_A_GUESS_AS_ANY
@@ -405,6 +406,7 @@ def _what_she_says_as_she_moves(
                 terms(other_after, toward=toward, approach=approach, knows=rules, acts=names),
                 weights or AS_GOOD_A_GUESS_AS_ANY,
                 runner_up_name=runner_up,
+                last_said=last_said,
             )
         if not because:
             # Nothing separates the two on the board right after the move,

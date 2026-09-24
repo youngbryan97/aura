@@ -32,3 +32,21 @@ def test_a_name_with_braces_does_not_break_the_sentence():
 def test_her_written_terms_keep_their_own_words():
     said = why_this_one({"room": 0.8}, {"room": 0.2}, {"room": 1.0}, runner_up_name="up")
     assert said == "it leaves more room than up would"
+
+
+def test_the_same_measure_again_is_said_the_way_a_person_says_it_twice():
+    """Read out in full on every move it was the reason, it filled the
+    commentary with one clause (live, 2026-09-23)."""
+    said: dict[str, str] = {}
+    first = why_this_one({INVENTED: 0.8}, {INVENTED: 0.2}, {INVENTED: 0.4}, runner_up_name="right", last_said=said)
+    again = why_this_one({INVENTED: 0.8}, {INVENTED: 0.2}, {INVENTED: 0.4}, runner_up_name="up", last_said=said)
+    assert INVENTED in first
+    assert again == "by the same measure of my own, it comes out ahead of up"
+
+
+def test_a_different_measure_is_named_in_full():
+    other = "how small it is across everything, on average"
+    said: dict[str, str] = {}
+    why_this_one({INVENTED: 0.8}, {INVENTED: 0.2}, {INVENTED: 0.4}, last_said=said)
+    changed = why_this_one({other: 0.8}, {other: 0.2}, {other: 0.4}, runner_up_name="left", last_said=said)
+    assert other in changed

@@ -1679,6 +1679,7 @@ async def decide_the_next_move(
             toward=str(pending.get("aiming_at") or success_when or ""),
             approach=str(pending.get("held_line") or ""),
             biggest_so_far=max(float(furthest.get("here") or 0.0), float(furthest.get("again") or 0.0)),
+            last_said=pending.setdefault("reason_last_said", {}),
         )
         if narrate
         else ""

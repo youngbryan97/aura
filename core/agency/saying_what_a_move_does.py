@@ -125,8 +125,13 @@ def why_this_one(
     weights: Mapping[str, float],
     *,
     runner_up_name: str = "",
+    last_said: dict[str, str] | None = None,
 ) -> str:
-    """The term of her measure that most separated the move from the next best."""
+    """The term of her measure that most separated the move from the next best.
+
+    ``last_said`` is the run's memory of which of her own measures was the
+    reason last time, so the same one is not read out in full move after move.
+    """
     best_name, best_gap = "", 0.0
     for name, value in chosen.items():
         gap = (float(value) - float(runner_up.get(name, 0.0))) * float(weights.get(name, 0.0))
@@ -134,11 +139,15 @@ def why_this_one(
             best_name, best_gap = name, gap
     if not best_name:
         return ""
-    plain, compared = _WHAT_A_TERM_MEANS.get(best_name) or _by_her_own_measure(best_name)
+    plain, compared = _WHAT_A_TERM_MEANS.get(best_name) or _by_her_own_measure(
+        best_name, again=last_said is not None and last_said.get("measure") == best_name
+    )
+    if last_said is not None and best_name not in _WHAT_A_TERM_MEANS:
+        last_said["measure"] = best_name
     return compared.format(other=runner_up_name) if runner_up_name else plain
 
 
-def _by_her_own_measure(name: str) -> tuple[str, str]:
+def _by_her_own_measure(name: str, *, again: bool = False) -> tuple[str, str]:
     """A reason given by a property she invented, said as hers.
 
     Its name is a recipe — what it looks at, how it adds them up — and read
@@ -147,6 +156,14 @@ def _by_her_own_measure(name: str) -> tuple[str, str]:
     what it is, a measure she worked out herself, it is also the part of the
     reason a person watching would most want to know about.
     """
+    if again:
+        # The same reason as the move before, said the way a person says it
+        # the second time. Read out in full on every move it was the reason,
+        # it filled the commentary with one clause (live, 2026-09-23).
+        return (
+            "by the same measure of my own, it comes out ahead",
+            "by the same measure of my own, it comes out ahead of {other}",
+        )
     braces = str(name).replace("{", "{{").replace("}", "}}")
     return (
         f"by a measure I worked out myself ({braces}), it comes out ahead",
