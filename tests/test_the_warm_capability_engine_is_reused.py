@@ -45,6 +45,11 @@ def test_the_accessor_returns_the_registered_engine(monkeypatch):
 )
 def test_the_fallback_sites_ask_for_the_warm_engine_first(path: str):
     source = Path(path).read_text(encoding="utf-8")
-    assert "live_capability_engine()" in source, path
+    # Asking for the warm engine itself, or taking the engine from the one
+    # place that does: capability_sources, which is checked on its own row.
+    assert (
+        "live_capability_engine()" in source
+        or "from core.self.capability_sources import" in source
+    ), path
     # Never a bare construction where a warm one would do.
     assert "engine = CapabilityEngine()" not in source, path

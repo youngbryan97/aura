@@ -283,6 +283,18 @@ class TestDurabilityIsNotClaimedWithoutWriting:
         assert "queued_for_retry" in source
 
 
+def _the_agency_and_its_shard_work() -> str:
+    """The agency core and the shard work lifted out of it, read as one.
+
+    A shard's tool dispatch moved whole into `agency_shard_work` to keep the
+    core under its size ceiling. What the restraints do did not change, and
+    the file they live in was never what these tests were about.
+    """
+    from core.agency import agency_core, agency_shard_work
+
+    return inspect.getsource(agency_core) + inspect.getsource(agency_shard_work)
+
+
 class TestHighRiskToolsNeedRestraintsThatRan:
     """``be7d1d4f`` — dvg absent, dvg raising, cwm absent and cwm raising all
     fell through to approval for python_sandbox, shell_executor and
@@ -306,23 +318,17 @@ class TestHighRiskToolsNeedRestraintsThatRan:
         assert _HIGH_RISK_SHARD_TOOLS <= _DISPATCHABLE_SHARD_TOOLS
 
     def test_an_unknown_tool_name_is_refused(self):
-        from core.agency import agency_core as mod
-
-        source = inspect.getsource(mod)
+        source = _the_agency_and_its_shard_work()
         assert "unknown_tool_name" in source
         assert "_DISPATCHABLE_SHARD_TOOLS" in source
 
     def test_both_restraints_must_have_actually_run(self):
-        from core.agency import agency_core as mod
-
-        source = inspect.getsource(mod)
+        source = _the_agency_and_its_shard_work()
         assert "_value_check_done" in source
         assert "_causal_check_done" in source
         assert "blocked_ungated:" in source
 
     def test_a_failed_restraint_is_recorded_at_critical(self):
-        from core.agency import agency_core as mod
-
-        source = inspect.getsource(mod)
+        source = _the_agency_and_its_shard_work()
         assert "value-graph check FAILED for high-risk tool" in source
         assert "causal simulation FAILED for high-risk tool" in source
