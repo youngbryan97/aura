@@ -8,7 +8,9 @@ from core.learning.procedure_induction import Instruction, Program
 from core.learning.semantic_candidate_bank import SemanticCandidate, SemanticCandidateBank
 from core.learning.semantic_meaning_hypothesis import (
     GroundedProgramProposal,
+    compare_source_bound_meanings,
     meaning_hypotheses_from_bank,
+    select_source_bound_portfolio,
 )
 from core.learning.semantic_program_campaign import _sha
 from core.learning.semantic_program_ir import TokenSpan
@@ -83,3 +85,60 @@ def test_invalid_operation_or_score_cannot_enter_meaning_state():
     operation, = hypothesis.operations
     with pytest.raises(ValueError, match="invalid role structure"):
         replace(operation, name="unknown_primitive")
+
+
+def test_equal_present_values_do_not_hide_a_counterfactual_role_distinction():
+    hypothesis, = _bank().meaning_hypotheses()
+    operation, = hypothesis.operations
+    left, right = operation.bindings
+    reversed_hypothesis = replace(hypothesis, operations=(replace(operation, bindings=(
+        replace(left, register=right.register), replace(right, register=left.register))),))
+    original = GroundedProgramProposal(hypothesis, hypothesis.to_program())
+    reversed_proposal = GroundedProgramProposal(reversed_hypothesis, reversed_hypothesis.to_program())
+    unresolved = compare_source_bound_meanings(original, reversed_proposal, (4, 4),
+        counterfactual_count=0)
+    assert unresolved["proposed_consequence_comparison"]["status"] == "unknown"
+    compared = compare_source_bound_meanings(original, reversed_proposal, (4, 4),
+        counterfactual_count=16)
+    assert compared["proposed_consequence_comparison"]["status"] == "different"
+    assert compared["proposed_consequence_comparison"]["witness"]["inputs"][0] != (
+        compared["proposed_consequence_comparison"]["witness"]["inputs"][1]
+    )
+    assert compared["source_interpretation_status"] == "unresolved"
+    assert compared["left_receipt_sha256"] != compared["right_receipt_sha256"]
+
+
+def test_source_bound_comparison_rejects_cross_source_and_bad_geometry():
+    hypothesis, = _bank().meaning_hypotheses()
+    proposal = GroundedProgramProposal(hypothesis, hypothesis.to_program())
+    with pytest.raises(ValueError, match="source bank"):
+        other = replace(hypothesis, bank_receipt_sha256="b" * 64)
+        compare_source_bound_meanings(proposal, GroundedProgramProposal(other, other.to_program()), (1, 2))
+    with pytest.raises(ValueError, match="geometry"):
+        compare_source_bound_meanings(proposal, proposal, (1,))
+
+
+def test_source_bound_inquiry_needs_an_independent_observation():
+    hypothesis, = _bank().meaning_hypotheses()
+    operation, = hypothesis.operations
+    left, right = operation.bindings
+    reversed_hypothesis = replace(hypothesis, operations=(replace(operation, bindings=(
+        replace(left, register=right.register), replace(right, register=left.register))),))
+    original = GroundedProgramProposal(hypothesis, hypothesis.to_program())
+    reversed_proposal = GroundedProgramProposal(reversed_hypothesis, reversed_hypothesis.to_program())
+    portfolio = select_source_bound_portfolio((original, reversed_proposal), (4, 4),
+        incumbent_receipt_sha256=original.receipt_sha256)
+    assert portfolio.decision.selected == original.receipt_sha256
+    inquiries = portfolio.plan_inquiries()
+    assert inquiries
+    inquiry = inquiries[0]
+    assert inquiry.source_sha256 == hypothesis.source_text_sha256
+    assert inquiry.to_dict()["observed_result"] is None
+    assert inquiry.to_dict()["correctness_authority"] is False
+    assert inquiry.compatible_methods(observed_result=original.program.run(inquiry.inputs)) == (
+        original.receipt_sha256,
+    )
+    revised = portfolio.reconcile_inquiry(inquiry,
+        observed_result=reversed_proposal.program.run(inquiry.inputs),
+        origin="independent_test", ref="measurement-1")
+    assert revised.selected == reversed_proposal.receipt_sha256
