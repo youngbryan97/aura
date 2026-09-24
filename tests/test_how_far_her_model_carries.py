@@ -140,3 +140,27 @@ def test_the_run_measures_it_and_the_search_is_given_it():
     assert "was_right=same" in graded
     assert "would_no_change_have_been_right" in graded
     assert "no_deeper_than=as_far_as_it_carries" in source
+
+
+def test_a_distance_nobody_measured_does_not_bound_the_search():
+    """Distances past one are graded only when she commits to several moves.
+
+    On a fast board she rarely does, so they never gathered enough to count,
+    and reading the furthest distance MEASURED to carry as the bound held every
+    search to one move. LIVE 2026-09-23 on 2048: "she thought for 0.00s" on
+    every move, and the board filled at 128.
+    """
+    carried = HowFarHerModelCarries()
+    _grading(carried, 1, right=120, wrong=80)
+    _grading(carried, 2, right=2, wrong=1)
+    assert carried.carries_to() == 0
+    assert carried.measured_to() == 1
+    assert "at least 1" in carried.says()
+
+
+def test_a_distance_measured_to_fail_still_bounds_it():
+    carried = HowFarHerModelCarries()
+    _grading(carried, 1, right=20, wrong=1)
+    _grading(carried, 2, right=0, wrong=8, baseline_right=8)
+    _grading(carried, 3, right=16, wrong=4)
+    assert carried.carries_to() == 1

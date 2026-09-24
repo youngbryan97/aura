@@ -93,20 +93,42 @@ class HowFarHerModelCarries:
         )
 
     def carries_to(self) -> int:
-        """The furthest distance her model still beats predicting no change.
+        """How deep a search in her model is worth going, by what she measured.
 
-        Zero where she has not graded enough to say, which means nothing here
-        should be bounded by it.
+        The last distance her model beats predicting no change, before the
+        first distance measured NOT to. Zero, which bounds nothing, where no
+        measured distance says it stops.
+
+        It was the furthest distance measured to carry, and that read a
+        distance nobody measured as one where the model fails. Distances past
+        one are graded only when she commits to several moves at once, which
+        on a fast board she rarely does, so they never gathered enough to
+        count and every search was held to one move. LIVE 2026-09-23 on 2048:
+        "she thought for 0.00s" on every move, and a game that fills the board
+        at 128, where the same search given its clock reaches 1024 and 2048.
         """
         found = self.carrying.useful_horizon()
         useful = 0
-        for row in found.get("by_horizon") or ():
-            horizon = int(row.get("horizon") or 0)
+        rows = sorted(found.get("by_horizon") or (), key=lambda row: int(row.get("horizon") or 0))
+        for row in rows:
             if int(row.get("n") or 0) < ENOUGH_AT_A_DISTANCE:
                 continue
-            if row.get("beats_baseline"):
-                useful = max(useful, horizon)
-        return useful
+            if not row.get("beats_baseline"):
+                return useful
+            useful = int(row.get("horizon") or 0)
+        return 0
+
+    def measured_to(self) -> int:
+        """The furthest distance graded enough, and found to carry."""
+        found = self.carrying.useful_horizon()
+        return max(
+            (
+                int(row.get("horizon") or 0)
+                for row in found.get("by_horizon") or ()
+                if int(row.get("n") or 0) >= ENOUGH_AT_A_DISTANCE and row.get("beats_baseline")
+            ),
+            default=0,
+        )
 
     def how_sure_she_should_be(self, claimed: float) -> float:
         """A confidence calibrated against predictions in the same bin."""
@@ -119,6 +141,11 @@ class HowFarHerModelCarries:
         parts = []
         if carries:
             parts.append(f"her model carries {carries} act(s) here")
+        elif self.measured_to():
+            parts.append(
+                f"her model carries at least {self.measured_to()} act(s) here, "
+                "as far as she has measured"
+            )
         elif self.graded:
             parts.append("how far her model carries is not settled yet")
         if over is not None and self.calibration.n >= ENOUGH_AT_A_DISTANCE:
