@@ -6889,30 +6889,6 @@
       "scope": "<module>.write_text"
     },
     {
-      "callee": "<file_write_gateway>.delete_file",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/subject/driver.py",
-      "scope": "<module>.SubjectRuntime._act"
-    },
-    {
-      "callee": "<file_write_gateway>.ensure_directory",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/subject/driver.py",
-      "scope": "<module>.SubjectRuntime._act"
-    },
-    {
-      "callee": "<file_write_gateway>.write_text",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 4,
-      "path": "core/subject/driver.py",
-      "scope": "<module>.SubjectRuntime._act"
-    },
-    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -6959,38 +6935,6 @@
       "count": 1,
       "path": "core/subject/recording.py",
       "scope": "<module>.Recording.save"
-    },
-    {
-      "callee": "<file_write_gateway>.ensure_directory",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/subject/snapshot.py",
-      "scope": "<module>._restore_stores"
-    },
-    {
-      "callee": "<file_write_gateway>.write_bytes",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/subject/snapshot.py",
-      "scope": "<module>._restore_stores"
-    },
-    {
-      "callee": "<file_write_gateway>.ensure_directory",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 2,
-      "path": "core/subject/snapshot.py",
-      "scope": "<module>._restore_world"
-    },
-    {
-      "callee": "<file_write_gateway>.write_bytes",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/subject/snapshot.py",
-      "scope": "<module>._restore_world"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -16570,6 +16514,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "2920dee0c57f06e91e2ee7c38597c67c6dc7ef1ccc48eccdce6c95038c84b7f1",
+  "inventory_sha256": "0b1106e8025f2990b38c265a93df13bc935a7378b8968c2874ee40c664dab91e",
   "schema_version": 1
 }
