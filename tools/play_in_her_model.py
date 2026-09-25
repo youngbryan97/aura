@@ -74,6 +74,10 @@ def main() -> int:
         help="think as the live loop does: --budget on an open board, rising to 2 s as it fills",
     )
     parser.add_argument(
+        "--approach", default="",
+        help="a line she holds, judged by her search the way the live loop judges it",
+    )
+    parser.add_argument(
         "--lean", type=float, default=0.0,
         help="add the live loop's lean on what the world could swing, from -1 (avoid) to 1 (seek)",
     )
@@ -82,7 +86,7 @@ def main() -> int:
     from core.agency.a_world_compiled import compiled
     from core.agency.how_good_is_this import AS_GOOD_A_GUESS_AS_ANY, INVENTED, forget, promote
     from core.agency.inventing_a_measure import measure_named
-    from core.agency.looking_ahead import at_the_worlds_mercy, look_ahead
+    from core.agency.looking_ahead import at_the_worlds_mercy, how_far_she_can_see, look_ahead
     from core.skills.screen_pursuit_decision_branches import _how_long_to_think
     from core.agency.what_makes_it_good_here import WhatMakesItGoodHere
     from core.perception.how_it_moves import HowItMoves
@@ -127,6 +131,7 @@ def main() -> int:
         board = made.board(start)
         state = start
         furthest, began, moves = 0.0, time.monotonic(), 0
+        seen_ahead: list[int] = []
         for moves in range(1, args.moves + 1):
             budget = (
                 _how_long_to_think(state, least=args.budget, most=2.0)
@@ -135,10 +140,11 @@ def main() -> int:
             )
             scores = look_ahead(
                 rules, state, acts, toward=args.toward, world=world, weights=weights,
-                depth=args.depth, budget_s=budget,
+                depth=args.depth, budget_s=budget, approach=args.approach,
             )
             if not scores:
                 break
+            seen_ahead.append(how_far_she_can_see())
             if args.lean:
                 # The same adjustment the live loop makes, from the same measure.
                 exposed = at_the_worlds_mercy(
@@ -174,7 +180,11 @@ def main() -> int:
                 break
         reached.append(furthest)
         took = time.monotonic() - began
-        print(f"game {game + 1}: reached {furthest:g} in {moves} moves ({took:.1f}s, {took / max(1, moves) * 1000:.0f} ms a move)")
+        ahead = statistics.mean(seen_ahead) if seen_ahead else 0.0
+        print(
+            f"game {game + 1}: reached {furthest:g} in {moves} moves ({took:.1f}s, "
+            f"{took / max(1, moves) * 1000:.0f} ms a move, seeing {ahead:.1f} ahead)"
+        )
     middle = math.exp(statistics.mean(math.log(v) for v in reached if v > 0)) if reached else 0.0
     print(f"reached {', '.join(f'{v:g}' for v in reached)}; typical {middle:.0f}")
     return 0

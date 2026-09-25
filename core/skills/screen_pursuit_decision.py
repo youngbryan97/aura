@@ -746,13 +746,17 @@ async def decide_the_next_move(
                     _what_she_could_not_learn_from(dropped),
                     # What a move costs her, said where anyone watching the
                     # run can see it: a demo is a latency measurement.
+                    # And how far that thinking reached, which is what the
+                    # time buys: the same second is a different depth in a
+                    # quiet process and in a busy one.
                     "a look took %.2fs of which %.2fs was reading it, and she "
-                    "thought for %.2fs"
+                    "thought for %.2fs, seeing %d move(s) ahead"
                     % (
                         float(observation.get("seconds_to_still", 0.0) or 0.0)
                         + float(observation.get("seconds_reading", 0.0) or 0.0),
                         float(observation.get("seconds_reading", 0.0) or 0.0),
                         float(pending.get("thought_for", 0.0) or 0.0),
+                        _how_far_she_saw(),
                     ),
                 )
         _decide_the_next_move_learned_same_measurement(anchor, attempt, observation, pending, previous, responds, target_app)
@@ -1849,6 +1853,13 @@ async def decide_the_next_move(
         )
 
     return Step(name=f"press {key}", action=act)
+
+
+def _how_far_she_saw() -> int:
+    """How many moves ahead her last look reached, for the status line."""
+    from core.agency.looking_ahead import how_far_she_can_see
+
+    return how_far_she_can_see()
 
 
 # One sentinel, defined beside the branches that return it. Two would be
