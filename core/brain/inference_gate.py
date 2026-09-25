@@ -2480,6 +2480,12 @@ def _generate_with_metadata_sink_part_4_4(self, _is_user_facing, local_label, re
         )
     return _FALL_THROUGH
 
+
+def _named_blockers(lane: Any) -> str:
+    """What a lane status says is holding it, for a log line that has to say why."""
+    blockers = lane.get("readiness_blockers") if isinstance(lane, dict) else None
+    return ",".join(str(item) for item in (blockers or ())) or "nothing named"
+
 class InferenceGate(_ServesTheTurn, _SetsTheTurnUp, _BuildsTheLivingContext, _WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
     """Isolated inference gateway for Aura's managed local runtime."""
 
@@ -10110,9 +10116,8 @@ class InferenceGate(_ServesTheTurn, _SetsTheTurnUp, _BuildsTheLivingContext, _Wa
                             if not self._lane_can_attempt_visible_conversation_turn(lane_status):
                                 skip_initial_primary_attempt = True
                                 logger.warning(
-                                    "🧠 %s is still not ready after foreground preflight warmup (state=%s). Skipping the cold first attempt and waiting for recovery before retry.",
-                                    local_label,
-                                    lane_status.get("state", "unknown"),
+                                    "🧠 %s is still not ready after foreground preflight warmup (state=%s, blocked by %s). Skipping the cold first attempt and waiting for recovery before retry.",
+                                    local_label, lane_status.get("state", "unknown"), _named_blockers(lane_status),
                                 )
                     if primary_warmup_memory_deferred:
                         _left_ = _generate_with_metadata_sink_part_1_1(self, context, desktop_cognitive_engine_contract, fallback_label, origin, proof_evaluation_contract, strict_primary_proof_lane)

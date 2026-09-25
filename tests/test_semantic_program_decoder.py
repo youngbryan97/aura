@@ -1,5 +1,7 @@
 """Direct program learning shares the floor and never consumes answer labels at decode."""
 
+from types import SimpleNamespace
+
 import pytest
 import torch
 
@@ -39,6 +41,58 @@ def test_complete_program_loss_reaches_context_and_register_mechanisms():
         assert gradient is not None and torch.isfinite(gradient).all() and gradient.abs().sum() > 0
 
 
+def test_rank_loss_shares_source_encoding_and_trains_decision_mechanism(monkeypatch):
+    model, features, spans, kinds = model_and_inputs()
+    programs = (Program(2, (Instruction("sub", (0, 1)),)),
+                Program(2, (Instruction("sub", (1, 0)),)))
+    encode = model._encode
+    calls = []
+
+    def counted(*args):
+        calls.append(1)
+        return encode(*args)
+
+    monkeypatch.setattr(model, "_encode", counted)
+    loss = model.rank_loss(features, spans, kinds, programs, (True, False))
+    assert len(calls) == 1
+    assert torch.isfinite(loss) and loss > 0
+    loss.backward()
+    for name in ("project.weight", "attention_query.weight", "register_query.weight"):
+        gradient = dict(model.named_parameters())[name].grad
+        assert gradient is not None and torch.isfinite(gradient).all()
+        assert gradient.abs().sum() > 0
+
+
+def test_rank_loss_rejects_missing_or_contradictory_evidence():
+    model, features, spans, kinds = model_and_inputs()
+    program = Program(2, (Instruction("sub", (0, 1)),))
+    for programs, labels in (((), ()), ((program,), (False,)),
+                             ((program, program), (True, False)),
+                             ((program,), None)):
+        with pytest.raises(ValueError):
+            model.rank_loss(features, spans, kinds, programs, labels)
+
+
+def test_many_scores_replay_individual_scores_with_one_source_encoding(monkeypatch):
+    model, features, spans, kinds = model_and_inputs()
+    programs = (Program(2, (Instruction("sub", (0, 1)),)),
+                Program(2, (Instruction("mul", (1, 0)),)))
+    singles = torch.stack([model.score(features, spans, kinds, program)
+                           for program in programs])
+    encode = model._encode
+    calls = []
+
+    def counted(*args):
+        calls.append(1)
+        return encode(*args)
+
+    monkeypatch.setattr(model, "_encode", counted)
+    assert torch.allclose(model.score_many(features, spans, kinds, programs), singles)
+    assert len(calls) == 1
+    with pytest.raises(ValueError, match="nonempty"):
+        model.score_many(features, spans, kinds, ())
+
+
 @pytest.mark.parametrize(
     "kinds",
     [
@@ -57,6 +111,67 @@ def test_free_decode_only_emits_floor_typed_acyclic_programs(kinds):
         assert tuple(registers[i] for i in instruction.args) == arguments
         registers.append(result)
     assert receipt["search"] == "greedy"
+
+
+def test_typed_beam_retains_scored_complete_programs_without_target():
+    model, features, spans, kinds = model_and_inputs()
+    greedy, _ = model.decode(features, spans, kinds)
+    single = model.propose_beam(features, spans, kinds, beam_width=1, max_programs=1)
+    assert single[0][1]["log_probability"] >= float(model.score(
+        features, spans, kinds, greedy).detach())
+    proposals = model.propose_beam(features, spans, kinds, beam_width=8, max_programs=8)
+    assert 1 < len(proposals) <= 8
+    assert len({program for program, _receipt in proposals}) == len(proposals)
+    assert [receipt["log_probability"] for _program, receipt in proposals] == sorted(
+        (receipt["log_probability"] for _program, receipt in proposals), reverse=True)
+    for program, receipt in proposals:
+        assert 1 <= program.depth <= model.config.max_steps
+        assert receipt["search"] == "typed_beam"
+        assert receipt["log_probability"] == pytest.approx(
+            float(model.score(features, spans, kinds, program).detach()), abs=1e-5)
+        types = list(kinds)
+        for instruction in program.instructions:
+            arguments, result = semantic_primitive_type_signature(instruction.op)
+            assert tuple(types[index] for index in instruction.args) == arguments
+            types.append(result)
+
+
+def test_typed_beam_rejects_unbounded_search():
+    model, features, spans, kinds = model_and_inputs()
+    for width, count in ((0, 1), (33, 1), (4, 0), (4, 5), (True, 1)):
+        with pytest.raises(ValueError, match="bounded positive widths"):
+            model.propose_beam(features, spans, kinds, beam_width=width,
+                               max_programs=count)
+
+
+def test_source_fold_beam_counts_reach_after_target_blind_generation():
+    from tools.compare_semantic_candidate_methods import _direct_beam_observation
+
+    model, features, spans, kinds = model_and_inputs()
+    target = Program(2, (Instruction("sub", (0, 1)),))
+    alternative = Program(2, (Instruction("mul", (0, 1)),))
+
+    class FixedProposer:
+        def propose_beam(self, received_features, received_spans, received_kinds,
+                         *, beam_width, max_programs):
+            assert received_features is features
+            assert received_spans is spans
+            assert received_kinds is kinds
+            assert beam_width == max_programs == 2
+            return ((alternative, {"log_probability": -1.0}),
+                    (target, {"log_probability": -2.0}))
+
+    item = SimpleNamespace(
+        ir=SimpleNamespace(to_program=lambda: target, input_spans=spans),
+        public_inputs=(11, 3))
+    result = _direct_beam_observation(
+        FixedProposer(), features, spans, kinds, item,
+        frozenset({alternative.sha()}), width=2)
+    assert result["exact_reachable"] is True
+    assert result["novel_exact_reachable"] is True
+    assert result["top_exact"] is False
+    assert result["new_programs"] == 1
+    assert result["proposals"][1]["exact"] is True
 
 
 @pytest.mark.parametrize(

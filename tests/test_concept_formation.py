@@ -70,14 +70,69 @@ def test_recognize_returns_concept_for_matching_signature(engine):
     assert engine.recognize(["unrelated", "tokens", "here"]) is None
 
 
-def test_repeated_recognition_consolidates(engine):
+def test_repeated_recognition_does_not_certify_a_concept(engine):
     sig = ["light", "speed", "constant"]
     for _ in range(3):
         engine.observe_prediction_error(sig, magnitude=0.8)
     for _ in range(3):
         engine.observe_prediction_error(sig, magnitude=0.8)
     c = engine.recognize(sig)
-    assert c.status == "consolidated"
+    assert c.status == "provisional"
+    assert c.validation_provenance == ""
+
+
+def test_independent_discovery_certifies_matching_concept(engine):
+    from core.brain.ontology_discovery import Observation, OntologyDiscovery
+
+    for _ in range(3):
+        result = engine.observe_prediction_error(["light"], magnitude=0.8)
+    concept_id = result.formed.concept_id
+    groups = []
+    for group in range(3):
+        groups.append(tuple(
+            Observation({"cue:light": index % 2 == 0}, index % 2 == 0,
+                        source_id=f"{group}-{index}")
+            for index in range(40)
+        ))
+    discovered = OntologyDiscovery(outcome_name="surprise", min_support=4).discover_partitioned(
+        *groups
+    ).discovered
+    assert discovered is not None
+    concept = engine.certify(concept_id, discovered)
+    assert concept.status == "consolidated"
+    assert concept.validation_provenance == discovered.provenance()
+
+
+def test_counterevidence_reopens_a_certified_concept_and_survives_reload(engine, tmp_path):
+    from core.cognition.concept_handle import Substrate
+    from core.cognition.semantic_development import SemanticCase, SemanticDevelopment
+
+    for _ in range(3):
+        engine.observe_prediction_error(["light"], magnitude=0.8)
+    cohorts = tuple(tuple(SemanticCase(
+        f"{group}-{index}", f"context-{group}", "surprise", index % 2 == 0,
+        {"cue:light": index % 2 == 0}) for index in range(40)) for group in range(3))
+    path = tmp_path / "semantic.json"
+    semantic = SemanticDevelopment(concept_engine=engine, state_path=path, min_support=4)
+    primitive_id = semantic.test("surprise", cohorts=cohorts)["primitive"]["identity"]
+    assert engine.concepts()[0]["status"] == "consolidated"
+    fresh = tuple(SemanticCase(
+        f"later-{index}", "later", "surprise", index % 2 != 0,
+        {"cue:light": index % 2 == 0}) for index in range(40))
+    assert semantic.retest(primitive_id, fresh)["status"] == "revoked"
+    assert engine.concepts()[0]["status"] == "provisional"
+    assert engine.concepts()[0]["validation_revoked_by"]
+    semantic.save()
+    restored = SemanticDevelopment(concept_engine=engine, state_path=path, min_support=4)
+    assert restored.registry.resolve(Substrate.FORMED, primitive_id) is None
+
+
+def test_prior_unverified_consolidation_is_reopened(tmp_path):
+    path = tmp_path / "concepts.json"
+    path.write_text('{"concepts":[{"concept_id":"old","name":"old",'
+                    '"defining_features":["old"],"support":3,"status":"consolidated"}]}')
+    engine = ConceptFormationEngine(storage_path=path, autosave=False)
+    assert engine.recognize(["old"]).status == "provisional"
 
 
 # ── bounded clusters + retrieval + persistence ──────────────────────────────

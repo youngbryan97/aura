@@ -15,7 +15,8 @@ after the law survives evidence it could have failed.
     anomaly       an outcome whose base rate leaves something to explain
     hypothesis    a conjunction found by beam search on the training split
     experiment    lift measured on a held-out split the search never saw
-    verifier      a permutation null, plus a per-conjunct ablation
+    verifier      an exact conditional null corrected for candidate search,
+                  plus a per-conjunct ablation
     integration   the law enters the shared heuristic pool that
                   curiosity_explorer, dreamer_v2 and dream_skill already read
     transfer      lift re-measured on a third split, later in time
@@ -84,6 +85,7 @@ class Observation:
     features: Mapping[str, Any]
     outcome: bool
     at: float = 0.0
+    source_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -166,6 +168,9 @@ class LawEvidence:
     #: Held-out lift lost by dropping each conjunct. A conjunct that costs
     #: nothing is not part of the law and is pruned before this is recorded.
     ablation: dict[str, float] = field(default_factory=dict)
+    validation_method: str = "permutation"
+    familywise_candidates: int = 1
+    transfer_p_value: float = 1.0
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -298,6 +303,22 @@ def base_rate(observations: Sequence[Observation]) -> float:
     return sum(1 for o in observations if o.outcome) / len(observations)
 
 
+def exact_conditional_p_value(law: CandidateLaw, observations: Sequence[Observation]) -> float:
+    """Exact upper tail with the observed positive count and rule support fixed."""
+    population = len(observations)
+    positives = sum(item.outcome for item in observations)
+    score = score_split(law, observations)
+    if population == 0 or score.support == 0:
+        return 1.0
+    denominator = math.comb(population, score.support)
+    return sum(
+        math.comb(positives, hits)
+        * math.comb(population - positives, score.support - hits)
+        for hits in range(score.hits, min(score.support, positives) + 1)
+        if score.support - hits <= population - positives
+    ) / denominator
+
+
 class OntologyDiscovery:
     """Induce a cognitive law, or come back with the reason there is none."""
 
@@ -414,12 +435,10 @@ class OntologyDiscovery:
     def prune(
         self, law: CandidateLaw, heldout: Sequence[Observation]
     ) -> tuple[CandidateLaw, dict[str, float]]:
-        """Drop conjuncts that do not pay for themselves, and report the rest.
+        """Drop conjuncts on the supplied fit split, and report the rest.
 
-        A conjunct whose removal does not lower held-out lift is decoration: it
-        narrows support, and narrower support is what makes an accidental rule
-        look precise. Pruning first means the ablation recorded afterwards
-        describes a law where every conjunct is load-bearing.
+        A conjunct whose removal does not lower fit lift is decoration. This
+        must run before held-out scoring, or validation becomes another fit.
         """
         rate = base_rate(heldout)
         predicates = list(law.predicates)
@@ -467,6 +486,43 @@ class OntologyDiscovery:
             )
 
         train, heldout, transfer = self.split(episodes)
+        return self._discover_splits(train, heldout, transfer)
+
+    def discover_partitioned(
+        self,
+        train: Sequence[Observation],
+        heldout: Sequence[Observation],
+        transfer: Sequence[Observation],
+        *,
+        proposals: Sequence[CandidateLaw] = (),
+    ) -> DiscoveryOutcome:
+        """Test proposals and learned rules on independent source cohorts."""
+        groups = []
+        for split in (train, heldout, transfer):
+            ids = {item.source_id for item in split}
+            if not split or "" in ids:
+                raise ValueError("partitioned discovery needs identified sources in every split")
+            if len(ids) != len(split):
+                raise ValueError("partitioned discovery needs one independent row per source")
+            groups.append(ids)
+        if any(groups[left] & groups[right] for left, right in ((0, 1), (0, 2), (1, 2))):
+            raise ValueError("partitioned discovery shares source identities across splits")
+        if any(not isinstance(law, CandidateLaw) or law.outcome_name != self.outcome_name
+               or not law.predicates for law in proposals):
+            raise ValueError("proposed laws must name the measured outcome")
+        return self._discover_splits(train, heldout, transfer, proposals=proposals)
+
+    def _discover_splits(
+        self,
+        train: Sequence[Observation],
+        heldout: Sequence[Observation],
+        transfer: Sequence[Observation],
+        *,
+        proposals: Sequence[CandidateLaw] = (),
+    ) -> DiscoveryOutcome:
+        episodes = [*train, *heldout, *transfer]
+        if any(len(split) < self.min_support for split in (train, heldout, transfer)):
+            return DiscoveryOutcome(None, refusal="a discovery split has too few observations")
         overall_rate = base_rate(episodes)
         if overall_rate <= 0.0:
             return DiscoveryOutcome(None, refusal="no episode had the outcome")
@@ -476,12 +532,18 @@ class OntologyDiscovery:
             )
 
         predicates = candidate_predicates(train)
-        if not predicates:
+        if not predicates and not proposals:
             return DiscoveryOutcome(
                 None, refusal="no feature varied enough to form a predicate"
             )
 
         candidates, considered = self._beam_search(train, predicates)
+        seen = {law.describe() for law in candidates}
+        for law in proposals:
+            if law.describe() not in seen:
+                candidates.append(law)
+                seen.add(law.describe())
+                considered += 1
         if not candidates:
             return DiscoveryOutcome(
                 None,
@@ -494,7 +556,9 @@ class OntologyDiscovery:
         rejected: list[str] = []
 
         for candidate in candidates:
-            pruned, ablation = self.prune(candidate, heldout)
+            # Pruning on held-out data makes the validation split part of fit.
+            # The rule must be frozen before its first held-out observation.
+            pruned, ablation = self.prune(candidate, train)
             heldout_score = score_split(pruned, heldout)
             if heldout_score.support < self.min_support:
                 rejected.append(f"{pruned.describe()}: held-out support {heldout_score.support}")
@@ -504,17 +568,23 @@ class OntologyDiscovery:
                 rejected.append(f"{pruned.describe()}: held-out lift {heldout_lift:.2f}")
                 continue
 
-            p_value = self.permutation_p_value(pruned, heldout)
+            p_value = min(1.0, exact_conditional_p_value(pruned, heldout)
+                          * len(candidates))
             if p_value > self.max_p_value:
                 rejected.append(f"{pruned.describe()}: p={p_value:.3f}")
                 continue
 
             transfer_score = score_split(pruned, transfer)
             transfer_lift = transfer_score.lift(transfer_rate)
-            if transfer_score.support < self.min_support or transfer_lift <= 1.0:
+            transfer_p_value = min(
+                1.0, exact_conditional_p_value(pruned, transfer) * len(candidates)
+            )
+            if (transfer_score.support < self.min_support or transfer_lift <= 1.0
+                    or transfer_p_value > self.max_p_value):
                 rejected.append(
                     f"{pruned.describe()}: did not transfer "
-                    f"(support {transfer_score.support}, lift {transfer_lift:.2f})"
+                    f"(support {transfer_score.support}, lift {transfer_lift:.2f}, "
+                    f"p={transfer_p_value:.3f})"
                 )
                 continue
 
@@ -526,8 +596,11 @@ class OntologyDiscovery:
                 heldout_lift=round(heldout_lift, 6),
                 transfer_lift=round(transfer_lift, 6),
                 p_value=round(p_value, 6),
-                permutations=self.permutations,
+                permutations=0,
                 ablation=ablation,
+                validation_method="exact_conditional_bonferroni",
+                familywise_candidates=len(candidates),
+                transfer_p_value=round(transfer_p_value, 6),
             )
             discovered = DiscoveredLaw(
                 law=pruned,
@@ -568,5 +641,6 @@ __all__ = [
     "SplitScore",
     "base_rate",
     "candidate_predicates",
+    "exact_conditional_p_value",
     "score_split",
 ]

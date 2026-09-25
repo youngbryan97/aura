@@ -171,6 +171,30 @@ def test_splits_are_by_time_not_at_random():
     assert max(o.at for o in heldout) <= min(o.at for o in transfer)
 
 
+def test_partitioned_discovery_rejects_correlated_rows_and_shared_sources():
+    rows = tuple(Observation({"signal": bool(index % 2)}, bool(index % 2),
+                             source_id=f"source-{index}") for index in range(40))
+    engine = OntologyDiscovery(outcome_name="transfer", min_support=4)
+    with pytest.raises(ValueError, match="shares source"):
+        engine.discover_partitioned(rows, rows, rows)
+    with pytest.raises(ValueError, match="one independent row"):
+        engine.discover_partitioned(rows, (*rows[:1], *rows[:1], *rows[1:]), rows)
+
+
+def test_partitioned_discovery_freezes_fit_before_validation():
+    groups = tuple(tuple(Observation(
+        {"signal": index % 2 == 0, "noise": index % 3 == 0},
+        index % 2 == 0, source_id=f"group-{group}-{index}", at=group * 100 + index
+    ) for index in range(40)) for group in range(3))
+    result = OntologyDiscovery(outcome_name="transfer", min_support=4).discover_partitioned(
+        *groups)
+    assert result.found
+    assert result.discovered.evidence.validation_method == "exact_conditional_bonferroni"
+    assert result.discovered.evidence.permutations == 0
+    assert result.discovered.evidence.familywise_candidates >= 1
+    assert result.discovered.evidence.transfer_p_value <= 0.01
+
+
 def test_p_value_never_reaches_zero():
     """The observed arrangement is one of the arrangements under the null."""
     engine = OntologyDiscovery(permutations=99)

@@ -21,7 +21,7 @@ from core.container import ServiceContainer  # noqa: F401 - tests patch heartbea
 from core.event_bus import get_event_bus
 from core.schemas import TelemetryPayload
 
-from .global_workspace import CognitiveCandidate
+from .global_workspace import CognitiveCandidate, ContentType
 
 logger = logging.getLogger("Consciousness.Heartbeat")
 
@@ -902,15 +902,25 @@ class CognitiveHeartbeat:
             )
 
         # --- Affect candidate ---
+        # The same channel as the feelings the cycle's own builder bids
+        # (core/consciousness/workspace_feed.py), so one bidder and one
+        # refractory period, and typed as affect so the workspace does not lend
+        # it affect's urgency on top of its own. How strongly she is moved is
+        # the larger of the two readings. Their sum, clipped, sat at 1.0 for a
+        # whole seed-7 run at the decisive length: this bid won 2,341 of 2,412
+        # competitions, every win ignited at 1.0, and the broadcast then set
+        # her arousal to the winner's priority, which was her arousal again.
         emotion = state.get("affect_emotion", "Neutral")
         arousal = state.get("affect_arousal", 0.0)
-        felt = min(1.0, arousal + abs(state.get("affect_valence", 0.0)))
+        felt = min(1.0, max(float(arousal), abs(float(state.get("affect_valence", 0.0)))))
         if felt > _BID_FLOOR:
             await self.workspace.submit(
                 CognitiveCandidate(
                     content=f"Affective state: {emotion} (arousal={arousal:.2f})",
                     source="affect_engine",
+                    bidder_id="affect",
                     priority=felt,
+                    content_type=ContentType.AFFECTIVE,
                     affect_weight=affect_weight * 1.5,
                 )
             )

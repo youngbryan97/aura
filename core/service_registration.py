@@ -9,6 +9,7 @@ from typing import Any
 
 from core.exceptions import ContainerError
 from core.runtime.errors import record_degradation
+from core.service_names import ServiceNames
 
 from .config import config
 from .container import ServiceLifetime, get_container
@@ -646,6 +647,12 @@ def _register_retrieval_and_organism_services(container) -> None:
     container.register(
         'concept_formation',
         lambda: __import__('core.cognition.concept_formation', fromlist=['get_concept_formation_engine']).get_concept_formation_engine(),
+        lifetime=ServiceLifetime.SINGLETON,
+        required=False,
+    )
+    container.register(
+        ServiceNames.SEMANTIC_DEVELOPMENT,
+        lambda: __import__('core.cognition.semantic_runtime', fromlist=['get_semantic_development']).get_semantic_development(),
         lifetime=ServiceLifetime.SINGLETON,
         required=False,
     )

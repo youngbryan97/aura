@@ -64,13 +64,21 @@ def _peripheral(runtime: SubjectRuntime) -> dict[str, float]:
 
 
 def _world(runtime: SubjectRuntime) -> dict[str, bytes]:
+    """Every file and every room under the scratch root.
+
+    Rooms count. Her drives pick the probe's action, and when they picked
+    `make_room` the probe made a directory, which a reader of files alone could
+    not see: the check failed as "the probe wrote nothing" in whichever order
+    left her needing a room.
+    """
     root = getattr(runtime, "_scratch", None)
     if root is None or not Path(root).exists():
         return {}
     return {
-        str(item.relative_to(root)): item.read_bytes()
+        str(item.relative_to(root)) + ("/" if item.is_dir() else ""): (
+            b"" if item.is_dir() else item.read_bytes()
+        )
         for item in sorted(Path(root).rglob("*"))
-        if item.is_file()
     }
 
 

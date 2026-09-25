@@ -35,6 +35,21 @@ def paired_accuracy(incumbent: dict, candidate: dict, lesion: dict) -> dict:
     return result
 
 
+def graph_refit_calibration_sources(candidate, examples, calibration):
+    """Replay the graph refit's actual source calibration cohort."""
+    score_calibration = candidate.training_receipt["triadic_binding_fit"].get("score_calibration")
+    if score_calibration is None:
+        return tuple(calibration)
+    from core.learning.semantic_program_compositional_refits import (
+        select_triadic_score_calibration_sources,
+    )
+
+    population = tuple(item for item in examples if item.split == "validation")
+    count = score_calibration["rows"][0]["calibration_sources"]
+    selected, _ = select_triadic_score_calibration_sources(population, limit=count)
+    return selected
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--parent", type=Path, required=True)
@@ -111,9 +126,7 @@ def main() -> None:
     examples = load_source_examples(source_parent, source_report, bundles)
     fit, calibration, held = crossfit_partition(examples, folds, args.fold, all_held=True)
     if graph_refit:
-        population = tuple(item for item in examples if item.split == "validation")
-        count = candidate.training_receipt["triadic_binding_fit"]["score_calibration"]["rows"][0]["calibration_sources"]
-        graph_calibration, _ = select_triadic_score_calibration_sources(population, limit=count)
+        graph_calibration = graph_refit_calibration_sources(candidate, examples, calibration)
     elif "graph_calibration_cohort" in report:
         graph_population = (tuple(item for item in examples if item.split == "validation")
                             if report.get("graph_calibration_population") == "source_validation"

@@ -75,13 +75,16 @@ def test_all_three_lifts_compose_without_climbing(monkeypatch) -> None:
 
 
 def test_the_affect_phase_reads_it_with_her_efficacy_as_control(monkeypatch) -> None:
-    import core.runtime.service_registry as registry
+    import core.phases.affect_readings as readings_module
     from core.phases.affect_readings import AffectReadings
 
+    # The ledger she acts through, reached the way the readings reach it. This
+    # patched a runtime service named "agency_ledger" that nothing registers,
+    # which is how the test passed while the reading it tests never ran live.
     monkeypatch.setattr(
-        registry,
-        "get_runtime_service",
-        lambda name, default=None: SimpleNamespace(snapshot=lambda: {"efficacy": 0.8, "acted": 5}) if name == "agency_ledger" else default,
+        readings_module,
+        "_her_agency",
+        lambda: SimpleNamespace(snapshot=lambda: {"efficacy": 0.8, "acted": 5}),
     )
     readings = AffectReadings.__new__(AffectReadings)
     state = AuraState.default()

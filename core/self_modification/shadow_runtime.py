@@ -314,3 +314,12 @@ def get_shadow_runtime(code_base: str = ".") -> ShadowRuntime:
         _instance = ShadowRuntime(code_base_path=code_base)
         logger.info("✓ Shadow Runtime initialized (base: %s)", code_base)
     return _instance
+
+
+def existing_shadow_runtime() -> ShadowRuntime | None:
+    """The shadow runtime self-modification built, or None before it has one.
+
+    For a reader that must not build it: the first call to `get_shadow_runtime`
+    fixes the code base, and only the self-modification engine knows which one.
+    """
+    return _instance

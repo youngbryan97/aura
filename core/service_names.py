@@ -45,6 +45,7 @@ class ServiceNames:
     COGNITIVE = "cognitive_engine"
     LATENT_CORTEX = "latent_cortex"      # core/brain/latent_cortex_service.py
     COMPILED_UNDERSTANDING = "compiled_understanding"  # core/knowledge/compiled_understanding.py
+    SEMANTIC_DEVELOPMENT = "semantic_development"
     LLM_ROUTER = "llm_router"
     BRAIN = "brain"
     SOUL = "soul"

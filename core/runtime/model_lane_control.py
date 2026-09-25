@@ -48,6 +48,7 @@ from core.runtime.model_runtime_assignment import (
 from core.runtime.resource_observation import ResourceObserver, get_resource_observer
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.runtime.state_ownership import state_root
+from core.runtime.wall_clock import wall_time
 
 logger = logging.getLogger("Aura.ModelLaneControl")
 
@@ -1438,7 +1439,14 @@ class ModelLaneController:
         process_discovery: ProcessDiscoveryProbe | None = discover_external_model_processes,
         policy: LaneAdmissionController | None = None,
         observer: ResourceObserver | None = None,
-        clock: Callable[[], float] = lambda: time.time(),
+        # The machine's clock. The lane state is shared by every process that
+        # holds a model, and an experiment run replaces `time.time` in its own
+        # process with a clock a restore rewinds: leases it stamped read as
+        # long expired to the model worker, the owner was pruned, and the
+        # heartbeat of the one left behind found its fence gone and asked the
+        # whole runtime to shut down (a whole dry run, 24 September).
+        # See core/runtime/wall_clock.py.
+        clock: Callable[[], float] = wall_time,
     ) -> None:
         configured_state_path = str(
             os.environ.get("AURA_MODEL_LANE_STATE_PATH", "") or ""

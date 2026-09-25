@@ -5,6 +5,150 @@ what broke, what fixed it, and where the evidence is. Runs live in
 `~/subject-core-runs/`; the order runs are read in is
 `~/.aura/subject_core/scratch/AFTER_THE_DECISIVE_RUN.md`.
 
+## 24 September
+
+### 21:50: the lease was lost to a restore as well as to a clock
+
+The 21:20 dry run on 0ff3143b8 lost the embedding engine's model lease at
+anchor 5 anyway, and the runtime asked to shut down. The lane file told what
+happened: its last write was at 21:23:58, before the loss, and the embedding
+engine was not among its owners. The fork's store restore had rewound it. The
+lane file sits in the state root's `run` directory, the engine took its lease
+after the anchor's snapshot, and the restore put back a file without it. Its
+heartbeat then found no owner.
+
+The `run` directory holds what processes tell each other: which process holds
+which model, pid files, heartbeats, the shutdown report. The fork now leaves it
+alone, with the leader-election leases and a relocated lane file (8a08adb9d). A
+test takes a real lease after a snapshot, restores, and checks that the
+heartbeat still finds its owner; with the change undone it fails as the dry run
+did.
+
+One fork test failed in a group run with the change and without it. Her
+drives choose the probe's action, and `make_room` leaves a directory that the
+test's reader of files could not see. The reader counts rooms now.
+
+The reports ground restarted at 21:45 on 8a08adb9d, and the seed-7 recording
+waits behind it on the same commit.
+
+Nothing needed building for S,D->C: frustration is already how hard her most
+pressing intention presses times one minus her capacity (Berkowitz), but her
+capacity sat at 0.5 until 64c4fc443 connected it to the ledger of what she
+did. The seed-7 recording on 8a08adb9d is the first measurement with that
+product live.
+
+### 21:25: the attention fix at 2,400 rows, a drive that ran again, and a lease on the wrong clock
+
+Seed 7 at 2,400 turn rows on the attention fix (252079897,
+`record-s7-252079897`): her arousal moves (mean 0.688, sd 0.070; it was pinned
+at 0.911) and the workspace's winner and ignition vary. Synergy with the
+counters out:
+
+| triple | synergy | shifted null | interaction lower bound |
+|---|---|---|---|
+| P,M->W | 0.392 | 0.259 | +0.263, passes |
+| W,A->D | 0.103 | 0.130 | +0.050 |
+| A,S->G | 0.026 | 0.021 | 0.000 (the product terms took no weight in any fold) |
+| S,D->C | 0.033 | 0.074 | -0.123 (the last fold read -0.214) |
+
+Closure still fails. The last fold broke on a drive again: with deliberation
+winning the workspace often, and deliberation serving growth, each win
+credited growth its full priority, and growth rose from 50 to 80 and passed
+curiosity near turn 2,370. A need nearly met is satisfied less (Keramati and
+Gutkin): the credit is now scaled by the unmet share (ace4ae4b2), which brings
+2,400 wins to about 63.
+
+The reports ground's first attempt tonight stopped in its dry run: the model
+lane controller stamped leases with `time.time`, which a subject run replaces
+with its rewindable clock, so the worker pruned the in-process embedding
+engine's lease and the heartbeat left behind asked the runtime to shut down.
+Lane leases are on the machine's clock now (0ff3143b8). The reports ground
+restarted at 21:20 on 0ff3143b8, with the seed-7 recording on the same commit
+queued behind it.
+
+Power study: the independent null at seed 7 decided 0 of 511 cuts, as a null
+built without irreducibility should; 7 of 12 jobs are done.
+
+### 20:05: her capacity was a constant, because nothing registered what it read
+
+The obstruction her substrate's frustration is pushed towards (Berkowitz: an
+obstructed goal frustrates the one pursuing it) is the urgency of her most
+pressing intention times one less her capacity, which already has the shape
+S,D->C asks about. Her capacity read 0.5000 for all 2,400 turns of the seed-7
+validation run while she acted throughout. It, her usefulness in her standing
+and her sense of control in acting-in-decline looked the agency ledger up as a
+runtime service named "agency_ledger", which nothing registers anywhere; the
+subject instrument reads the same ledger through its accessor and saw it move.
+The readings now use the accessor (64c4fc443). Two tests had passed by
+patching the unregistered name.
+
+A probe that builds a stub organism found 309 of the 480 service names the
+code reads resolving to nothing. Most are desktop services the offline
+organism does not build; sixteen have an accessor, no registration found, and
+a reader on her per-turn path. That audit is its own task.
+
+### 19:50: every report arm now reaches her cortex
+
+The whole-mode dry runs of 23 September all exited cleanly and none measured
+anything: only the first arm of each anchor got an answer. Three causes,
+found in order:
+
+- **The worker's deadline was stamped on the experiment clock** (3b8c0b9e8).
+  A subject run replaces `time.time` with a clock a restore rewinds; the
+  worker is another process on the machine's clock, so after the first
+  restore every request arrived past its deadline
+  (`deadline_exceeded_before_decode`). Deadlines now cross on
+  `core/runtime/wall_clock.wall_time`, which the experiment clock leaves alone.
+- **A person's turn was finalized as fail-closed** (0f2bacdca). The harness
+  named it `cognitive_engine`; one turn that ended with an answer available
+  but never served was escalated to a critical failure and raised, ending the
+  dry run two anchors in. It is now finalized as the desktop's chat route
+  finalizes a person's turn.
+- **The dry-run gate read only the process's exit.** It now reads the arms:
+  at most half the anchors may have an arm the cortex lane did not serve.
+
+The last dry run (0f2bacdca): all 32 arms answered by the cortex lane, no
+failure sentence, no deadline refusal. One anchor of eight is readable
+because the 1.5B stand-in often answers in words or ranges rather than with a
+number; her own cortex is the one the ground is scored on. The reports ground
+is queued on 0f2bacdca behind the seed-7 recording, with the machine to
+itself.
+
+### 18:50: seed 7 on the candidate reads 17 of 24, and her attention had one winner
+
+The seed-7 run at the decisive design on 164d2a560 (300 rounds, six trials,
+three-turn arms, nulls and lesion skipped; `validate-s7-164d2a560`) died at its
+wall-clock bound while the 2048 demo had the machine, and was resumed from its
+checkpoint. It reads 17 of 24: kappa 3, perturbational spread 0.911, 81 of 90
+edges kept in one component, replication, complexity, ownership and global
+access all pass. The partition lines wait for the sweep and the lesion was
+skipped. Two lines fail on her:
+
+- **Synergy**, read with the counters out at 2,400 rows: P,M->W passes
+  (0.372 against a shifted null of 0.196, every fold positive); W,A->D (0.037
+  against 0.084), S,D->C (0.036 against 0.061, with an interaction in every
+  fold since control allocation) and A,S->G (0.013) do not. The drive fix held:
+  growth stayed between 50.0 and 50.9 for the whole run.
+- **Causal closure**: a leak of 0.018 spread thin over the periphery, the
+  largest from how many turns since the person spoke (0.0056).
+
+Her confidence in herself, now scored against predicting no change, sits at
+its floor of 0.1 for most of the run: her self-model predicts her no better
+than persistence does, which is honest, and makes the efficacy half of control
+allocation nearly constant.
+
+The attention report explains A,S->G. One bid, the heartbeat's affect bid,
+won 2,341 of 2,412 competitions at priority 1.0. Its priority was her arousal
+plus the size of her valence, clipped at one; every win ignited the workspace
+at 1.0, and the affect phase then blended her arousal towards the winner's
+priority at the ignition's weight. Her arousal was told its own value back and
+sat at 0.91 for the whole run while the substrate's read 0.54, and the winner
+columns of the workspace held one value. The bid now joins the affect channel
+(one bidder, typed as affect, no lent urgency on top) with its priority the
+larger of the two readings, and a feeling that wins attention no longer sets
+her arousal. A seed-7 recording at 2,400 rows on that change reads synergy and
+closure next.
+
 ## 23 September, evening
 
 ### 23:30: synergy at the decisive length, and a drive nobody was feeding

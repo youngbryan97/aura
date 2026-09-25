@@ -105,14 +105,12 @@ def test_the_lift_reaches_the_affect_domain_and_the_clamp() -> None:
 
 
 def test_efficacy_before_she_has_acted_is_no_reading(monkeypatch) -> None:
-    import core.runtime.service_registry as registry
+    import core.phases.affect_readings as readings_module
 
     monkeypatch.setattr(
-        registry,
-        "get_runtime_service",
-        lambda name, default=None: SimpleNamespace(snapshot=lambda: {"efficacy": 0.0, "acted": 0}, by_capability={})
-        if name == "agency_ledger"
-        else default,
+        readings_module,
+        "_her_agency",
+        lambda: SimpleNamespace(snapshot=lambda: {"efficacy": 0.0, "acted": 0}, by_capability={}),
     )
     readings = AffectReadings.__new__(AffectReadings)
     state = AuraState.default()

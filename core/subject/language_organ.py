@@ -261,8 +261,13 @@ def person_turn(runtime: Any, origin: str) -> Iterator[Any]:
     still decoding. For an owned turn the desktop lets work that is still
     advancing run on.
 
-    The reply is marked served, or nothing served, and the turn finalized, as
-    the kernel's path does.
+    The reply is marked served, or nothing served, and the turn finalized
+    under the name the desktop's chat route uses for a person's turn. The
+    kernel's path names `cognitive_engine`, which is registered fail-closed:
+    in a whole dry run on 24 September a turn that ended with an answer
+    available but never served was escalated to a critical failure and raised,
+    ending the run. On the desktop the chat route owns a person's turn and the
+    same ending is recorded and survived.
 
     Only a person's turn in a whole run. The stub organ never reaches the
     router or the gate, and no path notes the stub's reply, so finalizing
@@ -290,7 +295,7 @@ def person_turn(runtime: Any, origin: str) -> Iterator[Any]:
         else:
             outcome.mark_served("", state=UserVisibleState.NOTHING_SERVED)
     finally:
-        finalize_turn(outcome, subsystem="cognitive_engine")
+        finalize_turn(outcome, subsystem="chat")
 
 
 def opens_the_turn(turn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:

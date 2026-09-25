@@ -34,6 +34,27 @@ AFFECT_UPDATE_ERRORS = (
 RecordsADegradation = Callable[..., None]
 
 
+
+def _her_agency() -> Any:
+    """The ledger of what she did and whether it worked.
+
+    Read through the ledger's own accessor. These readings looked it up as a
+    runtime service named "agency_ledger", which nothing registers, so on the
+    desktop and in every campaign her sense of control reached acting in
+    decline as absent, her usefulness reached her standing as 0.0, and her
+    capacity sat at the 0.5 it has before she has tried anything: 0.5000 for
+    all 2,400 turns of a seed-7 run in which she acted throughout.
+    """
+    try:
+        from core.agency.authorship import get_agency_ledger
+
+        return get_agency_ledger()
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        # No second place to look: the runtime-service name this fell back to
+        # is registered nowhere, so the fallback was always None.
+        logger.debug("her agency ledger could not be reached: %s", exc)
+        return None
+
 def _clip01(value: Any) -> float:
     try:
         return max(0.0, min(1.0, float(value)))
@@ -383,11 +404,10 @@ class AffectReadings:
         """
         try:
             from core.affect.acting_in_decline import get_decline_ledger
-            from core.runtime.service_registry import get_runtime_service
 
             ledger = get_decline_ledger()
             ledger.note(float(affect.valence))
-            agency = get_runtime_service("agency_ledger", default=None)
+            agency = _her_agency()
             control = None
             if agency is not None and hasattr(agency, "snapshot"):
                 snapshot = agency.snapshot() or {}
@@ -851,14 +871,13 @@ class AffectReadings:
         the two things already measured that the line is about.
         """
         try:
-            from core.runtime.service_registry import get_runtime_service
             from core.self.standing import get_standing_ledger
 
             ledger = get_standing_ledger()
             ledger.note_own()
             if bool((getattr(state.identity, "read_by_other", {}) or {}).get("borrowed")):
                 ledger.note_assigned()
-            agency = get_runtime_service("agency_ledger", default=None)
+            agency = _her_agency()
             usefulness = 0.0
             if agency is not None and hasattr(agency, "snapshot"):
                 usefulness = float((agency.snapshot() or {}).get("efficacy", 0.0) or 0.0)

@@ -11,8 +11,9 @@ feature signatures. When the same kind of surprise recurs — enough high-error 
 signature — that is evidence of a regularity the current model has no name for, so the engine
 abstracts a new **concept primitive**: it names it from the recurring features, records its
 defining signature, and registers it. Once formed, the concept *recognizes* future occurrences of
-that signature (closing the loop — a learned primitive now explains what used to surprise), raises
-a scientific-engine hypothesis to test it, and publishes itself as a belief.
+that signature (closing the loop — a learned primitive now explains what used to surprise) and raises
+a scientific-engine hypothesis to test it. Independent held and transfer evidence is required
+before consolidation; repetition alone does not publish a belief.
 
 This is deliberately bounded: it abstracts regularities from experience (real, testable), it does
 not claim to derive novel physical law. But it is the honest first step from "good notes" toward
@@ -73,6 +74,9 @@ class Concept:
     status: str = "provisional"      # provisional | consolidated
     explained: int = 0               # times it has since recognized a matching event
     created_at: float = field(default_factory=lambda: time.time())
+    validation_provenance: str = ""
+    validation_evidence: Dict[str, Any] = field(default_factory=dict)
+    validation_revoked_by: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -85,6 +89,9 @@ class Concept:
             "status": self.status,
             "explained": self.explained,
             "created_at": self.created_at,
+            "validation_provenance": self.validation_provenance,
+            "validation_evidence": self.validation_evidence,
+            "validation_revoked_by": self.validation_revoked_by,
         }
 
 
@@ -162,9 +169,6 @@ class ConceptFormationEngine:
             existing = self._recognize_locked(sig)
             if existing is not None:
                 existing.explained += 1
-                if existing.status == "provisional" and existing.explained >= self._min_support:
-                    existing.status = "consolidated"
-                    existing.confidence = _clamp(existing.confidence + 0.2)
                 self._maybe_save()
                 return FormationResult(recognized=existing.concept_id, formed=None,
                                        reason="recognized_known_concept")
@@ -219,7 +223,7 @@ class ConceptFormationEngine:
         return concept
 
     def _on_formation(self, concept: Concept) -> None:
-        """Real integration: test the new concept (scientific engine) + publish it as a belief."""
+        """Submit a proposal to the experiment lane without publishing a belief."""
         try:
             from core.cognition.scientific_engine import get_scientific_engine
             get_scientific_engine().form_hypothesis(
@@ -229,15 +233,49 @@ class ConceptFormationEngine:
             )
         except (ImportError, AttributeError, RuntimeError, OSError, ValueError, TypeError) as exc:
             record_degradation("concept_formation", exc, severity="debug")
-        try:
-            from core.container import ServiceContainer
-            ws = ServiceContainer.get("world_state", default=None)
-            if ws is not None and hasattr(ws, "set_belief"):
-                ws.set_belief(f"concept:{concept.name}",
-                              {"defining_features": concept.defining_features},
-                              confidence=concept.confidence, source="concept_formation")
-        except (ImportError, AttributeError, RuntimeError, OSError, ValueError, TypeError) as exc:
-            record_degradation("concept_formation", exc, severity="debug")
+
+    def certify(self, concept_id: str, discovered: Any) -> Concept:
+        """Promote only a matching law with held and transfer evidence."""
+        from core.brain.ontology_discovery import (
+            MAX_P_VALUE,
+            MIN_HELDOUT_LIFT,
+            DiscoveredLaw,
+        )
+
+        if not isinstance(discovered, DiscoveredLaw):
+            raise TypeError("concept certification requires a discovered law")
+        evidence = discovered.evidence
+        if (evidence.p_value > MAX_P_VALUE or evidence.heldout_lift < MIN_HELDOUT_LIFT
+                or evidence.transfer_lift <= 1.0
+                or evidence.transfer_p_value > MAX_P_VALUE or not evidence.ablation):
+            raise ValueError("concept law lacks independent validation")
+        with self._lock:
+            concept = self._concepts[concept_id]
+            cues = {"cue:" + feature for feature in concept.defining_features}
+            if not any(predicate.feature in cues for predicate in discovered.law.predicates):
+                raise ValueError("discovered law does not test this concept")
+            concept.status = "consolidated"
+            concept.validation_provenance = discovered.provenance()
+            concept.validation_evidence = discovered.to_dict()
+            concept.validation_revoked_by = ""
+            concept.confidence = min(evidence.heldout.precision, evidence.transfer.precision)
+            self._maybe_save()
+            return concept
+
+    def revoke_certification(
+        self, concept_id: str, validation_provenance: str, *, counterevidence: str
+    ) -> bool:
+        """Reopen a concept when fresh evidence defeats its validating law."""
+        with self._lock:
+            concept = self._concepts.get(concept_id)
+            if (concept is None or concept.status != "consolidated"
+                    or concept.validation_provenance != validation_provenance):
+                return False
+            concept.status = "provisional"
+            concept.validation_revoked_by = counterevidence
+            concept.confidence = min(concept.confidence, 0.5)
+        self.save()
+        return True
 
     # ── recognition (the closed loop) ─────────────────────────────────────
 
@@ -309,7 +347,15 @@ class ConceptFormationEngine:
                         status=c.get("status", "provisional"),
                         explained=int(c.get("explained", 0)),
                         created_at=float(c.get("created_at", time.time())),
+                        validation_provenance=str(c.get("validation_provenance", "")),
+                        validation_evidence=dict(c.get("validation_evidence") or {}),
+                        validation_revoked_by=str(c.get("validation_revoked_by", "")),
                     )
+                    concept = self._concepts[c["concept_id"]]
+                    if concept.status == "consolidated" and (
+                        not concept.validation_provenance or concept.validation_revoked_by
+                    ):
+                        concept.status = "provisional"
             self._counter = int(raw.get("counter", len(self._concepts)))
         except (OSError, ValueError) as exc:
             record_degradation("concept_formation", exc)

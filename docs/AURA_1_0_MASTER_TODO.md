@@ -1176,6 +1176,27 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Source-fold miss profile](evidence/G03_SOURCE_MISS_PROFILE_2026-09-25.md)
+  separates 764 archived rows into 496 correct selections, 58 one-second
+  diagnostic decodes interrupted with a correct candidate, 75 wrong selections with a
+  correct candidate, and 135 incomplete searches without an observed correct
+  candidate. It guides the next source-only mechanism, not promotion.
+  [Scoped pragmatic evidence](evidence/CONTEXTUAL_PRAGMATICS_2026-09-25.md)
+  adds source-bound contextual interpretation, not a G03 result or serving
+  promotion; natural-language relation acquisition and transfer remain open.
+  [Direct-bank refit evidence](evidence/G03_DIRECT_BANK_REFIT_2026-09-25.md)
+  found a small unscaled source-fold gain but a larger scaled-parent
+  regression (190/256 to 167/256); scaled development misses fell 7/23 to
+  6/23. Both refits are rejected; no promotion.
+  [Target-blind direct-program beam](evidence/G03_DIRECT_BEAM_ALTERNATIVES_2026-09-24.md)
+  retains complete typed alternatives and separates reach from selection;
+  its 24-source pilot found no new exact target beyond the existing bank and
+  no promotion. Hard source-only selection and full validation remain open.
+  [Fold-0 graph-scale falsification](evidence/G03_TRIADIC_GRAPH_FOLD0_FALSIFICATION_2026-09-24.md):
+  124/256 exact programs after source graph fitting versus 171/256 with
+  the triadic factor lesioned; the fixed four-scale factor family is exactly
+  infeasible at the declared source margin. The fold-1 gain does not
+  generalize, so no candidate is promoted.
   [Complete-graph triadic factor fit](evidence/G03_TRIADIC_GRAPH_REFIT_2026-09-24.md)
   recovers 227/254 exact programs on the exposed fold versus 214/254 for
   the original cross-fit proposer, with 15 gains and two regressions; all

@@ -713,9 +713,20 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
             budget = mot.budgets.get(str(reading.get("drive", "")))
             if not isinstance(budget, dict):
                 return 0.0
-            gain = float(reading.get("priority", 0.0)) * dt / 60.0
+            # Attending to a need satisfies it by as much of it as is still
+            # unmet. Satisfaction is the reduction in a drive, which shrinks as
+            # the drive nears its set point (Keramati and Gutkin, "Homeostatic
+            # reinforcement learning for integrating reward collection and
+            # physiological stability", eLife 3, 2014). Credited in full
+            # whatever the level, growth rose in a straight line whenever
+            # deliberation won the workspace, 50 to 80 over a seed-7 run, and
+            # passed curiosity near its end, changing her most pressing drive
+            # for no reason in her.
             capacity = float(budget.get("capacity", 100.0))
-            budget["level"] = min(capacity, float(budget.get("level", 0.0)) + gain)
+            level = float(budget.get("level", 0.0))
+            unmet = max(0.0, capacity - level) / capacity if capacity > 0.0 else 0.0
+            gain = float(reading.get("priority", 0.0)) * dt / 60.0 * unmet
+            budget["level"] = min(capacity, level + gain)
             return gain
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, KeyError):
             # not a failure: a budget this cannot read gains nothing this

@@ -919,14 +919,12 @@ def test_executive_closure_completion_checks_record_failures(monkeypatch):
         "record_degradation",
         lambda module, exc: recorded.append((module, type(exc).__name__)),
     )
+    import core.agency.task_commitment_verifier as verifiers
+
     monkeypatch.setattr(
-        executive_closure.ServiceContainer,
-        "get",
-        lambda name, default=None: types.SimpleNamespace(
-            get_all_active=_FailingCallable("verifier unavailable")
-        )
-        if name == "task_commitment_verifier"
-        else default,
+        verifiers,
+        "_verifier",
+        types.SimpleNamespace(get_all_active=_FailingCallable("verifier unavailable")),
     )
 
     class _Cognition:

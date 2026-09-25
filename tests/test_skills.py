@@ -352,8 +352,15 @@ async def test_web_search_skill_initializes_and_accepts_input():
 
 
 @pytest.mark.asyncio
-async def test_capability_engine_uses_skill_timeout_budget_for_cognitive_governor(monkeypatch):
+async def test_capability_engine_uses_skill_timeout_budget_for_cognitive_governor(
+    monkeypatch, tmp_path
+):
     captured = {}
+    from core.cognition import semantic_runtime
+    from core.cognition.semantic_development import SemanticDevelopment
+
+    semantic = SemanticDevelopment(state_path=tmp_path / "semantic.json", min_support=4)
+    monkeypatch.setattr(semantic_runtime, "_SERVICE", semantic)
 
     # A real BaseSkill subclass. The engine refuses an implementation that is
     # not one — correctly: an unverified callable on the tool path cannot be
@@ -408,6 +415,11 @@ async def test_capability_engine_uses_skill_timeout_budget_for_cognitive_governo
     assert result["ok"] is True
     assert captured == {"task_name": "slow_skill", "timeout_seconds": 57.0}
     assert len(execute_with_retry.calls) == 1
+    assert semantic.observation_count == 1
+    case = next(iter(semantic.cases.values()))
+    assert case.outcome_name == "skill_returned_ok"
+    assert case.outcome is True
+    assert case.features["skill"] == "slow_skill"
 
 
 @pytest.mark.asyncio

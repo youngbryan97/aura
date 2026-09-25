@@ -180,7 +180,12 @@ Detail your logical chain of thought before providing the final answer.
                     confidence,
                 )
                 
-                distillation = get_runtime_service("distillation_pipe", default=None)
+                # The pipe the learning phase and the dreamer use. It is a
+                # module singleton that nothing registers as a service, so the
+                # container lookup this was sent failed solutions to read None.
+                from core.adaptation.distillation_pipe import get_distillation_pipe
+
+                distillation = get_distillation_pipe()
                 if distillation and hasattr(distillation, 'flag_for_distillation'):
                     await distillation.flag_for_distillation(
                         prompt=problem,
