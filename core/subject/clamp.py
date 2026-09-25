@@ -134,6 +134,11 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "loop_cycle",
     ),
     "S": (
+        # What the unity monitor decided about whose the last bound moment was
+        # and how clean the line between her and the world is. The closure test
+        # read both from outside the core; a clamp that does not hold them lets
+        # the self keep moving inside its own lesion.
+        "cognition.unity_state",
         # Being met as a type, and relief resting on an untested belief, which
         # the self-state reads since 743c2a208.
         "identity.met_as_a_type",
@@ -178,6 +183,9 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "cognition.relived",
     ),
     "W": (
+        # How long since the person last said anything, which is what her own
+        # silence is measured against.
+        "cognition.turns_since_user_spoke",
         "world.known_entities",
         "world.relationship_graph",
         "world.facts",
