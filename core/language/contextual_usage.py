@@ -188,21 +188,23 @@ class MeaningFeedback:
     sense: str
     origin: str
     observed_at: float = field(default_factory=time.time)
+    stance: str = "supports"
 
     def __post_init__(self) -> None:
         if (not all((self.source_id, self.usage_source_id, self.term,
                      self.sense, self.origin)) or self.source_id == self.usage_source_id
                 or self.origin not in {"user_correction", "observed_referent",
                                        "verified_source"}
+                or self.stance not in {"supports", "refutes"}
                 or any(len(value) > _MAX_CONTEXT_CHARS for value in (
                     self.source_id, self.usage_source_id, self.term, self.sense))
-                or not math.isfinite(self.observed_at)):
+                or not math.isfinite(self.observed_at) or self.observed_at < 0):
             raise ValueError("meaning feedback needs independent, attributed evidence")
 
     def to_dict(self) -> dict[str, Any]:
         return {"source_id": self.source_id, "usage_source_id": self.usage_source_id,
                 "term": self.term, "sense": self.sense, "origin": self.origin,
-                "observed_at": self.observed_at}
+                "observed_at": self.observed_at, "stance": self.stance}
 
 
 __all__ = ["MeaningFeedback", "UsageCue", "UsageEvent", "lexical_terms"]

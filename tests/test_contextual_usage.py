@@ -87,14 +87,16 @@ def test_contextual_abduction_requires_exposure_and_attributed_feedback(tmp_path
     alien = UsageEvent.from_text("alien", "new", "nova tonight", setting="unknown",
                                  community="community-c")
     assert engine.contextual_senses("nova", alien)["status"] == "unmeasured_context_transfer"
-    assert len(engine.grounded_sense_cases("nova", "celebration")) == 8
+    assert len(engine.grounded_sense_cases("nova", "celebration")) == 4
+    assert all(case.outcome is True for case in engine.grounded_sense_cases(
+        "nova", "celebration"))
     engine.save()
     restored = _engine(tmp_path)
     assert restored.contextual_senses("nova", query)["candidates"][0]["sense"] == (
         "celebration")
 
 
-def test_conflicting_feedback_remains_unresolved_and_cannot_rewrite_usage(tmp_path):
+def test_multiple_readings_do_not_imply_refutation(tmp_path):
     engine = _engine(tmp_path)
     event = UsageEvent.from_text("turn:1", "chat", "nova")
     engine.observe_usage(event)
@@ -109,9 +111,52 @@ def test_conflicting_feedback_remains_unresolved_and_cannot_rewrite_usage(tmp_pa
         "correction:2", event.source_id, "nova", "festival", "verified_source"))
     query = UsageEvent.from_text("future", "chat", "nova")
     assert engine.contextual_senses("nova", query)["status"] == (
-        "unexposed_to_grounded_sense")
+        "no_discriminating_evidence")
+    assert {row["sense"] for row in engine.contextual_senses(
+        "nova", query)["candidates"]} == {"star", "festival"}
+    assert len(engine.grounded_sense_cases("nova", "star")) == 1
+    assert engine.grounded_sense_cases("nova", "festival")[0].outcome is True
     with pytest.raises(ValueError, match="changed its observation"):
         engine.observe_usage(UsageEvent.from_text("turn:1", "chat", "new nova"))
+
+
+def test_explicit_refutation_is_not_an_implied_negative(tmp_path):
+    engine = _engine(tmp_path)
+    event = UsageEvent.from_text("turn:1", "chat", "nova party", observed_at=10.0)
+    engine.observe_usage(event)
+    engine.observe_meaning_feedback(MeaningFeedback(
+        "feedback:yes", event.source_id, "nova", "festival", "user_correction",
+        observed_at=11.0))
+    engine.observe_meaning_feedback(MeaningFeedback(
+        "feedback:no", event.source_id, "nova", "star", "user_correction",
+        observed_at=11.0, stance="refutes"))
+    cases = engine.grounded_sense_cases("nova", "star")
+    assert len(cases) == 1 and cases[0].outcome is False
+    assert engine.grounded_sense_cases("nova", "festival")[0].outcome is True
+    engine.save()
+    restored = _engine(tmp_path)
+    assert restored.grounded_sense_cases("nova", "star")[0].outcome is False
+    restored.observe_meaning_feedback(MeaningFeedback(
+        "feedback:contradiction", event.source_id, "nova", "festival",
+        "verified_source", observed_at=12.0, stance="refutes"))
+    assert restored.grounded_sense_cases("nova", "festival") == ()
+
+
+def test_multilabel_heldout_result_is_not_reported_as_exact_sense(tmp_path):
+    engine = _engine(tmp_path)
+    for index, senses in enumerate((("star",), ("festival",),
+                                    ("star", "festival"))):
+        event = UsageEvent.from_text(f"turn:{index}", "chat", "nova tonight",
+                                     observed_at=float(index + 1))
+        engine.observe_usage(event)
+        for sense in senses:
+            engine.observe_meaning_feedback(MeaningFeedback(
+                f"feedback:{index}:{sense}", event.source_id, "nova", sense,
+                "verified_source", observed_at=float(index + 1)))
+    result = engine.evaluate_contextual_senses("nova", ("turn:2",))
+    assert result["n"] == 1
+    assert result["unambiguous_n"] == 0
+    assert result["unambiguous_correct"] == 0
 
 
 def test_cues_can_inform_a_later_reading_without_hardcoded_affect(tmp_path):

@@ -369,14 +369,18 @@ class SemanticDevelopment:
         self.meaning_feedback[feedback.source_id] = feedback
         return True
 
-    def _labeled_usage(self, term: str) -> tuple[tuple[UsageEvent, str], ...]:
-        labels: dict[str, set[str]] = defaultdict(set)
+    def _sense_evidence(self, term: str) -> dict[tuple[str, str], bool | None]:
+        stances: dict[tuple[str, str], set[str]] = defaultdict(set)
         for feedback in self.meaning_feedback.values():
             if feedback.term.casefold() == term:
-                labels[feedback.usage_source_id].add(feedback.sense)
-        return tuple((self.usage_events[source], next(iter(senses)))
-                     for source, senses in labels.items()
-                     if len(senses) == 1 and source in self.usage_events)
+                stances[(feedback.usage_source_id, feedback.sense)].add(feedback.stance)
+        return {key: (None if len(values) != 1 else "supports" in values)
+                for key, values in stances.items() if key[0] in self.usage_events}
+
+    def _labeled_usage(self, term: str) -> tuple[tuple[UsageEvent, str], ...]:
+        return tuple((self.usage_events[source], sense)
+                     for (source, sense), supported in self._sense_evidence(term).items()
+                     if supported is True)
 
     @staticmethod
     def _feature_measured(event: UsageEvent, feature: str, value: Any,
@@ -464,15 +468,22 @@ class SemanticDevelopment:
             (name, value) for name, value in query.items()
             if name != "usage:sampled"
             and self._feature_measured(situation, name, value, query))
-        local = sum((not situation.setting or event.setting == situation.setting)
-                    and (not situation.community or event.community == situation.community)
-                    for event, _sense in labeled)
+        local = len({event.source_id for event, _sense in labeled
+                     if (not situation.setting or event.setting == situation.setting)
+                     and (not situation.community or event.community == situation.community)})
+        explicit_refutations = self._sense_evidence(key)
+        labeled_sources = {event.source_id for event, _sense in labeled}
         candidates = []
         for sense, examples in grouped.items():
             positive_sources = {event.source_id for event in examples}
-            negatives = [event for event, _label in labeled
-                         if event.source_id not in positive_sources]
-            score = math.log((len(examples) + 1) / (len(labeled) + len(grouped)))
+            rival_sources = {event.source_id: event for event, _label in labeled
+                             if event.source_id not in positive_sources}
+            rival_sources.update({source: self.usage_events[source]
+                                  for (source, reading), supported in explicit_refutations.items()
+                                  if reading == sense and supported is False
+                                  and source not in positive_sources})
+            negatives = list(rival_sources.values())
+            score = math.log((len(examples) + 1) / (len(labeled_sources) + len(grouped)))
             discriminators = []
             for feature in query_features:
                 name, value = feature
@@ -481,11 +492,11 @@ class SemanticDevelopment:
                                      if self._feature_measured(
                                          event, name, value,
                                          features_by_source[event.source_id])]
-                measured_negative = [features_by_source[event.source_id]
+                measured_negative = [features
                                      for event in negatives
                                      if self._feature_measured(
                                          event, name, value,
-                                         features_by_source[event.source_id])]
+                                         features := event.features_for(key))]
                 if not measured_positive or not measured_negative:
                     continue
                 positive = sum(item.get(name) == value for item in measured_positive)
@@ -520,35 +531,42 @@ class SemanticDevelopment:
         if not 1 <= len(heldout_sources) <= 256 or len(set(heldout_sources)) != len(
                 heldout_sources):
             raise ValueError("sense evaluation needs distinct bounded held-out sources")
-        labeled = dict((event.source_id, (event, sense))
-                       for event, sense in self._labeled_usage(term.casefold()))
+        labeled: dict[str, tuple[UsageEvent, set[str]]] = {}
+        for event, sense in self._labeled_usage(term.casefold()):
+            labeled.setdefault(event.source_id, (event, set()))[1].add(sense)
         if any(source not in labeled for source in heldout_sources):
             raise ValueError("held-out source lacks unambiguous attributed feedback")
-        training_labels = Counter(sense for source, (_event, sense) in labeled.items()
-                                  if source not in heldout_sources)
+        training_labels = Counter(sense for source, (_event, senses) in labeled.items()
+                                  if source not in heldout_sources for sense in senses)
         if not training_labels:
             return {"status": "unmeasured_no_training_exposure", "n": 0,
                     "serving_authority": False}
         majority = max(training_labels, key=lambda sense: (training_labels[sense], sense))
-        correct = baseline_correct = answered = 0
+        correct = baseline_correct = answered = single_label_n = single_label_correct = 0
         by_community: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0])
         for source in heldout_sources:
-            event, sense = labeled[source]
+            event, senses = labeled[source]
             result = self.contextual_senses(
                 term, event, excluded_sources=heldout_sources)
             predicted = (result["candidates"][0]["sense"]
                          if result["status"] == "ranked_hypotheses" else None)
             answer = int(predicted is not None)
-            hit = int(predicted == sense)
+            hit = int(predicted in senses)
             answered += answer
             correct += hit
-            baseline_correct += int(majority == sense)
+            baseline_correct += int(majority in senses)
+            if len(senses) == 1:
+                single_label_n += 1
+                single_label_correct += hit
             row = by_community[event.community or "unspecified"]
             row[0] += 1
             row[1] += answer
             row[2] += hit
         return {"status": "measured_development_only", "n": len(heldout_sources),
                 "answered": answered, "correct": correct,
+                "correct_any_supported_sense": correct,
+                "unambiguous_n": single_label_n,
+                "unambiguous_correct": single_label_correct,
                 "majority_baseline_correct": baseline_correct,
                 "heldout_sources": heldout_sources,
                 "by_community": {name: {"n": counts[0], "answered": counts[1],
@@ -634,9 +652,11 @@ class SemanticDevelopment:
         key = term.casefold()
         return tuple(SemanticCase(
             event.source_id, event.context_id, f"usage_sense:{key}:{sense}",
-            label == sense, event.features_for(key), event.observed_at,
+            supported, event.features_for(key), event.observed_at,
             intervention="meaning_feedback")
-            for event, label in self._labeled_usage(key))
+            for (source, reading), supported in self._sense_evidence(key).items()
+            if reading == sense and supported is not None
+            for event in (self.usage_events[source],))
 
     @_serialized
     def relation_evidence(self, left: str, right: str, *, atomspace: Any = None) -> dict[str, Any]:
