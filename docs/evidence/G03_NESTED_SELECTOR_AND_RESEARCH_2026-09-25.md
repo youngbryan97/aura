@@ -205,3 +205,15 @@ captures part of this complementarity on fresh constructions without
 discarding the 46 ordinary-plus-joint successes. The overlap is replayable
 from the signed bank and frozen weights at
 `~/.aura/rlc-evidence/semantic-argument-ranker-overlap-outer0-20260925/report.json`.
+
+An adapter to Aura's existing calibrated pairwise selector was attempted on
+the nested construction banks. It exposes only candidate program geometry and
+relative joint score as features; answer labels enter the independent fit and
+calibration receipts, never runtime features. The three inner folds contain
+20, five, and 12 sources where ordinary and top-joint choices differ. The
+predeclared five-pair tuning fold supplies only ten binary observations;
+`fit_calibrated_binary_scorer` requires 24, so it refused the scorer. No
+selector was built and the outer fold was not evaluated through this policy.
+Keeping agreement rows merely to inflate the calibration count would not add
+switch evidence. Evidence:
+`~/.aura/rlc-evidence/semantic-bank-pairwise-calibration-outer0-20260925/report.json`.
