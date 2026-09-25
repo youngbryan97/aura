@@ -272,3 +272,9 @@ before producing artifacts when its liblinear pointer fit reached about
 result is claimed. The next experiment needs genuinely independent source
 constructions or a better search/selection mechanism, not a relabeled fit of
 identical features.
+The CPU-only eight-cohort comparison is reproducible with
+`tools/compare_semantic_feature_cohorts.py`; its signed receipt is
+`~/.aura/rlc-evidence/semantic-source-reacquisition-v2-20260925/feature-comparison.json`
+(`4042a6776e459053592a6eafb0133f035a769f7cf955cf4e3e84357236e47698`).
+It asserts measured feature equality only, not universal neural-function
+equivalence or a serving entitlement.
