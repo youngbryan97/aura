@@ -255,3 +255,20 @@ executable programs, but this comparison cannot establish compatibility for
 the other cohorts. A source-matched reacquisition or an independently proved
 representation equivalence is needed before a joint training receipt; the
 identity gate was not relaxed.
+The supported one-load reacquisition completed the other seven cohorts under
+the v2 worker at
+`~/.aura/rlc-evidence/semantic-source-reacquisition-v2-20260925/features`
+(1,728 records, seven complete manifests, worker closed). The existing
+`prepare_compositional_source_training` accepted those seven plus v2
+counterfactual as one representation. Its 764 training and 500 validation
+source-text ID digests exactly equal the original source-fit receipt; no test
+rows enter the plan. A sequential, strict bundle reload compared every
+reacquired source ID, token hash, and hidden-state hash with the seven old
+cohorts: all 1,728 match. The 36 counterfactual v1/v2 texts, token IDs, and
+hidden arrays also match. Thus this repairs provenance and fold lineage, but
+does not add new learned signal. A new source fit was started and interrupted
+before producing artifacts when its liblinear pointer fit reached about
+19 GB resident memory under concurrent host work. No new candidate or quality
+result is claimed. The next experiment needs genuinely independent source
+constructions or a better search/selection mechanism, not a relabeled fit of
+identical features.
