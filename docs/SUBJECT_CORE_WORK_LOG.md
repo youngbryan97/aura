@@ -7,6 +7,38 @@ what broke, what fixed it, and where the evidence is. Runs live in
 
 ## 24 September
 
+### 21:25: the attention fix at 2,400 rows, a drive that ran again, and a lease on the wrong clock
+
+Seed 7 at 2,400 turn rows on the attention fix (252079897,
+`record-s7-252079897`): her arousal moves (mean 0.688, sd 0.070; it was pinned
+at 0.911) and the workspace's winner and ignition vary. Synergy with the
+counters out:
+
+| triple | synergy | shifted null | interaction lower bound |
+|---|---|---|---|
+| P,M->W | 0.392 | 0.259 | +0.263, passes |
+| W,A->D | 0.103 | 0.130 | +0.050 |
+| A,S->G | 0.026 | 0.021 | 0.000 (the product terms took no weight in any fold) |
+| S,D->C | 0.033 | 0.074 | -0.123 (the last fold read -0.214) |
+
+Closure still fails. The last fold broke on a drive again: with deliberation
+winning the workspace often, and deliberation serving growth, each win
+credited growth its full priority, and growth rose from 50 to 80 and passed
+curiosity near turn 2,370. A need nearly met is satisfied less (Keramati and
+Gutkin): the credit is now scaled by the unmet share (ace4ae4b2), which brings
+2,400 wins to about 63.
+
+The reports ground's first attempt tonight stopped in its dry run: the model
+lane controller stamped leases with `time.time`, which a subject run replaces
+with its rewindable clock, so the worker pruned the in-process embedding
+engine's lease and the heartbeat left behind asked the runtime to shut down.
+Lane leases are on the machine's clock now (0ff3143b8). The reports ground
+restarted at 21:20 on 0ff3143b8, with the seed-7 recording on the same commit
+queued behind it.
+
+Power study: the independent null at seed 7 decided 0 of 511 cuts, as a null
+built without irreducibility should; 7 of 12 jobs are done.
+
 ### 20:05: her capacity was a constant, because nothing registered what it read
 
 The obstruction her substrate's frustration is pushed towards (Berkowitz: an
