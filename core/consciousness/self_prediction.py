@@ -2,6 +2,7 @@ from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
+import math
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -54,7 +55,8 @@ class SelfPredictionLoop:
     """
 
     _HISTORY_SIZE = 60          # Keep last 60 prediction cycles (~60 seconds)
-    _SURPRISE_THRESHOLD = 0.4   # Above this: genuinely surprising
+    _SURPRISE_THRESHOLD = 0.4   # The cold-start bar, until she has errors to compare against
+    _ENOUGH_ERRORS = 8          # Before that there is no distribution to be unusual within
     _ERROR_SMOOTHING = 0.3      # EMA smoothing for error tracking
 
     def __init__(self, orchestrator):
@@ -509,8 +511,32 @@ class SelfPredictionLoop:
             drive_error=drive_err,
             focus_error=focus_err,
             composite_error=round(composite, 3),
-            was_surprising=composite > self._SURPRISE_THRESHOLD,
+            was_surprising=self._is_surprising(composite),
         )
+
+    def _is_surprising(self, composite: float) -> bool:
+        """Whether this error is unusual for her, rather than large on a fixed scale.
+
+        The bar was a constant 0.4 on a composite of three terms, two of which
+        are zero whenever she names her dominant drive and her focus correctly.
+        Her dominant drive is stable for thousands of turns, so the composite
+        lived at three tenths of the valence error and could not reach four
+        tenths: over a 320-turn recording the surprise count never left zero
+        while the confirmation count moved, and the self domain carried two
+        constants where it should have carried both tails.
+
+        Confirmation in this file is already the lower tail of her own error
+        distribution. This is the upper one: surprising when the error is
+        further above her recent errors than those errors are spread. Nothing
+        is chosen — the middle and the spread are hers — and the old bar still
+        answers until there are enough errors to have a distribution.
+        """
+        recent = [float(one.composite_error) for one in self._error_history]
+        if len(recent) < self._ENOUGH_ERRORS:
+            return composite > self._SURPRISE_THRESHOLD
+        middle = sum(recent) / len(recent)
+        spread = math.sqrt(sum((one - middle) ** 2 for one in recent) / len(recent))
+        return composite > middle + spread
 
     def _record_error(self, error: PredictionError):
         self._error_history.append(error)
