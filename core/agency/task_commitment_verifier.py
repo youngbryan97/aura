@@ -1585,3 +1585,12 @@ def get_task_commitment_verifier(kernel: Any = None) -> TaskCommitmentVerifier:
     if _verifier is None:
         _verifier = TaskCommitmentVerifier(kernel)
     return _verifier
+
+
+def existing_task_commitment_verifier() -> TaskCommitmentVerifier | None:
+    """The verifier holding her commitments, or None before any was made.
+
+    For a reader that must not build it: construction loads the commitment
+    store, and the first caller fixes the kernel it is bound to.
+    """
+    return _verifier

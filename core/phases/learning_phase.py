@@ -357,7 +357,6 @@ class LearningPhase(Phase):
                 enricher = get_enricher(
                     knowledge_graph=ServiceContainer.get("knowledge_graph", default=None),
                     brain=ServiceContainer.get("cognitive_engine", default=None),
-                    belief_engine=ServiceContainer.get("belief_engine", default=None),
                 )
                 force = bool(
                     contract.get("requires_search") or contract.get("tool_evidence_available")

@@ -393,13 +393,15 @@ class PhiConsciousnessPhase(Phase):
         )
 
         # Propagate phi to ShadowRuntime coherence gate so self-modification
-        # is blocked when cognition is fragmented.
+        # is blocked when cognition is fragmented. Read from the module, not
+        # the container: this looked up "shadow_runtime", which nothing
+        # registers, so the gate stayed at its permissive 1.0 however
+        # fragmented she was.
         try:
-            from core.container import ServiceContainer
-            from core.self_modification.shadow_runtime import ShadowRuntime
+            from core.self_modification.shadow_runtime import existing_shadow_runtime
 
-            sr = ServiceContainer.get("shadow_runtime", default=None)
-            if sr is not None and isinstance(sr, ShadowRuntime):
+            sr = existing_shadow_runtime()
+            if sr is not None:
                 sr.set_coherence_gate(phi)
         # not a failure: no service here, so the caller falls back to its own default.
         except (ImportError, AttributeError, RuntimeError):

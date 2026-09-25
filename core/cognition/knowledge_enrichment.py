@@ -24,6 +24,7 @@ import math
 import time
 from typing import Any
 
+from core.epistemics.belief_revision import BeliefDomain
 from core.runtime.errors import record_degradation
 from core.runtime.runtime_settings import get_runtime_setting
 
@@ -52,6 +53,22 @@ class KnowledgeEnricher:
         self._extraction_count = 0
         self._rejection_count = 0
         self._last_outcome = "never_run"
+
+    def _belief_engine(self) -> Any:
+        """Her one belief engine, as registered, or None before boot registers it.
+
+        The learning phase passed the container's "belief_engine", a name
+        nothing registers, and this enricher is built once, so the preferences
+        it heard never reached her beliefs for the life of the process. The call
+        it made, `believe()`, is on no belief engine either. Read at use rather
+        than held from construction, and never built here: building the engine
+        loads its store from disk, which boot does off the loop.
+        """
+        if self._beliefs is not None:
+            return self._beliefs
+        from core.container import ServiceContainer
+
+        return ServiceContainer.get("belief_revision_engine", default=None)
 
     async def enrich_from_conversation(
         self,
@@ -195,14 +212,14 @@ class KnowledgeEnricher:
                             )
                             result["preferences"] += 1
 
-                            if self._beliefs:
+                            beliefs = self._belief_engine()
+                            if beliefs is not None:
                                 try:
-                                    self._beliefs.believe(
-                                        proposition=f"The user {content}",
-                                        confidence=0.75,
-                                        evidence=[excerpt[:100]],
+                                    await beliefs.process_new_claim(
+                                        f"The user {content}",
+                                        domain=BeliefDomain.USER,
                                         source="conversation",
-                                        category="preference",
+                                        confidence=0.75,
                                     )
                                     result["beliefs"] += 1
                                 except Exception as exc:  # noqa: BLE001 - pluggable belief boundary

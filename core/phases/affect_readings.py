@@ -50,10 +50,10 @@ def _her_agency() -> Any:
 
         return get_agency_ledger()
     except (ImportError, AttributeError, RuntimeError) as exc:
+        # No second place to look: the runtime-service name this fell back to
+        # is registered nowhere, so the fallback was always None.
         logger.debug("her agency ledger could not be reached: %s", exc)
-        from core.runtime.service_registry import get_runtime_service
-
-        return get_runtime_service("agency_ledger", default=None)
+        return None
 
 def _clip01(value: Any) -> float:
     try:

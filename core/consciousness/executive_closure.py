@@ -1068,7 +1068,11 @@ class ExecutiveClosureEngine:
             logger.debug("Task completion modifier read failed: %s", exc)
 
         try:
-            verifier = ServiceContainer.get("task_commitment_verifier", default=None)
+            # From the module: "task_commitment_verifier" is registered
+            # nowhere, so this read None and never saw her tasks end.
+            from core.agency.task_commitment_verifier import existing_task_commitment_verifier
+
+            verifier = existing_task_commitment_verifier()
             if verifier and hasattr(verifier, "get_all_active"):
                 active = verifier.get_all_active()
                 if not active and self._commitment:
