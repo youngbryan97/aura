@@ -9,7 +9,7 @@ Position in pipeline: after SensoryIngestion, before CognitiveRouting.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from core.kernel.bridge import Phase
 from core.runtime.conversation_support import (
@@ -623,7 +623,7 @@ class ConversationalDynamicsPhase(Phase):
             if not a.is_resolved and a.topic != dynamics.current_topic
         ]
         cog.discourse_branches = available_callbacks
-        cog.turns_since_user_spoke = int(dynamics.turns_since_user_spoke)
+        cog.turns_since_user_spoke = int(getattr(dynamics, "turns_since_user_spoke", 0) or 0)
 
         # Store the full dynamics state for downstream phases
         new_state.response_modifiers["conv_dynamics_state"] = {
@@ -1158,6 +1158,24 @@ class ConversationalDynamicsPhase(Phase):
         self._name_the_kind(new_state, objective)
         return new_state
 
+    @staticmethod
+    def _note_her_own_turn(engine: Any, objective: str, state: AuraState) -> None:
+        """Tell the engine she was the one who spoke, and carry the count."""
+        try:
+            dynamics = engine.update(
+                message=objective,
+                role="assistant",
+                working_memory=state.cognition.working_memory,
+            )
+            state.cognition.turns_since_user_spoke = int(
+                getattr(dynamics, "turns_since_user_spoke", 0) or 0
+            )
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _record_conversational_degradation(
+                exc,
+                action="left the silence count where it was after her own turn was not recorded",
+            )
+
     async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         if not objective:
             return state
@@ -1168,8 +1186,14 @@ class ConversationalDynamicsPhase(Phase):
 
         origin = kwargs.get("origin", state.cognition.current_origin or "system")
 
-        # Only run full analysis on user-facing messages
+        # Only run full analysis on user-facing messages. Her own turns are
+        # still told to the engine, cheaply: it keeps the floor, the silence
+        # and the open thread across both sides of the exchange, and returning
+        # here without saying anything left `turns_since_user_spoke` set to
+        # zero on every turn and raised on none. A conversation engine that
+        # only ever hears one speaker cannot count the other's silence.
         if origin not in ("user", "voice", "admin", "web"):
+            self._note_her_own_turn(engine, objective, state)
             return state
 
         try:

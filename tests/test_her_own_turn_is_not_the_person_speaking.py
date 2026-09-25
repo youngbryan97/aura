@@ -88,3 +88,46 @@ def test_over_a_mixed_run_it_is_not_a_constant():
         engine.update(message="a turn", role=role, working_memory=[])
         seen.add(engine._state.turns_since_user_spoke)
     assert len(seen) > 1
+
+
+# ── the phase's own gate ─────────────────────────────────────────────────
+
+
+def test_a_turn_she_opened_still_reaches_the_engine():
+    """The full analysis is for their messages. The count is for both."""
+    phase = ConversationalDynamicsPhase(None)
+    engine = _Recorder()
+    state = AuraState.default()
+    engine.update(message="hello", role="user", working_memory=[])
+    for expected in (1, 2, 3):
+        phase._note_her_own_turn(engine, "a thought of her own", state)
+        assert state.cognition.turns_since_user_spoke == expected
+    assert engine.roles[-3:] == ["assistant", "assistant", "assistant"]
+
+
+def test_an_engine_that_raises_leaves_the_count_alone():
+    class _Broken(ConversationalDynamicsEngine):
+        def update(self, **_kwargs):
+            raise RuntimeError("no engine")
+
+    phase = ConversationalDynamicsPhase(None)
+    state = AuraState.default()
+    state.cognition.turns_since_user_spoke = 5
+    phase._note_her_own_turn(_Broken(), "a thought", state)
+    assert state.cognition.turns_since_user_spoke == 5
+
+
+def test_the_phase_gate_notes_her_turn_before_returning():
+    """The early return used to say nothing at all."""
+    import asyncio
+
+    phase = ConversationalDynamicsPhase(None)
+    engine = _Recorder()
+    phase._get_engine = lambda: engine
+    state = AuraState.default()
+    state.cognition.current_origin = "system"
+    engine.update(message="hello", role="user", working_memory=[])
+    out = asyncio.run(phase.execute(state, objective="keep working", origin="system"))
+    assert out is state
+    assert engine.roles[-1] == "assistant"
+    assert state.cognition.turns_since_user_spoke == 1
