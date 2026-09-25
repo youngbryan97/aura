@@ -8,6 +8,7 @@ Position in pipeline: after SensoryIngestion, before CognitiveRouting.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -23,6 +24,26 @@ if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
 
 logger = logging.getLogger("Aura.ConversationalDynamics")
+
+
+def _open_thread_id(dynamics: Any) -> str | None:
+    """Which unresolved thread she is on, or nothing when none is open.
+
+    `cognition.active_thread_id` was declared on the state, read by the subject
+    schema, held by the clamp, and assigned nowhere in the tree: a field for a
+    concept the runtime never connected, so the column that names it was zero
+    on every frame. The engine has kept the threads all along; they are
+    identified by what they are about, so the id is a digest of that, stable
+    across the turns the thread stays open.
+    """
+    threads = list(getattr(dynamics, "open_threads", []) or [])
+    if not threads:
+        return None
+    hottest = max(threads, key=lambda one: float(getattr(one, "urgency", 0.0) or 0.0))
+    content = str(getattr(hottest, "content", "") or "")
+    if not content:
+        return None
+    return hashlib.blake2s(content.encode("utf-8"), digest_size=8).hexdigest()
 
 
 def _record_conversational_degradation(
@@ -624,6 +645,7 @@ class ConversationalDynamicsPhase(Phase):
         ]
         cog.discourse_branches = available_callbacks
         cog.turns_since_user_spoke = int(getattr(dynamics, "turns_since_user_spoke", 0) or 0)
+        cog.active_thread_id = _open_thread_id(dynamics)
 
         # Store the full dynamics state for downstream phases
         new_state.response_modifiers["conv_dynamics_state"] = {

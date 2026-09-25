@@ -131,3 +131,60 @@ def test_the_phase_gate_notes_her_turn_before_returning():
     assert out is state
     assert engine.roles[-1] == "assistant"
     assert state.cognition.turns_since_user_spoke == 1
+
+
+# ── which thread she is on ───────────────────────────────────────────────
+
+
+def test_no_open_thread_is_no_thread():
+    from core.phases.conversational_dynamics_phase import _open_thread_id
+    from core.conversational.dynamics import ConversationalDynamicsState
+
+    assert _open_thread_id(ConversationalDynamicsState()) is None
+
+
+def test_the_id_is_the_most_urgent_open_thread():
+    from core.conversational.dynamics import ConversationalDynamicsState, OpenThread
+    from core.phases.conversational_dynamics_phase import _open_thread_id
+
+    state = ConversationalDynamicsState()
+    state.open_threads = [
+        OpenThread(content="the quiet one", thread_type="question", message_index=1, urgency=0.2),
+        OpenThread(content="the pressing one", thread_type="concern", message_index=2, urgency=0.9),
+    ]
+    first = _open_thread_id(state)
+    state.open_threads = list(reversed(state.open_threads))
+    assert _open_thread_id(state) == first
+
+
+def test_two_different_threads_are_two_ids():
+    from core.conversational.dynamics import ConversationalDynamicsState, OpenThread
+    from core.phases.conversational_dynamics_phase import _open_thread_id
+
+    def _with(content: str) -> str | None:
+        state = ConversationalDynamicsState()
+        state.open_threads = [
+            OpenThread(content=content, thread_type="question", message_index=1, urgency=0.5)
+        ]
+        return _open_thread_id(state)
+
+    assert _with("about the deploy") != _with("about the review")
+    assert _with("about the deploy") == _with("about the deploy")
+
+
+def test_a_thread_with_nothing_in_it_is_no_thread():
+    from core.conversational.dynamics import ConversationalDynamicsState, OpenThread
+    from core.phases.conversational_dynamics_phase import _open_thread_id
+
+    state = ConversationalDynamicsState()
+    state.open_threads = [
+        OpenThread(content="", thread_type="question", message_index=1, urgency=0.5)
+    ]
+    assert _open_thread_id(state) is None
+
+
+def test_the_field_had_no_writer_before_this():
+    """The column it feeds was zero on every frame of every campaign."""
+    from core.state.aura_state import AuraState
+
+    assert AuraState.default().cognition.active_thread_id is None

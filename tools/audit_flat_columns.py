@@ -84,7 +84,7 @@ def _writer_of(source: str) -> str:
     # of the defect list, which is the safe direction for a report: a false
     # "nothing writes this" is a claim, and a false "something might" is a
     # question.
-    return _grep(rf"\b{leaf}\b\s*[+*-]?=[^=]")
+    return _grep(rf"\b{leaf}\b[\"']?\]?\s*[+*-]?=[^=]")
 
 
 def _grep(pattern: str) -> str:
