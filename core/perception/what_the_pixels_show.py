@@ -377,8 +377,21 @@ def recognize_text(image: Any) -> list[dict[str, Any]]:
     if image is None:
         return []
     try:
+        import objc  # noqa: PLC0415
+    except ImportError:
+        return []
+    # Drained after every picture. Nothing drains a pool on a thread with no
+    # run loop, which is every thread here, so what Vision hands back
+    # autoreleased stayed for the life of the process.
+    with objc.autorelease_pool():
+        return _recognized(image)
+
+
+def _recognized(image: Any) -> list[dict[str, Any]]:
+    try:
         import numpy as np  # noqa: PLC0415
         import Quartz  # noqa: PLC0415
+        from Foundation import NSData  # noqa: PLC0415
         from Vision import (  # noqa: PLC0415
             VNImageRequestHandler,
             VNRecognizeTextRequest,
@@ -390,7 +403,14 @@ def recognize_text(image: Any) -> list[dict[str, Any]]:
         tall, wide = image.shape[:2]
         rgba = np.dstack([image[:, :, 2], image[:, :, 1], image[:, :, 0], np.full((tall, wide), 255, np.uint8)])
         rgba = np.ascontiguousarray(rgba)
-        provider = Quartz.CGDataProviderCreateWithData(None, rgba.tobytes(), rgba.nbytes, None)
+        # The picture's bytes held by data that owns them. Handed over as a
+        # Python buffer with no release callback, every picture read stayed
+        # in memory for good: 2.6 MB a reading, and LIVE 2026-09-25 her eyes
+        # grew to 3.2 GB in 23 minutes of play until the runaway budget
+        # refused new work.
+        provider = Quartz.CGDataProviderCreateWithCFData(
+            NSData.dataWithBytes_length_(rgba.tobytes(), rgba.nbytes)
+        )
         picture = Quartz.CGImageCreate(
             wide, tall, 8, 32, wide * 4, Quartz.CGColorSpaceCreateDeviceRGB(),
             Quartz.kCGImageAlphaNoneSkipLast, provider, None, False,
