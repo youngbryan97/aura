@@ -7,6 +7,33 @@ what broke, what fixed it, and where the evidence is. Runs live in
 
 ## 24 September
 
+### 19:50: every report arm now reaches her cortex
+
+The whole-mode dry runs of 23 September all exited cleanly and none measured
+anything: only the first arm of each anchor got an answer. Three causes,
+found in order:
+
+- **The worker's deadline was stamped on the experiment clock** (3b8c0b9e8).
+  A subject run replaces `time.time` with a clock a restore rewinds; the
+  worker is another process on the machine's clock, so after the first
+  restore every request arrived past its deadline
+  (`deadline_exceeded_before_decode`). Deadlines now cross on
+  `core/runtime/wall_clock.wall_time`, which the experiment clock leaves alone.
+- **A person's turn was finalized as fail-closed** (0f2bacdca). The harness
+  named it `cognitive_engine`; one turn that ended with an answer available
+  but never served was escalated to a critical failure and raised, ending the
+  dry run two anchors in. It is now finalized as the desktop's chat route
+  finalizes a person's turn.
+- **The dry-run gate read only the process's exit.** It now reads the arms:
+  at most half the anchors may have an arm the cortex lane did not serve.
+
+The last dry run (0f2bacdca): all 32 arms answered by the cortex lane, no
+failure sentence, no deadline refusal. One anchor of eight is readable
+because the 1.5B stand-in often answers in words or ranges rather than with a
+number; her own cortex is the one the ground is scored on. The reports ground
+is queued on 0f2bacdca behind the seed-7 recording, with the machine to
+itself.
+
 ### 18:50: seed 7 on the candidate reads 17 of 24, and her attention had one winner
 
 The seed-7 run at the decisive design on 164d2a560 (300 rounds, six trials,
