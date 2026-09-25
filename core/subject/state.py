@@ -531,7 +531,13 @@ _SCHEMAS: dict[str, Schema] = {
             # arrived in both with nothing in between. Integrated information
             # is a property of the recurrent system, not of what has attention,
             # so it stays with C and leaves here.
-            ("selfhood_readings", "cognition.selfhood_reading"),
+            # The readings themselves, not the shape of the record that holds
+            # them. `as_dict` returns the same five keys every turn, so the
+            # size of that mapping was 0.5556 on every frame of every run while
+            # the numbers inside it moved. What varies is how much of herself
+            # the tick could read, and what it read.
+            ("selfhood_read", "cognition.selfhood_reading.missing"),
+            ("selfhood_level", "cognition.selfhood_reading.readings"),
             ("ignition", "organ:workspace.ignition_level"),
             ("ignited", "organ:workspace.ignited"),
             ("candidates", "organ:workspace.pending_candidates"),
@@ -1377,7 +1383,7 @@ def _read_G(state: Any, organs: Organs) -> np.ndarray:
             _f(_dig(state, "cognition.conversation_energy"), 0.5),
             _sat(_f(_dig(state, "cognition.discourse_depth")), 8.0),
             _sat(_dig(state, "cognition.discourse_branches", []) or [], 4.0),
-            _sat(_dig(state, "cognition.selfhood_reading", {}) or {}, 4.0),
+            *_selfhood(_dig(state, "cognition.selfhood_reading", {}) or {}),
             _f(workspace.get("ignition_level")),
             1.0 if workspace.get("ignited") else 0.0,
             _sat(_f(workspace.get("pending_candidates")), 4.0),
@@ -1453,6 +1459,31 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
     head.extend(_sketched(organs.mesh, "column_activations", source="organ:mesh.column_activations"))
     head.extend(_sketched(organs.field, "W_field", source="organ:field.W_field"))
     return np.array(head, dtype=np.float64)
+
+
+def _selfhood(reading: Any) -> list[float]:
+    """How much of herself the selfhood tick could read, and what it read.
+
+    Two numbers: the share of the drives that produced a reading, and the mean
+    of those readings. A tick that read nothing reads as nothing read and a
+    level of zero, which is a different state from a tick that read everything
+    and found zero — the first has a share of zero and the second a share of
+    one.
+    """
+    if not isinstance(reading, Mapping):
+        return [0.0, 0.0]
+    readings = reading.get("readings")
+    values = [
+        float(one)
+        for one in (readings.values() if isinstance(readings, Mapping) else [])
+        if isinstance(one, (int, float)) and not isinstance(one, bool)
+    ]
+    missing = reading.get("missing")
+    absent = len(missing) if isinstance(missing, (list, tuple, set)) else 0
+    asked = len(values) + absent
+    share = (len(values) / asked) if asked else 0.0
+    level = (sum(values) / len(values)) if values else 0.0
+    return [share, level]
 
 
 def _sketched(organ: Any, attribute: str, *, source: str) -> list[float]:

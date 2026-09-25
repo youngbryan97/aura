@@ -161,3 +161,54 @@ def test_the_field_is_a_live_organ_not_a_declared_one():
 
     source = inspect.getsource(subject_state.Organs.live)
     assert "field=" in source
+
+
+# ── the selfhood tick's own numbers ──────────────────────────────────────
+
+
+def test_the_selfhood_column_stopped_measuring_the_record_shape():
+    """`as_dict` has the same five keys every turn; the numbers inside move."""
+    state = AuraState.default()
+    state.cognition.selfhood_reading = {
+        "readings": {"energy": 0.2, "focus": 0.8},
+        "missing": [],
+        "selfhood": {},
+        "self_knowing": {},
+        "skipped": "",
+    }
+    reading = _read(state)
+    assert _column(reading, "G.selfhood_read") == pytest.approx(1.0)
+    assert _column(reading, "G.selfhood_level") == pytest.approx(0.5)
+
+
+def test_a_tick_that_could_not_read_half_of_her_says_so():
+    state = AuraState.default()
+    state.cognition.selfhood_reading = {
+        "readings": {"energy": 0.4},
+        "missing": ["focus"],
+        "selfhood": {},
+        "self_knowing": {},
+        "skipped": "",
+    }
+    reading = _read(state)
+    assert _column(reading, "G.selfhood_read") == pytest.approx(0.5)
+    assert _column(reading, "G.selfhood_level") == pytest.approx(0.4)
+
+
+def test_reading_nothing_and_reading_zero_are_different_states():
+    state = AuraState.default()
+    state.cognition.selfhood_reading = {"readings": {}, "missing": ["energy", "focus"]}
+    nothing = _read(state)
+    state.cognition.selfhood_reading = {"readings": {"energy": 0.0, "focus": 0.0}, "missing": []}
+    zeros = _read(state)
+    assert _column(nothing, "G.selfhood_read") == pytest.approx(0.0)
+    assert _column(zeros, "G.selfhood_read") == pytest.approx(1.0)
+    assert _column(nothing, "G.selfhood_level") == _column(zeros, "G.selfhood_level")
+
+
+def test_a_reading_that_is_not_a_mapping_is_two_zeros():
+    state = AuraState.default()
+    state.cognition.selfhood_reading = "not a reading"
+    reading = _read(state)
+    assert _column(reading, "G.selfhood_read") == pytest.approx(0.0)
+    assert _column(reading, "G.selfhood_level") == pytest.approx(0.0)
