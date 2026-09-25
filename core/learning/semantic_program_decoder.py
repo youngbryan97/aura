@@ -110,14 +110,18 @@ class SemanticProgramDecoder(nn.Module):
         return state, torch.cat((state, context))
 
     @staticmethod
-    def _choose(logits, allowed, target):
+    def _distribution(logits, allowed):
         mask = torch.zeros_like(logits, dtype=torch.bool)
         mask[list(allowed)] = True
         if not mask.any().item():
             raise ValueError("typed program prefix has no continuation")
         if not torch.isfinite(logits).all().item():
             raise ValueError("program decoder produced nonfinite scores")
-        probabilities = logits.masked_fill(~mask, -torch.inf).log_softmax(dim=0)
+        return logits.masked_fill(~mask, -torch.inf).log_softmax(dim=0)
+
+    @staticmethod
+    def _choose(logits, allowed, target):
+        probabilities = SemanticProgramDecoder._distribution(logits, allowed)
         selected = int(probabilities.argmax()) if target is None else target
         if type(selected) is not int or selected not in allowed:
             raise ValueError("teacher program violates the floor grammar")
@@ -197,3 +201,68 @@ class SemanticProgramDecoder(nn.Module):
         """Greedy experimental proposal using only public request evidence."""
         program, logp, count = self._run(features, input_spans, input_types)
         return program, {"log_probability": float(logp), "tokens": count, "search": "greedy"}
+
+    @torch.no_grad()
+    def propose_beam(self, features, input_spans, input_types, *, beam_width=4,
+                     max_programs=4):
+        """Retain typed complete-program rivals without using an expected answer."""
+        if (type(beam_width) is not int or not 1 <= beam_width <= 32
+                or type(max_programs) is not int or not 1 <= max_programs <= beam_width):
+            raise ValueError("program beam needs bounded positive widths")
+        memory, registers, kinds = self._encode(features, input_spans, input_types)
+        n_inputs = len(registers)
+        initial = self.initial(memory.mean(dim=0)).tanh()
+        active = [(0.0, initial, self.start, tuple(registers), tuple(kinds), ())]
+        completed = []
+        eos = len(self.operations)
+
+        for step in range(self.config.max_steps + 1):
+            following = []
+            for score, state, previous, values, types, instructions in active:
+                state, context = self._advance(state, previous, memory)
+                allowed = [eos] if instructions else []
+                if step < self.config.max_steps:
+                    allowed.extend(index for index, operation in enumerate(self.operations)
+                                   if all(kind in types for kind in
+                                          semantic_primitive_type_signature(operation)[0]))
+                log_probs = self._distribution(self.operation_logits(context), allowed)
+                if instructions:
+                    completed.append((score + float(log_probs[eos]),
+                                      Program(n_inputs, instructions)))
+                if step == self.config.max_steps:
+                    continue
+                for index in allowed:
+                    if index == eos:
+                        continue
+                    operation = self.operations[index]
+                    argument_types, result_type = semantic_primitive_type_signature(operation)
+                    embedding = self.operation_embedding.weight[index]
+                    partial = [(score + float(log_probs[index]), state, embedding, ())]
+                    for kind in argument_types:
+                        expanded = []
+                        eligible = [position for position, value in enumerate(types)
+                                    if value == kind]
+                        for path_score, path_state, path_previous, args in partial:
+                            next_state, next_context = self._advance(
+                                path_state, path_previous, memory)
+                            logits = (torch.stack(values) @ self.register_query(next_context)
+                                      / math.sqrt(self.config.width))
+                            choices = self._distribution(logits, eligible)
+                            expanded.extend((path_score + float(choices[ref]), next_state,
+                                             values[ref], (*args, ref)) for ref in eligible)
+                        partial = sorted(expanded, key=lambda row: -row[0])[:beam_width]
+                    for path_score, path_state, path_previous, args in partial:
+                        result = self.result(torch.cat((path_state, path_previous,
+                                                        embedding))).tanh()
+                        following.append((path_score, path_state, result,
+                                          (*values, result), (*types, result_type),
+                                          (*instructions, Instruction(operation, args))))
+            active = sorted(following, key=lambda row: -row[0])[:beam_width]
+            if not active:
+                break
+        completed.sort(key=lambda row: (-row[0], repr(row[1])))
+        return tuple((program, {"log_probability": score,
+                                "tokens": 1 + sum(1 + len(ins.args)
+                                                   for ins in program.instructions),
+                                "beam_width": beam_width, "search": "typed_beam"})
+                     for score, program in completed[:max_programs])

@@ -30,6 +30,37 @@ def _direct_choice(model, features, spans, kinds, programs) -> int:
     return int(scores.argmax().item())
 
 
+def _direct_beam_observation(model, features, spans, kinds, item, bank_keys,
+                             *, width: int) -> dict:
+    """Generate target-blind rivals, then compare them with held-out source truth."""
+    from core.learning.semantic_graph_coordinates import reanchor_program_inputs
+    from core.learning.semantic_graph_counterexamples import (
+        compare_program_meanings,
+        counterfactual_inputs,
+    )
+
+    proposals = model.propose_beam(features, spans, kinds, beam_width=width,
+                                   max_programs=width)
+    target = reanchor_program_inputs(
+        item.ir.to_program(), from_spans=item.ir.input_spans, to_spans=spans,
+        from_inputs=item.public_inputs, to_inputs=item.public_inputs)
+    rows = []
+    for program, receipt in proposals:
+        comparison = compare_program_meanings(
+            target, program, counterfactual_inputs(item.public_inputs, count=16))
+        rows.append({"program_sha256": program.sha(),
+                     "log_probability": receipt["log_probability"],
+                     "in_retained_bank": program.sha() in bank_keys,
+                     "exact": program == target,
+                     "finite_comparison": comparison["status"]})
+    return {"beam_width": width, "proposals": rows,
+            "exact_reachable": any(row["exact"] for row in rows),
+            "novel_exact_reachable": any(row["exact"] and not row["in_retained_bank"]
+                                         for row in rows),
+            "top_exact": bool(rows and rows[0]["exact"]),
+            "new_programs": sum(not row["in_retained_bank"] for row in rows)}
+
+
 def _portfolio_comparison(*, programs, keys, labels, incumbent_present: bool,
                           ranker_index: int, direct_index: int, public_inputs,
                           source: str, transducer_receipt: str,
@@ -96,7 +127,10 @@ def main() -> None:
                  "direct-checkpoint", "output"):
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--fold", type=int, required=True)
+    parser.add_argument("--direct-beam-width", type=int, default=0)
     args = parser.parse_args()
+    if not 0 <= args.direct_beam_width <= 32:
+        parser.error("direct beam width must be 0..32")
 
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
@@ -148,6 +182,10 @@ def main() -> None:
         (programs, labels, keys), spans, kinds, _anchors = _rankable(items[source], row)
         features = torch.from_numpy(_hidden_array(items[source].hidden_states)).float()
         chosen = _direct_choice(direct, features, spans, kinds, programs)
+        beam = (_direct_beam_observation(direct, features, spans, kinds,
+                                         items[source], frozenset(keys),
+                                         width=args.direct_beam_width)
+                if args.direct_beam_width else None)
         ranker_row = ranker_rows[source]
         if (ranker_row["chosen_index"] >= len(keys)
                 or ranker_row["chosen_program_sha256"] != keys[ranker_row["chosen_index"]]
@@ -165,7 +203,7 @@ def main() -> None:
                         "direct_correct": labels[chosen], "direct_index": chosen,
                         "direct_program_sha256": keys[chosen],
                         "ranker_index": ranker_row["chosen_index"],
-                        **portfolio})
+                        **portfolio, **({"direct_beam": beam} if beam is not None else {})})
     body = {"schema": "aura.semantic_candidate_methods_source_fold.v1",
             "pilot_only": bank_report["pilot_only"], "serving_authority": False,
             "fold": args.fold, "source_bank_receipt_sha256": bank_report["receipt_sha256"],
@@ -184,6 +222,21 @@ def main() -> None:
             "portfolio_correct": sum(row["portfolio_correct"] for row in results),
             "portfolio_inquiries": sum(row["portfolio_inquiries"] for row in results),
             "rows": results}
+    if args.direct_beam_width:
+        body.update(schema="aura.semantic_candidate_methods_source_fold.v2",
+                    direct_beam_width=args.direct_beam_width,
+                    direct_beam_implementation_sha256={
+                        str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
+                        for path in (ROOT / "core/learning/semantic_program_decoder.py",
+                                     Path(__file__).resolve())},
+                    direct_beam_exact_reachable=sum(
+                        row["direct_beam"]["exact_reachable"] for row in results),
+                    direct_beam_novel_exact_reachable=sum(
+                        row["direct_beam"]["novel_exact_reachable"] for row in results),
+                    direct_beam_top_exact=sum(
+                        row["direct_beam"]["top_exact"] for row in results),
+                    direct_beam_new_programs=sum(
+                        row["direct_beam"]["new_programs"] for row in results))
     payload = json.dumps({**body, "receipt_sha256": _digest(body)}, sort_keys=True).encode()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     if args.output.exists() and args.output.read_bytes() != payload:
