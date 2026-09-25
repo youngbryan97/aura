@@ -66,12 +66,9 @@ def record_chat_usage(text: str, *, session_id: str, turn_id: str = "") -> bool:
     service = get_semantic_development()
     event = UsageEvent.from_text(source_id, context_id, text,
                                  setting="conversation", speaker="user")
-    if not service.observe_usage(event):
-        return False
-    count = service.usage_observation_count
-    if count == 1 or count % _SAVE_EVERY == 0:
-        service.save()
-    return True
+    added = service.observe_usage(event)
+    service.save()
+    return added
 
 
 def prepare_skill_trial(

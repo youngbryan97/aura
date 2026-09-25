@@ -170,9 +170,11 @@ def test_chat_intake_retains_exposure_without_inventing_a_sense(tmp_path, monkey
         semantic_runtime.record_chat_usage(
             "This turn says something different", session_id="a session", turn_id="turn:1")
     assert not semantic_runtime.record_chat_usage("...", session_id="a session")
+    assert semantic_runtime.record_chat_usage(
+        "A second observation survives", session_id="a session", turn_id="turn:2")
     restored = _engine(tmp_path)
-    assert len(restored.usage_events) == 1
-    assert restored.usage_observation_count == 1
+    assert len(restored.usage_events) == 2
+    assert restored.usage_observation_count == 2
 
 
 def test_chat_intake_cold_start_creates_real_service(tmp_path, monkeypatch):
@@ -188,6 +190,29 @@ def test_chat_intake_cold_start_creates_real_service(tmp_path, monkeypatch):
         "my key is sk-abcdefghijklmnopqrstuvwxyz012345",
         session_id="session", turn_id="secret-turn")
     assert service.usage_observation_count == 1
+
+
+def test_chat_intake_retry_flushes_after_write_failure(tmp_path, monkeypatch):
+    engine = _engine(tmp_path)
+    monkeypatch.setattr(semantic_runtime, "get_semantic_development", lambda: engine)
+    original_save = engine.save
+    attempts = 0
+
+    def fail_once():
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise OSError("transient write failure")
+        original_save()
+
+    monkeypatch.setattr(engine, "save", fail_once)
+    with pytest.raises(OSError, match="transient write failure"):
+        semantic_runtime.record_chat_usage(
+            "A remembered phrase", session_id="session", turn_id="one")
+    assert not semantic_runtime.record_chat_usage(
+        "A remembered phrase", session_id="session", turn_id="one")
+    restored = _engine(tmp_path)
+    assert len(restored.usage_events) == 1
 
 
 def test_contextual_rank_uses_contrast_not_shared_background(tmp_path):
