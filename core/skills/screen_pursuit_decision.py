@@ -1628,6 +1628,14 @@ async def decide_the_next_move(
                 # option" for a whole game, harder as the clock went (live,
                 # 2026-09-23: +0.03 rising to +0.33 over 175 moves).
                 began_at["worth"], began_at["seen"] = None, 0
+                # And what counts as furniture is what the new start shows.
+                # Measured against the run's first reading, the last board of
+                # an old game, the fresh game's own New Game read as a way to
+                # start again that had just appeared: she ended every game as
+                # it began and pressed New Game on an empty board for
+                # minutes (live, 2026-09-24).
+                offered_a_restart["was_there"] = None
+                offered_a_restart["said"] = False
                 return True
 
             return Step(name=f"begin again with {label!r}", action=begin_again)
