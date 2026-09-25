@@ -72,19 +72,34 @@ def _sources() -> dict[str, str]:
     return out
 
 
-def _writer_of(source: str) -> str:
-    """Where the tree assigns this source, or why the question does not apply."""
+def _writer_of(source: str) -> tuple[str, str]:
+    """How the tree treats this source: assigned, only declared, or absent.
+
+    Three answers, not two. A leaf that is assigned somewhere is written and
+    the column is a workload question. A leaf that appears only where a default
+    is declared or a reading is derived — a dataclass field, a `to_dict` key —
+    is the shape `mycelium_density` had: named all over the tree, read by phi
+    and by the schema, and assigned nowhere, which is the defect. A leaf that
+    appears nowhere at all is either misspelled in the schema or gone.
+    """
     if not source:
-        return "no source declared"
+        return ("absent", "no source declared")
     leaf = source.split(":", 1)[-1].split("[", 1)[0].rstrip(".").split(".")[-1]
     if not leaf:
-        return "no leaf to search for"
-    # Assignment, augmented assignment, keyword argument and mapping key, all
-    # of which are ways the tree writes a value. Over-matching moves a row out
-    # of the defect list, which is the safe direction for a report: a false
-    # "nothing writes this" is a claim, and a false "something might" is a
-    # question.
-    return _grep(rf"\b{leaf}\b[\"']?\]?\s*[+*-]?=[^=]")
+        return ("absent", "no leaf to search for")
+    # Assignment, augmented assignment, keyword argument, mapping key, a method
+    # that grows a container, and the private attribute a public reading is
+    # usually a view of.
+    assigned = _grep(
+        rf"(\b_?{leaf}\b[\"']?\]?\s*[+*-]?=[^=]"
+        rf"|\b_?{leaf}\b[\"']?\]?\.(append|add|extend|update|insert|setdefault)\()"
+    )
+    if assigned:
+        return ("assigned", assigned)
+    named = _grep(rf"\b_?{leaf}\b")
+    if named:
+        return ("declared", named)
+    return ("absent", "")
 
 
 def _grep(pattern: str) -> str:
@@ -118,33 +133,32 @@ def main(argv: list[str] | None = None) -> int:
 
     flat, held_at, rows = flat_columns(args.run)
     sources = _sources()
-    unwritten: list[dict[str, Any]] = []
-    unasked: list[dict[str, Any]] = []
+    buckets: dict[str, list[dict[str, Any]]] = {"absent": [], "declared": [], "assigned": []}
     for name in flat:
         source = sources.get(name, "")
-        writer = _writer_of(source)
-        row = {
-            "column": name,
-            "source": source,
-            "held_at": held_at[name],
-            "writer": writer,
-        }
-        (unasked if writer else unwritten).append(row)
+        kind, where = _writer_of(source)
+        buckets[kind].append(
+            {
+                "column": name,
+                "source": source,
+                "held_at": held_at[name],
+                "where": where,
+            }
+        )
 
     print(f"{rows} frames, {len(flat)} flat columns of {len(sources)}")
-    print(f"\n{len(unwritten)} with nothing in the tree that writes them:")
-    for row in unwritten:
+    print(f"\n{len(buckets['absent'])} whose source is not in the tree at all:")
+    for row in buckets["absent"]:
         print(f"  {row['column']:44s} = {row['held_at']:<10.6g} {row['source']}")
-    print(f"\n{len(unasked)} written somewhere, never moved here:")
-    for row in unasked:
-        print(f"  {row['column']:44s} = {row['held_at']:<10.6g} {row['writer']}")
+    print(f"\n{len(buckets['declared'])} named only where a value is declared or derived:")
+    for row in buckets["declared"]:
+        print(f"  {row['column']:44s} = {row['held_at']:<10.6g} {row['source']}")
+    print(f"\n{len(buckets['assigned'])} assigned somewhere, never moved here:")
+    for row in buckets["assigned"]:
+        print(f"  {row['column']:44s} = {row['held_at']:<10.6g} {row['where']}")
 
     if args.json:
-        args.json.write_text(
-            json.dumps(
-                {"rows": rows, "unwritten": unwritten, "unasked": unasked}, indent=1
-            )
-        )
+        args.json.write_text(json.dumps({"rows": rows, **buckets}, indent=1))
     return 0
 
 
