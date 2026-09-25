@@ -23,6 +23,10 @@ _MAX_TERMS = 128
 _MAX_CUES = 16
 _MAX_TERM_CHARS = 64
 _MAX_CONTEXT_CHARS = 128
+_INTERPRETATION_MODES = frozenset({
+    "unresolved", "literal", "indirect", "metaphor", "allusion", "joke",
+    "fiction", "mistake", "deception",
+})
 
 
 def lexical_terms(text: str) -> tuple[str, ...]:
@@ -77,6 +81,44 @@ class UsageCue:
 
 
 @dataclass(frozen=True, slots=True)
+class UsageRelation:
+    """One attributed claim or observation, not an inferred speaker motive.
+
+    Exclusive predicates have one value per subject and scope. A relation
+    without that domain contract cannot be called contradictory just because
+    a second value appears.
+    """
+
+    subject: str
+    predicate: str
+    value: str
+    scope: str
+    kind: str
+    source_id: str
+    observed_at: float
+    polarity: bool = True
+    exclusive: bool = False
+
+    def __post_init__(self) -> None:
+        if (not all((self.subject, self.predicate, self.value, self.scope,
+                     self.kind, self.source_id))
+                or self.kind not in {"claim", "observation", "withholding"}
+                or any(len(value) > _MAX_CONTEXT_CHARS for value in (
+                    self.subject, self.predicate, self.value, self.scope,
+                    self.source_id))
+                or len(self.kind) > _MAX_TERM_CHARS
+                or type(self.polarity) is not bool or type(self.exclusive) is not bool
+                or not math.isfinite(self.observed_at) or self.observed_at < 0):
+            raise ValueError("usage relation needs bounded, scoped provenance")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"subject": self.subject, "predicate": self.predicate,
+                "value": self.value, "scope": self.scope, "kind": self.kind,
+                "source_id": self.source_id, "observed_at": self.observed_at,
+                "polarity": self.polarity, "exclusive": self.exclusive}
+
+
+@dataclass(frozen=True, slots=True)
 class UsageEvent:
     """One source's lexical exposure, with no automatic sense assignment."""
 
@@ -91,10 +133,12 @@ class UsageEvent:
     referents: tuple[str, ...] = ()
     stretched_terms: tuple[str, ...] = ()
     original_token_count: int = 0
+    relations: tuple[UsageRelation, ...] = ()
 
     def __post_init__(self) -> None:
         if (not self.source_id or not self.context_id or not self.terms
                 or len(self.terms) > _MAX_TERMS or len(self.cues) > _MAX_CUES
+                or len(self.relations) > _MAX_CUES
                 or not math.isfinite(self.observed_at) or self.observed_at < 0
                 or any(len(value) > _MAX_CONTEXT_CHARS for value in (
                     self.source_id, self.context_id, self.setting, self.community,
@@ -105,8 +149,10 @@ class UsageEvent:
             raise ValueError("usage needs bounded source, context, and lexical evidence")
         if self.original_token_count < len(self.terms) or self.original_token_count > 100_000:
             raise ValueError("usage token count is inconsistent with retained evidence")
-        if any(abs(cue.observed_at - self.observed_at) > 300 for cue in self.cues):
-            raise ValueError("usage cue is not from this observation window")
+        if (any(abs(cue.observed_at - self.observed_at) > 300 for cue in self.cues)
+                or any(abs(relation.observed_at - self.observed_at) > 300
+                       for relation in self.relations)):
+            raise ValueError("usage evidence is not from this observation window")
 
     @classmethod
     def from_text(
@@ -114,6 +160,7 @@ class UsageEvent:
         observed_at: float | None = None, setting: str = "", community: str = "",
         speaker: str = "", cues: tuple[UsageCue, ...] = (),
         referents: tuple[str, ...] = (),
+        relations: tuple[UsageRelation, ...] = (),
     ) -> UsageEvent:
         """Read text form without guessing the speaker's motive or emotion."""
         timestamp = time.time() if observed_at is None else float(observed_at)
@@ -124,7 +171,7 @@ class UsageEvent:
         return cls(source_id, context_id, lexical_terms(text), timestamp,
                    setting, community, speaker, cues,
                    tuple(term.casefold() for term in referents), stretched,
-                   len(full_surface))
+                   len(full_surface), relations)
 
     def features_for(self, term: str) -> dict[str, Any]:
         """One bounded context view for the existing semantic experiment lane."""
@@ -153,6 +200,11 @@ class UsageEvent:
             if len(features) >= 64:
                 break
             features[f"cue:{cue.channel}:{cue.name}"] = cue.value
+        for relation in self.relations:
+            if len(features) >= 64:
+                break
+            if relation.kind != "withholding":
+                features[f"relation:{relation.kind}:{relation.predicate}"] = True
         return features
 
     def to_dict(self) -> dict[str, Any]:
@@ -162,7 +214,8 @@ class UsageEvent:
                 "speaker": self.speaker, "cues": [cue.to_dict() for cue in self.cues],
                 "referents": list(self.referents),
                 "stretched_terms": list(self.stretched_terms),
-                "original_token_count": self.original_token_count}
+                "original_token_count": self.original_token_count,
+                "relations": [relation.to_dict() for relation in self.relations]}
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> UsageEvent:
@@ -175,6 +228,7 @@ class UsageEvent:
             tuple(payload.get("referents", ())),
             tuple(payload.get("stretched_terms", ())),
             int(payload.get("original_token_count", len(payload["terms"]))),
+            tuple(UsageRelation(**raw) for raw in payload.get("relations", ())),
         )
 
 
@@ -189,6 +243,7 @@ class MeaningFeedback:
     origin: str
     observed_at: float = field(default_factory=time.time)
     stance: str = "supports"
+    mode: str = "unresolved"
 
     def __post_init__(self) -> None:
         if (not all((self.source_id, self.usage_source_id, self.term,
@@ -196,6 +251,7 @@ class MeaningFeedback:
                 or self.origin not in {"user_correction", "observed_referent",
                                        "verified_source"}
                 or self.stance not in {"supports", "refutes"}
+                or self.mode not in _INTERPRETATION_MODES
                 or any(len(value) > _MAX_CONTEXT_CHARS for value in (
                     self.source_id, self.usage_source_id, self.term, self.sense))
                 or not math.isfinite(self.observed_at) or self.observed_at < 0):
@@ -204,7 +260,9 @@ class MeaningFeedback:
     def to_dict(self) -> dict[str, Any]:
         return {"source_id": self.source_id, "usage_source_id": self.usage_source_id,
                 "term": self.term, "sense": self.sense, "origin": self.origin,
-                "observed_at": self.observed_at, "stance": self.stance}
+                "observed_at": self.observed_at, "stance": self.stance,
+                "mode": self.mode}
 
 
-__all__ = ["MeaningFeedback", "UsageCue", "UsageEvent", "lexical_terms"]
+__all__ = ["MeaningFeedback", "UsageCue", "UsageEvent", "UsageRelation",
+           "lexical_terms"]

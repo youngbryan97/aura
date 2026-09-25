@@ -32,8 +32,10 @@ from core.brain.ontology_discovery import (
 from core.cognition.concept_handle import BindingMethod, ConceptRegistry, Substrate
 from core.evidence.packet import EvidenceKind, EvidencePacket
 from core.language.contextual_usage import MeaningFeedback, UsageEvent
+from core.language.pragmatic_evidence import compare_pragmatic_context
 from core.runtime.lockdep import checked_lock, checked_thread_semaphore
 from core.runtime.state_ownership import state_root
+from core.security.structural_redaction import redact_text
 
 _MAX_FEATURES = 64
 _MAX_CASES = 4096
@@ -43,6 +45,16 @@ _MAX_PREDICTIONS = 4096
 _MAX_USAGE = 2048
 _MAX_BRANCHES = 128
 _CHANNELS = frozenset({"observation", "corpus", "memory", "model", "mutation", "composition"})
+
+
+def _contains_sensitive_value(value: Any) -> bool:
+    if isinstance(value, str):
+        return redact_text(value)[1]
+    if isinstance(value, Mapping):
+        return any(_contains_sensitive_value(item) for item in value.values())
+    if isinstance(value, (tuple, list)):
+        return any(_contains_sensitive_value(item) for item in value)
+    return False
 
 
 def _serialized(method):
@@ -327,6 +339,8 @@ class SemanticDevelopment:
     @_serialized
     def observe_usage(self, event: UsageEvent) -> bool:
         """Retain exposure without treating co-use or delivery as a definition."""
+        if _contains_sensitive_value(event.to_dict()):
+            raise ValueError("contextual usage contains sensitive evidence")
         prior = self.usage_events.get(event.source_id)
         if prior is not None:
             retry = (replace(event, observed_at=prior.observed_at)
@@ -353,6 +367,8 @@ class SemanticDevelopment:
     @_serialized
     def observe_meaning_feedback(self, feedback: MeaningFeedback) -> bool:
         """Keep the correction separate from the use it interprets."""
+        if _contains_sensitive_value(feedback.to_dict()):
+            raise ValueError("meaning feedback contains sensitive evidence")
         event = self.usage_events.get(feedback.usage_source_id)
         if event is None or feedback.term.casefold() not in (
                 *event.terms, *event.referents):
@@ -369,23 +385,30 @@ class SemanticDevelopment:
         self.meaning_feedback[feedback.source_id] = feedback
         return True
 
-    def _sense_evidence(self, term: str) -> dict[tuple[str, str], bool | None]:
+    def _sense_evidence(self, term: str, *, as_of: float | None = None,
+                        ) -> dict[tuple[str, str], bool | None]:
         stances: dict[tuple[str, str], set[str]] = defaultdict(set)
         for feedback in self.meaning_feedback.values():
-            if feedback.term.casefold() == term:
+            if (feedback.term.casefold() == term
+                    and (as_of is None or feedback.observed_at <= as_of)
+                    and feedback.usage_source_id in self.usage_events
+                    and (as_of is None or self.usage_events[
+                        feedback.usage_source_id].observed_at <= as_of)):
                 stances[(feedback.usage_source_id, feedback.sense)].add(feedback.stance)
         return {key: (None if len(values) != 1 else "supports" in values)
                 for key, values in stances.items() if key[0] in self.usage_events}
 
-    def _labeled_usage(self, term: str) -> tuple[tuple[UsageEvent, str], ...]:
+    def _labeled_usage(self, term: str, *, as_of: float | None = None,
+                       ) -> tuple[tuple[UsageEvent, str], ...]:
         return tuple((self.usage_events[source], sense)
-                     for (source, sense), supported in self._sense_evidence(term).items()
+                     for (source, sense), supported in self._sense_evidence(
+                         term, as_of=as_of).items()
                      if supported is True)
 
     @staticmethod
     def _feature_measured(event: UsageEvent, feature: str, value: Any,
                           features: Mapping[str, Any]) -> bool:
-        if feature.startswith(("cue:", "context:")):
+        if feature.startswith(("cue:", "context:", "relation:", "pragmatic:")):
             return feature in features
         if event.original_token_count > len(event.terms):
             if feature.startswith("co:"):
@@ -445,23 +468,39 @@ class SemanticDevelopment:
 
     @_serialized
     def contextual_senses(self, term: str, situation: UsageEvent, *,
-                          excluded_sources: tuple[str, ...] = ()) -> dict[str, Any]:
+                          excluded_sources: tuple[str, ...] = (),
+                          as_of: float | None = None) -> dict[str, Any]:
         """Rank grounded readings by similar prior use; absence stays absence."""
+        return self._contextual_labels(term, situation,
+                                       self._labeled_usage(term.casefold(), as_of=as_of),
+                                       self._sense_evidence(term.casefold(), as_of=as_of),
+                                       excluded_sources=excluded_sources,
+                                       label_name="sense")
+
+    def _contextual_labels(
+        self, term: str, situation: UsageEvent,
+        labeled_usage: Sequence[tuple[UsageEvent, str]],
+        explicit_refutations: Mapping[tuple[str, str], bool | None], *,
+        excluded_sources: tuple[str, ...], label_name: str,
+        query_extra: Mapping[str, Any] | None = None,
+        source_extra: Mapping[str, Mapping[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         key = term.casefold()
         if key not in situation.terms and key not in situation.referents:
             raise ValueError("the situation does not contain the concept")
         excluded = {*excluded_sources, situation.source_id}
-        labeled = [(event, sense) for event, sense in self._labeled_usage(key)
+        labeled = [(event, sense) for event, sense in labeled_usage
                    if event.source_id not in excluded]
         if not labeled:
             return {"status": "unexposed_to_grounded_sense", "term": key,
                     "candidates": (), "serving_authority": False}
-        query = situation.features_for(key)
+        query = {**situation.features_for(key), **(query_extra or {})}
         grouped: dict[str, list[UsageEvent]] = defaultdict(list)
         for event, sense in labeled:
             grouped[sense].append(event)
         features_by_source = {
-            event.source_id: event.features_for(key)
+            event.source_id: {**event.features_for(key),
+                              **(source_extra or {}).get(event.source_id, {})}
             for event, _sense in labeled
         }
         query_features = frozenset(
@@ -471,7 +510,6 @@ class SemanticDevelopment:
         local = len({event.source_id for event, _sense in labeled
                      if (not situation.setting or event.setting == situation.setting)
                      and (not situation.community or event.community == situation.community)})
-        explicit_refutations = self._sense_evidence(key)
         labeled_sources = {event.source_id for event, _sense in labeled}
         candidates = []
         for sense, examples in grouped.items():
@@ -481,7 +519,8 @@ class SemanticDevelopment:
             rival_sources.update({source: self.usage_events[source]
                                   for (source, reading), supported in explicit_refutations.items()
                                   if reading == sense and supported is False
-                                  and source not in positive_sources})
+                                  and source not in positive_sources
+                                  and source not in excluded})
             negatives = list(rival_sources.values())
             score = math.log((len(examples) + 1) / (len(labeled_sources) + len(grouped)))
             discriminators = []
@@ -492,11 +531,13 @@ class SemanticDevelopment:
                                      if self._feature_measured(
                                          event, name, value,
                                          features_by_source[event.source_id])]
-                measured_negative = [features
-                                     for event in negatives
-                                     if self._feature_measured(
-                                         event, name, value,
-                                         features := event.features_for(key))]
+                measured_negative = []
+                for event in negatives:
+                    features = features_by_source.get(event.source_id)
+                    if features is None:
+                        features = event.features_for(key)
+                    if self._feature_measured(event, name, value, features):
+                        measured_negative.append(features)
                 if not measured_positive or not measured_negative:
                     continue
                 positive = sum(item.get(name) == value for item in measured_positive)
@@ -507,14 +548,14 @@ class SemanticDevelopment:
                 score += contribution
                 if contribution > 0:
                     discriminators.append((feature[0], contribution))
-            candidates.append({"sense": sense,
+            candidates.append({label_name: sense,
                                "independent_sources": len({event.source_id for event in examples}),
                                "evidence_score": score,
                                "supporting_features": tuple(name for name, _ in sorted(
                                    discriminators, key=lambda item: (-item[1], item[0]))[:8]),
                                "relation": "contrastive_abductive_context_fit"})
         candidates.sort(key=lambda row: (-row["evidence_score"],
-                                         -row["independent_sources"], row["sense"]))
+                                         -row["independent_sources"], row[label_name]))
         tied = (len(candidates) > 1 and math.isclose(
             candidates[0]["evidence_score"], candidates[1]["evidence_score"],
             abs_tol=1e-9))
@@ -523,6 +564,78 @@ class SemanticDevelopment:
         return {"status": status,
                 "term": key, "local_grounded_sources": local,
                 "candidates": tuple(candidates), "serving_authority": False}
+
+    def _context_relation_fit(self, event: UsageEvent, *, as_of: float,
+                              excluded_sources: tuple[str, ...]) -> tuple[dict[str, Any],
+                                                                           dict[str, Any]]:
+        context = sorted((other for other in self.usage_events.values()
+                          if other.context_id == event.context_id
+                          and other.source_id not in (*excluded_sources, event.source_id)
+                          and other.observed_at <= as_of),
+                         key=lambda other: (abs(other.observed_at - event.observed_at),
+                                            other.source_id))[:32]
+        result = compare_pragmatic_context(event, context, as_of=as_of)
+        if not result["comparable"]:
+            return {}, result
+        kind = ("mixed" if result["aligned"] and result["incongruent"] else
+                "incongruent" if result["incongruent"] else "aligned")
+        return {"pragmatic:relation_fit": kind}, result
+
+    @_serialized
+    def pragmatic_readings(
+        self, term: str, situation: UsageEvent, *,
+        excluded_sources: tuple[str, ...] = (), as_of: float | None = None,
+    ) -> dict[str, Any]:
+        """Compare scoped claims and rank attributed indirect readings.
+
+        A mismatch is not a motive. Only source-attributed feedback can teach
+        metaphor, fiction, joke, mistake, or deception; unresolved feedback
+        is never converted into an intent label.
+        """
+        key = term.casefold()
+        if key not in situation.terms and key not in situation.referents:
+            raise ValueError("the situation does not contain the concept")
+        cutoff = situation.observed_at if as_of is None else float(as_of)
+        if not math.isfinite(cutoff) or cutoff < situation.observed_at:
+            raise ValueError("pragmatic cutoff must follow the focal usage")
+        query_extra, congruence = self._context_relation_fit(
+            situation, as_of=cutoff, excluded_sources=excluded_sources)
+        senses = self.contextual_senses(key, situation,
+                                        excluded_sources=excluded_sources, as_of=cutoff)
+        supported = self._sense_evidence(key, as_of=cutoff)
+        labeled = tuple((self.usage_events[item.usage_source_id],
+                         item.sense + "\0" + item.mode)
+                        for item in self.meaning_feedback.values()
+                        if (item.term.casefold() == key and item.stance == "supports"
+                            and item.mode != "unresolved"
+                            and item.observed_at <= cutoff
+                            and supported.get((item.usage_source_id, item.sense)) is True
+                            and item.usage_source_id in self.usage_events))
+        feedback_cutoffs = {source: max(item.observed_at for item in self.meaning_feedback.values()
+                                        if item.usage_source_id == source
+                                        and item.observed_at <= cutoff)
+                            for source in {event.source_id for event, _label in labeled}}
+        source_extra = {source: self._context_relation_fit(
+            self.usage_events[source], as_of=at,
+            excluded_sources=(*excluded_sources, situation.source_id))[0]
+            for source, at in feedback_cutoffs.items()}
+        modes = self._contextual_labels(
+            key, situation, labeled, {}, excluded_sources=excluded_sources,
+            label_name="interpretation", query_extra=query_extra,
+            source_extra=source_extra)
+        candidates = tuple({**row, "sense": row["interpretation"].split("\0", 1)[0],
+                            "mode": row["interpretation"].split("\0", 1)[1]}
+                           for row in modes["candidates"])
+        indirect = tuple(ref for ref in situation.referents if ref not in situation.terms)
+        discriminated = (len(candidates) > 1 and bool(candidates[0]["supporting_features"])
+                         and modes["status"] == "ranked_hypotheses")
+        return {"status": "ranked_hypotheses" if discriminated
+                else "unresolved", "term": key, "source_id": situation.source_id,
+                "as_of": cutoff, "congruence": congruence,
+                "indirect_referents": indirect,
+                "sense_hypotheses": senses["candidates"],
+                "interpretation_hypotheses": candidates,
+                "intent": "unmeasured", "serving_authority": False}
 
     @_serialized
     def evaluate_contextual_senses(self, term: str,

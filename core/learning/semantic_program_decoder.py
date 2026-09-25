@@ -127,8 +127,12 @@ class SemanticProgramDecoder(nn.Module):
             raise ValueError("teacher program violates the floor grammar")
         return selected, probabilities[selected]
 
-    def _run(self, features, input_spans, input_types, target=None):
-        memory, registers, kinds = self._encode(features, input_spans, input_types)
+    def _run(self, features, input_spans, input_types, target=None, *, encoded=None):
+        if encoded is None:
+            memory, registers, kinds = self._encode(features, input_spans, input_types)
+        else:
+            memory, initial_registers, initial_kinds = encoded
+            registers, kinds = list(initial_registers), list(initial_kinds)
         n_inputs = len(registers)
         if target is not None and (
             target.n_inputs != n_inputs
@@ -195,6 +199,29 @@ class SemanticProgramDecoder(nn.Module):
     def score(self, features, input_spans, input_types, program):
         """Unnormalized-by-length log probability of one complete proposal."""
         return self._run(features, input_spans, input_types, program)[1]
+
+    def score_many(self, features, input_spans, input_types, programs):
+        """Score a candidate bank with one resident-source encoding."""
+        if not isinstance(programs, (tuple, list)) or not programs:
+            raise ValueError("program scores need a nonempty candidate bank")
+        encoded = self._encode(features, input_spans, input_types)
+        return torch.stack([
+            self._run(features, input_spans, input_types, program, encoded=encoded)[1]
+            for program in programs
+        ])
+
+    def rank_loss(self, features, input_spans, input_types, programs, correct):
+        """Train on witnessed runtime-bank confusions with one shared source view."""
+        from core.learning.semantic_candidate_ranker import candidate_set_loss
+
+        if (not isinstance(programs, (tuple, list)) or not programs
+                or not isinstance(correct, (tuple, list))
+                or len(programs) != len(correct)):
+            raise ValueError("rank loss needs aligned candidate programs")
+        scores = self.score_many(features, input_spans, input_types, programs)
+        return candidate_set_loss(
+            scores, correct, program_keys=tuple(program.sha() for program in programs)
+        )
 
     @torch.no_grad()
     def decode(self, features, input_spans, input_types):

@@ -16,7 +16,7 @@ from typing import Any
 from core.cognition.concept_formation import get_concept_formation_engine
 from core.cognition.concept_handle import get_concept_registry
 from core.cognition.semantic_development import SemanticCase, SemanticDevelopment
-from core.language.contextual_usage import UsageEvent, lexical_terms
+from core.language.contextual_usage import MeaningFeedback, UsageEvent, lexical_terms
 from core.runtime.lockdep import checked_lock
 from core.security.structural_redaction import redact_text
 
@@ -71,6 +71,22 @@ def record_chat_usage(text: str, *, session_id: str, turn_id: str = "") -> bool:
     return added
 
 
+def record_contextual_usage(event: UsageEvent) -> bool:
+    """Persist typed observations from another sensor or action owner."""
+    service = get_semantic_development()
+    added = service.observe_usage(event)
+    service.save()
+    return added
+
+
+def record_attributed_meaning(feedback: MeaningFeedback) -> bool:
+    """Persist a later reading without converting it to an objective fact."""
+    service = get_semantic_development()
+    added = service.observe_meaning_feedback(feedback)
+    service.save()
+    return added
+
+
 def prepare_skill_trial(
     skill_name: str, params: dict[str, Any], context: dict[str, Any]
 ) -> SkillTrial:
@@ -120,4 +136,5 @@ def complete_skill_trial(trial: SkillTrial, result: dict[str, Any]) -> None:
 
 
 __all__ = ["SkillTrial", "complete_skill_trial", "get_semantic_development",
-           "prepare_skill_trial", "record_chat_usage"]
+           "prepare_skill_trial", "record_attributed_meaning", "record_chat_usage",
+           "record_contextual_usage"]

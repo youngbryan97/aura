@@ -41,6 +41,58 @@ def test_complete_program_loss_reaches_context_and_register_mechanisms():
         assert gradient is not None and torch.isfinite(gradient).all() and gradient.abs().sum() > 0
 
 
+def test_rank_loss_shares_source_encoding_and_trains_decision_mechanism(monkeypatch):
+    model, features, spans, kinds = model_and_inputs()
+    programs = (Program(2, (Instruction("sub", (0, 1)),)),
+                Program(2, (Instruction("sub", (1, 0)),)))
+    encode = model._encode
+    calls = []
+
+    def counted(*args):
+        calls.append(1)
+        return encode(*args)
+
+    monkeypatch.setattr(model, "_encode", counted)
+    loss = model.rank_loss(features, spans, kinds, programs, (True, False))
+    assert len(calls) == 1
+    assert torch.isfinite(loss) and loss > 0
+    loss.backward()
+    for name in ("project.weight", "attention_query.weight", "register_query.weight"):
+        gradient = dict(model.named_parameters())[name].grad
+        assert gradient is not None and torch.isfinite(gradient).all()
+        assert gradient.abs().sum() > 0
+
+
+def test_rank_loss_rejects_missing_or_contradictory_evidence():
+    model, features, spans, kinds = model_and_inputs()
+    program = Program(2, (Instruction("sub", (0, 1)),))
+    for programs, labels in (((), ()), ((program,), (False,)),
+                             ((program, program), (True, False)),
+                             ((program,), None)):
+        with pytest.raises(ValueError):
+            model.rank_loss(features, spans, kinds, programs, labels)
+
+
+def test_many_scores_replay_individual_scores_with_one_source_encoding(monkeypatch):
+    model, features, spans, kinds = model_and_inputs()
+    programs = (Program(2, (Instruction("sub", (0, 1)),)),
+                Program(2, (Instruction("mul", (1, 0)),)))
+    singles = torch.stack([model.score(features, spans, kinds, program)
+                           for program in programs])
+    encode = model._encode
+    calls = []
+
+    def counted(*args):
+        calls.append(1)
+        return encode(*args)
+
+    monkeypatch.setattr(model, "_encode", counted)
+    assert torch.allclose(model.score_many(features, spans, kinds, programs), singles)
+    assert len(calls) == 1
+    with pytest.raises(ValueError, match="nonempty"):
+        model.score_many(features, spans, kinds, ())
+
+
 @pytest.mark.parametrize(
     "kinds",
     [

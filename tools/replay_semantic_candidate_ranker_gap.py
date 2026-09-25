@@ -71,12 +71,19 @@ def main() -> None:
     parser.add_argument("--weights", type=Path, required=True)
     parser.add_argument("--direct-report", type=Path)
     parser.add_argument("--direct-checkpoint", type=Path)
+    parser.add_argument("--direct-refit-report", type=Path)
+    parser.add_argument("--direct-refit-checkpoint", type=Path)
+    parser.add_argument("--direct-refit-source-bank-report", type=Path)
     parser.add_argument("--folds", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if any((args.direct_report, args.direct_checkpoint, args.folds)) and not all(
             (args.direct_report, args.direct_checkpoint, args.folds)):
         parser.error("direct comparison needs its report, checkpoint, and source folds")
+    refit_paths = (args.direct_refit_report, args.direct_refit_checkpoint,
+                   args.direct_refit_source_bank_report)
+    if any(refit_paths) and (not all(refit_paths) or args.direct_report is None):
+        parser.error("direct refit comparison needs its report, checkpoint, source bank, and parent")
 
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
@@ -140,6 +147,24 @@ def main() -> None:
         direct, checkpoint_sha = _load_direct(
             direct_report, args.direct_checkpoint, fold=training["fold"],
             folds=folds, source_report=source)
+        refit = None
+        refit_sha = None
+        if args.direct_refit_report is not None:
+            from tools.refit_semantic_direct_bank import load_refit
+
+            source_bank = json.loads(args.direct_refit_source_bank_report.read_bytes())
+            if (source_bank.get("receipt_sha256") != _digest({
+                    key: value for key, value in source_bank.items()
+                    if key != "receipt_sha256"})
+                    or source_bank["plan"]["model_receipt_sha256"] != model.receipt_sha256):
+                raise ValueError("direct refit source bank is not verified on this model")
+            refit = load_refit(
+                json.loads(args.direct_refit_report.read_bytes()),
+                args.direct_refit_checkpoint,
+                direct_checkpoint_sha256=checkpoint_sha, folds=folds,
+                source_bank_receipt_sha256=source_bank["receipt_sha256"],
+                config=direct.config)
+            refit_sha = hashlib.sha256(args.direct_refit_checkpoint.read_bytes()).hexdigest()
         ranker_rows = {row["source"]: row for row in result["rows"]}
         failure_constructions = {row["source"]: row["construction"]
                                  for row in gap["failures"]}
@@ -152,6 +177,8 @@ def main() -> None:
                 preserve_evidence=ranker.retain_evidence_variants)[:4]
             features = torch.from_numpy(_hidden_array(items[source_id].hidden_states)).float()
             direct_index = _direct_choice(direct, features, spans, kinds, programs)
+            refit_index = (_direct_choice(refit, features, spans, kinds, programs)
+                           if refit is not None else None)
             ranker_index = ranker_rows[source_id]["chosen_index"]
             portfolio = _portfolio_comparison(
                 programs=programs, keys=keys, labels=labels,
@@ -165,6 +192,11 @@ def main() -> None:
                                     "ranker_correct": labels[ranker_index],
                                     "direct_correct": labels[direct_index],
                                     "direct_program_sha256": keys[direct_index], **portfolio})
+            if refit_index is not None:
+                comparison_rows[-1].update(
+                    direct_refit_correct=labels[refit_index],
+                    direct_refit_program_sha256=keys[refit_index],
+                )
         direct_comparison = {
             "source_fold": training["fold"],
             "checkpoint_sha256": checkpoint_sha,
@@ -178,6 +210,16 @@ def main() -> None:
             "by_construction": _construction_counts(comparison_rows),
             "rows": comparison_rows,
         }
+        if refit is not None:
+            direct_comparison["direct_refit_checkpoint_sha256"] = refit_sha
+            direct_comparison["direct_refit_correct"] = sum(
+                row["direct_refit_correct"] for row in comparison_rows)
+            direct_comparison["direct_refit_gains"] = sum(
+                row["direct_refit_correct"] and not row["direct_correct"]
+                for row in comparison_rows)
+            direct_comparison["direct_refit_regressions"] = sum(
+                row["direct_correct"] and not row["direct_refit_correct"]
+                for row in comparison_rows)
     body = {"schema": "aura.semantic_candidate_ranker_exposed_gap.v1",
             "development_only": True, "fresh_transfer": False, "serving_authority": False,
             "pilot_training": training["pilot_only"],
