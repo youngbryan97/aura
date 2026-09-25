@@ -70,3 +70,38 @@ Next: diagnose the 76 regressions by construction and candidate graph,
 then test a source-only proposal mechanism against the 51 observed reach
 misses. Do not tune against the outer fold after reading its labels; use a
 new outer fold for any revised candidate and reserve fresh tasks for G04-G08.
+
+## Where the remaining proposals disappear
+
+The signed 4-chart bank was replayed against the source targets only **after**
+generation. Independent candidate comparisons were revalidated. Of 256 outer
+sources, 205 have an equivalent proposal, 43 never yielded the target operation
+chart, and eight yielded that chart but no equivalent argument graph. These are
+finite-search observations, not impossibility proofs: every one of the 51
+missing proposals has incomplete search. Artifact:
+`~/.aura/rlc-evidence/semantic-proposal-gaps-outer0-verified-20260925/report.json`.
+
+The operation-node diagnostic expands the *same frozen candidate's* source
+inventory offline, without using the target during proposal. Across the 51
+misses, 47 retain all target operation nodes in the ranked inventory. Four
+cataphoric examples prune one target operation label; none lose the source
+span. The rest are chart or graph search failures downstream of a retained
+node. Artifact:
+`~/.aura/rlc-evidence/semantic-operation-inventory-outer0-20260925/report.json`.
+
+Simply widening the chart allowance from four to eight on the 43 missing-chart
+sources found an equivalent proposal in 12, but selected none correctly in
+ordinary decode. This diagnostic subset excludes baseline successes and is
+not a matched full-cohort gain. An existing complete-operation-search policy,
+now exposed in the cross-fit diagnostic with a signed expansion allowance,
+was tried on one source at 1,000 expansions and eight charts. It stopped
+incomplete after four charts and found no equivalent proposal. This is a
+bounded search-cost result, not evidence that the target is absent. Artifacts:
+`~/.aura/rlc-evidence/semantic-chart-width-outer0-misses-20260925/report.json`
+and `~/.aura/rlc-evidence/semantic-complete-op-pilot-outer0-20260925/report.json`.
+
+The immediate mechanism problem is not an empty universal vocabulary. It is
+how to allocate finite graph-search work over plausible operation charts and
+then select among valid candidates. Any revised policy needs source-only fit,
+matched cost, a new construction holdout, and controls preserving ordinary
+successes. No new policy is qualified by these diagnostics.
