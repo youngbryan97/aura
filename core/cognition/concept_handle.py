@@ -187,6 +187,13 @@ class ConceptHandle:
             kept.append(projection)
         return replace(self, projections=tuple(kept))
 
+    def without_projection(self, substrate: Substrate, ref: str) -> "ConceptHandle":
+        """Withdraw one invalidated representation without merging identities."""
+        return replace(self, projections=tuple(
+            item for item in self.projections
+            if not (item.substrate is substrate and item.ref == ref)
+        ))
+
     def disagreement(self, readings: dict[Substrate, float]) -> dict[str, Any]:
         """How far apart the substrates are about this concept.
 
@@ -279,6 +286,17 @@ class ConceptRegistry:
         with self._lock:
             hid = self._index.get((substrate, ref))
             return self._handles.get(hid) if hid else None
+
+    def unbind(self, substrate: Substrate, ref: str) -> bool:
+        """Remove a projection whose measured evidence was later defeated."""
+        with self._lock:
+            hid = self._index.pop((substrate, ref), None)
+            if hid is None:
+                return False
+            handle = self._handles.get(hid)
+            if handle is not None:
+                self._handles[hid] = handle.without_projection(substrate, ref)
+            return True
 
     def get(self, label_or_id: str) -> ConceptHandle | None:
         with self._lock:

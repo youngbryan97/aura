@@ -6087,6 +6087,21 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                     )
 
                 exec_start = time.monotonic()
+                semantic_trial = None
+                if not background_preflight_deferred:
+                    try:
+                        from core.cognition.semantic_runtime import prepare_skill_trial
+
+                        semantic_trial = await asyncio.to_thread(
+                            prepare_skill_trial, skill_name, exec_params,
+                            {**ctx, "effect_scope": effect_scope},
+                        )
+                    except (ImportError, AttributeError, OSError, RuntimeError, TypeError,
+                            ValueError) as exc:
+                        _record_capability_degradation(
+                            exc, action="continued skill after semantic prediction intake failed",
+                            severity="warning", enforce_failure_policy=False,
+                        )
                 if background_preflight_deferred:
                     pass
                 elif tool_handle is not None:
@@ -6165,6 +6180,17 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
             # only mark ERROR if the skill threw an unhandled exception (caught above).
             # This prevents "nmap not installed" from permanently bricking sovereign_network.
             was_exception = result.pop("_exception", False) if isinstance(result, dict) else False
+            if semantic_trial is not None:
+                try:
+                    from core.cognition.semantic_runtime import complete_skill_trial
+
+                    await asyncio.to_thread(complete_skill_trial, semantic_trial, result)
+                except (ImportError, AttributeError, OSError, RuntimeError, TypeError,
+                        ValueError) as exc:
+                    _record_capability_degradation(
+                        exc, action="returned skill result after semantic outcome intake failed",
+                        severity="warning", enforce_failure_policy=False,
+                    )
             final_state = "ERROR" if was_exception else "READY"
             self._emit_skill_status(
                 skill_name,
