@@ -5701,6 +5701,47 @@ def _schedule_recent_response_reasoning_audit(text: str) -> None:
     task.add_done_callback(_reasoning_audit_tasks.discard)
 
 
+def _schedule_chat_semantic_exposure(message: str, session_id: str,
+                                     turn_id: str) -> None:
+    """Retain user use off the reply path, without assigning a meaning."""
+    if not message.strip():
+        return
+    try:
+        from core.cognition.semantic_runtime import record_chat_usage
+
+        task = get_task_tracker().bounded_track(
+            asyncio.to_thread(record_chat_usage, message, session_id=session_id,
+                              turn_id=turn_id),
+            name="ChatSemanticExposure", owner="interface.routes.chat",
+        )
+
+        def finished(done: asyncio.Task[Any]) -> None:
+            if done.cancelled():
+                return
+            try:
+                done.result()
+            except Exception as exc:
+                record_degradation("chat.semantic_exposure", exc)
+
+        task.add_done_callback(finished)
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.semantic_exposure", exc)
+
+
+def _observe_admitted_chat_turn(message: str, session_id: str,
+                                turn_id: str, *, is_benchmark: bool) -> None:
+    if is_benchmark:
+        return
+    _schedule_chat_semantic_exposure(message, session_id, turn_id)
+    try:
+        from core.runtime.foreground_guard import notify_user_spoke
+
+        notify_user_spoke(message)
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat", exc)
+        logger.debug("Foreground guard preflight notify skipped: %s", exc)
+
+
 def _record_recent_response(text: str, user_message: str = "") -> None:
     fp = _response_fingerprint(text)
     with _conversation_quality_lock:
@@ -8377,21 +8418,16 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         status = _preflight.status
     _qualified_state_serialization_owner, _turn_sensory_evidence = _api_chat_turn__turn_sensory_evidence(_preflight, request)
 
+    _observe_admitted_chat_turn(_semantic_user_message, str(_chat_session_id),
+                                str(_CHAT_DELIVERY_TURN_ID.get() or ""),
+                                is_benchmark=is_benchmark)
+
     if not is_benchmark and _chat_preflight._looks_like_desktop_objective(_semantic_user_message):
         # A consequential desktop request always needs the same CognitiveEngine
         # planning lane as the desktop UI, even when it arrives through the
         # plain REST surface. The governed executor remains downstream.
         desktop_requires_cognitive_engine = True
         request_surface = request_surface or "desktop-objective"
-    if not is_benchmark:
-        try:
-            from core.runtime.foreground_guard import notify_user_spoke as _guard_notify_user_spoke
-
-            _guard_notify_user_spoke(_semantic_user_message)
-        except _CHAT_RECOVERABLE_ERRORS as _guard_notify_exc:
-            record_degradation("chat", _guard_notify_exc)
-            logger.debug("Foreground guard preflight notify skipped: %s", _guard_notify_exc)
-
     # ── Conscience pre-gate ─────────────────────────────────────
     # Hard-line rules apply BEFORE the cognitive pipeline ever sees the
     # message. REFUSE returns the rule's rationale verbatim; any other

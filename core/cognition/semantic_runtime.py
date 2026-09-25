@@ -7,6 +7,7 @@ text, proposed plans, or tool summaries as observed task success.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import uuid
 from dataclasses import dataclass
@@ -15,7 +16,9 @@ from typing import Any
 from core.cognition.concept_formation import get_concept_formation_engine
 from core.cognition.concept_handle import get_concept_registry
 from core.cognition.semantic_development import SemanticCase, SemanticDevelopment
+from core.language.contextual_usage import UsageEvent, lexical_terms
 from core.runtime.lockdep import checked_lock
+from core.security.structural_redaction import redact_text
 
 logger = logging.getLogger("Aura.SemanticDevelopment")
 _OUTCOME = "skill_returned_ok"
@@ -46,6 +49,29 @@ def get_semantic_development() -> SemanticDevelopment:
                 concept_engine=get_concept_formation_engine(),
             )
         return _SERVICE
+
+
+def record_chat_usage(text: str, *, session_id: str, turn_id: str = "") -> bool:
+    """Retain bounded user exposure; no meaning or affect is inferred from it."""
+    _redacted, contains_sensitive_text = redact_text(text)
+    if contains_sensitive_text or not lexical_terms(text):
+        return False
+    identity = turn_id or str(uuid.uuid4())
+    source_id = "chat:" + hashlib.sha256(
+        (session_id + "\0" + identity).encode("utf-8", errors="replace")
+    ).hexdigest()[:32]
+    context_id = "chat:" + hashlib.sha256(
+        session_id.encode("utf-8", errors="replace")
+    ).hexdigest()[:32]
+    service = get_semantic_development()
+    event = UsageEvent.from_text(source_id, context_id, text,
+                                 setting="conversation", speaker="user")
+    if not service.observe_usage(event):
+        return False
+    count = service.usage_observation_count
+    if count == 1 or count % _SAVE_EVERY == 0:
+        service.save()
+    return True
 
 
 def prepare_skill_trial(
@@ -97,4 +123,4 @@ def complete_skill_trial(trial: SkillTrial, result: dict[str, Any]) -> None:
 
 
 __all__ = ["SkillTrial", "complete_skill_trial", "get_semantic_development",
-           "prepare_skill_trial"]
+           "prepare_skill_trial", "record_chat_usage"]

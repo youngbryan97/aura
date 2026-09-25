@@ -13,7 +13,7 @@ import json
 import math
 import random
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from functools import wraps
@@ -31,6 +31,7 @@ from core.brain.ontology_discovery import (
 )
 from core.cognition.concept_handle import BindingMethod, ConceptRegistry, Substrate
 from core.evidence.packet import EvidenceKind, EvidencePacket
+from core.language.contextual_usage import MeaningFeedback, UsageEvent
 from core.runtime.lockdep import checked_lock, checked_thread_semaphore
 from core.runtime.state_ownership import state_root
 
@@ -39,6 +40,7 @@ _MAX_CASES = 4096
 _MAX_PROPOSALS = 256
 _MAX_PRIMITIVES = 256
 _MAX_PREDICTIONS = 4096
+_MAX_USAGE = 2048
 _MAX_BRANCHES = 128
 _CHANNELS = frozenset({"observation", "corpus", "memory", "model", "mutation", "composition"})
 
@@ -264,6 +266,9 @@ class SemanticDevelopment:
         self._save_lane = checked_thread_semaphore(
             "core.cognition.semantic_development.save", budget_s=120.0)
         self.cases: dict[str, SemanticCase] = {}
+        self.usage_events: dict[str, UsageEvent] = {}
+        self.meaning_feedback: dict[str, MeaningFeedback] = {}
+        self._usage_observed_count = 0
         self._case_slots: dict[tuple[str, str, str], str] = {}
         self.proposals: dict[str, SemanticProposal] = {}
         self.primitives: dict[str, SemanticPrimitive] = {}
@@ -318,6 +323,339 @@ class SemanticDevelopment:
     def observation_count(self) -> int:
         with self._lock:
             return self._observed_count
+
+    @_serialized
+    def observe_usage(self, event: UsageEvent) -> bool:
+        """Retain exposure without treating co-use or delivery as a definition."""
+        prior = self.usage_events.get(event.source_id)
+        if prior is not None:
+            retry = (replace(event, observed_at=prior.observed_at)
+                     if not event.cues and not prior.cues else event)
+            if prior != retry:
+                raise ValueError("one usage source changed its observation")
+            return False
+        if len(self.usage_events) >= _MAX_USAGE:
+            oldest = min(self.usage_events,
+                         key=lambda source: self.usage_events[source].observed_at)
+            del self.usage_events[oldest]
+            self.meaning_feedback = {source: feedback
+                                     for source, feedback in self.meaning_feedback.items()
+                                     if feedback.usage_source_id != oldest}
+        self.usage_events[event.source_id] = event
+        self._usage_observed_count += 1
+        return True
+
+    @property
+    def usage_observation_count(self) -> int:
+        with self._lock:
+            return self._usage_observed_count
+
+    @_serialized
+    def observe_meaning_feedback(self, feedback: MeaningFeedback) -> bool:
+        """Keep the correction separate from the use it interprets."""
+        event = self.usage_events.get(feedback.usage_source_id)
+        if event is None or feedback.term.casefold() not in (
+                *event.terms, *event.referents):
+            raise ValueError("meaning feedback has no retained matching usage")
+        prior = self.meaning_feedback.get(feedback.source_id)
+        if prior is not None:
+            if prior != feedback:
+                raise ValueError("one meaning feedback source changed its claim")
+            return False
+        if len(self.meaning_feedback) >= _MAX_USAGE:
+            oldest = min(self.meaning_feedback,
+                         key=lambda source: self.meaning_feedback[source].observed_at)
+            del self.meaning_feedback[oldest]
+        self.meaning_feedback[feedback.source_id] = feedback
+        return True
+
+    def _labeled_usage(self, term: str) -> tuple[tuple[UsageEvent, str], ...]:
+        labels: dict[str, set[str]] = defaultdict(set)
+        for feedback in self.meaning_feedback.values():
+            if feedback.term.casefold() == term:
+                labels[feedback.usage_source_id].add(feedback.sense)
+        return tuple((self.usage_events[source], next(iter(senses)))
+                     for source, senses in labels.items()
+                     if len(senses) == 1 and source in self.usage_events)
+
+    @staticmethod
+    def _feature_measured(event: UsageEvent, feature: str, value: Any,
+                          features: Mapping[str, Any]) -> bool:
+        if feature.startswith(("cue:", "context:")):
+            return feature in features
+        if event.original_token_count > len(event.terms):
+            if feature.startswith("co:"):
+                return feature in features
+            if feature in {"usage:spoken", "usage:frequency"}:
+                return bool(value)
+        return True
+
+    @_serialized
+    def usage_associations(
+        self, term: str, *, setting: str = "", community: str = "", limit: int = 16,
+    ) -> dict[str, Any]:
+        """Compare observed co-use with its local base rate, not taxonomy."""
+        if not 1 <= limit <= 64:
+            raise ValueError("association limit is out of range")
+        key = term.casefold()
+        scoped = [event for event in self.usage_events.values()
+                  if (not setting or event.setting == setting)
+                  and (not community or event.community == community)]
+        exposed = [event for event in scoped
+                   if key in event.terms or key in event.referents]
+        if not exposed:
+            status = ("unmeasured_due_to_sampling" if any(
+                event.original_token_count > len(event.terms) for event in scoped)
+                else "unexposed")
+            return {"status": status, "term": key, "observed_sources": 0,
+                    "associations": (), "serving_authority": False}
+        background = Counter(neighbor for event in scoped
+                             for neighbor in set(event.terms))
+        neighbors = Counter(neighbor for event in exposed
+                            for neighbor in set(event.terms) - {key})
+        associations = []
+        for neighbor, support in neighbors.items():
+            base = background[neighbor] / len(scoped)
+            conditional = support / len(exposed)
+            associations.append({"term": neighbor, "sources": support,
+                                 "conditional_frequency": conditional,
+                                 "background_frequency": base,
+                                 "lift": conditional / base if base else 0.0,
+                                 "relation": "observed_co_use"})
+        associations.sort(key=lambda row: (-row["sources"], -row["lift"], row["term"]))
+        cues = Counter((cue.channel, cue.name, str(cue.value))
+                       for event in exposed for cue in event.cues)
+        stretched = sum(key in event.stretched_terms for event in exposed)
+        indirect = sum(key in event.referents and key not in event.terms
+                       for event in exposed)
+        return {"status": "observed_association", "term": key,
+                "observed_sources": len(exposed),
+                "partially_sampled_sources": sum(
+                    event.original_token_count > len(event.terms) for event in exposed),
+                "associations": tuple(associations[:limit]),
+                "delivery_cues": tuple({"channel": channel, "name": name,
+                                         "value": value, "sources": count}
+                                        for (channel, name, value), count in cues.most_common(limit)),
+                "stretched_sources": stretched, "indirect_sources": indirect,
+                "serving_authority": False}
+
+    @_serialized
+    def contextual_senses(self, term: str, situation: UsageEvent, *,
+                          excluded_sources: tuple[str, ...] = ()) -> dict[str, Any]:
+        """Rank grounded readings by similar prior use; absence stays absence."""
+        key = term.casefold()
+        if key not in situation.terms and key not in situation.referents:
+            raise ValueError("the situation does not contain the concept")
+        excluded = {*excluded_sources, situation.source_id}
+        labeled = [(event, sense) for event, sense in self._labeled_usage(key)
+                   if event.source_id not in excluded]
+        if not labeled:
+            return {"status": "unexposed_to_grounded_sense", "term": key,
+                    "candidates": (), "serving_authority": False}
+        query = situation.features_for(key)
+        grouped: dict[str, list[UsageEvent]] = defaultdict(list)
+        for event, sense in labeled:
+            grouped[sense].append(event)
+        features_by_source = {
+            event.source_id: event.features_for(key)
+            for event, _sense in labeled
+        }
+        query_features = frozenset(
+            (name, value) for name, value in query.items()
+            if name != "usage:sampled"
+            and self._feature_measured(situation, name, value, query))
+        local = sum((not situation.setting or event.setting == situation.setting)
+                    and (not situation.community or event.community == situation.community)
+                    for event, _sense in labeled)
+        candidates = []
+        for sense, examples in grouped.items():
+            positive_sources = {event.source_id for event in examples}
+            negatives = [event for event, _label in labeled
+                         if event.source_id not in positive_sources]
+            score = math.log((len(examples) + 1) / (len(labeled) + len(grouped)))
+            discriminators = []
+            for feature in query_features:
+                name, value = feature
+                measured_positive = [features_by_source[event.source_id]
+                                     for event in examples
+                                     if self._feature_measured(
+                                         event, name, value,
+                                         features_by_source[event.source_id])]
+                measured_negative = [features_by_source[event.source_id]
+                                     for event in negatives
+                                     if self._feature_measured(
+                                         event, name, value,
+                                         features_by_source[event.source_id])]
+                if not measured_positive or not measured_negative:
+                    continue
+                positive = sum(item.get(name) == value for item in measured_positive)
+                negative = sum(item.get(name) == value for item in measured_negative)
+                contribution = math.log(
+                    ((positive + 1) / (len(measured_positive) + 2)) /
+                    ((negative + 1) / (len(measured_negative) + 2)))
+                score += contribution
+                if contribution > 0:
+                    discriminators.append((feature[0], contribution))
+            candidates.append({"sense": sense,
+                               "independent_sources": len({event.source_id for event in examples}),
+                               "evidence_score": score,
+                               "supporting_features": tuple(name for name, _ in sorted(
+                                   discriminators, key=lambda item: (-item[1], item[0]))[:8]),
+                               "relation": "contrastive_abductive_context_fit"})
+        candidates.sort(key=lambda row: (-row["evidence_score"],
+                                         -row["independent_sources"], row["sense"]))
+        tied = (len(candidates) > 1 and math.isclose(
+            candidates[0]["evidence_score"], candidates[1]["evidence_score"],
+            abs_tol=1e-9))
+        status = ("unmeasured_context_transfer" if not local else
+                  "no_discriminating_evidence" if tied else "ranked_hypotheses")
+        return {"status": status,
+                "term": key, "local_grounded_sources": local,
+                "candidates": tuple(candidates), "serving_authority": False}
+
+    @_serialized
+    def evaluate_contextual_senses(self, term: str,
+                                   heldout_sources: tuple[str, ...]) -> dict[str, Any]:
+        """Measure interpretations with every held-out source excluded from fitting."""
+        if not 1 <= len(heldout_sources) <= 256 or len(set(heldout_sources)) != len(
+                heldout_sources):
+            raise ValueError("sense evaluation needs distinct bounded held-out sources")
+        labeled = dict((event.source_id, (event, sense))
+                       for event, sense in self._labeled_usage(term.casefold()))
+        if any(source not in labeled for source in heldout_sources):
+            raise ValueError("held-out source lacks unambiguous attributed feedback")
+        training_labels = Counter(sense for source, (_event, sense) in labeled.items()
+                                  if source not in heldout_sources)
+        if not training_labels:
+            return {"status": "unmeasured_no_training_exposure", "n": 0,
+                    "serving_authority": False}
+        majority = max(training_labels, key=lambda sense: (training_labels[sense], sense))
+        correct = baseline_correct = answered = 0
+        by_community: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0])
+        for source in heldout_sources:
+            event, sense = labeled[source]
+            result = self.contextual_senses(
+                term, event, excluded_sources=heldout_sources)
+            predicted = (result["candidates"][0]["sense"]
+                         if result["status"] == "ranked_hypotheses" else None)
+            answer = int(predicted is not None)
+            hit = int(predicted == sense)
+            answered += answer
+            correct += hit
+            baseline_correct += int(majority == sense)
+            row = by_community[event.community or "unspecified"]
+            row[0] += 1
+            row[1] += answer
+            row[2] += hit
+        return {"status": "measured_development_only", "n": len(heldout_sources),
+                "answered": answered, "correct": correct,
+                "majority_baseline_correct": baseline_correct,
+                "heldout_sources": heldout_sources,
+                "by_community": {name: {"n": counts[0], "answered": counts[1],
+                                        "correct": counts[2]}
+                                 for name, counts in sorted(by_community.items())},
+                "serving_authority": False}
+
+    @_serialized
+    def discriminating_usage_observations(self, term: str, situation: UsageEvent,
+                                          *, limit: int = 8) -> dict[str, Any]:
+        """Identify measured distinctions worth checking in an unresolved setting."""
+        if not 1 <= limit <= 32:
+            raise ValueError("discriminating observation limit is out of range")
+        key = term.casefold()
+        labeled = [(event, sense) for event, sense in self._labeled_usage(key)
+                   if event.source_id != situation.source_id]
+        if len({sense for _event, sense in labeled}) < 2:
+            return {"status": "insufficient_rivals", "observations": (),
+                    "serving_authority": False}
+        grouped: dict[str, list[UsageEvent]] = defaultdict(list)
+        for event, sense in labeled:
+            grouped[sense].append(event)
+        observed_names = set(situation.features_for(key))
+        candidates: dict[tuple[str, Any], dict[str, float]] = defaultdict(dict)
+        for sense, examples in grouped.items():
+            feature_sets = [set(event.features_for(key).items()) for event in examples]
+            frequencies = Counter(feature for features in feature_sets for feature in features)
+            for feature, count in frequencies.items():
+                candidates[feature][sense] = count / len(examples)
+        ranked = []
+        for (name, value), rates in candidates.items():
+            if (name in observed_names or name.startswith("usage:")
+                    or name == "context:speaker"):
+                continue
+            if name.startswith(("cue:", "context:")) and any(
+                any(name not in event.features_for(key) for event in examples)
+                for examples in grouped.values()
+            ):
+                continue
+            if name.startswith("co:") and any(
+                event.original_token_count > len(event.terms)
+                for examples in grouped.values() for event in examples
+            ):
+                continue
+            complete = {sense: rates.get(sense, 0.0) for sense in grouped}
+            separation = max(complete.values()) - min(complete.values())
+            if separation <= 0:
+                continue
+            ranked.append({"feature": name, "value": value,
+                           "separation": separation,
+                           "observed_rates": complete,
+                           "status": "proposed_observation_not_evidence"})
+        ranked.sort(key=lambda row: (-row["separation"], row["feature"], str(row["value"])))
+        return {"status": "candidate_observations" if ranked else
+                "no_discriminating_observation", "term": key,
+                "observations": tuple(ranked[:limit]),
+                "serving_authority": False}
+
+    @_serialized
+    def associative_analogy(self, left: str, right: str, *, setting: str = "",
+                            community: str = "") -> dict[str, Any]:
+        """Compare use-neighborhoods while keeping kind-of claims separate."""
+        first = self.usage_associations(left, setting=setting, community=community)
+        second = self.usage_associations(right, setting=setting, community=community)
+        if (first["status"] != "observed_association" or
+                second["status"] != "observed_association"):
+            return {"status": "unmeasured" if "unmeasured_due_to_sampling" in (
+                first["status"], second["status"]) else "unexposed",
+                "shared": (), "serving_authority": False}
+        left_neighbors = {row["term"] for row in first["associations"]}
+        right_neighbors = {row["term"] for row in second["associations"]}
+        shared = left_neighbors & right_neighbors
+        union = left_neighbors | right_neighbors
+        return {"status": "association_analogy", "left": left.casefold(),
+                "right": right.casefold(), "shared": tuple(sorted(shared)),
+                "jaccard": len(shared) / len(union) if union else 0.0,
+                "relation": "shared_observed_use_not_taxonomy",
+                "serving_authority": False}
+
+    @_serialized
+    def grounded_sense_cases(self, term: str, sense: str) -> tuple[SemanticCase, ...]:
+        """Expose feedback as testable cases, not as an admitted definition."""
+        key = term.casefold()
+        return tuple(SemanticCase(
+            event.source_id, event.context_id, f"usage_sense:{key}:{sense}",
+            label == sense, event.features_for(key), event.observed_at,
+            intervention="meaning_feedback")
+            for event, label in self._labeled_usage(key))
+
+    @_serialized
+    def relation_evidence(self, left: str, right: str, *, atomspace: Any = None) -> dict[str, Any]:
+        """Report story association apart from an explicitly stored kind-of edge."""
+        from core.knowledge.atomspace import INHERITANCE, Link, concept, get_atomspace
+
+        if atomspace is None:
+            atomspace = get_atomspace()
+        inheritance = atomspace.get_tv(Link(INHERITANCE, (concept(left), concept(right))))
+        co_used = sum(left.casefold() in event.terms and right.casefold() in event.terms
+                      for event in self.usage_events.values())
+        return {"left": left.casefold(), "right": right.casefold(),
+                "co_use_sources": co_used,
+                "co_use_relation": "narrative_or_situational_association" if co_used
+                else "unmeasured",
+                "taxonomic_relation": ({"strength": inheritance.strength,
+                                        "confidence": inheritance.confidence}
+                                       if inheritance is not None else None),
+                "serving_authority": False}
 
     @_serialized
     def eligible_proposals(
@@ -861,6 +1199,10 @@ class SemanticDevelopment:
             with self._lock:
                 body = {"schema": "aura.semantic_development.v1",
                         "cases": [case.to_dict() for case in self.cases.values()],
+                        "usage_events": [event.to_dict() for event in self.usage_events.values()],
+                        "usage_observed_count": self._usage_observed_count,
+                        "meaning_feedback": [item.to_dict()
+                                             for item in self.meaning_feedback.values()],
                         "proposals": [{"law": _law_dict(item.law), "channel": item.channel,
                                        "reference": item.reference, "context_id": item.context_id,
                                        "dependencies": list(item.dependencies), "kind": item.kind,
@@ -895,6 +1237,12 @@ class SemanticDevelopment:
         self.cases = {case.identity: case for case in (
             SemanticCase(**{**raw, "candidate_dependencies": tuple(
                 raw.get("candidate_dependencies", ()))}) for raw in body["cases"])}
+        self.usage_events = {event.source_id: event for event in (
+            UsageEvent.from_dict(raw) for raw in body.get("usage_events", ())) }
+        self._usage_observed_count = max(len(self.usage_events),
+                                         int(body.get("usage_observed_count", 0)))
+        self.meaning_feedback = {item.source_id: item for item in (
+            MeaningFeedback(**raw) for raw in body.get("meaning_feedback", ())) }
         self._case_slots = {
             (case.source_id, case.context_id, case.outcome_name): case.identity
             for case in self.cases.values()}
