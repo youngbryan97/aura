@@ -980,6 +980,7 @@ async def decide_the_next_move(
                     history=history[-RECENT_ATTEMPTS:],
                     previous=plan["held"],
                     moves_made=len(moves),
+                    anchored_in=laid_out.as_text() if _is_a_thing_laid_out(laid_out) else "",
                 )
             )
         if fresh is not None:

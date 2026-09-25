@@ -86,3 +86,23 @@ def test_her_line_said_plainly_is_taken_over_the_heading_of_her_reasons():
     held = read_strategy(said, MOVES, situation=BOARD)
     assert held is not None
     assert held.approach.startswith("aggressive consolidation"), held.approach
+
+
+def test_a_line_about_the_largest_tile_is_bound_to_the_board_not_the_score():
+    """LIVE 2026-09-25: "while the 6280 is still there", the best score beside the board."""
+    screen = "2048 SCORE 1204 BEST 6280 Join the numbers 2 4 8 . 16 64 32 4"
+    held = read_strategy(
+        "Keep the largest tile in one corner and use that corner as a home base.",
+        MOVES,
+        situation=screen,
+        anchored_in="2 4 8 . / 16 64 32 4",
+    )
+    assert held is not None
+    watched = held.holds_while.describes
+    assert "64" in watched and "6280" not in watched, watched
+
+
+def test_the_pursuit_anchors_her_line_in_what_she_is_acting_on():
+    from screen_pursuit_support import pursuit_source
+
+    assert "anchored_in=laid_out.as_text()" in pursuit_source()

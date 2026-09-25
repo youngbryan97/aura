@@ -507,8 +507,14 @@ def read_strategy(
     *,
     situation: str = "",
     asked: str = "",
+    anchored_in: str = "",
 ) -> Strategy | None:
     """An approach read out of a reply, when it names one.
+
+    ``anchored_in`` is the thing she is acting on, where it is narrower than
+    the situation she was asked about: an approach that names no value is
+    bound to the largest thing there, and on a screen the largest number
+    can be a score beside the board.
 
     Deliberately forgiving about shape and strict about substance: an
     approach with nothing that could end it is not an approach, it is a
@@ -655,7 +661,11 @@ def read_strategy(
         # as one.
         if not _says_enough_to_be_an_approach(approach, options):
             return None
-        anchor = _biggest_thing_in(situation)
+        # The largest thing in what she is acting on, not on the screen. The
+        # best score beside a board was the largest number there, so a line
+        # about the corner tile was held "while the 6280 is still there"
+        # (live, 2026-09-25).
+        anchor = _biggest_thing_in(anchored_in or situation)
         if not anchor:
             return None
         keep, avoid = (anchor,), ()
@@ -714,6 +724,7 @@ async def settle_on_an_approach(
     history: Sequence[Any] = (),
     previous: Strategy | None = None,
     moves_made: int = 0,
+    anchored_in: str = "",
 ) -> Strategy | None:
     """Decide the line to take, and what would end it.
 
@@ -782,6 +793,7 @@ async def settle_on_an_approach(
         options,
         situation=situation,
         asked=_asking_for_an_approach(goal, situation, options),
+        anchored_in=anchored_in,
     )
     if settled is None:
         # She answered, and what she said was not an approach.
