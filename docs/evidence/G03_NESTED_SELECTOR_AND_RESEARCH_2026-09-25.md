@@ -236,5 +236,22 @@ keeps the parent construction in the variant's construction ID. A regression
 test verifies that each variant stays in its parent's fold without merging
 distinct parent constructions. V1 rendering and its receipt stay unchanged;
 the signed 36-example historical v1 feature bundle was reloaded successfully.
-V2 has no acquired 27B hidden-state bundle or trained selector yet, so it
-cannot be counted as an answer gain or as fresh-family transfer.
+After that code checkpoint, the supported feature-acquisition sidecar loaded
+the explicit 27B model, acquired all 36 v2 `lexical_mid_final_v1` records, and
+closed its worker. The v2 manifest is
+`f3cf4ea7734123834e479ac059bfdb53834de296cf1f5b74219d79dfd9d12679`
+at `~/.aura/rlc-evidence/semantic-counterfactual-v2-20260925/features`.
+Independent reload verified all 36 v2 examples and the historical 36-example
+v1 bundle. The isolated acquisition state had no migration authority key, so
+optional affective steering did not attach; that warning is not evidence of
+an acquisition failure or of the live desktop's state. V2 is now available
+as training input, but no selector has been fitted or qualified on it.
+The attempted mixed-cohort training preflight refused it: the v2 worker's
+`worker_source_sha256` is `8ef364036dc029b4998dffa06c61fde4852e2c91add76aa99660edb8da988012`,
+whereas the older source cohorts bind
+`53676c08c7bfd4348c48cfc56e369721ca3c75fb54f10c842ac2d8746d17a94a`.
+The same 36 v1/v2 texts produced identical hidden arrays, token IDs, and
+executable programs, but this comparison cannot establish compatibility for
+the other cohorts. A source-matched reacquisition or an independently proved
+representation equivalence is needed before a joint training receipt; the
+identity gate was not relaxed.
