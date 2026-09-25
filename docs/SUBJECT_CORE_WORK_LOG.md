@@ -7,6 +7,36 @@ what broke, what fixed it, and where the evidence is. Runs live in
 
 ## 24 September
 
+### 21:50: the lease was lost to a restore as well as to a clock
+
+The 21:20 dry run on 0ff3143b8 lost the embedding engine's model lease at
+anchor 5 anyway, and the runtime asked to shut down. The lane file told what
+happened: its last write was at 21:23:58, before the loss, and the embedding
+engine was not among its owners. The fork's store restore had rewound it. The
+lane file sits in the state root's `run` directory, the engine took its lease
+after the anchor's snapshot, and the restore put back a file without it. Its
+heartbeat then found no owner.
+
+The `run` directory holds what processes tell each other: which process holds
+which model, pid files, heartbeats, the shutdown report. The fork now leaves it
+alone, with the leader-election leases and a relocated lane file (8a08adb9d). A
+test takes a real lease after a snapshot, restores, and checks that the
+heartbeat still finds its owner; with the change undone it fails as the dry run
+did.
+
+One fork test failed in a group run with the change and without it. Her
+drives choose the probe's action, and `make_room` leaves a directory that the
+test's reader of files could not see. The reader counts rooms now.
+
+The reports ground restarted at 21:45 on 8a08adb9d, and the seed-7 recording
+waits behind it on the same commit.
+
+Nothing needed building for S,D->C: frustration is already how hard her most
+pressing intention presses times one minus her capacity (Berkowitz), but her
+capacity sat at 0.5 until 64c4fc443 connected it to the ledger of what she
+did. The seed-7 recording on 8a08adb9d is the first measurement with that
+product live.
+
 ### 21:25: the attention fix at 2,400 rows, a drive that ran again, and a lease on the wrong clock
 
 Seed 7 at 2,400 turn rows on the attention fix (252079897,
