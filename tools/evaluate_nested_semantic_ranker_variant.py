@@ -81,6 +81,33 @@ def score_margins(ranker, items: dict, rows: dict, sources: tuple[str, ...]) -> 
     return result
 
 
+def choice_overlap(rows: dict, evaluation: dict) -> dict:
+    from collections import Counter
+
+    counts = Counter()
+    for result in evaluation["rows"]:
+        source = result["source"]
+        bank = rows[source]["bank"]
+        statuses = {record["program_sha256"]: record["status"] == "equivalent"
+                    for record in rows[source]["diagnosis"]["comparisons"]}
+        scored = [candidate for candidate in bank["candidates"]
+                  if candidate["joint_score"] is not None]
+        joint = max(scored, key=lambda candidate: candidate["joint_score"])[
+            "program_sha256"] if scored else None
+        if joint is not None and joint not in statuses:
+            raise ValueError("joint-score candidate lacks an independent comparison")
+        counts[(bool(result["incumbent_correct"]), bool(statuses.get(joint, False)),
+                bool(result["selected_correct"]))] += 1
+    if sum(counts.values()) != evaluation["population"]:
+        raise ValueError("choice overlap population differs from paired evaluation")
+    return {"ordinary_correct": evaluation["incumbent_correct"],
+            "joint_correct": sum(number for (_, joint, _), number in counts.items() if joint),
+            "ranker_correct": evaluation["ranker_correct"],
+            "oracle_union": sum(number for choices, number in counts.items() if any(choices)),
+            "joint_patterns": {"-".join(str(int(value)) for value in choices): number
+                               for choices, number in sorted(counts.items())}}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--training-report", type=Path, required=True)
@@ -162,11 +189,13 @@ def main() -> None:
                 or margin["chosen_correct"] != row["selected_correct"]
                 or margin["incumbent_correct"] != row["incumbent_correct"]):
             raise ValueError("margin and evaluation disagree on a paired source")
+    overlap = choice_overlap(rows, result)
     body = {"schema": "aura.semantic_nested_ranker_variant_evaluation.v1",
             "training_receipt_sha256": training["receipt_sha256"],
             "variant_bank_report_sha256": hashlib.sha256(variant_report_raw).hexdigest(),
             "source_report_sha256": training["source_report_sha256"],
-            "evaluation": result, "score_margins": margins, "development_only": True,
+            "evaluation": result, "score_margins": margins, "choice_overlap": overlap,
+            "development_only": True,
             "qualification_evidence": False, "serving_authority": False}
     payload = json.dumps({**body, "receipt_sha256": _digest(body)}, sort_keys=True).encode()
     args.output.parent.mkdir(parents=True, exist_ok=True)

@@ -1,6 +1,10 @@
 """A frozen selector can be compared only on its own held construction fold."""
 
-from tools.evaluate_nested_semantic_ranker_variant import _digest, verify_variant
+from tools.evaluate_nested_semantic_ranker_variant import (
+    _digest,
+    choice_overlap,
+    verify_variant,
+)
 
 
 def _fixtures():
@@ -28,3 +32,18 @@ def test_variant_requires_matching_source_and_partitions():
             pass
         else:
             raise AssertionError("cross-fold variant was accepted")
+
+
+def test_choice_overlap_keeps_joint_and_ranking_outcomes_separate():
+    rows = {"one": {"bank": {"candidates": [
+        {"program_sha256": "a", "joint_score": 0.1},
+        {"program_sha256": "b", "joint_score": 0.9}]},
+        "diagnosis": {"comparisons": [
+            {"program_sha256": "a", "status": "different"},
+            {"program_sha256": "b", "status": "equivalent"}]}}}
+    evaluation = {"population": 1, "incumbent_correct": 0, "ranker_correct": 0,
+                  "rows": [{"source": "one", "incumbent_correct": False,
+                            "selected_correct": False}]}
+    assert choice_overlap(rows, evaluation) == {
+        "ordinary_correct": 0, "joint_correct": 1, "ranker_correct": 0,
+        "oracle_union": 1, "joint_patterns": {"0-1-0": 1}}

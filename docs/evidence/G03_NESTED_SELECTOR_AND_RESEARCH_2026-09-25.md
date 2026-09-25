@@ -202,4 +202,6 @@ five joint only, two ordinary-plus-ranker only, and 54 all-wrong. This is an
 oracle upper bound on choosing among these three outputs, not a result Aura
 can obtain at runtime. The missing mechanism is target-free arbitration that
 captures part of this complementarity on fresh constructions without
-discarding the 46 ordinary-plus-joint successes.
+discarding the 46 ordinary-plus-joint successes. The overlap is replayable
+from the signed bank and frozen weights at
+`~/.aura/rlc-evidence/semantic-argument-ranker-overlap-outer0-20260925/report.json`.
