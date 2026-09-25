@@ -332,3 +332,15 @@ normalization before checking split identities. The completed artifact cannot
 gain that new identity retroactively. The next experiment must address the
 remaining operation and alias-binding failures under the source-order contract
 and retain paired regression accounting.
+
+The read-only replay in `tools/profile_semantic_source_order_misses.py` checked
+the saved candidate, validation receipt and cohort identity, then decoded only
+the 13 failed validation rows. Its signed profile is
+`~/.aura/rlc-evidence/semantic-source-order-fit-20260925/miss-profile.json`
+(`cd2b458357ab2328c21581185a1e2d0db1420843e2d7d40c20b7b7711c0502c4`).
+Six rows select a different operation multiset, five keep the operations but
+bind arguments differently, and two reverse operation order. The five
+cataphoric misses are construction 5 and the eight reserved-alias misses are
+also construction 5. This is a development-set diagnosis, not evidence that
+any alternative selection policy will transfer. The common unresolved task is
+binding a delayed or named value to the correct role in a dependency chain.
