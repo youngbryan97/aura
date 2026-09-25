@@ -163,6 +163,29 @@ def test_the_field_is_a_live_organ_not_a_declared_one():
     assert "field=" in source
 
 
+def test_the_experience_frame_is_not_held_by_the_organ_kit():
+    """It is replaced every turn, so one resolved at build time is never a frame."""
+    import inspect
+
+    from core.subject import state as subject_state
+
+    source = inspect.getsource(subject_state.Organs.live)
+    assert "experience=" not in source
+    assert callable(subject_state._experience_frame)
+
+
+def test_a_frame_in_the_container_reaches_the_column():
+    from core.container import ServiceContainer
+
+    state = AuraState.default()
+    ServiceContainer.set("continuous_experience_frame", _Frame(0.22), required=False)
+    try:
+        reading = _read(state)
+        assert _column(reading, "S.unity_ownership_confidence") == pytest.approx(0.22)
+    finally:
+        ServiceContainer.set("continuous_experience_frame", None, required=False)
+
+
 # ── the selfhood tick's own numbers ──────────────────────────────────────
 
 
