@@ -303,6 +303,29 @@ class EternalMemoryPhase(Phase):
 # ──────────────────────────────────────────────────────────────
 # PHASE 2: TrueEvolutionPhase → bounded evolution proposal loop
 # ──────────────────────────────────────────────────────────────
+def hand_insight_to_her_initiative(insight: object, *, curiosity: float) -> bool:
+    """A morphic clone's insight, handed to the queue her initiatives come from.
+
+    It was put on an "initiative_queue" that nothing builds and nothing drains,
+    so every insight a clone produced was dropped. The synthesizer's impulse
+    queue is the one her overt actions and continuous cognition draw from. It
+    arrives as a curiosity impulse, as pressing as the curiosity that spawned
+    the clone, and goes through the same governance as any other impulse.
+    """
+    content = str(getattr(insight, "content", insight) or "").strip()
+    if not content:
+        return False
+    from core.initiative_synthesis import get_initiative_synthesizer
+
+    return get_initiative_synthesizer().submit(
+        content,
+        source="morphic_clone",
+        urgency=min(1.0, max(0.0, float(curiosity))),
+        drive="curiosity",
+        metadata={"type": "morphic_insight"},
+    )
+
+
 class TrueEvolutionPhase(Phase):
     """Morphic exploration plus governed self-modification proposal routing."""
 
@@ -338,6 +361,7 @@ class TrueEvolutionPhase(Phase):
         ):
             logger.info("🧬 Spawning morphic clone for deep evolution...")
             captured_objective = str(objective)  # capture a scalar, not the state
+            captured_curiosity = float(state.affect.curiosity)
 
             async def _background_explore():
                 try:
@@ -350,22 +374,7 @@ class TrueEvolutionPhase(Phase):
                         allow_cloud_fallback=False,
                     )
                     if res:
-                        # Write to a shared queue, not the captured state object
-                        from core.container import ServiceContainer
-
-                        queue = ServiceContainer.get("initiative_queue", default=None)
-                        if queue is not None:
-                            await queue.put(
-                                {
-                                    "type": "morphic_insight",
-                                    "content": res,
-                                    "timestamp": time.time(),
-                                }
-                            )
-                        else:
-                            logger.debug(
-                                "Evolution: initiative_queue not registered; insight dropped."
-                            )
+                        hand_insight_to_her_initiative(res, curiosity=captured_curiosity)
                 except (ImportError, AttributeError, RuntimeError) as e:
                     _record_upgrades_degradation(
                         e,

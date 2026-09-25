@@ -1069,18 +1069,11 @@ async def record_conversation_experience(
             "Relationship topology update abstained: exact-agent recall/prompt consent absent."
         )
 
-    try:
-        user_model = service_access.optional_service(
-            "user_model", "theory_of_mind_user_model", default=None
-        )
-        if user_model and hasattr(user_model, "update_from_interaction"):
-            user_model.update_from_interaction(user_input, aura_response, {"source": "chat_api"})
-    except (RuntimeError, AttributeError, TypeError) as exc:
-        _record_conversation_degradation(
-            exc,
-            action="skipped user model update for this exchange",
-        )
-        logger.debug("User model update skipped: %s", exc)
+    # Her model of the person learns from each exchange elsewhere: theory of
+    # mind reads the message as it arrives (incoming_seams) and watches what
+    # they did and asked in the conversational dynamics phase. The read that
+    # stood here asked for a "user_model" nothing registers and a method no
+    # class defines.
 
     try:
         learner = service_access.optional_service(

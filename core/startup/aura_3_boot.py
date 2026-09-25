@@ -19,7 +19,7 @@ from core.container import ServiceContainer
 from core.intent.intent_gate import register_intent_gate
 from core.memory.horcrux import HorcruxManager
 from core.memory.cognitive_vault import CognitiveVault
-from core.consciousness.substrate_governor import SubstrateGovernor
+from core.consciousness.substrate_governor import get_substrate_governor
 from core.memory.black_hole import BlackHole
 
 logger = logging.getLogger("Aura.Boot")
@@ -56,7 +56,7 @@ class ZenithBootloader:
             vault = CognitiveVault()
             ServiceContainer.register_instance("vault", vault)
             
-            governor = SubstrateGovernor()
+            governor = get_substrate_governor()
             ServiceContainer.register_instance("governor", governor)
             
             intent_gate = register_intent_gate()

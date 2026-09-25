@@ -141,25 +141,26 @@ def test_memory_pressure_snapshot_counts_child_inference_workers(
 
 def test_memory_pressure_snapshot_uses_darwin_footprint_when_larger_than_rss(monkeypatch):
     import core.utils.memory_monitor as memory_monitor
-
-    monkeypatch.setattr(
-        memory_monitor.psutil,
-        "virtual_memory",
-        lambda: _vm(total_gb=64.0, available_gb=24.0, percent=62.0),
-    )
-    monkeypatch.setenv("AURA_PROCESS_RSS_LIMIT_GB", "18")
-    _patch_process_rss(monkeypatch, memory_monitor, 3.0)
-    monkeypatch.setattr(
-        memory_monitor,
-        "_darwin_phys_footprint_bytes",
-        lambda _pid: int(21.0 * 1024**3),
-    )
-
     from core.runtime.resource_observation import HostResourceObserver
 
-    snapshot = memory_monitor.get_memory_pressure_snapshot(
-        observer=HostResourceObserver()
-    )
+    # Scoped, because the fake process replaces psutil's for the whole module
+    # and conftest's leak check reads real processes during teardown.
+    with monkeypatch.context() as patched:
+        patched.setattr(
+            memory_monitor.psutil,
+            "virtual_memory",
+            lambda: _vm(total_gb=64.0, available_gb=24.0, percent=62.0),
+        )
+        patched.setenv("AURA_PROCESS_RSS_LIMIT_GB", "18")
+        _patch_process_rss(patched, memory_monitor, 3.0)
+        patched.setattr(
+            memory_monitor,
+            "_darwin_phys_footprint_bytes",
+            lambda _pid: int(21.0 * 1024**3),
+        )
+        snapshot = memory_monitor.get_memory_pressure_snapshot(
+            observer=HostResourceObserver()
+        )
 
     assert snapshot.level == "emergency"
     assert snapshot.refuse_heavy_local_generation is True

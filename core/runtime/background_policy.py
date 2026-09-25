@@ -386,6 +386,23 @@ def _bounded_hz(value: float, *, lower: float = 0.1, upper: float = 1000.0) -> f
     return min(float(upper), value)
 
 
+#: The share of their own rate her constitutive loops run at, set by how much
+#: she means to act. The substrate governor publishes it when her volition
+#: level changes, and it stays 1.0 until then. The foundation may not import
+#: the governor, so the governor pushes the share down here.
+_VOLITION_RATE: float = 1.0
+
+
+def set_volition_rate(share: float) -> None:
+    """Record the share of their rate her loops may run at, clamped to [0, 1]."""
+    global _VOLITION_RATE
+    _VOLITION_RATE = min(1.0, max(0.0, float(share)))
+
+
+def volition_rate() -> float:
+    return _VOLITION_RATE
+
+
 def constitutive_compute_budget(
     component: str,
     base_hz: float,
@@ -425,6 +442,10 @@ def constitutive_compute_budget(
     if global_override is not None:
         effective = min(effective, _bounded_hz(global_override, lower=floor, upper=base))
         reason = "global_override" if reason == "nominal" else f"{reason}+global_override"
+
+    if _VOLITION_RATE < 1.0:
+        effective = min(effective, _bounded_hz(base * _VOLITION_RATE, lower=floor, upper=base))
+        reason = "volition" if reason == "nominal" else f"{reason}+volition"
 
     try:
         from core.runtime.proof_policy import proof_run_active

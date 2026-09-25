@@ -25,7 +25,6 @@ from typing import Any
 
 from core.actuators.actuator_registry import ActuatorResult, BaseActuator
 from core.actuators.authority import verify_actuator_authority
-from core.container import ServiceContainer
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.runtime.wall_clock import wall_time
 
@@ -208,6 +207,13 @@ def _tail_preview(path: str) -> str:
     lines = text.splitlines()[-_PREVIEW_LINES:]
     return "\n".join(line[:_PREVIEW_MAX_LINE] for line in lines)
 
+
+
+def _the_governor():
+    """The substrate governor, which only a boot module nothing imports registered."""
+    from core.consciousness.substrate_governor import get_substrate_governor
+
+    return get_substrate_governor()
 
 class ProcessSupervisorActuator(BaseActuator):
     """Actuator to manage, inspect, and kill background jobs."""
@@ -489,7 +495,7 @@ class ProcessSupervisorActuator(BaseActuator):
     def _lease_governor(self) -> None:
         if self._governor_leased:
             return
-        governor = ServiceContainer.get("governor", default=None)
+        governor = _the_governor()
         if governor:
             try:
                 governor.apply_volition_profile(3)  # 20.0 Hz focus while jobs run
@@ -500,7 +506,7 @@ class ProcessSupervisorActuator(BaseActuator):
     def _release_governor(self) -> None:
         if not self._governor_leased:
             return
-        governor = ServiceContainer.get("governor", default=None)
+        governor = _the_governor()
         if governor:
             try:
                 governor.apply_volition_profile(1)  # revert to 10.0 Hz reflective

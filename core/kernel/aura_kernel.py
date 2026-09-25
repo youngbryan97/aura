@@ -639,11 +639,14 @@ class AuraKernel(_TicksAndShutsDown):
 
         logger.info("🔥 [VOLITION] Level shifted: %d -> %d", old_level, self.volition_level)
 
-        # Update governor if available
-        gov = ServiceContainer.get("substrate_governor", default=None)
+        # The governor sets the share of their rate her background loops run
+        # at. Read from its module: "substrate_governor" is registered nowhere,
+        # so a change of volition never reached it.
+        from core.consciousness.substrate_governor import get_substrate_governor
+
+        gov = get_substrate_governor()
         if gov:
             try:
-                # We assume the governor will be updated to handle this
                 gov.apply_volition_profile(self.volition_level)
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 _record_kernel_degradation(

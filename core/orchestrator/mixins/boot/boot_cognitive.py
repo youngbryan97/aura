@@ -567,6 +567,12 @@ class BootCognitiveMixin:
             from core.learning.continuous_learning import ContinuousLearningEngine
 
             self.learning_engine = ContinuousLearningEngine(orchestrator=self)
+            # The chat route records each exchange into it by this name. The
+            # post_think hook below was its only other way in, and nothing
+            # triggers post_think, so it had recorded nothing.
+            ServiceContainer.register_instance(
+                "continuous_learning", self.learning_engine, required=False
+            )
 
             # Register Hooks
             async def on_post_think_learning(message, thought):

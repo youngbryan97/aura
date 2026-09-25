@@ -60,6 +60,32 @@ def _record_conversational_degradation(
     )
 
 
+
+def _let_theory_of_mind_watch(engine: object, who: str, dynamics: object, state: object) -> None:
+    """Hand theory of mind what the person just did, facing her last move."""
+    if not relational_memory_allows(who, "derived_profile", "recall"):
+        return
+    try:
+        from core.consciousness.theory_of_mind import watch_the_turn
+
+        her_last = next(
+            (
+                str(entry.get("content", "") or "")
+                for entry in reversed(list(getattr(state.cognition, "working_memory", []) or []))
+                if isinstance(entry, dict) and str(entry.get("role", "")).lower() in {"assistant", "aura"}
+            ),
+            "",
+        )
+        her_act = engine._classify_speech_act(her_last)[0] if her_last else ""
+        watch_the_turn(
+            who,
+            their_act=str(dynamics.last_speech_act or ""),
+            her_act=her_act,
+            topic=str(dynamics.current_topic or ""),
+        )
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        _record_conversational_degradation(exc, action="theory of mind did not see this turn")
+
 class ConversationalDynamicsPhase(Phase):
     """
     Computes full conversational state before response generation:
@@ -621,6 +647,7 @@ class ConversationalDynamicsPhase(Phase):
         # Assistance is the wrong response to testimony and nothing here
         # could tell the difference before. See core/expression/register.py.
         await self._let_the_record_see_this_turn(new_state, objective, active_user_id)
+        _let_theory_of_mind_watch(engine, active_user_id, dynamics, state)
         self._read_register(new_state, objective)
         self._read_witness(new_state)
         self._read_recognition(new_state, objective)
@@ -985,9 +1012,10 @@ class ConversationalDynamicsPhase(Phase):
             from core.container import ServiceContainer
 
             isub = get_intersubjectivity_engine()
-            # Feed interlocutor data from user model if available
+            # Feed interlocutor data from her model of them. This asked for a
+            # "user_model" nothing registers; the model is theory of mind's.
             try:
-                user_model = ServiceContainer.get("user_model", default=None)
+                user_model = ServiceContainer.get("theory_of_mind", default=None)
                 if (
                     user_model
                     and hasattr(user_model, "get_profile")

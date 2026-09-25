@@ -273,3 +273,18 @@ class StructuralOpacityMonitor:
             "status": status.get("status", "no_data"),
             "trajectory_depth": len(self._state_trajectory),
         }
+
+
+_monitor: StructuralOpacityMonitor | None = None
+
+
+def get_structural_opacity_monitor() -> StructuralOpacityMonitor:
+    """The one monitor. It holds two bounded histories, so building it is cheap.
+
+    Nothing built one, so the unified audit read its opacity as 0.0 on every
+    run and the structural-opacity theory was scored without a measurement.
+    """
+    global _monitor
+    if _monitor is None:
+        _monitor = StructuralOpacityMonitor()
+    return _monitor

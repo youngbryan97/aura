@@ -401,8 +401,10 @@ class ConsciousnessAuditSuite:
         error = None
         metrics: Dict[str, Any] = {}
         try:
+            from core.consciousness.structural_opacity import get_structural_opacity_monitor
             from core.container import ServiceContainer
-            monitor = ServiceContainer.get("structural_opacity_monitor", default=None)
+
+            monitor = get_structural_opacity_monitor()
             substrate = ServiceContainer.get("conscious_substrate", default=None)
             if monitor and substrate and hasattr(substrate, "x") and hasattr(substrate, "W"):
                 sig = await asyncio.to_thread(monitor.measure, substrate.x, substrate.W)

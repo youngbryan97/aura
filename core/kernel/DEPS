@@ -29,6 +29,7 @@ include_rules = [
     "+core.goals",
     "+core.governance_context",
     "+core.health",
+    "+core.initiative_synthesis",
     "+core.introspection",
     "+core.learning",
     # Organ startup warms the existing shared encoder; it does not own a second model.

@@ -58,26 +58,7 @@ DORMANT: dict[str, str] = {
     "conversation_intelligence": _PROMPT_TEXT,
     "humor_engine": _PROMPT_TEXT,
     "relational_intelligence": _PROMPT_TEXT,
-    "substrate_governor": (
-        "the governor is built only by core/startup/aura_3_boot.py, which no boot "
-        "path imports, and there under the name 'governor'"
-    ),
-    "initiative_queue": "no module builds a queue; the kernel's morphic insights have nowhere to go",
     "conversational_profiler": _PROMPT_TEXT,
-    "user_model": "the reader calls update_from_interaction, which no class in the tree defines",
-    "theory_of_mind_user_model": "the reader calls update_from_interaction, which no class in the tree defines",
-    "continuous_learning": (
-        "boot builds this engine as orchestrator.learning_engine and its post_think hook "
-        "already records each exchange; registering it here would record every one twice"
-    ),
-    "continuous_learning_engine": (
-        "boot builds this engine as orchestrator.learning_engine and its post_think hook "
-        "already records each exchange; registering it here would record every one twice"
-    ),
-    "structural_opacity_monitor": (
-        "no module builds the monitor, so the unified audit's opacity reading is 0.0 on "
-        "every run; building it is a change to what the audit claims"
-    ),
 }
 
 _READERS = {"get_runtime_service", "optional_service", "has_runtime_service", "require_service"}

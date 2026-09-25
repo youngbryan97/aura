@@ -62,9 +62,17 @@ class SubstrateGovernor:
         """
         hz_map = {0: 5.0, 1: 10.0, 2: 15.0, 3: 20.0}
         new_hz = hz_map.get(level, 5.0)
-        
+
         logger.info("⚡ [VOLITION] Governor applying profile L%d (%.1fHz)", level, new_hz)
         self._target_hz = new_hz
+        # What the rate governs. Nothing called sleep_until_next_tick, so the
+        # profile set a number that paced nothing. Her constitutive loops take
+        # their rate from the background budget, which now caps each at this
+        # share of its own base: agentic runs them at full rate, lockdown at a
+        # quarter.
+        from core.runtime.background_policy import set_volition_rate
+
+        set_volition_rate(new_hz / max(hz_map.values()))
 
     async def sleep_until_next_tick(self):
         """Precise throttle for the main orchestrator loop."""
@@ -91,3 +99,14 @@ class SubstrateGovernor:
             "total_ticks": self._tick_count,
             "mode": "focus" if self._target_hz >= 20.0 else "hibernation"
         }
+
+
+_governor: SubstrateGovernor | None = None
+
+
+def get_substrate_governor() -> SubstrateGovernor:
+    """The one governor. It holds four numbers, so building it is free."""
+    global _governor
+    if _governor is None:
+        _governor = SubstrateGovernor()
+    return _governor

@@ -252,6 +252,22 @@ def it_was_answered_by(said: str, doing: str, *, went_well: bool) -> None:
         return
 
 
+def watch_the_turn(who: str, *, their_act: str, her_act: str, topic: str) -> None:
+    """What somebody did facing what she did, and what their question was about.
+
+    The watching above had no caller: nothing told her what anybody asked or
+    did, so `what_she_knows_about` answered from nothing. The conversational
+    dynamics phase already classifies both moves each turn; this is where they
+    are handed over.
+    """
+    who = _normalize_user_id(who)
+    if not who or not their_act:
+        return
+    they_did(who, facing=her_act or "opening", act=their_act)
+    if their_act == "question" and topic and topic != "general":
+        they_asked(who, [topic])
+
+
 class TheoryOfMindEngine:
     """Projects exact-agent evidence without owning trust, rapport, or sentiment."""
 
@@ -1028,6 +1044,25 @@ class TheoryOfMindEngine:
             "social_confidence": model.social_confidence,
             "social_inference_is_hypothesis": True,
             "abstained": False,
+        }
+
+    def get_profile(self, user_id: str) -> dict[str, Any]:
+        """Her model of somebody, and what watching them has shown.
+
+        Empty when she may not recall them. Engagement is rapport: how much
+        they are with her in the conversation, which is what the reader means.
+        """
+        exact_id = _normalize_user_id(user_id)
+        model = self._load_user(exact_id, purpose="recall") if exact_id else None
+        if model is None:
+            return {}
+        return {
+            "communication_style": str(model.preferences.get("communication_style", "") or ""),
+            "emotional_state": model.emotional_state,
+            "knowledge_level": model.knowledge_level,
+            "engagement": _clamp(model.rapport, 0.5),
+            "trust": _clamp(model.trust_level, 0.5),
+            **what_she_knows_about(exact_id),
         }
 
     def update_from_response(

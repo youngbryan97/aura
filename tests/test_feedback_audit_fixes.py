@@ -3299,7 +3299,8 @@ async def test_conversation_experience_updates_memory_and_learning(monkeypatch):
     state = AuraState.default()
     state.world.relationship_graph = {"bryan": {}}
 
-    captured = {"episode": None, "interaction": None, "user_model": None, "graph": None}
+    captured = {"episode": None, "interaction": None, "graph": None}
+    requested: list[str] = []
 
     class DummyEpisodic:
         async def record_episode_async(self, *args, **kwargs):
@@ -3310,14 +3311,6 @@ async def test_conversation_experience_updates_memory_and_learning(monkeypatch):
         async def record_interaction(self, **kwargs):
             captured["interaction"] = kwargs
             return "ok"
-
-    class DummyUserModel:
-        def update_from_interaction(self, input_text, response_text, metadata=None):
-            captured["user_model"] = {
-                "input_text": input_text,
-                "response_text": response_text,
-                "metadata": metadata,
-            }
 
     class DummyGraph:
         async def register_interaction(self, *args):
@@ -3338,12 +3331,11 @@ async def test_conversation_experience_updates_memory_and_learning(monkeypatch):
     bryan_model = DummyBryanModel()
 
     def fake_optional_service(*names, default=None):
+        requested.extend(names)
         if "episodic_memory" in names:
             return DummyEpisodic()
         if "continuous_learning" in names or "continuous_learning_engine" in names:
             return DummyLearner()
-        if "user_model" in names:
-            return DummyUserModel()
         if "entity_graph" in names or "relationship_graph" in names:
             return DummyGraph()
         if "bryan_model_engine" in names:
@@ -3363,7 +3355,9 @@ async def test_conversation_experience_updates_memory_and_learning(monkeypatch):
     assert captured["episode"] is not None
     assert captured["episode"]["kwargs"]["importance"] >= 0.35
     assert captured["interaction"]["domain"] == "conversation"
-    assert captured["user_model"]["input_text"] == "I want a deeper explanation of this architecture."
+    # Her model of the person learns in the dynamics phase and at intake; the
+    # exchange no longer asks for a "user_model" nothing registers.
+    assert "user_model" not in requested
     assert captured["graph"] == ("aura_self", "bryan", "conversation", "self", "person")
     assert bryan_model._model.total_messages == 2
     assert bryan_model._model.conversation_count == 1
