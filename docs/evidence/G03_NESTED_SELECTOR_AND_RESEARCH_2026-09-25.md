@@ -278,3 +278,35 @@ The CPU-only eight-cohort comparison is reproducible with
 (`4042a6776e459053592a6eafb0133f035a769f7cf955cf4e3e84357236e47698`).
 It asserts measured feature equality only, not universal neural-function
 equivalence or a serving entitlement.
+
+## Source-order input identity
+
+The original program-first corpus sometimes ordered `public_inputs` by
+construction dependency rather than source occurrence. The live extractor
+`semantic_public_character_inputs` orders top-level literals by source
+position. When two inputs shared a value, the decoder could not recover the
+corpus's private register permutation from the values: a correct selection
+span became the wrong input index. A concrete role-binding example had
+`(sequence, selector=3, initial=3)` in the corpus but presented the initial
+literal before the sequence and selector in the source. The frozen decoder
+found the selection and arithmetic spans, then attached them to swapped
+equal-value registers.
+
+`source_order_training_example` now rebinds the public inputs, input spans,
+SSA references, and register-definition spans together. The old training
+contract remains v1; source-order fitting is an explicit v2 opt-in. This is
+label/representation correction, not new model weights or a phrase rule.
+On every one of the 500 selected validation texts, the normalized values
+matched the live character-literal extractor's source order.
+
+The frozen 27B transducer was regraded twice over the same 500 development
+identities with exact register-index scoring. Corpus-order gold gave 472/500;
+live source-order gold gave 485/500, comprising 17 corrected rows and four
+regressions. The signed, non-serving receipt is
+`~/.aura/rlc-evidence/semantic-source-order-regrade-20260925/report.json`
+(`f46dcf5bdc309eff9b909691d12a5543ff02a93ca49281cefacf6711e90ae784`).
+No learning or fresh transfer occurred. Eleven residual misses and all four
+regressions fall in cataphoric construction 5 or reserved-alias construction 5;
+they include distinct operation-label and argument/alias-binding errors.
+Source-order correction is necessary for live equivalence but does not close
+G03 or qualify the unchanged model.
