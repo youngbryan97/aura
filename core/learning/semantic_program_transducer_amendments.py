@@ -179,6 +179,21 @@ class _CarriesItsAmendments:
                     operation_search_max_expansions=max_expansions)
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
+    def with_signature_diverse_operation_charts(
+        self, *, max_table_entries: int
+    ) -> CompositionalSemanticProgramTransducer:
+        """Retain the best bounded chart per operation sequence before ranking."""
+        from .semantic_program_compositional_transducer import _sha, replace
+
+        if type(max_table_entries) is not int or max_table_entries < 1:
+            raise ValueError("signature chart search needs a positive table bound")
+        body = {key: value for key, value in self.training_receipt.items()
+                if key != "receipt_sha256"}
+        body.update(operation_search_policy="signature_diverse_v1",
+                    operation_signature_max_table_entries=max_table_entries)
+        body.pop("operation_search_max_expansions", None)
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
     def with_order_invariant_argument_graph(self) -> CompositionalSemanticProgramTransducer:
         """Let the complete graph decide dependencies regardless of textual order."""
         from .semantic_program_compositional_transducer import (

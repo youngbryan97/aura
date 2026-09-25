@@ -18,8 +18,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.profile_semantic_crossfit_misses import _digest, _load_verified
-from tools.profile_semantic_proposal_gaps import classify_proposal_gap
+from tools.profile_semantic_crossfit_misses import _digest, _load_verified  # noqa: E402
+from tools.profile_semantic_proposal_gaps import classify_proposal_gap  # noqa: E402
 
 
 def classify_inventory(item, ranked_nodes, complete_nodes) -> dict:
@@ -69,6 +69,31 @@ def inventory_nodes(model, item, *, complete: bool):
     )
 
 
+def signature_rank(model, item, nodes, *, max_table_entries: int) -> dict:
+    from core.learning.semantic_operation_search import (
+        OperationSearchIncompleteError,
+        best_charts_by_operation_sequence,
+    )
+    from core.learning.semantic_program_transducer_fitting import _operation_chart_use_feasible
+
+    inputs = tuple(item.public_inputs)
+    target = tuple(instruction.op for instruction in item.ir.instructions)
+    try:
+        charts = best_charts_by_operation_sequence(
+            nodes, max_steps=model.inference_step_limit(len(inputs)),
+            length_penalty=model.operation_length_penalty,
+            feasible=lambda chart: _operation_chart_use_feasible(
+                chart, n_inputs=len(inputs), contract=model.register_use_contract),
+            max_table_entries=max_table_entries)
+    except OperationSearchIncompleteError as exc:
+        return {"signature_rank": None, "signature_count": None,
+                "signature_inventory_complete": False, "reason": str(exc)}
+    rank = next((index for index, chart in enumerate(charts, 1)
+                 if tuple(node.operation for node in chart) == target), None)
+    return {"signature_rank": rank, "signature_count": len(charts),
+            "signature_inventory_complete": True, "reason": None}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bank", type=Path, required=True)
@@ -76,7 +101,11 @@ def main() -> None:
     parser.add_argument("--source-report", type=Path, required=True)
     parser.add_argument("--feature-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--signature-max-table-entries", type=int,
+                        help="also rank exact best charts per operation sequence within this table bound")
     args = parser.parse_args()
+    if args.signature_max_table_entries is not None and args.signature_max_table_entries < 1:
+        parser.error("signature table bound must be positive")
 
     from core.learning.semantic_program_compositional_transducer import (
         compositional_semantic_program_transducer_from_dict,
@@ -105,8 +134,12 @@ def main() -> None:
         gap = classify_proposal_gap(item, row)
         if gap["stage"] == "correct_candidate_observed":
             continue
-        inventory = classify_inventory(item, inventory_nodes(model, item, complete=False),
+        ranked = inventory_nodes(model, item, complete=False)
+        inventory = classify_inventory(item, ranked,
                                        inventory_nodes(model, item, complete=True))
+        if args.signature_max_table_entries is not None and gap["stage"] == "target_operation_chart_not_observed":
+            inventory.update(signature_rank(model, item, ranked,
+                             max_table_entries=args.signature_max_table_entries))
         rows.append({"source": row["source"], "construction": item.construction_id,
                      "proposal_stage": gap["stage"], **inventory})
     by_stage = Counter(stage for row in rows for stage in row["operation_nodes"])
@@ -115,6 +148,7 @@ def main() -> None:
             "candidate_receipt_sha256": model.receipt_sha256,
             "population": len(rows), "by_operation_stage": dict(sorted(by_stage.items())),
             "all_target_nodes_retained": sum(row["all_target_nodes_retained"] for row in rows),
+            "signature_max_table_entries": args.signature_max_table_entries,
             "rows": sorted(rows, key=lambda row: row["source"]),
             "development_only": True, "serving_authority": False}
     payload = json.dumps({**body, "receipt_sha256": _digest(body)}, sort_keys=True).encode()

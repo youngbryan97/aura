@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import heapq
 import math
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from collections.abc import Callable, Iterator, Sequence
 from itertools import count
+from typing import Any
 
 from core.learning.dyadic_scores import DyadicScores
 from core.verify.invariants import invariant
-from typing import Any
 
 
 class OperationSearchIncompleteError(RuntimeError):
@@ -106,6 +106,60 @@ class OperationChartSearch(Iterator):
             self._push(self._successor[index], remaining - 1, (*selected, index), size)
         self.complete = True
         raise StopIteration
+
+
+def best_charts_by_operation_sequence(
+    nodes: Sequence,
+    *,
+    max_steps: int,
+    length_penalty: float,
+    feasible: Callable | None = None,
+    max_table_entries: int = 1_000_000,
+) -> tuple[tuple, ...]:
+    """Exact best nonoverlapping chart for each ordered operation sequence.
+
+    This inventories signatures, not all graphs: a lower-scored span placement
+    with the same operations may bind differently.
+    """
+    if (type(max_steps) is not int or max_steps < 1 or not math.isfinite(length_penalty)
+            or type(max_table_entries) is not int or max_table_entries < 1):
+        raise ValueError("operation-sequence inventory needs finite positive bounds")
+    ordered = tuple(sorted(nodes, key=lambda node: (
+        node.span.end, node.span.start, node.operation, -node.score)))
+    if any(not math.isfinite(node.score) or node.span.start < 0
+           or node.span.end <= node.span.start or not node.operation for node in ordered):
+        raise ValueError("operation-sequence inventory node is invalid")
+    ends = [node.span.end for node in ordered]
+    table = [[{} for _ in range(max_steps + 1)] for _ in range(len(ordered) + 1)]
+    table[0][0][()] = (0.0, ())
+    retained = 1
+    for index, node in enumerate(ordered, 1):
+        prior = bisect_right(ends, node.span.start, hi=index - 1)
+        for size in range(max_steps + 1):
+            current = table[index - 1][size].copy()
+            if size:
+                for signature, (score, chart) in table[prior][size - 1].items():
+                    next_signature = (*signature, node.operation)
+                    proposal = (score + node.score, (*chart, node))
+                    incumbent = current.get(next_signature)
+                    if (incumbent is None or proposal[0] > incumbent[0]
+                            or (proposal[0] == incumbent[0] and
+                                tuple((part.span.start, part.span.end) for part in proposal[1])
+                                < tuple((part.span.start, part.span.end) for part in incumbent[1]))):
+                        current[next_signature] = proposal
+            retained += len(current)
+            if retained > max_table_entries:
+                raise OperationSearchIncompleteError(
+                    f"operation_sequence_inventory_incomplete:table_entries={retained}")
+            table[index][size] = current
+    ranked = []
+    for size in range(1, max_steps + 1):
+        for signature, (score, chart) in table[-1][size].items():
+            if feasible is None or feasible(chart):
+                ranked.append((score - length_penalty * size, signature, chart))
+    ranked.sort(key=lambda row: (-row[0], row[1],
+                tuple((node.span.start, node.span.end) for node in row[2])))
+    return tuple(chart for _, _, chart in ranked)
 
 
 @invariant("learning.operation_search_does_not_drop_low_ranked_charts", scope="learning",

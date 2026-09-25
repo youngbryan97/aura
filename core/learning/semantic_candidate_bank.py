@@ -204,8 +204,11 @@ def decode_semantic_candidates(
     body["observation_sha256"] = candidate_observation_identity(tokens, inputs, hidden)
     if model.training_receipt.get("argument_search_strategy") != "global_constraint_v1":
         return finish("argument_inventory_unsupported")
-    spans, _, argument_scores, charts = model._runtime_operation_charts(
-        tokens, hidden, inputs, model.inference_step_limit(len(inputs)))
+    try:
+        spans, _, argument_scores, charts = model._runtime_operation_charts(
+            tokens, hidden, inputs, model.inference_step_limit(len(inputs)))
+    except OperationSearchIncompleteError as exc:
+        return finish(str(exc))
     if outcome.ir is not None and tuple(spans) != outcome.ir.input_spans:
         raise ValueError("candidate search changed ordinary input grounding")
     charts = iter(charts)

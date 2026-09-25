@@ -105,3 +105,37 @@ how to allocate finite graph-search work over plausible operation charts and
 then select among valid candidates. Any revised policy needs source-only fit,
 matched cost, a new construction holdout, and controls preserving ordinary
 successes. No new policy is qualified by these diagnostics.
+
+## Signature-preserving search, still diagnostic
+
+An exact bounded dynamic program now keeps the highest-scoring nonoverlapping
+chart for each ordered operation sequence. Randomized small-graph tests compare
+every result to exhaustive enumeration; the table has an explicit refusal on
+work exhaustion. This is not exhaustive graph search: a lower-scored span
+placement with the same operations may bind differently.
+
+On the 43 outer-fold sources without a target operation chart, 39 target
+operation sequences appear within the top five *signature representatives*.
+The other four are precisely the label-pruned cataphoric cases identified
+above. This is target-visible **offline diagnosis**, not an inference-time
+oracle. Evidence:
+`~/.aura/rlc-evidence/semantic-operation-signature-outer0-20260925/report.json`.
+
+The existing transducer now has an opt-in `signature_diverse_v1` policy that
+records its work bound in its signed receipt. On one exposed source it surfaced
+the missing `mul, idiv` chart; eight graph alternatives then witnessed an
+equivalent program. Ordinary selection remained wrong. A deliberately small
+fold-1 pilot selected three former misses and three former ordinary successes
+before running the new policy. All six had an equivalent proposal; the three
+controls stayed ordinary-correct, while the three rescued misses stayed
+ordinary-wrong. This is a 3/3 proposal-reach rescue and 0/3 answer rescue on
+a label-selected pilot, not a transfer estimate or promotion evidence.
+Artifacts: `~/.aura/rlc-evidence/semantic-signature-pilot-outer0-20260925/report.json`,
+`~/.aura/rlc-evidence/semantic-signature-pilot-widegraph-outer0-20260925/report.json`,
+and `~/.aura/rlc-evidence/semantic-signature-pilot-fold1-20260925/report.json`.
+
+The six-source pilot took about eight minutes: its 20-second solve allowance
+is reused across chart/graph attempts rather than a whole-source allowance.
+The next mechanism must address selection and work accounting together,
+preserve the incumbent's answer in a mixed candidate bank, and then earn a
+full new-fold comparison with matched time and source-only training.

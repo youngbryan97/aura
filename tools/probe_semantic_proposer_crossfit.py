@@ -203,6 +203,8 @@ def main() -> None:
     parser.add_argument("--solve-seconds", type=float, default=1.)
     parser.add_argument("--complete-operation-max-expansions", type=int,
                         help="diagnostic complete inventory/search with an explicit expansion bound")
+    parser.add_argument("--signature-max-table-entries", type=int,
+                        help="diagnostic best chart per operation sequence with an explicit table bound")
     parser.add_argument("--all-held", action="store_true",
                         help="acquire every source in the held fold, not one per construction")
     parser.add_argument("--reuse-candidate", type=Path,
@@ -216,6 +218,12 @@ def main() -> None:
     if (args.complete_operation_max_expansions is not None
             and args.complete_operation_max_expansions < 1):
         parser.error("complete operation search needs a positive expansion bound")
+    if (args.signature_max_table_entries is not None
+            and args.signature_max_table_entries < 1):
+        parser.error("signature search needs a positive table bound")
+    if (args.signature_max_table_entries is not None
+            and args.complete_operation_max_expansions is not None):
+        parser.error("choose one diagnostic operation search policy")
 
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
@@ -274,6 +282,8 @@ def main() -> None:
                  "original_validation_used_for_fit": False}
     if args.complete_operation_max_expansions is not None:
         plan_body["complete_operation_max_expansions"] = args.complete_operation_max_expansions
+    if args.signature_max_table_entries is not None:
+        plan_body["signature_max_table_entries"] = args.signature_max_table_entries
     plan = {**plan_body, "plan_sha256": _digest(plan_body)}
     args.directory.mkdir(parents=True, exist_ok=True)
     _save_if_absent(args.directory / "plan.json", plan)
@@ -287,6 +297,9 @@ def main() -> None:
         if args.complete_operation_max_expansions is not None:
             candidate = candidate.with_complete_operation_search(
                 max_expansions=args.complete_operation_max_expansions)
+        if args.signature_max_table_entries is not None:
+            candidate = candidate.with_signature_diverse_operation_charts(
+                max_table_entries=args.signature_max_table_entries)
         _save_if_absent(candidate_path, candidate.to_dict())
     else:
         candidate = fit_compositional_semantic_program_transducer(
@@ -304,6 +317,9 @@ def main() -> None:
         if args.complete_operation_max_expansions is not None:
             candidate = candidate.with_complete_operation_search(
                 max_expansions=args.complete_operation_max_expansions)
+        if args.signature_max_table_entries is not None:
+            candidate = candidate.with_signature_diverse_operation_charts(
+                max_table_entries=args.signature_max_table_entries)
         _save_if_absent(candidate_path, candidate.to_dict())
     if (candidate.model_basis_sha256 != parent.model_basis_sha256
             or candidate.input_grounding != parent.input_grounding
@@ -313,7 +329,11 @@ def main() -> None:
             or (args.complete_operation_max_expansions is not None
                 and (candidate.training_receipt.get("operation_search_policy") != "complete_bounded_v1"
                      or candidate.training_receipt.get("operation_search_max_expansions")
-                     != args.complete_operation_max_expansions))):
+                     != args.complete_operation_max_expansions))
+            or (args.signature_max_table_entries is not None
+                and (candidate.training_receipt.get("operation_search_policy") != "signature_diverse_v1"
+                     or candidate.training_receipt.get("operation_signature_max_table_entries")
+                     != args.signature_max_table_entries))):
         raise ValueError("crossfit model saw a held construction")
     (args.directory / "rows").mkdir(exist_ok=True)
     rows = []

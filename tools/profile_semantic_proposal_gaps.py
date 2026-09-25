@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.profile_semantic_crossfit_misses import _digest, _load_verified, classify_row
+from tools.profile_semantic_crossfit_misses import _digest, _load_verified, classify_row  # noqa: E402
 
 
 def classify_proposal_gap(item, row: dict) -> dict:

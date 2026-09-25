@@ -77,6 +77,16 @@ def test_search_limits_do_not_prove_absence(fixture):
     assert bank.receipt["limit_reason"]
 
 
+def test_signature_inventory_exhaustion_is_an_interruption_not_absence(fixture):
+    model, _, kwargs, _ = fixture
+    candidate = model.with_signature_diverse_operation_charts(max_table_entries=1)
+    bank = candidate.decode_candidates(**kwargs, max_charts=2, max_graphs_per_chart=2)
+    assert bank.selected.ir is None
+    assert bank.selected.search_interrupted is True
+    assert bank.receipt["search_complete"] is False
+    assert "operation_sequence_inventory_incomplete" in bank.receipt["limit_reason"]
+
+
 @pytest.mark.parametrize("execution,emission,stage", [
     (None, None, "execution_unmeasured"), (False, None, "execution"),
     (True, None, "emission_unmeasured"), (True, False, "emission"), (True, True, "success"),

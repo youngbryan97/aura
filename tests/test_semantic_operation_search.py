@@ -12,7 +12,11 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from core.learning.semantic_operation_search import OperationChartSearch, OperationSearchIncompleteError
+from core.learning.semantic_operation_search import (
+    OperationChartSearch,
+    OperationSearchIncompleteError,
+    best_charts_by_operation_sequence,
+)
 from core.learning.semantic_program_ir import TokenSpan
 from core.learning.semantic_program_transducer_fitting import _OperationNode, _operation_nodes
 
@@ -38,6 +42,30 @@ def brute(nodes, max_steps):
     ordered = sorted(unique.values(), key=lambda n: key([n]))
     return [chart for size in range(1, max_steps + 1) for chart in itertools.combinations(ordered, size)
             if all(a.span.end <= b.span.start for a, b in zip(chart, chart[1:]))]
+
+
+@pytest.mark.parametrize("seed", range(12))
+def test_signature_inventory_matches_best_exhaustive_nonoverlapping_chart(seed):
+    rng = random.Random(seed)
+    nodes = [node(start, start + rng.randrange(1, 3), rng.randrange(-5, 6),
+                  rng.choice(["add", "subtract", "mul"])) for start in range(6)]
+    nodes += [node(0, 1, 4, "mul"), node(0, 1, -2, "mul")]
+    expected = {}
+    for chart in brute(nodes, 3):
+        signature = tuple(part.operation for part in chart)
+        expected[signature] = max(expected.get(signature, -math.inf),
+                                  float(score(chart, 0)))
+    actual = best_charts_by_operation_sequence(nodes, max_steps=3, length_penalty=0)
+    assert {tuple(part.operation for part in chart): float(score(chart, 0))
+            for chart in actual} == expected
+
+
+def test_signature_inventory_reports_explicit_work_exhaustion():
+    nodes = [node(index, index + 1, 1, operation)
+             for index in range(4) for operation in ("add", "mul")]
+    with pytest.raises(OperationSearchIncompleteError, match="table_entries"):
+        best_charts_by_operation_sequence(nodes, max_steps=4, length_penalty=0,
+                                          max_table_entries=5)
 
 
 @pytest.mark.parametrize("seed", range(12))
@@ -176,6 +204,21 @@ def test_complete_search_roundtrip_preserves_learned_coefficients():
     assert compositional_semantic_program_transducer_from_dict(body).receipt_sha256 == candidate.receipt_sha256
     with pytest.raises(ValueError):
         parent.with_complete_operation_search(max_expansions=-1)
+
+
+def test_signature_diverse_search_is_signed_and_preserves_learned_coefficients():
+    from core.learning.semantic_program_compositional_transducer import compositional_semantic_program_transducer_from_dict
+
+    path = Path(__file__).parents[1] / "artifacts/rlc/semantic_program_27b_frozen_path_v1/transducer.json"
+    parent = compositional_semantic_program_transducer_from_dict(json.loads(path.read_text()))
+    candidate = parent.with_signature_diverse_operation_charts(max_table_entries=5000)
+    assert {k: v for k, v in candidate.to_dict().items() if k != "training_receipt"} == {
+        k: v for k, v in parent.to_dict().items() if k != "training_receipt"}
+    assert candidate.training_receipt["operation_search_policy"] == "signature_diverse_v1"
+    assert compositional_semantic_program_transducer_from_dict(
+        candidate.to_dict()).receipt_sha256 == candidate.receipt_sha256
+    with pytest.raises(ValueError, match="positive table bound"):
+        parent.with_signature_diverse_operation_charts(max_table_entries=0)
 
 
 def test_joint_selection_reaches_an_answer_below_the_old_top_sixteen():
