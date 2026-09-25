@@ -8,6 +8,26 @@ from core.runtime.turn_analysis import analyze_turn
 from core.state.aura_state import AuraState, CognitiveMode
 
 
+@pytest.fixture(autouse=True)
+def not_compounding(monkeypatch):
+    """Her ordinary state: the last few frames did not go badly.
+
+    Routing lifts a reflex into deliberation when the continuous experience
+    stream reports a run of bad frames, so a test that asserts a mode has to
+    say which of the two states it is asserting it in. Every test in this file
+    is about the route rather than about how her last few frames went, and the
+    shared test store accumulates frames across runs and reads as compounding.
+    """
+    from core.consciousness import continuous_experience
+
+    class _Quiet:
+        compounding_report = continuous_experience.CompoundingErrorReport(False)
+
+    monkeypatch.setattr(
+        continuous_experience, "get_continuous_experience_stream", lambda: _Quiet()
+    )
+
+
 def test_user_facing_work_defaults_to_primary():
     assert CognitiveRoutingPhase._resolve_model_tier(True) == "primary"
     assert CognitiveRoutingPhase._resolve_model_tier(False) == "tertiary"

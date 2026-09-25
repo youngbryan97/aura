@@ -3387,9 +3387,20 @@ def test_cognitive_routing_escalates_aura_stance_turns_to_deliberate():
     assert routed.response_modifiers["intent_type"] == "CHAT"
 
 
-def test_cognitive_routing_keeps_self_reflection_on_reactive_grounded_lane():
+def test_cognitive_routing_keeps_self_reflection_on_reactive_grounded_lane(monkeypatch):
+    from core.consciousness import continuous_experience
     from core.phases.cognitive_routing_unitary import CognitiveRoutingPhase
     from core.state.aura_state import AuraState, CognitiveMode
+
+    # Her ordinary state: the last few frames did not go badly. Routing lifts a
+    # reflex into deliberation when they did, so the lane this asserts is the
+    # one she takes when nothing is compounding.
+    class _Quiet:
+        compounding_report = continuous_experience.CompoundingErrorReport(False)
+
+    monkeypatch.setattr(
+        continuous_experience, "get_continuous_experience_stream", lambda: _Quiet()
+    )
 
     class DummyKernel:
         orchestrator = None
