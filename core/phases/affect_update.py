@@ -325,7 +325,7 @@ class AffectUpdatePhase(Phase):
 
         # 2. Emotional Decay (Entropy & Momentum)
         # Ported from DamasioV2.pulse()
-        self._apply_decay(affect)
+        self._apply_decay(affect, state)
         
         # 3. Reactive Updates (from recent percepts)
         # Ported from DamasioV2.react()
@@ -955,7 +955,7 @@ class AffectUpdatePhase(Phase):
 
         affect.resonance = res
 
-    def _apply_decay(self, affect: AffectVector):
+    def _apply_decay(self, affect: AffectVector, state: Any = None):
         """Momentum-based decay towards learned baselines."""
         # Use a small non-deterministic drift (thermal noise)
         drift = random.gauss(0, 0.001)
@@ -1004,11 +1004,41 @@ class AffectUpdatePhase(Phase):
         # value is the one the channel already declares, which makes this the
         # expression above with a baseline of zero.
         rest = PHYSIOLOGY_REST["adrenaline"]
-        ceiling = rest + PHYSIOLOGY_PRESSURE_SPAN["adrenaline"]
+        span = PHYSIOLOGY_PRESSURE_SPAN["adrenaline"]
+        ceiling = rest + span
+        # What she relaxes towards is what her body is actually under, not
+        # zero. The despair spiral below was the channel's only riser, and it
+        # wants sadness above 0.85 with fear above 0.7 and joy under 0.1 at the
+        # same moment, which did not happen once in a 320-turn recording. So
+        # adrenaline read exactly its rest value on every frame, cortisol
+        # follows adrenaline and read exactly its own, and the condition that
+        # runs her under load could not reach her body at all. The pressure is
+        # the runtime's own calibrated reading, so nothing new is invented for
+        # the level; momentum is still what sets how fast she gets there.
+        floor = rest + span * self._body_pressure(state)
         adrenaline = float(affect.physiology.get("adrenaline", rest) or rest)
-        relaxed = (adrenaline * affect.momentum) + (rest * (1 - affect.momentum))
+        relaxed = (adrenaline * affect.momentum) + (floor * (1 - affect.momentum))
         affect.physiology["adrenaline"] = float(min(ceiling, max(rest, relaxed)))
         self._settle_cortisol(affect)
+
+    @staticmethod
+    def _body_pressure(state: Any) -> float:
+        """How hard her body is working, in [0, 1], or nothing when unreadable.
+
+        `BodyState.total_pressure` is the runtime's own calibrated reading, the
+        same one nociception is held at. An absent body is not a resting one,
+        but guessing a level for it would be worse than reading zero, which is
+        what the channel did before this existed.
+        """
+        if state is None:
+            return 0.0
+        try:
+            from core.being.aura_now import BodyState
+
+            return max(0.0, min(1.0, float(BodyState.from_aura_state(state).total_pressure)))
+        # not a failure: a body that cannot be read is not a body under load.
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            return 0.0
 
     @staticmethod
     def _settle_cortisol(affect: AffectVector) -> None:
