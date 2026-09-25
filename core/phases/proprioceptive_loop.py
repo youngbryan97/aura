@@ -155,6 +155,43 @@ def _detect_action_stagnation_into_soma(
         logger.debug("Proprioception stagnation check failed: %s", _stag_exc)
 
 
+def _feel_the_density(soma: Any) -> None:
+    """How densely wired she is, which her self-image was guessing at.
+
+    `soma.expressive["mycelium_density"]` had a default of 0.5 in the state
+    dataclass, a column in the interoception schema, and the largest term of
+    the expressive signal the embodiment estimate hands to phi — 0.55 of it.
+    Nothing in the tree ever wrote it, so a fixed 0.275 sat inside every phi
+    she has ever computed and the column was a constant for every frame of
+    every campaign.
+
+    The network it is named for is real and keeps its own count: nodes and
+    links, published by `get_topology_summary`. Links against links plus nodes
+    is a half when she has as many connections as things to connect and rises
+    from there, which is a density in the ordinary sense, bounded without a
+    scale having to be chosen.
+    """
+    try:
+        from core.container import ServiceContainer
+
+        network = ServiceContainer.get("mycelium", default=None)
+        if network is None:
+            return
+        summary = network.get_topology_summary() or {}
+        nodes = float(summary.get("nodes", 0.0) or 0.0)
+        links = float(summary.get("links", 0.0) or 0.0)
+        if nodes <= 0.0 and links <= 0.0:
+            return
+        soma.expressive["mycelium_density"] = round(links / (links + nodes), 4)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, ZeroDivisionError) as exc:
+        record_degradation(
+            "proprioceptive_loop",
+            exc,
+            severity="debug",
+            action="left the self-image at the density it already held",
+        )
+
+
 def _drain_motor_cortex(self, soma) -> None:
     """The motor cortex's receipts since the last tick, felt as hers.
 
@@ -405,6 +442,7 @@ async def _execute_new_state_new_state(self, state):
         affect.valence, affect.arousal
     )
     soma.expressive["pulse_rate"] = pulse_rate(affect.arousal)
+    _feel_the_density(soma)
 
     # And what she is carrying, which her body had no way of knowing.
     #
