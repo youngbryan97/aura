@@ -228,6 +228,8 @@ def main() -> None:
                     direct_beam_implementation_sha256={
                         str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
                         for path in (ROOT / "core/learning/semantic_program_decoder.py",
+                                     ROOT / "core/learning/semantic_graph_coordinates.py",
+                                     ROOT / "core/learning/semantic_graph_counterexamples.py",
                                      Path(__file__).resolve())},
                     direct_beam_exact_reachable=sum(
                         row["direct_beam"]["exact_reachable"] for row in results),
