@@ -149,3 +149,31 @@ ordinary-correct and candidate-reachable. The pilot's end-to-end process still
 took about 52 seconds including source/model loading, so the allowance must
 not be reported as whole-turn latency. Evidence:
 `~/.aura/rlc-evidence/semantic-signature-bank-budget-pilot-fold1-20260925/report.json`.
+
+## Argument-evidence selection result
+
+The nested source-fold selector was retrained with operation-conditioned
+argument and definition evidence. Three epochs used 388 reachable training
+rows and 1,164 updates. On the unchanged outer bank it selected 151/256,
+against 179/256 ordinary correct: 18 gains and 46 regressions. This improves
+on the plain selector's 108/256 but still loses 28 answers net. The frozen
+weights are rejected for serving. Evidence:
+`~/.aura/rlc-evidence/semantic-argument-ranker-full-outer0-20260925/report.json`.
+
+The frozen selector was also evaluated against a wider bank on the 51
+previously missed outer sources. Thirty became candidate-reachable and it
+selected 12 correct, versus zero ordinary correct on this selected subset.
+That is diagnostic only: selecting misses after seeing labels cannot establish
+a deployable population gain. On one signature-diverse exposed source, the
+bank contained an equivalent program but neither selector found it. A signed
+variant evaluator checks model weights, parent, source corpus, partitions,
+bank receipts, and row identity before comparison. Evidence:
+`~/.aura/rlc-evidence/semantic-argument-ranker-margin-outer0-20260925/report.json`.
+
+The raw score advantage over the incumbent overlaps between gains and
+regressions. The 18 gain margins range 2.09-34.57; the 46 regression margins
+range 0.09-20.34. Choosing an override cutoff after reading these outer
+labels would leak evaluation feedback into selection, so no cutoff is
+qualified. Executing candidates establishes their outputs, not the source's
+intended operation or binding. G03 remains open: selection needs stronger
+independent source evidence, evaluated on a new construction holdout.
