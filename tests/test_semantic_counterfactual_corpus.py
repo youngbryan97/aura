@@ -1,6 +1,8 @@
 """Language contrasts keep register identity, source order and meaning separate."""
 
 from dataclasses import replace
+import hashlib
+from types import SimpleNamespace
 import pytest
 
 from core.learning.procedure_induction import Instruction, Program
@@ -72,6 +74,27 @@ def test_generated_contrasts_are_source_only_and_independently_replay():
         assert outputs == witness['outputs'] and outputs[0] != outputs[1]
     replay, repeated = augment_source_programs((*training, *excluded), seed=12)
     assert repeated == receipt and replay == rows
+
+
+def test_source_variants_remain_in_their_origin_construction_fold():
+    from core.learning.semantic_construction_folds import construction_folds
+
+    by_construction = {}
+    for item in build_semantic_program_corpus(seed=31):
+        if item.split == 'train':
+            by_construction.setdefault(item.construction_id, item)
+    sources = tuple(by_construction.values())
+    variants, _receipt = augment_source_programs(sources, seed=12, lineage_version=2)
+    projected = tuple(SimpleNamespace(
+        ir=SimpleNamespace(source_text_sha256=hashlib.sha256(
+            item.source_text.encode('utf-8')).hexdigest()),
+        split=item.split, construction_id=item.construction_id,
+        contrast_id=item.contrast_id) for item in (*sources, *variants))
+    folds = construction_folds(projected, count=3)
+    for variant in variants:
+        child = hashlib.sha256(variant.source_text.encode('utf-8')).hexdigest()
+        assert folds['assignments'][child] == folds['assignments'][variant.contrast_id]
+    assert len(set(folds['assignments'].values())) == 3
 
 
 def test_evaluation_constructions_cannot_become_training_contrasts():
@@ -156,6 +179,30 @@ def test_existing_feature_materializer_can_acquire_counterfactual_training():
     assert {row.split for row in generated} == {'train'}
     assert {row.contrast_id for row in generated} == training_ids
     assert not {row.source_text for row in generated} & {row.source_text for row in original}
+
+
+def test_v2_feature_materializer_uses_source_hash_lineage_without_changing_v1():
+    from core.learning.semantic_program_feature_materialization import (
+        COUNTERFACTUAL_SOURCE_CORPUS_KIND, COUNTERFACTUAL_SOURCE_CORPUS_V2_KIND,
+        FAMILY_FEATURE_CONFIG_SCHEMA, SemanticFeatureConfig,
+        build_semantic_program_corpus_for_config,
+    )
+    from core.learning.semantic_program_corpus_natural import build_semantic_program_natural_source_corpus
+
+    def generated(kind):
+        return build_semantic_program_corpus_for_config(SemanticFeatureConfig(
+            seed=41, corpus_kind=kind, schema=FAMILY_FEATURE_CONFIG_SCHEMA,
+            max_examples=4096))
+
+    legacy, corrected = generated(COUNTERFACTUAL_SOURCE_CORPUS_KIND), generated(
+        COUNTERFACTUAL_SOURCE_CORPUS_V2_KIND)
+    origins = {row.example_id: row for row in build_semantic_program_natural_source_corpus(seed=41)
+               if row.split == 'train'}
+    assert [row.source_text for row in legacy] == [row.source_text for row in corrected]
+    assert {row.contrast_id for row in legacy} == set(origins)
+    assert {row.contrast_id for row in corrected} == {
+        hashlib.sha256(row.source_text.encode('utf-8')).hexdigest() for row in origins.values()}
+    assert all(row.construction_id.startswith('counterfactual-bound-v2:') for row in corrected)
 
 
 def test_counterfactual_features_roundtrip_through_the_existing_bundle(tmp_path):

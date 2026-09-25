@@ -225,3 +225,16 @@ now reports independent-construction support and refuses a one-construction
 fit, calibration, or admission split even if paraphrases inflate its row
 count. The revised receipt is
 `~/.aura/rlc-evidence/semantic-bank-pairwise-construction-support-outer0-20260925/report.json`.
+
+The existing counterfactual corpus could not safely supply independent groups
+as originally encoded. Its v1 variant used a parent `example_id` as
+`contrast_id`, while `construction_folds` joins by source-text SHA. All v1
+variants also shared one construction ID, which would collapse unrelated
+parent constructions if that lineage link were repaired in place. A new
+`counterfactual_natural_source_v2` kind now joins on the parent's text SHA and
+keeps the parent construction in the variant's construction ID. A regression
+test verifies that each variant stays in its parent's fold without merging
+distinct parent constructions. V1 rendering and its receipt stay unchanged;
+the signed 36-example historical v1 feature bundle was reloaded successfully.
+V2 has no acquired 27B hidden-state bundle or trained selector yet, so it
+cannot be counted as an answer gain or as fresh-family transfer.

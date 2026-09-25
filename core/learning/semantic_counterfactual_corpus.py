@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 from collections.abc import Iterator
+import hashlib
 import random
 import string
 
@@ -26,6 +27,7 @@ def render_bound_program(
     names: Any,
     clause_order: list[Any],
     program: Any=None,
+    lineage_version: int=1,
 ) -> Any:
     """Render named dependencies independently of their textual clause order."""
     program = source.program if program is None else program
@@ -37,7 +39,8 @@ def render_bound_program(
             or any(not isinstance(name, str) or not name.isascii() or not name.isalpha() for name in names)
             or any(type(index) is not int for index in clause_order)
             or sorted(clause_order) != list(range(len(program.instructions)))
-            or any(ins.op not in _BINARY_LANGUAGE for ins in program.instructions)):
+            or any(ins.op not in _BINARY_LANGUAGE for ins in program.instructions)
+            or lineage_version not in (1, 2)):
         raise ValueError('counterfactual source or rendering contract is unsupported')
     types = ['integer_sequence' if isinstance(value, tuple) else 'integer' for value in source.inputs]
     for ins in program.instructions:
@@ -85,11 +88,15 @@ def render_bound_program(
             tuple(text.span(label) for label in labels), tuple(sorted({arg - count for arg in ins.args if arg >= count})))
     text.append('Return ' + names[-1] + '.')
     identity = _sha({'source': source.example_id, 'text': text.text, 'program': program.sha()})
-    return replace(source, example_id=identity, construction_id='counterfactual-bound-v1',
+    return replace(source, example_id=identity,
+        construction_id=(f'counterfactual-bound-v2:{source.construction_id}'
+                         if lineage_version == 2 else 'counterfactual-bound-v1'),
         topology_id=_sha(semantic_program_structural_key(program)), source_text=text.text,
         input_spans=tuple(text.span(f'input:{index}') for index in range(count)),
         instructions=tuple(annotations[index] for index in range(len(annotations))),
-        report_value=count + len(annotations) - 1, contrast_id=source.example_id,
+        report_value=count + len(annotations) - 1,
+        contrast_id=(hashlib.sha256(source.source_text.encode('utf-8')).hexdigest()
+                     if lineage_version == 2 else source.example_id),
         register_definition_spans=tuple(text.span(f'definition:{index}') for index in range(len(names))))
 
 
@@ -135,9 +142,11 @@ def augment_source_programs(
     seed: int=0,
     variations: int=2,
     forbidden_constructions: tuple[Any, ...]=(),
+    lineage_version: int=1,
 ) -> tuple[tuple[Any, ...], dict[str, Any]]:
     """Rename/reorder source programs and retain only witnessed meaning changes."""
-    if type(seed) is not int or type(variations) is not int or variations < 1:
+    if (type(seed) is not int or type(variations) is not int or variations < 1
+            or lineage_version not in (1, 2)):
         raise ValueError('counterfactual generation settings are invalid')
     examples = tuple(examples)
     sources = tuple(item for item in examples if item.split == 'train')
@@ -158,7 +167,8 @@ def augment_source_programs(
                     rng.shuffle(order)
                 names = _names(rng, len(names))
             try:
-                rendered = render_bound_program(source, names=names, clause_order=order)
+                rendered = render_bound_program(source, names=names, clause_order=order,
+                                                lineage_version=lineage_version)
             except ValueError as exc:
                 records.append({'source': source.example_id, 'status': 'unsupported', 'reason': str(exc)})
                 break
@@ -169,7 +179,8 @@ def augment_source_programs(
                             'status': 'equivalent', 'comparison': proof})
         else:
             for program in equivalent_recompositions(source.program):
-                rendered = render_bound_program(source, names=names, clause_order=order, program=program)
+                rendered = render_bound_program(source, names=names, clause_order=order,
+                                                program=program, lineage_version=lineage_version)
                 rows.append(rendered)
                 records.append({'source': source.example_id, 'example': rendered.example_id,
                     'status': 'equivalent', 'transformation': 'associative_recomposition',
@@ -188,7 +199,8 @@ def augment_source_programs(
                 program = replace(source.program, instructions=tuple(
                     instruction if ordinal == index else ann.instruction for ordinal, ann in enumerate(source.instructions)))
                 try:
-                    rendered = render_bound_program(source, names=names, clause_order=order, program=program)
+                    rendered = render_bound_program(source, names=names, clause_order=order,
+                                                    program=program, lineage_version=lineage_version)
                 except ValueError:
                     continue
                 comparison = compare_program_meanings(source.program, program, counterfactual_inputs(source.inputs))
@@ -205,6 +217,8 @@ def augment_source_programs(
         'ignored_nontraining_examples': sum(item.split != 'train' for item in examples),
         'forbidden_constructions': sorted(forbidden_constructions), 'records': records,
         'generated_examples': len(rows), 'test_examples_used': 0, 'serving_authority': False}
+    if lineage_version == 2:
+        body['lineage_version'] = 2
     return tuple(rows), {**body, 'receipt_sha256': _sha(body)}
 
 
@@ -212,13 +226,15 @@ def build_semantic_counterfactual_source_corpus(
     *,
     seed: int=0,
     examples_per_schema_domain: int=1,
+    lineage_version: int=1,
 ) -> Any:
     """Augment existing natural source training, never its validation/test domains."""
     from core.learning.semantic_program_corpus_natural import build_semantic_program_natural_source_corpus
 
     sources = build_semantic_program_natural_source_corpus(
         seed=seed, examples_per_schema_domain=examples_per_schema_domain)
-    rows, receipt = augment_source_programs(sources, seed=seed)
+    rows, receipt = augment_source_programs(sources, seed=seed,
+                                            lineage_version=lineage_version)
     if any(row['status'] == 'unsupported' for row in receipt['records']):
         raise ValueError('declared counterfactual source corpus has unsupported programs')
     return rows
