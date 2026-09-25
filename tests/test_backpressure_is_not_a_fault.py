@@ -134,6 +134,18 @@ def test_a_signed_steering_detachment_is_not_a_fault() -> None:
     assert "logger.warning(" in body[marker - 220 : marker]
 
 
+def test_a_lane_serving_another_model_is_not_a_steering_fault() -> None:
+    """The worker marks a non-cortex lane ineligible and says so at info.
+
+    Live on 2026-09-25 a plan question downgraded to the brainstem under
+    memory pressure warned "substrate state is not modulating inference" on
+    every call, about a model that has nothing to steer.
+    """
+    from core.brain.llm import mlx_client as mc
+
+    assert "non_cortex_model" in mc._EXPECTED_STEERING_DETACHMENTS
+
+
 def test_the_worker_sends_the_disposition() -> None:
     from pathlib import Path
 

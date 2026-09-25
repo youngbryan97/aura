@@ -134,6 +134,12 @@ _EXPECTED_STEERING_DETACHMENTS = frozenset(
         "steering_generation_deferred",
         "steering_generation_retired",
         "neutral",
+        # A lane serving another model than her cortex has nothing to steer:
+        # the worker says "not applicable to non-cortex model lane" at info,
+        # and the parent warned "substrate state is not modulating inference"
+        # on every call, as when a plan question was downgraded to the
+        # brainstem under memory pressure (live, 2026-09-25).
+        "non_cortex_model",
     }
 )
 
