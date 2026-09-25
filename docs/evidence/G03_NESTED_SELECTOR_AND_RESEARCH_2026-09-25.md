@@ -310,3 +310,25 @@ regressions fall in cataphoric construction 5 or reserved-alias construction 5;
 they include distinct operation-label and argument/alias-binding errors.
 Source-order correction is necessary for live equivalence but does not close
 G03 or qualify the unchanged model.
+
+A new eight-cohort fit used the source-order labels with the original 764
+training and 500 validation source identities. Its saved candidate is
+`~/.aura/rlc-evidence/semantic-source-order-fit-20260925/candidate.json`
+(`5475bb1bd125078796736c7a42ea4f846a5f48f747c03d2e77cf88422c90b0b5`).
+The signed validation receipt is
+`~/.aura/rlc-evidence/semantic-source-order-fit-20260925/validation.json`
+(`3c444d7df154f49494ef68c74dd8e302dac356751ad1b18336eb6954cfc7e657`).
+The new candidate scored 470/500 against old corpus-order labels and 487/500
+against source-order labels. Against the frozen prior candidate's source-order
+485/500 on those same validation identities, it gained three rows and lost
+one. Thirteen rows remain incorrect. The candidate was not promoted or served.
+The fit used about 19 GB of resident memory; the worker finished and closed.
+
+The completed candidate predates a model-receipt repair: its report names the
+source-order policy, but its model identity does not. Future v2 fits bind
+`source_token_order_v1` into the model training receipt. The shared refit
+loader now refuses any report/model policy mismatch and applies source-order
+normalization before checking split identities. The completed artifact cannot
+gain that new identity retroactively. The next experiment must address the
+remaining operation and alias-binding failures under the source-order contract
+and retain paired regression accounting.

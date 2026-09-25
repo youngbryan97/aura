@@ -249,6 +249,12 @@ def fit_compositional_source_campaign(
              .with_overlap_complete_mentions().with_atomic_literal_arguments()
              .with_feasible_operation_charts().with_order_invariant_argument_graph()
              .with_joint_definition_graph().with_categorical_relation_scores())
+    if source_order_inputs:
+        receipt_body = {key: value for key, value in model.training_receipt.items()
+                        if key != "receipt_sha256"}
+        receipt_body["input_order_policy"] = "source_token_order_v1"
+        model = replace(model, training_receipt={**receipt_body,
+                        "receipt_sha256": _sha(receipt_body)})
     body = {key: value for key, value in report.items() if key != "report_sha256"}
     body.update(schema=("aura.compositional_source_training.v2" if source_order_inputs
                         else "aura.compositional_source_training.v1"),

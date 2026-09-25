@@ -55,6 +55,14 @@ def test_source_order_training_is_versioned_and_keeps_split_identity(source_bund
         key=lambda span: (span.start, span.end))) for item in reordered)
 
 
+def test_source_order_fit_binds_policy_to_model_identity(source_bundles):
+    result = campaign.fit_compositional_source_campaign(
+        source_bundles, input_grounding=_grounding(), source_order_inputs=True)
+    assert result.report["schema"] == "aura.compositional_source_training.v2"
+    assert result.model.training_receipt["input_order_policy"] == "source_token_order_v1"
+    assert result.report["transducer_receipt_sha256"] == result.model.receipt_sha256
+
+
 def test_duplicate_across_training_and_validation_is_rejected(source_bundles):
     item = source_bundles["linear"].examples[0]
     source_bundles["counterfactual"].examples = (replace(item, split="validation"),)

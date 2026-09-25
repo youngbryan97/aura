@@ -4,7 +4,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from tools.refit_semantic_argument_proposals import verify_source_splits
+from tools.refit_semantic_argument_proposals import (
+    source_input_order_policy,
+    verify_source_splits,
+)
 
 
 def example(split, identity):
@@ -45,6 +48,30 @@ def test_changed_validation_is_rejected():
             [example("train", "a"), example("train", "b"), example("validation", "x")],
             receipt(),
         )
+
+
+def test_source_input_order_policy_requires_matching_candidate_and_report():
+    legacy = {"schema": "aura.compositional_source_training.v1"}
+    source_order = {
+        "schema": "aura.compositional_source_training.v2",
+        "input_order_policy": "source_token_order_v1",
+    }
+    old_model = SimpleNamespace(training_receipt={})
+    new_model = SimpleNamespace(training_receipt={
+        "input_order_policy": "source_token_order_v1",
+    })
+    assert source_input_order_policy(old_model, legacy) is None
+    assert source_input_order_policy(new_model, source_order) == "source_token_order_v1"
+    for model, report in (
+        (old_model, source_order),
+        (new_model, legacy),
+        (new_model, {**source_order, "input_order_policy": "other"}),
+        (old_model, {"schema": "unknown"}),
+    ):
+        with pytest.raises(ValueError, match="source input order|unsupported"):
+            source_input_order_policy(model, report)
+
+
 def test_standalone_refit_isolates_state_before_loading_core(tmp_path, monkeypatch):
     import os
     from tools.refit_semantic_argument_proposals import configure_refit_environment
