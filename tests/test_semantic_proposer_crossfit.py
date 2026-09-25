@@ -8,7 +8,11 @@ import pytest
 from core.learning.semantic_construction_folds import construction_folds
 from core.learning.semantic_program_campaign import _sha
 from tools.audit_semantic_proposer_reach import audit_directory
-from tools.probe_semantic_proposer_crossfit import crossfit_partition, proposal_reach_profile
+from tools.probe_semantic_proposer_crossfit import (
+    crossfit_partition,
+    nested_crossfit_partition,
+    proposal_reach_profile,
+)
 
 
 def _examples():
@@ -42,6 +46,30 @@ def test_all_held_reuses_partition_without_omitting_contrasts():
               if folds["assignments"][item.ir.source_text_sha256] == 2}
     assert {item.ir.source_text_sha256 for item in held} == wanted
     assert not wanted & {item.ir.source_text_sha256 for item in fit + calibration}
+
+
+def test_nested_selector_bank_excludes_outer_and_inner_constructions():
+    examples = _examples()
+    outer = json.loads(json.dumps(construction_folds(examples)))
+    inner, fit, calibration, held, outer_excluded = nested_crossfit_partition(
+        examples, outer, 1, 0)
+    assert inner["validation_used"] is False and inner["test_used"] is False
+    assert set(inner["assignments"]) == {
+        item.ir.source_text_sha256 for item in examples
+        if outer["assignments"][item.ir.source_text_sha256] != 1}
+    assert set(outer_excluded) == {
+        item.ir.source_text_sha256 for item in examples
+        if outer["assignments"][item.ir.source_text_sha256] == 1}
+    groups = [{item.construction_id for item in part}
+              for part in (fit, calibration, held)]
+    outer_groups = {item.construction_id for item in examples
+                    if item.ir.source_text_sha256 in outer_excluded}
+    assert all(groups)
+    assert not outer_groups & set.union(*groups)
+    assert not groups[0] & groups[1]
+    assert not groups[0] & groups[2]
+    assert not groups[1] & groups[2]
+    assert all(inner["assignments"][item.ir.source_text_sha256] == 0 for item in held)
 
 
 def test_diagnostic_subset_is_ordered_and_confined_to_held_fold():

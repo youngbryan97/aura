@@ -1176,6 +1176,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Nested selector and research review](evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md):
+  508 source-only inner rows train a selector for a disjoint 256-source outer
+  construction fold. It falls from incumbent 179 correct to 108 (5 gains,
+  76 regressions), so it is rejected. The outer proposal bank reaches 205;
+  selection and proposal absence remain separate open mechanisms.
   [Source-fold miss profile](evidence/G03_SOURCE_MISS_PROFILE_2026-09-25.md)
   separates 764 archived rows into 496 correct selections, 58 one-second
   diagnostic decodes interrupted with a correct candidate, 75 wrong selections with a

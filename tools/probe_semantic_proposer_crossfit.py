@@ -78,6 +78,48 @@ def crossfit_partition(examples: list, folds: dict, fold: int,
     return fit, calibration, held
 
 
+def nested_crossfit_partition(examples: list, outer_folds: dict, outer_fold: int,
+                              inner_fold: int) -> tuple[dict, list, list, list, tuple[str, ...]]:
+    """Generate selector-training proposals with both held levels unseen.
+
+    The outer holdout belongs to the selector's evaluation. Inner held
+    constructions supply its training bank, each proposed by a model trained
+    on neither held set. The tokenizer grounding remains the shared signed
+    contract, not a source-fitted target map.
+    """
+    from core.learning.semantic_construction_folds import construction_folds
+
+    if type(inner_fold) is not int or not 0 <= inner_fold < 3:
+        raise ValueError("nested proposer needs one of three inner folds")
+
+    outer_fit, outer_calibration, outer_held = crossfit_partition(
+        examples, outer_folds, outer_fold, all_held=True)
+    available = outer_fit + outer_calibration
+    partitions = None
+    inner_folds = None
+    for seed in range(32):
+        candidate = json.loads(json.dumps(construction_folds(
+            available, count=3, seed=seed)))
+        try:
+            checked = tuple(crossfit_partition(available, candidate, fold, all_held=True)
+                            for fold in range(candidate["count"]))
+        except ValueError as exc:
+            if str(exc) != "no source-only calibration fold preserves fit geometries":
+                raise
+            continue
+        inner_folds, partitions = candidate, checked
+        break
+    if inner_folds is None or partitions is None:
+        raise ValueError("no source-only nested partition preserves fit geometries")
+    fit, calibration, held = partitions[inner_fold]
+    excluded = tuple(sorted(item.ir.source_text_sha256 for item in outer_held))
+    if (set(excluded) & {item.ir.source_text_sha256 for item in fit + calibration + held}
+            or set(item.construction_id for item in outer_held)
+            & set(item.construction_id for item in fit + calibration + held)):
+        raise ValueError("nested proposer retained a selector-held construction")
+    return inner_folds, fit, calibration, held, excluded
+
+
 def _save_if_absent(path: Path, body: dict) -> None:
     from core.runtime.atomic_writer import atomic_write_bytes_if_absent
 
@@ -153,6 +195,8 @@ def main() -> None:
     parser.add_argument("--feature-root", type=Path, required=True)
     parser.add_argument("--folds", type=Path, required=True)
     parser.add_argument("--fold", type=int, required=True)
+    parser.add_argument("--outer-fold", type=int,
+                        help="outer selector holdout; --fold becomes an inner training-bank fold")
     parser.add_argument("--directory", type=Path, required=True)
     parser.add_argument("--max-charts", type=int, default=4)
     parser.add_argument("--max-graphs", type=int, default=2)
@@ -189,9 +233,17 @@ def main() -> None:
     bundles = [name + "=" + str(args.feature_root / name) for name in
                source_report["representation_compatibility"]["source_feature_manifest_sha256s"]]
     examples = load_source_examples(parent, source_report, bundles)
-    fit, calibration, held = crossfit_partition(
-        examples, folds, args.fold, all_held=args.all_held,
-        held_source_ids=tuple(args.held_source_id))
+    nested_folds = None
+    outer_excluded = ()
+    if args.outer_fold is None:
+        fit, calibration, held = crossfit_partition(
+            examples, folds, args.fold, all_held=args.all_held,
+            held_source_ids=tuple(args.held_source_id))
+    else:
+        if args.held_source_id or not args.all_held:
+            parser.error("nested selector bank requires every inner held source")
+        nested_folds, fit, calibration, held, outer_excluded = nested_crossfit_partition(
+            examples, folds, args.outer_fold, args.fold)
     all_sources = sorted(item.ir.source_text_sha256 for item in examples if item.split == "train")
     if parent.training_receipt.get("training_example_ids_sha256") != _sha(all_sources):
         raise ValueError("parent training cohort cannot be established")
@@ -200,6 +252,10 @@ def main() -> None:
                  "source_report_sha256": hashlib.sha256(source_raw).hexdigest(),
                  "folds_sha256": hashlib.sha256(folds_raw).hexdigest(),
                  "fold": args.fold,
+                 "outer_fold": args.outer_fold,
+                 "outer_excluded_ids": list(outer_excluded),
+                 "inner_folds_receipt_sha256": (nested_folds or {}).get("receipt_sha256"),
+                 "inner_fold_seed": (nested_folds or {}).get("seed"),
                  "fit_ids": sorted(item.ir.source_text_sha256 for item in fit),
                  "calibration_ids": sorted(item.ir.source_text_sha256 for item in calibration),
                  "held_ids": sorted(item.ir.source_text_sha256 for item in held),
