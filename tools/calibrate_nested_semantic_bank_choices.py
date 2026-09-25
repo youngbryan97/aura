@@ -60,10 +60,21 @@ def bank_pair(row: dict) -> tuple[dict, dict, bool, bool] | None:
     return left, right, statuses[incumbent], statuses[challenger]
 
 
+def construction_support(rows: list, constructions: dict[str, str]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for source, _pair in rows:
+        if source not in constructions:
+            raise ValueError("pairwise bank source is absent from construction ledger")
+        group = constructions[source]
+        counts[group] = counts.get(group, 0) + 1
+    return dict(sorted(counts.items()))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--outer-bank", type=Path, required=True)
     parser.add_argument("--inner-bank", type=Path, action="append", required=True)
+    parser.add_argument("--folds", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if len(args.inner_bank) != 3:
@@ -77,12 +88,21 @@ def main() -> None:
         NecessaryEvidenceCondition, build_necessary_condition_selector)
     from core.evidence.packet import observe
     from core.evidence.necessary_condition_selector import PairwiseSelectionEvidence
+    from core.learning.semantic_program_campaign import _sha as semantic_sha
     from tools.evaluate_semantic_candidate_ranker import _read_bank
     from tools.train_nested_semantic_ranker import _verified_pair, validate_nested_provenance
 
     outer = _verified_pair(args.outer_bank)
     inners = [_verified_pair(path) for path in args.inner_bank]
     validate_nested_provenance(*outer, inners)
+    folds_raw = args.folds.read_bytes()
+    folds = json.loads(folds_raw)
+    if (hashlib.sha256(folds_raw).hexdigest() != outer[0]["folds_sha256"]
+            or folds.get("schema") != "aura.semantic_construction_folds.v1"
+            or folds.get("receipt_sha256") != semantic_sha({
+                key: value for key, value in folds.items() if key != "receipt_sha256"})):
+        raise ValueError("construction ledger differs from signed nested bank")
+    constructions = {source: group for source, group, _contrast in folds["population"]}
     grouped = {}
     for directory, (plan, report) in zip(
             (args.outer_bank, *args.inner_bank), (outer, *inners), strict=True):
@@ -115,7 +135,16 @@ def main() -> None:
                 for source, (left, right, a, b) in rows]
 
     fit, tune, admission = (grouped[(outer[0]["fold"], fold)] for fold in folds)
-    scorer, scorer_report = fit_calibrated_binary_scorer(binary(fit), binary(tune))
+    support = [construction_support(rows, constructions)
+               for rows in (fit, tune, admission, grouped[(None, outer[0]["fold"])])]
+    if min(len(groups) for groups in support[:3]) < 2:
+        scorer, scorer_report = None, {
+            "admitted": False, "reason": "insufficient_independent_constructions",
+            "construction_counts": [len(groups) for groups in support[:3]],
+            "binary_calibration_observations": len(binary(tune)),
+            "minimum_binary_calibration_observations": 24}
+    else:
+        scorer, scorer_report = fit_calibrated_binary_scorer(binary(fit), binary(tune))
     selector, selector_report = None, {"admitted": False, "reason": "scorer_not_admitted"}
     if scorer is not None:
         necessary = build_necessary_condition_selector((NecessaryEvidenceCondition(
@@ -145,6 +174,7 @@ def main() -> None:
             "outer_bank_receipt_sha256": outer[1]["receipt_sha256"],
             "inner_bank_receipt_sha256s": [pair[1]["receipt_sha256"] for pair in inners],
             "split_pair_counts": [len(fit), len(tune), len(admission), len(outer_rows)],
+            "split_construction_support": support,
             "scorer_report": scorer_report, "selector_report": selector_report,
             "outer_result": outer_result, "development_only": True,
             "qualification_evidence": False, "serving_authority": False}

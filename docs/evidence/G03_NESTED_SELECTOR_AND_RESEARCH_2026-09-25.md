@@ -217,3 +217,11 @@ selector was built and the outer fold was not evaluated through this policy.
 Keeping agreement rows merely to inflate the calibration count would not add
 switch evidence. Evidence:
 `~/.aura/rlc-evidence/semantic-bank-pairwise-calibration-outer0-20260925/report.json`.
+The signed construction ledger makes the limit sharper: all 20 fit pairs are
+one `arithmetic:nominal_nested` construction, and each of the five tuning and
+12 admission pairs is one distinct cataphoric construction. The 31 outer
+disagreements span only two sequential arithmetic constructions. The adapter
+now reports independent-construction support and refuses a one-construction
+fit, calibration, or admission split even if paraphrases inflate its row
+count. The revised receipt is
+`~/.aura/rlc-evidence/semantic-bank-pairwise-construction-support-outer0-20260925/report.json`.

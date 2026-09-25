@@ -1,6 +1,6 @@
 """Bank arbitration features cannot read target labels until evaluation."""
 
-from tools.calibrate_nested_semantic_bank_choices import bank_pair
+from tools.calibrate_nested_semantic_bank_choices import bank_pair, construction_support
 
 
 def _row():
@@ -40,3 +40,9 @@ def test_bank_pair_requires_an_independent_comparison():
         pass
     else:
         raise AssertionError("unverified challenger was accepted")
+
+
+def test_construction_support_counts_groups_not_paraphrase_rows():
+    rows = [("a", None), ("b", None), ("c", None)]
+    assert construction_support(rows, {"a": "same", "b": "same", "c": "other"}) == {
+        "other": 1, "same": 2}
