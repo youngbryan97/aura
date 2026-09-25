@@ -7,6 +7,24 @@ what broke, what fixed it, and where the evidence is. Runs live in
 
 ## 24 September
 
+### 20:05: her capacity was a constant, because nothing registered what it read
+
+The obstruction her substrate's frustration is pushed towards (Berkowitz: an
+obstructed goal frustrates the one pursuing it) is the urgency of her most
+pressing intention times one less her capacity, which already has the shape
+S,D->C asks about. Her capacity read 0.5000 for all 2,400 turns of the seed-7
+validation run while she acted throughout. It, her usefulness in her standing
+and her sense of control in acting-in-decline looked the agency ledger up as a
+runtime service named "agency_ledger", which nothing registers anywhere; the
+subject instrument reads the same ledger through its accessor and saw it move.
+The readings now use the accessor (64c4fc443). Two tests had passed by
+patching the unregistered name.
+
+A probe that builds a stub organism found 309 of the 480 service names the
+code reads resolving to nothing. Most are desktop services the offline
+organism does not build; sixteen have an accessor, no registration found, and
+a reader on her per-turn path. That audit is its own task.
+
 ### 19:50: every report arm now reaches her cortex
 
 The whole-mode dry runs of 23 September all exited cleanly and none measured
