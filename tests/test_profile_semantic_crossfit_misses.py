@@ -40,10 +40,10 @@ def test_incomplete_search_is_not_an_unreachable_domain():
     assert result["observed_correct_operation_signatures"] == []
 
 
-def test_interrupted_public_selection_is_not_ranker_error():
+def test_interrupted_bounded_decode_is_not_ranker_error():
     result = classify_row(_row(None, True, interrupted=True))
-    assert result["stage"] == "public_selection_interrupted"
-    assert result["mechanism"] == "search_interrupted_after_correct_candidate"
+    assert result["stage"] == "bounded_decode_interrupted"
+    assert result["mechanism"] == "diagnostic_budget_expired_after_correct_candidate"
 
 
 def test_inconsistent_reach_and_comparison_refused():

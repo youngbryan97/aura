@@ -66,7 +66,7 @@ def classify_row(row: dict) -> dict[str, Any]:
     if correct and status.get(selected) == "equivalent":
         stage = "correct_selection"
     elif correct and selected is None and row["bank"].get("selected_search_interrupted") is True:
-        stage = "public_selection_interrupted"
+        stage = "bounded_decode_interrupted"
     elif correct:
         stage = "selection_miss"
     elif diagnosis["correct_reachable"] is None and not row["bank"]["search_complete"]:
@@ -76,8 +76,8 @@ def classify_row(row: dict) -> dict[str, Any]:
     else:
         raise ValueError("reach status conflicts with search completeness")
     mechanism = None
-    if stage == "public_selection_interrupted":
-        mechanism = "search_interrupted_after_correct_candidate"
+    if stage == "bounded_decode_interrupted":
+        mechanism = "diagnostic_budget_expired_after_correct_candidate"
     elif stage == "selection_miss":
         if selected_program is None:
             mechanism = "no_selected_candidate"

@@ -1177,8 +1177,8 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   [Source-fold miss profile](evidence/G03_SOURCE_MISS_PROFILE_2026-09-25.md)
-  separates 764 archived rows into 496 correct selections, 58 interrupted
-  public selections with a correct candidate, 75 wrong selections with a
+  separates 764 archived rows into 496 correct selections, 58 one-second
+  diagnostic decodes interrupted with a correct candidate, 75 wrong selections with a
   correct candidate, and 135 incomplete searches without an observed correct
   candidate. It guides the next source-only mechanism, not promotion.
   [Scoped pragmatic evidence](evidence/CONTEXTUAL_PRAGMATICS_2026-09-25.md)
