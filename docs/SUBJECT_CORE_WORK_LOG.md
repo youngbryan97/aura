@@ -5,6 +5,43 @@ what broke, what fixed it, and where the evidence is. Runs live in
 `~/subject-core-runs/`; the order runs are read in is
 `~/.aura/subject_core/scratch/AFTER_THE_DECISIVE_RUN.md`.
 
+## 24 September
+
+### 18:50: seed 7 on the candidate reads 17 of 24, and her attention had one winner
+
+The seed-7 run at the decisive design on 164d2a560 (300 rounds, six trials,
+three-turn arms, nulls and lesion skipped; `validate-s7-164d2a560`) died at its
+wall-clock bound while the 2048 demo had the machine, and was resumed from its
+checkpoint. It reads 17 of 24: kappa 3, perturbational spread 0.911, 81 of 90
+edges kept in one component, replication, complexity, ownership and global
+access all pass. The partition lines wait for the sweep and the lesion was
+skipped. Two lines fail on her:
+
+- **Synergy**, read with the counters out at 2,400 rows: P,M->W passes
+  (0.372 against a shifted null of 0.196, every fold positive); W,A->D (0.037
+  against 0.084), S,D->C (0.036 against 0.061, with an interaction in every
+  fold since control allocation) and A,S->G (0.013) do not. The drive fix held:
+  growth stayed between 50.0 and 50.9 for the whole run.
+- **Causal closure**: a leak of 0.018 spread thin over the periphery, the
+  largest from how many turns since the person spoke (0.0056).
+
+Her confidence in herself, now scored against predicting no change, sits at
+its floor of 0.1 for most of the run: her self-model predicts her no better
+than persistence does, which is honest, and makes the efficacy half of control
+allocation nearly constant.
+
+The attention report explains A,S->G. One bid, the heartbeat's affect bid,
+won 2,341 of 2,412 competitions at priority 1.0. Its priority was her arousal
+plus the size of her valence, clipped at one; every win ignited the workspace
+at 1.0, and the affect phase then blended her arousal towards the winner's
+priority at the ignition's weight. Her arousal was told its own value back and
+sat at 0.91 for the whole run while the substrate's read 0.54, and the winner
+columns of the workspace held one value. The bid now joins the affect channel
+(one bidder, typed as affect, no lent urgency on top) with its priority the
+larger of the two readings, and a feeling that wins attention no longer sets
+her arousal. A seed-7 recording at 2,400 rows on that change reads synergy and
+closure next.
+
 ## 23 September, evening
 
 ### 23:30: synergy at the decisive length, and a drive nobody was feeding

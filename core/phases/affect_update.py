@@ -727,6 +727,14 @@ class AffectUpdatePhase(Phase):
             reading = getattr(workspace, "last_broadcast_arousal", None)
             if not isinstance(reading, dict):
                 return
+            # A feeling that won attention does not arouse her by its own
+            # priority. The affect bid's priority is made from her arousal, so
+            # blending arousal towards it was arousal told its own value back,
+            # at full weight whenever the workspace fully ignited: her arousal
+            # sat at 0.91 for a whole seed-7 run while the substrate's read
+            # 0.54. What other content wins still arouses her.
+            if str(reading.get("source", "")).startswith("affect"):
+                return
             level = float(reading.get("ignition", 0.0))
             if level <= 0.0:
                 return
