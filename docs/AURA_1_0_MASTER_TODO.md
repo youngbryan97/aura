@@ -1181,6 +1181,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   construction fold. It falls from incumbent 179 correct to 108 (5 gains,
   76 regressions), so it is rejected. The outer proposal bank reaches 205;
   selection and proposal absence remain separate open mechanisms.
+  An argument/definition-evidence refit improves to 151/256, with 18 gains
+  and 46 regressions versus the same 179/256 incumbent. It is also rejected;
+  [paired evidence](evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md)
+  keeps G03 open.
   [Source-fold miss profile](evidence/G03_SOURCE_MISS_PROFILE_2026-09-25.md)
   separates 764 archived rows into 496 correct selections, 58 one-second
   diagnostic decodes interrupted with a correct candidate, 75 wrong selections with a

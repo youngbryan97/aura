@@ -177,3 +177,18 @@ labels would leak evaluation feedback into selection, so no cutoff is
 qualified. Executing candidates establishes their outputs, not the source's
 intended operation or binding. G03 remains open: selection needs stronger
 independent source evidence, evaluated on a new construction holdout.
+
+The source construction ledger localizes the harm. On 64
+`fork_join:fork_begin_independently_combine` sources the ordinary selector was
+64/64 and the ranker 44/64, with no ranker gains. On two 64-source sequential
+arithmetic constructions, ordinary was 28/64 and 27/64; the ranker was 24/64
+and 25/64. Those arithmetic constructions account for all 18 ranker gains,
+but also 24 regressions. The family labels were read only for diagnosis after
+outer evaluation. Routing by those labels now would be another leak.
+
+Aura already has `core.evidence.calibrated_candidate_selector` and a semantic
+path ensemble. Reuse them if an independent source-only calibration and a new
+held construction admit a challenger. The present evidence cannot distinguish
+a genuinely better reading from a high-scoring wrong graph on every source;
+neither a second selector implementation nor a margin tuned on this fold
+would close that gap.
