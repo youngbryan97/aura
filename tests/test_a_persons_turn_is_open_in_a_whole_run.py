@@ -97,3 +97,20 @@ def test_turn_once_runs_the_turn_inside_it() -> None:
     asyncio.run(language_organ.opens_the_turn(body)(runtime, Condition("report", "How are you feeling?", origin="user")))
     assert seen and seen[0] is not None and seen[0].is_finalized
     assert seen[0].receipt.served_answer == "an answer"
+
+
+def test_the_turn_is_finalized_as_the_desktops_chat_route_finalizes_it(monkeypatch) -> None:
+    """Under `chat`, not the fail-closed `cognitive_engine`, which raised on an unserved answer."""
+    import core.runtime.turn_outcome as turn_outcome
+
+    seen: list[str] = []
+    original = turn_outcome.finalize_turn
+
+    def finalize(outcome, *, subsystem="turn_outcome"):
+        seen.append(subsystem)
+        return original(outcome, subsystem=subsystem)
+
+    monkeypatch.setattr(turn_outcome, "finalize_turn", finalize)
+    with person_turn(_runtime(whole=True), "user"):
+        pass
+    assert seen == ["chat"]
