@@ -201,6 +201,8 @@ def main() -> None:
     parser.add_argument("--max-charts", type=int, default=4)
     parser.add_argument("--max-graphs", type=int, default=2)
     parser.add_argument("--solve-seconds", type=float, default=1.)
+    parser.add_argument("--bank-seconds", type=float,
+                        help="optional whole-source diagnostic search allowance")
     parser.add_argument("--complete-operation-max-expansions", type=int,
                         help="diagnostic complete inventory/search with an explicit expansion bound")
     parser.add_argument("--signature-max-table-entries", type=int,
@@ -215,6 +217,8 @@ def main() -> None:
     if (args.max_charts < 1 or args.max_graphs < 1 or
             not 0 < args.solve_seconds <= 60):
         parser.error("bounded candidate search needs positive limits")
+    if args.bank_seconds is not None and not 0 < args.bank_seconds <= 600:
+        parser.error("whole-bank diagnostic allowance must be positive and bounded")
     if (args.complete_operation_max_expansions is not None
             and args.complete_operation_max_expansions < 1):
         parser.error("complete operation search needs a positive expansion bound")
@@ -284,6 +288,8 @@ def main() -> None:
         plan_body["complete_operation_max_expansions"] = args.complete_operation_max_expansions
     if args.signature_max_table_entries is not None:
         plan_body["signature_max_table_entries"] = args.signature_max_table_entries
+    if args.bank_seconds is not None:
+        plan_body["bank_seconds"] = args.bank_seconds
     plan = {**plan_body, "plan_sha256": _digest(plan_body)}
     args.directory.mkdir(parents=True, exist_ok=True)
     _save_if_absent(args.directory / "plan.json", plan)

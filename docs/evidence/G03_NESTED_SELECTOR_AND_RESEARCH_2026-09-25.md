@@ -139,3 +139,13 @@ is reused across chart/graph attempts rather than a whole-source allowance.
 The next mechanism must address selection and work accounting together,
 preserve the incumbent's answer in a mixed candidate bank, and then earn a
 full new-fold comparison with matched time and source-only training.
+
+The offline candidate bank now also accepts a separate, opt-in whole-bank
+allowance. It preserves the ordinary decode and marks diagnostic search
+incomplete when that allowance is spent; it does not turn an unobserved
+candidate into an impossibility verdict or shorten Aura's conversational work.
+One fold-1 control replay with a 30-second bank allowance remained
+ordinary-correct and candidate-reachable. The pilot's end-to-end process still
+took about 52 seconds including source/model loading, so the allowance must
+not be reported as whole-turn latency. Evidence:
+`~/.aura/rlc-evidence/semantic-signature-bank-budget-pilot-fold1-20260925/report.json`.

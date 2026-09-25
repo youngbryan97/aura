@@ -145,6 +145,7 @@ def _audit_row(item, model, plan: dict, frozen: dict | None = None) -> dict:
         max_charts=plan["max_charts"],
         max_graphs_per_chart=plan["max_graphs_per_chart"],
         solve_time_limit_s=plan["solve_seconds"],
+        bank_time_limit_s=plan.get("bank_seconds"),
     )
     bank.validate()
     diagnosis = diagnose_semantic_candidate_bank(bank, item)

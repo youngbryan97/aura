@@ -87,6 +87,16 @@ def test_signature_inventory_exhaustion_is_an_interruption_not_absence(fixture):
     assert "operation_sequence_inventory_incomplete" in bank.receipt["limit_reason"]
 
 
+def test_whole_bank_allowance_keeps_ordinary_answer_and_marks_incomplete(fixture):
+    model, _, kwargs, _ = fixture
+    ordinary = model.decode(**kwargs)
+    bank = model.decode_candidates(**kwargs, max_charts=4, max_graphs_per_chart=4,
+                                   bank_time_limit_s=1e-9)
+    assert bank.selected.ir == ordinary.ir
+    assert bank.receipt["search_complete"] is False
+    assert bank.receipt["limit_reason"] == "candidate_bank_budget_exhausted"
+
+
 @pytest.mark.parametrize("execution,emission,stage", [
     (None, None, "execution_unmeasured"), (False, None, "execution"),
     (True, None, "emission_unmeasured"), (True, False, "emission"), (True, True, "success"),
