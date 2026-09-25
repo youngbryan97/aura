@@ -53,6 +53,7 @@ async def test_any_other_failure_is_not_taken_for_a_pool_that_has_gone(monkeypat
 @pytest.mark.asyncio
 async def test_a_first_build_of_a_service_happens_off_the_loop():
     from core.container import ServiceContainer, ServiceLifetime
+    from core.runtime.services_off_the_loop import service_off_the_loop
 
     loop_thread = threading.get_ident()
     built_on: list[int] = []
@@ -64,8 +65,8 @@ async def test_a_first_build_of_a_service_happens_off_the_loop():
     name = "test_first_build_off_the_loop"
     ServiceContainer.register(name, factory, lifetime=ServiceLifetime.SINGLETON)
     try:
-        first = await ServiceContainer.get_async(name, default=None)
-        again = await ServiceContainer.get_async(name, default=None)
+        first = await service_off_the_loop(name, default=None)
+        again = await service_off_the_loop(name, default=None)
     finally:
         ServiceContainer._services.pop(name, None)
     assert first is not None and again is first
@@ -75,9 +76,9 @@ async def test_a_first_build_of_a_service_happens_off_the_loop():
 
 @pytest.mark.asyncio
 async def test_an_absent_service_gives_the_default():
-    from core.container import ServiceContainer
+    from core.runtime.services_off_the_loop import service_off_the_loop
 
-    assert await ServiceContainer.get_async("no_such_service_anywhere", default=None) is None
+    assert await service_off_the_loop("no_such_service_anywhere", default=None) is None
 
 
 def test_the_skill_path_asks_for_its_services_without_building_them_on_the_loop():
@@ -86,8 +87,8 @@ def test_the_skill_path_asks_for_its_services_without_building_them_on_the_loop(
     from core import capability_engine
 
     source = inspect.getsource(capability_engine)
-    assert 'await rt.container.get_async("persistent_state"' in source
-    assert 'await rt.container.get_async("memory_governor"' in source
+    assert 'await service_off_the_loop("persistent_state"' in source
+    assert 'await service_off_the_loop("memory_governor"' in source
 
 
 def test_the_shutdown_verdict_is_written_through_the_lane_that_keeps_it_off_the_loop():

@@ -5886,13 +5886,17 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
             from core.runtime import CoreRuntime
 
             try:
+                # The runtime has to be up for its governance to apply; the
+                # services themselves are asked for below, off the loop.
                 try:
-                    rt = CoreRuntime.get_sync()
+                    CoreRuntime.get_sync()
                 except RuntimeError as exc:
                     if "CoreRuntime not initialized" not in str(exc):
                         raise
-                    rt = await CoreRuntime.get()
-                gov = await rt.container.get_async("memory_governor", default=None)
+                    await CoreRuntime.get()
+                from core.runtime.services_off_the_loop import service_off_the_loop
+
+                gov = await service_off_the_loop("memory_governor", default=None)
                 if gov:
                     check = getattr(gov, "check", None)
                     if callable(check):
@@ -5901,7 +5905,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                             await check_result
                     elif hasattr(gov, "_enforce_policy"):
                         await gov._enforce_policy()
-                orm = await rt.container.get_async("persistent_state", default=None)
+                orm = await service_off_the_loop("persistent_state", default=None)
             except (RuntimeError, OSError, ConnectionError, TimeoutError, ContainerError) as exc:
                 _record_capability_degradation(
                     exc,
@@ -5909,7 +5913,6 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                     severity="degraded" if meta.metabolic_cost >= 3 else "warning",
                 )
                 self.logger.debug("Core runtime memory governance unavailable: %s", exc)
-                rt = None
                 orm = None
 
             # --- Central Resilience Primitives: The Cognitive Governor ---

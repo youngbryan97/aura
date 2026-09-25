@@ -1085,23 +1085,6 @@ class ServiceContainer(_SealsItsKeys):
         )
 
     @classmethod
-    async def get_async(cls, name: str, default: Any = "_SENTINEL") -> Any:
-        """Resolve a service from a coroutine: a built one at once, a first build off the loop.
-
-        Building a service can import a library and open its files. LIVE
-        2026-09-24: the first skill after a boot built the persistent-state
-        store on the event loop, importing sqlalchemy, and the loop stood still
-        for 5.1 s.
-        """
-        missing = object()
-        built = cls.peek(name, default=missing)
-        if built is not missing:
-            return built
-        from core.runtime.executors import off_the_loop
-
-        return await off_the_loop(cls.get, name, default=default)
-
-    @classmethod
     def get_service(cls, name: str, default: Any = "_SENTINEL") -> Any:
         """Legacy alias for get()."""
         return cls.get(name, default=default)
