@@ -152,6 +152,10 @@ class Organs:
     #: every tick and nothing in the core held it, so the closure test read its
     #: extremes from outside and they predicted the core's next state.
     field: Any = None
+    #: The last frame of the continuous experience stream. Its ownership
+    #: confidence is the third of the three the closure test read from outside,
+    #: and it is not a field of the unity state: it is the frame's own.
+    experience: Any = None
 
     @classmethod
     def live(cls) -> Organs:
@@ -199,6 +203,7 @@ class Organs:
             comparator=_agency_comparator(),
             soma=service("soma"),
             field=service("unified_field"),
+            experience=service("continuous_experience_frame"),
         )
 
 
@@ -711,7 +716,7 @@ _SCHEMAS: dict[str, Schema] = {
             # outside the core. See core/unity/unity_monitor.py.
             ("unity_ownership", "cognition.unity_state.agency_ownership_score"),
             ("unity_boundary", "cognition.unity_state.self_world_boundary_score"),
-            ("unity_ownership_confidence", "cognition.unity_state.self_world.ownership_confidence"),
+            ("unity_ownership_confidence", "organ:experience.ownership_confidence"),
         ),
     ),
     "M": _sch(
@@ -1544,12 +1549,17 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
     # Defaults of one, not zero: an unbound moment is not a moment she has
     # disowned, and the monitor's own rest value for all three is full
     # ownership. A zero here would read as a self that had lost the world.
+    kit_experience = organs.experience
+    if kit_experience is None:
+        _miss("organ:experience.ownership_confidence", "organ absent")
     head.extend(
         [
             _f(_dig(state, "cognition.unity_state.agency_ownership_score"), 1.0),
             _f(_dig(state, "cognition.unity_state.self_world_boundary_score"), 1.0),
             _f(
-                _dig(state, "cognition.unity_state.self_world.ownership_confidence"),
+                getattr(kit_experience, "ownership_confidence", None)
+                if kit_experience is not None
+                else None,
                 1.0,
             ),
         ]

@@ -570,10 +570,20 @@ class ConversationalDynamicsPhase(Phase):
             logger.debug("the entity record did not see this turn: %s", exc)
 
     async def _execute_compute_dynamics_latest(self, active_user_id, engine, new_state, objective, state):
-        # Compute dynamics from the latest user message
+        # Whose turn this is, from the origin the turn was opened with. The
+        # role was the constant "user", so `_process_aura_message` was never
+        # reached from here and `turns_since_user_spoke` was set to zero on
+        # every turn and incremented on none: a counter that can only be
+        # reset. Her own autonomous turns were also analysed as though the
+        # person had spoken them, which set the floor, the speech act and the
+        # open question from her own words.
+        from core.kernel.turn_door import USER_ORIGINS
+
+        origin = str(getattr(state.cognition, "current_origin", "") or "").strip().lower()
+        role = "user" if origin in USER_ORIGINS else "assistant"
         dynamics = engine.update(
             message=objective,
-            role="user",
+            role=role,
             working_memory=state.cognition.working_memory
         )
 

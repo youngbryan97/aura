@@ -32,16 +32,17 @@ def _read(state: AuraState, organs: Organs | None = None):
 # ── the unity monitor's two scores and its confidence ────────────────────
 
 
-class _SelfWorld:
-    def __init__(self, confidence: float) -> None:
-        self.ownership_confidence = confidence
-
-
 class _Unity:
-    def __init__(self, ownership: float, boundary: float, confidence: float) -> None:
+    def __init__(self, ownership: float, boundary: float) -> None:
         self.agency_ownership_score = ownership
         self.self_world_boundary_score = boundary
-        self.self_world = _SelfWorld(confidence)
+
+
+class _Frame:
+    """The last frame of the continuous experience stream, which holds the third."""
+
+    def __init__(self, confidence: float) -> None:
+        self.ownership_confidence = confidence
 
 
 def test_an_unbound_moment_reads_as_hers():
@@ -54,18 +55,25 @@ def test_an_unbound_moment_reads_as_hers():
 
 def test_the_core_carries_the_ownership_score():
     state = AuraState.default()
-    state.cognition.unity_state = _Unity(0.42, 0.77, 0.31)
-    reading = _read(state)
+    state.cognition.unity_state = _Unity(0.42, 0.77)
+    reading = _read(state, Organs(experience=_Frame(0.31)))
     assert _column(reading, "S.unity_ownership") == pytest.approx(0.42)
     assert _column(reading, "S.unity_boundary") == pytest.approx(0.77)
     assert _column(reading, "S.unity_ownership_confidence") == pytest.approx(0.31)
 
 
+def test_an_absent_experience_frame_is_a_recorded_miss():
+    """An organ that is not running and a reading of full ownership differ."""
+    reading = _read(AuraState.default())
+    assert _column(reading, "S.unity_ownership_confidence") == pytest.approx(1.0)
+    assert any(source.startswith("organ:experience") for source in reading.misses)
+
+
 def test_the_three_scores_are_three_columns():
     """They move together in life; they must not be one number here."""
     state = AuraState.default()
-    state.cognition.unity_state = _Unity(0.1, 0.9, 0.5)
-    reading = _read(state)
+    state.cognition.unity_state = _Unity(0.1, 0.9)
+    reading = _read(state, Organs(experience=_Frame(0.5)))
     values = [
         _column(reading, "S.unity_ownership"),
         _column(reading, "S.unity_boundary"),

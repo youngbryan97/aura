@@ -14,6 +14,7 @@ from __future__ import annotations
 import inspect
 import logging
 import time
+from collections.abc import MutableMapping
 from typing import Any
 
 from core.runtime.cognitive_contract import (
@@ -524,6 +525,10 @@ async def _execute_new_state_new_state(self, state):
     self._feel_body_pressure(new_state)
     self._report_hardware_stress(new_state)
 
+    # What arrived is weighed before anything reads it, because salience is
+    # hers and nothing was setting it. See core/perception/salience.py.
+    self._weigh_what_arrived(new_state)
+
     # And push the same reading into the substrate's own dimensions.
     # `inject_perceptual_frame` maps telemetry, user state, screen and audio
     # into fixed bands of the continuous substrate, and the only thing in
@@ -627,6 +632,35 @@ class ProprioceptiveLoop(BasePhase):
         for channel in _PROPRIOCEPTIVE_CHANNELS:
             soma.hardware.pop(f"{channel}_degraded", None)
             soma.hardware.pop(f"{channel}_error", None)
+
+    def _weigh_what_arrived(self, state: Any) -> None:
+        """Set the salience of each new arrival, from her own two readings.
+
+        `read_percept` falls back to intensity when a producer sets no
+        salience, and no producer sets one, so every consumer of salience was
+        reading the environment's own number. A percept that already carries a
+        salience is left alone: a producer that separated the two did it on
+        purpose.
+        """
+        try:
+            from core.perception.salience import salience_of
+
+            arousal = getattr(state.affect, "arousal", None)
+            for item in list(getattr(state.world, "recent_percepts", []) or []):
+                if not isinstance(item, MutableMapping):
+                    continue
+                if item.get("salience") is not None:
+                    continue
+                item["salience"] = round(
+                    salience_of(item.get("intensity"), arousal), 4
+                )
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "proprioceptive_loop",
+                exc,
+                severity="debug",
+                action="left this tick's arrivals at the strength their producer wrote",
+            )
 
     def _push_perceptual_frame(self, state: Any) -> None:
         """Give the substrate the frame it was built to take.
