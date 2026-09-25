@@ -192,3 +192,14 @@ held construction admit a challenger. The present evidence cannot distinguish
 a genuinely better reading from a high-scoring wrong graph on every source;
 neither a second selector implementation nor a margin tuned on this fold
 would close that gap.
+
+The methods do have complementary correct choices. Replaying the 256 signed
+rows gives 179 ordinary-correct, 192 joint-score-correct, and 151
+argument-ranker-correct. Their label-aware union is 202; the proposal bank
+contains 205 reachable correct programs. The overlap is 131 all-correct,
+46 ordinary-plus-joint only, 10 joint-plus-ranker only, eight ranker only,
+five joint only, two ordinary-plus-ranker only, and 54 all-wrong. This is an
+oracle upper bound on choosing among these three outputs, not a result Aura
+can obtain at runtime. The missing mechanism is target-free arbitration that
+captures part of this complementarity on fresh constructions without
+discarding the 46 ordinary-plus-joint successes.
