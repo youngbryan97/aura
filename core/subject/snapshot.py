@@ -573,6 +573,30 @@ _STORE_SKIP_SUFFIXES: tuple[str, ...] = ("-wal", "-shm", "-journal", ".lock", ".
 #: The files SQLite keeps beside a database, which live and die with it.
 _SQLITE_COMPANIONS: tuple[str, ...] = ("-wal", "-shm", "-journal")
 
+
+def _between_processes(root: Path) -> tuple[str, ...]:
+    """Where processes tell each other things, which a fork leaves alone.
+
+    The root's `run` directory says which process holds which model, and holds
+    pid files, heartbeats and the shutdown report; the leases elect a leader.
+    The model worker and the watchdog read them from other processes, so a
+    restore rewound them for those processes too. On 24 September every report
+    arm after an anchor's restore found the embedding engine's model lease gone,
+    and the runtime shut its model work down.
+    """
+    from core.runtime.lease import lease_directory
+
+    places = [root / "run", lease_directory()]
+    lane = os.environ.get("AURA_MODEL_LANE_STATE_PATH", "").strip()
+    if lane:
+        places.append(Path(lane).expanduser())
+    return tuple(os.path.realpath(place) for place in places)
+
+
+def _is_between_processes(item: Path, shared: tuple[str, ...]) -> bool:
+    real = os.path.realpath(item)
+    return any(real == place or real.startswith(place + os.sep) for place in shared)
+
 #: What the fork holds in memory for one run's state root. A quick run's root
 #: was 24 MB over 3,178 files, most of them episodic memories and their write
 #: receipts; a root past this bound is not one run's own, and holding it would
@@ -625,7 +649,6 @@ REDIRECTED_DIRECTORIES: tuple[str, ...] = (
     "AURA_RESEARCH_SESSIONS_DIR",
     "AURA_RLC_ACTION_STATE_TEST_ROOT",
     "AURA_RLC_VERIFIED_REPLAY_SFT_PUBLICATION_ROOT",
-    "AURA_RUNTIME_LEASE_DIR",
     "AURA_SANDBOX_DIR",
     "AURA_STATE_DIR",
     "AURA_TEST_RUNTIME_ROOT",
@@ -643,7 +666,6 @@ REDIRECTED_FILES: tuple[str, ...] = (
     "AURA_MEMORY_PERSIST_DEDUP_PATH",
     "AURA_MEMORY_PERSIST_RETRY_QUEUE_PATH",
     "AURA_MESSAGES_DELIVERY_DB",
-    "AURA_MODEL_LANE_STATE_PATH",
     "AURA_ONTOGENY_DB",
     "AURA_PENDING_CHAT_QUEUE_PATH",
     "AURA_REALITY_HISTORIAN_DB",
@@ -663,6 +685,8 @@ NOT_STORES: dict[str, str] = {
     "AURA_ASSET_ROOT": "shared assets nothing writes",
     "AURA_ARK_ROOT": "the existence witness, kept outside the state root so that losing the root does not lose it",
     "AURA_SHM_FALLBACK_DIR": "a transport shared with other processes, which a rewind would rewind for them too",
+    "AURA_MODEL_LANE_STATE_PATH": "which process holds which model, read by the model worker; see _between_processes",
+    "AURA_RUNTIME_LEASE_DIR": "leader-election leases other processes contend for; see _between_processes",
     "AURA_NATIVE_BRIDGE_DIR": "requests and responses exchanged with the desktop app",
     "AURA_NATIVE_BRIDGE_PID_FILE": "the desktop app's single-instance lock",
     "AURA_LIVENESS_HEARTBEAT_FILE": "the watchdog's heartbeat; rewound, it reports a live process as stalled",
@@ -836,10 +860,13 @@ def _store_state() -> dict[str, Any] | None:
     directories: list[str] = []
     places: list[tuple[str, bool, bool]] = []
     total = 0
+    shared = _between_processes(root)
     for place, directory in _store_places(root):
         places.append((str(place), directory, place.exists()))
         for item in sorted(place.rglob("*")) if directory else [place]:
             if directory and "logs" in item.relative_to(place).parts:
+                continue
+            if _is_between_processes(item, shared):
                 continue
             name = str(item)
             if item.is_dir():
@@ -879,6 +906,7 @@ def _restore_stores(saved: dict[str, Any] | None) -> None:
     gateway = get_file_write_gateway()
     entries: dict[str, tuple[str, tuple[int, int], bytes]] = saved["entries"]
     keep = set(entries) | set(saved["directories"])
+    shared = _between_processes(root)
     with _ForkLease("subject_core.fork") as lease:
         for place_name, directory, existed in saved["places"]:
             place = Path(place_name)
@@ -893,7 +921,7 @@ def _restore_stores(saved: dict[str, Any] | None) -> None:
                 name = str(item)
                 if directory and item != place and "logs" in item.relative_to(place).parts:
                     continue
-                if name in keep:
+                if name in keep or _is_between_processes(item, shared):
                     continue
                 if name.endswith(_STORE_SKIP_SUFFIXES):
                     # A database's write-ahead log and shared memory belong to

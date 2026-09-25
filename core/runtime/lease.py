@@ -162,8 +162,8 @@ class LeaseRecord:
         )
 
 
-def _lease_path(name: str) -> Path:
-    """Where this lease lives.
+def lease_directory() -> Path:
+    """Where the leases live.
 
     Overridable because the default is the shared data dir, which every
     concurrent process resolves to the same file — including the live runtime
@@ -176,11 +176,15 @@ def _lease_path(name: str) -> Path:
 
     override = str(os.environ.get("AURA_RUNTIME_LEASE_DIR", "") or "").strip()
     if override:
-        return Path(override).expanduser() / f"{name}.json"
+        return Path(override).expanduser()
 
     from core.config import config
 
-    return Path(config.paths.data_dir) / "runtime" / "leases" / f"{name}.json"
+    return Path(config.paths.data_dir) / "runtime" / "leases"
+
+
+def _lease_path(name: str) -> Path:
+    return lease_directory() / f"{name}.json"
 
 
 def _holder_is_live(identity: Identity) -> bool:
@@ -633,6 +637,7 @@ __all__ = [
     "LeaseRecord",
     "get_elector",
     "is_leader",
+    "lease_directory",
     "lease_report",
     "reset_leases_for_test",
     "should_act_as_singleton",
