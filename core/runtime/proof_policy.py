@@ -7,8 +7,10 @@ proof-specific knobs so individual phases do not quietly diverge.
 
 from __future__ import annotations
 
+import math
 import os
 import re
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 _PROOF_ACTIVE_ENV = ("AURA_PROOF_RUN", "AURA_AGI_MAX_TASKS", "AURA_TESTING")
@@ -258,6 +260,37 @@ def proof_model_tier(default: str = "primary") -> str:
     return "primary"
 
 
+#: How deep a nested reading may be before it stops being one. Two levels
+#: covers a metric and a mapping of metrics; below that a structure is carrying
+#: something other than a measurement.
+_READING_DEPTH = 2
+
+
+def _is_a_reading(value: Any, depth: int = 0) -> bool:
+    """A number she measured, rather than words that could be read as a directive.
+
+    The separation a proof run needs is between what she found out about
+    herself last turn and what somebody told her last turn. Text is the second
+    kind: a rendered claim, a tool result, an open thread. A finite number is
+    the first, and so is a mapping or sequence of them. Nothing else is either,
+    so nothing else is carried.
+    """
+    if isinstance(value, bool):
+        return True
+    if isinstance(value, (int, float)):
+        return math.isfinite(float(value))
+    if depth >= _READING_DEPTH:
+        return False
+    if isinstance(value, Mapping):
+        return bool(value) and all(
+            isinstance(key, str) and _is_a_reading(item, depth + 1)
+            for key, item in value.items()
+        )
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return bool(value) and all(_is_a_reading(item, depth + 1) for item in value)
+    return False
+
+
 def clear_transient_response_modifiers(modifiers: Any, *, strict: bool = False) -> None:
     """Remove per-turn prompt/runtime modifiers before a new turn starts.
 
@@ -265,15 +298,23 @@ def clear_transient_response_modifiers(modifiers: Any, *, strict: bool = False) 
     see the previous transition. That is correct for durable state summaries but
     unsafe for turn-local prompt directives: an old open conversational thread,
     tool result, or recovery flag can become an instruction on the next task.
-    Proof/eval turns use ``strict=True`` to start from an empty transient surface;
-    normal live turns clear only known per-turn keys while preserving any future
-    durable modifiers that are intentionally added.
+    Normal live turns clear the known per-turn keys. Proof/eval turns clear
+    those and then every value that is not a reading.
+
+    ``strict`` used to empty the dict. Every campaign the battery has ever run
+    is a proof run, so that cleared her measurements as well as her directives:
+    the developmental novelty her body reads, phi and the three autonomy gates
+    it sets, the workspace's ignition, the two voices' agreement. Each was
+    written every turn and gone before the next one started, which left the
+    stale snapshot a background task happened to be holding as the only thing
+    that crossed a turn boundary at all.
     """
 
     if not isinstance(modifiers, dict):
         return
-    if strict:
-        modifiers.clear()
-        return
     for key in TRANSIENT_RESPONSE_MODIFIER_KEYS:
+        modifiers.pop(key, None)
+    if not strict:
+        return
+    for key in [name for name, value in modifiers.items() if not _is_a_reading(value)]:
         modifiers.pop(key, None)

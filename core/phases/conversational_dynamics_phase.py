@@ -613,6 +613,7 @@ class ConversationalDynamicsPhase(Phase):
             if not a.is_resolved and a.topic != dynamics.current_topic
         ]
         cog.discourse_branches = available_callbacks
+        cog.turns_since_user_spoke = int(dynamics.turns_since_user_spoke)
 
         # Store the full dynamics state for downstream phases
         new_state.response_modifiers["conv_dynamics_state"] = {

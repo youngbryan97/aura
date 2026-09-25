@@ -793,9 +793,12 @@ def test_proof_policy_defaults_acceptance_runs_to_primary_cortex(monkeypatch):
     assert "last_skill_run" not in modifiers
     assert modifiers["phi"] == 0.42
 
+    # Strict clears the words and keeps the readings. It used to empty the
+    # dict, and every campaign the battery runs is a proof run, so her own
+    # measurements died at each turn boundary along with the stale directives.
     strict_modifiers = {"conversational_dynamics": "stale", "phi": 0.42}
     clear_transient_response_modifiers(strict_modifiers, strict=True)
-    assert strict_modifiers == {}
+    assert strict_modifiers == {"phi": 0.42}
 
     repair_prompt = (
         "Your previous proof/evaluation answer failed validation. Repair it using the same live Aura runtime.\n\n"

@@ -148,6 +148,10 @@ class Organs:
     #: the substrate's. The closure test found both predicting the core from
     #: outside it; see core/subject/sketch.py.
     mesh: Any = None
+    #: The unified field's own recurrent connectivity. Plasticity moves it
+    #: every tick and nothing in the core held it, so the closure test read its
+    #: extremes from outside and they predicted the core's next state.
+    field: Any = None
 
     @classmethod
     def live(cls) -> Organs:
@@ -194,6 +198,7 @@ class Organs:
             self_prediction=runtime("self_prediction"),
             comparator=_agency_comparator(),
             soma=service("soma"),
+            field=service("unified_field"),
         )
 
 
@@ -591,6 +596,10 @@ _SCHEMAS: dict[str, Schema] = {
             # See core/subject/sketch.py.
             *((f"substrate_state_{part}", "organ:substrate.x") for part in SKETCH_FIELDS),
             *((f"mesh_state_{part}", "organ:mesh.column_activations") for part in SKETCH_FIELDS),
+            # And the third recurrent state: the field's own weights, which
+            # plasticity rewrites while she runs. Read through the same sketch,
+            # for the same reason the two above are.
+            *((f"field_weight_{part}", "organ:field.W_field") for part in SKETCH_FIELDS),
         ),
     ),
     "S": _sch(
@@ -695,6 +704,14 @@ _SCHEMAS: dict[str, Schema] = {
             ("agency_pending", "organ:comparator.pending_efferences"),
             ("agency_attribution", "organ:comparator.recent_attribution"),
             ("agency_attribution_known", "organ:comparator.recent_attribution"),
+            # What the unity monitor decided about whose the last moment was,
+            # and how clean the line between her and the world is. The
+            # comparator above answers for one action; these answer for the
+            # whole bound moment, and the closure test read all three from
+            # outside the core. See core/unity/unity_monitor.py.
+            ("unity_ownership", "cognition.unity_state.agency_ownership_score"),
+            ("unity_boundary", "cognition.unity_state.self_world_boundary_score"),
+            ("unity_ownership_confidence", "cognition.unity_state.self_world.ownership_confidence"),
         ),
     ),
     "M": _sch(
@@ -790,6 +807,11 @@ _SCHEMAS: dict[str, Schema] = {
             ("causal_confirmed", "organ:world_model.causal.causal_edges"),
             ("model_facets", "organ:world_model.status"),
             ("model_train_steps", "organ:world_model.learned.train_steps"),
+            # How long since they last said anything. The dynamics engine has
+            # counted it all along and the core did not hold it, so the closure
+            # test read it from outside and it was the largest leak of the run.
+            # It is what her own silence is measured against.
+            ("turns_since_user_spoke", "cognition.turns_since_user_spoke"),
         ),
     ),
     "D": _sch(
@@ -1424,6 +1446,7 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
     )
     head.extend(_sketched(organs.substrate, "x", source="organ:substrate.x"))
     head.extend(_sketched(organs.mesh, "column_activations", source="organ:mesh.column_activations"))
+    head.extend(_sketched(organs.field, "W_field", source="organ:field.W_field"))
     return np.array(head, dtype=np.float64)
 
 
@@ -1516,6 +1539,19 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
             _sat(_f(comparator.get("total_traces")), 16.0),
             _sat(_f(comparator.get("pending_efferences")), 4.0),
             *_ladder(comparator.get("recent_attribution", ""), _ATTRIBUTION_LADDER),
+        ]
+    )
+    # Defaults of one, not zero: an unbound moment is not a moment she has
+    # disowned, and the monitor's own rest value for all three is full
+    # ownership. A zero here would read as a self that had lost the world.
+    head.extend(
+        [
+            _f(_dig(state, "cognition.unity_state.agency_ownership_score"), 1.0),
+            _f(_dig(state, "cognition.unity_state.self_world_boundary_score"), 1.0),
+            _f(
+                _dig(state, "cognition.unity_state.self_world.ownership_confidence"),
+                1.0,
+            ),
         ]
     )
     return np.array(head, dtype=np.float64)
@@ -1649,6 +1685,10 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
             # not exist on the object — a feature of my own reading nothing,
             # which is the defect this file was written to find.
             _sat(_f(learned.get("train_steps")), 5_000.0),
+            # Saturating over a handful of turns: the difference between one
+            # turn of silence and three is the whole of what this says, and
+            # between thirty and forty it says nothing new.
+            _sat(_f(_dig(state, "cognition.turns_since_user_spoke")), 8.0),
         ],
         dtype=np.float64,
     )
