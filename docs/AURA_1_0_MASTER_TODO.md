@@ -1201,6 +1201,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   rows; no complete receipt or selector admission is claimed. Native scoring
   retains unknown outcomes and records checkpoint-selection instances for
   exclusion from independent admission. G03 remains open.
+  Combined native evidence and frozen-policy replay now reuse the existing
+  calibrated selector. Eighteen focused checks pass, including source-bank
+  lineage, label-blind application and checkpoint-bound held replay. No policy
+  has yet passed real source-native admission; this is infrastructure evidence.
   [Nested selector and research review](evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md):
   508 source-only inner rows train a selector for a disjoint 256-source outer
   construction fold. It falls from incumbent 179 correct to 108 (5 gains,

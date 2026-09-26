@@ -322,3 +322,37 @@ selectors reaches 46 of the 50 held requests, below the observed bank reach of
 arbitration between these three outputs would leave one reachable selection
 miss and three requests without observed equivalent proposals. Combined
 selection and proposal reach therefore remain separate engineering obligations.
+
+## Combined native evidence adapter
+
+`tools/calibrate_semantic_native_choices.py` consumes the complete source bank
+and one or more complete native calibration replays. Every durable score row is
+checked against its report, source bank, original proposer and independent
+grading. Native methods must score the same typed program inventory and use
+the same resident identity. Duplicate method receipts are refused.
+
+The adapter builds likelihood, relative likelihood, graph-depth and existing
+joint-evidence views. No source words, construction names or correctness labels
+are features. Checkpoint-selection instances are excluded. Whole construction
+groups are separated into fit, tune and admission populations. The existing
+binary evidence scorer and calibrated candidate selector own learning and
+arbitration. Admission still requires gain and zero measured regressions.
+`select_combined` applies that policy without reading comparison outcomes.
+This is callable research infrastructure, not an admitted policy or a live
+serving change. Source-native calibration is still needed.
+
+`tools/replay_semantic_native_choices.py` applies the frozen admitted policy
+to the original held bank. Checkpoint weights, training receipt, loss scope,
+model identity and method order must match the calibration artifact. The replay
+refuses calibration overlap and changed durable scores. Labels are read for
+independent grading but never passed to `select_combined`. Eighteen focused
+adapter/selector checks pass, including a synthetic admitted-policy replay.
+That synthetic result is a contract test, not a measured Aura gain.
+
+A shared native-prefix cache experiment was rejected before model replay.
+Two of its 23 focused checks failed: full and cache-split hidden states differed
+on unquantized dense and hybrid models at `atol=rtol=1e-4`. The cause of those
+numerical differences is unmeasured. Original prefix computation was restored
+exactly; no tolerance was relaxed and no cache speedup is claimed. The core edit
+also stopped source acquisition at its implementation check after 105 durable
+rows. Acquisition resumes against the original pinned implementation.
