@@ -699,3 +699,22 @@ reserved-alias selection, yielding its 46/50. The contrastive-only report is
 (`e1d2307d38487bafca27bb380cc18522415def34bb06f8884231eff85c493603`).
 The extra objective has a narrow positive effect on this fold, but its
 fold-1 regressions and this small paired difference do not support promotion.
+
+An expanded fold-1 source-calibration run used all 185 disjoint calibration
+requests instead of one per construction (eight). The 303 fit sources, 320
+updates, bank, objective, seed, and held 50 were unchanged. Checkpoint weight
+digests match the earlier fold-1 run at corresponding steps, isolating the
+change to calibration and checkpoint choice. The expanded source loss selected
+step 320, rather than step 288. Held selection rose from 41/50 to 46/50:
+six gains and one regression versus the 41/50 incumbent, with 47/50 observed
+bank reach. All five decisions changed from the eight-request run became
+correct; the remaining regression is a reachable arithmetic case. The
+immutable report is
+`~/.aura/rlc-evidence/semantic-native-metric-fullcal-fold1-20260926/report.json`
+(`1c0052fa77d487218ccbe58acf9eb3b0d3a6a84350ea0319b36f4df22f9c0526`).
+This establishes that sparse source calibration caused part of the fold-1
+selection failure. Both folds remain exposed known-construction development
+evidence; neither gives fresh-family transfer, independent mixed-policy
+admission, or serving authority. Reusing all 185 calibration requests for
+checkpoint choice also leaves no independent members of that partition for
+the existing source-only arbiter experiment.
