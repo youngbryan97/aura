@@ -206,6 +206,13 @@ def test_selected_projection_gate_checks_supervised_probability_not_unrelated_lo
     wrong = mx.array([[[0., 0., 0., 2.], [0., 0., 2., 0.]]], dtype=mx.bfloat16)
     error, tolerance = selected_projection_error(full, wrong, sequence, (1, 2))
     assert error > tolerance
+    batched_full = mx.concatenate((full, full), axis=0)
+    batched_selected = mx.concatenate((selected, selected), axis=0)
+    batch_error, batch_tolerance = selected_projection_error(
+        batched_full[:1], batched_selected[:1], sequence, (1, 2))
+    assert 0 < batch_error < batch_tolerance
+    with pytest.raises(ValueError, match="complete causal states"):
+        selected_projection_error(batched_full, batched_selected, sequence, (1, 2))
     with pytest.raises(ValueError, match="complete causal states"):
         selected_projection_error(full, selected,
                                   NativeProgramSequence((1, 2, 4, 3), 2, (2, 3)), (1, 2))
@@ -253,11 +260,12 @@ def test_metric_triplets_reject_structurally_distinct_equivalent_rivals():
         'a': ('b', 'd')}
 
 
-def test_supervision_reuses_witnessed_floor_contrasts_and_never_reads_a_held_target():
+@pytest.mark.parametrize("encoding", ["absolute_v1", "role_relative_v1"])
+def test_supervision_reuses_witnessed_floor_contrasts_and_never_reads_a_held_target(encoding):
     import hashlib
 
     from core.learning.procedure_induction import Instruction, Program
-    from core.learning.semantic_native_program import parse_native_program
+    from core.learning.semantic_native_codec import parse_native_for_encoding
     from tests.test_semantic_native_program import Tokenizer
 
     source = "Subtract 2 from 5."
@@ -271,11 +279,12 @@ def test_supervision_reuses_witnessed_floor_contrasts_and_never_reads_a_held_tar
             raise AssertionError("held target was read")
     sequences, groups = native_supervision_sets(
         {identity: item, "held": Held()}, {identity: source}, Tokenizer(), (identity,),
-        contrast_limit=4)
+        contrast_limit=4, register_encoding=encoding)
     assert 2 <= len(groups[identity]) <= 4
     assert groups[identity][0] == (identity, target.sha())
     assert set(sequences) == set(groups[identity])
-    programs = [parse_native_program(Tokenizer().decode(list(row.tokens[row.continuation_start:])))
+    programs = [parse_native_for_encoding(Tokenizer().decode(list(row.tokens[row.continuation_start:])),
+                                         register_encoding=encoding)
                 for row in sequences.values()]
     assert target == programs[0]
     assert any(program.run((5, 2)) != target.run((5, 2)) for program in programs[1:])

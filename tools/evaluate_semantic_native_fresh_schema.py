@@ -127,6 +127,10 @@ def main() -> None:
     )
 
     training, selected = selected_checkpoint(args.training_directory)
+    from core.learning.semantic_native_codec import (
+        NATIVE_CODEC_IMPLEMENTATION_PATHS,
+        register_encoding_from_plan,
+    )
     spec = get_active_cortex_spec(force_refresh=True)
     if (spec is None or not spec.exact_identity
             or spec.descriptor_sha256 != training["model_descriptor_sha256"]
@@ -136,10 +140,11 @@ def main() -> None:
     cases = frozen_cases(training, examples_per_cell=args.examples_per_cell,
                          contrast_limit=args.contrast_limit)
     implementation = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
-                      for name in IMPLEMENTATION}
+                      for name in (*IMPLEMENTATION, *NATIVE_CODEC_IMPLEMENTATION_PATHS)}
     body = {"schema": SCHEMA, "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": selected["receipt_sha256"],
             "weights_sha256": selected["weights_sha256"], "selected_step": selected["step"],
+            "register_encoding": register_encoding_from_plan(training),
             "model_descriptor_sha256": spec.descriptor_sha256,
             "pointer_sha256": spec.pointer_sha256, "implementation": implementation,
             "examples_per_cell": args.examples_per_cell, "contrast_limit": args.contrast_limit,
@@ -161,7 +166,10 @@ def main() -> None:
     from mlx_lm.tuner.utils import linear_to_lora_layers
 
     from core.learning.frozen_decoder_prefix import FrozenDecoderPrefix, NativeDecoderSuffix
-    from core.learning.semantic_native_program import native_program_sequence
+    from core.learning.semantic_native_codec import (
+        native_sequence_for_encoding,
+        register_encoding_from_plan,
+    )
     from core.runtime.mlx_memory_guard import mlx_memory_envelope
     from core.runtime.model_lane_control import standalone_model_lane
     from tools.train_semantic_native_program import native_loss
@@ -205,8 +213,9 @@ def main() -> None:
             programs = tuple(_program_from_record(record) for record in case["candidates"])
             scores, controls = [], []
             for program in programs:
-                sequence = native_program_sequence(
+                sequence = native_sequence_for_encoding(
                     source, program, tokenizer, max_tokens=training["max_sequence_tokens"],
+                    register_encoding=register_encoding_from_plan(training),
                     decision_basis=training["semantic_decision_basis"])
                 hidden = prefix.capture(mx.array([sequence.tokens[:-1]], dtype=mx.int32))
                 scores.append(-native_loss(suffix, hidden, sequence, summed=True,

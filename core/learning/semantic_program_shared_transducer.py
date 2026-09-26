@@ -84,7 +84,9 @@ def _geometry_name(value: tuple[int, int]) -> str:
 
 
 def _relative_register(register: int, *, input_count: int) -> str:
-    return f"input:{register}" if register < input_count else f"result:{register - input_count}"
+    from core.learning.semantic_register_identity import RegisterIdentity
+
+    return RegisterIdentity.from_absolute(register, input_count=input_count).encode()
 
 
 def _roles_for_bounds(

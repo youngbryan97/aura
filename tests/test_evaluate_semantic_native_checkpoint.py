@@ -45,6 +45,14 @@ def test_complete_calibration_selects_without_reading_held_rows(tmp_path, baseli
     assert plan["held_ids"] == ["held"]
 
 
+@pytest.mark.parametrize("encoding", [None, "auto", "role_relative_v2", True])
+def test_checkpoint_selection_refuses_an_unknown_explicit_wire(tmp_path, encoding):
+    plan = campaign(tmp_path)
+    write(tmp_path / "plan.json", {**plan, "register_encoding": encoding}, "plan_sha256")
+    with pytest.raises(ValueError, match="encoding is unknown"):
+        selected_checkpoint(tmp_path)
+
+
 def test_unfitted_checkpoint_can_win_instead_of_forcing_an_update(tmp_path):
     campaign(tmp_path)
     row = verified_document(tmp_path / "checkpoint-4.json")

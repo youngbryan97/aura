@@ -1176,6 +1176,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Explicit native codec and global search](evidence/G_NATIVE_CODEC_AND_SEARCH_2026-09-26.md)
+  are wired and component-tested. The complete-epoch control remains rejected
+  at 37/47 against incumbent 43/47. Relative-register model measurement is
+  pending; no serving, fusion, or G03 closure follows.
   [Native decoder pilot](evidence/G03_NATIVE_DECODER_SEMANTICS_2026-09-25.md)
   uses the resident model's original semantic pathway with source-only LoRA.
   The complete held-wording pilot reaches 14/18 versus 7/18 unfitted and

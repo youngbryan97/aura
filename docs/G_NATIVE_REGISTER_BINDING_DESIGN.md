@@ -20,8 +20,13 @@ The shared semantic transducer already encodes role-relative identities as
 encoding, checks definition availability, and maps back to the same `Program`.
 The opt-in native wire includes an explicit `role_relative_v1` register
 declaration. The default absolute wire and historical receipts stay unchanged.
-The typed decoder supports either representation. Training and replay must
-bind the wire version explicitly before the relative path can be measured.
+The typed decoder supports either representation. Training, checkpoint
+selection, bank replay, fresh-schema scoring, typed generation, and free
+generation now bind the wire version explicitly. Missing declarations in
+historical plans mean their original absolute format; unknown explicit
+declarations are refused. The shared transducer uses the same checked identity
+conversion. These contracts are implemented; relative model performance is
+still unmeasured.
 
 ## Exact representation property
 
@@ -80,3 +85,45 @@ express different plausible meanings without additional source evidence.
    primitives.
 5. Continue G03-G05 closure only on measured non-regression and fresh transfer.
    These representation checks grant no serving, fusion, or frontier claim.
+
+## Target-blind global exploration
+
+`semantic_native_search.py` replays the existing typed grammar instead of
+maintaining another grammar or executor. A frontier retains alternatives to
+each operation, reference, and termination choice. The native evaluator can
+request multiple connected proposals and score every complete graph before
+selection. Its default remains the historical greedy decoder.
+
+For a decision with finite native scores s, the search edge weight is
+
+    log q(i | prefix) = (s_i - max(s)) - log(sum_j exp(s_j - max(s))).
+
+Every edge weight is nonpositive. The sum for a partial path is therefore an
+upper bound on every descendant's sum. Best-first exploration returns the
+first k distinct completed graphs in score order when it reaches k. A node
+limit before that point grants no top-k claim. Disconnected depth-bound leaves
+are counted and other frontier branches remain available. The receipt keeps
+raw decision scores, normalized path scores, remaining frontier bound, node
+counts, and the stopping reason.
+
+The model-backed evaluator defaults to `native_nonpositive`, which retains
+the native atom's conditional log-likelihood without choice renormalization.
+Every supplied edge must be nonpositive; positive or nonfinite scores refuse
+the bound. `normalized_choices` remains an explicit alternative objective.
+The same monotonic bound applies to either objective. The receipt declares
+which one generated its proposals, because their graph rankings can differ.
+
+That ordering theorem is restricted to the declared sum of local-choice scores.
+It establishes neither semantic truth nor native whole-graph likelihood.
+Complete-graph reranking uses the fitted native semantic-decision likelihood
+and records its scores separately. Targets enter only the subsequent grading
+of chosen graphs and observed proposal reach. This mechanism grants no
+performance claim before model-backed replay; exhaustive small-domain tests
+check traversal, score order, coordinate formats, and incomplete-search truth.
+
+Exact-length prefix batches never add padding or merge sequence state. The
+trainer checks complete logits and per-row supervised projections for every
+batch size it observes, storing each proof. The first-row projection check
+retains its single-row contract even when prefix capture has several rows.
+Batching changes measured execution grouping, so a combined format/batching
+trial cannot isolate the causal effect of the coordinate representation.

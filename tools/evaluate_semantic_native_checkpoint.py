@@ -31,6 +31,8 @@ def verified_document(path, field="receipt_sha256"):
 def selected_checkpoint(directory):
     """Select only from a complete declared training schedule's calibration receipts."""
     plan = verified_document(directory / "plan.json", "plan_sha256")
+    from core.learning.semantic_native_codec import register_encoding_from_plan
+    register_encoding_from_plan(plan)
     if (plan.get("schema") != "aura.semantic_native_fit_plan.v1"
             or plan.get("held_labels_used_for_fit_or_selection") is not False
             or plan.get("serving_authority") is not False
@@ -163,6 +165,10 @@ def main():
     from tools.train_semantic_native_program import construction_subset
 
     training, selected = selected_checkpoint(args.training_directory)
+    from core.learning.semantic_native_codec import (
+        NATIVE_CODEC_IMPLEMENTATION_PATHS,
+        register_encoding_from_plan,
+    )
     outer, bank_report = _verified_pair(args.bank)
     source_raw, parent_raw, folds_raw = (path.read_bytes() for path in
                                         (args.source_report, args.parent, args.folds))
@@ -204,7 +210,7 @@ def main():
         "tools/evaluate_semantic_native_checkpoint.py", "tools/train_semantic_native_program.py",
         "core/learning/frozen_decoder_prefix.py", "core/learning/semantic_native_program.py",
         "core/brain/llm/decoder_topology.py", "tools/evaluate_semantic_candidate_ranker.py",
-        "core/learning/semantic_program_feature_materialization.py")]
+        "core/learning/semantic_program_feature_materialization.py", *NATIVE_CODEC_IMPLEMENTATION_PATHS)]
     if args.source_calibration_bank is not None:
         paths.append(ROOT / "tools/probe_semantic_proposer_crossfit.py")
     implementation = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
@@ -216,6 +222,7 @@ def main():
         "bank_receipt_sha256": bank_report["receipt_sha256"], "held_ids": identities,
         "heldout_axis": outer["heldout_axis"], "loss_scope": training["loss_scope"],
         "semantic_decision_basis": training.get("semantic_decision_basis", "program_atoms_v1"),
+        "register_encoding": register_encoding_from_plan(training),
         "model_descriptor_sha256": spec.descriptor_sha256, "pointer_sha256": spec.pointer_sha256,
         "implementation": implementation, "max_seconds": args.max_seconds,
         "fit_updates": 0, "held_labels_used_for_fit_or_selection": False,
@@ -242,10 +249,11 @@ def main():
     from mlx_lm.tuner.utils import linear_to_lora_layers
 
     from core.learning.frozen_decoder_prefix import FrozenDecoderPrefix, NativeDecoderSuffix
-    from core.learning.semantic_native_program import (
-        native_program_sequence,
-        source_text_from_tokens,
+    from core.learning.semantic_native_codec import (
+        native_sequence_for_encoding,
+        register_encoding_from_plan,
     )
+    from core.learning.semantic_native_program import source_text_from_tokens
     from core.runtime.mlx_memory_guard import mlx_memory_envelope
     from core.runtime.model_lane_control import standalone_model_lane
     from tools.evaluate_semantic_candidate_ranker import _rankable_or_none, _read_bank
@@ -315,7 +323,8 @@ def main():
             scores, controls = [], []
             for program in programs:
                 bound()
-                sequence = native_program_sequence(source, program, tokenizer,
+                sequence = native_sequence_for_encoding(source, program, tokenizer,
+                    register_encoding=register_encoding_from_plan(training),
                     max_tokens=training["max_sequence_tokens"],
                     decision_basis=plan["semantic_decision_basis"])
                 hidden = prefix.capture(mx.array([sequence.tokens[:-1]], dtype=mx.int32))

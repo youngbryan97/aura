@@ -1,6 +1,8 @@
 """Role-relative native text remains a reversible view of the existing IR."""
 
 import json
+import os
+from pathlib import Path
 
 import pytest
 
@@ -9,6 +11,7 @@ from core.learning.semantic_native_grammar import decode_native_grammar
 from core.learning.semantic_native_program import parse_native_program
 from core.learning.semantic_native_relative_program import (
     parse_relative_native_program,
+    relative_native_program_sequence,
     relative_native_program_surface,
 )
 
@@ -59,3 +62,23 @@ def test_computed_reference_text_is_invariant_to_unused_input_padding():
         text, spans = relative_native_program_surface(p)
         assert "result:0" in tuple(text[a:b] for a, b in spans)
         assert parse_relative_native_program(text).run(tuple(range(arity))) == 2
+
+
+def test_resident_tokenizer_keeps_relative_decisions_in_the_public_channel():
+    checkpoint = os.environ.get("AURA_NATIVE_TOKENIZER_CHECKPOINT")
+    if not checkpoint:
+        pytest.skip("local resident tokenizer checkpoint not supplied")
+    from mlx_lm.utils import load_tokenizer
+    tokenizer = load_tokenizer(Path(checkpoint))
+    program = Program(4, (Instruction("add", (0, 1)), Instruction("mul", (4, 2)),
+                          Instruction("sub", (5, 3))))
+    source = "Add the first two inputs, multiply by the third, then subtract the fourth."
+    row = relative_native_program_sequence(source, program, tokenizer)
+    rendered = tokenizer.decode(list(row.tokens))
+    assert source in rendered
+    assert relative_native_program_surface(program)[0] in rendered
+    assert "</think>" in rendered
+    assert all(index >= row.continuation_start for index in row.semantic_positions)
+    decisions = tokenizer.decode([row.tokens[index] for index in row.semantic_positions])
+    assert "result:0" in decisions and "input:3" in decisions
+    assert "think" not in decisions

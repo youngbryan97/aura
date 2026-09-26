@@ -748,3 +748,27 @@ coverage difference is a confound, not an established cause of its losses.
 The trainer now records eligible, scheduled, captured, and unvisited sources
 separately. A complete-epoch control keeps the source partitions, objective,
 seed, candidate bank, and full calibration population unchanged.
+
+### Complete-epoch control, 2026-09-26
+
+The 384-update control visited all 367 eligible fit sources, captured all
+367, and retained the same 185 calibration and 47 held requests. It completed
+in 2,676.953923 seconds. Source calibration still selected step 224, with
+loss 0.20543860974620048. The held result remains 37/47 native, 43/47
+incumbent, 16/47 unfitted, zero incumbent gains and six regressions. Completing
+the epoch did not produce a promotable checkpoint.
+
+A separate CPU verifier checked the plan and report digests, every row against
+its independently verified proposal bank, score winners, outcome totals, and
+all eleven checkpoint weight files through step 320. Those weights are
+byte-identical to the original run. The held banks contain 70 equivalent and
+217 witnessed-different comparisons; none are unknown. The selected weight
+digest is `c1008b39883f3fe3b45c2d18f4d185f107d8e4c4fb3e34bb3df6981561784502`.
+The new report is
+`~/.aura/rlc-evidence/semantic-native-metric-complete-epoch-fold2-v2-20260926/report.json`
+(`9093fc927408f60dcb2ba6431c45f6526ad1f512ca3a00eda1d55d8141f23460`).
+
+The added updates and added source exposure are coupled; this control does
+not isolate their individual causal effects. It rejects the claim that simply
+finishing this scheduled epoch is sufficient for incumbent non-regression.
+Register binding and target-blind proposal reach remain separate obligations.

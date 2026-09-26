@@ -17,10 +17,15 @@ if str(ROOT) not in sys.path:
 
 
 def grade_generation(source: str, raw: str, *, prompt_thinking: bool,
-                     target_sha256: str, inputs: tuple, target_value: object) -> dict:
+                     target_sha256: str, inputs: tuple, target_value: object,
+                     register_encoding: str = "absolute_v1") -> dict:
     """Interpret generated public text only after the native channel closes."""
     from core.brain.llm.chat_format import split_native_thinking_generation
-    from core.learning.semantic_native_program import parse_native_program
+    from core.learning.semantic_native_codec import (
+        parse_native_for_encoding,
+        validate_register_encoding,
+    )
+    validate_register_encoding(register_encoding)
 
     channels = split_native_thinking_generation(raw, native_thinking=prompt_thinking)
     result = {"raw_sha256": hashlib.sha256(raw.encode()).hexdigest(),
@@ -32,7 +37,7 @@ def grade_generation(source: str, raw: str, *, prompt_thinking: bool,
         result["parse_status"] = "thinking_incomplete"
         return result
     try:
-        program = parse_native_program(channels.surface.strip())
+        program = parse_native_for_encoding(channels.surface.strip(), register_encoding=register_encoding)
     except (ValueError, TypeError, json.JSONDecodeError):
         result["parse_status"] = "program_invalid"
         return result
@@ -74,9 +79,15 @@ def main() -> None:
     from core.brain.llm.model_registry import get_active_cortex_spec
 
     training, selected = selected_checkpoint(args.training_directory)
+    from core.learning.semantic_native_codec import (
+        NATIVE_CODEC_IMPLEMENTATION_PATHS,
+        register_encoding_from_plan,
+    )
+    register_encoding = register_encoding_from_plan(training)
     selection = verified_document(args.selection_directory / "plan.json", "plan_sha256")
     if (selection["training_plan_sha256"] != training["plan_sha256"]
             or selection["checkpoint_receipt_sha256"] != selected["receipt_sha256"]
+            or register_encoding_from_plan(selection) != register_encoding
             or selection["candidate_inventory"] != "target_derived_witnessed_contrasts"):
         raise ValueError("fresh-generation source selection basis differs")
     cases = frozen_cases(training, examples_per_cell=selection["examples_per_cell"],
@@ -94,13 +105,14 @@ def main() -> None:
              "tools/evaluate_semantic_native_checkpoint.py",
              "core/learning/semantic_native_program.py",
              "core/learning/semantic_program_corpus_natural.py",
-             "core/brain/llm/chat_format.py")
+             "core/brain/llm/chat_format.py", *NATIVE_CODEC_IMPLEMENTATION_PATHS)
     implementation = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
                       for name in paths}
     body = {"schema": "aura.semantic_native_fresh_generation_plan.v1",
             "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": selected["receipt_sha256"],
             "selection_plan_sha256": selection["plan_sha256"],
+            "register_encoding": register_encoding,
             "model_descriptor_sha256": spec.descriptor_sha256,
             "pointer_sha256": spec.pointer_sha256, "implementation": implementation,
             "case_sources": [case["source_sha256"] for case in cases],
@@ -188,7 +200,8 @@ def main() -> None:
             target_value = example.program.run(example.inputs)
             outcome = grade_generation(source, raw, prompt_thinking=prompt_thinking,
                                        target_sha256=case["target_sha256"],
-                                       inputs=example.inputs, target_value=target_value)
+                                       inputs=example.inputs, target_value=target_value,
+                                       register_encoding=register_encoding)
             row_body = {"plan_sha256": plan["plan_sha256"],
                         "source_sha256": case["source_sha256"],
                         "example_id": case["example_id"],

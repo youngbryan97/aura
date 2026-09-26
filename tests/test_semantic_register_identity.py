@@ -10,6 +10,16 @@ from core.learning.semantic_register_identity import (
 )
 
 
+def test_shared_transducer_uses_the_same_checked_register_identity():
+    from core.learning.semantic_program_shared_transducer import _relative_register
+
+    assert _relative_register(2, input_count=3) == "input:2"
+    assert _relative_register(3, input_count=3) == "result:0"
+    assert _relative_register(4, input_count=4) == "result:0"
+    with pytest.raises(ValueError):
+        _relative_register(-1, input_count=3)
+
+
 def test_result_identity_survives_changes_in_input_arity():
     for arity in (1, 3, 4, 8, 31):
         for ordinal in (0, 1, 9):

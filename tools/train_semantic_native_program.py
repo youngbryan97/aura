@@ -191,10 +191,15 @@ def selected_projection_error(full_logits, selected_logits, sequence, positions)
 
 
 def native_supervision_sets(items, texts, tokenizer, identities, *, peers=(),
-                            contrast_limit=None, max_tokens=1024):
+                            contrast_limit=None, max_tokens=1024, register_encoding="absolute_v1"):
     """Reuse the floor's witnessed contrasts only for declared source supervision."""
     from core.learning.semantic_candidate_contrasts import source_program_contrasts
-    from core.learning.semantic_native_program import native_program_sequence
+    from core.learning.semantic_native_codec import (
+        native_sequence_for_encoding,
+        validate_register_encoding,
+    )
+
+    validate_register_encoding(register_encoding)
 
     if (not identities or len(set(identities)) != len(identities)
             or not set(identities) <= set(items) or not set(identities) <= set(texts)):
@@ -211,12 +216,14 @@ def native_supervision_sets(items, texts, tokenizer, identities, *, peers=(),
                                     key=lambda program: program.sha()))
         groups[identity] = tuple((identity, program.sha()) for program in programs)
         for key, program in zip(groups[identity], programs, strict=True):
-            sequences[key] = native_program_sequence(texts[identity], program, tokenizer,
-                                                      max_tokens=max_tokens)
+            sequences[key] = native_sequence_for_encoding(texts[identity], program, tokenizer,
+                max_tokens=max_tokens, register_encoding=register_encoding)
     return sequences, groups
 
 
 def main():
+    from core.learning.semantic_native_codec import REGISTER_ENCODINGS
+
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("parent", "source-report", "folds", "bank", "directory"):
         parser.add_argument("--" + name, type=Path, required=True)
@@ -235,6 +242,7 @@ def main():
                         default="continuation")
     parser.add_argument("--objective", choices=("token", "contrastive", "relational", "relational_metric"), default="token")
     parser.add_argument("--contrast-limit", type=int, default=4)
+    parser.add_argument("--register-encoding", choices=REGISTER_ENCODINGS, default="absolute_v1")
     parser.add_argument("--plan-only", action="store_true")
     args = parser.parse_args()
     if (any(type(value) is not int or value < 1 for value in (
@@ -256,6 +264,7 @@ def main():
         cross_construction_relation_partners,
         cross_construction_relation_triplets,
     )
+    from core.learning.semantic_native_codec import NATIVE_CODEC_IMPLEMENTATION_PATHS
     from core.learning.semantic_program_compositional_transducer import (
         compositional_semantic_program_transducer_from_dict,
     )
@@ -311,18 +320,20 @@ def main():
         "core/learning/semantic_graph_counterexamples.py",
         "core/learning/semantic_program_floor.py",
         "core/runtime/mlx_memory_guard.py", "tools/evaluate_semantic_candidate_ranker.py",
-        "tools/train_semantic_atom_ranker.py")]
+        "tools/train_semantic_atom_ranker.py", *NATIVE_CODEC_IMPLEMENTATION_PATHS)]
     implementation = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
                       for path in implementation_paths}
     plan = {"schema": "aura.semantic_native_fit_plan.v1", "steps": args.steps,
             "save_every": args.save_every, "rank": args.rank, "suffix_layers": args.layers,
             "prefix_batch_size": args.prefix_batch_size,
             "prefix_padding": False,
+            "prefix_equivalence_policy": "complete_and_selected_logits_per_observed_batch_size",
             "adapter_keys": ["self_attn.q_proj", "self_attn.v_proj", "self_attn.o_proj",
                              "mlp.down_proj"],
             "learning_rate": 1e-4, "weight_decay": .01, "seed": 20260925,
             "loss_scope": args.loss_scope,
             "semantic_decision_basis": "program_atoms_and_graph_termination_v1",
+            "register_encoding": args.register_encoding,
             "objective": args.objective, "contrast_limit": args.contrast_limit,
             "relational_fit_partners": dict(sorted(scheduled_partners.items())),
             "relational_paired_updates": sum(identity in scheduled_partners for identity in schedule),
@@ -373,10 +384,8 @@ def main():
     from mlx_lm.tuner.utils import linear_to_lora_layers
 
     from core.learning.frozen_decoder_prefix import FrozenDecoderPrefix, NativeDecoderSuffix
-    from core.learning.semantic_native_program import (
-        native_program_sequence,
-        source_text_from_tokens,
-    )
+    from core.learning.semantic_native_codec import native_sequence_for_encoding
+    from core.learning.semantic_native_program import source_text_from_tokens
     from core.runtime.atomic_writer import atomic_write_bytes_if_absent
     from core.runtime.mlx_memory_guard import mlx_memory_envelope
     from core.runtime.model_lane_control import standalone_model_lane
@@ -419,7 +428,7 @@ def main():
             items, texts, tokenizer, supervised_ids,
             peers=tuple(peer_programs[key] for key in sorted(peer_programs)),
             contrast_limit=args.contrast_limit if args.objective != "token" else None,
-            max_tokens=args.max_sequence_tokens)
+            max_tokens=args.max_sequence_tokens, register_encoding=args.register_encoding)
         supervision = {"plan_sha256": plan["plan_sha256"],
             "rows": [{"source": key[0], "program_sha256": key[1],
                       "tokens": sequence.tokens, "continuation_start": sequence.continuation_start,
@@ -433,29 +442,34 @@ def main():
         del examples, fit, calibration, items, parent
         gc.collect()
         captured = {}
+        verified_batch_sizes = set()
         for batch in exact_length_batches(sequences, batch_size=args.prefix_batch_size):
             check_bound()
             tokens = mx.array([sequences[identity].tokens[:-1] for identity in batch], dtype=mx.int32)
             hidden = prefix.capture(tokens)
-            if not captured:
+            if len(batch) not in verified_batch_sizes:
                 full = model(tokens)
                 difference = mx.max(mx.abs(full - suffix(hidden))).item()
                 positions = tuple(index - 1 for index in native_prediction_positions(
                     sequences[batch[0]], scope=args.loss_scope))
                 selected_difference, selected_tolerance = selected_projection_error(
-                    full, suffix(hidden, logit_positions=positions),
+                    full[:1], suffix(hidden[:1], logit_positions=positions),
                     sequences[batch[0]], positions)
                 if (not math.isfinite(difference) or difference > .01
                         or not math.isfinite(selected_difference)
                         or selected_difference > selected_tolerance):
                     raise ValueError("cached native prefix does not reproduce model logits")
-                _save_if_absent(args.directory / "prefix-equivalence.json", {
+                proof = {
                     "plan_sha256": plan["plan_sha256"], "max_absolute_logit_difference": difference,
                     "tokens": tokens.shape[1], "batch_size": tokens.shape[0], "split_at": split,
                     "selected_projection_max_target_logprob_difference": selected_difference,
                     "selected_projection_target_logprob_tolerance": selected_tolerance,
                     "projected_positions": len(positions),
-                    "trainable_sites": [name for name, _value in trainable]})
+                    "trainable_sites": [name for name, _value in trainable]}
+                _save_if_absent(args.directory / f"prefix-equivalence-batch-{len(batch)}.json", proof)
+                if not captured:
+                    _save_if_absent(args.directory / "prefix-equivalence.json", proof)
+                verified_batch_sizes.add(len(batch))
             for index, identity in enumerate(batch):
                 captured[identity] = hidden[index:index + 1]
             if len(captured) % 16 < len(batch) or len(captured) == len(sequences):
@@ -556,8 +570,8 @@ def main():
             scores, pretrained_scores = [], []
             for program in programs:
                 check_bound()
-                sequence = native_program_sequence(texts[identity], program, tokenizer,
-                                                    max_tokens=args.max_sequence_tokens)
+                sequence = native_sequence_for_encoding(texts[identity], program, tokenizer,
+                    max_tokens=args.max_sequence_tokens, register_encoding=args.register_encoding)
                 hidden = prefix.capture(mx.array([sequence.tokens[:-1]], dtype=mx.int32))
                 score = -native_loss(suffix, hidden, sequence, summed=True,
                                      scope=args.loss_scope).item()
