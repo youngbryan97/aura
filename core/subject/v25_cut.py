@@ -420,6 +420,36 @@ def decide_cut(
     return estimate, float(estimate.raw_rate - estimate.sham_rate), lower, float(p_value)
 
 
+
+def chosen_cuts(
+    cuts: Sequence[tuple[tuple[str, ...], tuple[str, ...]]],
+    *,
+    screen: int = 0,
+    only: Sequence[str] = (),
+) -> tuple[list[tuple[tuple[str, ...], tuple[str, ...]]], bool]:
+    """The cuts a sweep scores, and whether that is fewer than all of them.
+
+    `screen` takes an even stride through the enumeration. `only` names the
+    cuts by one side each, `"C"` for recurrent cognition against the other
+    nine: the lopsided cuts are the ones that come out cheapest in practice,
+    and a stride reaches few of them. Either way the sweep has not scored
+    every cut, so it is screened and can never read as irreducible.
+    """
+    everything = list(cuts)
+    if only:
+        wanted = {"".join(sorted(side)) for side in only}
+        picked = [
+            cut for cut in everything
+            if "".join(sorted(cut[0])) in wanted or "".join(sorted(cut[1])) in wanted
+        ]
+        if not picked:
+            raise ValueError(f"no cut has a side in {sorted(wanted)}")
+        return picked, len(picked) < len(everything)
+    if screen and 0 < screen < len(everything):
+        stride = max(1, len(everything) // screen)
+        return everything[::stride][:screen], True
+    return everything, False
+
 async def sweep_cuts(
     runtime: Any,
     anchors: Sequence[Any],
@@ -436,6 +466,7 @@ async def sweep_cuts(
     on_progress: Any = None,
     looks: Sequence[int] = (),
     draws: int = 200,
+    only: Sequence[str] = (),
 ) -> SweepReport:
     """Every bipartition, with precision spent where the answer is still open.
 
@@ -451,23 +482,19 @@ async def sweep_cuts(
         )
     cuts = list(bipartitions(tuple(domains))) if domains else list(bipartitions())
     every_cut = len(cuts)
-    screened = False
-    if screen and 0 < screen < len(cuts):
-        # A screening pass, and it says so. An exhaustive sweep of 511 cuts at
-        # four runs an anchor is a long run, and there is a real use for a fast
-        # look at where the weak cuts are before paying for one. What there is
-        # no use for is a fast look reported as a result: the score is the
-        # weakest cut, and a sample of cuts has not found it. So a screened
-        # sweep never reads as irreducible and the runner refuses to call it
-        # authoritative.
-        #
-        # The sample is a deterministic stride rather than a draw, so the same
-        # seed screens the same cuts, and it walks the sizes evenly rather than
-        # taking the first N — the cheapest cuts in practice are the lopsided
-        # ones, and the first N of an ordered enumeration are all one shape.
-        stride = max(1, len(cuts) // screen)
-        cuts = cuts[:: stride][:screen]
-        screened = True
+    # A screening pass, and it says so. An exhaustive sweep of 511 cuts at
+    # four runs an anchor is a long run, and there is a real use for a fast
+    # look at where the weak cuts are before paying for one. What there is
+    # no use for is a fast look reported as a result: the score is the
+    # weakest cut, and a sample of cuts has not found it. So a screened
+    # sweep never reads as irreducible and the runner refuses to call it
+    # authoritative.
+    #
+    # The sample is a deterministic stride rather than a draw, so the same
+    # seed screens the same cuts, and it walks the sizes evenly rather than
+    # taking the first N — the cheapest cuts in practice are the lopsided
+    # ones, and the first N of an ordered enumeration are all one shape.
+    cuts, screened = chosen_cuts(cuts, screen=screen, only=only)
     schedule, looks_in_design = anchor_schedule(looks, rounds, len(anchors))
     per_look = float(alpha) / looks_in_design
     report = SweepReport(
@@ -560,6 +587,7 @@ async def sweep_cuts_over_lags(
     looks: Sequence[int] = (),
     draws: int = 200,
     deciding: Sequence[int] | None = None,
+    only: Sequence[str] = (),
 ) -> dict[int, SweepReport]:
     """Every bipartition at every horizon, from one set of rollouts per cut.
 
@@ -600,13 +628,9 @@ async def sweep_cuts_over_lags(
     per_look = float(alpha) / looks_in_design
     cuts = list(bipartitions(tuple(domains))) if domains else list(bipartitions())
     every_cut = len(cuts)
-    screened = False
-    if screen and 0 < screen < len(cuts):
-        # The same deterministic stride `sweep_cuts` screens with, so a
-        # screened look at the ladder covers the same cuts as before.
-        stride = max(1, len(cuts) // screen)
-        cuts = cuts[::stride][:screen]
-        screened = True
+    # The same choice `sweep_cuts` makes, so a screened look at the ladder
+    # covers the same cuts as before.
+    cuts, screened = chosen_cuts(cuts, screen=screen, only=only)
 
     placed = shard_of(cuts, *shard) if shard is not None else list(enumerate(cuts))
     reports = {

@@ -18,8 +18,8 @@ periodic reclaim hook for long generation loops.
         ...
         envelope.reclaim(step)   # inside any long loop
 
-Exceeding ``set_memory_limit`` makes MLX raise instead of swapping the
-machine to death: a failed run is recoverable, a wedged host is not.
+MLX's memory limit controls allocator reclamation; it is not a hard process
+RSS limit. Model owners must also enforce their host resource envelope.
 """
 from __future__ import annotations
 
@@ -254,6 +254,8 @@ class MemoryEnvelope:
     cache_bytes: int
     wired_bytes: int
     reclaim_every: int = DEFAULT_RECLAIM_EVERY
+    requested_wired_bytes: int | None = None
+    device_wired_cap_bytes: int | None = None
 
     def reclaim(self, step: int | None = None, *, force: bool = False) -> bool:
         """Release MLX's buffer cache. Call inside generation/eval loops.
@@ -278,6 +280,14 @@ class MemoryEnvelope:
             "memory_limit_gb": round(self.memory_bytes / 1024**3, 3),
             "cache_limit_gb": round(self.cache_bytes / 1024**3, 3),
             "wired_limit_gb": round(self.wired_bytes / 1024**3, 3),
+            "requested_wired_limit_gb": (
+                None if self.requested_wired_bytes is None
+                else round(self.requested_wired_bytes / 1024**3, 3)
+            ),
+            "device_wired_cap_gb": (
+                None if self.device_wired_cap_bytes is None
+                else round(self.device_wired_cap_bytes / 1024**3, 3)
+            ),
             "reclaim_every": self.reclaim_every,
             "host_memory_gb": round(host_memory_bytes() / 1024**3, 3),
         }
@@ -348,16 +358,42 @@ def mlx_memory_envelope(
 
     import mlx.core as mx
 
-    previous = {
-        "memory": mx.set_memory_limit(memory_bytes),
-        "cache": mx.set_cache_limit(cache_bytes),
-        "wired": mx.set_wired_limit(wired_bytes),
-    }
+    device_cap = mx.device_info().get("max_recommended_working_set_size")
+    if type(device_cap) is not int or device_cap <= 0:
+        raise ValueError("MLX device wired-memory capacity is unavailable")
+    device_cap = min(device_cap, host - 1)
+    requested_wired_bytes = wired_bytes
+    if wired_gb is not None and wired_bytes > device_cap:
+        raise ValueError("wired limit exceeds the MLX device working-set capacity")
+    wired_bytes = min(wired_bytes, device_cap)
+    setters = (
+        ("memory", mx.set_memory_limit, memory_bytes),
+        ("cache", mx.set_cache_limit, cache_bytes),
+        ("wired", mx.set_wired_limit, wired_bytes),
+    )
+    applied = []
+
+    def restore_applied() -> None:
+        # Restore every successful setter even if another restoration fails.
+        for name, setter, previous in reversed(applied):
+            try:
+                setter(previous)
+            except (RuntimeError, ValueError) as exc:
+                logger.warning("Could not restore MLX %s limit: %s", name, exc)
+
+    try:
+        for name, setter, value in setters:
+            applied.append((name, setter, setter(value)))
+    except BaseException:
+        restore_applied()
+        raise
     envelope = MemoryEnvelope(
         memory_bytes=memory_bytes,
         cache_bytes=cache_bytes,
         wired_bytes=wired_bytes,
         reclaim_every=reclaim_every,
+        requested_wired_bytes=requested_wired_bytes,
+        device_wired_cap_bytes=device_cap,
     )
     logger.info("MLX memory envelope applied: %s", envelope.to_receipt())
     try:
@@ -366,16 +402,16 @@ def mlx_memory_envelope(
         try:
             if restore_limits_on_exit:
                 _synchronize_and_reclaim()
-                mx.set_memory_limit(previous["memory"])
-                mx.set_cache_limit(previous["cache"])
-                mx.set_wired_limit(previous["wired"])
             else:
                 # A process-isolated model owner can let process teardown
                 # reclaim Metal buffers. Avoid exercising allocator cache
                 # reclamation immediately before the process exits.
                 mx.synchronize()
         except (RuntimeError, ValueError) as exc:  # pragma: no cover
-            logger.warning("Could not restore MLX memory limits: %s", exc)
+            logger.warning("Could not synchronize MLX envelope cleanup: %s", exc)
+        finally:
+            if restore_limits_on_exit:
+                restore_applied()
 
 
 __all__ = [

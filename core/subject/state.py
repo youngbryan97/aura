@@ -152,16 +152,20 @@ class Organs:
     #: every tick and nothing in the core held it, so the closure test read its
     #: extremes from outside and they predicted the core's next state.
     field: Any = None
-    #: The last frame of the continuous experience stream. Its ownership
-    #: confidence is the third of the three the closure test read from outside,
-    #: and it is not a field of the unity state: it is the frame's own.
-    #:
-    #: Unlike every organ above it, this one is replaced every turn rather than
-    #: kept and stepped, so `live()` cannot hold it: the frame that exists when
-    #: the organism is built is None and would stay None for the run. It is
-    #: resolved per reading by `_experience_frame`, and a value here overrides
-    #: that, which is how a test hands one in.
-    experience: Any = None
+    #: The homeostatic coupling engine. It keeps a prospective dread — how much
+    #: it minds where the trajectory is going — which was the largest single
+    #: leak of the 25 September run at 0.017, and is a feeling the affect domain
+    #: did not hold.
+    homeostasis: Any = None
+    #: Her own routing network. Its topology revision counts how many times her
+    #: wiring has changed, which is a fact about her the core did not hold.
+    mycelium: Any = None
+    #: The phi core, which keeps how often she has been in each of its states
+    #: and each of its affective states. Her own history of having been that way.
+    phi_core: Any = None
+    #: The executive closure engine, whose predictive self-model holds the
+    #: weights her self-prediction has learned.
+    executive: Any = None
 
     @classmethod
     def live(cls) -> Organs:
@@ -188,6 +192,18 @@ class Organs:
             except (ImportError, AttributeError, RuntimeError):
                 return None
 
+        def either(name: str) -> Any:
+            """Whichever registry has it. Some organs are published to one only.
+
+            The homeostatic coupling engine goes into the runtime registry at
+            bring-up and into the container beside it, and which of the two
+            answers depends on how the organism was brought up. The closure walk
+            found its prospective dread through the container while this kit
+            resolved None through the runtime registry, and a run refused for a
+            reader that was there all along.
+            """
+            return runtime(name) or service(name)
+
         agency = None
         try:
             from core.agency.authorship import get_agency_ledger
@@ -209,6 +225,10 @@ class Organs:
             comparator=_agency_comparator(),
             soma=service("soma"),
             field=service("unified_field"),
+            homeostasis=either("homeostatic_coupling"),
+            mycelium=either("mycelium"),
+            phi_core=either("phi_core"),
+            executive=either("executive_closure"),
         )
 
 
@@ -513,6 +533,18 @@ _SCHEMAS: dict[str, Schema] = {
             ("moment_particular", "cognition.moment.particular"),
             ("moment_meets", "cognition.moment.meets"),
             ("moment_weight", "cognition.moment.weight"),
+            # How much she minds where the trajectory is going. The homeostatic
+            # coupling engine has kept it all along and the closure test read it
+            # from outside the core, where it was the largest single leak of the
+            # 25 September run. A feeling nothing in the affect domain held.
+            ("dread", "organ:homeostasis.prospective_dread"),
+            # How often she has been in each of the phi core's affective states.
+            # Her own history of having felt each way, which the closure test
+            # read from outside the core. Through the sketch it reads it through.
+            *(
+                (f"felt_before_{part}", "organ:phi_core._affective_state_visits")
+                for part in SKETCH_FIELDS
+            ),
         ),
     ),
     "G": _sch(
@@ -616,6 +648,19 @@ _SCHEMAS: dict[str, Schema] = {
             # plasticity rewrites while she runs. Read through the same sketch,
             # for the same reason the two above are.
             *((f"field_weight_{part}", "organ:field.W_field") for part in SKETCH_FIELDS),
+            # And the two connectivities plasticity rewrites beside it. The
+            # closure test read the substrate's own matrix and the mesh's stack
+            # of per-column weights from outside the core, and each predicted
+            # the core's next state: the activations above say what she is
+            # doing, and these say what she has learned to do.
+            *((f"substrate_weight_{part}", "organ:substrate.W") for part in SKETCH_FIELDS),
+            *((f"mesh_weight_{part}", "organ:mesh._W_batch") for part in SKETCH_FIELDS),
+            # And how often she has been in each of the phi core's states, which
+            # is recurrent cognition's own history of itself.
+            *(
+                (f"been_here_{part}", "organ:phi_core._state_visits")
+                for part in SKETCH_FIELDS
+            ),
         ),
     ),
     "S": _sch(
@@ -723,11 +768,26 @@ _SCHEMAS: dict[str, Schema] = {
             # What the unity monitor decided about whose the last moment was,
             # and how clean the line between her and the world is. The
             # comparator above answers for one action; these answer for the
-            # whole bound moment, and the closure test read all three from
-            # outside the core. See core/unity/unity_monitor.py.
+            # whole bound moment, and the closure test read both from outside
+            # the core. See core/unity/unity_monitor.py.
+            #
+            # The experience frame's own ownership confidence was a third
+            # column here and is gone: the container holds a NEW frame every
+            # turn, so no clamp can hold it — restoring the old object's fields
+            # leaves the container pointing at the new one — and a column that
+            # cannot be severed cannot be lesioned. The agency score above is
+            # 0.65 of that same confidence plus a term for whether anything was
+            # authored, so nothing is lost by reading it there.
             ("unity_ownership", "cognition.unity_state.agency_ownership_score"),
             ("unity_boundary", "cognition.unity_state.self_world_boundary_score"),
-            ("unity_ownership_confidence", "organ:experience.ownership_confidence"),
+            # What her self-prediction has learned. The executive closure
+            # engine's predictive self-model holds the weights, and the closure
+            # test read three moments of them from outside the core: her
+            # self-model's parameters are hers, and the core did not have them.
+            *(
+                (f"self_model_weight_{part}", "organ:executive._predictive_self.weights")
+                for part in SKETCH_FIELDS
+            ),
         ),
     ),
     "M": _sch(
@@ -1280,7 +1340,7 @@ def _read_P(state: Any, now: float) -> np.ndarray:
     )
 
 
-def _read_I(state: Any) -> np.ndarray:
+def _read_I(state: Any, organs: Organs) -> np.ndarray:
     return np.array(
         [
             _f(_dig(state, "soma.hardware.cpu_usage")),
@@ -1371,6 +1431,20 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
     head.append(float(np.std(values)) if len(values) > 1 else 0.0)
     moment = _dig(state, "cognition.moment", {}) or {}
     head.extend(_f(moment.get(key)) for key in ("particular", "meets", "weight"))
+    homeostasis = _call(
+        organs.homeostasis,
+        "get_snapshot",
+        {},
+        source="organ:homeostasis.prospective_dread",
+    ) or {}
+    head.append(_f(homeostasis.get("prospective_dread")))
+    head.extend(
+        _shared_out(
+            organs.phi_core,
+            "_affective_state_visits",
+            source="organ:phi_core._affective_state_visits",
+        )
+    )
     return np.array(head, dtype=np.float64)
 
 
@@ -1463,23 +1537,12 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
     head.extend(_sketched(organs.substrate, "x", source="organ:substrate.x"))
     head.extend(_sketched(organs.mesh, "column_activations", source="organ:mesh.column_activations"))
     head.extend(_sketched(organs.field, "W_field", source="organ:field.W_field"))
+    head.extend(_sketched(organs.substrate, "W", source="organ:substrate.W"))
+    head.extend(_sketched(organs.mesh, "_W_batch", source="organ:mesh._W_batch"))
+    head.extend(
+        _shared_out(organs.phi_core, "_state_visits", source="organ:phi_core._state_visits")
+    )
     return np.array(head, dtype=np.float64)
-
-
-def _experience_frame() -> Any:
-    """The current frame of the continuous experience stream, or nothing.
-
-    Read per reading rather than held, because the container's entry is a new
-    frame every turn: an organ resolved once at build time would be the frame
-    that existed before her first one, which is none of them.
-    """
-    try:
-        from core.container import ServiceContainer
-
-        return ServiceContainer.get("continuous_experience_frame", default=None)
-    # not a failure: no container here, so there is no frame to read.
-    except (ImportError, AttributeError, RuntimeError):
-        return None
 
 
 def _selfhood(reading: Any) -> list[float]:
@@ -1507,12 +1570,55 @@ def _selfhood(reading: Any) -> list[float]:
     return [share, level]
 
 
-def _sketched(organ: Any, attribute: str, *, source: str) -> list[float]:
-    """An organ's state array through the shared sketch, zeros and a miss when absent."""
+def _shared_out(organ: Any, attribute: str, *, source: str) -> list[float]:
+    """An organ's counts as the shape of them, through the shared sketch.
+
+    A count of visits only ever goes one way, so its mean, its smallest and its
+    largest are three clocks, and `without_clocks` holds a clock flat because
+    elapsed time is not a hidden state. What is state here is which of the
+    states she visits often and which rarely, which is the counts divided by
+    their total. The share's mean is then one over their number — a constant,
+    which `_components` drops — and the rest of the sketch carries the shape.
+    """
     if organ is None:
         _miss(source, "organ absent")
         return [0.0] * len(SKETCH_FIELDS)
-    summary = sketch(getattr(organ, attribute, None))
+    held = getattr(organ, attribute, None)
+    if held is None:
+        _miss(source, "no such reading")
+        return [0.0] * len(SKETCH_FIELDS)
+    try:
+        counts = np.asarray(held, dtype=np.float64).reshape(-1)
+        total = float(np.abs(counts).sum())
+    except (TypeError, ValueError):
+        _miss(source, "not a count")
+        return [0.0] * len(SKETCH_FIELDS)
+    if not math.isfinite(total) or total <= 0.0:
+        _miss(source, "nothing counted yet")
+        return [0.0] * len(SKETCH_FIELDS)
+    summary = sketch(counts / total)
+    if summary is None:
+        _miss(source, "no finite state")
+        return [0.0] * len(SKETCH_FIELDS)
+    return [summary[part] for part in SKETCH_FIELDS]
+
+
+def _sketched(organ: Any, attribute: str, *, source: str) -> list[float]:
+    """An organ's state array through the shared sketch, zeros and a miss when absent.
+
+    ``attribute`` may be dotted. The predictive self-model's weights live on the
+    executive engine's own model rather than on the engine, and the closure test
+    reads them at that depth.
+    """
+    if organ is None:
+        _miss(source, "organ absent")
+        return [0.0] * len(SKETCH_FIELDS)
+    held: Any = organ
+    for step in attribute.split("."):
+        held = getattr(held, step, None)
+        if held is None:
+            break
+    summary = sketch(held)
     if summary is None:
         _miss(source, "no finite state")
         return [0.0] * len(SKETCH_FIELDS)
@@ -1601,20 +1707,18 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
     # Defaults of one, not zero: an unbound moment is not a moment she has
     # disowned, and the monitor's own rest value for all three is full
     # ownership. A zero here would read as a self that had lost the world.
-    kit_experience = organs.experience or _experience_frame()
-    if kit_experience is None:
-        _miss("organ:experience.ownership_confidence", "organ absent")
     head.extend(
         [
             _f(_dig(state, "cognition.unity_state.agency_ownership_score"), 1.0),
             _f(_dig(state, "cognition.unity_state.self_world_boundary_score"), 1.0),
-            _f(
-                getattr(kit_experience, "ownership_confidence", None)
-                if kit_experience is not None
-                else None,
-                1.0,
-            ),
         ]
+    )
+    head.extend(
+        _sketched(
+            organs.executive,
+            "_predictive_self.weights",
+            source="organ:executive._predictive_self.weights",
+        )
     )
     return np.array(head, dtype=np.float64)
 
@@ -1870,11 +1974,13 @@ _ORGAN_READERS: dict[str, Callable[[Any, Organs], np.ndarray]] = {
     "S": _read_S,
     "W": _read_W,
     "D": _read_D,
+    # Interoception joined these when the body started reading her own routing
+    # network's rewirings, which the closure test read from outside the core.
+    "I": _read_I,
 }
 
 #: Readers that only need the state object.
 _STATE_READERS: dict[str, Callable[[Any], np.ndarray]] = {
-    "I": _read_I,
     "M": _read_M,
 }
 

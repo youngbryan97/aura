@@ -1326,6 +1326,16 @@ class LiquidSubstrate(_KeepsItsStateOnDisk):
     #: sign nobody chose, bypassing every appraisal path the body already has.
     _TELEMETRY_BASE: int = 8
 
+    #: Where what she means to do and who she takes herself to be land. The
+    #: bands below carry perception, the body and the room; deliberation and the
+    #: self-model reached the substrate through nothing at all, so recurrent
+    #: cognition never heard what she intended or how settled she was. The
+    #: synergy line asks whether the self and deliberation carry something about
+    #: recurrent cognition jointly that neither carries alone, and on the seed-7
+    #: run of 25 September its interaction gain was exactly zero on three folds
+    #: of five: there was no pathway for it to be about.
+    _INTENTION_BASE: int = 68
+
     def inject_perceptual_frame(self, frame_data: dict[str, Any]) -> None:
         """Inject structured perceptual data into specific substrate dimensions.
 
@@ -1392,6 +1402,20 @@ class LiquidSubstrate(_KeepsItsStateOnDisk):
         put(64, screen_changed * voice_active * 0.3)
         put(65, thermal * user_presence * 0.2)
         put(66, novelty * max(0.0, 1.0 - cpu) * 0.15)
+
+        # ── What she means to do, and how settled she is → its own band ──
+        #
+        # With the cross term the band beside this one is built the same way:
+        # pressing hard while unsettled is a different state from pressing hard
+        # while settled, and a sum of the two cannot say which. The gains are the
+        # ones the neighbouring bands use, so this band is weighted like the
+        # others rather than by a number chosen for it.
+        urgency = float(frame_data.get("intent_urgency", 0.0))
+        settled = float(frame_data.get("self_stability", 0.0))
+        base = self._INTENTION_BASE
+        put(base + 0, urgency * 0.3)
+        put(base + 1, settled * 0.3)
+        put(base + 2, urgency * max(0.0, 1.0 - settled) * 0.25)
 
         if not written.any():
             return

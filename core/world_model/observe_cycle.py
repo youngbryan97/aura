@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
@@ -116,6 +117,13 @@ def observation_of(state: Any) -> np.ndarray:
             # it was the only channel keeping active memory from a second route
             # out of the workspace.
             *_recalled(cognition),
+            # And what arrived, as a coordinate, for the same reason. The three
+            # numbers above say that something came in, how strongly, and how
+            # new — and not what it was. Perception reached the world model at
+            # 0.17 against a bar of 0.30 on the seed-7 run of 25 September,
+            # which was one of the two channels leaving the world model with an
+            # in-degree of two while every other domain had eight or nine.
+            *_perceived(percepts),
             # What she is trying to do, and not only how many things. The goal
             # count above moves by one when an intention is added, among twenty
             # other inputs, and a displaced drive reached the world model at a
@@ -157,6 +165,20 @@ def _coordinate(text: str, width: int = CONTENT_WIDTH) -> list[float]:
             word = int.from_bytes(digest[2 * index : 2 * index + 2], "big")
             totals[index] += word / 32767.5 - 1.0
     return [value / float(len(tokens)) for value in totals]
+
+
+def _perceived(percepts: Sequence[Any]) -> list[float]:
+    """What just arrived, as a coordinate rather than as a strength.
+
+    The newest few, because a turn's perception is what came in during it. The
+    same argument `_recalled` makes about recollection: a model shown how loud
+    an arrival was and not what it was cannot let what she perceived contribute
+    to what it infers, which is the thing perception is for.
+    """
+    if not percepts:
+        return [0.0] * CONTENT_WIDTH
+    text = " ".join(read_percept(item).content for item in list(percepts)[-4:])
+    return _coordinate(text)
 
 
 def _recalled(cognition: Any) -> list[float]:

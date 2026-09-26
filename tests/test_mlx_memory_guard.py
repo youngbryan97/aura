@@ -135,11 +135,92 @@ def test_receipt_is_complete_enough_to_audit_a_run():
         "memory_limit_gb",
         "cache_limit_gb",
         "wired_limit_gb",
+        "requested_wired_limit_gb",
+        "device_wired_cap_gb",
         "reclaim_every",
         "host_memory_gb",
     }
     assert receipt["memory_limit_gb"] == pytest.approx(4.0, rel=1e-6)
     assert receipt["cache_limit_gb"] == pytest.approx(1.0, rel=1e-6)
+
+
+def test_high_fraction_defaults_respect_the_real_device_wired_cap():
+    cap = mx.device_info()["max_recommended_working_set_size"]
+    with mlx_memory_envelope(fraction=.80) as envelope:
+        assert envelope.wired_bytes <= cap
+        assert envelope.wired_bytes <= envelope.requested_wired_bytes
+        assert envelope.device_wired_cap_bytes <= cap
+
+
+@pytest.mark.parametrize("cap", [None, 0, -1, True, "48GB"])
+def test_unmeasured_device_cap_does_not_mutate_limits(monkeypatch, cap):
+    monkeypatch.setattr(mx, "device_info", lambda: {"max_recommended_working_set_size": cap})
+    monkeypatch.setattr(mx, "set_memory_limit", lambda _: pytest.fail("mutated before preflight"))
+    with pytest.raises(ValueError, match="capacity is unavailable"):
+        with mlx_memory_envelope():
+            pass
+
+
+def test_defaults_clamp_but_explicit_oversized_wiring_is_refused(monkeypatch):
+    monkeypatch.setattr("core.runtime.mlx_memory_guard.host_memory_bytes", lambda: 64 * 1024**3)
+    monkeypatch.setattr(mx, "device_info", lambda: {"max_recommended_working_set_size": 48 * 1024**3})
+    calls = []
+    for name in ("memory", "cache", "wired"):
+        monkeypatch.setattr(mx, f"set_{name}_limit", lambda value, name=name:
+                            calls.append((name, value)) or 2 * 1024**3)
+    monkeypatch.setattr(mx, "synchronize", lambda: None)
+    monkeypatch.setattr(mx, "clear_cache", lambda: None)
+    with mlx_memory_envelope(fraction=.8) as envelope:
+        assert envelope.wired_bytes == 48 * 1024**3
+        assert envelope.requested_wired_bytes == int(.85 * 64 * 1024**3)
+    calls.clear()
+    with pytest.raises(ValueError, match="device working-set capacity"):
+        with mlx_memory_envelope(wired_gb=49):
+            pass
+    assert calls == []
+
+
+@pytest.mark.parametrize("failure", ["cache", "wired"])
+@pytest.mark.parametrize("restore_on_exit", [False, True])
+def test_partial_setup_always_rolls_back_successful_setters(monkeypatch, failure, restore_on_exit):
+    state = {"memory": 8 * 1024**3, "cache": 1024**3, "wired": 0}
+    original = dict(state)
+    def setter(name, value):
+        if name == failure:
+            raise RuntimeError("injected setup failure")
+        previous, state[name] = state[name], value
+        return previous
+    for name in state:
+        monkeypatch.setattr(mx, f"set_{name}_limit", lambda value, name=name: setter(name, value))
+    with pytest.raises(RuntimeError, match="setup failure"):
+        with mlx_memory_envelope(memory_gb=4, restore_limits_on_exit=restore_on_exit):
+            pytest.fail("setup should not yield")
+    assert state == original
+
+
+@pytest.mark.parametrize("failure", ["synchronize", "wired_restore"])
+def test_cleanup_failure_does_not_skip_other_limit_restorations(monkeypatch, failure, caplog):
+    state = {"memory": 8 * 1024**3, "cache": 1024**3, "wired": 0}
+    original = dict(state)
+    def setter(name, value):
+        if failure == "wired_restore" and name == "wired" and value == 0:
+            raise RuntimeError("injected wired restoration failure")
+        previous, state[name] = state[name], value
+        return previous
+    for name in state:
+        monkeypatch.setattr(mx, f"set_{name}_limit", lambda value, name=name: setter(name, value))
+    def synchronize():
+        if failure == "synchronize":
+            raise RuntimeError("injected synchronization failure")
+    monkeypatch.setattr(mx, "synchronize", synchronize)
+    monkeypatch.setattr(mx, "clear_cache", lambda: None)
+    with mlx_memory_envelope(memory_gb=4):
+        pass
+    assert state["memory"] == original["memory"]
+    assert state["cache"] == original["cache"]
+    assert "injected" in caplog.text
+    if failure == "synchronize":
+        assert state == original
 
 
 # ── Reading pressure correctly, not alarmingly ──────────────────────────

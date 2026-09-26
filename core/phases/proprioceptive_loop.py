@@ -155,6 +155,29 @@ def _detect_action_stagnation_into_soma(
         logger.debug("Proprioception stagnation check failed: %s", _stag_exc)
 
 
+def _urgency_now(state: Any) -> float:
+    """The hardest anything she is holding is pressing, in [0, 1].
+
+    Her open goals and her pending initiatives both carry an urgency and the
+    substrate hears neither. The hardest of them is what presses, which is the
+    same reading the deliberation domain's own columns are built from.
+    """
+    hardest = 0.0
+    for attribute in ("active_goals", "pending_initiatives"):
+        for item in list(getattr(state.cognition, attribute, []) or []):
+            value = (
+                item.get("urgency")
+                if isinstance(item, MutableMapping)
+                else getattr(item, "urgency", None)
+            )
+            try:
+                hardest = max(hardest, float(value))
+            # not a failure: an item with no urgency presses by nothing.
+            except (TypeError, ValueError):
+                continue
+    return max(0.0, min(1.0, hardest))
+
+
 def _feel_the_density(soma: Any) -> None:
     """How densely wired she is, which her self-image was guessing at.
 
@@ -747,6 +770,17 @@ class ProprioceptiveLoop(BasePhase):
             reading = state.response_modifiers.get("ontogenetic_novelty")
             if reading is not None:
                 frame["novelty"] = float(reading)
+            # And what she means to do, with how settled she is in herself. The
+            # substrate's bands carried perception, the body and the room and
+            # nothing of deliberation or the self, so recurrent cognition never
+            # heard either: on the seed-7 run of 25 September the joint
+            # information the self and deliberation carry about recurrent
+            # cognition had an interaction gain of exactly zero on three folds
+            # of five, which is what no pathway looks like.
+            frame["intent_urgency"] = _urgency_now(state)
+            frame["self_stability"] = float(
+                getattr(state.identity, "stability", 0.0) or 0.0
+            )
             substrate.inject_perceptual_frame(frame)
             # And the body keeps its own reading of what is arriving on its
             # senses. `soma.sensors` is read by the interoception schema and

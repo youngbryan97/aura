@@ -14697,6 +14697,14 @@
       "scope": "<module>.ToolOrchestrator._launch_worker"
     },
     {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn",
+      "canonical_owner": true,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "core/agency/working_out_what_matters.py",
+      "scope": "<module>._a_child"
+    },
+    {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
       "canonical_owner": false,
       "category": "subprocess_gateway",
@@ -16530,6 +16538,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "8dcde95a2442cd854f4a2a21db29086fb4f455f304d8ecf80efec61b0f9aacb8",
+  "inventory_sha256": "0520c8b4198cd436c0cfe534abfbceaaafe68e9cb8ed05e1369d7153acd2ecd4",
   "schema_version": 1
 }

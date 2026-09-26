@@ -158,6 +158,9 @@ CANONICAL_PRIMITIVE_OWNERS: dict[str, frozenset[str]] = {
             # commands. Both delegate process identity and shutdown ownership.
             "core/capabilities/keeping_the_screen_awake.py",
             "core/perception/eyes_of_their_own.py",
+            # Fixed CPU-only world simulation; the worker command is not a
+            # caller argument, and process ownership stays in the gateway.
+            "core/agency/working_out_what_matters.py",
             "core/runtime/action_executor.py",
             "core/runtime/desktop_action_gateway.py",
             "core/runtime/skill_catalog_probe.py",

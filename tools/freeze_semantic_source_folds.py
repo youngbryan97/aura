@@ -13,13 +13,21 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
-def source_folds(examples, *, count: int = 3, seed: int = 0):
-    from core.learning.semantic_construction_folds import construction_folds
+def source_folds(examples, *, count: int = 3, seed: int = 0,
+                 axis: str = "semantic"):
+    from core.learning.semantic_construction_folds import (
+        construction_folds,
+        utterance_construction_folds,
+    )
 
     train = tuple(item for item in examples if item.split == "train")
     if not train or len(train) == len(examples):
         raise ValueError("frozen source folds require train and withheld examples")
-    return construction_folds(train, count=count, seed=seed)
+    if axis == "semantic":
+        return construction_folds(train, count=count, seed=seed)
+    if axis == "utterance":
+        return utterance_construction_folds(train, count=count, seed=seed)
+    raise ValueError("unsupported source fold axis")
 
 
 def main() -> int:
@@ -31,6 +39,7 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--count", type=int, default=3)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--axis", choices=("semantic", "utterance"), default="semantic")
     args = parser.parse_args()
 
     from core.learning.semantic_program_compositional_transducer import (
@@ -52,7 +61,7 @@ def main() -> int:
     verify_candidate_report_identity(candidate_report, model, report)
     bundles = source_bundle_arguments(report, bundles=args.bundle)
     folds = source_folds(load_source_examples(model, report, bundles),
-                         count=args.count, seed=args.seed)
+                         count=args.count, seed=args.seed, axis=args.axis)
     payload = (json.dumps(folds, sort_keys=True, separators=(",", ":"),
                           allow_nan=False) + "\n").encode("ascii")
     if (not atomic_write_bytes_if_absent(args.output, payload, mode=0o400)
@@ -61,7 +70,9 @@ def main() -> int:
     print(json.dumps({"output": str(args.output),
                       "receipt_sha256": folds["receipt_sha256"],
                       "population": len(folds["population"]),
-                      "independent_groups": folds["independent_groups"],
+                      "axis": args.axis,
+                      "groups": folds.get("independent_groups", sum(
+                          folds.get("family_construction_counts", {}).values())),
                       "validation_used": False, "test_used": False}), flush=True)
     return 0
 

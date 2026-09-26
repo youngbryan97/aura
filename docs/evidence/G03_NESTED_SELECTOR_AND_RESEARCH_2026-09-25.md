@@ -397,3 +397,82 @@ Its receipt is `4efa3d3e8ff8e98f35d42e75ece105e6c3cfaa4ae3a049d8181adba067689a46
 The pilot's absence of hard incumbent errors is evidence against spending a
 full acquisition run on the same sampling rule. Source-only hard examples
 must be obtained without using the 13 development labels as training data.
+
+## Wording-construction transfer axis
+
+The source-only corpus has three training wording constructions each for
+cataphoric, reserved-alias, and role-binding requests (16 examples per
+construction). Validation construction 5 contributes all 13 remaining
+source-order misses in the first two families. The older independent
+construction folds happen to put all cataphoric training constructions in
+fold 2; their contrast-closure rule does not guarantee that each family has
+wording coverage in fit. This is a different question from unseen semantic
+family transfer.
+
+`utterance_construction_folds` now freezes a separate split in which every
+family contributes an entire held wording construction to each fold while
+other wording constructions from the same family remain in source-only fit.
+It explicitly permits shared program semantics and disclaims independent
+semantic transfer. On this cohort no contrast lineage actually crosses the
+new folds; that measured fact does not upgrade the claim. The signed plan is
+`~/.aura/rlc-evidence/semantic-source-order-identity-rebind-20260925/utterance-folds.json`
+(`bc182297e69ebf8fbb38f4a46fa6db1f2eede6a26d0180dd500a3d1c7796ee29`).
+
+The existing crossfit proposer now consumes the exact v2 source bundles,
+normalizes source-order inputs, and binds that policy into each fitted
+candidate's receipt. Fold 0 fit used 303 source training examples and 185
+disjoint source calibration examples. Its candidate receipt is
+`da04838eaea5ec138b81916be087084c5527d7f3a809b9a7a3caec16981c12ea`.
+At one source identity per held construction, ordinary selection was 15/18
+and target-blind bank reach was observed on 17/18. A fixed expansion to the
+lowest three source identities per construction produced 50 held examples:
+ordinary selection 41/50, observed reach 47/50, and top joint score 42/50.
+Of nine ordinary misses, six have an observed equivalent alternative: two
+sequential arithmetic, two role binding, and two reserved alias. The other
+three are nested arithmetic with incomplete search, not proven unreachable.
+The signed 50-row report is
+`~/.aura/rlc-evidence/semantic-source-order-utterance-crossfit-fold0-3x-20260925/report.json`
+(`7bdd89e04184b551ac91581edbf60125e177f14e7a5cbcc8b26d96fa2f64329a`).
+This is a source-only pilot selected before labels, not G03 closure. It
+supplies measured hard examples aligned to wording transfer while keeping
+selection and reachability separate. Full cross-fold evidence and a selector
+that improves paired development accuracy without regression remain open.
+
+## Direct source-atom supervision
+
+`AtomAlignedProgramRanker` teaches operation identity and typed register roles
+from the source IR, then sums those same factors when selecting a complete
+graph. It uses the existing request encoder's latent sequence directly;
+the legacy restored-feature interface remains unchanged. The candidate bank
+and source splits remain frozen. Each wording construction contributes equal
+training mass. No held labels choose weights or an epoch.
+
+The fold-0 fit used 303 source examples and 185 source calibration examples,
+ten fixed epochs and 3,030 updates. Calibration atom loss selected epoch 3.
+At that epoch, operation recognition was 418/434 and reference binding was
+485/868 on calibration's gold anchors. Training loss kept falling after the
+selected epoch while calibration loss rose. This separates weak transferable
+reference evidence from insufficient optimizer steps.
+
+The frozen 50-row bank still had 47 observed equivalent alternatives. Atom
+selection was 41/50 versus the incumbent's 41/50, with two gains and two
+regressions. Removing cross-token attention also selected 41/50. These counts
+do not establish a causal benefit from the added request context. This fit is
+rejected for serving and supplies no G03 closure or fresh-transfer evidence.
+
+The complete fit and evaluation took 58.722 seconds on the CPU, with no
+resident model loaded. Evidence is under
+`~/.aura/rlc-evidence/semantic-source-order-atoms-fold0-20260925/`:
+
+- `plan.json`: `d9d4f223cf16df6a51c351b33b8fe8f119d009c871319426fe3a249a2eed4db0`.
+- `epoch-3.safetensors`: `b7a264e26d3ec16bb9ddb34ef703059e9e69dfcaa9d3235b58b2a6668a11c245`.
+- `report.json`: `19c280e8ca77cd2e33b69e523a567fa3287f821d10302d98e798eee5a28a48b0`.
+
+Primary research offers mechanisms to test, rather than a guarantee of this
+fit: [span-based semantic parsing](https://arxiv.org/abs/2009.06040) represents
+program composition through source spans; [span-supervised attention](https://aclanthology.org/2021.naacl-main.225/)
+teaches correspondence explicitly; [pretraining and intermediate representations](https://arxiv.org/abs/2007.08970)
+examines transfer from a pretrained language model. The current atom scorer
+uses operation and register anchors, but not the argument mentions and
+definition choices retained by the bank. Those distinctions and the existing
+resident training/decoding interfaces must be traced before another fit.

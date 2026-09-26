@@ -80,6 +80,20 @@ class SemanticRequestContext(nn.Module):
         ``cross_token=False`` keeps the same parameters and token-wise work,
         but blocks communication between tokens for the context lesion.
         """
+        clean, state = self._encode(features, valid, cross_token=cross_token)
+        result = functional.normalize(clean + self.restore(state), dim=-1)
+        return result.masked_fill(~valid.unsqueeze(-1), 0)
+
+    def encode_tokens(
+        self, features: torch.Tensor, valid: torch.Tensor, *, cross_token: bool = True,
+    ) -> torch.Tensor:
+        """Expose the shared contextual state without a restore/compress round trip."""
+        _clean, state = self._encode(features, valid, cross_token=cross_token)
+        return state.masked_fill(~valid.unsqueeze(-1), 0)
+
+    def _encode(
+        self, features: torch.Tensor, valid: torch.Tensor, *, cross_token: bool,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         if (features.ndim != 3 or features.shape[-1] != self.config.input_width
                 or valid.shape != features.shape[:2] or valid.dtype != torch.bool
                 or valid.device != features.device or not features.is_floating_point()
@@ -124,8 +138,7 @@ class SemanticRequestContext(nn.Module):
         mask = mask.reshape(-1, size, size)
         for block in self.blocks:
             state = block(state, src_mask=mask)
-        result = functional.normalize(clean + self.restore(state), dim=-1)
-        return result.masked_fill(~valid.unsqueeze(-1), 0)
+        return clean, state
 
 
 class ContextualSpanRecognizer(nn.Module):

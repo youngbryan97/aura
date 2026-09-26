@@ -82,10 +82,12 @@ What makes it a research instrument:
 3. **Budgets are matched.** Equal-FLOP accounting (token-layer applications)
    is first-class, so "more compute helped" can never be mistaken for "the
    architecture helped."
-4. **The floor is absolute.** `≥ vanilla always` — ordinary decode owns the
-   answer until a gain gate promotes something over it. Enforced by
-   `tests/test_rlc_never_worse_than_vanilla.py`, which enumerates the decode
-   contract rather than trusting it.
+4. **Ordinary decode is the incumbent.** It owns the answer until the
+   replacement mechanism admits a challenger. The tests in
+   `tests/test_rlc_never_worse_than_vanilla.py` enumerate decode settings and
+   ownership. They do not prove that every admitted replacement is better on
+   every unfamiliar task. Paired behavioral evaluation must measure regressions;
+   retaining a baseline candidate alone cannot identify which answer is correct.
 
 ## Where the programme actually stands
 
@@ -114,6 +116,7 @@ preregistered campaigns with committed seeds.
 | **Endogenous whole-family runtime replay** | **SUPPORTED, REPLICATED, SHADOW ONLY (2026-09-03).** The current live shadow reopens the v14 fit-withheld-family evidence and independently reconstructs all 96 public inputs from source text. On a newly materialized worker session, the unchanged treatment recovered **79/96** exact programs and answers while its coefficient lesion recovered **0/96**; exact paired *p*=1.65 × 10⁻²⁴. A second run produced a byte-identical certificate. The package hashes the live shadow and all execution sources and remains `serving_authority=false`. |
 | **Cross-language operation semantics** | **SUPPORTED AS A REPRESENTATION DIAGNOSTIC, BOUNDED (2026-09-01).** A family- and geometry-blind linear head was transferred in all six directions among ordinary arithmetic, three-step fork/join arithmetic and mixed sequence-pointer language. Absolute operation-span states transferred strongly in five directions but failed sequence→fork/join at whole-program exactness (**27/192** versus geometry-only 24), localizing the remaining nuisance. Answer-blind centering within factorial counterfactual sets exposed the shared operation signal: the four zero-token-overlap test directions reached **47/48, 48/48, 128/128 and 179/192**, while coefficient lesions reached 12, 12, 8 and 3 and label permutation reached zero throughout. Independent replay reloaded 1,296 records and exactly reproduced 14,720 program-arm rows. Because centering requires a target contrast batch and gold operation spans, this proves latent semantic content beneath construction context, not a deployable single-request compiler. |
 | **Recurrence-native backbone training** | **OPEN for broad gain.** The CP566/CP1011 semantic-machine results do not establish that training the resident backbone to repeat its middle layers caused those gains. That path needs its own matched behavioral evidence. |
+| **Native decoder semantic selection** | **RESEARCH ONLY (2026-09-25).** Source-only native suffix adaptation selects 45/50 correct programs on a frozen wording bank versus incumbent 41/50 and matched unfitted 27/50, with five gains and one regression. A separate whole-graph contrast checkpoint returns 38/50, with three gains and six regressions. Neither is promotable under the non-regression requirement. These are candidate-selection measurements, not freely decoded public answers, fresh-family transfer, recurrence gain or frontier qualification. [Complete evidence](evidence/G03_NATIVE_DECODER_SEMANTICS_2026-09-25.md). |
 | **Broad reasoning gain, fusion, frontier performance** | **NOT CLAIMED.** No checkpoint in this programme authorizes any of them, and each entry in the ledger says so explicitly — including CP566, whose adjudication ships its limitations line inside the same receipt as its verdict. |
 
 **Current G03 boundary (2026-09-22).** A paired full-program replay found that
@@ -254,7 +257,7 @@ dependency order.
 | Document | What it is |
 |---|---|
 | **This page** | Spec, mechanism, claims ladder. Start here. |
-| [RLC_RECONCILIATION.md](RLC_RECONCILIATION.md) | State of the campaign, the `≥ vanilla always` invariant, and the fourteen defects that made a win impossible |
+| [RLC_RECONCILIATION.md](RLC_RECONCILIATION.md) | Historical frozen-loop campaign, incumbent ownership contract, and the fourteen defects that made a win impossible |
 | [RLC_SPARK_EXECUTION_LEDGER.md](RLC_SPARK_EXECUTION_LEDGER.md) | The append-only execution ledger. Long, dated, never revised — the primary record |
 | [RLC_WIRING_HANDOFF.md](RLC_WIRING_HANDOFF.md) | How the organ attaches to the live runtime |
 | [RLC_COMMITMENT_SEARCH.md](RLC_COMMITMENT_SEARCH.md) | Commitment extraction and search over latent state |

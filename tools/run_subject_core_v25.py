@@ -373,6 +373,7 @@ async def _spectrum(
     screen: int = 0,
     shard: tuple[int, int] | None = None,
     design: dict[str, Any] | None = None,
+    only: Sequence[str] = (),
 ) -> tuple[dict[float, float], dict[str, Any]]:
     """The weakest cut's rate at every horizon on the ladder.
 
@@ -389,7 +390,7 @@ async def _spectrum(
         runtime, anchors, conditions,
         lags=lags, frame_seconds=frame_seconds,
         turns=turns, rounds=rounds, seed=seed, domains=domains,
-        screen=screen, shard=shard,
+        screen=screen, shard=shard, only=only,
         looks=tuple(chosen.get("looks") or ()),
         draws=int(chosen.get("draws") or 200),
         alpha=float(chosen.get("alpha") or 0.05),
@@ -609,6 +610,15 @@ async def main() -> int:
         ),
     )
     parser.add_argument(
+        "--cuts", type=str, default="",
+        help=(
+            "score only the cuts with one of these sides, comma-separated domain "
+            "sets such as C,S,PM, or `singletons` for every domain alone against "
+            "the rest. A look at the lopsided cuts, which come out cheapest; like "
+            "--screen it has not scored every cut and is never authoritative"
+        ),
+    )
+    parser.add_argument(
         "--conditions", type=int, default=0,
         help=(
             "use only the first N ordinary conditions. An anchor probed under "
@@ -655,6 +665,13 @@ async def main() -> int:
         help="the ISC-v5 design in core/subject/isc_v5.py: its looks, draws, level, horizons and anchors",
     )
     args = parser.parse_args()
+    only_cuts: tuple[str, ...] = tuple(
+        side.strip().upper() for side in args.cuts.split(",") if side.strip()
+    )
+    if only_cuts == ("SINGLETONS",):
+        from core.subject.state import DOMAINS
+
+        only_cuts = tuple(DOMAINS)
     shard: tuple[int, int] | None = None
     if args.shard:
         index, _, count = args.shard.partition("/")
@@ -880,7 +897,7 @@ async def main() -> int:
                 runtime, anchors, conditions,
                 lags=lags, frame_seconds=frame_seconds, turns=args.turns,
                 rounds=args.cut_rounds, seed=args.seed, domains=support,
-                screen=args.screen, shard=shard, design=sweep_design,
+                screen=args.screen, shard=shard, design=sweep_design, only=only_cuts,
             )
             payload = {
                 "shard": f"{shard[0]}/{shard[1]}",
@@ -962,7 +979,7 @@ async def main() -> int:
                     runtime, anchors, conditions,
                     lags=lags, frame_seconds=frame_seconds, turns=args.turns,
                     rounds=args.cut_rounds, seed=args.seed, domains=support,
-                    screen=args.screen, design=sweep_design,
+                    screen=args.screen, design=sweep_design, only=only_cuts,
                 )
             binding = _horizon_is_binding(spectrum, lags)
             tau_star = max(spectrum, key=lambda tau: spectrum[tau]) if spectrum else None

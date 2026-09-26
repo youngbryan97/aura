@@ -1176,6 +1176,41 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Native decoder pilot](evidence/G03_NATIVE_DECODER_SEMANTICS_2026-09-25.md)
+  uses the resident model's original semantic pathway with source-only LoRA.
+  The complete held-wording pilot reaches 14/18 versus 7/18 unfitted and
+  15/18 incumbent. One incumbent gain and two regressions reject promotion.
+  Exact cached-prefix equivalence, real tokenizer boundaries and the shared
+  Metal limit/rollback repair pass 61 focused tests. G03 remains open.
+  Its semantic-decision follow-up reaches 17/18 versus incumbent 15/18 and
+  unfitted 8/18, with zero paired regressions. All observed reachable programs
+  are selected. Seventy focused tests pass; independently checked receipts are
+  linked in the same evidence page. This exposed wording pilot is not full
+  development or fresh semantic-family transfer; G03 remains open.
+  The complete 50-wording contrast replay reaches 38/50 versus incumbent
+  41/50 and unfitted 26/50: three gains, six regressions, observed bank reach
+  47/50. It is rejected. Checkpoint-bound replay recovers the interrupted
+  fit's evaluation without retraining or reading held labels for selection.
+  The earlier decision-only checkpoint completes the same 50-case replay at
+  45/50 versus incumbent 41/50 and unfitted 27/50, with five gains and one
+  regression. Every row is independently verified. This is useful wording
+  evidence but does not meet non-regression or close G03; source-only combined
+  selection and missing-proposal reach remain separate obligations.
+  Source-only combined-selection acquisition reuses the frozen proposer and
+  preserves separate calibration evidence. Its bounded check retained 12/185
+  rows; no complete receipt or selector admission is claimed. Native scoring
+  retains unknown outcomes and records checkpoint-selection instances for
+  exclusion from independent admission. G03 remains open.
+  Combined native evidence and frozen-policy replay now reuse the existing
+  calibrated selector. Eighteen focused checks pass, including source-bank
+  lineage, label-blind application and checkpoint-bound held replay. No policy
+  has yet passed real source-native admission; this is infrastructure evidence.
+  Complete source calibration acquisition now verifies 185/185 durable rows:
+  incumbent 122 correct, joint selection 144, observed proposal reach 163;
+  the other 22 have unresolved search reach. Native calibration and independent
+  combined-policy admission remain. Unfitted-native alternatives cover the
+  remaining reachable miss in the exposed 50-case oracle union, but that union
+  is not a callable policy. G03 stays open.
   [Nested selector and research review](evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md):
   508 source-only inner rows train a selector for a disjoint 256-source outer
   construction fold. It falls from incumbent 179 correct to 108 (5 gains,

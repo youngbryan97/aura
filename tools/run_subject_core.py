@@ -110,21 +110,45 @@ class DeadReader(RuntimeError):
     """A declared source that did not read once in a whole pass of the conditions."""
 
 
+#: Reasons a reading failed that a longer run cannot heal. The organ kit is
+#: fixed once the organism is up, so an organ that is not there and an attribute
+#: that does not exist will not appear later. Every other reason — a stale
+#: snapshot, a state with no finite number in it, a count with nothing counted
+#: yet, an objective not yet bound — is transient, and a source that warms up
+#: over more than one pass must not stop the run.
+_STRUCTURAL_MISSES: tuple[str, ...] = ("organ absent", "no such reading")
+
+
 def _never_read(frames: list[Any]) -> list[str]:
-    """Sources that failed on every frame so far.
+    """Sources that failed structurally on every frame so far.
 
     A source that has not read once by the end of a pass through all eight
-    conditions has no writer in this build: one pass is the smallest complete
-    exercise of the organism, because the conditions are the declared set of
-    ordinary situations and between them they run every phase. The run refuses
-    such a source at the end anyway, after the whole recording — an hour of
-    seed-7 at three hundred rounds — so it is worth asking after the first
-    eight turns instead.
+    conditions, for a reason a longer run cannot heal, has no writer in this
+    build: one pass is the smallest complete exercise of the organism, because
+    the conditions are the declared set of ordinary situations and between them
+    they run every phase. The run refuses such a source at the end anyway, after
+    the whole recording — an hour of seed-7 at three hundred rounds — so it is
+    worth asking after the first eight turns instead.
+
+    Only the structural reasons, so a reading that is warming up is not mistaken
+    for one that is missing. The nearest live example is
+    `cognition.current_origin`: it fails on five of the first eight turns of the
+    offline organism and on 5.7% of three hundred rounds, under the 20% the
+    battery refuses at. Five of eight leaves the intersection empty, so it was
+    never named — but a source that missed for a whole first pass and recovered
+    afterwards would have been, and the reason is what tells the two apart.
     """
-    seen = [set(getattr(frame, "misses", {}) or {}) for frame in frames]
-    if not seen:
+    structural = [
+        {
+            source
+            for source, why in (getattr(frame, "misses", {}) or {}).items()
+            if str(why) in _STRUCTURAL_MISSES
+        }
+        for frame in frames
+    ]
+    if not structural:
         return []
-    return sorted(set.intersection(*seen))
+    return sorted(set.intersection(*structural))
 
 
 async def _record(

@@ -249,12 +249,7 @@ def fit_compositional_source_campaign(
              .with_overlap_complete_mentions().with_atomic_literal_arguments()
              .with_feasible_operation_charts().with_order_invariant_argument_graph()
              .with_joint_definition_graph().with_categorical_relation_scores())
-    if source_order_inputs:
-        receipt_body = {key: value for key, value in model.training_receipt.items()
-                        if key != "receipt_sha256"}
-        receipt_body["input_order_policy"] = "source_token_order_v1"
-        model = replace(model, training_receipt={**receipt_body,
-                        "receipt_sha256": _sha(receipt_body)})
+    model = bind_compositional_source_input_order(model, source_order_inputs=source_order_inputs)
     body = {key: value for key, value in report.items() if key != "report_sha256"}
     body.update(schema=("aura.compositional_source_training.v2" if source_order_inputs
                         else "aura.compositional_source_training.v1"),
@@ -262,6 +257,21 @@ def fit_compositional_source_campaign(
                 decoder_recipe="global_joint_categorical_atomic_v1", inherited_coefficients=False,
                 fit_complete=True, evaluation_complete=False)
     return CompositionalLeaveFamilyOutResult(model, {**body, "report_sha256": _sha(body)})
+
+
+def bind_compositional_source_input_order(model, *, source_order_inputs: bool):
+    """Give a fitted source-order model its own immutable decoder identity."""
+    if type(source_order_inputs) is not bool:
+        raise ValueError("source-order input policy must be explicit")
+    if not source_order_inputs:
+        return model
+    receipt_body = {key: value for key, value in model.training_receipt.items()
+                    if key != "receipt_sha256"}
+    if receipt_body.get("input_order_policy") is not None:
+        raise ValueError("source-order input policy is already bound")
+    receipt_body["input_order_policy"] = "source_token_order_v1"
+    return replace(model, training_receipt={**receipt_body,
+                   "receipt_sha256": _sha(receipt_body)})
 
 
 def diagnose_compositional_definition_relations(

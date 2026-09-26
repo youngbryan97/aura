@@ -67,6 +67,22 @@ def test_source_order_fit_binds_policy_to_model_identity(source_bundles):
     assert result.report["transducer_receipt_sha256"] == result.model.receipt_sha256
 
 
+def test_source_order_identity_binder_is_shared_by_source_and_crossfit(source_bundles):
+    plain = campaign.fit_compositional_source_campaign(
+        source_bundles, input_grounding=_grounding()).model
+    rebound = campaign.bind_compositional_source_input_order(
+        plain, source_order_inputs=True)
+    assert rebound.receipt_sha256 != plain.receipt_sha256
+    assert rebound.training_receipt["input_order_policy"] == "source_token_order_v1"
+    assert rebound.training_receipt["receipt_sha256"] == campaign._sha({
+        key: value for key, value in rebound.training_receipt.items()
+        if key != "receipt_sha256"})
+    assert campaign.bind_compositional_source_input_order(
+        plain, source_order_inputs=False) is plain
+    with pytest.raises(ValueError, match="already bound"):
+        campaign.bind_compositional_source_input_order(rebound, source_order_inputs=True)
+
+
 def test_old_source_order_fit_can_rebind_identity_with_matched_evidence(source_bundles):
     fitted = campaign.fit_compositional_source_campaign(
         source_bundles, input_grounding=_grounding(), source_order_inputs=True)

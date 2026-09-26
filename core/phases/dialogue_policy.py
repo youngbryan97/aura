@@ -449,6 +449,22 @@ def _unanswered_question_parts(body: str, contract: object | None) -> list[str]:
     return unanswered_question_parts(body, contract)
 
 
+def _answers_the_asked_scale(body: str, contract: object | None) -> bool:
+    """Whether the reply rates itself on the scale the question named.
+
+    Asked how she feels "from -1 (very bad) to 1 (very good)", a number on that
+    scale is her answer and her stance in it. Requiring a first-person clause and
+    words of live grounding as well sent every such answer to repair. See
+    core/conversation/asked_scale.py.
+    """
+    asked = " ".join(str(part) for part in (getattr(contract, "question_segments", ()) or ()))
+    if not asked:
+        return False
+    from core.conversation.asked_scale import answers_the_scale_it_was_asked_for
+
+    return answers_the_scale_it_was_asked_for(asked, body)
+
+
 def validate_dialogue_response(
     text: str, contract: object | None, state: object | None = None
 ) -> DialogueValidation:
@@ -458,6 +474,7 @@ def validate_dialogue_response(
 
     violations: list[str] = []
     sentences = _sentences(body)
+    rated = _answers_the_asked_scale(body, contract)
 
     if getattr(contract, "avoid_question_fishing", False):
         if any(_is_generic_question(sentence) for sentence in sentences):
@@ -466,7 +483,7 @@ def validate_dialogue_response(
             violations.append("moderator_turn")
 
     if getattr(contract, "requires_aura_stance", False) and _requires_explicit_first_person_stance(contract):
-        if not _contains_first_person_stance(body):
+        if not (rated or _contains_first_person_stance(body)):
             violations.append("missing_first_person_stance")
 
     if getattr(contract, "requires_aura_question", False):
@@ -497,7 +514,7 @@ def validate_dialogue_response(
             violations.append("generic_assistant_language")
         if _LOW_SIGNAL_PREFIX.match(body):
             violations.append("low_signal_preamble")
-        if _requires_explicit_live_grounding(contract):
+        if _requires_explicit_live_grounding(contract) and not rated:
             if not _contains_first_person_stance(body):
                 violations.append("missing_first_person_stance")
             if not _contains_live_aura_grounding(body):

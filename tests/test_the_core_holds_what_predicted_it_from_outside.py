@@ -38,48 +38,43 @@ class _Unity:
         self.self_world_boundary_score = boundary
 
 
-class _Frame:
-    """The last frame of the continuous experience stream, which holds the third."""
-
-    def __init__(self, confidence: float) -> None:
-        self.ownership_confidence = confidence
-
-
 def test_an_unbound_moment_reads_as_hers():
     """No unity state is not a self that lost the world."""
     reading = _read(AuraState.default())
     assert _column(reading, "S.unity_ownership") == pytest.approx(1.0)
     assert _column(reading, "S.unity_boundary") == pytest.approx(1.0)
-    assert _column(reading, "S.unity_ownership_confidence") == pytest.approx(1.0)
 
 
 def test_the_core_carries_the_ownership_score():
     state = AuraState.default()
     state.cognition.unity_state = _Unity(0.42, 0.77)
-    reading = _read(state, Organs(experience=_Frame(0.31)))
+    reading = _read(state)
     assert _column(reading, "S.unity_ownership") == pytest.approx(0.42)
     assert _column(reading, "S.unity_boundary") == pytest.approx(0.77)
-    assert _column(reading, "S.unity_ownership_confidence") == pytest.approx(0.31)
 
 
-def test_an_absent_experience_frame_is_a_recorded_miss():
-    """An organ that is not running and a reading of full ownership differ."""
-    reading = _read(AuraState.default())
-    assert _column(reading, "S.unity_ownership_confidence") == pytest.approx(1.0)
-    assert any(source.startswith("organ:experience") for source in reading.misses)
-
-
-def test_the_three_scores_are_three_columns():
+def test_the_two_scores_are_two_columns():
     """They move together in life; they must not be one number here."""
     state = AuraState.default()
     state.cognition.unity_state = _Unity(0.1, 0.9)
-    reading = _read(state, Organs(experience=_Frame(0.5)))
-    values = [
-        _column(reading, "S.unity_ownership"),
-        _column(reading, "S.unity_boundary"),
-        _column(reading, "S.unity_ownership_confidence"),
-    ]
-    assert len(set(values)) == 3
+    reading = _read(state)
+    assert _column(reading, "S.unity_ownership") != _column(reading, "S.unity_boundary")
+
+
+def test_a_column_the_clamp_cannot_hold_is_not_a_column():
+    """The experience frame's own confidence was here and had to go.
+
+    The container holds a NEW frame every turn, so restoring the old object's
+    fields leaves the container pointing at the new one: no clamp can hold it,
+    and a source that cannot be severed cannot be lesioned. The agency score is
+    0.65 of that same confidence plus a term for whether anything was authored.
+    """
+    from core.subject.state import schema
+
+    assert "unity_ownership_confidence" not in schema("S").features
+    assert not any(
+        source.startswith("organ:experience") for source in schema("S").sources
+    )
 
 
 # ── how long since they spoke ────────────────────────────────────────────
@@ -163,27 +158,15 @@ def test_the_field_is_a_live_organ_not_a_declared_one():
     assert "field=" in source
 
 
-def test_the_experience_frame_is_not_held_by_the_organ_kit():
-    """It is replaced every turn, so one resolved at build time is never a frame."""
-    import inspect
+def test_every_organ_a_domain_reads_is_one_the_kit_holds():
+    """A source the clamp cannot reach is a cut that does not sever."""
+    from core.subject.state import DOMAINS, Organs, schema
 
-    from core.subject import state as subject_state
-
-    source = inspect.getsource(subject_state.Organs.live)
-    assert "experience=" not in source
-    assert callable(subject_state._experience_frame)
-
-
-def test_a_frame_in_the_container_reaches_the_column():
-    from core.container import ServiceContainer
-
-    state = AuraState.default()
-    ServiceContainer.set("continuous_experience_frame", _Frame(0.22), required=False)
-    try:
-        reading = _read(state)
-        assert _column(reading, "S.unity_ownership_confidence") == pytest.approx(0.22)
-    finally:
-        ServiceContainer.set("continuous_experience_frame", None, required=False)
+    held = set(Organs.__dataclass_fields__)
+    for domain in DOMAINS:
+        for source in schema(domain).sources:
+            if source.startswith("organ:"):
+                assert source[len("organ:") :].split(".", 1)[0] in held, source
 
 
 # ── the selfhood tick's own numbers ──────────────────────────────────────
@@ -235,3 +218,99 @@ def test_a_reading_that_is_not_a_mapping_is_two_zeros():
     reading = _read(state)
     assert _column(reading, "G.selfhood_read") == pytest.approx(0.0)
     assert _column(reading, "G.selfhood_level") == pytest.approx(0.0)
+
+
+# ── the learning state ───────────────────────────────────────────────────
+#
+# The closure walk differences fifteen periphery variables that are her learned
+# parameters and her own history of having been a way: the substrate's and the
+# mesh's and the field's weights, the self-model's weights, the phi core's visit
+# counts, the network's rewirings. K is her, and her learned parameters are hers;
+# the machine's bookkeeping is not. That is the line, and it is the same one the
+# fork already draws with `_MACHINERY_PACKAGES`.
+
+
+class _Held:
+    def __init__(self, **kw) -> None:
+        for name, value in kw.items():
+            setattr(self, name, value)
+
+
+def test_how_often_she_has_felt_each_way_is_in_the_core():
+    """As shares of her history, so the total does not enter as a clock."""
+    counts = np.array([1.0, 4.0, 9.0, 2.0], dtype=np.float32)
+    reading = _read(AuraState.default(), Organs(phi_core=_Held(_affective_state_visits=counts)))
+    assert _column(reading, "A.felt_before_mean") == pytest.approx(0.25)
+    assert _column(reading, "A.felt_before_max") == pytest.approx(9.0 / 16.0)
+    assert _column(reading, "A.felt_before_min") == pytest.approx(1.0 / 16.0)
+
+
+def test_a_history_spread_evenly_has_no_spread():
+    counts = np.array([3.0, 3.0, 3.0], dtype=np.float32)
+    reading = _read(AuraState.default(), Organs(phi_core=_Held(_state_visits=counts)))
+    assert _column(reading, "C.been_here_mean") == pytest.approx(1.0 / 3.0)
+    assert _column(reading, "C.been_here_sd") == pytest.approx(0.0)
+
+
+def test_a_history_concentrated_in_one_state_does_have_spread():
+    counts = np.array([1.0, 1.0, 97.0, 1.0], dtype=np.float32)
+    reading = _read(AuraState.default(), Organs(phi_core=_Held(_state_visits=counts)))
+    assert _column(reading, "C.been_here_sd") > 0.3
+
+
+def test_what_her_self_prediction_has_learned_is_in_the_core():
+    """The weights live on the engine's model, not on the engine."""
+    weights = np.array([0.1, -0.2, 0.3], dtype=np.float32)
+    engine = _Held(_predictive_self=_Held(weights=weights))
+    reading = _read(AuraState.default(), Organs(executive=engine))
+    assert _column(reading, "S.self_model_weight_max") == pytest.approx(0.3, abs=1e-6)
+    assert _column(reading, "S.self_model_weight_min") == pytest.approx(-0.2, abs=1e-6)
+
+
+def test_a_dotted_attribute_that_stops_short_is_a_miss_not_a_crash():
+    reading = _read(AuraState.default(), Organs(executive=_Held(_predictive_self=None)))
+    assert _column(reading, "S.self_model_weight_mean") == pytest.approx(0.0)
+    assert any(source.startswith("organ:executive") for source in reading.misses)
+
+
+def test_the_dread_is_read_from_the_method_that_exists():
+    class _Homeostasis:
+        @staticmethod
+        def get_snapshot():
+            return {"prospective_dread": 0.42}
+
+    reading = _read(AuraState.default(), Organs(homeostasis=_Homeostasis()))
+    assert _column(reading, "A.dread") == pytest.approx(0.42)
+
+
+def test_a_running_total_does_not_become_a_column():
+    """The rewiring count was one and is gone.
+
+    Her wiring changing is a fact about her, and the count of how many times is
+    elapsed time: its mean, its smallest and its largest only ever go one way,
+    which is what `without_clocks` holds flat because elapsed time is not a
+    hidden state. The density beside it — links against links plus nodes — is
+    the state, and it is already in the body's columns.
+    """
+    from core.subject.state import schema
+
+    assert "rewirings" not in schema("I").features
+    assert "mycelium_density" in schema("I").features
+
+
+def test_a_visit_count_enters_as_its_shape_not_its_total():
+    """Three of the eight sketch numbers of a running total are clocks."""
+    counts = np.array([1.0, 1.0, 6.0, 2.0], dtype=np.float32)
+    doubled = counts * 2.0
+    one = _read(AuraState.default(), Organs(phi_core=_Held(_state_visits=counts)))
+    two = _read(AuraState.default(), Organs(phi_core=_Held(_state_visits=doubled)))
+    for part in ("mean", "sd", "min", "max"):
+        assert _column(one, f"C.been_here_{part}") == pytest.approx(
+            _column(two, f"C.been_here_{part}"), abs=1e-6
+        )
+
+
+def test_nothing_counted_yet_is_a_miss_rather_than_a_shape():
+    reading = _read(AuraState.default(), Organs(phi_core=_Held(_state_visits=np.zeros(4))))
+    assert _column(reading, "C.been_here_max") == pytest.approx(0.0)
+    assert any(source.startswith("organ:phi_core._state_visits") for source in reading.misses)
