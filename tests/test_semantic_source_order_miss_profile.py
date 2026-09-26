@@ -4,6 +4,7 @@ import pytest
 
 from tools.profile_semantic_source_order_misses import (
     _sha,
+    bank_reach_record,
     failure_class,
     verified_validation_rows,
 )
@@ -38,3 +39,18 @@ def test_validation_profile_refuses_changed_receipt_or_cohort():
         verified_validation_rows({**evaluation, "validation_ids_sha256": "changed"}, model, plan, 2)
     with pytest.raises(ValueError, match="cohort"):
         verified_validation_rows(evaluation, model, plan, 3)
+
+
+def test_bank_reach_records_observation_without_claiming_exhaustion():
+    target = SimpleNamespace(sha=lambda: "target")
+    bank = SimpleNamespace(
+        validate=lambda: None,
+        candidates=(SimpleNamespace(program=SimpleNamespace(sha=lambda: "target")),),
+        receipt={"receipt_sha256": "receipt", "search_complete": False,
+                 "limit_reason": "bounded"},
+    )
+    assert bank_reach_record(bank, target) == {
+        "bank_receipt_sha256": "receipt", "candidate_count": 1,
+        "exact_target_observed": True, "search_complete": False,
+        "limit_reason": "bounded",
+    }

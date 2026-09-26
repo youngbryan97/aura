@@ -7,6 +7,10 @@ from core.learning import semantic_program_compositional_campaign as campaign
 from core.learning.semantic_program_basis import SemanticRepresentationCompatibilityError
 from tests.test_semantic_program_basis import _basis, _manifest, _sha
 from tests.test_semantic_program_shared_transducer import _examples, _grounding
+from tools.rebind_semantic_source_order_identity import (
+    _sha as rebind_sha,
+    rebind_source_order_identity,
+)
 
 
 @pytest.fixture
@@ -61,6 +65,52 @@ def test_source_order_fit_binds_policy_to_model_identity(source_bundles):
     assert result.report["schema"] == "aura.compositional_source_training.v2"
     assert result.model.training_receipt["input_order_policy"] == "source_token_order_v1"
     assert result.report["transducer_receipt_sha256"] == result.model.receipt_sha256
+
+
+def test_old_source_order_fit_can_rebind_identity_with_matched_evidence(source_bundles):
+    fitted = campaign.fit_compositional_source_campaign(
+        source_bundles, input_grounding=_grounding(), source_order_inputs=True)
+    body = {key: value for key, value in fitted.model.training_receipt.items()
+            if key not in {"receipt_sha256", "input_order_policy"}}
+    old_model = replace(fitted.model, training_receipt={
+        **body, "receipt_sha256": rebind_sha(body)})
+    report_body = {key: value for key, value in fitted.report.items()
+                   if key != "report_sha256"}
+    report_body["transducer_receipt_sha256"] = old_model.receipt_sha256
+    old_report = {**report_body, "report_sha256": rebind_sha(report_body)}
+    _, plan = campaign.prepare_compositional_source_training(
+        source_bundles, source_order_inputs=True)
+    validation_body = {
+        "schema": "aura.semantic_source_order_regrade.v1",
+        "candidate_receipt_sha256": old_model.receipt_sha256,
+        "source_input_order": {"candidates": {"frozen": {
+            "transducer_receipt_sha256": old_model.receipt_sha256}}},
+        "source_order_plan_sha256": plan["report_sha256"],
+        "validation_ids_sha256": plan["validation_example_ids_sha256"],
+        "serving_authority": False,
+    }
+    validation = {**validation_body, "receipt_sha256": rebind_sha(validation_body)}
+    rebound, new_report, candidate_report = rebind_source_order_identity(
+        old_model, old_report, plan, validation)
+    assert rebound.training_receipt["input_order_policy"] == "source_token_order_v1"
+    assert rebound.training_receipt["source_order_identity_rebind"][
+        "parent_transducer_receipt_sha256"] == old_model.receipt_sha256
+    assert new_report["transducer_receipt_sha256"] == rebound.receipt_sha256
+    assert candidate_report["candidate"] == rebound.receipt_sha256
+    assert candidate_report["serving_authority"] is False
+    assert candidate_report["receipt_sha256"] == rebind_sha({
+        key: value for key, value in candidate_report.items() if key != "receipt_sha256"})
+    assert {key: value for key, value in rebound.to_dict().items()
+            if key != "training_receipt"} == {key: value for key, value in
+                                       old_model.to_dict().items() if key != "training_receipt"}
+    with pytest.raises(ValueError, match="matched fit"):
+        rebind_source_order_identity(old_model, old_report, plan,
+                                     {**validation, "validation_ids_sha256": "wrong"})
+    with pytest.raises(ValueError, match="matched fit"):
+        rebind_source_order_identity(old_model, old_report,
+                                     {**plan, "input_order_policy": "wrong"}, validation)
+    with pytest.raises(ValueError, match="matched fit"):
+        rebind_source_order_identity(rebound, new_report, plan, validation)
 
 
 def test_duplicate_across_training_and_validation_is_rejected(source_bundles):

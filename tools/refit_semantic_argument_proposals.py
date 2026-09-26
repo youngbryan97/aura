@@ -52,6 +52,60 @@ def source_input_order_policy(model, report):
     return policy
 
 
+def source_bundle_arguments(report, *, feature_root=None, bundles=None):
+    """Resolve the exact measured cohort, including separately stored bundles."""
+    from tools.diagnose_compositional_semantic_transfer import _bundle_arguments
+
+    if (feature_root is None) == (bundles is None):
+        raise ValueError("choose one source feature root or explicit source bundles")
+    expected = set(report["representation_compatibility"][
+        "source_feature_manifest_sha256s"])
+    paths = ({name: feature_root / name for name in expected}
+             if feature_root is not None else _bundle_arguments(bundles))
+    if set(paths) != expected:
+        raise ValueError("source bundles differ from the measured source cohort")
+    return [name + "=" + str(paths[name]) for name in sorted(expected)]
+
+
+def verify_source_report_identity(report, model):
+    from core.learning.semantic_program_campaign import _sha
+
+    body = {key: value for key, value in report.items() if key != "report_sha256"}
+    if (report.get("schema") not in {"aura.compositional_source_training.v1",
+                                     "aura.compositional_source_training.v2"}
+            or report.get("report_sha256") != _sha(body)
+            or report.get("transducer_receipt_sha256") != model.receipt_sha256):
+        raise ValueError("source training report identity differs from model")
+
+
+def verify_candidate_report_identity(candidate_report, model, source_report):
+    """Bind a measured candidate report to its model and source cohort."""
+    from core.learning.semantic_program_campaign import _sha
+
+    verify_source_report_identity(source_report, model)
+    body = {key: value for key, value in candidate_report.items()
+            if key != "receipt_sha256"}
+    schema = candidate_report.get("schema")
+    valid = (candidate_report.get("receipt_sha256") == _sha(body)
+             and candidate_report.get("candidate") == model.receipt_sha256)
+    if schema == "aura.semantic_source_order_identity_rebind.v1":
+        lineage = model.training_receipt.get("source_order_identity_rebind", {})
+        valid = (valid and source_input_order_policy(model, source_report)
+                 == "source_token_order_v1"
+                 and candidate_report.get("source_report_sha256")
+                 == source_report.get("report_sha256")
+                 and candidate_report.get("parent_candidate_receipt_sha256")
+                 == lineage.get("parent_transducer_receipt_sha256")
+                 and candidate_report.get("parent_validation_receipt_sha256")
+                 == lineage.get("parent_validation_receipt_sha256")
+                 and candidate_report.get("coefficients_changed") is False
+                 and candidate_report.get("serving_authority") is False)
+    elif schema != "aura.semantic_cohort_diagnosis.v2":
+        valid = False
+    if not valid:
+        raise ValueError("candidate report identity differs from model or source cohort")
+
+
 def load_source_examples(model, report, bundles):
     """Share the exact parent-bound source admission across refits and diagnostics."""
     from core.learning.semantic_program_basis import bind_training_examples_to_shared_representation
@@ -61,6 +115,7 @@ def load_source_examples(model, report, bundles):
     )
     from core.learning.semantic_source_order import source_order_training_example
 
+    verify_source_report_identity(report, model)
     policy = source_input_order_policy(model, report)
 
     compatibility = report["representation_compatibility"]
