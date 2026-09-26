@@ -152,16 +152,6 @@ class Organs:
     #: every tick and nothing in the core held it, so the closure test read its
     #: extremes from outside and they predicted the core's next state.
     field: Any = None
-    #: The last frame of the continuous experience stream. Its ownership
-    #: confidence is the third of the three the closure test read from outside,
-    #: and it is not a field of the unity state: it is the frame's own.
-    #:
-    #: Unlike every organ above it, this one is replaced every turn rather than
-    #: kept and stepped, so `live()` cannot hold it: the frame that exists when
-    #: the organism is built is None and would stay None for the run. It is
-    #: resolved per reading by `_experience_frame`, and a value here overrides
-    #: that, which is how a test hands one in.
-    experience: Any = None
 
     @classmethod
     def live(cls) -> Organs:
@@ -723,11 +713,18 @@ _SCHEMAS: dict[str, Schema] = {
             # What the unity monitor decided about whose the last moment was,
             # and how clean the line between her and the world is. The
             # comparator above answers for one action; these answer for the
-            # whole bound moment, and the closure test read all three from
-            # outside the core. See core/unity/unity_monitor.py.
+            # whole bound moment, and the closure test read both from outside
+            # the core. See core/unity/unity_monitor.py.
+            #
+            # The experience frame's own ownership confidence was a third
+            # column here and is gone: the container holds a NEW frame every
+            # turn, so no clamp can hold it — restoring the old object's fields
+            # leaves the container pointing at the new one — and a column that
+            # cannot be severed cannot be lesioned. The agency score above is
+            # 0.65 of that same confidence plus a term for whether anything was
+            # authored, so nothing is lost by reading it there.
             ("unity_ownership", "cognition.unity_state.agency_ownership_score"),
             ("unity_boundary", "cognition.unity_state.self_world_boundary_score"),
-            ("unity_ownership_confidence", "organ:experience.ownership_confidence"),
         ),
     ),
     "M": _sch(
@@ -1466,22 +1463,6 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
     return np.array(head, dtype=np.float64)
 
 
-def _experience_frame() -> Any:
-    """The current frame of the continuous experience stream, or nothing.
-
-    Read per reading rather than held, because the container's entry is a new
-    frame every turn: an organ resolved once at build time would be the frame
-    that existed before her first one, which is none of them.
-    """
-    try:
-        from core.container import ServiceContainer
-
-        return ServiceContainer.get("continuous_experience_frame", default=None)
-    # not a failure: no container here, so there is no frame to read.
-    except (ImportError, AttributeError, RuntimeError):
-        return None
-
-
 def _selfhood(reading: Any) -> list[float]:
     """How much of herself the selfhood tick could read, and what it read.
 
@@ -1601,19 +1582,10 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
     # Defaults of one, not zero: an unbound moment is not a moment she has
     # disowned, and the monitor's own rest value for all three is full
     # ownership. A zero here would read as a self that had lost the world.
-    kit_experience = organs.experience or _experience_frame()
-    if kit_experience is None:
-        _miss("organ:experience.ownership_confidence", "organ absent")
     head.extend(
         [
             _f(_dig(state, "cognition.unity_state.agency_ownership_score"), 1.0),
             _f(_dig(state, "cognition.unity_state.self_world_boundary_score"), 1.0),
-            _f(
-                getattr(kit_experience, "ownership_confidence", None)
-                if kit_experience is not None
-                else None,
-                1.0,
-            ),
         ]
     )
     return np.array(head, dtype=np.float64)

@@ -38,48 +38,43 @@ class _Unity:
         self.self_world_boundary_score = boundary
 
 
-class _Frame:
-    """The last frame of the continuous experience stream, which holds the third."""
-
-    def __init__(self, confidence: float) -> None:
-        self.ownership_confidence = confidence
-
-
 def test_an_unbound_moment_reads_as_hers():
     """No unity state is not a self that lost the world."""
     reading = _read(AuraState.default())
     assert _column(reading, "S.unity_ownership") == pytest.approx(1.0)
     assert _column(reading, "S.unity_boundary") == pytest.approx(1.0)
-    assert _column(reading, "S.unity_ownership_confidence") == pytest.approx(1.0)
 
 
 def test_the_core_carries_the_ownership_score():
     state = AuraState.default()
     state.cognition.unity_state = _Unity(0.42, 0.77)
-    reading = _read(state, Organs(experience=_Frame(0.31)))
+    reading = _read(state)
     assert _column(reading, "S.unity_ownership") == pytest.approx(0.42)
     assert _column(reading, "S.unity_boundary") == pytest.approx(0.77)
-    assert _column(reading, "S.unity_ownership_confidence") == pytest.approx(0.31)
 
 
-def test_an_absent_experience_frame_is_a_recorded_miss():
-    """An organ that is not running and a reading of full ownership differ."""
-    reading = _read(AuraState.default())
-    assert _column(reading, "S.unity_ownership_confidence") == pytest.approx(1.0)
-    assert any(source.startswith("organ:experience") for source in reading.misses)
-
-
-def test_the_three_scores_are_three_columns():
+def test_the_two_scores_are_two_columns():
     """They move together in life; they must not be one number here."""
     state = AuraState.default()
     state.cognition.unity_state = _Unity(0.1, 0.9)
-    reading = _read(state, Organs(experience=_Frame(0.5)))
-    values = [
-        _column(reading, "S.unity_ownership"),
-        _column(reading, "S.unity_boundary"),
-        _column(reading, "S.unity_ownership_confidence"),
-    ]
-    assert len(set(values)) == 3
+    reading = _read(state)
+    assert _column(reading, "S.unity_ownership") != _column(reading, "S.unity_boundary")
+
+
+def test_a_column_the_clamp_cannot_hold_is_not_a_column():
+    """The experience frame's own confidence was here and had to go.
+
+    The container holds a NEW frame every turn, so restoring the old object's
+    fields leaves the container pointing at the new one: no clamp can hold it,
+    and a source that cannot be severed cannot be lesioned. The agency score is
+    0.65 of that same confidence plus a term for whether anything was authored.
+    """
+    from core.subject.state import schema
+
+    assert "unity_ownership_confidence" not in schema("S").features
+    assert not any(
+        source.startswith("organ:experience") for source in schema("S").sources
+    )
 
 
 # ── how long since they spoke ────────────────────────────────────────────
@@ -163,27 +158,15 @@ def test_the_field_is_a_live_organ_not_a_declared_one():
     assert "field=" in source
 
 
-def test_the_experience_frame_is_not_held_by_the_organ_kit():
-    """It is replaced every turn, so one resolved at build time is never a frame."""
-    import inspect
+def test_every_organ_a_domain_reads_is_one_the_kit_holds():
+    """A source the clamp cannot reach is a cut that does not sever."""
+    from core.subject.state import DOMAINS, Organs, schema
 
-    from core.subject import state as subject_state
-
-    source = inspect.getsource(subject_state.Organs.live)
-    assert "experience=" not in source
-    assert callable(subject_state._experience_frame)
-
-
-def test_a_frame_in_the_container_reaches_the_column():
-    from core.container import ServiceContainer
-
-    state = AuraState.default()
-    ServiceContainer.set("continuous_experience_frame", _Frame(0.22), required=False)
-    try:
-        reading = _read(state)
-        assert _column(reading, "S.unity_ownership_confidence") == pytest.approx(0.22)
-    finally:
-        ServiceContainer.set("continuous_experience_frame", None, required=False)
+    held = set(Organs.__dataclass_fields__)
+    for domain in DOMAINS:
+        for source in schema(domain).sources:
+            if source.startswith("organ:"):
+                assert source[len("organ:") :].split(".", 1)[0] in held, source
 
 
 # ── the selfhood tick's own numbers ──────────────────────────────────────
