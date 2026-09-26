@@ -35,6 +35,9 @@ class Simulated:
         self.door = (5.0, 12.0)
         self.said: list[str] = []
         self.pressed: list[str] = []
+        self.opened = False
+        #: Whether the door does anything when E is pressed at it.
+        self.answers = True
 
     #: The room is round, this far from its middle to its wall.
     RADIUS = 15.0
@@ -53,7 +56,7 @@ class Simulated:
         crop_h, crop_w = int(high / zoom), int(wide / zoom)
         left = int(round(self.facing * PX_PER_DEGREE)) + (wide - crop_w) // 2
         top = (self.panorama.shape[0] - crop_h) // 2
-        rows = top + np.linspace(0, crop_h - 1, high).round().astype(int)
+        rows = np.clip(top + np.linspace(0, crop_h - 1, high).round().astype(int), 0, self.panorama.shape[0] - 1)
         cols = (left + np.linspace(0, crop_w - 1, wide).round().astype(int)) % self.panorama.shape[1]
         return self.panorama[np.ix_(rows, cols)]
 
@@ -66,9 +69,12 @@ class Simulated:
             high = min(0.9, 1.0 / far)
             seen.append({"text": "Door", "center_x": 0.5 + off / FIELD, "center_y": 0.5,
                          "width": high * 0.5, "height": high})
-            if far < 2.0:
+            if far < 2.0 and not self.opened:
                 seen.append({"text": "Press E to enter", "center_x": 0.5, "center_y": 0.85,
                              "width": 0.2, "height": 0.03})
+        if self.opened:
+            seen.append({"text": "The door is open", "center_x": 0.2, "center_y": 0.1,
+                         "width": 0.2, "height": 0.03})
         return seen
 
     def look(self):
@@ -83,6 +89,9 @@ class Simulated:
                 self.x += step * math.sin(math.radians(self.facing))
                 self.y += step * math.cos(math.radians(self.facing))
             self.pressed.extend(sorted(slot.held - {self.walks, self.backs}))
+            near = math.hypot(self.door[0] - self.x, self.door[1] - self.y) < 2.0
+            if "e" in slot.held and near and self.answers:
+                self.opened = True
 
 
 def _world(sim: Simulated) -> ACameraWorld:
@@ -110,7 +119,18 @@ async def test_she_goes_to_the_door_and_does_what_it_says_telling_it_as_she_goes
     assert trip.done and trip.ended == "the screen said to press e"
     assert sim.pressed[trying:] == ["e"]
     assert heard[0] == "turning right toward the door"
-    assert "walking toward the door" in heard and heard[-1] == "the screen said to press e"
+    assert "walking toward the door" in heard and "the screen said to press e" in heard
+    assert heard[-1] == "the screen now says 'The door is open'"
+
+
+@pytest.mark.asyncio
+async def test_a_press_nothing_answers_is_not_called_done():
+    sim = Simulated()
+    sim.answers = False
+    world = _world(sim)
+    body = await learn_the_body(world, keys=("w", "s"), slot_s=0.2)
+    trip = await go_to(world, "door", body, slot_s=0.2, most_chunks=80)
+    assert trip.answered == "she pressed it and nothing on screen answered"
 
 
 @pytest.mark.asyncio

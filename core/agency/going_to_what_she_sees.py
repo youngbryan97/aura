@@ -26,7 +26,7 @@ from typing import Any
 
 from core.agency.what_hands_do import KEYS, Chunk, Slot
 
-__all__ = ["GoingTo", "Sighting", "a_cue_to_press", "seen_named"]
+__all__ = ["GoingTo", "Sighting", "a_cue_to_press", "reads_as_a_thing", "seen_named"]
 
 
 @dataclass(frozen=True)
@@ -44,13 +44,39 @@ def _words(said: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", str(said or "").lower())
 
 
+#: Words that make a run of text the interface talking — a prompt, a status,
+#: a sentence — rather than the name of a thing in the world.
+_TALK = re.compile(r"\b(press|hold|tap|click|open|opened|closed|is|are|was|the|to)\b", re.IGNORECASE)
+
+
+def reads_as_a_thing(region: dict[str, Any]) -> bool:
+    """Whether a run of text on screen names a thing, whole.
+
+    Two ways it does not. A sentence: "The Chest is open" is the world saying
+    something, and live, it made her own success message a second chest to
+    choose between. And a word cut by the edge of the frame: live, a chest
+    half out of view was read as "hest" and she looked all the way round for
+    one. A box that comes nearer the edge than one of its own letters is wide
+    may be missing letters.
+    """
+    said = " ".join(str(region.get("text", "")).split())
+    if not said or len(said.split()) > 3 or _TALK.search(said):
+        return False
+    wide = float(region.get("width", 0.0))
+    left = float(region.get("x", float(region.get("center_x", 0.5)) - wide / 2.0))
+    letter = wide / max(1, len(said))
+    return left > letter and left + wide < 1.0 - letter
+
+
 def seen_named(layout: Sequence[dict[str, Any]], named: str) -> list[Sighting]:
-    """Everything on screen whose words include every word of ``named``."""
+    """Everything on screen that names a thing and whose words include every word of ``named``."""
     wanted = set(_words(named))
     if not wanted:
         return []
     found: list[Sighting] = []
     for region in layout or ():
+        if not reads_as_a_thing(region):
+            continue
         if wanted <= set(_words(region.get("text", ""))):
             found.append(
                 Sighting(

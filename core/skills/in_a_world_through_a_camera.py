@@ -81,6 +81,11 @@ class Trip:
     chunks: int = 0
     ended: str = ""
     done: bool = False
+    #: Whether the world answered what she did at the end, judged by what it
+    #: showed afterwards; empty where nothing was there to answer.
+    answered: str = ""
+    #: Every chunk she played, as written, in order.
+    played: list[str] = field(default_factory=list)
 
 
 def look_settled(world: ACameraWorld, *, most: int = 3) -> tuple[Any, list[dict[str, Any]]]:
@@ -213,8 +218,15 @@ async def go_to(
                 trip.said.append(trip.ended)
                 return trip
             trip.chunks += 1
+            trip.played.append(chunk.as_text())
         if chunk.done or chunk.think:
             trip.done = chunk.done
+            if chunk.done and chunk.slots:
+                trip.answered = _how_the_world_answered(layout, look_settled(world)[1])
+                if trip.answered:
+                    trip.said.append(trip.answered)
+                    if tell is not None:
+                        tell(trip.answered)
             break
         frame, layout = look_settled(world)
         if chunk.slots and all(walks in slot.held for slot in chunk.slots):
@@ -223,6 +235,24 @@ async def go_to(
     if trip.ended not in trip.said:
         trip.said.append(trip.ended)
     return trip
+
+
+def _how_the_world_answered(before: list[dict[str, Any]], after: list[dict[str, Any]]) -> str:
+    """What the screen says to the last thing she did: words that went, and words that came.
+
+    Pressing what a prompt names is not success; the world answering is. A
+    prompt that is still there after the press, with nothing new beside it,
+    is a press nothing heard, and she says so rather than calling it done.
+    """
+    was = {str(region.get("text", "")).strip() for region in before or ()}
+    now = {str(region.get("text", "")).strip() for region in after or ()}
+    came = sorted(text for text in now - was if text)
+    went = sorted(text for text in was - now if text)
+    if came:
+        return f"the screen now says {came[0]!r}"
+    if went:
+        return f"{went[0]!r} went away"
+    return "she pressed it and nothing on screen answered"
 
 
 def _back_where_she_started(sweep: list[Any]) -> bool:
@@ -341,11 +371,22 @@ async def a_trip_for_the_pursuit(
     except NotInFront as why:
         return {"ok": False, "completed": False, "outcome": "navigated_away",
                 "needs_person": str(why), "moves": [], "attempts": []}
+    heard = trip.done and trip.answered != "she pressed it and nothing on screen answered"
+    from core.agency.what_she_tried import ASKED, Episode, keep
+
+    await asyncio.to_thread(
+        keep,
+        Episode(
+            world=app, task=f"go to the {named}", set_by=ASKED, succeeded=heard,
+            ended=trip.ended, answered=trip.answered, played=list(trip.played),
+            skill="going to a thing",
+        ),
+    )
     return {
-        "ok": trip.done,
-        "completed": trip.done,
-        "outcome": "reached" if trip.done else "no_move_available",
-        "cannot_decide": "" if trip.done else trip.ended,
+        "ok": heard,
+        "completed": heard,
+        "outcome": "reached" if heard else "no_move_available",
+        "cannot_decide": "" if heard else (trip.answered or trip.ended),
         "moves": trip.said,
         "attempts": [],
         "said": trip.said,

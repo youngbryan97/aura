@@ -60,14 +60,14 @@ wired to screen work, or covering part of it), **none**.
 
 | Faculty | Aura today | Status |
 |---|---|---|
-| Keyboard | `screen_pursuit_surface.press_key`: taps only, a bounded key set | part |
-| Held keys with durations | `window_server` can post key-down and key-up; nothing holds a key | none |
+| Keyboard | `core/agency/what_hands_do.py` grammar, `core/capabilities/hands.py` player; letters and digits pressable, Command never | have |
+| Held keys with durations | a key named across slots is one press held (`hands.play`) | have |
 | Absolute clicks | `host_automation.click_at`, `screen_pursuit_surface.click_normalized` | have |
-| Relative mouse (camera look) | none | none |
+| Relative mouse (camera look) | `QuartzHands.move_by` sets the event's delta, which games read; gain learned per world (`how_the_view_moves`) | have |
 | Scroll, drag | `host_automation.scroll`, `computer_interface.drag` | have |
-| Action chunks with empty slots | none: one act per look | none |
+| Action chunks with empty slots | `Chunk` of slots, `.` for an empty one, `done` and `think` | have |
 | Latency hiding | eyes and search off the loop; no measured perception-to-action delay per world | part |
-| Staying still once done | the loop stops on success; no Done token | part |
+| Staying still once done | `done` ends a chunk; a made layout is not moved out of | have |
 | Precise control by look-ahead | `looking_ahead`, `a_world_compiled` on boards | part |
 
 ### Language, instructions and dialogue
@@ -79,8 +79,8 @@ wired to screen work, or covering part of it), **none**.
 | Multilingual, emoji | the 27B reads them; nothing normalises them into a screen goal | part |
 | Voice | speech-to-text exists in the voice stack | part |
 | Completion reports, narration | `saying_what_a_move_does`, narration every move | have |
-| Clarifying questions | conversation-level only, not when a screen offers two candidates | part |
-| Answering questions by exploring | none | none |
+| Clarifying questions | a trip where two things answer to the name hands the choice back with both named (`going_to_what_she_sees`) | have |
+| Answering questions by exploring | looking around for a named thing, half a view a step (`in_a_world_through_a_camera`) | part |
 | Explaining intentions | the standing strategy line, spoken | have |
 
 ### Reasoning, memory and horizon
@@ -94,7 +94,7 @@ wired to screen work, or covering part of it), **none**.
 | Standing rules ("do the opposite") | none | none |
 | Recovery after failure | restart handling; no written failure note read on the retry | part |
 | Goal verification | `goal_reached`, layout check | have |
-| Active exploration | `HowItMoves.worth_trying` (acts that split hypotheses) | part |
+| Active exploration | `HowItMoves.worth_trying`; the camera sweep | part |
 
 ### Transfer and retention
 
@@ -136,10 +136,19 @@ wired to screen work, or covering part of it), **none**.
 | Best-of-N attempts | none | none |
 | Inverse dynamics labelling | none | none |
 | Training inside the world model | rehearsal tunes judging, not a policy | part |
-| Unified action space across OS and games | none | none |
+| Unified action space across OS and games | one grammar for keys, holds, relative mouse, clicks in window shares, scroll | have |
 | Confirmation gate for consequential acts | governance and `task_commitment_verifier` | have |
 | Learned success detector | none | none |
 | Explore first, name the task after | none | none |
+
+## Proven live (25-26 Sep)
+
+In `tools/a_room_to_walk_in.py`, a first-person room in a real window read
+by her own eyes and driven by Quartz events: she learned which key walks and
+how the mouse turns the camera by trying them, opened the Door (6.1 s), then
+looked around for the Chest behind her, walked to it and opened it (6.8 s).
+"Walk over to the chest in Python and open it", passed to `pursue_on_screen`
+as a person would say it, did the same in fourteen chunks.
 
 ## Build order
 
