@@ -4,7 +4,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.learning.semantic_construction_folds import construction_folds
+from core.learning.semantic_construction_folds import (
+    construction_folds,
+    utterance_construction_folds,
+)
 
 
 def row(source, construction, contrast="", split="train"):
@@ -42,3 +45,26 @@ def test_insufficient_independent_groups_do_not_get_split_to_fill_folds():
 def test_duplicate_sources_are_not_independent_evidence():
     with pytest.raises(ValueError, match="repeated"):
         construction_folds([row("a", "one"), row("a", "two")])
+
+
+def test_utterance_folds_share_semantics_but_hold_each_wording_construction():
+    examples = [row(f"{family}-{index}-{variant}", f"{family}:wording-{index}",
+                    contrast=f"{family}-shared")
+                for family in ("first", "second") for index in range(3)
+                for variant in range(2)]
+    folds = utterance_construction_folds(examples)
+    assert folds == utterance_construction_folds(tuple(reversed(examples)))
+    assert folds["contrast_lineages_crossing_folds"] == 2
+    assert folds["independent_semantic_transfer_claim"] is False
+    for family in ("first", "second"):
+        assert {folds["assignments"][f"{family}-{index}-0"] for index in range(3)} == {0, 1, 2}
+        for index in range(3):
+            assert folds["assignments"][f"{family}-{index}-0"] == folds["assignments"][
+                f"{family}-{index}-1"]
+
+
+def test_utterance_folds_require_per_family_coverage():
+    with pytest.raises(ValueError, match="one construction per fold"):
+        utterance_construction_folds([row("a", "family:one"), row("b", "family:two")])
+    with pytest.raises(ValueError, match="family provenance"):
+        utterance_construction_folds([row(str(index), f"wording-{index}") for index in range(3)])

@@ -397,3 +397,43 @@ Its receipt is `4efa3d3e8ff8e98f35d42e75ece105e6c3cfaa4ae3a049d8181adba067689a46
 The pilot's absence of hard incumbent errors is evidence against spending a
 full acquisition run on the same sampling rule. Source-only hard examples
 must be obtained without using the 13 development labels as training data.
+
+## Wording-construction transfer axis
+
+The source-only corpus has three training wording constructions each for
+cataphoric, reserved-alias, and role-binding requests (16 examples per
+construction). Validation construction 5 contributes all 13 remaining
+source-order misses in the first two families. The older independent
+construction folds happen to put all cataphoric training constructions in
+fold 2; their contrast-closure rule does not guarantee that each family has
+wording coverage in fit. This is a different question from unseen semantic
+family transfer.
+
+`utterance_construction_folds` now freezes a separate split in which every
+family contributes an entire held wording construction to each fold while
+other wording constructions from the same family remain in source-only fit.
+It explicitly permits shared program semantics and disclaims independent
+semantic transfer. On this cohort no contrast lineage actually crosses the
+new folds; that measured fact does not upgrade the claim. The signed plan is
+`~/.aura/rlc-evidence/semantic-source-order-identity-rebind-20260925/utterance-folds.json`
+(`bc182297e69ebf8fbb38f4a46fa6db1f2eede6a26d0180dd500a3d1c7796ee29`).
+
+The existing crossfit proposer now consumes the exact v2 source bundles,
+normalizes source-order inputs, and binds that policy into each fitted
+candidate's receipt. Fold 0 fit used 303 source training examples and 185
+disjoint source calibration examples. Its candidate receipt is
+`da04838eaea5ec138b81916be087084c5527d7f3a809b9a7a3caec16981c12ea`.
+At one source identity per held construction, ordinary selection was 15/18
+and target-blind bank reach was observed on 17/18. A fixed expansion to the
+lowest three source identities per construction produced 50 held examples:
+ordinary selection 41/50, observed reach 47/50, and top joint score 42/50.
+Of nine ordinary misses, six have an observed equivalent alternative: two
+sequential arithmetic, two role binding, and two reserved alias. The other
+three are nested arithmetic with incomplete search, not proven unreachable.
+The signed 50-row report is
+`~/.aura/rlc-evidence/semantic-source-order-utterance-crossfit-fold0-3x-20260925/report.json`
+(`7bdd89e04184b551ac91581edbf60125e177f14e7a5cbcc8b26d96fa2f64329a`).
+This is a source-only pilot selected before labels, not G03 closure. It
+supplies measured hard examples aligned to wording transfer while keeping
+selection and reachability separate. Full cross-fold evidence and a selector
+that improves paired development accuracy without regression remain open.

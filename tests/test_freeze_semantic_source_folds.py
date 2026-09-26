@@ -28,3 +28,5 @@ def test_source_folds_require_train_and_withheld_population():
         source_folds(train)
     with pytest.raises(ValueError, match="train and withheld"):
         source_folds([_example("v", "held", "validation")])
+    with pytest.raises(ValueError, match="unsupported source fold axis"):
+        source_folds([*train, _example("v", "held", "validation")], axis="other")

@@ -21,20 +21,34 @@ def _digest(value: dict) -> str:
 
 def crossfit_partition(examples: list, folds: dict, fold: int,
                        *, all_held: bool = False,
+                       per_construction: int = 1,
                        held_source_ids: tuple[str, ...] = ()) -> tuple[list, list, list]:
     """Keep a group's examples together in fit, calibration, or holdout."""
-    from core.learning.semantic_construction_folds import construction_folds
+    from core.learning.semantic_construction_folds import (
+        construction_folds,
+        utterance_construction_folds,
+    )
     from core.learning.semantic_program_campaign import _sha
 
     body = {key: value for key, value in folds.items() if key != "receipt_sha256"}
     rows = sorted((item.ir.source_text_sha256, item.construction_id, item.contrast_id)
                   for item in examples if item.split == "train")
-    if (folds.get("schema") != "aura.semantic_construction_folds.v1"
+    axis = folds.get("schema")
+    if (axis not in {"aura.semantic_construction_folds.v1",
+                     "aura.semantic_utterance_construction_folds.v1"}
+            or type(per_construction) is not int or per_construction < 1
+            or all_held and per_construction != 1
             or folds.get("receipt_sha256") != _sha(body)
             or folds.get("population") != [list(row) for row in rows]
             or type(fold) is not int or not 0 <= fold < folds["count"]
             or set(folds["assignments"]) != {row[0] for row in rows}):
         raise ValueError("crossfit source partition differs from frozen folds")
+    if axis == "aura.semantic_utterance_construction_folds.v1":
+        expected = utterance_construction_folds(
+            [item for item in examples if item.split == "train"],
+            count=folds["count"], seed=folds["seed"])
+        if expected["receipt_sha256"] != folds["receipt_sha256"]:
+            raise ValueError("utterance source folds differ from replay")
     groups = {}
     for item in examples:
         if item.split == "train":
@@ -44,24 +58,44 @@ def crossfit_partition(examples: list, folds: dict, fold: int,
         raise ValueError("construction group crosses a frozen fold")
     available = [item for item in examples if item.split == "train"
                  and folds["assignments"][item.ir.source_text_sha256] != fold]
-    calibration_folds = construction_folds(available, count=5)
-    possible = [index for index in range(calibration_folds["count"])
-                if len({(item.ir.n_inputs, len(item.ir.instructions)) for item in available
-                        if calibration_folds["assignments"][item.ir.source_text_sha256]
-                        != index}) >= 2]
-    if not possible:
-        raise ValueError("no source-only calibration fold preserves fit geometries")
-    calibration_index = min(possible, key=lambda index: (
-        sum(calibration_folds["assignments"][item.ir.source_text_sha256] == index
-            for item in available), index))
-    fit = [item for item in available if calibration_folds["assignments"][
-        item.ir.source_text_sha256] != calibration_index]
-    calibration = [item for item in available if calibration_folds["assignments"][
-        item.ir.source_text_sha256] == calibration_index]
+    if axis == "aura.semantic_utterance_construction_folds.v1":
+        from collections import defaultdict
+
+        by_family = defaultdict(set)
+        for item in available:
+            by_family[item.construction_id.partition(":")[0]].add(item.construction_id)
+        if any(len(constructions) < 2 for constructions in by_family.values()):
+            raise ValueError("utterance calibration needs another construction per family")
+        calibration_constructions = {min(constructions, key=lambda construction: _sha({
+            "seed": folds["seed"], "held_fold": fold, "construction": construction}))
+            for constructions in by_family.values()}
+        fit = [item for item in available
+               if item.construction_id not in calibration_constructions]
+        calibration = [item for item in available
+                       if item.construction_id in calibration_constructions]
+        if len({(item.ir.n_inputs, len(item.ir.instructions)) for item in fit}) < 2:
+            raise ValueError("utterance calibration removed fit geometries")
+    else:
+        calibration_folds = construction_folds(available, count=5)
+        possible = [index for index in range(calibration_folds["count"])
+                    if len({(item.ir.n_inputs, len(item.ir.instructions)) for item in available
+                            if calibration_folds["assignments"][item.ir.source_text_sha256]
+                            != index}) >= 2]
+        if not possible:
+            raise ValueError("no source-only calibration fold preserves fit geometries")
+        calibration_index = min(possible, key=lambda index: (
+            sum(calibration_folds["assignments"][item.ir.source_text_sha256] == index
+                for item in available), index))
+        fit = [item for item in available if calibration_folds["assignments"][
+            item.ir.source_text_sha256] != calibration_index]
+        calibration = [item for item in available if calibration_folds["assignments"][
+            item.ir.source_text_sha256] == calibration_index]
     held = [item for construction, items in sorted(groups.items())
             if folds["assignments"][items[0].ir.source_text_sha256] == fold
             for item in (sorted(items, key=lambda item: item.ir.source_text_sha256)
-                         if all_held else [min(items, key=lambda item: item.ir.source_text_sha256)])]
+                         if all_held else sorted(
+                             items, key=lambda item: item.ir.source_text_sha256
+                         )[:per_construction])]
     if held_source_ids:
         if len(held_source_ids) != len(set(held_source_ids)):
             raise ValueError("diagnostic held source identities must be unique")
@@ -91,6 +125,8 @@ def nested_crossfit_partition(examples: list, outer_folds: dict, outer_fold: int
 
     if type(inner_fold) is not int or not 0 <= inner_fold < 3:
         raise ValueError("nested proposer needs one of three inner folds")
+    if outer_folds.get("schema") != "aura.semantic_construction_folds.v1":
+        raise ValueError("nested semantic transfer needs contrast-closed outer folds")
 
     outer_fit, outer_calibration, outer_held = crossfit_partition(
         examples, outer_folds, outer_fold, all_held=True)
@@ -192,7 +228,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--parent", type=Path, required=True)
     parser.add_argument("--source-report", type=Path, required=True)
-    parser.add_argument("--feature-root", type=Path, required=True)
+    parser.add_argument("--feature-root", type=Path)
+    parser.add_argument("--bundle", action="append", metavar="NAME=PATH")
     parser.add_argument("--folds", type=Path, required=True)
     parser.add_argument("--fold", type=int, required=True)
     parser.add_argument("--outer-fold", type=int,
@@ -209,6 +246,8 @@ def main() -> None:
                         help="diagnostic best chart per operation sequence with an explicit table bound")
     parser.add_argument("--all-held", action="store_true",
                         help="acquire every source in the held fold, not one per construction")
+    parser.add_argument("--per-construction", type=int, default=1,
+                        help="source-identity-sorted held rows per construction")
     parser.add_argument("--reuse-candidate", type=Path,
                         help="reuse a signed candidate fit from the same fold and calibration")
     parser.add_argument("--held-source-id", action="append", default=[],
@@ -217,6 +256,8 @@ def main() -> None:
     if (args.max_charts < 1 or args.max_graphs < 1 or
             not 0 < args.solve_seconds <= 60):
         parser.error("bounded candidate search needs positive limits")
+    if args.per_construction < 1 or args.all_held and args.per_construction != 1:
+        parser.error("positive per-construction and all-held are exclusive")
     if args.bank_seconds is not None and not 0 < args.bank_seconds <= 600:
         parser.error("whole-bank diagnostic allowance must be positive and bounded")
     if (args.complete_operation_max_expansions is not None
@@ -232,6 +273,8 @@ def main() -> None:
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
         load_source_examples,
+        source_bundle_arguments,
+        source_input_order_policy,
     )
 
     configure_refit_environment(args.directory / "report.json")
@@ -240,6 +283,9 @@ def main() -> None:
         compositional_semantic_program_transducer_from_dict,
         fit_compositional_semantic_program_transducer,
     )
+    from core.learning.semantic_program_compositional_campaign import (
+        bind_compositional_source_input_order,
+    )
     from core.learning.semantic_validation_checkpoint import validation_implementation_identity
     from tools.diagnose_semantic_gap_candidate_bank import _audit_row
 
@@ -247,14 +293,16 @@ def main() -> None:
                                          (args.parent, args.source_report, args.folds))
     parent = compositional_semantic_program_transducer_from_dict(json.loads(parent_raw))
     source_report, folds = json.loads(source_raw), json.loads(folds_raw)
-    bundles = [name + "=" + str(args.feature_root / name) for name in
-               source_report["representation_compatibility"]["source_feature_manifest_sha256s"]]
+    bundles = source_bundle_arguments(source_report, feature_root=args.feature_root,
+                                      bundles=args.bundle)
     examples = load_source_examples(parent, source_report, bundles)
+    input_order_policy = source_input_order_policy(parent, source_report)
     nested_folds = None
     outer_excluded = ()
     if args.outer_fold is None:
         fit, calibration, held = crossfit_partition(
             examples, folds, args.fold, all_held=args.all_held,
+            per_construction=args.per_construction,
             held_source_ids=tuple(args.held_source_id))
     else:
         if args.held_source_id or not args.all_held:
@@ -266,6 +314,10 @@ def main() -> None:
         raise ValueError("parent training cohort cannot be established")
     plan_body = {"schema": "aura.semantic_proposer_crossfit_plan.v1",
                  "parent_receipt_sha256": parent.receipt_sha256,
+                 "input_order_policy": input_order_policy,
+                 "heldout_axis": ("utterance_construction_v1" if folds["schema"] ==
+                                  "aura.semantic_utterance_construction_folds.v1" else
+                                  "semantic_construction_v1"),
                  "source_report_sha256": hashlib.sha256(source_raw).hexdigest(),
                  "folds_sha256": hashlib.sha256(folds_raw).hexdigest(),
                  "fold": args.fold,
@@ -279,6 +331,7 @@ def main() -> None:
                  "held_selection": "declared_diagnostic_subset" if args.held_source_id else
                                    "all_fold_sources" if args.all_held else
                                    "lowest_source_identity_per_construction",
+                 "held_per_construction": args.per_construction,
                  "max_charts": args.max_charts, "max_graphs_per_chart": args.max_graphs,
                  "solve_seconds": args.solve_seconds,
                  "implementation": validation_implementation_identity(),
@@ -320,6 +373,8 @@ def main() -> None:
                      .with_order_invariant_argument_graph()
                      .with_joint_definition_graph()
                      .with_categorical_relation_scores())
+        candidate = bind_compositional_source_input_order(
+            candidate, source_order_inputs=input_order_policy == "source_token_order_v1")
         if args.complete_operation_max_expansions is not None:
             candidate = candidate.with_complete_operation_search(
                 max_expansions=args.complete_operation_max_expansions)
@@ -329,6 +384,7 @@ def main() -> None:
         _save_if_absent(candidate_path, candidate.to_dict())
     if (candidate.model_basis_sha256 != parent.model_basis_sha256
             or candidate.input_grounding != parent.input_grounding
+            or candidate.training_receipt.get("input_order_policy") != input_order_policy
             or candidate.training_receipt["training_example_ids_sha256"] != _sha(plan["fit_ids"])
             or candidate.training_receipt["validation_example_ids_sha256"] != _sha(
                 plan["calibration_ids"])

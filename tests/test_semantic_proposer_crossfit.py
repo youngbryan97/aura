@@ -5,7 +5,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.learning.semantic_construction_folds import construction_folds
+from core.learning.semantic_construction_folds import (
+    construction_folds,
+    utterance_construction_folds,
+)
 from core.learning.semantic_program_campaign import _sha
 from tools.audit_semantic_proposer_reach import audit_directory
 from tools.probe_semantic_proposer_crossfit import (
@@ -38,6 +41,26 @@ def test_crossfit_excludes_held_sources_from_fit_and_calibration():
     assert all(folds["assignments"][item.ir.source_text_sha256] == 2 for item in held)
 
 
+def test_utterance_crossfit_replays_wording_split_and_preserves_family_fit():
+    examples = [SimpleNamespace(
+        ir=SimpleNamespace(source_text_sha256=f"{family}-{index}-{variant}",
+                           n_inputs=inputs, instructions=("step",)),
+        construction_id=f"{family}:wording-{index}", contrast_id=f"{family}-same",
+        split="train")
+        for family, inputs in (("first", 2), ("second", 3))
+        for index in range(3) for variant in range(2)]
+    folds = json.loads(json.dumps(utterance_construction_folds(examples)))
+    fit, calibration, held = crossfit_partition(examples, folds, 1, all_held=True)
+    groups = [{item.construction_id for item in part}
+              for part in (fit, calibration, held)]
+    assert all(groups) and not groups[0] & groups[1]
+    assert not groups[0] & groups[2] and not groups[1] & groups[2]
+    assert {item.construction_id.partition(":")[0] for item in fit} == {"first", "second"}
+    assert {item.construction_id.partition(":")[0] for item in held} == {"first", "second"}
+    with pytest.raises(ValueError, match="contrast-closed"):
+        nested_crossfit_partition(examples, folds, 1, 0)
+
+
 def test_all_held_reuses_partition_without_omitting_contrasts():
     examples = _examples()
     folds = json.loads(json.dumps(construction_folds(examples)))
@@ -46,6 +69,20 @@ def test_all_held_reuses_partition_without_omitting_contrasts():
               if folds["assignments"][item.ir.source_text_sha256] == 2}
     assert {item.ir.source_text_sha256 for item in held} == wanted
     assert not wanted & {item.ir.source_text_sha256 for item in fit + calibration}
+
+
+def test_fixed_per_construction_selection_is_label_blind_and_disjoint():
+    examples = _examples()
+    folds = json.loads(json.dumps(construction_folds(examples)))
+    fit, calibration, held = crossfit_partition(
+        examples, folds, 2, per_construction=2)
+    assert len(held) == 2 * len({item.construction_id for item in held})
+    assert not {item.ir.source_text_sha256 for item in held} & {
+        item.ir.source_text_sha256 for item in fit + calibration}
+    with pytest.raises(ValueError, match="partition differs"):
+        crossfit_partition(examples, folds, 2, per_construction=0)
+    with pytest.raises(ValueError, match="partition differs"):
+        crossfit_partition(examples, folds, 2, all_held=True, per_construction=2)
 
 
 def test_nested_selector_bank_excludes_outer_and_inner_constructions():

@@ -43,6 +43,30 @@ def test_search_history_owns_governed_writes_not_raw_mutations():
     assert not _canonical_owner("raw_file_mutation", path)
 
 
+def test_world_simulation_owns_only_its_fixed_cpu_worker(monkeypatch):
+    from core.agency.working_out_what_matters import _a_child
+    from core.runtime import subprocess_gateway
+
+    calls = []
+    child = object()
+
+    class Gateway:
+        def spawn(self, command, **kwargs):
+            calls.append((command, kwargs))
+            return child
+
+    monkeypatch.setattr(subprocess_gateway, "get_subprocess_gateway", lambda: Gateway())
+    assert _a_child() is child
+    command, settings = calls[0]
+    assert command == [sys.executable, "-m", "core.agency.working_out_what_matters"]
+    assert settings["accelerator_capability"] == "none"
+    assert settings["read_only"] is True
+    assert settings["source"] == "agency.working_out_what_matters"
+    path = "core/agency/working_out_what_matters.py"
+    assert _canonical_owner("subprocess_gateway", path)
+    assert not _canonical_owner("raw_subprocess", path)
+
+
 def test_lint_passes_on_repo():
     rc = _run_lint()
     assert rc in (0,)  # accept 0 — anything else means a real violation in tree
