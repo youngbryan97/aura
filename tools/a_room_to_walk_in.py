@@ -104,7 +104,7 @@ class View(AppKit.NSView):
         AppKit.NSRectFill(self.bounds())
         # The walls: one column a degree, magnified by how far she has walked.
         nearest = min((far for _n, _o, far in room.seen()), default=10.0)
-        grow = max(0.6, min(3.0, 8.0 / max(nearest, 1.0)))
+        grow = max(0.6, min(12.0, 8.0 / max(nearest, 0.4)))
         per_degree = wide / FIELD
         for column in range(int(-FIELD / 2) - 1, int(FIELD / 2) + 2):
             angle = int(room.facing + column) % 360

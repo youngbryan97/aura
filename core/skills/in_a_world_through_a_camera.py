@@ -35,7 +35,7 @@ from typing import Any
 
 from core.agency.going_to_what_she_sees import GoingTo, seen_named
 from core.agency.what_hands_do import Chunk, Slot
-from core.perception.how_the_view_moves import WhatMyHandsDoToTheView, grey
+from core.perception.how_the_view_moves import ViewChange, WhatMyHandsDoToTheView, grey, how_alike
 
 __all__ = ["ACameraWorld", "NotInFront", "Trip", "go_to", "learn_the_body", "live_camera_world"]
 
@@ -109,6 +109,34 @@ async def learn_the_body(
         await _played(world, Chunk((Slot(frozenset({key})),), slot_s))
         after, _ = world.look()
         body.watched(key, before, after)
+    if not body.walks_forward():
+        # Up against something, walking forward changes nothing, and a key
+        # that walks looks like a key that does nothing. Live, standing at the
+        # door she had just opened, she concluded no key walked. A key that
+        # shrank the view backed her away; from there, with room ahead, the
+        # others are tried again.
+        backs = min(
+            (act for act in body.seen if act != "mouse"),
+            key=lambda act: (body.what_it_does(act) or ViewChange(0, 0, 1.0, 0)).grew,
+            default="",
+        )
+        backed = body.what_it_does(backs) if backs else None
+        if backed is not None and backed.grew < 1.0:
+            await _played(world, Chunk((Slot(frozenset({backs})),) * 2, slot_s))
+            retry = [key for key in keys if key != backs]
+        else:
+            # Nothing moved her either way: facing something she cannot walk
+            # into or back out of. Half a view round, and try again.
+            frame, _ = world.look()
+            travel = body.turn_for(0.5 * grey(frame).shape[1])
+            if travel:
+                await _played(world, Chunk((Slot(moved=(travel, 0)),), slot_s))
+            retry = list(keys)
+        for key in retry:
+            before, _ = world.look()
+            await _played(world, Chunk((Slot(frozenset({key})),), slot_s))
+            after, _ = world.look()
+            body.watched(key, before, after)
     return body
 
 
@@ -132,14 +160,29 @@ async def go_to(
     small_wide = grey(frame).shape[1]
     going = GoingTo(named, turn_for=lambda share: body.turn_for(share * small_wide), walks=walks)
     last_said = ""
+    sweep: list[Any] = []
     for _ in range(most_chunks):
         chunk = going.next_chunk(layout, slot_s=slot_s, slots=1)
-        said = _what_this_does(chunk, named, going)
+        looking = False
+        if chunk.think and not seen_named(layout, named):
+            # Not in view: look around for it, the way a person turns on the
+            # spot. Half a view a step, so every step overlaps the last and
+            # nothing narrower than half the view can fall between two looks.
+            sweep.append(frame)
+            if _back_where_she_started(sweep):
+                going.ended = f"looked all the way round and nothing answers to {named!r}"
+                chunk = Chunk((), slot_s, think=True)
+            else:
+                chunk = Chunk((Slot(moved=(body.turn_for(-0.5 * small_wide), 0)),), slot_s)
+                going.ended = ""
+                looking = True
+        said = f"looking around for the {named}" if looking else _what_this_does(chunk, named, going)
         if said and said != last_said:
             trip.said.append(said)
             if tell is not None:
                 tell(said)
             last_said = said
+        before = frame
         if chunk.slots:
             try:
                 await _played(world, chunk)
@@ -152,10 +195,28 @@ async def go_to(
             trip.done = chunk.done
             break
         frame, layout = world.look()
+        if chunk.slots and all(walks in slot.held for slot in chunk.slots):
+            going.walked(body.growth_between(before, frame))
     trip.ended = going.ended or "the time for this trip ran out"
     if trip.ended not in trip.said:
         trip.said.append(trip.ended)
     return trip
+
+
+def _back_where_she_started(sweep: list[Any]) -> bool:
+    """Whether the latest look of a sweep is the view it began with.
+
+    Measured against the sweep itself rather than a threshold: back at the
+    start means the latest view, lined up with the first, is more like it
+    than halfway between "the same view" and how alike the first is to the
+    views in between. The look right after the first overlaps it by half, so
+    it is not one of the views in between.
+    """
+    if len(sweep) < 4:
+        return False
+    first = grey(sweep[0])
+    between = [how_alike(first, grey(frame)) for frame in sweep[2:-1]]
+    return how_alike(first, grey(sweep[-1])) > (1.0 + sum(between) / len(between)) / 2.0
 
 
 def _what_this_does(chunk: Chunk, named: str, going: GoingTo) -> str:

@@ -31,7 +31,7 @@ from typing import Any
 
 import numpy as np
 
-__all__ = ["ViewChange", "WhatMyHandsDoToTheView", "grey", "how_it_grew", "how_it_slid"]
+__all__ = ["ViewChange", "WhatMyHandsDoToTheView", "grey", "how_alike", "how_it_grew", "how_it_moved", "how_it_slid"]
 
 #: The size frames are measured at. Big enough that a slide of a few pixels
 #: at full size still registers; small enough that a measurement costs
@@ -75,60 +75,83 @@ def how_it_slid(before: np.ndarray, after: np.ndarray) -> tuple[float, float, fl
     return float(across), float(down), sure
 
 
-#: The magnifications tried when asking how much the picture grew. Shrinking
-#: is the same question asked the other way round.
-_GROWTHS = (1.0, 1.05, 1.1, 1.15, 1.2, 1.25)
+#: The magnifications tried when asking how much the picture grew, finer near
+#: one because a walking step is a few per cent. Shrinking is the same
+#: question asked the other way round.
+_GROWTHS = tuple(round(1.0 + 0.025 * step, 3) for step in range(13))
 
 
-def _match(grown_from: np.ndarray, target: np.ndarray, growth: float) -> float:
-    """How well the middle of ``grown_from``, magnified by ``growth``, matches ``target``."""
-    high, wide = target.shape
+def _magnified(frame: np.ndarray, growth: float) -> np.ndarray | None:
+    """The middle of ``frame`` magnified by ``growth`` to the frame's own size."""
+    high, wide = frame.shape
     crop_h, crop_w = int(round(high / growth)), int(round(wide / growth))
     if crop_h < 4 or crop_w < 4:
-        return -math.inf
+        return None
     top, left = (high - crop_h) // 2, (wide - crop_w) // 2
-    middle = grown_from[top : top + crop_h, left : left + crop_w]
+    middle = frame[top : top + crop_h, left : left + crop_w]
     rows = np.linspace(0, crop_h - 1, high).round().astype(int)
     cols = np.linspace(0, crop_w - 1, wide).round().astype(int)
     grown = middle[np.ix_(rows, cols)]
-    a, b = grown - grown.mean(), target - target.mean()
+    return grown - grown.mean()
+
+
+def how_it_moved(before: np.ndarray, after: np.ndarray) -> tuple[float, float, float, float]:
+    """How far the picture slid and how much it grew between two frames: (across, down, grew, sure).
+
+    Asked together, because each spoils the other asked alone: a slide read
+    off a magnified pair is off by the magnification, and a magnification read
+    off a pair that slid lines up texture instead of the scene. For every
+    trial magnification the best slide is found by phase correlation, and the
+    pair whose correlation peak stands highest wins. Measured live, reading
+    them apart gave walking steps of 0.8 and 1.1 in a row while the view grew
+    five per cent a step.
+    """
+    if before.shape != after.shape or min(before.shape) < 8:
+        return 0.0, 0.0, 1.0, 0.0
+    if np.array_equal(before, after):
+        # Nothing changed, and every trial ties on a picture that did not
+        # move; the tie must not be broken toward motion that was not there.
+        return 0.0, 0.0, 1.0, math.inf
+    best = (0.0, 0.0, 1.0, -math.inf)
+    for growth in _GROWTHS:
+        trials = [(growth, _magnified(before, growth), after)]
+        if growth != 1.0:
+            trials.append((1.0 / growth, before, _magnified(after, growth)))
+        for grew, one, two in trials:
+            if one is None or two is None:
+                continue
+            across, down, sure = how_it_slid(one, two)
+            if sure > best[3]:
+                best = (across, down, grew, sure)
+    return best
+
+
+def how_alike(one: np.ndarray, two: np.ndarray) -> float:
+    """How alike two views are once the slide between them is taken out; one is the same view.
+
+    Turning the camera a whole circle in steps of whole mouse points does not
+    land exactly where it began, so two raw pictures of the same place can
+    share nothing pixel for pixel. Lined up first, they share nearly all of it,
+    and two views of different places share nothing however they are lined up.
+    """
+    if one.shape != two.shape or min(one.shape) < 8:
+        return 0.0
+    across, down, _sure = how_it_slid(one, two)
+    dx, dy = int(round(across)), int(round(down))
+    back = np.roll(np.roll(two, -dy, axis=0), -dx, axis=1)
+    high, wide = one.shape
+    my, mx = abs(dy) + 1, abs(dx) + 1
+    if high <= 2 * my + 4 or wide <= 2 * mx + 4:
+        return 0.0
+    a = one[my : high - my, mx : wide - mx]
+    b = back[my : high - my, mx : wide - mx]
+    a, b = a - a.mean(), b - b.mean()
     return float((a * b).sum() / (math.sqrt((a * a).sum() * (b * b).sum()) + 1e-9))
 
 
 def how_it_grew(before: np.ndarray, after: np.ndarray) -> float:
-    """How much the middle of the picture grew from ``before`` to ``after``; one is not at all.
-
-    Walking forward magnifies what is ahead about the middle of the view, and
-    backing away shrinks it. Growth is tried by magnifying the middle of the
-    frame before and comparing it with the frame after; shrinking by
-    magnifying the middle of the frame after and comparing it with the frame
-    before. The best match of all wins.
-    """
-    if before.shape != after.shape or min(before.shape) < 8:
-        return 1.0
-    best, best_score = 1.0, -math.inf
-    for growth in _GROWTHS:
-        for grew, score in ((growth, _match(before, after, growth)), (1.0 / growth, _match(after, before, growth))):
-            if score > best_score:
-                best, best_score = grew, score
-    return best
-
-
-def _aligned(before: np.ndarray, after: np.ndarray, across: float, down: float) -> tuple[np.ndarray, np.ndarray]:
-    """Both frames with the slide between them taken out, and the edges it exposed cut off.
-
-    Growth has to be measured on what did not slide. Measured on a turn, the
-    best magnification is whichever happens to line up the slid texture, and
-    the camera turning reads as walking.
-    """
-    dx, dy = int(round(across)), int(round(down))
-    back = np.roll(np.roll(after, -dy, axis=0), -dx, axis=1)
-    margin_y, margin_x = abs(dy) + 1, abs(dx) + 1
-    high, wide = before.shape
-    if high <= 2 * margin_y + 8 or wide <= 2 * margin_x + 8:
-        return before, after
-    keep = (slice(margin_y, high - margin_y), slice(margin_x, wide - margin_x))
-    return before[keep], back[keep]
+    """How much the middle of the picture grew from ``before`` to ``after``; one is not at all."""
+    return how_it_moved(before, after)[2]
 
 
 @dataclass(frozen=True)
@@ -151,13 +174,16 @@ class WhatMyHandsDoToTheView:
 
     def watched(self, act: str, before: Any, after: Any, *, mouse: tuple[int, int] = (0, 0)) -> ViewChange:
         """One act, and the frames either side of it."""
-        a, b = grey(before), grey(after)
-        across, down, sure = how_it_slid(a, b)
-        change = ViewChange(across, down, how_it_grew(*_aligned(a, b, across, down)), sure)
+        across, down, grew, sure = how_it_moved(grey(before), grey(after))
+        change = ViewChange(across, down, grew, sure)
         self.seen.setdefault(str(act), []).append(change)
         if mouse != (0, 0):
             self._mouse.append((float(mouse[0]), float(mouse[1]), across, down))
         return change
+
+    def growth_between(self, before: Any, after: Any) -> float:
+        """How much the middle of the view grew between two frames."""
+        return how_it_moved(grey(before), grey(after))[2]
 
     def mouse_gain(self) -> tuple[float, float]:
         """Pixels of slide (in the small frames) per point of mouse travel, across and down.

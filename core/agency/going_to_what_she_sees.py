@@ -97,6 +97,8 @@ class GoingTo:
     walks: str
     #: How tall the thing looked each time she walked toward it.
     heights: list[float] = field(default_factory=list)
+    #: How much the whole view grew over each walk, where it was measured.
+    growths: list[float] = field(default_factory=list)
     #: Why the trip ended, once it has.
     ended: str = ""
 
@@ -129,11 +131,29 @@ class GoingTo:
         if abs(off) > max(sight.wide / 2.0, 1e-3):
             travel = self.turn_for(-off)
             return Chunk((Slot(moved=(travel, 0)),), slot_s)
-        if len(self.heights) >= 2 and sight.high <= self.heights[-1] <= self.heights[-2]:
+        if self._stopped_getting_nearer(sight):
             self.ended = f"{self.named!r} stopped getting nearer"
             return Chunk((), slot_s, done=True)
         self.heights.append(sight.high)
         return Chunk(tuple(Slot(frozenset({self.walks})) for _ in range(max(1, slots))), slot_s)
+
+
+    def walked(self, grew: float) -> None:
+        """How much the whole view grew over the walk just made, as her body measured it."""
+        self.growths.append(float(grew))
+
+    def _stopped_getting_nearer(self, sight: Sighting) -> bool:
+        """Two walks running that brought her no nearer.
+
+        The whole view's growth says it best where it was measured: a box
+        drawn round a few letters of text is a pixel taller or shorter from
+        one reading to the next, and live, on the first trip, two readings of
+        that noise ended a walk that was getting nearer at five per cent a
+        step. The box is what is left where nothing measured the view.
+        """
+        if self.growths:
+            return len(self.growths) >= 2 and all(grew <= 1.0 for grew in self.growths[-2:])
+        return len(self.heights) >= 2 and sight.high <= self.heights[-1] <= self.heights[-2]
 
 
 def turn_by_share(body: Any, small_wide: int) -> Callable[[float], int]:

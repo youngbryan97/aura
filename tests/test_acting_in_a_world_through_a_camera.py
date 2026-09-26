@@ -26,32 +26,40 @@ PACE = 3.0              # distance walked per second held
 class Simulated:
     def __init__(self, *, walks: str = "w") -> None:
         roll = np.random.default_rng(3)
-        self.panorama = np.kron(roll.random((30, 400)), np.ones((12, 12))) * 255.0
+        # All the way round: 360 degrees of wall, so a full turn is the view she began with.
+        self.panorama = np.kron(roll.random((30, 160)), np.ones((12, 16))) * 255.0
+        assert self.panorama.shape[1] == round(360 * PX_PER_DEGREE)
         self.facing, self.x, self.y = 0.0, 0.0, 0.0
         self.walks = walks
+        self.backs = "s" if walks == "w" else "down"
         self.door = (5.0, 12.0)
         self.said: list[str] = []
         self.pressed: list[str] = []
 
+    #: The room is round, this far from its middle to its wall.
+    RADIUS = 15.0
+
     def _zoom(self) -> float:
-        # Walking forward magnifies the whole scene about the middle.
-        far = math.hypot(self.door[0] - self.x, self.door[1] - self.y)
-        return 13.0 / max(far, 1.0)
+        # The wall ahead looks bigger the nearer it is: how far it is along the
+        # way she is facing, from where she stands.
+        ux, uy = math.sin(math.radians(self.facing)), math.cos(math.radians(self.facing))
+        along = self.x * ux + self.y * uy
+        ahead = -along + math.sqrt(max(0.0, along * along - (self.x ** 2 + self.y ** 2 - self.RADIUS ** 2)))
+        return min(20.0, max(0.5, self.RADIUS / max(ahead, 0.5)))
 
     def frame(self) -> np.ndarray:
         high, wide = VIEW
         zoom = self._zoom()
         crop_h, crop_w = int(high / zoom), int(wide / zoom)
-        left = int(2000 + self.facing * PX_PER_DEGREE) + (wide - crop_w) // 2
+        left = int(round(self.facing * PX_PER_DEGREE)) + (wide - crop_w) // 2
         top = (self.panorama.shape[0] - crop_h) // 2
-        crop = self.panorama[top : top + crop_h, left : left + crop_w]
-        rows = np.linspace(0, crop_h - 1, high).round().astype(int)
-        cols = np.linspace(0, crop_w - 1, wide).round().astype(int)
-        return crop[np.ix_(rows, cols)]
+        rows = top + np.linspace(0, crop_h - 1, high).round().astype(int)
+        cols = (left + np.linspace(0, crop_w - 1, wide).round().astype(int)) % self.panorama.shape[1]
+        return self.panorama[np.ix_(rows, cols)]
 
     def layout(self) -> list[dict]:
         dx, dy = self.door[0] - self.x, self.door[1] - self.y
-        off = math.degrees(math.atan2(dx, dy)) - self.facing
+        off = (math.degrees(math.atan2(dx, dy)) - self.facing + 180.0) % 360.0 - 180.0
         far = math.hypot(dx, dy)
         seen = []
         if abs(off) < FIELD / 2:
@@ -69,11 +77,12 @@ class Simulated:
     async def play(self, chunk: Chunk) -> None:
         for slot in chunk.slots:
             self.facing += TURN * slot.moved[0]
-            if self.walks in slot.held:
-                step = PACE * chunk.slot_s
+            ahead = 1.0 if self.walks in slot.held else -1.0 if self.backs in slot.held else 0.0
+            if ahead:
+                step = ahead * PACE * chunk.slot_s
                 self.x += step * math.sin(math.radians(self.facing))
                 self.y += step * math.cos(math.radians(self.facing))
-            self.pressed.extend(sorted(slot.held - {self.walks}))
+            self.pressed.extend(sorted(slot.held - {self.walks, self.backs}))
 
 
 def _world(sim: Simulated) -> ACameraWorld:
@@ -193,3 +202,46 @@ async def test_and_takes_it_once_they_pause(monkeypatch):
     world = live_camera_world("A room", wait_s=30.0)
     assert await world.bring_forward() is True
     assert focused == ["A room"]
+
+
+@pytest.mark.asyncio
+async def test_what_is_behind_her_is_found_by_looking_around():
+    sim = Simulated()
+    sim.door = (-6.0, -8.0)  # behind and to the left: out of view at the start
+    world = _world(sim)
+    body = await learn_the_body(world, keys=("w", "s"), slot_s=0.2)
+    heard: list[str] = []
+    trip = await go_to(world, "door", body, slot_s=0.2, most_chunks=120, tell=heard.append)
+    assert heard[0] == "looking around for the door"
+    assert trip.done and trip.ended == "the screen said to press e"
+
+
+@pytest.mark.asyncio
+async def test_what_is_nowhere_is_given_up_on_after_one_full_turn():
+    sim = Simulated()
+    sim.door = (0.0, 500.0)  # far past the horizon: never read
+    sim.layout = lambda: []
+    world = _world(sim)
+    body = await learn_the_body(world, keys=("w", "s"), slot_s=0.2)
+    trip = await go_to(world, "door", body, slot_s=0.2, most_chunks=200)
+    assert trip.ended == "looked all the way round and nothing answers to 'door'"
+    # One full turn and no more.
+    assert abs(sim.facing) == pytest.approx(360.0, abs=FIELD)
+
+
+@pytest.mark.asyncio
+async def test_up_against_a_wall_she_backs_off_and_finds_the_key_that_walks():
+    """Live: standing at the door she had just opened, walking changed nothing,
+    and she concluded that no key walked."""
+    sim = Simulated()
+    sim.y = Simulated.RADIUS - 2.0  # nose to something just ahead
+    real_play = sim.play
+
+    async def blocked_ahead(chunk):
+        for slot in chunk.slots:
+            if "w" in slot.held and sim.y >= Simulated.RADIUS - 2.0:
+                continue  # it does not move
+            await real_play(Chunk((slot,), chunk.slot_s))
+
+    body = await learn_the_body(ACameraWorld(look=sim.look, play=blocked_ahead), keys=("w", "s"), slot_s=0.2)
+    assert body.walks_forward() == "w"
