@@ -17,8 +17,8 @@ from tools.run_subject_core import _never_read
 
 
 class _Frame:
-    def __init__(self, misses: dict[str, str]) -> None:
-        self.misses = misses
+    def __init__(self, misses: dict[str, str] | None = None, **kw) -> None:
+        self.misses = dict(misses or {})
 
 
 def test_nothing_recorded_names_nothing():
@@ -35,6 +35,24 @@ def test_a_source_that_failed_every_frame_is_named():
     assert _never_read(frames) == ["organ:experience.ownership_confidence"]
 
 
+def test_a_reading_that_is_only_warming_up_is_not_named():
+    """`cognition.current_origin` fails on five of the first eight turns of
+    every run and on 5.7% of three hundred rounds. A check that counted it
+    would refuse every campaign."""
+    frames = [_Frame({"cognition.current_origin": "absent"}) for _ in range(8)]
+    assert _never_read(frames) == []
+
+
+def test_an_attribute_that_does_not_exist_is_structural():
+    frames = [_Frame({"organ:phi_core._nope": "no such reading"}) for _ in range(8)]
+    assert _never_read(frames) == ["organ:phi_core._nope"]
+
+
+def test_a_stale_snapshot_is_not_structural():
+    frames = [_Frame({"organ:substrate.get_substrate_affect": "snapshot 4s old"}) for _ in range(8)]
+    assert _never_read(frames) == []
+
+
 def test_a_source_that_read_once_is_not_named():
     frames = [_Frame({"organ:field.W_field": "organ absent"}) for _ in range(7)]
     frames.append(_Frame({}))
@@ -42,14 +60,14 @@ def test_a_source_that_read_once_is_not_named():
 
 
 def test_two_dead_sources_are_both_named():
-    always = {"organ:a.x": "absent", "organ:b.y": "absent"}
+    always = {"organ:a.x": "organ absent", "organ:b.y": "organ absent"}
     frames = [_Frame(dict(always)) for _ in range(4)]
-    frames[2].misses["organ:c.z"] = "absent"
+    frames[2].misses["organ:c.z"] = "organ absent"
     assert _never_read(frames) == ["organ:a.x", "organ:b.y"]
 
 
 def test_a_frame_without_misses_at_all_clears_everyone():
-    frames = [_Frame({"organ:a.x": "absent"}), _Frame({})]
+    frames = [_Frame({"organ:a.x": "organ absent"}), _Frame({})]
     assert _never_read(frames) == []
 
 
