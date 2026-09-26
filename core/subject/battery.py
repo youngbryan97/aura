@@ -399,15 +399,21 @@ def _assemble_v3(out: Verdict, evidence: dict[str, Any]) -> None:
 
 
 def _assemble_v5(out: Verdict, evidence: dict[str, Any]) -> None:
-    """ISC-v5's two lines, where a v5 sweep was read into this run's evidence.
+    """ISC-v5's three lines. The sweep, the playback count and the passing
+    nulls' sweeps are attached by tools/score_isc_v5.py; the two partition lines
+    are core/subject/isc_v5.py and the synergy line is v3's read with the
+    counters out of every domain.
 
-    A run with no `interventional_cut` leaves `v5_criteria` empty: it was not
-    read under v5. The sweep, the playback count and the passing nulls' sweeps
-    are attached by tools/score_isc_v5.py; the lines are core/subject/isc_v5.py.
+    A run with no `interventional_cut` used to leave `v5_criteria` empty and so
+    read as "not read under v5". That also threw away the synergy line, which
+    every validation run records into `synergy_v4` and which needs no sweep: the
+    reading existed and nothing graded it. `isc_v5.lines` already answers a
+    missing sweep with two failing lines that say so, which is the same thing
+    said by measurement instead of by absence, and it keeps the verdict honest —
+    a run that never swept cannot pass v5, because v5's own irreducibility line
+    fails.
     """
-    reading = evidence.get("interventional_cut")
-    if reading is None:
-        return
+    reading = evidence.get("interventional_cut") or {}
     from core.subject.isc_v5 import lines
 
     nulls = evidence.get("nulls", {}) or {}
