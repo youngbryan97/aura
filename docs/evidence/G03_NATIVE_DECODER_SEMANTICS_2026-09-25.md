@@ -591,3 +591,20 @@ is not inferred automatically from arbitrary prose or used to select a
 candidate without external observations. In particular, more internal
 simulation alone cannot tell which of two distinct programs matches the
 user's intended relation.
+
+The existing `structure_mapping` and `transfer_search` engines now accept
+connected typed programs through a diagnostic graph adapter. The adapter
+retrieves source-fit precedents by structure, carries the shuffled null, and
+checks proposed matches with the universal floor. It cannot establish that
+an utterance intended the retrieved program. On the untouched source-only
+admission constructions, the bounded audit found 95/95 candidate programs
+passing the structural analogy threshold, including all 75 graded incorrect
+ones; none was floor-proven equivalent to a fit precedent. The 14 admission
+sources and 95 candidates therefore provide a negative result for analogy
+as a discriminator, not a transfer gain. Fit precedent used only verified fit
+labels; admission labels graded the result after retrieval. Receipt:
+`~/.aura/rlc-evidence/semantic-program-analogy-held-audit-20260926.json`
+(`18d18bac8dcfd50001291044da4075e9375be66d935b4aa99cdd2b77919b6871`).
+No serving authority or G03 closeout follows. Multi-hop similarity would
+compound these false positives unless every edge had independent source and
+meaning evidence; a path alone is not a proof of semantic transfer.
