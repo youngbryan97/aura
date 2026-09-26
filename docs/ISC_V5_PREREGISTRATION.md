@@ -358,3 +358,29 @@ is not power.
 
 No decisive seed is launched on the strength of this. The decisive commit and its
 organism changes are named in their own addendum when one is.
+
+## Addendum, 25 September 2026, 21:00: the 370-round validation runs at 27dc1dda9
+
+No v5 number from any decisive seed had been read when this was written, and
+no number from the seed-7 validation still running at 21fec3d95.
+
+The design above named 3f9efcc24. The run goes at 27dc1dda9 instead, with the
+round count, seed, trials, arm length and skips unchanged. Four commits lie
+between them. 780f01adb is the addendum above. 3058a400e changes a learning
+module the subject run does not import. 1937125d5 and 7e53c43cd narrow the
+dead-reader check to the two causes a longer run cannot heal; the wider check
+would not have fired on this run. 27dc1dda9 changes what is recorded:
+`mot.forces` was rounded to six places, and `warmth_return`, about six
+millionths of a need's gap in a turn, was written as exactly 0.0 on all 79,200
+frames of the 25 September run while the mechanism fired. It is a column of
+deliberation, the target of W,A -> D. Running the named commit would read a
+column known to be written as zero, in the one triple this run is for.
+
+The power study's four jobs still to finish (independent at seed 11,
+common_driver at seeds 3, 7 and 11) died in a reset at 11:57 on 25 September
+and were started again at 20:33 with the same arguments. Their tree is at
+23e596071: the validator, `core/subject/nulls.py`, `v25_cut.py`,
+`v25_runtime.py`, `intrinsic_v25.py` and the declared triples are byte-identical
+there to 8447bc297, where the other eight ran, and the toy systems take four
+columns a domain whatever the state schema holds. The eight finished are:
+recurrent 511, 511 and 511; star 511, 511 and 508; independent 0 and 0.
