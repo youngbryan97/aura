@@ -457,6 +457,8 @@ class _Seen:
     look: Any
     says: str
     times: int = 1
+    #: The farthest a look later read as the same thing has been from this one.
+    reach: float = 0.0
 
 
 @dataclass
@@ -591,6 +593,15 @@ class Looker:
         backgrounds are four units apart and the digits are a tenth of the
         square. When more than one thing she has read is this close, the
         honest answer is that she cannot tell, and it is read again.
+
+        Near one thing and no other is not enough either, because the thing
+        it is may be one she has never read. A look is taken for a thing only
+        as far from it as one thing has been seen to look from itself in this
+        window; anything farther is read. Measured on the 2048 app, 26 Sep: a
+        256 sits 8.4 from a 128, inside the 9.0 that one look was allowed, and
+        the same number at two places differs by at most 2.5. The first 256
+        of a game was read as a 128, and her rule, which had it right, was
+        scored as wrong.
         """
         best: tuple[float, _Seen] | None = None
         others: set[str] = set()
@@ -601,7 +612,7 @@ class Looker:
             others.add(one.says)
             if best is None or apart < best[0]:
                 best = (apart, one)
-        if best is None or len(others) > 1:
+        if best is None or len(others) > 1 or best[0] > self.how_far_one_thing_varies():
             return None
         return best[1].says
 
@@ -639,13 +650,23 @@ class Looker:
         for kind, what in held:
             self._take(kind, what)
 
+    def how_far_one_thing_varies(self) -> float:
+        """The farthest two looks read as the same thing have been apart in this window.
+
+        Nothing before one thing has been read twice, so until then only a
+        look identical to one already read is recognised.
+        """
+        return max((one.reach for one in self.seen), default=0.0)
+
     def learned(self, look: Any, says: str) -> None:
         if look is None or not says:
             return
         for one in self.seen:
-            if self._apart(look, one.look) < _SAME_LOOK * 0.5:
+            apart = self._apart(look, one.look)
+            if apart < _SAME_LOOK * 0.5:
                 if one.says == says:
                     one.times += 1
+                    one.reach = max(one.reach, apart)
                     return
         self.seen.append(_Seen(look=look, says=says))
         if len(self.seen) > 400:

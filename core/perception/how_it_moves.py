@@ -353,6 +353,13 @@ class HowItMoves:
     #: what it holds has changed.
     _seen_at: dict[tuple[int, int], int] = field(default_factory=dict)
     _changed_at: dict[tuple[int, int], int] = field(default_factory=dict)
+    #: For every place, how often it held something in both readings of a
+    #: pair, and how often what it held was different: what the thing's own
+    #: places do, for a place that might be furniture to be measured against.
+    _held_twice: dict[tuple[int, int], int] = field(default_factory=dict)
+    _held_twice_changed: dict[tuple[int, int], int] = field(default_factory=dict)
+    #: And how often it changed to something no rule she knows put there.
+    _held_twice_unexplained: dict[tuple[int, int], int] = field(default_factory=dict)
     #: Places she has seen empty, which settles them as part of the thing.
     _a_place: set[tuple[int, int]] = field(default_factory=set)
     _looks: int = 0
@@ -374,7 +381,7 @@ class HowItMoves:
 
     # ── learning ─────────────────────────────────────────────────────────
 
-    def _note_counters(self, before: Arrangement, after: Arrangement) -> None:
+    def _note_counters(self, before: Arrangement, after: Arrangement, way: str = "") -> None:
         """Places that sit still and change what they say.
 
         A score, a clock, a count of moves. They answer to her — they change
@@ -391,6 +398,23 @@ class HowItMoves:
         """
         self._looks += 1
         now = {(cell.row, cell.column): cell.says for cell in after.cells}
+        before_held = {(cell.row, cell.column): cell.says for cell in before.cells}
+        # What every rule she knows would have put in each place. A score's
+        # next number is in none of them; a corner's merge is in the rule
+        # that slides and combines.
+        foreseen: dict[tuple[int, int], set[str]] = {}
+        for rule in RULES if way else ():
+            predicted = rule.apply(before, way)
+            for cell in predicted.cells if predicted is not None else ():
+                foreseen.setdefault((cell.row, cell.column), set()).add(cell.says)
+        for place in set(now) & set(before_held):
+            self._held_twice[place] = self._held_twice.get(place, 0) + 1
+            if now[place] != before_held[place]:
+                self._held_twice_changed[place] = self._held_twice_changed.get(place, 0) + 1
+                if way and now[place] not in foreseen.get(place, ()):
+                    self._held_twice_unexplained[place] = (
+                        self._held_twice_unexplained.get(place, 0) + 1
+                    )
         # Somewhere she has seen empty is a place, and never furniture again.
         #
         # One glimpse settles it. Everything in the thing she is acting on is
@@ -464,17 +488,27 @@ class HowItMoves:
             # What settles it is one of two things, and either will do.
             #
             # A readout keeps saying something new while going nowhere: 240,
-            # 244, 252, in the same place every time. Nothing wedged in a
-            # corner does that.
+            # 244, 252, in the same place every time, and nothing her moves do
+            # puts those there.
             #
             # Or it stands apart. A title, a label, the word SCORE — those never
             # change at all, and what marks them is that the places around them
             # are not places anything has ever been. The thing itself is packed:
             # everywhere in it has held something. Furniture sits at the edge of
             # it with blank beside it.
-            if not self._stands_apart(place, after) and (
-                self._changed_at.get(place, 0) < TWICE_IS_THE_WORLD
-            ):
+            #
+            # Each only where the thing's own places would rarely do the same.
+            # A corner kept full takes every merge in place and goes nowhere,
+            # 32, 64, 128, each of them what the rule that slides and combines
+            # puts there; a tile at the edge of the part in use sits still
+            # beside squares nothing has reached. Taken as twice and as six
+            # looks, those made a board square furniture in 82 of 100 games
+            # played with the tiles kept in a corner, and her rule was scored
+            # on a board with a square cut out of it. Measured against what
+            # the thing's places do, in none of 400.
+            if not (
+                self._stands_apart(place, after) and self._stays_more_than_the_thing(place)
+            ) and not self._changes_more_than_the_thing(place):
                 continue
             if place in self.counters:
                 continue
@@ -578,6 +612,57 @@ class HowItMoves:
         self._started_again = False
         self.read_through = (0, 0)
 
+    def _against_the_thing(
+        self, place: tuple[int, int], counts: dict[tuple[int, int], int]
+    ) -> tuple[int, int, int, int]:
+        """How often this place held something twice and how often ``counts`` it, and the same for the thing's places."""
+        held = self._held_twice.get(place, 0)
+        counted = counts.get(place, 0)
+        others = [where for where in self._held_twice if where != place and where not in self.counters]
+        others_held = sum(self._held_twice[where] for where in others)
+        others_counted = sum(counts.get(where, 0) for where in others)
+        return held, counted, others_held, others_counted
+
+    def _too_rare_for_the_thing(self, chance: float, *, every_look: bool = True) -> bool:
+        """Rarer than one time in twenty, shared across every place and, where it can come and go, every look.
+
+        A run of never changing only ever gets longer, so asking after every
+        look is asking once, at whatever look the run becomes rare enough;
+        a count of changes goes up and down against the others' and is a
+        fresh question each time.
+        """
+        from core.perception.what_moves_within_itself import WRONG_BY_CHANCE
+
+        asked = max(1, len(self._held_twice)) * (max(1, self._looks) if every_look else 1)
+        return chance < WRONG_BY_CHANCE / asked
+
+    def _changes_more_than_the_thing(self, place: tuple[int, int]) -> bool:
+        """Whether it says something no rule put there more often than the thing's own places do."""
+        from core.perception.what_moves_within_itself import at_least_as_many
+
+        held, unexplained, others_held, others_unexplained = self._against_the_thing(
+            place, self._held_twice_unexplained
+        )
+        if unexplained < TWICE_IS_THE_WORLD:
+            return False
+        return self._too_rare_for_the_thing(
+            at_least_as_many(unexplained, held, others_unexplained, others_held - others_unexplained)
+        )
+
+    def _stays_more_than_the_thing(self, place: tuple[int, int]) -> bool:
+        """Whether it has never changed for longer than the thing's own places would."""
+        from core.perception.what_moves_within_itself import at_least_as_many
+
+        held, changed, others_held, others_changed = self._against_the_thing(
+            place, self._held_twice_changed
+        )
+        if changed or not held:
+            return False
+        return self._too_rare_for_the_thing(
+            at_least_as_many(held, held, others_held - others_changed, others_changed),
+            every_look=False,
+        )
+
     def _stands_apart(self, place: tuple[int, int], seen: Arrangement) -> bool:
         """Whether nothing has ever been beside this, in a thing that is packed.
 
@@ -623,7 +708,7 @@ class HowItMoves:
         if self._blind_in(before) or self._blind_in(after):
             self.unreadable += 1
             return
-        self._note_counters(before, after)
+        self._note_counters(before, after, self.way_of(action))
         # The part that behaves like one thing, with its furniture cropped out.
         here, there = self.the_thing(before), self.the_thing(after)
         if not here.cells or (here.rows, here.columns) != (there.rows, there.columns):

@@ -19,18 +19,63 @@ place where what appears was already there. Anything that reports on what she
 did shows her something new. The first is the thing. The second is about the
 thing.
 
-Nothing here needs to know which is which in advance, and nothing here has a
-threshold in it. Each place keeps two counts, and a place belongs to the thing
-when its changes have more often been rearrangements than arrivals.
+Nothing here needs to know which is which in advance. Each place keeps two
+counts, and a place belongs to the thing when its changes have more often been
+rearrangements than arrivals.
+
+A place reports only when its arrivals are more than the thing's own places
+show by chance. The thing has arrivals too: a tile appears in an empty square,
+two tiles become one that was nowhere before. Called a readout on one arrival
+against no rearrangement, a board square was cut out of her rule while a tile
+sat in it, and every move through that square was scored as her rule being
+wrong (live, 26 Sep: "1 place(s) only report", then "(0,2) said '2' saw None";
+eight of the first nine misses she logged were on that square). Played out
+over 200 games, the old test called some board square a readout on 12% of
+moves with random play and on 89% with the tiles kept in a corner, where
+merges land in place and nothing leaves. This one does on at most 0.2% of
+moves, with or without a score on the screen, and finds the score in every
+game, by the tenth move with random play and the fifteenth with the corner
+kept (the middle game of 200).
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from math import exp, lgamma
 from typing import Any
 
-__all__ = ["MovesWithinItself", "what_moved_within"]
+__all__ = ["WRONG_BY_CHANCE", "MovesWithinItself", "at_least_as_many", "what_moved_within"]
+
+#: How often a place of the thing may be called a readout by bad luck: one
+#: time in twenty, shared across every place tested and every act watched,
+#: because the question is asked of each of them again after every act.
+WRONG_BY_CHANCE = 0.05
+
+
+def at_least_as_many(times: int, out_of: int, others_times: int, others_not: int) -> float:
+    """The chance of ``times`` or more in ``out_of``, at the rate the other places showed.
+
+    That rate is not known, only what the others did: ``others_times`` of it
+    and ``others_not`` of the rest, taken on Jeffreys' prior. So the chance is
+    the beta-binomial tail, which carries the doubt about the rate as well as
+    the luck of the draw. With nothing seen elsewhere yet, one time is no
+    surprise at all.
+    """
+    a, b = others_times + 0.5, others_not + 0.5
+
+    def log_beta(x: float, y: float) -> float:
+        return lgamma(x) + lgamma(y) - lgamma(x + y)
+
+    whole = log_beta(a, b)
+    ways = lgamma(out_of + 1)
+    return min(
+        1.0,
+        sum(
+            exp(ways - lgamma(k + 1) - lgamma(out_of - k + 1) + log_beta(k + a, out_of - k + b) - whole)
+            for k in range(times, out_of + 1)
+        ),
+    )
 
 
 @dataclass
@@ -191,12 +236,30 @@ class MovesWithinItself:
         )
 
     def the_things_that_report(self) -> frozenset[tuple[int, int]]:
-        """The places that show her something new each time. A score, a clock."""
-        return frozenset(
-            where
-            for where, came in self.arrived.items()
-            if came > self.rearranged.get(where, 0)
-        )
+        """The places that show her something new each time. A score, a clock.
+
+        More arrivals than rearrangements, and more than a place of the thing
+        would show by chance at the rate every other place has shown them.
+        """
+        changed = set(self.arrived) | set(self.rearranged)
+        reporting: set[tuple[int, int]] = set()
+        while True:
+            # A readout already found is not evidence about the thing's own
+            # rate. Left in, a score and a move counter each hide the other.
+            others = changed - reporting
+            came_all = sum(self.arrived.get(where, 0) for where in others)
+            moved_all = sum(self.rearranged.get(where, 0) for where in others)
+            found = set()
+            for where in others:
+                came, moved = self.arrived.get(where, 0), self.rearranged.get(where, 0)
+                if came <= moved:
+                    continue
+                chance = at_least_as_many(came, came + moved, came_all - came, moved_all - moved)
+                if chance < WRONG_BY_CHANCE / (len(changed) * max(1, self.acts)):
+                    found.add(where)
+            if not found:
+                return frozenset(reporting)
+            reporting |= found
 
     def settled(self) -> bool:
         """Whether she has watched enough acts for the split to mean anything.
