@@ -556,3 +556,25 @@ declared held requests, 11 paired updates in a 16-update pilot, and 23 unique
 fit sources to cache. Five updates are explicitly unmatched. Plan receipt:
 `06a27aa1b396d2a97091a9c6acc176144cbde214646ffa9270abe265a35b912e`
 at `~/.aura/rlc-evidence/semantic-native-relational-plan-fold0-20260926/plan.json`.
+
+The first model-active pilot stopped before training at the prefix-equivalence
+gate. The full model and frozen-prefix-plus-suffix logits were bit-identical,
+but selecting only the eight supervised output positions before the BF16
+vocabulary projection changed an unrelated logit by 0.0625. The supervised
+target log-probability differed by at most 0.001065, with identical argmaxes
+on the checked positions. The gate now retains the strict full-path check and
+compares the selected path at the actual supervised token probabilities, with
+a tolerance derived from output dtype precision. A deliberately wrong target
+probability still fails the focused test. The failed directory is retained at
+`~/.aura/rlc-evidence/semantic-native-relational-pilot-fold0-20260926/`.
+
+The fresh 16-update pilot completed at
+`~/.aura/rlc-evidence/semantic-native-relational-pilot2-fold0-20260926/`.
+It cached 128 supervised sequences and retained the unfitted step-0 checkpoint:
+calibration loss rose from 2.800060 at step 0 to 3.181365 at step 16. Its
+held readout was 8/18 native-correct versus 15/18 incumbent-correct, with
+zero learning gains and seven regressions relative to the incumbent. Receipt:
+`ca33f818862cd00fffb9c7b27d1c7e207fccd0eaaaa60b0a5ee1300321bd92de`.
+This is a negative result for this paired-loss pilot, not evidence of broad
+transfer or a serving candidate. Pairing source forms does not by itself
+align their representations or solve candidate selection.

@@ -125,6 +125,29 @@ def native_relational_source_loss(suffix, left_hidden, left_sequences,
     return mx.logsumexp(losses) - math.log(2.)
 
 
+def selected_projection_error(full_logits, selected_logits, sequence, positions):
+    """Compare the supervised log probabilities, allowing one BF16 rounding step."""
+    import mlx.core as mx
+
+    if (not positions or any(type(index) is not int or
+            not 0 <= index + 1 < len(sequence.tokens) for index in positions)):
+        raise ValueError("selected projection lacks valid supervised positions")
+    target_ids = [sequence.tokens[index + 1] for index in positions]
+    reference = mx.take(full_logits, mx.array(positions, dtype=mx.int32), axis=1)
+    if (reference.shape != selected_logits.shape or reference.shape[0] != 1
+            or any(type(target) is not int or not 0 <= target < reference.shape[-1]
+                   for target in target_ids)):
+        raise ValueError("selected projection differs from the complete causal states")
+    targets = mx.array(target_ids, dtype=mx.int32)
+    def target_logprob(logits):
+        rows = logits[0].astype(mx.float32)
+        chosen = mx.take_along_axis(rows, targets[:, None], axis=1)[:, 0]
+        return chosen - mx.logsumexp(rows, axis=-1)
+    error = mx.max(mx.abs(target_logprob(reference) - target_logprob(selected_logits))).item()
+    tolerance = 2 * max(mx.finfo(reference.dtype).eps, mx.finfo(selected_logits.dtype).eps)
+    return float(error), float(tolerance)
+
+
 def native_supervision_sets(items, texts, tokenizer, identities, *, peers=(),
                             contrast_limit=None, max_tokens=1024):
     """Reuse the floor's witnessed contrasts only for declared source supervision."""
@@ -360,16 +383,18 @@ def main():
                 difference = mx.max(mx.abs(full - suffix(hidden))).item()
                 positions = tuple(index - 1 for index in native_prediction_positions(
                     sequences[batch[0]], scope=args.loss_scope))
-                selected_difference = mx.max(mx.abs(
-                    mx.take(full, mx.array(positions, dtype=mx.int32), axis=1)
-                    - suffix(hidden, logit_positions=positions))).item()
+                selected_difference, selected_tolerance = selected_projection_error(
+                    full, suffix(hidden, logit_positions=positions),
+                    sequences[batch[0]], positions)
                 if (not math.isfinite(difference) or difference > .01
-                        or not math.isfinite(selected_difference) or selected_difference > .01):
+                        or not math.isfinite(selected_difference)
+                        or selected_difference > selected_tolerance):
                     raise ValueError("cached native prefix does not reproduce model logits")
                 _save_if_absent(args.directory / "prefix-equivalence.json", {
                     "plan_sha256": plan["plan_sha256"], "max_absolute_logit_difference": difference,
                     "tokens": tokens.shape[1], "batch_size": tokens.shape[0], "split_at": split,
-                    "selected_projection_max_absolute_difference": selected_difference,
+                    "selected_projection_max_target_logprob_difference": selected_difference,
+                    "selected_projection_target_logprob_tolerance": selected_tolerance,
                     "projected_positions": len(positions),
                     "trainable_sites": [name for name, _value in trainable]})
             for index, identity in enumerate(batch):
