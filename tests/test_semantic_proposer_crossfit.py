@@ -12,10 +12,87 @@ from core.learning.semantic_construction_folds import (
 from core.learning.semantic_program_campaign import _sha
 from tools.audit_semantic_proposer_reach import audit_directory
 from tools.probe_semantic_proposer_crossfit import (
+    _digest,
+    bank_measurement_population,
     crossfit_partition,
     nested_crossfit_partition,
     proposal_reach_profile,
+    verify_source_calibration_bank,
 )
+
+
+def test_source_calibration_bank_keeps_source_partition_and_never_reads_held_targets():
+    def row(identity):
+        return SimpleNamespace(ir=SimpleNamespace(source_text_sha256=identity))
+    fit, cal, held = [row("fit")], [row("cal-b"), row("cal-a")], [row("held")]
+    assert bank_measurement_population(fit, cal, held, partition="source_calibration") == cal[::-1]
+    assert bank_measurement_population(fit, cal, held, partition="held") == held
+    for parts in ((fit, fit, held), (fit, cal, cal), (fit, [], held),
+                  (fit, [*cal, cal[0]], held)):
+        with pytest.raises(ValueError, match="partitions"):
+            bank_measurement_population(*parts, partition="source_calibration")
+    with pytest.raises(ValueError, match="partition"):
+        bank_measurement_population(fit, cal, held, partition="train")
+
+
+def test_source_calibration_bank_cannot_be_relabelled_as_held_or_change_its_proposer():
+    import copy
+
+    def seal(body, field):
+        return {**body, field: _digest(body)}
+    origin = seal({"schema": "aura.semantic_proposer_crossfit_plan.v1",
+                   "fit_ids": ["fit"], "calibration_ids": ["cal-a", "cal-b"],
+                   "held_ids": ["held"], "source_report_sha256": "source",
+                   "parent_receipt_sha256": "parent", "folds_sha256": "folds", "fold": 0,
+                   "input_order_policy": "source", "heldout_axis": "wording"}, "plan_sha256")
+    origin_report = seal({"schema": "aura.semantic_proposer_crossfit.v1",
+                          "plan_sha256": origin["plan_sha256"],
+                          "row_receipts": {"held": "h"},
+                          "candidate_receipt_sha256": "candidate"}, "receipt_sha256")
+    body = {**{key: value for key, value in origin.items() if key != "plan_sha256"},
+            "schema": "aura.semantic_proposer_source_calibration_plan.v1",
+            "bank_partition": "source_calibration", "evaluated_ids": ["cal-a", "cal-b"],
+            "reused_candidate_sha256": "candidate-file", "held_rows_evaluated": False,
+            "proposer_fit_updates": 0, "serving_authority": False, "qualification_evidence": False}
+    plan = seal(body, "plan_sha256")
+    rb = {"schema": "aura.semantic_proposer_source_calibration.v1",
+          "plan_sha256": plan["plan_sha256"], "candidate_receipt_sha256": "candidate",
+          "source_calibration_population": 2, "row_receipts": {"cal-a": "a", "cal-b": "b"},
+          "held_rows_evaluated": False, "proposer_fit_updates": 0,
+          "serving_authority": False, "qualification_evidence": False}
+    kwargs = {"origin_plan": origin, "origin_report": origin_report,
+              "candidate_sha256": "candidate-file"}
+    assert verify_source_calibration_bank(plan, seal(rb, "receipt_sha256"), **kwargs)[0] == plan
+    for field, value in (("held_rows_evaluated", True), ("proposer_fit_updates", 1),
+                         ("proposer_fit_updates", False),
+                         ("evaluated_ids", ["held"]), ("fit_ids", ["cal-a"]),
+                         ("reused_candidate_sha256", "changed")):
+        changed = copy.deepcopy(body)
+        changed[field] = value
+        changed_plan = seal(changed, "plan_sha256")
+        changed_report = seal({**rb, "plan_sha256": changed_plan["plan_sha256"]}, "receipt_sha256")
+        with pytest.raises(ValueError, match="source calibration bank"):
+            verify_source_calibration_bank(changed_plan, changed_report, **kwargs)
+    for field, value in (("candidate_receipt_sha256", "changed"),
+                         ("held_population", 2), ("row_receipts", {"held": "a"}),
+                         ("source_calibration_population", 1), ("serving_authority", True)):
+        with pytest.raises(ValueError, match="source calibration bank"):
+            verify_source_calibration_bank(plan, seal({**rb, field: value}, "receipt_sha256"), **kwargs)
+
+
+def test_existing_transfer_bank_reader_refuses_source_calibration_evidence(tmp_path):
+    from tools.train_nested_semantic_ranker import _verified_pair
+
+    plan_body = {"schema": "aura.semantic_proposer_source_calibration_plan.v1",
+                 "held_ids": ["held"], "evaluated_ids": ["cal"]}
+    plan = {**plan_body, "plan_sha256": _digest(plan_body)}
+    report_body = {"schema": "aura.semantic_proposer_source_calibration.v1",
+                   "plan_sha256": plan["plan_sha256"], "row_receipts": {"cal": "row"}}
+    (tmp_path / "plan.json").write_text(json.dumps(plan))
+    (tmp_path / "report.json").write_text(json.dumps(
+        {**report_body, "receipt_sha256": _digest(report_body)}))
+    with pytest.raises(ValueError, match="signed plan"):
+        _verified_pair(tmp_path)
 
 
 def _examples():

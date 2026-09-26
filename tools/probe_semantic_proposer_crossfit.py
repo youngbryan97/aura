@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import sys
+import time
 from dataclasses import replace
 from pathlib import Path
 
@@ -17,6 +18,61 @@ if str(ROOT) not in sys.path:
 
 def _digest(value: dict) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, allow_nan=False).encode()).hexdigest()
+
+
+def bank_measurement_population(fit, calibration, held, *, partition):
+    """Keep source calibration comparisons distinct from held transfer evidence."""
+    if partition not in {"held", "source_calibration"}:
+        raise ValueError("unknown semantic bank measurement partition")
+    identities = [tuple(item.ir.source_text_sha256 for item in rows)
+                  for rows in (fit, calibration, held)]
+    if (any(not rows or len(set(rows)) != len(rows) for rows in identities)
+            or set(identities[0]) & set(identities[1])
+            or set(identities[0]) & set(identities[2])
+            or set(identities[1]) & set(identities[2])):
+        raise ValueError("semantic bank measurement partitions overlap or are empty")
+    return sorted(calibration if partition == "source_calibration" else held,
+                  key=lambda item: item.ir.source_text_sha256)
+
+
+def verify_source_calibration_bank(plan, report, *, origin_plan, origin_report,
+                                   candidate_sha256):
+    """Bind calibration comparisons to the unchanged proposer and source fold."""
+    for document, field in ((plan, "plan_sha256"), (report, "receipt_sha256"),
+                            (origin_plan, "plan_sha256"), (origin_report, "receipt_sha256")):
+        if document.get(field) != _digest({key: value for key, value in document.items()
+                                           if key != field}):
+            raise ValueError("source calibration bank evidence digest differs")
+    if (plan.get("schema") != "aura.semantic_proposer_source_calibration_plan.v1"
+            or report.get("schema") != "aura.semantic_proposer_source_calibration.v1"
+            or origin_plan.get("schema") != "aura.semantic_proposer_crossfit_plan.v1"
+            or origin_report.get("schema") != "aura.semantic_proposer_crossfit.v1"
+            or origin_report.get("plan_sha256") != origin_plan["plan_sha256"]
+            or set(origin_report.get("row_receipts", {})) != set(origin_plan["held_ids"])
+            or report.get("plan_sha256") != plan["plan_sha256"]
+            or plan.get("bank_partition") != "source_calibration"
+            or plan.get("reused_candidate_sha256") != candidate_sha256
+            or report.get("candidate_receipt_sha256") != origin_report.get("candidate_receipt_sha256")
+            or any(plan.get(key) != origin_plan.get(key) for key in (
+                "source_report_sha256", "parent_receipt_sha256", "folds_sha256", "fold",
+                "fit_ids", "calibration_ids", "held_ids", "input_order_policy", "heldout_axis",
+                "max_charts", "max_graphs_per_chart", "solve_seconds", "bank_seconds"))
+            or any(document.get("held_rows_evaluated") is not False
+                   or type(document.get("proposer_fit_updates")) is not int
+                   or document.get("proposer_fit_updates") != 0
+                   or document.get("serving_authority") is not False
+                   or document.get("qualification_evidence") is not False
+                   for document in (plan, report))):
+        raise ValueError("source calibration bank differs from its frozen origin")
+    fit, cal, held = (set(plan[key]) for key in ("fit_ids", "calibration_ids", "held_ids"))
+    if (not fit or not cal or not held or fit & cal or fit & held or cal & held
+            or plan.get("evaluated_ids") != sorted(cal)
+            or len(plan["calibration_ids"]) != len(cal)
+            or set(report.get("row_receipts", {})) != cal
+            or report.get("source_calibration_population") != len(cal)
+            or "held_population" in report):
+        raise ValueError("source calibration bank measurement population differs")
+    return plan, report
 
 
 def crossfit_partition(examples: list, folds: dict, fold: int,
@@ -250,9 +306,20 @@ def main() -> None:
                         help="source-identity-sorted held rows per construction")
     parser.add_argument("--reuse-candidate", type=Path,
                         help="reuse a signed candidate fit from the same fold and calibration")
+    parser.add_argument("--bank-partition", choices=("held", "source_calibration"),
+                        default="held", help="collect separate source-only selector calibration evidence")
     parser.add_argument("--held-source-id", action="append", default=[],
                         help="diagnostic replay of specified held identities only")
+    parser.add_argument("--stop-after", type=int, default=0,
+                        help="retain a partial bank after this many rows; zero completes the population")
     args = parser.parse_args()
+    if args.stop_after < 0:
+        parser.error("stop-after must be nonnegative")
+    if args.bank_partition == "source_calibration" and (
+            args.reuse_candidate is None or args.outer_fold is not None
+            or args.held_source_id or args.complete_operation_max_expansions is not None
+            or args.signature_max_table_entries is not None):
+        parser.error("source calibration must reuse an unchanged, non-nested source candidate")
     if (args.max_charts < 1 or args.max_graphs < 1 or
             not 0 < args.solve_seconds <= 60):
         parser.error("bounded candidate search needs positive limits")
@@ -279,12 +346,12 @@ def main() -> None:
 
     configure_refit_environment(args.directory / "report.json")
     from core.learning.semantic_program_campaign import _sha
+    from core.learning.semantic_program_compositional_campaign import (
+        bind_compositional_source_input_order,
+    )
     from core.learning.semantic_program_compositional_transducer import (
         compositional_semantic_program_transducer_from_dict,
         fit_compositional_semantic_program_transducer,
-    )
-    from core.learning.semantic_program_compositional_campaign import (
-        bind_compositional_source_input_order,
     )
     from core.learning.semantic_validation_checkpoint import validation_implementation_identity
     from tools.diagnose_semantic_gap_candidate_bank import _audit_row
@@ -309,6 +376,7 @@ def main() -> None:
             parser.error("nested selector bank requires every inner held source")
         nested_folds, fit, calibration, held, outer_excluded = nested_crossfit_partition(
             examples, folds, args.outer_fold, args.fold)
+    measured = bank_measurement_population(fit, calibration, held, partition=args.bank_partition)
     all_sources = sorted(item.ir.source_text_sha256 for item in examples if item.split == "train")
     if parent.training_receipt.get("training_example_ids_sha256") != _sha(all_sources):
         raise ValueError("parent training cohort cannot be established")
@@ -343,6 +411,15 @@ def main() -> None:
         plan_body["signature_max_table_entries"] = args.signature_max_table_entries
     if args.bank_seconds is not None:
         plan_body["bank_seconds"] = args.bank_seconds
+    if args.bank_partition == "source_calibration":
+        plan_body.update({
+            "schema": "aura.semantic_proposer_source_calibration_plan.v1",
+            "bank_partition": args.bank_partition,
+            "evaluated_ids": [item.ir.source_text_sha256 for item in measured],
+            "reused_candidate_sha256": hashlib.sha256(args.reuse_candidate.read_bytes()).hexdigest(),
+            "held_rows_evaluated": False,
+            "proposer_fit_updates": 0,
+        })
     plan = {**plan_body, "plan_sha256": _digest(plan_body)}
     args.directory.mkdir(parents=True, exist_ok=True)
     _save_if_absent(args.directory / "plan.json", plan)
@@ -399,7 +476,16 @@ def main() -> None:
         raise ValueError("crossfit model saw a held construction")
     (args.directory / "rows").mkdir(exist_ok=True)
     rows = []
-    for item in held:
+    started = time.monotonic()
+    for item in measured:
+        if args.stop_after and len(rows) >= args.stop_after:
+            break
+        if (args.parent.read_bytes() != parent_raw or args.source_report.read_bytes() != source_raw
+                or args.folds.read_bytes() != folds_raw
+                or plan_body["implementation"] != validation_implementation_identity()
+                or args.bank_partition == "source_calibration" and hashlib.sha256(
+                    args.reuse_candidate.read_bytes()).hexdigest() != plan["reused_candidate_sha256"]):
+            raise ValueError("crossfit bank source or implementation changed during acquisition")
         source = item.ir.source_text_sha256
         path = args.directory / "rows" / f"{source}.json"
         if not path.exists():
@@ -409,11 +495,17 @@ def main() -> None:
         if (row["source"] != source or row["plan_sha256"] != plan["plan_sha256"]
                 or row["receipt_sha256"] != _digest({
                     key: value for key, value in row.items() if key != "receipt_sha256"})):
-            raise ValueError("crossfit held-row receipt differs")
+            raise ValueError("crossfit measurement-row receipt differs")
         rows.append(row)
-        print(json.dumps({"stage": "held", "done": len(rows), "total": len(held),
+        print(json.dumps({"stage": args.bank_partition, "done": len(rows), "total": len(measured),
                           "source": source,
                           "reachable": row["diagnosis"]["correct_reachable"]}), flush=True)
+    if len(rows) != len(measured):
+        print(json.dumps({"stage": "partial", "bank_partition": args.bank_partition,
+                          "population": len(measured), "observed": len(rows),
+                          "elapsed_seconds": time.monotonic() - started,
+                          "complete": False, "serving_authority": False}), flush=True)
+        return
     top_correct = 0
     for row in rows:
         statuses = {result["program_sha256"]: result["status"] for result in
@@ -433,9 +525,15 @@ def main() -> None:
             "proposal_reach_profile": proposal_reach_profile(rows),
             "row_receipts": {row["source"]: row["receipt_sha256"] for row in rows},
             "serving_authority": False, "qualification_evidence": False}
+    if args.bank_partition == "source_calibration":
+        del body["held_population"]
+        body.update({"schema": "aura.semantic_proposer_source_calibration.v1",
+                     "source_calibration_population": len(rows),
+                     "held_rows_evaluated": False, "proposer_fit_updates": 0})
     report = {**body, "receipt_sha256": _digest(body)}
     _save_if_absent(args.directory / "report.json", report)
-    print(json.dumps({"stage": "complete", "held_population": len(rows),
+    print(json.dumps({"stage": "complete", "bank_partition": args.bank_partition,
+                      "population": len(rows),
                       "correct_reachable": body["correct_reachable"],
                       "ordinary_correct": body["ordinary_correct"],
                       "top_joint_score_correct": top_correct}), flush=True)

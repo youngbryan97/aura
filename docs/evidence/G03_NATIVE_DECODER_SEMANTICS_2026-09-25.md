@@ -282,3 +282,43 @@ non-regression. Neither checkpoint receives serving authority or closes G03.
 The next combined selector must learn from source-only candidate comparisons
 and pass separate admission. It must not use these held-case labels to choose
 between methods, nor treat the union of their successes as a callable policy.
+
+## Source-only combined-selection acquisition
+
+The existing crossfit proposer now has an explicit `source_calibration` bank
+mode. It reuses the unchanged source-fit proposer, evaluates only the complete
+separate calibration partition, and records distinct plan/report schemas.
+Training, calibration and held identities must be disjoint. The source,
+candidate and implementation identities are checked during acquisition.
+Existing transfer-bank consumers reject this calibration schema rather than
+counting calibration rows as new held evidence.
+
+This provides actual target-blind proposal comparisons for the native learned
+selector and the incumbent on the source calibration distribution. Labels are
+added by the existing independent program diagnosis after proposal generation.
+The existing calibrated candidate selector remains the arbitration owner;
+there is no domain router or second arbitration architecture. Fitting and
+separate admission are still required; acquisition alone grants no authority.
+Partial acquisitions retain durable rows but do not publish a complete report.
+
+The bounded acquisition check retained 12 of 185 calibration rows in
+98.721498791 seconds and exited zero. Eleven rows contain an observed equivalent;
+one has unresolved reach after incomplete search. All 12 have an ordinary
+incumbent and known comparison outcomes. This partial population is not an
+admissible calibration receipt. The native replay reader refuses it until all
+185 rows and their report are present.
+
+Native calibration scoring now preserves unknown comparisons as `None`, rather
+than training them as failures. An unavailable ordinary answer cannot inherit
+credit from the first alternative in a bank. Unrankable rows remain in the
+population with no fabricated native scores or successes. The 23 instances used
+to select the native checkpoint are recorded separately so independent arbiter
+admission can exclude them. Implementation and source-bank identities remain
+bound through completion.
+
+For diagnosis only, an oracle union of the incumbent and both measured native
+selectors reaches 46 of the 50 held requests, below the observed bank reach of
+47. These labels are not available to a deployable selector. Even perfect
+arbitration between these three outputs would leave one reachable selection
+miss and three requests without observed equivalent proposals. Combined
+selection and proposal reach therefore remain separate engineering obligations.

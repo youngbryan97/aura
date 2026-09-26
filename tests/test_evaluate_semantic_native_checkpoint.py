@@ -7,7 +7,10 @@ import pytest
 
 from tools.evaluate_semantic_native_checkpoint import (
     digest,
+    observed_program_reach,
     selected_checkpoint,
+    source_calibration_labels,
+    verified_calibration_replay_basis,
     verified_document,
     verify_replay_row,
 )
@@ -100,3 +103,115 @@ def test_replay_rejects_rehashed_score_identity_changes(field, value):
                                     if key != "receipt_sha256"})
     with pytest.raises(ValueError):
         verify_replay_row(row, source="held", plan_sha256="plan")
+
+
+def test_source_calibration_does_not_teach_that_unknown_means_wrong():
+    comparisons = [{"program_sha256": key, "status": status} for key, status in
+                   (("a", "equivalent"), ("b", "different"), ("c", "unknown"))]
+    bank = {"diagnosis": {"comparisons": comparisons}}
+    assert source_calibration_labels(bank) == {"a": True, "b": False, "c": None}
+    for rows in ([*comparisons, comparisons[0]],
+                 [{"program_sha256": "a", "status": "assumed_correct"}]):
+        with pytest.raises(ValueError, match="comparison"):
+            source_calibration_labels({"diagnosis": {"comparisons": rows}})
+
+
+def test_unknown_programs_do_not_establish_absence_of_an_equivalent():
+    assert observed_program_reach((False, None)) is None
+    assert observed_program_reach((True, None)) is True
+    assert observed_program_reach((False, False)) is False
+    row = replay_row()
+    row.update(selected_correct=None, bank_reachable=None)
+    row["receipt_sha256"] = digest({key: value for key, value in row.items()
+                                    if key != "receipt_sha256"})
+    assert verify_replay_row(row, source="held", plan_sha256="plan",
+                            programs=("a", "b"), labels=(False, None)) == row
+    row["bank_reachable"] = False
+    row["receipt_sha256"] = digest({key: value for key, value in row.items()
+                                    if key != "receipt_sha256"})
+    with pytest.raises(ValueError, match="independent bank"):
+        verify_replay_row(row, source="held", plan_sha256="plan",
+                          programs=("a", "b"), labels=(False, None))
+
+
+def test_resumed_calibration_keeps_an_unproved_incumbent_outcome_unknown():
+    row = replay_row()
+    row["incumbent_correct"] = row["pretrained_correct"] = None
+    row["receipt_sha256"] = digest({key: value for key, value in row.items()
+                                    if key != "receipt_sha256"})
+    assert verify_replay_row(row, source="held", plan_sha256="plan",
+                             programs=("a", "b"), labels=(None, True)) == row
+    with pytest.raises(ValueError, match="independent bank"):
+        verify_replay_row(row, source="held", plan_sha256="plan",
+                          programs=("a", "b"), labels=(False, True))
+
+
+def test_first_candidate_is_not_an_incumbent_when_ordinary_decode_is_missing():
+    row = replay_row()
+    row.update(incumbent_available=False, incumbent_correct=False, pretrained_correct=True)
+    row["receipt_sha256"] = digest({key: value for key, value in row.items()
+                                    if key != "receipt_sha256"})
+    assert verify_replay_row(row, source="held", plan_sha256="plan",
+        programs=("a", "b"), labels=(True, True), incumbent_available=False) == row
+    with pytest.raises(ValueError, match="independent bank"):
+        verify_replay_row(row, source="held", plan_sha256="plan",
+                          programs=("a", "b"), labels=(True, True))
+
+
+def test_unscored_calibration_records_no_native_score_or_success():
+    body = {"source": "source", "plan_sha256": "plan", "program_sha256s": [],
+        "scores": [], "pretrained_scores": [], "chosen_program_sha256": None,
+        "pretrained_program_sha256": None, "incumbent_correct": False,
+        "incumbent_available": False, "selected_correct": None, "pretrained_correct": None,
+        "bank_reachable": None, "labels_available_to_scorer": False, "scored": False,
+        "unrankable_reason": "ordinary_decode_unavailable"}
+    row = {**body, "receipt_sha256": digest(body)}
+    assert verify_replay_row(row, source="source", plan_sha256="plan") == row
+    for key, value in (("selected_correct", True), ("pretrained_correct", False),
+                       ("incumbent_available", True), ("scores", [-1.]),
+                       ("unrankable_reason", "not_checked")):
+        changed = {**body, key: value}
+        with pytest.raises(ValueError, match="unscored"):
+            verify_replay_row({**changed, "receipt_sha256": digest(changed)},
+                              source="source", plan_sha256="plan")
+
+
+def test_calibration_replay_requires_complete_population_and_original_candidate(tmp_path):
+    origin = tmp_path / "origin"
+    source = tmp_path / "source"
+    origin.mkdir()
+    source.mkdir()
+    candidate = b"immutable proposer"
+    (origin / "candidate.json").write_bytes(candidate)
+    base = {"schema": "aura.semantic_proposer_crossfit_plan.v1",
+        "fit_ids": ["fit"], "calibration_ids": ["cal-a", "cal-b"], "held_ids": ["held"],
+        "source_report_sha256": "source", "parent_receipt_sha256": "parent",
+        "folds_sha256": "folds", "fold": 0, "input_order_policy": "source",
+        "heldout_axis": "wording"}
+    origin_plan = {**base, "plan_sha256": digest(base)}
+    origin_body = {"schema": "aura.semantic_proposer_crossfit.v1",
+        "plan_sha256": origin_plan["plan_sha256"], "row_receipts": {"held": "h"},
+        "candidate_receipt_sha256": "candidate"}
+    origin_report = {**origin_body, "receipt_sha256": digest(origin_body)}
+    plan = {**base, "schema": "aura.semantic_proposer_source_calibration_plan.v1",
+        "bank_partition": "source_calibration", "evaluated_ids": ["cal-a", "cal-b"],
+        "reused_candidate_sha256": hashlib.sha256(candidate).hexdigest(),
+        "held_rows_evaluated": False, "proposer_fit_updates": 0,
+        "serving_authority": False, "qualification_evidence": False}
+    write(source / "plan.json", plan, "plan_sha256")
+    report = {"schema": "aura.semantic_proposer_source_calibration.v1",
+        "plan_sha256": digest(plan), "candidate_receipt_sha256": "candidate",
+        "source_calibration_population": 2, "row_receipts": {"cal-a": "a", "cal-b": "b"},
+        "held_rows_evaluated": False, "proposer_fit_updates": 0,
+        "serving_authority": False, "qualification_evidence": False}
+    kwargs = dict(origin_directory=origin, origin_plan=origin_plan, origin_report=origin_report)
+    with pytest.raises(FileNotFoundError):
+        verified_calibration_replay_basis(source, **kwargs)
+    write(source / "report.json", {**report, "row_receipts": {"cal-a": "a"}})
+    with pytest.raises(ValueError, match="source calibration bank"):
+        verified_calibration_replay_basis(source, **kwargs)
+    write(source / "report.json", report)
+    assert verified_calibration_replay_basis(source, **kwargs)[2] == ("cal-a", "cal-b")
+    (origin / "candidate.json").write_bytes(b"substituted proposer")
+    with pytest.raises(ValueError, match="source calibration bank"):
+        verified_calibration_replay_basis(source, **kwargs)

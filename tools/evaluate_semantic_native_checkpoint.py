@@ -66,12 +66,30 @@ def selected_checkpoint(directory):
     return plan, selected
 
 
-def verify_replay_row(row, *, source, plan_sha256, programs=None, labels=None):
+def observed_program_reach(labels):
+    if any(value is True for value in labels):
+        return True
+    return None if any(value is None for value in labels) else False
+
+
+def verify_replay_row(row, *, source, plan_sha256, programs=None, labels=None,
+                      incumbent_available=True):
     if (row.get("receipt_sha256") != digest({key: value for key, value in row.items()
                                              if key != "receipt_sha256"})
             or row.get("source") != source or row.get("plan_sha256") != plan_sha256
             or row.get("labels_available_to_scorer") is not False):
         raise ValueError("native replay row identity differs")
+    if row.get("scored") is False:
+        if (programs is not None or row.get("unrankable_reason") != "ordinary_decode_unavailable"
+                or any(row.get(key) != [] for key in
+                       ("program_sha256s", "scores", "pretrained_scores"))
+                or any(row.get(key) is not None for key in
+                       ("chosen_program_sha256", "pretrained_program_sha256", "selected_correct",
+                        "pretrained_correct", "bank_reachable"))
+                or row.get("incumbent_correct") is not False
+                or row.get("incumbent_available") is not False):
+            raise ValueError("unscored native calibration row claims unavailable evidence")
+        return row
     keys, scores, controls = (row[key] for key in
                              ("program_sha256s", "scores", "pretrained_scores"))
     if (not keys or len(set(keys)) != len(keys) or len(keys) != len(scores)
@@ -83,12 +101,37 @@ def verify_replay_row(row, *, source, plan_sha256, programs=None, labels=None):
         raise ValueError("native replay scores differ from selected programs")
     if programs is not None:
         statuses = dict(zip(programs, labels, strict=True))
-        if (list(keys) != list(programs) or row["incumbent_correct"] != labels[0]
-                or row["bank_reachable"] != any(labels)
+        expected_incumbent = labels[0] if incumbent_available else False
+        if (list(keys) != list(programs) or row["incumbent_correct"] != expected_incumbent
+                or row.get("incumbent_available", True) != incumbent_available
+                or row["bank_reachable"] != observed_program_reach(labels)
                 or row["selected_correct"] != statuses[row["chosen_program_sha256"]]
                 or row["pretrained_correct"] != statuses[row["pretrained_program_sha256"]]):
             raise ValueError("native replay outcome differs from independent bank grading")
     return row
+
+
+def source_calibration_labels(bank):
+    """Only witnessed differences become negative calibration observations."""
+    values = {"equivalent": True, "different": False, "unknown": None}
+    result = {}
+    for row in bank["diagnosis"]["comparisons"]:
+        key, status = row["program_sha256"], row["status"]
+        if key in result or status not in values:
+            raise ValueError("source calibration comparison is duplicated or unrecognized")
+        result[key] = values[status]
+    return result
+
+
+def verified_calibration_replay_basis(directory, *, origin_directory, origin_plan, origin_report):
+    from tools.probe_semantic_proposer_crossfit import verify_source_calibration_bank
+
+    plan = verified_document(directory / "plan.json", "plan_sha256")
+    report = verified_document(directory / "report.json")
+    candidate_sha = hashlib.sha256((origin_directory / "candidate.json").read_bytes()).hexdigest()
+    verify_source_calibration_bank(plan, report, origin_plan=origin_plan,
+                                   origin_report=origin_report, candidate_sha256=candidate_sha)
+    return plan, report, tuple(plan["evaluated_ids"])
 
 
 def main():
@@ -99,6 +142,8 @@ def main():
     parser.add_argument("--held-per-construction", type=int, default=3)
     parser.add_argument("--max-seconds", type=float, default=1800.)
     parser.add_argument("--plan-only", action="store_true")
+    parser.add_argument("--source-calibration-bank", type=Path,
+                        help="score a complete source calibration bank, never held requests")
     args = parser.parse_args()
     if args.held_per_construction < 1 or not 0 < args.max_seconds <= 14400:
         parser.error("positive source sampling and finite replay bound required")
@@ -136,7 +181,18 @@ def main():
     validate_atom_partition(examples, outer, json.loads(folds_raw))
     identities = construction_subset(examples, outer["held_ids"],
                                       per_construction=args.held_per_construction)
-    if set(identities) & (set(training["fit_ids"]) | set(training["calibration_ids"])):
+    scoring_directory, scoring_plan, scoring_report = args.bank, outer, bank_report
+    if args.source_calibration_bank is not None:
+        scoring_directory = args.source_calibration_bank
+        scoring_plan, scoring_report, identities = verified_calibration_replay_basis(
+            scoring_directory, origin_directory=args.bank,
+            origin_plan=outer, origin_report=bank_report)
+    forbidden = set(training["fit_ids"])
+    if args.source_calibration_bank is None:
+        forbidden |= set(training["calibration_ids"])
+    else:
+        forbidden |= set(outer["held_ids"])
+    if set(identities) & forbidden:
         raise ValueError("native replay crosses a source fit or calibration boundary")
     spec = get_active_cortex_spec(force_refresh=True)
     if (spec is None or not spec.exact_identity
@@ -149,6 +205,8 @@ def main():
         "core/learning/frozen_decoder_prefix.py", "core/learning/semantic_native_program.py",
         "core/brain/llm/decoder_topology.py", "tools/evaluate_semantic_candidate_ranker.py",
         "core/learning/semantic_program_feature_materialization.py")]
+    if args.source_calibration_bank is not None:
+        paths.append(ROOT / "tools/probe_semantic_proposer_crossfit.py")
     implementation = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
                       for path in paths}
     body = {"schema": "aura.semantic_native_replay_plan.v1",
@@ -162,6 +220,13 @@ def main():
         "implementation": implementation, "max_seconds": args.max_seconds,
         "fit_updates": 0, "held_labels_used_for_fit_or_selection": False,
         "serving_authority": False, "qualification_evidence": False}
+    if args.source_calibration_bank is not None:
+        del body["held_ids"]
+        body.update({"schema": "aura.semantic_native_source_calibration_plan.v1",
+                     "evaluated_ids": identities, "held_rows_evaluated": False,
+                     "source_calibration_plan_sha256": scoring_plan["plan_sha256"],
+                     "source_calibration_receipt_sha256": scoring_report["receipt_sha256"],
+                     "checkpoint_calibration_ids": training["calibration_ids"]})
     plan = {**body, "plan_sha256": digest(body)}
     _save_if_absent(args.directory / "plan.json", plan)
     if args.plan_only:
@@ -213,16 +278,38 @@ def main():
         for identity in identities:
             bound()
             path = args.directory / "rows" / f"{identity}.json"
-            bank = _read_bank(args.bank / "rows" / f"{identity}.json", source=identity,
-                plan_sha=outer["plan_sha256"], model_receipt=bank_report["candidate_receipt_sha256"],
-                expected_receipt=bank_report["row_receipts"][identity])
+            bank = _read_bank(scoring_directory / "rows" / f"{identity}.json", source=identity,
+                plan_sha=scoring_plan["plan_sha256"],
+                model_receipt=scoring_report["candidate_receipt_sha256"],
+                expected_receipt=scoring_report["row_receipts"][identity])
             view = _rankable_or_none(SimpleNamespace(public_inputs=items[identity].public_inputs), bank)
             if view is None:
-                raise ValueError("native replay bank has no complete typed candidates")
+                if args.source_calibration_bank is None:
+                    raise ValueError("native replay bank has no complete typed candidates")
+                body = {"source": identity, "construction": items[identity].construction_id,
+                    "plan_sha256": plan["plan_sha256"], "program_sha256s": [], "scores": [],
+                    "pretrained_scores": [], "chosen_program_sha256": None,
+                    "pretrained_program_sha256": None, "incumbent_correct": False,
+                    "incumbent_available": False, "selected_correct": None,
+                    "pretrained_correct": None, "bank_reachable": None,
+                    "labels_available_to_scorer": False, "scored": False,
+                    "unrankable_reason": "ordinary_decode_unavailable"}
+                row = {**body, "receipt_sha256": digest(body)}
+                verify_replay_row(row, source=identity, plan_sha256=plan["plan_sha256"])
+                _save_if_absent(path, row)
+                rows.append(row)
+                print(json.dumps({"stage": "unrankable", "observed": len(rows),
+                                  "population": len(identities)}), flush=True)
+                continue
             (programs, labels, keys), *_rest = view
+            if args.source_calibration_bank is not None:
+                outcomes = source_calibration_labels(bank)
+                labels = tuple(outcomes[key] for key in keys)
+            incumbent_available = bank["bank"]["selected_program_sha256"] is not None
             if path.exists():
                 rows.append(verify_replay_row(json.loads(path.read_bytes()), source=identity,
-                    plan_sha256=plan["plan_sha256"], programs=keys, labels=labels))
+                    plan_sha256=plan["plan_sha256"], programs=keys, labels=labels,
+                    incumbent_available=incumbent_available))
                 continue
             source = source_text_from_tokens(items[identity], tokenizer)
             scores, controls = [], []
@@ -246,12 +333,16 @@ def main():
                 "plan_sha256": plan["plan_sha256"], "program_sha256s": keys,
                 "scores": scores, "pretrained_scores": controls,
                 "chosen_program_sha256": keys[chosen], "pretrained_program_sha256": keys[control],
-                "incumbent_correct": labels[0], "selected_correct": labels[chosen],
-                "pretrained_correct": labels[control], "bank_reachable": any(labels),
+                "incumbent_correct": labels[0] if incumbent_available else False,
+                "selected_correct": labels[chosen],
+                "pretrained_correct": labels[control],
+                "bank_reachable": observed_program_reach(labels),
                 "labels_available_to_scorer": False}
+            if args.source_calibration_bank is not None or not incumbent_available:
+                row["incumbent_available"] = incumbent_available
             row = {**row, "receipt_sha256": digest(row)}
             verify_replay_row(row, source=identity, plan_sha256=plan["plan_sha256"],
-                              programs=keys, labels=labels)
+                              programs=keys, labels=labels, incumbent_available=incumbent_available)
             _save_if_absent(path, row)
             rows.append(row)
             print(json.dumps({"stage": "held", "observed": len(rows), "population": len(identities)}),
@@ -267,16 +358,32 @@ def main():
         current_training, current_selected = selected_checkpoint(args.training_directory)
         if current_training != training or current_selected != selected:
             raise ValueError("native replay training basis changed")
+        if args.source_calibration_bank is not None:
+            current_basis = verified_calibration_replay_basis(
+                scoring_directory, origin_directory=args.bank,
+                origin_plan=outer, origin_report=bank_report)
+            if current_basis != (scoring_plan, scoring_report, identities):
+                raise ValueError("native source calibration bank changed")
         result = {"schema": "aura.semantic_native_replay.v1", "plan_sha256": plan["plan_sha256"],
             "population": len(rows), "rows": rows, "fit_updates": 0,
-            "incumbent_correct": sum(row["incumbent_correct"] for row in rows),
-            "native_correct": sum(row["selected_correct"] for row in rows),
-            "pretrained_correct": sum(row["pretrained_correct"] for row in rows),
-            "bank_reachable": sum(row["bank_reachable"] for row in rows),
-            "gains": sum(row["selected_correct"] and not row["incumbent_correct"] for row in rows),
-            "regressions": sum(row["incumbent_correct"] and not row["selected_correct"] for row in rows),
+            "incumbent_correct": sum(row["incumbent_correct"] is True for row in rows),
+            "native_correct": sum(row["selected_correct"] is True for row in rows),
+            "pretrained_correct": sum(row["pretrained_correct"] is True for row in rows),
+            "bank_reachable": sum(row["bank_reachable"] is True for row in rows),
+            "gains": sum(row["selected_correct"] is True and row["incumbent_correct"] is False
+                         for row in rows),
+            "regressions": sum(row["incumbent_correct"] is True and row["selected_correct"] is False
+                               for row in rows),
             "elapsed_seconds": time.monotonic() - started,
             "serving_authority": False, "qualification_evidence": False}
+        if args.source_calibration_bank is not None:
+            result.update({"schema": "aura.semantic_native_source_calibration.v1",
+                           "held_rows_evaluated": False,
+                           "scored_population": sum(row.get("scored", True) is True
+                                                    for row in rows),
+                           "measured_pairs": sum(type(row["incumbent_correct"]) is bool
+                               and type(row["selected_correct"]) is bool for row in rows),
+                           "checkpoint_calibration_ids": training["calibration_ids"]})
         _save_if_absent(args.directory / "report.json", {**result, "receipt_sha256": digest(result)})
         print(json.dumps({key: value for key, value in result.items() if key != "rows"}), flush=True)
 
