@@ -9,10 +9,15 @@ from itertools import product
 
 from core.learning.procedure_induction import PRIMITIVES_BY_NAME, Instruction, Program
 from core.learning.semantic_native_program import parse_native_program
+from core.learning.semantic_native_relative_program import (
+    REGISTER_ENCODING,
+    parse_relative_native_program,
+)
 from core.learning.semantic_program_floor import (
     semantic_primitive_type_signature,
     semantic_program_structural_key,
 )
+from core.learning.semantic_register_identity import RegisterIdentity
 
 
 @dataclass(frozen=True)
@@ -40,7 +45,8 @@ class NativeGrammarIncompleteError(ValueError):
 
 def decode_native_grammar(input_types: tuple[str, ...],
                           scorer: Callable[[tuple[NativeGrammarDecision, ...]], tuple[float, ...]],
-                          *, max_steps: int = 8) -> NativeGrammarResult:
+                          *, max_steps: int = 8,
+                          register_encoding: str = "absolute_v1") -> NativeGrammarResult:
     """Choose semantic atoms; scaffolding never supplies meaning or a target.
 
     The scorer receives alternative text prefixes and their decision spans.
@@ -54,10 +60,15 @@ def decode_native_grammar(input_types: tuple[str, ...],
             or any(kind not in {"integer", "integer_sequence"} for kind in input_types)
             or type(max_steps) is not int or not 1 <= max_steps <= 128):
         raise ValueError("native grammar needs declared input types and finite depth")
+    if register_encoding not in {"absolute_v1", REGISTER_ENCODING}:
+        raise ValueError("native grammar register encoding is not declared")
+    relative = register_encoding == REGISTER_ENCODING
     types = list(input_types)
     instructions = []
     trace = []
-    text = '{"inputs":' + str(len(types)) + ',"steps":['
+    text = ('{"inputs":' + str(len(types))
+            + (',"registers":"' + REGISTER_ENCODING + '"' if relative else "")
+            + ',"steps":[')
 
     def choose(choices: tuple[NativeGrammarDecision, ...], kind: str):
         if not choices:
@@ -93,10 +104,13 @@ def decode_native_grammar(input_types: tuple[str, ...],
         for role, kind in enumerate(signature[0]):
             if role:
                 text += ","
-            reference = choose(tuple(extend(text, index) for index, actual in enumerate(types)
-                                     if actual == kind), "reference")
+            reference = choose(tuple(extend(text,
+                RegisterIdentity.from_absolute(index, input_count=len(input_types)).encode()
+                if relative else index, string=relative)
+                for index, actual in enumerate(types) if actual == kind), "reference")
             text = reference.text
-            refs.append(reference.value)
+            refs.append(RegisterIdentity.parse(reference.value).to_absolute(
+                input_count=len(input_types), result_count=ordinal) if relative else reference.value)
         text += "]]"
         instructions.append(Instruction(str(operation.value), tuple(refs)))
         types.append(signature[1])
@@ -116,7 +130,7 @@ def decode_native_grammar(input_types: tuple[str, ...],
         text = ending.text
         if ending.value == "finish":
             break
-    parsed = parse_native_program(text)
+    parsed = parse_relative_native_program(text) if relative else parse_native_program(text)
     if parsed != program:
         raise ValueError("native grammar and parser disagree")
     return NativeGrammarResult(parsed, tuple(trace), forced)
