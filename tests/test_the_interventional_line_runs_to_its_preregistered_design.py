@@ -167,7 +167,14 @@ def test_the_battery_reports_v5_beside_v3_and_changes_neither() -> None:
     from core.subject.battery import assemble
 
     plain = assemble({}).as_dict()
-    assert plain["v5_criteria"] == [] and plain["isc_v5_on_this_seed"] is False
+    # A run with no sweep is graded, not skipped (75a1cc834): its two partition
+    # lines fail and say why, and its synergy line is read as on any run.
+    lines = {line["criterion"]: line for line in plain["v5_criteria"]}
+    assert list(lines) == ["partition_irreducibility", "partition_beats_nulls", "synergy"]
+    assert not lines["partition_irreducibility"]["passed"]
+    assert lines["partition_irreducibility"]["detail"]["why"] == "no v5 sweep was read"
+    assert not lines["partition_beats_nulls"]["passed"]
+    assert plain["isc_v5_on_this_seed"] is False
     read = assemble({"interventional_cut": {"sweep": _sweep(511), "null_sweeps": {}, "nulls_that_pass": []}}).as_dict()
     assert [line["criterion"] for line in read["v5_criteria"]] == [
         "partition_irreducibility", "partition_beats_nulls", "synergy",
