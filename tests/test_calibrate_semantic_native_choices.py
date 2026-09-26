@@ -9,11 +9,14 @@ import pytest
 from core.learning.procedure_induction import Instruction, Program
 from tools.calibrate_semantic_native_choices import (
     calibrate,
+    candidate_relation_keys,
     combined_views,
     native_method_basis,
     partition_source_rows,
     select_combined,
+    source_invariance_audit,
     source_observations,
+    with_schema_support,
 )
 from tools.evaluate_semantic_native_checkpoint import digest
 
@@ -42,6 +45,8 @@ def test_combined_features_ignore_target_labels_and_construction_names():
     assert incumbent == keys[0] and choices == tuple(keys)
     assert set(views[keys[0]]) == set(views[keys[1]])
     assert not any("correct" in name or "construction" in name for name in views[keys[0]])
+    assert views[keys[0]]["relative_method_0_scores"] == 0.
+    assert views[keys[1]]["relative_method_0_scores"] == 2.
 
 
 def test_multiple_native_methods_keep_each_distinct_proposal():
@@ -169,20 +174,85 @@ def test_calibration_reports_groups_lost_to_checkpoint_selection():
         f"group-{index}" for index in range(6)}
 
 
+def test_relation_overlap_requires_verified_cross_group_support():
+    rows = population()
+    for row in rows:
+        row["verified_relation_keys"] = ("shared" if row["construction"] in {
+            "group-0", "group-1"} else row["construction"],)
+    coverage = calibrate(rows, excluded_ids=set())["relation_coverage"]
+    assert coverage == {"eligible_verified_relations": 5,
+                        "cross_group_verified_relations": 1,
+                        "eligible_groups_with_cross_group_relation": ["group-0", "group-1"]}
+    assert calibrate(population(), excluded_ids=set())["relation_coverage"] is None
+
+
+def test_invariance_audit_detects_source_family_shortcut_without_training_on_labels():
+    rows = population()
+    for row in rows:
+        incumbent, choices, views = row["views"]
+        row["views"] = (incumbent, choices, {
+            key: {**values, "family_shortcut": float(row["construction"].split("-")[1])}
+            for key, values in views.items()})
+        row["candidate_relation_keys"] = {key: "common" for key in choices}
+    audit = source_invariance_audit(rows, excluded_ids=set(), permutations=20)
+    assert audit["nuisance_probe"]["balanced_accuracy"] > audit["nuisance_probe"]["permutation_mean"]
+    assert audit["relation_geometry"]["same_relation_cross_group_pairs"] > 0
+    assert calibrate(rows, excluded_ids=set())["invariance_audit"]["status"] == "measured"
+
+
+def test_source_fit_schema_memory_excludes_its_own_group(monkeypatch):
+    from core.evidence import calibrated_binary
+
+    rows = population()
+    for row in rows:
+        row["verified_relation_keys"] = ("shared",)
+        row["candidate_relation_keys"] = {key: "shared" for key in row["views"][1]}
+    observed = {}
+    def capture(fit, tune):
+        observed["fit"] = fit
+        observed["tune"] = tune
+        return None, {"admitted": False}
+    monkeypatch.setattr(calibrated_binary, "fit_calibrated_binary_scorer", capture)
+    result = calibrate(rows, excluded_ids=set())
+    assert result["schema_memory_counts"] == {"shared": 2}
+    assert {dict(row.values)["schema_support_groups"] for row in observed["fit"]} == {1.}
+    assert {dict(row.values)["schema_support_groups"] for row in observed["tune"]} == {2.}
+
+
+def test_source_schema_support_is_typed_and_target_blind():
+    bank, native, keys = fixture()
+    relations = candidate_relation_keys(bank)
+    before = with_schema_support(combined_views(bank, native), relations,
+                                 {relations[keys[1]]: 3})
+    assert before[2][keys[0]]["schema_support_groups"] == 0.
+    assert before[2][keys[1]]["schema_support_groups"] == 3.
+    bank["diagnosis"] = {"comparisons": [{"status": "different"}]}
+    assert with_schema_support(combined_views(bank, native), relations,
+                               {relations[keys[1]]: 3}) == before
+    with pytest.raises(ValueError):
+        with_schema_support(combined_views(bank, native), relations, {relations[keys[1]]: -1})
+
+
 def test_existing_selector_can_admit_a_measured_combined_gain():
     from core.evidence.calibrated_candidate_selector import calibrated_candidate_selector_from_dict
 
     result = calibrate(population(), excluded_ids=set())
     assert result["selector"] is not None
+    assert result["schema_memory_counts"] == {}
+    assert all(all(group["gains"] == group["observations"]
+                   for group in split.values()) for split in result["raw_rank_groups"])
     assert result["selector_report"]["admission_improvements"] == 48
     assert result["selector_report"]["admission_regressions"] == 0
     selector = calibrated_candidate_selector_from_dict(result["selector"])
     bank, native, keys = fixture()
-    assert select_combined(selector, bank, native, source_ref="new-request") == keys[1]
+    assert select_combined(selector, bank, native, source_ref="new-request",
+                           schema_memory_counts=result["schema_memory_counts"]) == keys[1]
     bank["diagnosis"] = {"comparisons": "invalid and unavailable labels"}
-    assert select_combined(selector, bank, native, source_ref="new-request") == keys[1]
+    assert select_combined(selector, bank, native, source_ref="new-request",
+                           schema_memory_counts=result["schema_memory_counts"]) == keys[1]
     native[0]["scored"] = False
-    assert select_combined(selector, bank, native, source_ref="unscored-request") == keys[0]
+    assert select_combined(selector, bank, native, source_ref="unscored-request",
+                           schema_memory_counts=result["schema_memory_counts"]) == keys[0]
 
 
 def test_unknown_evidence_cannot_supply_negative_training_labels():

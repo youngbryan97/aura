@@ -408,3 +408,73 @@ experiment tests transfer across the eligible groups only; it has no arbiter
 admission evidence for the two excluded groups, and its small admission split
 does not support a broad cross-family claim. Further source groups and
 independent admission cases are required, not a relabeling of excluded cases.
+
+## Incumbent-relative decision evidence
+
+The same combined selector now exposes each candidate's score and source-path
+evidence relative to the incumbent on that request. This is a comparison over
+measured programs, not a construction classifier or a target label. Its
+source-only calibration Brier improves from 0.16699782 to 0.15694262, but the
+policy is still **not admitted**: no gain or switch reaches admission. The
+receipt is `/Users/bryan/.aura/rlc-evidence/semantic-native-combined-relative-rank-20260925.json`.
+
+The rank diagnostic locates the transfer break. In fit groups, raw ranking
+gains 25 arithmetic cases without regression (51/61 versus incumbent 26/61).
+In the disjoint tune groups it gains zero, and in admission it gains zero.
+The group-disjoint result therefore rejects the tempting inference that better
+per-candidate calibration or arithmetic performance establishes general
+semantic selection. The receipt does not publish the rejected scorer as a
+serving policy.
+
+Only candidate program structure, native likelihoods, joint score, and the
+retained source-span/path evidence reach this selector. The source bank does
+not contain the live conversation, memory, web retrieval, inner deliberation,
+or raw hidden-state relation vectors. Those cannot be credited to selection
+without a separately captured, source-bound and replayable evidence path.
+
+## Matched-relation support in the source cohort
+
+The calibration tool now records independently verified typed-program relation
+keys solely as a **dataset-coverage diagnostic**, outside the selector feature
+view. After checkpoint-selection exclusions, 122 distinct verified structural
+relations remain; only 5 recur across eligible construction groups. The
+cross-group overlap is confined to cataphoric, role-binding and reserved-alias
+groups. Arithmetic and fork-join provide no matched verified relation to a
+different eligible group under this exact structural key. The source-only
+receipt is
+`/Users/bryan/.aura/rlc-evidence/semantic-native-combined-relation-coverage-20260925.json`.
+This explains why a naive contrastive objective across all six groups would
+mostly pair unlike relations. It does not prove that no broader semantic
+analogy exists; the key recognizes exact connected program structure under
+declared safe symmetries, not arbitrary real-world meaning.
+
+The source-fit-only schema memory is now a frozen, label-free runtime input:
+verified fit relation keys contribute a count of supporting construction
+groups for each candidate program, with the row's own group excluded while
+fitting. Replay reads only those counts and the candidate's executable graph;
+held labels never enter the memory. Twenty-six focused checks pass. The
+source-only result remains unadmitted: fit groups arithmetic and cataphoric
+share no verified relation key, so schema support is constant in fit and
+does not change Brier (0.15694262) or selection. Receipt:
+`/Users/bryan/.aura/rlc-evidence/semantic-native-combined-schema-memory-20260925.json`.
+Matching program structure is useful reusable evidence but is not, by itself,
+proof that a new utterance expresses that program. Matched cross-construction
+source examples and relation-flip controls are still required.
+
+## Source representation audit
+
+The new source-only diagnostic probes construction recoverability from the
+incumbent's candidate feature vector. Leave-one-out nearest-centroid balanced
+accuracy is 0.793695 across five groups with at least two eligible examples;
+100 label permutations average 0.205987 (upper-tail p = 0.009901). A singleton
+group is excluded from this diagnostic. The feature vector therefore still
+contains strong construction information, even though construction names are
+not explicitly supplied to the selector. Among independently verified correct
+programs, 26 same-relation cross-group pairs have median standardized feature
+distance 4.36848, versus 2.894964 for 5,976 different-relation within-group
+pairs. Those pairwise observations are dependent and are diagnostics, not an
+independent significance test or a proof of semantic impossibility. Receipt:
+`/Users/bryan/.aura/rlc-evidence/semantic-native-combined-invariance-20260925.json`.
+The selector remains unadmitted with no admission gain. The next representation
+must compare source-bound role/dependency relations directly, and must show
+held-group improvement against role-flip and surface-preserving controls.

@@ -7,6 +7,8 @@ import argparse
 from collections import Counter
 import hashlib
 import math
+import random
+import statistics
 import sys
 from pathlib import Path
 
@@ -37,6 +39,42 @@ def partition_source_rows(rows, *, excluded_ids, seed=0):
     return tuple(tuple(sorted((row for row in eligible
                                if assignments[row["construction"]] == split),
                               key=lambda row: row["source"])) for split in range(3))
+
+
+def candidate_relation_keys(bank):
+    """Identify typed computation structure without using answer or family labels."""
+    from core.learning.procedure_induction import Instruction, Program
+    from core.learning.semantic_program_floor import semantic_program_structural_key
+
+    result = {}
+    for candidate in bank["bank"]["candidates"]:
+        payload = candidate["program"]
+        program = Program(len(bank["bank"]["input_spans"]), tuple(
+            Instruction(operation, tuple(arguments))
+            for operation, arguments in payload["instructions"]))
+        structural = semantic_program_structural_key(program)
+        if (structural is None or program.sha() != candidate["program_sha256"]
+                or payload["sha"] != candidate["program_sha256"]):
+            raise ValueError("source candidate has no executable typed relation")
+        relation = digest({"structural_relation": structural})
+        prior = result.setdefault(candidate["program_sha256"], relation)
+        if prior != relation:
+            raise ValueError("source candidate relation identity differs across paths")
+    return result
+
+
+def with_schema_support(case, candidate_relations, memory_counts):
+    """Attach source-fit relation precedent to candidate views, never outcomes."""
+    if case is None:
+        return None
+    incumbent, choices, views = case
+    if set(choices) != set(candidate_relations):
+        raise ValueError("schema memory and program inventory differ")
+    if any(type(value) is not int or value < 0 for value in memory_counts.values()):
+        raise ValueError("schema memory support counts are invalid")
+    return incumbent, choices, {key: {**views[key],
+        "schema_support_groups": float(memory_counts.get(candidate_relations[key], 0))}
+        for key in choices}
 
 
 def combined_views(bank, native_rows):
@@ -155,6 +193,10 @@ def combined_views(bank, native_rows):
     choices = tuple(keys)
     if incumbent not in views or any(key not in views for key in choices):
         return None
+    incumbent_values = views[incumbent]
+    for key in choices:
+        views[key].update({f"relative_{name}": value - incumbent_values[name]
+                           for name, value in tuple(views[key].items())})
     return incumbent, choices, views
 
 
@@ -174,12 +216,97 @@ def native_method_basis(plan):
         "semantic_decision_basis", "loss_scope", "model_descriptor_sha256", "pointer_sha256")}
 
 
-def select_combined(selector, bank, native_rows, *, source_ref):
+def source_invariance_audit(rows, *, excluded_ids, seed=0, permutations=100):
+    """Probe nuisance recovery and relation geometry without fitting the selector."""
+    eligible = [row for row in rows if row["source"] not in excluded_ids and row["views"] is not None]
+    groups = Counter(row["construction"] for row in eligible)
+    measured = [row for row in eligible if groups[row["construction"]] >= 2]
+    if len(measured) < 2 or len({row["construction"] for row in measured}) < 2:
+        return {"status": "insufficient_source_groups", "observations": len(measured)}
+    names = tuple(sorted(measured[0]["views"][2][measured[0]["views"][0]]))
+    if any(tuple(sorted(row["views"][2][row["views"][0]])) != names for row in measured):
+        raise ValueError("nuisance probe feature schema differs")
+    raw = [tuple(row["views"][2][row["views"][0]][name] for name in names) for row in measured]
+    means = [statistics.fmean(column) for column in zip(*raw, strict=True)]
+    scales = [max(statistics.pstdev(column), 1e-9) for column in zip(*raw, strict=True)]
+    vectors = [tuple((value - mean) / scale for value, mean, scale
+                     in zip(values, means, scales, strict=True)) for values in raw]
+    labels = [row["construction"] for row in measured]
+    classes = tuple(sorted(set(labels)))
+
+    def balanced_nearest_centroid(assignments):
+        hits = Counter()
+        totals = Counter()
+        for index, vector in enumerate(vectors):
+            distances = []
+            for group in classes:
+                members = [candidate for offset, candidate in enumerate(vectors)
+                           if offset != index and assignments[offset] == group]
+                if not members:
+                    continue
+                centroid = tuple(statistics.fmean(column)
+                                 for column in zip(*members, strict=True))
+                distance = sum((left - right) ** 2 for left, right in zip(vector, centroid, strict=True))
+                distances.append((distance, group))
+            predicted = min(distances)[1]
+            totals[assignments[index]] += 1
+            hits[assignments[index]] += predicted == assignments[index]
+        return statistics.fmean(hits[group] / totals[group] for group in classes)
+
+    observed = balanced_nearest_centroid(labels)
+    rng = random.Random(seed)
+    null = []
+    for _ in range(permutations):
+        shuffled = labels.copy()
+        rng.shuffle(shuffled)
+        null.append(balanced_nearest_centroid(shuffled))
+
+    # Correct-program labels enter this audit only to define matched relations.
+    normalized = {row["source"]: vector for row, vector in zip(measured, vectors, strict=True)}
+    relation_rows = []
+    for row in measured:
+        _incumbent, choices, _views = row["views"]
+        relations = row.get("candidate_relation_keys", {})
+        for relation in sorted({relations[key] for key in choices
+                                if row["labels"][key] is True and key in relations}):
+            relation_rows.append((row["source"], row["construction"], relation))
+    same_cross, different_within = [], []
+    for index, (left_source, left_group, left_relation) in enumerate(relation_rows):
+        for right_source, right_group, right_relation in relation_rows[index + 1:]:
+            if left_source == right_source:
+                continue
+            same = left_relation == right_relation and left_group != right_group
+            different = left_relation != right_relation and left_group == right_group
+            if not same and not different:
+                continue
+            distance = math.sqrt(sum((a - b) ** 2 for a, b in zip(
+                normalized[left_source], normalized[right_source], strict=True)))
+            (same_cross if same else different_within).append(distance)
+    return {"status": "measured", "observations": len(measured),
+            "groups": {group: groups[group] for group in classes},
+            "excluded_singleton_groups": sorted(set(groups) - set(classes)),
+            "nuisance_probe": {"method": "leave_one_out_standardized_nearest_centroid",
+                "balanced_accuracy": round(observed, 6),
+                "permutation_mean": round(statistics.fmean(null), 6) if null else None,
+                "permutation_p_upper_bound": ((1 + sum(value >= observed for value in null))
+                                              / (len(null) + 1)) if null else None,
+                "permutations": len(null)},
+            "relation_geometry": {"same_relation_cross_group_pairs": len(same_cross),
+                "different_relation_within_group_pairs": len(different_within),
+                "same_relation_cross_group_median_distance": round(statistics.median(same_cross), 6)
+                    if same_cross else None,
+                "different_relation_within_group_median_distance": round(statistics.median(different_within), 6)
+                    if different_within else None}}
+
+
+def select_combined(selector, bank, native_rows, *, source_ref, schema_memory_counts=None):
     """Apply the admitted evidence policy without reading comparison outcomes."""
     from core.evidence.necessary_condition_selector import PairwiseSelectionEvidence
     from core.evidence.packet import observe
 
     case = combined_views(bank, native_rows)
+    if schema_memory_counts is not None:
+        case = with_schema_support(case, candidate_relation_keys(bank), schema_memory_counts)
     if case is None:
         return bank["bank"]["selected_program_sha256"]
     incumbent, choices, views = case
@@ -259,8 +386,13 @@ def source_observations(bank_directory, native_directories, *, origin_directory)
             rows.append(row)
         if len({row["construction"] for row in rows}) != 1:
             raise ValueError("native arbitration construction identity differs")
+        candidate_relations = candidate_relation_keys(bank)
+        relation_keys = {relation for key, relation in candidate_relations.items()
+                         if labels[key] is True}
         result.append({"source": source, "construction": rows[0]["construction"],
-                       "views": combined_views(bank, rows), "labels": labels})
+                       "views": combined_views(bank, rows), "labels": labels,
+                       "verified_relation_keys": tuple(sorted(relation_keys)),
+                       "candidate_relation_keys": candidate_relations})
     return result, excluded, bank_report, tuple(method[2] for method in methods)
 
 
@@ -290,6 +422,41 @@ def calibrate(rows, *, excluded_ids, seed=0):
         "split_groups": [dict(sorted(Counter(row["construction"] for row in population).items()))
                          for population in (fit, tune, admission)],
     }
+    invariance_audit = source_invariance_audit(rows, excluded_ids=excluded_ids, seed=seed)
+    relation_coverage = None
+    if all("verified_relation_keys" in row for row in rows):
+        relations = {}
+        for row in rows:
+            if row["source"] in excluded_ids:
+                continue
+            for key in row["verified_relation_keys"]:
+                relations.setdefault(key, set()).add(row["construction"])
+        relation_coverage = {
+            "eligible_verified_relations": len(relations),
+            "cross_group_verified_relations": sum(len(groups) > 1 for groups in relations.values()),
+            "eligible_groups_with_cross_group_relation": sorted({group for groups in relations.values()
+                                                                 if len(groups) > 1 for group in groups}),
+        }
+    fit_memory = {}
+    for row in fit:
+        for relation in row.get("verified_relation_keys", ()):
+            fit_memory.setdefault(relation, set()).add(row["construction"])
+    schema_memory_counts = {key: len(groups) for key, groups in sorted(fit_memory.items())}
+
+    def enriched(population, *, leave_own_group):
+        result = []
+        for row in population:
+            case = row["views"]
+            relations = (row.get("candidate_relation_keys")
+                         or ({key: key for key in case[1]} if case is not None else {}))
+            memory = {key: len(groups - ({row["construction"]} if leave_own_group else set()))
+                      for key, groups in fit_memory.items()}
+            result.append({**row, "views": with_schema_support(case, relations, memory)})
+        return tuple(result)
+
+    fit = enriched(fit, leave_own_group=True)
+    tune = enriched(tune, leave_own_group=False)
+    admission = enriched(admission, leave_own_group=False)
     def binary(population):
         observations = []
         for row in population:
@@ -303,6 +470,28 @@ def calibrate(rows, *, excluded_ids, seed=0):
                         views[key], verified_correct=correct, source_ref=f"{row['source']}:{key}"))
         return observations
     scorer, scorer_report = fit_calibrated_binary_scorer(binary(fit), binary(tune))
+    def rank_diagnostic(population):
+        groups = {}
+        for row in population:
+            if row["views"] is None:
+                continue
+            incumbent, choices, views = row["views"]
+            selected = preferred_challenger(scorer, choices, views)
+            a, b = row["labels"][incumbent], row["labels"][selected]
+            if type(a) is not bool or type(b) is not bool:
+                continue
+            counts = groups.setdefault(row["construction"], {"observations": 0,
+                "incumbent_correct": 0, "ranked_correct": 0,
+                "gains": 0, "regressions": 0, "switches": 0})
+            counts["observations"] += 1
+            counts["incumbent_correct"] += int(a)
+            counts["ranked_correct"] += int(b)
+            counts["gains"] += int(b and not a)
+            counts["regressions"] += int(a and not b)
+            counts["switches"] += int(selected != incumbent)
+        return dict(sorted(groups.items()))
+    rank_report = ([rank_diagnostic(population) for population in (fit, tune, admission)]
+                   if scorer is not None else None)
     selector, selector_report = None, {"admitted": False, "reason": "scorer_not_admitted"}
     if scorer is not None:
         def pairwise(population):
@@ -326,8 +515,12 @@ def calibrate(rows, *, excluded_ids, seed=0):
     return {"split_ids": [[row["source"] for row in population]
                            for population in (fit, tune, admission)],
             "construction_coverage": coverage,
+            "invariance_audit": invariance_audit,
+            "relation_coverage": relation_coverage,
+            "schema_memory_counts": schema_memory_counts,
             "excluded_checkpoint_calibration_ids": sorted(excluded_ids),
             "scorer_report": scorer_report, "selector_report": selector_report,
+            "raw_rank_groups": rank_report,
             "selector": selector.to_dict() if selector is not None else None}
 
 
