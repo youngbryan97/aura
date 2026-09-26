@@ -687,3 +687,15 @@ The immutable report is at
 `~/.aura/rlc-evidence/semantic-native-metric-fold1-full-20260926/report.json`
 (`e218718334c3640cc35b1e2ca284551ec54948881264101aea7f48317665168e`).
 This negative replication prevents promotion or a general-transfer claim.
+
+A matched fold-0 lesion removed the metric term and kept the 303 fit sources,
+320 scheduled updates, candidate bank, native suffix geometry, and
+source-calibration checkpoint rule. Contrastive-only selected step 96 and
+scored 45/50, versus 41/50 for the incumbent and 26/50 unfitted. It had six
+incumbent-relative gains and two regressions. Against that arm, the metric
+candidate fixed two errors (arithmetic and cataphoric) but lost one correct
+reserved-alias selection, yielding its 46/50. The contrastive-only report is
+`~/.aura/rlc-evidence/semantic-native-contrastive-full-fold0-20260926/report.json`
+(`e1d2307d38487bafca27bb380cc18522415def34bb06f8884231eff85c493603`).
+The extra objective has a narrow positive effect on this fold, but its
+fold-1 regressions and this small paired difference do not support promotion.
