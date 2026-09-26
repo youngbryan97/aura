@@ -138,3 +138,48 @@ def test_quantized_native_adapter_update_and_control_restore_share_the_loaded_mo
     assert mx.array_equal(suffix(captured), baseline_logits).item()
     suffix.update(trained_weights)
     assert mx.array_equal(model(tokens), trained_logits).item()
+
+
+@pytest.mark.parametrize("hybrid,tied", [(False, False), (False, True), (True, False), (True, True)])
+def test_selected_projection_preserves_full_logits_and_suffix_gradients(hybrid, tied):
+    from mlx.utils import tree_flatten
+    model = _model(hybrid=hybrid, tied=tied)
+    split = len(model.layers) - 1
+    prefix, suffix = FrozenDecoderPrefix(model, split_at=split), NativeDecoderSuffix(model, split_at=split)
+    model.layers[-1].mlp.down_proj.unfreeze()
+    hidden = prefix.capture(mx.array([[1, 3, 4, 2, 9], [5, 7, 8, 2, 3]]))
+    positions = (0, 2, 4)
+    index = mx.array(positions)
+    full = suffix(hidden)
+    assert mx.allclose(suffix(hidden, logit_positions=positions), full[:, index], atol=1e-5).item()
+    full_loss, full_gradient = nn.value_and_grad(suffix, lambda tail:
+        mx.sum(tail(hidden)[:, index] ** 2))(suffix)
+    selected_loss, selected_gradient = nn.value_and_grad(suffix, lambda tail:
+        mx.sum(tail(hidden, logit_positions=positions) ** 2))(suffix)
+    assert mx.allclose(full_loss, selected_loss, atol=1e-5).item()
+    full_items, selected_items = tree_flatten(full_gradient), tree_flatten(selected_gradient)
+    assert [name for name, _value in full_items] == [name for name, _value in selected_items]
+    assert all(mx.allclose(left, right, atol=1e-5).item()
+               for (_left_name, left), (_right_name, right) in zip(
+                   full_items, selected_items, strict=True))
+
+
+def test_vocabulary_projection_only_receives_requested_rows_after_all_causal_layers():
+    model = _model(hybrid=True)
+    suffix = NativeDecoderSuffix(model, split_at=3)
+    class ObservedOutput(nn.Module):
+        def __init__(self, original):
+            super().__init__()
+            self.original = original
+            self.observed = []
+        def __call__(self, value):
+            self.observed.append(value.shape)
+            return self.original(value)
+    output = ObservedOutput(suffix.output)
+    suffix.output = output
+    hidden = FrozenDecoderPrefix(model, split_at=3).capture(mx.array([[1, 3, 5, 6, 7]]))
+    assert suffix(hidden, logit_positions=(1, 4)).shape == (1, 2, 32)
+    assert output.observed == [(1, 2, 16)]
+    for invalid in ((), (True,), (-1,), (5,), (1, 1)):
+        with pytest.raises(ValueError, match="logit positions"):
+            suffix(hidden, logit_positions=invalid)

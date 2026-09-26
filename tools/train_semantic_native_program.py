@@ -47,33 +47,95 @@ def exact_length_batches(sequences, *, batch_size):
             yield tuple(groups[length][start:start + batch_size])
 
 
+def native_training_schedule(identities, *, steps, seed):
+    """Freeze the original shuffled update order before capturing any states."""
+    order = list(identities)
+    if (not order or len(set(order)) != len(order) or type(steps) is not int
+            or steps < 1 or type(seed) is not int):
+        raise ValueError("native schedule needs unique eligible sources and positive steps")
+    rng, schedule = random.Random(seed), []
+    for index in range(steps):
+        if index % len(order) == 0:
+            rng.shuffle(order)
+        schedule.append(order[index % len(order)])
+    return tuple(schedule)
+
+
+def native_prediction_positions(sequence, *, scope):
+    """Identify targets before vocabulary projection, retaining every causal state."""
+    start = sequence.continuation_start
+    if type(start) is not int or not 1 <= start < len(sequence.tokens):
+        raise ValueError("native supervision lost its causal token boundary")
+    if scope == "continuation":
+        return tuple(range(start, len(sequence.tokens)))
+    if scope != "semantic_decisions":
+        raise ValueError("unknown native supervision scope")
+    positions = sequence.semantic_positions
+    if (not positions or tuple(sorted(set(positions))) != positions
+            or any(type(index) is not int or not start <= index < len(sequence.tokens)
+                   for index in positions)):
+        raise ValueError("native semantic loss needs complete offset-bound decision positions")
+    return positions
+
+
 def native_loss(suffix, hidden, sequence, *, summed=False, scope="continuation"):
     """Supervise only the unchanged template's continuation, without truncation."""
     import mlx.core as mx
     import mlx.nn as nn
 
-    start = sequence.continuation_start
-    if (type(start) is not int or start < 1 or start >= len(sequence.tokens)
-            or hidden.ndim != 3 or hidden.shape[0] != 1
+    positions = native_prediction_positions(sequence, scope=scope)
+    if (hidden.ndim != 3 or hidden.shape[0] != 1
             or hidden.shape[1] != len(sequence.tokens) - 1):
         raise ValueError("native supervision lost its causal token boundary")
-    logits = suffix(hidden)[:, start - 1:].astype(mx.float32)
-    targets = mx.array([sequence.tokens[start:]], dtype=mx.int32)
+    logits = suffix(hidden, logit_positions=tuple(index - 1 for index in positions)).astype(mx.float32)
+    targets = mx.array([[sequence.tokens[index] for index in positions]], dtype=mx.int32)
     if logits.shape[:2] != targets.shape:
         raise ValueError("native supervision lost its causal token boundary")
     losses = nn.losses.cross_entropy(logits, targets)
-    if scope == "semantic_decisions":
-        positions = sequence.semantic_positions
-        if (not positions or tuple(sorted(set(positions))) != positions
-                or any(type(index) is not int or not start <= index < len(sequence.tokens)
-                       for index in positions)):
-            raise ValueError("native semantic loss needs complete offset-bound decision positions")
-        mask = mx.array([[index in positions for index in range(start, len(sequence.tokens))]])
-        total = mx.sum(mx.where(mask, losses, 0.))
-        return total if summed else total / len(positions)
-    if scope != "continuation":
-        raise ValueError("unknown native supervision scope")
     return mx.sum(losses) if summed else mx.mean(losses)
+
+
+def native_source_loss(suffix, hidden_rows, sequences, *, scope, objective):
+    """Train native likelihood and witnessed graph competition on the same source."""
+    import mlx.core as mx
+
+    from core.learning.semantic_native_program import native_choice_loss
+
+    if (not sequences or len(sequences) != len(hidden_rows)
+            or objective not in {"token", "contrastive"}
+            or objective == "token" and len(sequences) != 1
+            or objective == "contrastive" and (len(sequences) < 2 or scope != "semantic_decisions")):
+        raise ValueError("native source objective differs from its frozen supervision set")
+    scores = mx.stack([-native_loss(suffix, hidden, sequence, summed=True, scope=scope)
+                       for hidden, sequence in zip(hidden_rows, sequences, strict=True)])
+    loss = -scores[0] / len(native_prediction_positions(sequences[0], scope=scope))
+    return loss if objective == "token" else loss + native_choice_loss(scores, (0,))
+
+
+def native_supervision_sets(items, texts, tokenizer, identities, *, peers=(),
+                            contrast_limit=None, max_tokens=1024):
+    """Reuse the floor's witnessed contrasts only for declared source supervision."""
+    from core.learning.semantic_candidate_contrasts import source_program_contrasts
+    from core.learning.semantic_native_program import native_program_sequence
+
+    if (not identities or len(set(identities)) != len(identities)
+            or not set(identities) <= set(items) or not set(identities) <= set(texts)):
+        raise ValueError("native supervision source identities differ")
+    sequences, groups = {}, {}
+    for identity in sorted(identities):
+        item = items[identity]
+        if item.split != "train" or item.ir.source_text_sha256 != identity:
+            raise ValueError("native supervision cannot consume validation or test targets")
+        target = item.ir.to_program()
+        programs = (target,) if contrast_limit is None else source_program_contrasts(
+            target, item.public_inputs, peers, source_sha256=identity, limit=contrast_limit)
+        programs = (target, *sorted((program for program in programs if program != target),
+                                    key=lambda program: program.sha()))
+        groups[identity] = tuple((identity, program.sha()) for program in programs)
+        for key, program in zip(groups[identity], programs, strict=True):
+            sequences[key] = native_program_sequence(texts[identity], program, tokenizer,
+                                                      max_tokens=max_tokens)
+    return sequences, groups
 
 
 def main():
@@ -93,12 +155,15 @@ def main():
     parser.add_argument("--max-sequence-tokens", type=int, default=1024)
     parser.add_argument("--loss-scope", choices=("continuation", "semantic_decisions"),
                         default="continuation")
+    parser.add_argument("--objective", choices=("token", "contrastive"), default="token")
+    parser.add_argument("--contrast-limit", type=int, default=4)
     parser.add_argument("--plan-only", action="store_true")
     args = parser.parse_args()
     if (any(type(value) is not int or value < 1 for value in (
             args.steps, args.save_every, args.rank, args.layers, args.max_sequence_tokens))
             or args.steps % args.save_every or not 0 < args.max_seconds <= 14400
-            or not 1 <= args.prefix_batch_size <= 32):
+            or not 1 <= args.prefix_batch_size <= 32 or not 2 <= args.contrast_limit <= 32
+            or args.objective == "contrastive" and args.loss_scope != "semantic_decisions"):
         parser.error("positive sizes, complete checkpoint intervals and a finite time bound required")
 
     from tools.refit_semantic_argument_proposals import (
@@ -131,6 +196,8 @@ def main():
                                     per_construction=args.held_per_construction)
     calibration_ids = construction_subset(examples, outer["calibration_ids"],
                                            per_construction=args.calibration_per_construction)
+    schedule = native_training_schedule(outer["fit_ids"], steps=args.steps, seed=20260925)
+    peer_programs = {item.ir.to_program().sha(): item.ir.to_program() for item in fit}
     spec = get_active_cortex_spec(force_refresh=True)
     if spec is None or not spec.exact_identity:
         raise ValueError("native fit needs the exact current resident descriptor")
@@ -142,6 +209,9 @@ def main():
         "tools/train_semantic_native_program.py", "core/learning/frozen_decoder_prefix.py",
         "core/learning/semantic_native_program.py", "core/brain/llm/decoder_topology.py",
         "core/learning/semantic_program_feature_materialization.py",
+        "core/learning/semantic_candidate_contrasts.py",
+        "core/learning/semantic_graph_counterexamples.py",
+        "core/learning/semantic_program_floor.py",
         "core/runtime/mlx_memory_guard.py", "tools/evaluate_semantic_candidate_ranker.py",
         "tools/train_semantic_atom_ranker.py")]
     implementation = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
@@ -154,6 +224,12 @@ def main():
                              "mlp.down_proj"],
             "learning_rate": 1e-4, "weight_decay": .01, "seed": 20260925,
             "loss_scope": args.loss_scope,
+            "semantic_decision_basis": "program_atoms_and_graph_termination_v1",
+            "objective": args.objective, "contrast_limit": args.contrast_limit,
+            "contrast_policy": "source_floor_typed_witnessed_difference_v1",
+            "contrast_weight": 1.0 if args.objective == "contrastive" else 0.0,
+            "supervision_peer_program_sha256s": sorted(peer_programs)
+                if args.objective == "contrastive" else [],
             "max_seconds": args.max_seconds, "max_sequence_tokens": args.max_sequence_tokens,
             "model_descriptor_sha256": spec.descriptor_sha256,
             "model_path": str(spec.model_path), "pointer_sha256": spec.pointer_sha256,
@@ -161,9 +237,12 @@ def main():
             "bank_receipt_sha256": bank_report["receipt_sha256"],
             "source_report_sha256": outer["source_report_sha256"],
             "fit_ids": outer["fit_ids"], "calibration_ids": calibration_ids,
+            "scheduled_fit_ids": schedule,
+            "captured_fit_ids": sorted(set(schedule)),
             "complete_calibration_population": len(calibration), "held_ids": held_ids,
             "heldout_axis": outer["heldout_axis"],
-            "selection": "minimum_source_calibration_continuation_loss",
+            "selection": "minimum_source_calibration_" + args.objective + "_" + args.loss_scope,
+            "unfitted_checkpoint_eligible": True,
             "matched_control": "same_native_suffix_without_fitted_lora",
             "input": "unchanged_source_request_with_native_chat_template",
             "scoring": "summed_native_" + args.loss_scope + "_log_probability",
@@ -228,10 +307,21 @@ def main():
         items = {item.ir.source_text_sha256: item for item in examples if item.split == "train"}
         texts = {identity: source_text_from_tokens(item, tokenizer) for identity, item in items.items()}
         public_by_id = {identity: item.public_inputs for identity, item in items.items()}
-        sequences = {identity: native_program_sequence(texts[identity], item.ir.to_program(),
-                      tokenizer, max_tokens=args.max_sequence_tokens) for identity, item in items.items()
-                      if identity in set(plan["fit_ids"]) | set(calibration_ids)}
+        supervised_ids = tuple(sorted(set(schedule) | set(calibration_ids)))
+        sequences, groups = native_supervision_sets(
+            items, texts, tokenizer, supervised_ids,
+            peers=tuple(peer_programs[key] for key in sorted(peer_programs)),
+            contrast_limit=args.contrast_limit if args.objective == "contrastive" else None,
+            max_tokens=args.max_sequence_tokens)
+        supervision = {"plan_sha256": plan["plan_sha256"],
+            "rows": [{"source": key[0], "program_sha256": key[1],
+                      "tokens": sequence.tokens, "continuation_start": sequence.continuation_start,
+                      "semantic_positions": sequence.semantic_positions}
+                     for key, sequence in sorted(sequences.items())]}
+        supervision = {**supervision, "receipt_sha256": _digest(supervision)}
+        _save_if_absent(args.directory / "supervision.json", supervision)
         weights = construction_weights(fit)
+        calibration_weights = construction_weights([items[identity] for identity in calibration_ids])
         construction_by_id = {identity: item.construction_id for identity, item in items.items()}
         del examples, fit, calibration, items, parent
         gc.collect()
@@ -241,12 +331,21 @@ def main():
             tokens = mx.array([sequences[identity].tokens[:-1] for identity in batch], dtype=mx.int32)
             hidden = prefix.capture(tokens)
             if not captured:
-                difference = mx.max(mx.abs(model(tokens) - suffix(hidden))).item()
-                if not math.isfinite(difference) or difference > .01:
+                full = model(tokens)
+                difference = mx.max(mx.abs(full - suffix(hidden))).item()
+                positions = tuple(index - 1 for index in native_prediction_positions(
+                    sequences[batch[0]], scope=args.loss_scope))
+                selected_difference = mx.max(mx.abs(
+                    mx.take(full, mx.array(positions, dtype=mx.int32), axis=1)
+                    - suffix(hidden, logit_positions=positions))).item()
+                if (not math.isfinite(difference) or difference > .01
+                        or not math.isfinite(selected_difference) or selected_difference > .01):
                     raise ValueError("cached native prefix does not reproduce model logits")
                 _save_if_absent(args.directory / "prefix-equivalence.json", {
                     "plan_sha256": plan["plan_sha256"], "max_absolute_logit_difference": difference,
                     "tokens": tokens.shape[1], "batch_size": tokens.shape[0], "split_at": split,
+                    "selected_projection_max_absolute_difference": selected_difference,
+                    "projected_positions": len(positions),
                     "trainable_sites": [name for name, _value in trainable]})
             for index, identity in enumerate(batch):
                 captured[identity] = hidden[index:index + 1]
@@ -255,22 +354,38 @@ def main():
                                   "population": len(sequences),
                                   "elapsed_seconds": time.monotonic() - started,
                                   "active_memory_bytes": mx.get_active_memory()}), flush=True)
-        baseline = sum(native_loss(suffix, captured[identity], sequences[identity],
-                                   scope=args.loss_scope).item()
+        def source_objective(tail, identity, states):
+            keys = groups[identity]
+            return native_source_loss(tail, [states[key] for key in keys],
+                [sequences[key] for key in keys], scope=args.loss_scope, objective=args.objective)
+
+        def measure_calibration(states):
+            return sum(source_objective(suffix, identity, states).item() * calibration_weights[identity]
                        for identity in calibration_ids) / len(calibration_ids)
+
+        def save_checkpoint(step, calibration_loss):
+            weight_path = args.directory / f"checkpoint-{step}.safetensors"
+            stream = io.BytesIO()
+            mx.save_safetensors(stream, dict(tree_flatten(model.trainable_parameters())))
+            payload = stream.getvalue()
+            if not atomic_write_bytes_if_absent(weight_path, payload, mode=0o400):
+                raise FileExistsError(weight_path)
+            row = {"plan_sha256": plan["plan_sha256"], "step": step,
+                   "calibration_loss": calibration_loss,
+                   "weights_sha256": hashlib.sha256(payload).hexdigest()}
+            row = {**row, "receipt_sha256": _digest(row)}
+            _save_if_absent(args.directory / f"checkpoint-{step}.json", row)
+            print(json.dumps({"stage": "checkpoint", **row}), flush=True)
+            return weight_path, row
+
+        baseline = measure_calibration(captured)
         optimizer = optim.AdamW(learning_rate=plan["learning_rate"], weight_decay=plan["weight_decay"])
-        order = list(plan["fit_ids"])
-        rng = random.Random(plan["seed"])
-        best, checkpoints, history = None, [], []
-        for step in range(1, args.steps + 1):
+        zero_path, zero = save_checkpoint(0, baseline)
+        best, checkpoints, history = (baseline, 0, zero_path), [zero], []
+        for step, identity in enumerate(schedule, 1):
             check_bound()
-            if (step - 1) % len(order) == 0:
-                rng.shuffle(order)
-            identity = order[(step - 1) % len(order)]
-            def weighted_loss(tail, hidden, sequence, weight=weights[identity]):
-                return native_loss(tail, hidden, sequence, scope=args.loss_scope) * weight
-            loss, gradients = nn.value_and_grad(suffix, weighted_loss)(
-                suffix, captured[identity], sequences[identity])
+            loss, gradients = nn.value_and_grad(suffix, lambda tail, source=identity, states=captured:
+                source_objective(tail, source, states) * weights[source])(suffix)
             norm = mx.sqrt(sum(mx.sum(value.astype(mx.float32) ** 2)
                                for _name, value in tree_flatten(gradients)))
             if not math.isfinite(norm.item()):
@@ -284,25 +399,11 @@ def main():
             if step % 8 == 0:
                 print(json.dumps({"stage": "fit", **history[-1]}), flush=True)
             if step % args.save_every == 0:
-                calibration_loss = sum(native_loss(suffix, captured[identity], sequences[identity],
-                                                  scope=args.loss_scope).item()
-                                       for identity in calibration_ids) / len(calibration_ids)
-                tensors = dict(tree_flatten(model.trainable_parameters()))
-                weight_path = args.directory / f"checkpoint-{step}.safetensors"
-                stream = io.BytesIO()
-                mx.save_safetensors(stream, tensors)
-                payload = stream.getvalue()
-                if not atomic_write_bytes_if_absent(weight_path, payload, mode=0o400):
-                    raise FileExistsError(weight_path)
-                row = {"plan_sha256": plan["plan_sha256"], "step": step,
-                       "calibration_loss": calibration_loss,
-                       "weights_sha256": hashlib.sha256(payload).hexdigest()}
-                row = {**row, "receipt_sha256": _digest(row)}
-                _save_if_absent(args.directory / f"checkpoint-{step}.json", row)
+                calibration_loss = measure_calibration(captured)
+                weight_path, row = save_checkpoint(step, calibration_loss)
                 checkpoints.append(row)
-                if best is None or (calibration_loss, step) < (best[0], best[1]):
+                if (calibration_loss, step) < (best[0], best[1]):
                     best = (calibration_loss, step, weight_path)
-                print(json.dumps({"stage": "checkpoint", **row}), flush=True)
         model.load_weights(str(best[2]), strict=False)
         selected_weights = tree_map(lambda value: mx.array(value), suffix.trainable_parameters())
         mx.eval(selected_weights)
@@ -372,6 +473,9 @@ def main():
             raise ValueError("native fit identity changed during measurement")
         body = {"schema": "aura.semantic_native_fit.v1", "plan_sha256": plan["plan_sha256"],
                 "selected_step": best[1], "baseline_calibration_loss": baseline,
+                "supervision_receipt_sha256": supervision["receipt_sha256"],
+                "prefix_sequence_population": len(sequences),
+                "gradient_source_population": len(set(schedule)),
                 "memory_envelope": envelope.to_receipt(),
                 "selected_calibration_loss": best[0], "checkpoints": checkpoints,
                 "history": history, "population": len(rows), "rows": rows,

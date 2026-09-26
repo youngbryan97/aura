@@ -140,3 +140,145 @@ held wording, not full-development success, fresh family transfer, freely decode
 public gain or frontier performance. G03 remains open. Whole-graph continuation
 and completion decisions and competition against witnessed wrong programs remain
 the next objective-level checks; the incumbent is not withdrawn.
+
+## Complete-program objective
+
+The next frozen implementation includes the comma between instructions and the
+final steps-list closure in its semantic decision mask. Those tokens decide
+whether the graph continues or ends. The rest of the canonical serialization
+and the installed chat template stay unchanged.
+
+For request x and candidate graph g, the score is the sum of native conditional
+log probabilities at its operation, reference and termination decisions. The
+source-only objective combines the gold graph's mean decision-token loss with
+whole-graph competition:
+
+```text
+s(x, g) = sum(log P(token_j | request, graph_prefix_j)) over decision positions
+L_token = -s(x, gold) / number_of_gold_decisions
+L_choice = logsumexp(s(x, all_known_graphs)) - logsumexp(s(x, known_positive_graphs))
+L = L_token + L_choice
+```
+
+For one positive, the derivative of L_choice with respect to graph scores is
+softmax(scores) minus the positive's one-hot vector. Real MLX tests check this
+identity and the multiple-positive form. This aligns training with complete
+candidate discrimination. It neither proves that the native model can express
+every required ranking nor guarantees transfer.
+
+Contrasts come from the existing `source_program_contrasts` mechanism. It retains
+a rival only after type checking and a differing output on independent input
+probes. Source-fit peer programs supplement operation and reference variants.
+Uncertain equivalence does not become a negative. No held target, construction
+router, new language encoder or second execution floor is introduced.
+
+The suffix computes every causal layer state before selecting the positions
+sent to the original vocabulary projection. Dense/hybrid, tied/untied and
+quantized-adapter tests compare selected logits and parameter gradients with
+the full projection. The actual resident batch gives maximum full/split and
+selected-projection differences of 0.0. The training schedule is frozen before
+capture; only scheduled fit sources and source calibration are captured.
+The unfitted checkpoint remains eligible for source-calibration selection.
+
+[Semantic-aware contrastive parsing](https://aclanthology.org/2022.emnlp-main.269/)
+motivates whole-representation discrimination alongside token likelihood. Its
+two-dataset results are not evidence about Aura. This implementation uses
+Aura's existing witnessed floor contrasts and native decoder rather than the
+paper's representation encoder or sampling system. The reviewed
+[public discussion](https://www.reddit.com/r/MachineLearning/comments/1adnq4u/d_whats_the_proper_way_of_doing_direct_preference/)
+raised reference-policy and data-distribution questions; it supplies hypotheses,
+not technical authority. This objective is supervised graph classification,
+not DPO, and does not claim a preference-policy theorem.
+
+The frozen 64-update plan is
+`e419b8d0dd792ab6f386f01044d6c86512faa3216e5eae541079a77d87b26788`,
+under `~/.aura/rlc-evidence/semantic-native-contrast-fold0-v2-20260925/`.
+Its complete result must be appended after process exit and independent receipt
+verification. No result or ledger closure is inferred from a running process.
+
+## Checkpoint-bound replay
+
+The 64-update fit writes all three declared checkpoint receipts, including the
+unfitted checkpoint. Source calibration chooses step 64: loss 2.581903 versus
+3.317516 unfitted and 6.639453 at step 32. The supervised prefix population is
+348 continuations for 64 scheduled fit requests and 23 calibration requests.
+Its process disappears during held evaluation with eight durable rows and no
+final report. No process exit code or cause was recovered; no Python crash
+report was found. This is an incomplete measurement, not a completed negative
+or positive result.
+
+`tools/evaluate_semantic_native_checkpoint.py` recovers evaluation from verified
+checkpoint and weight digests. It requires the complete declared checkpoint
+schedule and disjoint source fit/calibration/held identities, then selects the
+minimum calibration loss without reading held rows. It validates the original
+bank, source, model descriptor and pointer. Replay has zero fitting updates.
+Durable rows are checked for score-selected identities and independently
+graded bank outcomes before reuse; changed evidence refuses replay.
+
+Historical adapters retain their original decision basis explicitly. The
+operation/reference-only basis and the graph-termination basis serialize the
+same program but use distinct token masks. An old adapter is not silently
+rescored under the new mask and reported as the same candidate.
+
+The two predeclared 50-wording replays retain the same bank and matched unfitted
+controls. Their plans are frozen before either wider result is read:
+
+- Step-64 contrast candidate: `4f1f8dbb2dcd73d2f963a7c85526350ae1ff428698c00bd9f138072f70d9a71b`.
+- Step-202 decision candidate: `8b25c73de15d9f6d875e1b5c8361ed9b300f5ae87704ac90f67212c3590c256a`.
+
+These candidates have different update counts and decision masks. Their paired
+results can assess each frozen selector, but cannot isolate the effect of the
+contrastive term. A union of their correct answers would be an oracle statistic,
+not an available target-blind combined selector. Source-only arbitration remains
+required before a mixed policy can be qualified.
+
+Seventy-two focused tests pass, including the resident tokenizer, exact MLX
+logit/gradient checks, source checkpoint selection and replay-row integrity.
+Lint, compile, governance, layering and writing pass. Wider outcomes must be
+appended after the corresponding complete report is independently checked.
+
+### Complete contrast replay
+
+The step-64 checkpoint completes all 50 frozen wording cases in 510.794391
+seconds, with zero fitting updates. Incumbent: 41 correct; fitted native
+selector: 38; matched unfitted native selector: 26; observed bank reach: 47.
+There are three incumbent gains and six regressions. The candidate is rejected
+for promotion. Improved native discrimination against its unfitted control does
+not establish an improvement over Aura's incumbent.
+
+The complete report receipt is
+`7fac132a12b8d81f2d6605c3c9c52aef19418f242d2e4c9882e4ec8b90b4d9a4`,
+under `~/.aura/rlc-evidence/semantic-native-contrast-replay50-20260925/`.
+Row identities, score-selected programs, report totals and the source-selected
+checkpoint are independently checked. The original interrupted fit remains
+incomplete; this separately identified zero-fit replay supplies the wider
+measurement without rewriting that history.
+
+All three nominal-nested arithmetic requests lack an observed equivalent
+program. Nine additional requests have an equivalent program that the fitted
+selector does not choose. These are different obligations: proposal reach and
+semantic discrimination. No domain-specific exception or held-label router is
+introduced to conceal either. The earlier decision-only checkpoint's frozen
+50-case replay is still pending.
+
+### Complete decision-only replay
+
+The earlier step-202 checkpoint completes the same 50 frozen wording requests
+in 512.121912 seconds, again with zero fitting updates: incumbent 41, fitted
+native 45, unfitted native 27, observed bank reach 47. It has five incumbent
+gains and one regression. Its report receipt is
+`e5ceb73fcc2c1f6b2b8e2cb477aac813dd4324d26fce1e6dc07cf8c962c3a9c5`,
+under `~/.aura/rlc-evidence/semantic-native-decisions-replay50-20260925/`.
+All 50 durable rows are independently checked against the original bank's
+program identities and independently graded outcomes, not just report hashes.
+
+The remaining reachable misses are a reserved-alias reference and a
+natural-alias lookup request. The latter regresses an incumbent success.
+Three nominal-nested requests still lack a reachable equivalent. These wider
+results support useful source-learned discrimination across the sampled wording
+constructions, but do not establish fresh-family transfer or universal
+non-regression. Neither checkpoint receives serving authority or closes G03.
+
+The next combined selector must learn from source-only candidate comparisons
+and pass separate admission. It must not use these held-case labels to choose
+between methods, nor treat the union of their successes as a callable policy.

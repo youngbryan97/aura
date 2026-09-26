@@ -11,24 +11,28 @@ from core.learning.procedure_induction import Instruction, Program
 from core.learning.semantic_program_floor import semantic_program_structural_key
 
 
-def native_program_surface(program: Program) -> tuple[str, tuple[tuple[int, int], ...]]:
-    """Serialize the graph and locate its operation and reference decisions."""
+def native_program_surface(program: Program, *, decision_basis="program_atoms_and_graph_termination_v1"
+                           ) -> tuple[str, tuple[tuple[int, int], ...]]:
+    """Locate operations, references, and graph continuation/completion decisions."""
     if not isinstance(program, Program) or semantic_program_structural_key(program) is None:
         raise ValueError("native semantic target is outside the existing program grammar")
+    if decision_basis not in {"program_atoms_v1", "program_atoms_and_graph_termination_v1"}:
+        raise ValueError("unknown native semantic decision basis")
+    termination = decision_basis == "program_atoms_and_graph_termination_v1"
     parts, spans, position = [], [], 0
-    def append(value: Any, *, atom=False):
+    def append(value: Any, *, atom=False, decision=False):
         nonlocal position
         piece = json.dumps(value, ensure_ascii=True, allow_nan=False) if atom else value
-        if atom:
+        if atom or decision:
             begin, end = position, position + len(piece)
-            if isinstance(value, str):
+            if atom and isinstance(value, str):
                 begin, end = begin + 1, end - 1
             spans.append((begin, end))
         parts.append(piece)
         position += len(piece)
     append('{"inputs":' + str(program.n_inputs) + ',"steps":[')
     for index, step in enumerate(program.instructions):
-        append("," if index else "")
+        append("," if index else "", decision=bool(index) and termination)
         append("[")
         append(step.op, atom=True)
         append(",[")
@@ -36,8 +40,29 @@ def native_program_surface(program: Program) -> tuple[str, tuple[tuple[int, int]
             append("," if role else "")
             append(reference, atom=True)
         append("]]")
-    append("]}")
+    append("]", decision=termination)
+    append("}")
     return "".join(parts), tuple(spans)
+
+
+def native_choice_loss(scores, positive_indices: tuple[int, ...]):
+    """Source-supervised competition over complete graphs, not answer authority.
+
+    The loss is logsumexp(all scores) - logsumexp(known-positive scores).
+    With one positive its score gradient is softmax(scores) - one_hot(positive).
+    Uncertain equivalence is not a negative label; callers must establish their
+    source contrasts before invoking this training-only objective.
+    """
+    import mlx.core as mx
+
+    if (scores.ndim != 1 or scores.shape[0] < 2
+            or not isinstance(positive_indices, tuple) or not positive_indices
+            or len(set(positive_indices)) != len(positive_indices)
+            or any(type(index) is not int or not 0 <= index < scores.shape[0]
+                   for index in positive_indices)):
+        raise ValueError("native choice loss needs distinct source-positive graph indices")
+    positive = mx.take(scores, mx.array(positive_indices, dtype=mx.int32))
+    return mx.logsumexp(scores) - mx.logsumexp(positive)
 
 
 def native_program_text(program: Program) -> str:
@@ -90,7 +115,9 @@ class NativeProgramSequence:
 
 
 def native_program_sequence(source: str, program: Program, tokenizer: Any,
-                            *, max_tokens: int = 1024) -> NativeProgramSequence:
+                            *, max_tokens: int = 1024,
+                            decision_basis="program_atoms_and_graph_termination_v1"
+                            ) -> NativeProgramSequence:
     """Use the model's unchanged chat template and an ordinary, unmodified request.
 
     The target is supervised tissue data, not a runtime instruction asking the
@@ -105,7 +132,7 @@ def native_program_sequence(source: str, program: Program, tokenizer: Any,
     )
 
     user = {"role": "user", "content": source}
-    target, semantic_spans = native_program_surface(program)
+    target, semantic_spans = native_program_surface(program, decision_basis=decision_basis)
     messages = [user, {"role": "assistant", "content": target}]
     prefix_text = tokenizer.apply_chat_template([user], add_generation_prompt=True, tokenize=False)
     whole_text = tokenizer.apply_chat_template(messages, tokenize=False)

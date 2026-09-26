@@ -33,13 +33,22 @@ class NativeDecoderSuffix(nn.Module):
         self.tied_output = bool(getattr(owner.args, "tie_word_embeddings", False))
         self.output = backbone.embed_tokens if self.tied_output else owner.lm_head
 
-    def __call__(self, hidden):
+    def __call__(self, hidden, *, logit_positions=None):
         if hidden.ndim != 3 or hidden.shape[1] < 1:
             raise ValueError("native suffix requires a complete hidden sequence")
+        if logit_positions is not None and (
+                not isinstance(logit_positions, (tuple, list)) or not logit_positions
+                or any(type(index) is not int or not 0 <= index < hidden.shape[1]
+                       for index in logit_positions)
+                or len(set(logit_positions)) != len(logit_positions)):
+            raise ValueError("native logit positions must identify distinct causal states")
         masks = decoder_layer_masks(self, hidden)
         for layer, mask in zip(self.layers, masks, strict=True):
             hidden = layer(hidden, mask=mask, cache=None)
         hidden = self.norm(hidden)
+        if logit_positions is not None:
+            # All attention/recurrent states are computed before selecting outputs.
+            hidden = mx.take(hidden, mx.array(logit_positions, dtype=mx.int32), axis=1)
         return self.output.as_linear(hidden) if self.tied_output else self.output(hidden)
 
 

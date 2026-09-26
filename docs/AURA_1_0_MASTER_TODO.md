@@ -1187,6 +1187,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   are selected. Seventy focused tests pass; independently checked receipts are
   linked in the same evidence page. This exposed wording pilot is not full
   development or fresh semantic-family transfer; G03 remains open.
+  The complete 50-wording contrast replay reaches 38/50 versus incumbent
+  41/50 and unfitted 26/50: three gains, six regressions, observed bank reach
+  47/50. It is rejected. Checkpoint-bound replay recovers the interrupted
+  fit's evaluation without retraining or reading held labels for selection.
+  The earlier decision-only checkpoint completes the same 50-case replay at
+  45/50 versus incumbent 41/50 and unfitted 27/50, with five gains and one
+  regression. Every row is independently verified. This is useful wording
+  evidence but does not meet non-regression or close G03; source-only combined
+  selection and missing-proposal reach remain separate obligations.
   [Nested selector and research review](evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md):
   508 source-only inner rows train a selector for a disjoint 256-source outer
   construction fold. It falls from incumbent 179 correct to 108 (5 gains,
