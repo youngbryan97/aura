@@ -535,8 +535,10 @@ def test_wide_bank_augmentation_keeps_source_views_separate():
 def test_source_fold_receipt_rejects_unknown_proposer_training_cohort():
     examples = [SimpleNamespace(ir=SimpleNamespace(source_text_sha256=source), split="train")
                 for source in ("a", "b")]
-    source_report = {"representation_compatibility": {
+    source_body = {"schema": "aura.compositional_source_training.v1",
+                   "transducer_receipt_sha256": "model", "representation_compatibility": {
         "source_feature_manifest_sha256s": {"source": "feature"}}}
+    source_report = {**source_body, "report_sha256": semantic_sha(source_body)}
     model = SimpleNamespace(receipt_sha256="model", training_receipt={
         "training_example_ids_sha256": semantic_sha(["a", "b"])})
     plan = {"source_ids": ["a", "b"], "source_population": 2,
@@ -548,11 +550,13 @@ def test_source_fold_receipt_rejects_unknown_proposer_training_cohort():
     folds = {"schema": "aura.semantic_construction_folds.v1",
              "assignments": {"a": 0, "b": 1}, "count": 2,
              "validation_used": False, "test_used": False}
-    _verify_sources(source_report, {"candidate": "model"}, model,
+    candidate_body = {"schema": "aura.semantic_cohort_diagnosis.v2", "candidate": "model"}
+    candidate_report = {**candidate_body, "receipt_sha256": semantic_sha(candidate_body)}
+    _verify_sources(source_report, candidate_report, model,
                     bank_report, folds, examples)
     model.training_receipt["training_example_ids_sha256"] = "unrelated"
     with pytest.raises(ValueError, match="proposal_training_cohort"):
-        _verify_sources(source_report, {"candidate": "model"}, model,
+        _verify_sources(source_report, candidate_report, model,
                         bank_report, folds, examples)
 
 

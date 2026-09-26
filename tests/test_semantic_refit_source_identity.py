@@ -5,9 +5,13 @@ from types import SimpleNamespace
 import pytest
 
 from tools.refit_semantic_argument_proposals import (
+    source_bundle_arguments,
     source_input_order_policy,
+    verify_candidate_report_identity,
+    verify_source_report_identity,
     verify_source_splits,
 )
+from core.learning.semantic_program_campaign import _sha as semantic_sha
 
 
 def example(split, identity):
@@ -70,6 +74,76 @@ def test_source_input_order_policy_requires_matching_candidate_and_report():
     ):
         with pytest.raises(ValueError, match="source input order|unsupported"):
             source_input_order_policy(model, report)
+
+
+def test_source_bundles_accept_separate_roots_only_for_exact_cohort(tmp_path):
+    for name in ("arithmetic", "cataphoric", "counterfactual", "other"):
+        (tmp_path / name).mkdir()
+    report = {"representation_compatibility": {
+        "source_feature_manifest_sha256s": {
+            "arithmetic": "a", "cataphoric": "b", "counterfactual": "c"}}}
+    expected = ["arithmetic=" + str(tmp_path / "arithmetic"),
+                "cataphoric=" + str(tmp_path / "cataphoric"),
+                "counterfactual=" + str(tmp_path / "counterfactual")]
+    assert source_bundle_arguments(report, feature_root=tmp_path) == expected
+    explicit = ["counterfactual=" + str(tmp_path / "other"), expected[1], expected[0]]
+    assert source_bundle_arguments(report, bundles=explicit) == [
+        expected[0], expected[1], "counterfactual=" + str(tmp_path / "other")]
+    with pytest.raises(ValueError, match="choose one"):
+        source_bundle_arguments(report)
+    with pytest.raises(ValueError, match="choose one"):
+        source_bundle_arguments(report, feature_root=tmp_path, bundles=explicit)
+    with pytest.raises(ValueError, match="cohort"):
+        source_bundle_arguments(report, bundles=[expected[0], expected[1],
+                                "unrelated=" + str(tmp_path / "other")])
+
+
+def test_rebound_candidate_report_binds_model_cohort_and_parent_lineage():
+    model = SimpleNamespace(receipt_sha256="rebound", training_receipt={
+        "input_order_policy": "source_token_order_v1",
+        "source_order_identity_rebind": {
+            "parent_transducer_receipt_sha256": "parent",
+            "parent_validation_receipt_sha256": "validation"}})
+    source_body = {"schema": "aura.compositional_source_training.v2",
+                   "input_order_policy": "source_token_order_v1",
+                   "transducer_receipt_sha256": "rebound"}
+    source_report = {**source_body, "report_sha256": semantic_sha(source_body)}
+    body = {"schema": "aura.semantic_source_order_identity_rebind.v1",
+            "candidate": "rebound", "source_report_sha256": source_report["report_sha256"],
+            "parent_candidate_receipt_sha256": "parent",
+            "parent_validation_receipt_sha256": "validation",
+            "coefficients_changed": False, "serving_authority": False}
+    report = {**body, "receipt_sha256": semantic_sha(body)}
+    verify_candidate_report_identity(report, model, source_report)
+    for changed_report, changed_model, changed_source in (
+        ({**report, "candidate": "other"}, model, source_report),
+        ({**report, "receipt_sha256": "bad"}, model, source_report),
+        ({**report, "source_report_sha256": "other",
+          "receipt_sha256": semantic_sha({**body, "source_report_sha256": "other"})},
+         model, source_report),
+        (report, SimpleNamespace(receipt_sha256="rebound", training_receipt={
+            "input_order_policy": "source_token_order_v1",
+            "source_order_identity_rebind": {
+                "parent_transducer_receipt_sha256": "other",
+                "parent_validation_receipt_sha256": "validation"}}), source_report),
+        (report, model, {**source_report, "report_sha256": "other"}),
+    ):
+        with pytest.raises(ValueError, match="report identity"):
+            verify_candidate_report_identity(changed_report, changed_model, changed_source)
+
+
+def test_legacy_candidate_report_must_still_have_intact_receipt():
+    model = SimpleNamespace(receipt_sha256="model")
+    source_body = {"schema": "aura.compositional_source_training.v1",
+                   "transducer_receipt_sha256": "model"}
+    source_report = {**source_body, "report_sha256": semantic_sha(source_body)}
+    body = {"schema": "aura.semantic_cohort_diagnosis.v2", "candidate": "model"}
+    report = {**body, "receipt_sha256": semantic_sha(body)}
+    verify_candidate_report_identity(report, model, source_report)
+    with pytest.raises(ValueError, match="candidate report identity"):
+        verify_candidate_report_identity({**report, "candidate": "other"}, model, source_report)
+    with pytest.raises(ValueError, match="source training report identity"):
+        verify_source_report_identity({**source_report, "transducer_receipt_sha256": "other"}, model)
 
 
 def test_standalone_refit_isolates_state_before_loading_core(tmp_path, monkeypatch):

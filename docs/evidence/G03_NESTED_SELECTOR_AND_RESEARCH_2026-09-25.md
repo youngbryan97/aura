@@ -328,10 +328,25 @@ The completed candidate predates a model-receipt repair: its report names the
 source-order policy, but its model identity does not. Future v2 fits bind
 `source_token_order_v1` into the model training receipt. The shared refit
 loader now refuses any report/model policy mismatch and applies source-order
-normalization before checking split identities. The completed artifact cannot
-gain that new identity retroactively. The next experiment must address the
-remaining operation and alias-binding failures under the source-order contract
-and retain paired regression accounting.
+normalization before checking split identities. The original artifact keeps
+its old identity. An explicit, non-serving migration verified its signed fit
+plan, model coefficients, source cohort and validation receipt, then issued a
+new model/report/candidate-report lineage under
+`~/.aura/rlc-evidence/semantic-source-order-identity-rebind-20260925/`.
+The new model receipt is
+`a7976f7cdbe34395d50086a1a71e237edf646068e6d467bf8d0aff27d8f7cd08`;
+the source report is `6d78190eae26c0ce316d010e56baad8d0daa06acfed1f8ff2e53fb829e6ca38c`
+and the candidate report is
+`09bb2a43515b4e58b131c4068b6783c5611c733dca5608fe456e74359ac41df0`.
+Regrading all 500 validation identities after migration reproduced every
+old candidate decision, 487/500 source-order and 470/500 corpus-order
+(`validation.json`, receipt
+`12da06180502e39a404e61ff8bd969688da68eb63785f0898b62382c71863348`).
+This repairs artifact identity, not accuracy or serving qualification. The
+bank and ranker consumers now verify signed candidate and source reports,
+including the migrated parent lineage, before source-only acquisition.
+The next experiment must address the remaining operation and alias-binding
+failures and retain paired regression accounting.
 
 The read-only replay in `tools/profile_semantic_source_order_misses.py` checked
 the saved candidate, validation receipt and cohort identity, then decoded only
@@ -344,3 +359,41 @@ cataphoric misses are construction 5 and the eight reserved-alias misses are
 also construction 5. This is a development-set diagnosis, not evidence that
 any alternative selection policy will transfer. The common unresolved task is
 binding a delayed or named value to the correct role in a dependency chain.
+
+The same frozen candidate was replayed through the target-blind candidate
+bank. At eight operation charts, four graphs per chart, three seconds per
+solve and eight seconds per bank, the exact target was observed on 11 of the
+13 failed rows. The two unobserved rows were replayed alone at 16 charts,
+16 graphs per chart, five seconds per solve and 20 seconds per bank; both
+targets were observed. Both banks reported incomplete search, so this is a
+13/13 observed reach result under two declared bounds, not proof of complete
+search. It isolates target-blind selection as the measured development failure
+for these 13 rows. No selector was fitted or promoted. The signed receipts are
+`~/.aura/rlc-evidence/semantic-source-order-fit-20260925/bank-profile.json`
+(`eff5d71d2d169bd6781b7c8cff0d45a5ec6d43cf50223fab8c20fe8d20621a7a`)
+and `bank-wide-two.json` in the same directory
+(`c2860058bc8d98c4db7a99351fba3b9eba3baf3d115fceda6d308babbd0b3a58`).
+
+## Source-order selector pilot
+
+`tools/freeze_semantic_source_folds.py` replayed the signed, identity-rebound
+source cohort into three construction/contrast-disjoint folds: 764 source
+training rows in 53 independent groups, with no validation or test rows.
+The receipt is
+`~/.aura/rlc-evidence/semantic-source-order-identity-rebind-20260925/folds.json`
+(`cd8c92f5aa8771aa1c5c56387a047d38d0a31c7e82eead873bce7e8a038adccc`).
+The source-bank pilot sampled one row per independent construction group,
+not by validation failure. All 53/53 had an observed equivalent candidate
+and all 53 incumbents selected one. Execution and emission remained
+unmeasured by this bank. Its signed report is
+`~/.aura/rlc-evidence/semantic-source-order-bank-pilot-20260925/report.json`
+(`7e2f7285ba921a472eb93a6b7bc847778abf875a6e14a7d417fa84fa34537ad7`).
+A one-epoch, argument-evidence selector fitted on 38 of those rows selected
+36/38 correctly on its training probe and 12/15 on the disjoint held fold,
+versus 15/15 for the incumbent. The three regressions and zero gains reject
+this pilot; it is not a validation or transfer result. The signed fold report
+is `~/.aura/rlc-evidence/semantic-source-order-ranker-pilot-20260925/fold-0.json`.
+Its receipt is `4efa3d3e8ff8e98f35d42e75ece105e6c3cfaa4ae3a049d8181adba067689a46`.
+The pilot's absence of hard incumbent errors is evidence against spending a
+full acquisition run on the same sampling rule. Source-only hard examples
+must be obtained without using the 13 development labels as training data.

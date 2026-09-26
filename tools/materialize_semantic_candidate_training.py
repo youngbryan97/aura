@@ -112,7 +112,8 @@ def main() -> None:
     parser.add_argument("--transducer", type=Path, required=True)
     parser.add_argument("--source-report", type=Path, required=True)
     parser.add_argument("--candidate-report", type=Path, required=True)
-    parser.add_argument("--feature-root", type=Path, required=True)
+    parser.add_argument("--feature-root", type=Path)
+    parser.add_argument("--bundle", action="append", metavar="NAME=PATH")
     parser.add_argument("--directory", type=Path, required=True)
     parser.add_argument("--max-charts", type=int, default=8)
     parser.add_argument("--max-graphs", type=int, default=4)
@@ -126,6 +127,8 @@ def main() -> None:
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
         load_source_examples,
+        source_bundle_arguments,
+        verify_candidate_report_identity,
     )
 
     configure_refit_environment(args.directory / "report.json")
@@ -138,12 +141,12 @@ def main() -> None:
     model = compositional_semantic_program_transducer_from_dict(
         json.loads(args.transducer.read_bytes()))
     candidate_raw = args.candidate_report.read_bytes()
-    if json.loads(candidate_raw).get("candidate") != model.receipt_sha256:
-        raise ValueError("candidate report names a different transducer")
     source_raw = args.source_report.read_bytes()
     source_report = json.loads(source_raw)
+    verify_candidate_report_identity(json.loads(candidate_raw), model, source_report)
     manifests = source_report["representation_compatibility"]["source_feature_manifest_sha256s"]
-    bundles = [name + "=" + str(args.feature_root / name) for name in manifests]
+    bundles = source_bundle_arguments(source_report, feature_root=args.feature_root,
+                                      bundles=args.bundle)
     examples = load_source_examples(model, source_report, bundles)
     training = {item.ir.source_text_sha256: item for item in examples if item.split == "train"}
     selected, selection = (None, None)

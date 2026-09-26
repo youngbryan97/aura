@@ -165,14 +165,15 @@ def _verify_sources(source_report: dict, candidate_report: dict, model, bank_rep
                     folds: dict, examples: list) -> tuple[dict, list[str]]:
     from core.learning.semantic_program_campaign import _sha
     from tools.materialize_semantic_candidate_training import _digest as training_digest
+    from tools.refit_semantic_argument_proposals import verify_candidate_report_identity
 
+    verify_candidate_report_identity(candidate_report, model, source_report)
     plan = bank_report["plan"]
     full = sorted(item.ir.source_text_sha256 for item in examples if item.split == "train")
     withheld = {item.ir.source_text_sha256 for item in examples
                 if item.split in {"validation", "test"}}
     ids = list(plan["source_ids"])
     checks = {
-        "candidate_model": candidate_report.get("candidate") == model.receipt_sha256,
         "bank_schema": bank_report.get("schema") == "aura.semantic_candidate_training.v1",
         "bank_receipt": bank_report.get("receipt_sha256") == training_digest(
             {key: value for key, value in bank_report.items() if key != "receipt_sha256"}),
@@ -354,7 +355,8 @@ def main() -> None:
     parser.add_argument("--transducer", type=Path, required=True)
     parser.add_argument("--source-report", type=Path, required=True)
     parser.add_argument("--candidate-report", type=Path, required=True)
-    parser.add_argument("--feature-root", type=Path, required=True)
+    parser.add_argument("--feature-root", type=Path)
+    parser.add_argument("--bundle", action="append", metavar="NAME=PATH")
     parser.add_argument("--bank-directory", type=Path)
     parser.add_argument("--augmentation-bank-directory", type=Path,
                         help="source-only wider bank; one balanced training view per source")
@@ -397,6 +399,8 @@ def main() -> None:
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
         load_source_examples,
+        source_bundle_arguments,
+        verify_candidate_report_identity,
     )
 
     configure_refit_environment(args.output_directory / "report.json")
@@ -418,8 +422,8 @@ def main() -> None:
     bank_report = (json.loads((args.bank_directory / "report.json").read_bytes())
                    if args.bank_directory else None)
     folds = json.loads(args.folds.read_bytes())
-    bundles = [name + "=" + str(args.feature_root / name) for name in
-               source_report["representation_compatibility"]["source_feature_manifest_sha256s"]]
+    bundles = source_bundle_arguments(source_report, feature_root=args.feature_root,
+                                      bundles=args.bundle)
     examples = load_source_examples(model, source_report, bundles)
     if bank_report is not None:
         plan, ids = _verify_sources(source_report, candidate_report, model, bank_report,
@@ -428,8 +432,8 @@ def main() -> None:
         ids = sorted(item.ir.source_text_sha256 for item in examples if item.split == "train")
         withheld = {item.ir.source_text_sha256 for item in examples
                     if item.split in {"validation", "test"}}
-        if (candidate_report.get("candidate") != model.receipt_sha256
-                or folds.get("schema") != "aura.semantic_construction_folds.v1"
+        verify_candidate_report_identity(candidate_report, model, source_report)
+        if (folds.get("schema") != "aura.semantic_construction_folds.v1"
                 or sorted(folds["assignments"]) != ids
                 or set(ids) & withheld
                 or folds["validation_used"] is not False or folds["test_used"] is not False):
