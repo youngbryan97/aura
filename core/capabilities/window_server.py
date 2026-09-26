@@ -276,6 +276,25 @@ def type_keys(keys: Sequence[str], *, between_s: float = 0.0) -> int:
     return sent
 
 
+def seconds_since_someone_touched_it() -> float:
+    """Seconds since the keyboard or the mouse last did anything, as the hardware reports it.
+
+    Infinite where it cannot be read, which reads as nobody there; the caller
+    that is about to take the front decides what that is worth.
+    """
+    quartz = _quartz()
+    if quartz is None:
+        return float("inf")
+    try:
+        return float(
+            quartz.CGEventSourceSecondsSinceLastEventType(
+                quartz.kCGEventSourceStateHIDSystemState, quartz.kCGAnyInputEventType
+            )
+        )
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        return float("inf")
+
+
 def owns_the_front(app: str) -> bool:
     """Whether the ordinary window in front belongs to the application someone named."""
     front = front_owner()

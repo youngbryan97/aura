@@ -27,6 +27,7 @@ world in tests and against a real window live.
 
 from __future__ import annotations
 
+import asyncio
 import time
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
@@ -36,7 +37,11 @@ from core.agency.going_to_what_she_sees import GoingTo, seen_named
 from core.agency.what_hands_do import Chunk, Slot
 from core.perception.how_the_view_moves import WhatMyHandsDoToTheView, grey
 
-__all__ = ["ACameraWorld", "Trip", "go_to", "learn_the_body", "live_camera_world"]
+__all__ = ["ACameraWorld", "NotInFront", "Trip", "go_to", "learn_the_body", "live_camera_world"]
+
+
+class NotInFront(RuntimeError):  # noqa: N818 - named for what happened
+    """A chunk her hands refused, because the window she meant was not the one in front."""
 
 
 @dataclass
@@ -45,9 +50,25 @@ class ACameraWorld:
 
     #: The window's pixels and the words on it, with their boxes.
     look: Callable[[], tuple[Any, list[dict[str, Any]]]]
-    #: Play a chunk; returns once it has been played.
+    #: Play a chunk; returns once it has been played, saying why it stopped if it did.
     play: Callable[[Chunk], Awaitable[Any]]
+    #: Bring the window forward before acting in it. True when it is in front.
+    bring_forward: Callable[[], Awaitable[bool]] | None = None
 
+
+async def _played(world: ACameraWorld, chunk: Chunk) -> Any:
+    """Play a chunk, and refuse to carry on as though a refused chunk had been played.
+
+    A chunk her hands would not play because another window was in front did
+    nothing, and reading that as "this key does nothing" teaches her a body
+    she does not have. Live, the first time: the chat window came in front,
+    every test move was refused, and she concluded no key walked here.
+    """
+    result = await world.play(chunk)
+    stopped = str(getattr(result, "stopped", "") or "")
+    if stopped:
+        raise NotInFront(stopped)
+    return result
 
 @dataclass
 class Trip:
@@ -70,20 +91,22 @@ async def learn_the_body(
     this learns nothing about the mouse in, and says so by a gain of nought.
     """
     body = WhatMyHandsDoToTheView()
+    if world.bring_forward is not None and not await world.bring_forward():
+        raise NotInFront("the window she was asked to act in would not come to the front")
     travel = 1
     while travel <= most_travel:
         before, _ = world.look()
-        await world.play(Chunk((Slot(moved=(travel, 0)),), slot_s))
+        await _played(world, Chunk((Slot(moved=(travel, 0)),), slot_s))
         after, _ = world.look()
         change = body.watched("mouse", before, after, mouse=(travel, 0))
         # Back where she was, so the next thing tried starts from the same view.
-        await world.play(Chunk((Slot(moved=(-travel, 0)),), slot_s))
+        await _played(world, Chunk((Slot(moved=(-travel, 0)),), slot_s))
         if abs(change.across) >= 2.0:
             break
         travel *= 2
     for key in keys:
         before, _ = world.look()
-        await world.play(Chunk((Slot(frozenset({key})),), slot_s))
+        await _played(world, Chunk((Slot(frozenset({key})),), slot_s))
         after, _ = world.look()
         body.watched(key, before, after)
     return body
@@ -118,7 +141,12 @@ async def go_to(
                 tell(said)
             last_said = said
         if chunk.slots:
-            await world.play(chunk)
+            try:
+                await _played(world, chunk)
+            except NotInFront as why:
+                trip.ended = f"stopped: {why}"
+                trip.said.append(trip.ended)
+                return trip
             trip.chunks += 1
         if chunk.done or chunk.think:
             trip.done = chunk.done
@@ -142,7 +170,9 @@ def _what_this_does(chunk: Chunk, named: str, going: GoingTo) -> str:
     return ""
 
 
-def live_camera_world(app: str, *, still_ours: Callable[[], bool] | None = None) -> ACameraWorld | None:
+def live_camera_world(
+    app: str, *, still_ours: Callable[[], bool] | None = None, wait_s: float = 60.0
+) -> ACameraWorld | None:
     """The real thing: an application's window, her eyes on it and her hands on the machine."""
     from core.capabilities import window_server
     from core.capabilities.hands import QuartzHands, play
@@ -161,7 +191,27 @@ def live_camera_world(app: str, *, still_ours: Callable[[], bool] | None = None)
     async def played(chunk: Chunk) -> Any:
         return await play(chunk, sink=hands, window=tuple(window.bounds), still_ours=ours)
 
-    return ACameraWorld(look=look, play=played)
+    async def bring_forward() -> bool:
+        if ours():
+            return True
+        # Someone is at the keyboard. Taking the front from a person halfway
+        # through typing sends her keys into their work and theirs into her
+        # world; live, the first time, the front came straight back to the
+        # window being typed in and every chunk was refused. She waits for a
+        # pause as long as one of her looks, and gives up when the time she
+        # was given for this is gone.
+        waited_until = time.monotonic() + max(1.0, float(wait_s))
+        pause = a_look_takes(ACameraWorld(look=look, play=played))
+        while window_server.seconds_since_someone_touched_it() < pause:
+            if time.monotonic() > waited_until:
+                return False
+            await asyncio.sleep(pause)
+        from core.capabilities.host_automation import get_host_automation
+
+        await get_host_automation().focus_app(app)
+        return ours()
+
+    return ACameraWorld(look=look, play=played, bring_forward=bring_forward)
 
 
 def a_look_takes(world: ACameraWorld, times: int = 3) -> float:

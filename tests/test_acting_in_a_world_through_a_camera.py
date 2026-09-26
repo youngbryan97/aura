@@ -112,3 +112,84 @@ async def test_where_no_key_walks_she_says_so_instead_of_wandering():
     trip = await go_to(world, "door", body, slot_s=0.2, most_chunks=10)
     assert not trip.done and trip.chunks == 0
     assert "nothing she pressed moved her forward" in trip.ended
+
+
+@pytest.mark.asyncio
+async def test_a_refused_chunk_is_not_read_as_an_act_that_did_nothing():
+    """Live, the first time: the chat window came in front, every test move was
+    refused, and she concluded that no key walked here."""
+    from types import SimpleNamespace
+
+    from core.skills.in_a_world_through_a_camera import NotInFront
+
+    sim = Simulated()
+
+    async def refused(_chunk):
+        return SimpleNamespace(stopped="the window she was acting in is no longer in front")
+
+    with pytest.raises(NotInFront, match="no longer in front"):
+        await learn_the_body(ACameraWorld(look=sim.look, play=refused), keys=("w",), slot_s=0.2)
+
+
+@pytest.mark.asyncio
+async def test_a_window_that_will_not_come_forward_is_said_so_before_anything_is_pressed():
+    from core.skills.in_a_world_through_a_camera import NotInFront
+
+    sim = Simulated()
+
+    async def stays_behind() -> bool:
+        return False
+
+    world = ACameraWorld(look=sim.look, play=sim.play, bring_forward=stays_behind)
+    with pytest.raises(NotInFront, match="would not come to the front"):
+        await learn_the_body(world, keys=("w",), slot_s=0.2)
+    assert sim.pressed == [] and sim.facing == 0.0
+
+
+class _AWindow:
+    bounds = (0, 0, 640, 240)
+
+
+def _a_machine(monkeypatch, *, touched: list[float], front: list[bool]):
+    """The real world's plumbing with the machine replaced: who is typing, and who is in front."""
+    from types import SimpleNamespace
+
+    from core.capabilities import host_automation, window_server
+    from core.perception import what_the_pixels_show
+
+    focused: list[str] = []
+    monkeypatch.setattr(window_server, "window_of", lambda app, on_screen_only=False: _AWindow())
+    monkeypatch.setattr(window_server, "capture", lambda window: np.zeros((24, 64, 3)))
+    monkeypatch.setattr(what_the_pixels_show, "recognize_text", lambda frame: [])
+    monkeypatch.setattr(
+        window_server, "seconds_since_someone_touched_it",
+        lambda: touched.pop(0) if len(touched) > 1 else touched[0],
+    )
+    monkeypatch.setattr(window_server, "owns_the_front", lambda app: bool(focused) and front[0])
+
+    async def focus_app(app):
+        focused.append(app)
+        return SimpleNamespace(ok=True)
+
+    monkeypatch.setattr(host_automation, "get_host_automation", lambda: SimpleNamespace(focus_app=focus_app))
+    return focused
+
+
+@pytest.mark.asyncio
+async def test_she_does_not_take_the_front_while_someone_is_typing(monkeypatch):
+    from core.skills.in_a_world_through_a_camera import live_camera_world
+
+    focused = _a_machine(monkeypatch, touched=[0.0], front=[True])
+    world = live_camera_world("A room", wait_s=0.2)
+    assert await world.bring_forward() is False
+    assert focused == []
+
+
+@pytest.mark.asyncio
+async def test_and_takes_it_once_they_pause(monkeypatch):
+    from core.skills.in_a_world_through_a_camera import live_camera_world
+
+    focused = _a_machine(monkeypatch, touched=[0.0, 0.0, 30.0], front=[True])
+    world = live_camera_world("A room", wait_s=30.0)
+    assert await world.bring_forward() is True
+    assert focused == ["A room"]
