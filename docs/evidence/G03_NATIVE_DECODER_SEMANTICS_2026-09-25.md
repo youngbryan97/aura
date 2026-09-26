@@ -578,3 +578,16 @@ zero learning gains and seven regressions relative to the incumbent. Receipt:
 This is a negative result for this paired-loss pilot, not evidence of broad
 transfer or a serving candidate. Pairing source forms does not by itself
 align their representations or solve candidate selection.
+
+The floor's existing finite counterfactual comparison now also accepts an
+explicit transition feedback slot and bounded horizon. It can distinguish
+programs that agree on the initial input but diverge after their output is
+fed into a declared state input; a direct helper generates distinct, seeded
+typed initial contexts through the existing counterfactual input generator.
+Identical repeated contexts are deduplicated, execution failures and jointly
+undefined traces are counted, and finite agreement remains `unknown`. This
+is available to a caller with a genuine state-transition interpretation; it
+is not inferred automatically from arbitrary prose or used to select a
+candidate without external observations. In particular, more internal
+simulation alone cannot tell which of two distinct programs matches the
+user's intended relation.
