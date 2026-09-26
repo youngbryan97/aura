@@ -277,3 +277,84 @@ mechanism lets the self-model and her drives act on recurrent cognition
 jointly (S,D -> C). Any organism change aimed at either is developed and
 checked on seed 7 only, and the commit the decisive campaign runs on is named
 here, with what changed in the organism, before it is launched.
+
+## Addendum, 25 September 2026, evening: the organism changes aimed at the two failing triples
+
+No v5 number from any decisive seed had been read when this was written. Seed 7
+is the diagnostic seed and everything below was read from it and is disclosed.
+
+The addendum of 23 September named the two triples that fail on her rather than
+on the instrument, and required any organism change aimed at either to be
+developed on seed 7 and named here with what changed, before a launch. This is
+that record.
+
+### What seed 7 read at 300 rounds, and what moved
+
+`validate-s7-164d2a560` on 24 September, then `validate-s7-23e596071` on 25
+September, both six trials and three-turn arms with nulls and the lesion skipped:
+
+| line | 24 Sep | 25 Sep | bar |
+|---|---|---|---|
+| partition_irreducibility | 0.0165 | 0.0266 | lower bound > 0.05 |
+| causal closure leak | 0.0176 | 0.0130 | at or under the shuffled floor, 0.0031 |
+| synergy, v3 line | 1 of 4 triples | **2 of 4** (A,S -> G and P,M -> W) | all four |
+
+The cheapest bipartition moved from perception alone to recurrent cognition
+alone, and `loss_core_only` fell from 0.1646 to 0.1132.
+
+### The two that still fail, and what was done about them
+
+**S,D -> C** had an interaction gain of exactly 0.0 on three folds of five. That
+is not a weak coupling: the substrate's input bands carried telemetry, the
+person's presence, the screen, the room's sound and three cross-modal products,
+and nothing of deliberation or the self-model, so the joint effect had nowhere to
+happen. `a1932a8eb` gives it a band of its own — the hardest thing she is
+holding, how settled she is in herself, and their cross term, with the gains the
+neighbouring bands already use. Before that, the ridge grid was checked as the
+alternative explanation and rejected: sweeping the full product of penalty
+strengths instead of the diagonal moved this triple's lower bound from -0.08299
+to -0.08223 and moved A,S -> G's the wrong way.
+
+**W,A -> D** is short of power rather than of mechanism: mean gain +0.00768,
+lower bound -0.00084, standard error 0.00435. A lower bound above zero needs a
+standard error under 0.00392, which is 1.23 times the rows, so **370 rounds**
+rather than 300. Nothing in the organism was changed for it.
+
+### What else changed in the organism, and why
+
+All of it was found by asking which columns of a recording never moved
+(`tools/audit_flat_columns.py`, `23e596071`), and each is a channel that could
+not carry anything rather than a quantity that was tuned:
+
+- `09bdccc29`, `0bd77ea47`: a proof turn cleared her whole modifier dict before
+  the first phase read it, and every campaign is a proof run. Developmental
+  novelty read exactly 0.5 for a whole run; it now moves over 1,838 values.
+- `1d9b20b05`: salience had no writer, so perception carried the world's own
+  number twice and nothing of her.
+- `6023db4f1`: ignition was the winner's priority against a fixed six tenths and
+  the winning priority never fell below 0.749, so it was true on every frame.
+- `8f21aa41f`: the self-prediction composite could not reach its surprise bar,
+  so the surprise count and rate were zero for a whole run.
+- `4ec60a8d2`: the only thing that could mobilise her was a despair spiral, so
+  adrenaline and cortisol were constants.
+- `d6b1102f4`: the conversation engine was never told she had spoken.
+- `fe81dad49`: `mycelium_density` had no writer and is 0.55 of the expressive
+  term inside phi.
+- `efe3cc975`: a run of bad frames changed nothing about the next turn.
+- `21fec3d95`, `22b922d3f`: the closure leaks are core columns — her learned
+  parameters and her own history of having been a way. The line is stated there:
+  K is her, and the machine's bookkeeping is not.
+- `b22bcf9b1`: the world model was shown that something arrived and never what,
+  which is why perception reached it at 0.17 against a bar of 0.30.
+- `3f9efcc24`: a running total is elapsed time, so a count enters the core as the
+  shape of it and not as its total.
+
+### The design for the next seed-7 validation
+
+Commit `3f9efcc24`, seed 7, **370 rounds**, six trials, three-turn arms, the
+conversation tape, nulls and the lesion skipped. The round count is the power
+calculation above and nothing else. If W,A -> D still fails there, the shortfall
+is not power.
+
+No decisive seed is launched on the strength of this. The decisive commit and its
+organism changes are named in their own addendum when one is.
