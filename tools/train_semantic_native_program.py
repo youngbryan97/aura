@@ -455,18 +455,21 @@ def main():
                 selected_difference, selected_tolerance = selected_projection_error(
                     full[:1], suffix(hidden[:1], logit_positions=positions),
                     sequences[batch[0]], positions)
-                if (not math.isfinite(difference) or difference > .01
-                        or not math.isfinite(selected_difference)
-                        or selected_difference > selected_tolerance):
-                    raise ValueError("cached native prefix does not reproduce model logits")
                 proof = {
                     "plan_sha256": plan["plan_sha256"], "max_absolute_logit_difference": difference,
                     "tokens": tokens.shape[1], "batch_size": tokens.shape[0], "split_at": split,
                     "selected_projection_max_target_logprob_difference": selected_difference,
                     "selected_projection_target_logprob_tolerance": selected_tolerance,
                     "projected_positions": len(positions),
-                    "trainable_sites": [name for name, _value in trainable]}
+                    "trainable_sites": [name for name, _value in trainable],
+                    "accepted": (math.isfinite(difference) and difference <= .01
+                        and math.isfinite(selected_difference)
+                        and selected_difference <= selected_tolerance)}
                 _save_if_absent(args.directory / f"prefix-equivalence-batch-{len(batch)}.json", proof)
+                if not proof["accepted"]:
+                    raise ValueError("cached native prefix does not reproduce model logits: "
+                        f"full={difference}, selected={selected_difference}, "
+                        f"selected_tolerance={selected_tolerance}, batch={len(batch)}")
                 if not captured:
                     _save_if_absent(args.directory / "prefix-equivalence.json", proof)
                 verified_batch_sizes.add(len(batch))
