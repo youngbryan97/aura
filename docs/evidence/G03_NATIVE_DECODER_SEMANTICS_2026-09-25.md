@@ -627,3 +627,17 @@ have witnessed triplets, requiring 31 unique fit sources in the prefix cache.
 The immutable plan at `~/.aura/rlc-evidence/semantic-native-metric-plan3-fold0-20260926/plan.json`
 has SHA-256 `e97ce207d02a663904942e0d1414e488814f40a4555038bd8c56ed2b36eae0f7`.
 No model-active metric result or G03 closeout follows from this plan.
+
+The model-active pilot completed in 317.05 seconds. Its selected step-16
+checkpoint lowered calibration loss from 2.800060 to 2.716242. On 18 held
+utterances, native selection rose from 8 correct before fitting to 11 after
+fitting: three learning gains and no learning regressions. The existing
+incumbent selected 15 correctly. Relative to that incumbent, the trained
+native selector had no gains and four regressions: two natural-source cases,
+one arithmetic case, and one cataphoric case. The held labels were unavailable
+to fitting and checkpoint selection. The immutable report is at
+`~/.aura/rlc-evidence/semantic-native-metric-pilot-fold0-20260926/report.json`
+with receipt SHA-256
+`3d3df20e31ab2ad69da0ffb0f3174e24f4ee005e6d3742c7aac8c125b62d9bf6`.
+This establishes a small within-native learning gain, not incumbent
+non-regression, broad transfer, or serving authority. G03 remains open.
