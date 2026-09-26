@@ -33,7 +33,21 @@ def construction_subset(examples, identities, *, per_construction):
                         for identity in group[:per_construction]))
 
 
-def native_loss(suffix, hidden, sequence, *, summed=False):
+def exact_length_batches(sequences, *, batch_size):
+    """Batch independent full sequences without adding padding or dropping tokens."""
+    if type(batch_size) is not int or not 1 <= batch_size <= 32:
+        raise ValueError("native prefix batch size must be inside [1, 32]")
+    groups = {}
+    for identity, sequence in sorted(sequences.items()):
+        groups.setdefault(len(sequence.tokens) - 1, []).append(identity)
+    for length in sorted(groups):
+        if length < 1:
+            raise ValueError("native prefix batch contains an empty causal sequence")
+        for start in range(0, len(groups[length]), batch_size):
+            yield tuple(groups[length][start:start + batch_size])
+
+
+def native_loss(suffix, hidden, sequence, *, summed=False, scope="continuation"):
     """Supervise only the unchanged template's continuation, without truncation."""
     import mlx.core as mx
     import mlx.nn as nn
@@ -48,6 +62,17 @@ def native_loss(suffix, hidden, sequence, *, summed=False):
     if logits.shape[:2] != targets.shape:
         raise ValueError("native supervision lost its causal token boundary")
     losses = nn.losses.cross_entropy(logits, targets)
+    if scope == "semantic_decisions":
+        positions = sequence.semantic_positions
+        if (not positions or tuple(sorted(set(positions))) != positions
+                or any(type(index) is not int or not start <= index < len(sequence.tokens)
+                       for index in positions)):
+            raise ValueError("native semantic loss needs complete offset-bound decision positions")
+        mask = mx.array([[index in positions for index in range(start, len(sequence.tokens))]])
+        total = mx.sum(mx.where(mask, losses, 0.))
+        return total if summed else total / len(positions)
+    if scope != "continuation":
+        raise ValueError("unknown native supervision scope")
     return mx.sum(losses) if summed else mx.mean(losses)
 
 
@@ -61,15 +86,19 @@ def main():
     parser.add_argument("--save-every", type=int, default=32)
     parser.add_argument("--rank", type=int, default=8)
     parser.add_argument("--layers", type=int, default=1)
+    parser.add_argument("--prefix-batch-size", type=int, default=1)
     parser.add_argument("--held-per-construction", type=int, default=1)
     parser.add_argument("--calibration-per-construction", type=int, default=1)
     parser.add_argument("--max-seconds", type=float, default=1800.)
     parser.add_argument("--max-sequence-tokens", type=int, default=1024)
+    parser.add_argument("--loss-scope", choices=("continuation", "semantic_decisions"),
+                        default="continuation")
     parser.add_argument("--plan-only", action="store_true")
     args = parser.parse_args()
     if (any(type(value) is not int or value < 1 for value in (
             args.steps, args.save_every, args.rank, args.layers, args.max_sequence_tokens))
-            or args.steps % args.save_every or not 0 < args.max_seconds <= 14400):
+            or args.steps % args.save_every or not 0 < args.max_seconds <= 14400
+            or not 1 <= args.prefix_batch_size <= 32):
         parser.error("positive sizes, complete checkpoint intervals and a finite time bound required")
 
     from tools.refit_semantic_argument_proposals import (
@@ -119,9 +148,12 @@ def main():
                       for path in implementation_paths}
     plan = {"schema": "aura.semantic_native_fit_plan.v1", "steps": args.steps,
             "save_every": args.save_every, "rank": args.rank, "suffix_layers": args.layers,
+            "prefix_batch_size": args.prefix_batch_size,
+            "prefix_padding": False,
             "adapter_keys": ["self_attn.q_proj", "self_attn.v_proj", "self_attn.o_proj",
                              "mlp.down_proj"],
             "learning_rate": 1e-4, "weight_decay": .01, "seed": 20260925,
+            "loss_scope": args.loss_scope,
             "max_seconds": args.max_seconds, "max_sequence_tokens": args.max_sequence_tokens,
             "model_descriptor_sha256": spec.descriptor_sha256,
             "model_path": str(spec.model_path), "pointer_sha256": spec.pointer_sha256,
@@ -134,7 +166,7 @@ def main():
             "selection": "minimum_source_calibration_continuation_loss",
             "matched_control": "same_native_suffix_without_fitted_lora",
             "input": "unchanged_source_request_with_native_chat_template",
-            "scoring": "summed_native_continuation_log_probability",
+            "scoring": "summed_native_" + args.loss_scope + "_log_probability",
             "implementation": implementation, "held_labels_used_for_fit_or_selection": False,
             "serving_authority": False, "qualification_evidence": False}
     plan = {**plan, "plan_sha256": _digest(plan)}
@@ -204,25 +236,27 @@ def main():
         del examples, fit, calibration, items, parent
         gc.collect()
         captured = {}
-        for index, (identity, sequence) in enumerate(sequences.items(), 1):
+        for batch in exact_length_batches(sequences, batch_size=args.prefix_batch_size):
             check_bound()
-            tokens = mx.array([sequence.tokens[:-1]], dtype=mx.int32)
+            tokens = mx.array([sequences[identity].tokens[:-1] for identity in batch], dtype=mx.int32)
             hidden = prefix.capture(tokens)
-            if index == 1:
+            if not captured:
                 difference = mx.max(mx.abs(model(tokens) - suffix(hidden))).item()
                 if not math.isfinite(difference) or difference > .01:
                     raise ValueError("cached native prefix does not reproduce model logits")
                 _save_if_absent(args.directory / "prefix-equivalence.json", {
                     "plan_sha256": plan["plan_sha256"], "max_absolute_logit_difference": difference,
-                    "tokens": len(sequence.tokens) - 1, "split_at": split,
+                    "tokens": tokens.shape[1], "batch_size": tokens.shape[0], "split_at": split,
                     "trainable_sites": [name for name, _value in trainable]})
-            captured[identity] = hidden
-            if index % 16 == 0 or index == len(sequences):
-                print(json.dumps({"stage": "prefix", "captured": index,
+            for index, identity in enumerate(batch):
+                captured[identity] = hidden[index:index + 1]
+            if len(captured) % 16 < len(batch) or len(captured) == len(sequences):
+                print(json.dumps({"stage": "prefix", "captured": len(captured),
                                   "population": len(sequences),
                                   "elapsed_seconds": time.monotonic() - started,
                                   "active_memory_bytes": mx.get_active_memory()}), flush=True)
-        baseline = sum(native_loss(suffix, captured[identity], sequences[identity]).item()
+        baseline = sum(native_loss(suffix, captured[identity], sequences[identity],
+                                   scope=args.loss_scope).item()
                        for identity in calibration_ids) / len(calibration_ids)
         optimizer = optim.AdamW(learning_rate=plan["learning_rate"], weight_decay=plan["weight_decay"])
         order = list(plan["fit_ids"])
@@ -234,7 +268,7 @@ def main():
                 rng.shuffle(order)
             identity = order[(step - 1) % len(order)]
             def weighted_loss(tail, hidden, sequence, weight=weights[identity]):
-                return native_loss(tail, hidden, sequence) * weight
+                return native_loss(tail, hidden, sequence, scope=args.loss_scope) * weight
             loss, gradients = nn.value_and_grad(suffix, weighted_loss)(
                 suffix, captured[identity], sequences[identity])
             norm = mx.sqrt(sum(mx.sum(value.astype(mx.float32) ** 2)
@@ -250,7 +284,8 @@ def main():
             if step % 8 == 0:
                 print(json.dumps({"stage": "fit", **history[-1]}), flush=True)
             if step % args.save_every == 0:
-                calibration_loss = sum(native_loss(suffix, captured[identity], sequences[identity]).item()
+                calibration_loss = sum(native_loss(suffix, captured[identity], sequences[identity],
+                                                  scope=args.loss_scope).item()
                                        for identity in calibration_ids) / len(calibration_ids)
                 tensors = dict(tree_flatten(model.trainable_parameters()))
                 weight_path = args.directory / f"checkpoint-{step}.safetensors"
@@ -298,13 +333,15 @@ def main():
                 sequence = native_program_sequence(texts[identity], program, tokenizer,
                                                     max_tokens=args.max_sequence_tokens)
                 hidden = prefix.capture(mx.array([sequence.tokens[:-1]], dtype=mx.int32))
-                score = -native_loss(suffix, hidden, sequence, summed=True).item()
+                score = -native_loss(suffix, hidden, sequence, summed=True,
+                                     scope=args.loss_scope).item()
                 if not math.isfinite(score):
                     raise ValueError("native bank score is not finite")
                 scores.append(score)
                 suffix.update(baseline_weights)
                 try:
-                    pretrained_score = -native_loss(suffix, hidden, sequence, summed=True).item()
+                    pretrained_score = -native_loss(suffix, hidden, sequence, summed=True,
+                                                     scope=args.loss_scope).item()
                     if not math.isfinite(pretrained_score):
                         raise ValueError("pretrained native bank score is not finite")
                     pretrained_scores.append(pretrained_score)

@@ -7,7 +7,11 @@ import mlx.nn as nn
 import pytest
 
 from core.learning.semantic_native_program import NativeProgramSequence
-from tools.train_semantic_native_program import construction_subset, native_loss
+from tools.train_semantic_native_program import (
+    construction_subset,
+    exact_length_batches,
+    native_loss,
+)
 
 
 def test_source_identity_sampling_keeps_all_constructions_without_labels():
@@ -21,6 +25,20 @@ def test_source_identity_sampling_keeps_all_constructions_without_labels():
     for invalid in (["missing"], ["a-0", "a-0"]):
         with pytest.raises(ValueError, match="identities"):
             construction_subset(examples, invalid, per_construction=1)
+
+
+def test_prefix_batches_preserve_every_complete_sequence_and_ignore_input_order():
+    sequences = {"c": NativeProgramSequence((1, 2, 3), 1),
+                 "a": NativeProgramSequence((3, 4, 5), 1),
+                 "b": NativeProgramSequence((2, 4, 5, 6), 1)}
+    batches = list(exact_length_batches(sequences, batch_size=2))
+    assert batches == [("a", "c"), ("b",)]
+    assert batches == list(exact_length_batches(dict(reversed(list(sequences.items()))), batch_size=2))
+    assert {identity for batch in batches for identity in batch} == set(sequences)
+    assert all(len({len(sequences[identity].tokens) for identity in batch}) == 1 for batch in batches)
+    for size in (0, True, 33):
+        with pytest.raises(ValueError, match="batch size"):
+            list(exact_length_batches(sequences, batch_size=size))
 
 
 class Suffix(nn.Module):
@@ -52,3 +70,26 @@ def test_native_loss_masks_every_prompt_target_but_no_continuation_target():
 def test_supervision_boundary_is_never_inferred_from_a_malformed_row(start):
     with pytest.raises(ValueError, match="boundary"):
         native_loss(Suffix(), mx.ones((1, 4, 4)), NativeProgramSequence((1, 2, 3, 4, 5), start))
+
+
+def test_semantic_loss_masks_format_and_private_targets_by_explicit_graph_positions():
+    suffix = Suffix()
+    hidden = mx.ones((1, 5, 4))
+    sequence = NativeProgramSequence((1, 2, 3, 4, 5, 6), 2, (3, 5))
+    logits = suffix(hidden)[:, 2::2].astype(mx.float32)
+    expected = nn.losses.cross_entropy(logits, mx.array([[4, 6]]))
+    assert mx.allclose(native_loss(suffix, hidden, sequence, scope="semantic_decisions"),
+                       mx.mean(expected)).item()
+    assert mx.allclose(native_loss(suffix, hidden, sequence, scope="semantic_decisions", summed=True),
+                       mx.sum(expected)).item()
+    changed = NativeProgramSequence((7, 7, 7, 4, 7, 6), 2, (3, 5))
+    assert mx.array_equal(native_loss(suffix, hidden, sequence, scope="semantic_decisions"),
+                          native_loss(suffix, hidden, changed, scope="semantic_decisions")).item()
+
+
+@pytest.mark.parametrize("positions", [(), (1,), (6,), (3, 3), (4, 3), (True,)])
+def test_invalid_semantic_decision_maps_have_no_loss(positions):
+    with pytest.raises(ValueError, match="decision positions"):
+        native_loss(Suffix(), mx.ones((1, 5, 4)),
+                    NativeProgramSequence((1, 2, 3, 4, 5, 6), 2, positions),
+                    scope="semantic_decisions")

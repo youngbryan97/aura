@@ -1,6 +1,7 @@
 """Native semantic supervision preserves source identity and token boundaries."""
 
 import hashlib
+import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,6 +11,7 @@ import pytest
 from core.learning.procedure_induction import Instruction, Program
 from core.learning.semantic_native_program import (
     native_program_sequence,
+    native_program_surface,
     native_program_text,
     parse_native_program,
     source_text_from_tokens,
@@ -44,6 +46,14 @@ def test_program_codec_round_trips_with_no_expected_value_or_family():
     assert parse_native_program(text) == _program()
 
 
+def test_graph_decision_spans_cover_operations_and_references_without_punctuation():
+    program = Program(2, (Instruction("sub", (0, 1)), Instruction("mul", (2, 0))))
+    text, spans = native_program_surface(program)
+    assert text == json.dumps({"inputs": 2, "steps": [["sub", [0, 1]], ["mul", [2, 0]]]},
+                              separators=(",", ":"))
+    assert [text[start:end] for start, end in spans] == ["sub", "0", "1", "mul", "2", "0"]
+
+
 @pytest.mark.parametrize("text", [
     '{"inputs":2,"steps":[["unknown",[0,1]]]}',
     '{"inputs":2,"steps":[["sub",[0,2]]]}',
@@ -65,6 +75,7 @@ def test_supervision_contains_the_unchanged_request_and_masked_prefix():
     target = tokenizer.decode(list(row.tokens[row.continuation_start:]))
     assert prefix == "<user>" + source + "<assistant>"
     assert target == native_program_text(_program())
+    assert bytes(row.tokens[index] for index in row.semantic_positions).decode() == "sub01"
     with pytest.raises(ValueError, match="sequence length"):
         native_program_sequence(source, _program(), tokenizer, max_tokens=5)
 
@@ -126,3 +137,7 @@ def test_current_resident_tokenizer_preserves_the_native_private_boundary():
     assert native_program_text(_program()) in rendered
     assert "</think>" in rendered
     assert 0 < row.continuation_start < len(row.tokens)
+    assert all(index >= row.continuation_start for index in row.semantic_positions)
+    decision_tokens = tokenizer.decode([row.tokens[index] for index in row.semantic_positions])
+    assert "sub" in decision_tokens
+    assert "think" not in decision_tokens

@@ -94,3 +94,49 @@ in-distribution accuracy. Neither paper establishes Aura's result. The next
 diagnostic must separate likelihood attached to semantic graph decisions from
 likelihood attached to formatting, then combine useful signals using source-only
 calibration rather than selecting successful methods from held answer keys.
+
+## Semantic-decision follow-up
+
+The follow-up marks operation names and reference integers by their exact
+character/token offsets. Training and ranking use only those decision tokens,
+not JSON formatting or private-channel delimiters. Exact-length batches reuse
+the frozen prefix without padding, truncation or changing the training order.
+The resident batch again gives maximum absolute full/split logit difference 0.0.
+
+The frozen run uses the same 303 eligible fit requests, 23 source calibration
+requests selected by source identity, and the same 18 already-exposed held
+wording requests. One complete fit epoch takes 303 updates. Source calibration
+decision loss selects step 202 from checkpoints 101, 202 and 303; it falls from
+2.533156 to 0.637823. The plan's inherited selection-name string says
+continuation loss, but its explicit `loss_scope` and the executed objective are
+`semantic_decisions`. No held labels choose weights or a checkpoint.
+
+| Mechanism | Correct / 18 |
+| --- | --- |
+| Existing source-fold proposer | 15 |
+| Unfitted resident suffix, same decision score | 8 |
+| Fitted resident suffix | 17 |
+| Observed equivalent candidate in the bank | 17 |
+
+There are two gains and zero regressions against the incumbent, and nine gains
+and zero regressions against the unfitted suffix. The remaining nested-arithmetic
+request has no observed equivalent candidate in this incomplete bank. This is
+not a proof that it is unreachable. The process finishes in 558.232 seconds and
+releases its model owner. No serving, fusion or desktop state changes occur.
+
+An independent replay verifies the plan, report, every row, checkpoint and weight
+digest; recomputes the paired counts; checks score-selected identities and the
+source-calibration checkpoint choice; and matches all bound implementation files.
+Evidence: `~/.aura/rlc-evidence/semantic-native-decisions-fold0-20260925/`.
+
+- Plan: `db24e6b1e668f906a8e7912c16b4fb0a4c089196c7226b28629e26296e9d7b87`.
+- Selected weights: `f9553ce0c30bfdabcddc4aa8c69d1f9eb5adc4646b8949696659a3e86a1ee814`.
+- Report: `9cab030c9f23b32c421cc60d5ddc950e8e04cd35273eddbe96f63d8b759e27de`.
+
+Seventy focused tests pass, including the real resident tokenizer. Smoke passes
+164 tests with one skip; lint, compile, governance, layering and writing pass.
+The cohort is small and exposed. It establishes an exploratory paired gain on
+held wording, not full-development success, fresh family transfer, freely decoded
+public gain or frontier performance. G03 remains open. Whole-graph continuation
+and completion decisions and competition against witnessed wrong programs remain
+the next objective-level checks; the incumbent is not withdrawn.

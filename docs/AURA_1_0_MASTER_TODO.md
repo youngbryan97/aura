@@ -1182,6 +1182,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   15/18 incumbent. One incumbent gain and two regressions reject promotion.
   Exact cached-prefix equivalence, real tokenizer boundaries and the shared
   Metal limit/rollback repair pass 61 focused tests. G03 remains open.
+  Its semantic-decision follow-up reaches 17/18 versus incumbent 15/18 and
+  unfitted 8/18, with zero paired regressions. All observed reachable programs
+  are selected. Seventy focused tests pass; independently checked receipts are
+  linked in the same evidence page. This exposed wording pilot is not full
+  development or fresh semantic-family transfer; G03 remains open.
   [Nested selector and research review](evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md):
   508 source-only inner rows train a selector for a disjoint 256-source outer
   construction fold. It falls from incumbent 179 correct to 108 (5 gains,

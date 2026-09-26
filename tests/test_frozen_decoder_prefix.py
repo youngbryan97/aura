@@ -46,6 +46,10 @@ def test_split_reuses_native_logits_at_every_token(hybrid, tied):
     tokens = mx.array([[1, 4, 2, 9, 5], [5, 3, 7, 1, 2]])
     assert suffix.layers[-1] is model.layers[-1]
     assert mx.allclose(model(tokens), suffix(prefix.capture(tokens)), atol=1e-5).item()
+    batched = prefix.capture(tokens)
+    individual = mx.concatenate([prefix.capture(tokens[index:index + 1])
+                                 for index in range(tokens.shape[0])])
+    assert mx.allclose(batched, individual, atol=1e-5).item()
 
 
 def test_prefix_rejects_training_or_unfrozen_parameters_after_construction():

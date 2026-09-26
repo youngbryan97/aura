@@ -11,13 +11,38 @@ from core.learning.procedure_induction import Instruction, Program
 from core.learning.semantic_program_floor import semantic_program_structural_key
 
 
-def native_program_text(program: Program) -> str:
-    """Serialize a checked graph without its expected value or source family."""
+def native_program_surface(program: Program) -> tuple[str, tuple[tuple[int, int], ...]]:
+    """Serialize the graph and locate its operation and reference decisions."""
     if not isinstance(program, Program) or semantic_program_structural_key(program) is None:
         raise ValueError("native semantic target is outside the existing program grammar")
-    return json.dumps({"inputs": program.n_inputs,
-                       "steps": [[step.op, list(step.args)] for step in program.instructions]},
-                      separators=(",", ":"), ensure_ascii=True, allow_nan=False)
+    parts, spans, position = [], [], 0
+    def append(value: Any, *, atom=False):
+        nonlocal position
+        piece = json.dumps(value, ensure_ascii=True, allow_nan=False) if atom else value
+        if atom:
+            begin, end = position, position + len(piece)
+            if isinstance(value, str):
+                begin, end = begin + 1, end - 1
+            spans.append((begin, end))
+        parts.append(piece)
+        position += len(piece)
+    append('{"inputs":' + str(program.n_inputs) + ',"steps":[')
+    for index, step in enumerate(program.instructions):
+        append("," if index else "")
+        append("[")
+        append(step.op, atom=True)
+        append(",[")
+        for role, reference in enumerate(step.args):
+            append("," if role else "")
+            append(reference, atom=True)
+        append("]]")
+    append("]}")
+    return "".join(parts), tuple(spans)
+
+
+def native_program_text(program: Program) -> str:
+    """Serialize a checked graph without its expected value or source family."""
+    return native_program_surface(program)[0]
 
 
 def parse_native_program(text: str) -> Program:
@@ -61,6 +86,7 @@ class NativeProgramSequence:
 
     tokens: tuple[int, ...]
     continuation_start: int
+    semantic_positions: tuple[int, ...] = ()
 
 
 def native_program_sequence(source: str, program: Program, tokenizer: Any,
@@ -79,7 +105,8 @@ def native_program_sequence(source: str, program: Program, tokenizer: Any,
     )
 
     user = {"role": "user", "content": source}
-    messages = [user, {"role": "assistant", "content": native_program_text(program)}]
+    target, semantic_spans = native_program_surface(program)
+    messages = [user, {"role": "assistant", "content": target}]
     prefix_text = tokenizer.apply_chat_template([user], add_generation_prompt=True, tokenize=False)
     whole_text = tokenizer.apply_chat_template(messages, tokenize=False)
     if (not isinstance(prefix_text, str) or not prefix_text or not isinstance(whole_text, str)
@@ -93,4 +120,12 @@ def native_program_sequence(source: str, program: Program, tokenizer: Any,
                   if end > len(prefix_text)), None)
     if start is None or start < 1:
         raise ValueError("native semantic continuation has no offset-bound token boundary")
-    return NativeProgramSequence(tuple(whole), start)
+    target_start = whole_text.rfind(target)
+    if target_start < len(prefix_text):
+        raise ValueError("native semantic graph has no assistant-owned text span")
+    decisions = tuple(index for index, (begin, end) in enumerate(offsets)
+                      if any(begin < target_start + right and end > target_start + left
+                             for left, right in semantic_spans))
+    if not decisions or any(index < start for index in decisions):
+        raise ValueError("native semantic decisions escaped the continuation")
+    return NativeProgramSequence(tuple(whole), start, decisions)
