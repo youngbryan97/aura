@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 from collections.abc import Iterator
+from collections import defaultdict
 import hashlib
 import random
 import string
@@ -134,6 +135,59 @@ def equivalent_recompositions(program: Any) -> Iterator[Any]:
         if (candidate != program
                 and compare_program_meanings(program, candidate, ())['status'] == 'equivalent'):
             yield candidate
+
+
+def cross_construction_relation_controls(examples: tuple[Any, ...]) -> dict[str, Any]:
+    """Pair shared computation across independent source forms with witnessed rivals.
+
+    The returned pairs are source supervision, not evidence that a decoder
+    recognizes the relation in a new utterance. Contrast lineage never crosses
+    a pair, and a merely type-compatible but unproved rival is not a negative.
+    """
+    from itertools import combinations
+    from core.learning.semantic_candidate_contrasts import source_program_factor_contrasts
+
+    grouped: dict[tuple, dict[str, Any]] = defaultdict(dict)
+    identities = set()
+    for item in examples:
+        if item.split != 'train':
+            raise ValueError('relation controls require source training only')
+        if item.example_id in identities:
+            raise ValueError('relation controls repeat a source identity')
+        identities.add(item.example_id)
+        relation = semantic_program_structural_key(item.program)
+        if relation is None:
+            raise ValueError('relation controls require connected typed programs')
+        current = grouped[relation].get(item.construction_id)
+        if current is None or item.example_id < current.example_id:
+            grouped[relation][item.construction_id] = item
+    pairs = []
+    for relation, by_construction in sorted(grouped.items(), key=lambda row: _sha(row[0])):
+        for left, right in combinations((by_construction[key] for key in sorted(by_construction)), 2):
+            if left.contrast_id == right.contrast_id:
+                continue
+            candidates = source_program_factor_contrasts(
+                left.program, left.inputs,
+                source_sha256=hashlib.sha256(left.source_text.encode('utf-8')).hexdigest())
+            if len(candidates) < 2:
+                continue
+            rival = candidates[1]
+            comparison = compare_program_meanings(left.program, rival,
+                                                  counterfactual_inputs(left.inputs))
+            if comparison['status'] != 'different' or comparison.get('witness') is None:
+                raise ValueError('relation rival lacks a changed-meaning witness')
+            pairs.append({'left': left.example_id, 'right': right.example_id,
+                          'left_construction': left.construction_id,
+                          'right_construction': right.construction_id,
+                          'relation_sha256': _sha(relation),
+                          'positive_program_sha256': left.program.sha(),
+                          'negative_program_sha256': rival.sha(),
+                          'negative_witness': comparison['witness']})
+    body = {'schema': 'aura.semantic_cross_construction_relation_controls.v1',
+            'source_examples': len(identities), 'relations': len(grouped),
+            'cross_construction_pairs': len(pairs), 'pairs': pairs,
+            'validation_or_test_examples_used': 0, 'serving_authority': False}
+    return {**body, 'receipt_sha256': _sha(body)}
 
 
 def augment_source_programs(

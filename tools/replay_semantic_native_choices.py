@@ -29,6 +29,7 @@ def replay(policy, bank_directory, native_directories):
             or policy.get("serving_authority") is not False
             or policy.get("qualification_evidence") is not False
             or not isinstance(policy.get("schema_memory_counts"), dict)
+            or not isinstance(policy.get("motif_memory_counts"), dict)
             or policy.get("selector") is None
             or policy["selector_report"].get("admitted") is not True):
         raise ValueError("combined native selector lacks source-only admission")
@@ -82,7 +83,8 @@ def replay(policy, bank_directory, native_directories):
                 incumbent_available=bank["bank"]["selected_program_sha256"] is not None)
             rows.append(row)
         selected = select_combined(selector, bank, rows, source_ref=source,
-            schema_memory_counts=policy["schema_memory_counts"])
+            schema_memory_counts=policy["schema_memory_counts"],
+            motif_memory_counts=policy["motif_memory_counts"])
         incumbent = bank["bank"]["selected_program_sha256"]
         outcomes.append({"source": source, "selected_program_sha256": selected,
             "incumbent_program_sha256": incumbent,

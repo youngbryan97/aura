@@ -478,3 +478,59 @@ independent significance test or a proof of semantic impossibility. Receipt:
 The selector remains unadmitted with no admission gain. The next representation
 must compare source-bound role/dependency relations directly, and must show
 held-group improvement against role-flip and surface-preserving controls.
+
+## Role binding and partial structural precedent
+
+Candidate evidence now compares each source-annotated argument definition with
+the origin of the register that the executable program actually uses. It
+separates input-role bindings from intermediate-result dependencies; absolute
+token positions are not selector inputs. On this source cohort, adding that
+feature changes the independent calibration Brier from 0.15694262 to
+0.15692149, but held admission remains zero gains and zero switches. The
+construction probe is still 0.75309 balanced accuracy versus a 0.202088
+permutation mean. Receipt:
+`/Users/bryan/.aura/rlc-evidence/semantic-native-combined-binding-20260925.json`.
+
+The selector now also receives frozen, source-fit-only precedent for connected
+typed subcomputations. Correct and incorrect fit programs are counted
+separately by construction group, with a fit row's own group removed from its
+features. This permits a partial A-to-B structural bridge without claiming
+that shared subgraphs make entire programs equivalent. The frozen memory
+contains 143 motifs. Source-only Brier is 0.1573255 and held admission is
+still zero gains, zero switches. Receipt:
+`/Users/bryan/.aura/rlc-evidence/semantic-native-combined-motif-20260925.json`.
+Neither feature is promoted. These observations reject the present numeric
+source-binding and subgraph-precedent representation as a sufficient answer to
+unseen-family selection; adding more threshold gates would not repair it.
+
+The broader suggestions map partly to existing runtime code rather than new
+modules: `semantic_counterfactual_corpus.py` makes name/order-preserving and
+witnessed role/operation-changing source examples;
+`semantic_candidate_contrasts.py` supplies typed witnessed negatives;
+`semantic_program_floor.py` executes/composes exact programs;
+`core/cognition/structure_mapping.py` aligns typed relation graphs. Earlier
+full-request contextual recognition is recorded in
+`G03_CONTEXT_AND_PORTFOLIO_2026-09-21.md`. None establishes that the current
+selector can infer an unseen utterance's intended relation. A next training
+experiment must provide independent matched same-relation/different-surface
+examples and relation-flip controls to the learned source representation,
+then hold complete construction families out. The exposed validation fold
+cannot be reused as fresh transfer evidence.
+
+## Matched source relation controls
+
+The existing counterfactual corpus now produces an explicit cross-construction
+control inventory. A positive pair requires two independent source-training
+examples in different construction families with the same connected typed
+program relation. A negative is a type-correct rival on the same source whose
+changed output is witnessed by the existing floor comparison. Equal lineage,
+unproved rivals, and validation/test examples cannot enter. On the established
+seed-24 program-first source corpus, 640 training examples yield 56 relations
+and 560 cross-construction pairs. Receipt SHA-256:
+`64e7c30511cb8c540136cf1c472c140b82a374c3e37c11001cc26b9747509f62`.
+This inventory is callable source supervision and an acceptance contract for
+the proposed relational learner. It has not trained a model, measured an
+unseen construction, or changed serving. The preexisting native contrastive
+objective only contrasts programs within a source; the cross-construction
+positive relation still needs a source-hidden-state training consumer and a
+separately frozen held-family test.
