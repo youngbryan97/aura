@@ -148,3 +148,42 @@ def test_a_rule_she_has_named_is_not_wiped_by_a_tighter_crop() -> None:
         rules.watched(before, "left", after)
     assert rules.rule() is not None, rules.says()
     assert rules.seen >= seen, f"{rules.says()} — was {named}"
+
+
+def test_the_first_grid_built_is_not_a_different_one_when_she_read_through_it() -> None:
+    """From no grid at all to the one her readings were laid into is no change.
+
+    On the real app, 26 Sep: the first grid built from what moves went from
+    none to four by four, the shape every reading had been laid into from the
+    start, and eleven moves of a rule right on every one were wiped.
+    """
+    from types import SimpleNamespace
+
+    from core.perception.the_lattice_she_holds import TheLatticeSheHolds
+    from core.perception.what_moves_within_itself import MovesWithinItself
+    from core.perception.where_it_responds import Responsive
+    from core.skills.screen_pursuit_decision_reading import _decide_the_next_move_part_4
+
+    rules = HowItMoves()
+    for _ in range(12):
+        before = _board([[2, 2, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 0, 0]])
+        after = _board([[4, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [8, 0, 0, 0]])
+        rules.watched(before, "left", after)
+    assert rules.read_through == (4, 4)
+    counted = rules.seen
+
+    # Where things moved about, every place of a four by four, over acts.
+    moving = MovesWithinItself()
+    places = [(20 + 15 * column, 30 + 12 * row) for row in range(4) for column in range(4)]
+    state = Responsive()
+    state.tried = {"left", "right", "up", "down"}
+    responds = {"lattice": TheLatticeSheHolds(), "moving": moving, "state": state}
+    for turn in range(12):
+        shown = {where: str(2 ** (1 + (index + turn) % 5)) for index, where in enumerate(places)}
+        moved = {where: shown[places[(index + 1) % len(places)]] for index, where in enumerate(places)}
+        moving.saw(shown, moved)
+        _decide_the_next_move_part_4(
+            SimpleNamespace(rules=rules), responds["lattice"], ("left", "right", "up", "down"), responds
+        )
+    assert (responds["lattice"].rows, responds["lattice"].columns) == (4, 4)
+    assert rules.seen == counted, "a grid the same shape as her counts' did not wipe them"
