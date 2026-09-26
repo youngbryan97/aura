@@ -39,7 +39,7 @@ def test_combined_features_ignore_target_labels_and_construction_names():
     rows[0].update(selected_correct=False, incumbent_correct=True, construction="different")
     assert combined_views(bank, rows) == before
     incumbent, choices, views = before
-    assert incumbent == keys[0] and choices == tuple(keys[::-1])
+    assert incumbent == keys[0] and choices == tuple(keys)
     assert set(views[keys[0]]) == set(views[keys[1]])
     assert not any("correct" in name or "construction" in name for name in views[keys[0]])
 
@@ -66,6 +66,42 @@ def test_joint_and_unfitted_successes_are_available_without_an_outcome_oracle():
     assert incumbent == keys[0]
     assert set(choices) == {*keys, key}
     assert set(views) == set(choices)
+
+
+def test_nonwinning_measured_program_remains_a_choice():
+    bank, rows, keys = fixture()
+    program = Program(2, (Instruction("mul", (0, 1)),))
+    key = program.sha()
+    bank["bank"]["candidates"].append({"program_sha256": key, "joint_score": -5.,
+        "program": {"instructions": [["mul", [0, 1]]], "sha": key}})
+    rows[0]["program_sha256s"] = [*keys, key]
+    rows[0]["scores"] = [-3., -1., -4.]
+    rows[0]["pretrained_scores"] = [-1., -2., -3.]
+    assert combined_views(bank, rows)[1] == (*keys, key)
+
+
+def test_source_relationships_are_candidate_evidence_not_diagnosis():
+    bank, rows, keys = fixture()
+    candidate = bank["bank"]["candidates"][1]
+    candidate.update(operation_spans=[{"start": 2, "end": 5}],
+                     argument_spans=[[{"start": 8, "end": 10},
+                                      {"start": 12, "end": 14}]],
+                     definition_spans=[[{"start": 8, "end": 10},
+                                       {"start": 2, "end": 5}]],
+                     definition_provenance="optimizer_selected")
+    first = combined_views(bank, rows)[2][keys[1]]
+    assert first["source_span_available"] == 1.
+    assert first["source_relation_available"] == 1.
+    assert first["source_relation_overlap"] == .5
+    assert first["selected_definition_paths"] == 1.
+    bank["diagnosis"] = {"comparisons": [{"program_sha256": keys[1],
+                                             "status": "equivalent"}]}
+    assert combined_views(bank, rows)[2][keys[1]] == first
+    candidate["definition_spans"][0][1] = {"start": 12, "end": 14}
+    assert combined_views(bank, rows)[2][keys[1]]["source_relation_overlap"] == 1.
+    candidate["operation_spans"] = [{"start": -1, "end": 5}]
+    with pytest.raises(ValueError):
+        combined_views(bank, rows)
 
 
 @pytest.mark.parametrize("defect", ["inventory", "incumbent", "nonfinite", "program"])
@@ -114,6 +150,23 @@ def test_source_partitions_preserve_groups_and_exclude_checkpoint_selection_inst
             partition_source_rows(bad, excluded_ids=set())
     with pytest.raises(ValueError):
         partition_source_rows(rows, excluded_ids={"absent"})
+
+
+def test_calibration_reports_groups_lost_to_checkpoint_selection():
+    rows = population()
+    extra = copy.deepcopy([row for row in rows if row["construction"] == "group-5"])
+    for row in extra:
+        row["source"] = row["source"].replace("5-", "6-", 1)
+        row["construction"] = "group-6"
+    rows.extend(extra)
+    excluded = {row["source"] for row in rows if row["construction"] == "group-6"}
+    result = calibrate(rows, excluded_ids=excluded)
+    coverage = result["construction_coverage"]
+    assert coverage["source_groups"]["group-6"] == 24
+    assert "group-6" not in coverage["eligible_groups"]
+    assert coverage["excluded_groups"] == ["group-6"]
+    assert {group for split in coverage["split_groups"] for group in split} == {
+        f"group-{index}" for index in range(6)}
 
 
 def test_existing_selector_can_admit_a_measured_combined_gain():

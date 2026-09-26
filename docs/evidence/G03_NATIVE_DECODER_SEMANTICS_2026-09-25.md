@@ -377,3 +377,34 @@ architecture diagnostic, not a learned policy, fresh test or qualification.
 Three cases still have no observed equivalent proposal. Sixty-nine focused
 checks pass across the adapter, selector, replay, proposer and the newly merged
 numeric-answer acceptance repair. No G03 checkbox closes.
+
+## Full source-only native scoring and selector coverage
+
+The decision checkpoint scored all 185 source-calibration banks with zero fit
+updates. Its top choice is correct on 116 cases versus 122 for the incumbent:
+29 gains and 35 regressions. The complete receipt is
+`/Users/bryan/.aura/rlc-evidence/semantic-native-decisions-source-calibration-20260925/report.json`.
+It is source-only measurement, not held replay or a serving decision.
+
+The combined adapter now lets the existing calibrated scorer rank every
+measured executable typed program, not only the fitted, pretrained and joint
+argmaxes. It also exposes candidate-relative source operation/argument/
+definition spans and path counts. Diagnosis labels and construction names
+remain outside the feature view. Twenty-three focused selector tests pass.
+
+Calibration on the complete source bank admitted the binary correctness scorer
+(Brier 0.16699782 versus 0.2719135 for a constant predictor on its separate
+calibration split). It did **not** admit a selection policy: the admission split
+made zero switches, zero gains and zero regressions. Its source-only receipt is
+`/Users/bryan/.aura/rlc-evidence/semantic-native-combined-source-coverage-20260925.json`.
+No held replay or promotion follows from an unadmitted policy.
+
+The receipt now reports construction coverage separately from accuracy. Eight
+groups occur in the 185 scored rows, but excluding the 23 checkpoint-selection
+instances removes every eligible example from two small groups
+(`counterfactual`, 3; `natural_alias_source`, 2). The remaining six groups are
+kept disjoint across fit/tune/admission, with 74/74/14 examples. Thus this
+experiment tests transfer across the eligible groups only; it has no arbiter
+admission evidence for the two excluded groups, and its small admission split
+does not support a broad cross-family claim. Further source groups and
+independent admission cases are required, not a relabeling of excluded cases.

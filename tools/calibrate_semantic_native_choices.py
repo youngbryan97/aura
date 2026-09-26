@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import hashlib
 import math
 import sys
@@ -49,6 +50,7 @@ def combined_views(bank, native_rows):
     if not keys or any(row["program_sha256s"] != keys for row in native_rows):
         raise ValueError("native methods must score the identical proposal inventory")
     candidates = {}
+    paths = {}
     for candidate in bank["bank"]["candidates"]:
         key = candidate["program_sha256"]
         payload = candidate["program"]
@@ -57,15 +59,74 @@ def combined_views(bank, native_rows):
         if (program.sha() != key or payload["sha"] != key
                 or semantic_program_structural_key(program) is None):
             raise ValueError("combined native choice is not an executable typed program")
+        paths.setdefault(key, []).append(candidate)
         if key not in candidates or (candidate["joint_score"] is not None and (
                 candidates[key]["joint_score"] is None
                 or candidate["joint_score"] > candidates[key]["joint_score"])):
             candidates[key] = candidate
-    if not set(keys) <= set(candidates):
+    if set(keys) != set(candidates):
         raise ValueError("native scored program is absent from its source bank")
     joint = [candidates[key]["joint_score"] for key in keys
              if candidates[key]["joint_score"] is not None]
     maximum = max(joint) if joint else None
+    joint_winner = (max((key for key in keys if candidates[key]["joint_score"] is not None),
+                        key=lambda key: (candidates[key]["joint_score"], key))
+                    if maximum is not None else None)
+
+    def midpoint(span):
+        if (not isinstance(span, dict) or type(span.get("start")) is not int
+                or type(span.get("end")) is not int
+                or not 0 <= span["start"] < span["end"]):
+            raise ValueError("candidate source evidence span is invalid")
+        return (span["start"] + span["end"]) / 2
+
+    source_spans = []
+    for variant in bank["bank"]["candidates"]:
+        for field in ("operation_spans", "argument_spans", "definition_spans"):
+            rows = variant.get(field)
+            if rows is not None:
+                source_spans.extend(rows if field == "operation_spans"
+                                    else (span for row in rows for span in row))
+    for span in source_spans:
+        midpoint(span)
+    source_scale = max((span["end"] for span in source_spans), default=1)
+
+    def path_evidence(variants, depth):
+        anchors = []
+        distances = []
+        overlaps = []
+        selected_definitions = 0
+        for variant in variants:
+            operations = variant.get("operation_spans")
+            mentions = variant.get("argument_spans")
+            definitions = variant.get("definition_spans")
+            if operations is None:
+                continue
+            if len(operations) != depth:
+                raise ValueError("candidate operation evidence differs from its graph")
+            anchors.extend(operations)
+            selected_definitions += variant.get("definition_provenance") == "optimizer_selected"
+            if mentions is None or definitions is None:
+                continue
+            if len(mentions) != len(definitions) or len(mentions) != len(operations):
+                raise ValueError("candidate source evidence differs from its graph")
+            for mentioned, defined in zip(mentions, definitions, strict=True):
+                if len(mentioned) != len(defined):
+                    raise ValueError("candidate source roles differ")
+                for left, right in zip(mentioned, defined, strict=True):
+                    distances.append(abs(midpoint(left) - midpoint(right)))
+                    overlaps.append(float(min(left["end"], right["end"])
+                                          > max(left["start"], right["start"])))
+                    anchors.extend((left, right))
+        return {"source_evidence_paths": float(len(variants)),
+                "source_span_available": float(bool(anchors)),
+                "source_relation_available": float(bool(distances)),
+                "source_relation_distance": (sum(distances) / len(distances) / source_scale
+                                             if distances else 0.),
+                "source_relation_overlap": (sum(overlaps) / len(overlaps)
+                                            if overlaps else 0.),
+                "selected_definition_paths": float(selected_definitions)}
+
     views = {}
     for index, key in enumerate(keys):
         candidate = candidates[key]
@@ -73,7 +134,9 @@ def combined_views(bank, native_rows):
         values = {"executable_program": 1., "candidate_count": float(len(keys)),
                   "program_depth": float(len(candidate["program"]["instructions"])),
                   "joint_evidence_available": float(score is not None),
-                  "joint_gap": float(maximum - score) if score is not None else 0.}
+                  "joint_gap": float(maximum - score) if score is not None else 0.,
+                  "joint_winner": float(key == joint_winner),
+                  **path_evidence(paths[key], len(candidate["program"]["instructions"]))}
         for method, row in enumerate(native_rows):
             for field in ("scores", "pretrained_scores"):
                 scores = row[field]
@@ -81,18 +144,15 @@ def combined_views(bank, native_rows):
                     raise ValueError("native score vector differs from its program inventory")
                 values[f"method_{method}_{field}"] = float(scores[index])
                 values[f"method_{method}_{field}_gap"] = float(max(scores) - scores[index])
+                values[f"method_{method}_{field}_winner"] = float(
+                    key == keys[max(range(len(scores)), key=scores.__getitem__)])
         if any(not math.isfinite(value) for value in values.values()):
             raise ValueError("combined native evidence is nonfinite")
         views[key] = values
     incumbent = bank["bank"]["selected_program_sha256"]
     if incumbent is not None and keys[0] != incumbent:
         raise ValueError("native score inventory lost its ordinary incumbent")
-    proposals = [key for row in native_rows for key in (
-        row["chosen_program_sha256"], row["pretrained_program_sha256"])]
-    if maximum is not None:
-        proposals.append(max((key for key in keys if candidates[key]["joint_score"] is not None),
-                             key=lambda key: (candidates[key]["joint_score"], key)))
-    choices = tuple(dict.fromkeys(proposals))
+    choices = tuple(keys)
     if incumbent not in views or any(key not in views for key in choices):
         return None
     return incumbent, choices, views
@@ -220,6 +280,16 @@ def calibrate(rows, *, excluded_ids, seed=0):
     )
 
     fit, tune, admission = partition_source_rows(rows, excluded_ids=excluded_ids, seed=seed)
+    all_groups = Counter(row["construction"] for row in rows)
+    eligible_groups = Counter(row["construction"] for row in rows
+                              if row["source"] not in excluded_ids)
+    coverage = {
+        "source_groups": dict(sorted(all_groups.items())),
+        "eligible_groups": dict(sorted(eligible_groups.items())),
+        "excluded_groups": sorted(set(all_groups) - set(eligible_groups)),
+        "split_groups": [dict(sorted(Counter(row["construction"] for row in population).items()))
+                         for population in (fit, tune, admission)],
+    }
     def binary(population):
         observations = []
         for row in population:
@@ -255,6 +325,7 @@ def calibrate(rows, *, excluded_ids, seed=0):
             admission_rows=pairwise(admission), maximum_regressions=0)
     return {"split_ids": [[row["source"] for row in population]
                            for population in (fit, tune, admission)],
+            "construction_coverage": coverage,
             "excluded_checkpoint_calibration_ids": sorted(excluded_ids),
             "scorer_report": scorer_report, "selector_report": selector_report,
             "selector": selector.to_dict() if selector is not None else None}
