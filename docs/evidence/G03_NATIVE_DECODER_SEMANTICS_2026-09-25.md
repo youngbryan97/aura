@@ -661,3 +661,15 @@ receipt is `~/.aura/rlc-evidence/semantic-native-metric-full-replay-fold0-202609
 (`ebff1ff357a92960e60c46c2f86b8c52d87bfd8bde9c34d074ea69ed137d0dbf`).
 These 18 utterances are an exposed development subset. This result neither
 establishes fresh-family transfer nor qualifies a serving configuration.
+
+The same frozen step-256 checkpoint was replayed, without further updates,
+against all 50 held utterances in this fold. It selected 46/50 correctly,
+versus 41/50 for the incumbent and 26/50 for the unfitted native suffix:
+five paired gains and zero regressions. The candidate bank reached 47/50.
+Three failures share one arithmetic construction and lack a correct bank
+candidate; the remaining reserved-alias failure has a reachable correct
+candidate. The independent replay receipt is
+`~/.aura/rlc-evidence/semantic-native-metric-full-replay50-fold0-20260926/report.json`
+(`c890680e5c442686db24493642b0afc2cbd5af7c28ef82d867a03d99f946d5a5`).
+This completes this fold's exposed held readout. It is still one known
+construction partition, with no fresh-family or broad reasoning claim.
