@@ -54,6 +54,7 @@ from core.conversation.arithmetic_check import (
     arithmetic_answer_matches,
     requested_arithmetic_result,
 )
+from core.conversation.asked_scale import answers_the_scale_it_was_asked_for
 from core.conversation.escaped_controls import has_escaped_whitespace_artifact
 from core.conversation.ontology_grounding import detect_unsupported_embodiment_claim
 from core.conversation.request_coverage import unanswered_question_parts
@@ -8581,7 +8582,8 @@ def _assess_operational_status_reply(exact_reply, memory_pin_confirmation, opera
     elif is_self_condition_turn(user_message):
         if _LOW_SIGNAL_REASSURANCE_RE.match(raw):
             reasons.append("low_signal_self_condition_reply")
-        elif not _host_telemetry_substitutes_for_self_condition(user_message, raw) and not _has_self_condition_substance(raw):
+        elif not _host_telemetry_substitutes_for_self_condition(user_message, raw) and not _has_self_condition_substance(raw) \
+                and not answers_the_scale_it_was_asked_for(user_message, raw):  # a number on the scale asked for answers it
             reasons.append("missing_self_condition_answer")
     elif operational_status_turn:
         if not _has_operational_status_substance(user_message, raw):
