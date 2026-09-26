@@ -101,9 +101,15 @@ def test_a_workable_board_is_judged_better_than_an_unworkable_one():
     assert how_good(tidy, toward="2048") > how_good(scattered, toward="2048")
 
 
-def test_the_weight_is_the_one_that_was_measured():
-    """0.4 is the peak; 1.0 turns back. See the module docstring."""
-    assert SMOOTHNESS_MATTERS == pytest.approx(0.4)
+def test_the_weight_is_not_one_worlds_answer():
+    """0.4 was the peak on 2048, and every world was judged by it.
+
+    Every term now starts level and each world's own weighting is played out
+    in her model of it; the 2048 table is kept in how_good_is_this as a record.
+    """
+    from core.agency.how_good_is_this import ROOM_MATTERS
+
+    assert SMOOTHNESS_MATTERS == ROOM_MATTERS == 1.0
 
 
 def test_ordered_and_unworkable_is_told_from_ordered_and_workable():

@@ -15,7 +15,7 @@ something that can be checked against a state. Scoring a future by whether it
 satisfies the line she is holding is what makes the plan cause the moves
 rather than accompany them.
 
-Two smaller terms are older than either, and both are about what a situation
+Two more terms are older than either, and both are about what a situation
 affords rather than about what is wanted from it. Room to act: a situation
 with more space left in it affords more of whatever comes next — true of a
 board, a form, a queue and a disk. And order: a thing whose contents run in
@@ -44,20 +44,17 @@ logger = logging.getLogger("Aura.HowGoodIsThis")
 
 __all__ = ["ROOM_MATTERS", "bound_to", "how_good", "worth_comparing"]
 
-#: What having somewhere left to act is worth, beside being closer to the goal
-#: and beside holding the line she said she would hold. Small on purpose: room
-#: is what lets a plan continue, not a reason to do anything in particular.
-ROOM_MATTERS = 0.15
-
-#: What running in order is worth. Level with room, because the two are the
-#: same kind of thing: a situation is easier to work in for having either, and
-#: neither says anything about what she is trying to do.
-ORDER_MATTERS = 0.15
-
-#: What it is worth for neighbouring things to be near each other in value.
+#: What each of these is worth before she has played a world is the same, and
+#: nought of it is a finding. The right weighting is a fact about the world:
+#: room matters enormously where things fill up and not at all where they do
+#: not, and neighbours being close in value matters only where equals combine.
+#: So every term starts level, and `working_out_what_matters` finds each
+#: world's own weighting by playing it out in her model of it.
 #:
-#: Measured, not chosen. Six games at each weight, run to a dead board, the
-#: same seeds, with her line held and the world model on:
+#: These used to be written down: room and order at 0.15 by choice, and
+#: smoothness at 0.4 because 2048 said so. What 2048 said, six games at each
+#: weight, run to a dead board, the same seeds, with her line held and the
+#: world model on (2026-08):
 #:
 #:     smoothness    median best tile    total
 #:            0.0                1024     2133
@@ -65,11 +62,7 @@ ORDER_MATTERS = 0.15
 #:            0.4                2048     4020
 #:            1.0                1536     2463
 #:
-#: The median best tile DOUBLES, and totals do too. Past this it turns back:
-#: closeness bought at the price of progress is a board that is easy to work
-#: in and going nowhere.
-#:
-#: Asked for a 4096 instead, eight games each and room to play them out:
+#: and asked for a 4096 instead, eight games each:
 #:
 #:     smoothness    median best tile    best seen
 #:            0.3                2048         4096
@@ -78,11 +71,19 @@ ORDER_MATTERS = 0.15
 #:
 #: A 4096 tile is reachable, and it is not the ordinary case. What to say
 #: about her play is that she reaches 2048 as a rule and 4096 on a good run.
-SMOOTHNESS_MATTERS = 0.4
+#:
+#: That is one world's answer, and it was every world's weighting. Measured
+#: 2026-09-25 in her own model of 2048 at a fixed depth of two, six games
+#: each: every term level reached 1024, 1024, 512, 1024, 2048, 512 and the
+#: 2048 weighting 512, 1024, 2048, 2048, 512, 1024: typical 912 against 1024,
+#: inside the spread of either, so starting level costs 2048 little.
+ROOM_MATTERS = 1.0
+ORDER_MATTERS = 1.0
+SMOOTHNESS_MATTERS = 1.0
 
-#: What holding her own stated line is worth. Level with nearness to the goal,
-#: because a line she is holding is her judgement about how the goal is reached
-#: and discounting it would make the plan decorative.
+#: What holding her own stated line is worth. Level with everything else, and
+#: never less: a line she is holding is her judgement about how the goal is
+#: reached, and discounting it would make the plan decorative.
 LINE_MATTERS = 1.0
 
 #: A target written as a number, which is the case where nearness is
@@ -150,7 +151,9 @@ def worth_comparing(toward: str, approach: str) -> bool:
     goal nor a line she is holding has no business ranking futures, and should
     act and look instead.
     """
-    return bool(_target(toward)) or bool(str(approach or "").strip())
+    from core.agency.what_she_is_after import goal_in  # noqa: PLC0415
+
+    return goal_in(toward).names_something() or bool(str(approach or "").strip())
 
 
 def terms(
@@ -192,9 +195,7 @@ def terms(
 
 
 #: What being able to keep going is worth before she has learned what it is
-#: worth here. High, and deliberately: a state she cannot leave ends the run
-#: whatever else was true of it, so nothing else she can measure is worth
-#: having if this is nought.
+#: worth here. Level with the rest, like every term before a world is played.
 FREEDOM_MATTERS = 1.0
 
 #: What each thing is worth when nothing has been learned about this world.
@@ -325,10 +326,9 @@ def forget(name: str) -> bool:
 
 
 #: What going somewhere she has not been is worth before anything has been
-#: learned about it. Equal to nearness, and deliberately: in a world she has
-#: not mapped, finding out where things are and getting nearer to what she
-#: wants are the same activity, and which of them matters more here is
-#: something `what_matters_here` measures rather than something anybody sets.
+#: learned about it. Level with the rest: in a world she has not mapped,
+#: finding out where things are and getting nearer to what she wants are the
+#: same activity, and which matters more here is measured, not set.
 NEWNESS_MATTERS = 1.0
 
 AS_GOOD_A_GUESS_AS_ANY: dict[str, float] = {
@@ -382,8 +382,13 @@ def rank(
 
 def why(state: Any, *, toward: str = "", approach: str = "") -> str:
     """What makes this situation the one she picked, in a line she can say."""
+    from core.agency.what_she_is_after import goal_in  # noqa: PLC0415
+
     parts: list[str] = []
     target = _target(toward)
+    layout = goal_in(toward).layout
+    if layout:
+        parts.append(f"{goal_in(toward).nearness(state):.0%} of the way to the layout")
     if target:
         biggest = _biggest(state)
         if biggest >= target:
@@ -404,21 +409,14 @@ def why(state: Any, *, toward: str = "", approach: str = "") -> str:
 def _nearness(state: Any, toward: str) -> float:
     """How near this is to what she was asked for, where that is computable.
 
-    On a scale where reaching it is one. Doubling is the step that matters in
-    anything built by combining, and a plain ratio makes every early move look
-    like nothing, so nearness is counted in doublings.
+    On a scale where reaching it is one. A number to reach is counted in
+    doublings, because doubling is the step that matters in anything built by
+    combining; a layout to make is counted in steps each thing is from its
+    place. See core/agency/what_she_is_after.py.
     """
-    target = _target(toward)
-    if not target:
-        return 0.0
-    biggest = _biggest(state)
-    if biggest <= 0:
-        return 0.0
-    if biggest >= target:
-        return 1.0
-    from math import log2
+    from core.agency.what_she_is_after import goal_in  # noqa: PLC0415
 
-    return max(0.0, min(1.0, log2(biggest) / log2(target)))
+    return goal_in(toward).nearness(state)
 
 
 def _holds_her_line(state: Any, approach: str) -> float:

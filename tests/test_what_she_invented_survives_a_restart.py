@@ -47,11 +47,20 @@ def _a_clean_mind(tmp_path, monkeypatch):
 
     monkeypatch.setattr(what_she_invented, "_KEPT_AT", tmp_path / "properties.json")
     monkeypatch.setattr(what_she_gave_meaning, "_KEPT_AT", tmp_path / "meanings.json")
+    from core.agency.how_good_is_this import AS_GOOD_A_GUESS_AS_ANY
+
     held, kinds, trials = dict(INVENTED), dict(KINDS), dict(ON_TRIAL)
+    # What each is worth lives beside the measures, and a property promoted
+    # here and cleared from INVENTED left its weight behind: every later test
+    # that asked for the standing weights got a term nothing could read
+    # (2026-09-25, two failures that passed alone).
+    worth = dict(AS_GOOD_A_GUESS_AS_ANY)
     INVENTED.clear()
     KINDS.clear()
     ON_TRIAL.clear()
     yield
+    AS_GOOD_A_GUESS_AS_ANY.clear()
+    AS_GOOD_A_GUESS_AS_ANY.update(worth)
     INVENTED.clear()
     INVENTED.update(held)
     KINDS.clear()

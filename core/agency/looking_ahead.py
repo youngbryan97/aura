@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Collection
 from typing import Any, Sequence
 
 from core.agency.how_good_is_this import how_good, why
@@ -314,8 +315,16 @@ def look_ahead(
     depth: int = 0,
     settles_how_far: bool = True,
     no_deeper_than: int = 0,
+    been_before: Collection[str] = (),
 ) -> dict[str, tuple[float, str]]:
     """Every move available, scored by where it leads and how sure that is.
+
+    ``been_before`` is every situation she has really been in, as readings.
+    The search already refuses to count going back along the line it is
+    imagining as progress; this carries the same refusal back through the
+    moves she has made. In a world where every act can be undone — a sliding
+    puzzle — a search that only remembers the line it is imagining walks the
+    same few boards for ever, each one looking fresh from where she stands.
 
     ``settles_how_far`` is False for a quick look taken inside another
     decision, whose shallow depth says nothing about how far she can see.
@@ -376,8 +385,11 @@ def look_ahead(
         weighed = weights if weights is not None else _default_weights()
         return -(1.0 + sum(abs(float(value)) for value in weighed.values()))
 
+    before = frozenset(str(seen) for seen in been_before)
+
     def one_pass(how_far: int) -> dict[str, tuple[float, str]]:
         found: dict[str, tuple[float, str]] = {}
+        back: dict[str, tuple[float, str]] = {}
         for action in actions:
             future = known.what_it_becomes(expect, state, action)
             if future is None or _reading(future) == here_now:
@@ -396,10 +408,18 @@ def look_ahead(
                 expect, future, actions, how_far,
                 toward=toward, approach=approach, world=world,
                 weights=weights, known=known, knows=knows,
-                been=frozenset({here_now}), dead=dead_end(),
+                been=frozenset({here_now}) | before, dead=dead_end(),
             )
-            found[action] = (value, why(future, toward=toward, approach=approach))
-        return found
+            scored_here = (value, why(future, toward=toward, approach=approach))
+            if _reading(future) in before:
+                back[action] = scored_here
+            else:
+                found[action] = scored_here
+        # Somewhere she has not been is taken over somewhere she has, whatever
+        # each looks worth from here: a board she has stood on already led
+        # where it led. Only when every way leads back does she go back, and
+        # then to the best of them — the way anyone gets out of a dead end.
+        return found or back
 
     # Deeper while the clock allows, rather than a guess at how deep it will
     # allow.
@@ -459,6 +479,24 @@ def _how_many_ways(world: Any, state: Any) -> int:
         return 1
 
 
+def arriving(weights: Any) -> float:
+    """What reaching the goal is worth: above anything a situation short of it can score.
+
+    Every term reads between nought and one, so no situation can score more
+    than the weights added up. The mirror of a dead end, which scores below
+    anything a live one can.
+    """
+    weighed = weights if weights is not None else _default_weights()
+    return 1.0 + sum(abs(float(value)) for value in weighed.values())
+
+
+def _arrived(state: Any, toward: str) -> bool:
+    from core.agency.what_she_is_after import goal_in  # noqa: PLC0415
+
+    goal = goal_in(toward)
+    return goal.names_something() and goal.reached(state)
+
+
 def _default_weights() -> dict[str, float]:
     from core.agency.how_good_is_this import AS_GOOD_A_GUESS_AS_ANY  # noqa: PLC0415
 
@@ -492,7 +530,16 @@ def _what_it_leads_to(
     rewards looking good over ending well. Measured 2026-09-17 on a sliding
     board with the same terms and weights: judged at the far end, 2048 in
     fifteen games of sixteen; with each level added in, three of six.
+
+    A situation where what she was asked for is reached ends the line, and is
+    worth more than anything short of it — more the sooner it comes. Judged
+    only at the far end, a line that reached the goal and kept moving was
+    worth wherever it wandered to next, and the deeper she looked the more
+    such lines she found: a sliding puzzle solved four times in four at seven
+    moves ahead and once in four at ten (2026-09-25).
     """
+    if _arrived(state, toward):
+        return arriving(weights) + depth
     if depth <= 1:
         return (
             known.what_it_is_worth(
@@ -680,10 +727,31 @@ def _through_a_compiled_world(
         return value
 
     dead = -(1.0 + sum(abs(float(value)) for value in weighed.values()))
+    from core.agency.what_she_is_after import goal_in  # noqa: PLC0415
+
+    goal = goal_in(toward)
+    if goal.number:
+        # The symbols that are the goal or past it, kept as the search meets
+        # new ones, so asking a board is one set lookup and not a scan.
+        enough: dict[str, Any] = {"known": 0, "symbols": frozenset()}
+
+        def arrived(board: tuple[int, ...]) -> bool:
+            if len(made.values) != enough["known"]:
+                enough["known"] = len(made.values)
+                enough["symbols"] = frozenset(
+                    symbol for symbol, value in enumerate(made.values)
+                    if value is not None and value >= goal.number
+                )
+            return not enough["symbols"].isdisjoint(board)
+    elif goal.layout:
+        def arrived(board: tuple[int, ...]) -> bool:
+            return goal.reached(as_arrangement(board))
+    else:
+        arrived = None
     started = time.monotonic()
     scored, reached = search(
         made, state, actions, budget_s=budget_s, worth=worth, dead=dead, fixed_depth=depth,
-        no_deeper_than=no_deeper_than,
+        no_deeper_than=no_deeper_than, arrived=arrived, arrival=arriving(weighed),
     )
     if settles_how_far:
         _SAW["acts"] = int(reached) if scored else 0

@@ -66,6 +66,18 @@ class CompiledWorld:
     how_often: float = 0.0
     line_places: dict[str, list[list[int]]] = field(default_factory=dict)
     targets: dict[str, float] = field(default_factory=dict)
+    #: Which way each of her acts pushes, by her own account of it. Everything
+    #: below works in ways; only ``act`` and ``acts_that_push`` know names.
+    ways: dict[str, str] = field(default_factory=dict)
+
+    def way_of(self, action: str) -> str:
+        """The way this act pushes, or empty for an act that pushes no way she knows."""
+        if self.ways:
+            return self.ways.get(action, "")
+        return action if action in _PUSHES else ""
+
+    def acts_that_push(self, actions: Sequence[str]) -> list[str]:
+        return [action for action in actions if self.way_of(action)]
 
     # ── symbols ──────────────────────────────────────────────────────────
 
@@ -102,24 +114,24 @@ class CompiledWorld:
 
     # ── acting ───────────────────────────────────────────────────────────
 
-    def _lines(self, action: str) -> list[list[int]]:
-        known = self.line_places.get(action)
+    def _lines(self, way: str) -> list[list[int]]:
+        known = self.line_places.get(way)
         if known is not None:
             return known
-        down, _across = _PUSHES[action]
+        down, _across = _PUSHES[way]
         if down == 0:
             made = [[row * self.columns + column for column in range(self.columns)] for row in range(self.rows)]
         else:
             made = [[row * self.columns + column for row in range(self.rows)] for column in range(self.columns)]
-        self.line_places[action] = made
+        self.line_places[way] = made
         return made
 
-    def _line_after(self, action: str, line: tuple[int, ...]) -> tuple[int, ...]:
-        table = self.moves.setdefault(action, {})
+    def _line_after(self, way: str, line: tuple[int, ...]) -> tuple[int, ...]:
+        table = self.moves.setdefault(way, {})
         known = table.get(line)
         if known is not None:
             return known
-        down, _across = _PUSHES[action]
+        down, _across = _PUSHES[way]
         length = len(line)
         if down == 0:
             alone = Arrangement(
@@ -131,7 +143,7 @@ class CompiledWorld:
                 length, 1,
                 tuple(Cell(i, 0, self.texts[s], (0.0, 0.0)) for i, s in enumerate(line) if s),
             )
-        after = self.rule.apply(alone, action)
+        after = self.rule.apply(alone, way)
         result = [0] * length
         if after is not None:
             for cell in after.cells:
@@ -143,12 +155,13 @@ class CompiledWorld:
         return made
 
     def act(self, board: tuple[int, ...], action: str) -> tuple[int, ...]:
-        if action not in _PUSHES:
+        way = self.way_of(action)
+        if not way:
             return board
         after = list(board)
-        for places in self._lines(action):
+        for places in self._lines(way):
             line = tuple(board[i] for i in places)
-            for index, symbol in zip(places, self._line_after(action, line), strict=False):
+            for index, symbol in zip(places, self._line_after(way, line), strict=False):
                 after[index] = symbol
         return tuple(after)
 
@@ -195,12 +208,10 @@ class CompiledWorld:
         ``freedom`` is left out when the caller is a search that works out
         where every act leads for itself.
         """
-        target = self.targets.get(toward)
-        if target is None:
-            from core.agency.how_good_is_this import _target  # noqa: PLC0415
+        from core.agency.what_she_is_after import goal_in  # noqa: PLC0415
 
-            target = _target(toward)
-            self.targets[toward] = target
+        goal = goal_in(toward)
+        target = goal.number
         order_sum = 0.0
         ordered = 0
         apart = 0.0
@@ -217,6 +228,8 @@ class CompiledWorld:
         biggest = max(numbers) if numbers else 0.0
         if target and biggest > 0:
             nearness = 1.0 if biggest >= target else max(0.0, min(1.0, math.log2(biggest) / math.log2(target)))
+        elif goal.layout:
+            nearness = goal.nearness(self.arrangement(board))
         else:
             nearness = 0.0
         said = {
@@ -230,7 +243,7 @@ class CompiledWorld:
         reached: set[tuple[int, ...]] = set()
         stayed = False
         for action in actions:
-            if action not in _PUSHES:
+            if not self.way_of(action):
                 stayed = True
                 continue
             after = self.act(board, action)
@@ -275,10 +288,18 @@ def compiled(knows: Any, world: Any, state: Any, actions: Sequence[str]) -> Comp
         return None
     if not isinstance(state, Arrangement) or state.rows < 1 or state.columns < 1:
         return None
-    pushes = [action for action in actions if action in _PUSHES]
+    way_of = getattr(knows, "way_of", None)
+    ways = {
+        action: (way_of(action) if callable(way_of) else (action if action in _PUSHES else ""))
+        for action in actions
+    }
+    pushes = [action for action, way in ways.items() if way in _PUSHES]
     if not pushes:
         return None
-    made = CompiledWorld(rows=state.rows, columns=state.columns, rule=rule)
+    made = CompiledWorld(
+        rows=state.rows, columns=state.columns, rule=rule,
+        ways={action: ways[action] for action in pushes},
+    )
     here = made.board(state)
     # Checked against the rule itself, on what is in front of her.
     for action in pushes:
@@ -312,6 +333,8 @@ def search(
     dead: float,
     fixed_depth: int = 0,
     no_deeper_than: int = 0,
+    arrived: Callable[[tuple[int, ...]], bool] | None = None,
+    arrival: float = 0.0,
 ) -> tuple[dict[str, tuple[float, tuple[int, ...]]], int]:
     """Every push available, scored by what it leads to, as deep as the clock allows.
 
@@ -323,7 +346,9 @@ def search(
     difference between reaching 2048 in fifteen of them and in three of six.
 
     A situation she cannot leave is worth ``dead``, which is below anything a
-    live situation can be worth, whatever else is true of it.
+    live situation can be worth, whatever else is true of it. One where
+    ``arrived`` says the goal is reached ends the line at ``arrival``, above
+    anything short of it, and more the sooner it comes.
 
     Deepened one level at a time while a level can still finish, so what comes
     back is always a finished pass, and ``depth`` says how far it went.
@@ -334,7 +359,7 @@ def search(
     # and the last finished pass is what she has.
     give_up_at = ends_at
     here = world.board(state)
-    pushes = [action for action in actions if action in _PUSHES]
+    pushes = world.acts_that_push(actions)
     ticks = [0]
 
     def best_from(board: tuple[int, ...], depth: int, likely: float, memo: dict) -> float:
@@ -357,6 +382,8 @@ def search(
         return found
 
     def what_it_leads_to(after: tuple[int, ...], depth: int, likely: float, memo: dict) -> float:
+        if arrived is not None and arrived(after):
+            return arrival + depth
         if depth <= 1:
             return worth(after)
         total = 0.0

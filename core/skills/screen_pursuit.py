@@ -1018,6 +1018,9 @@ async def pursue_on_screen(
         )
 
     def satisfied(observation: dict[str, Any]) -> bool:
+        # A layout is met on the board, which the decision reads and says.
+        if pending.get("the_layout_is_made"):
+            return _already_or_not(True)
         reached = goal_reached(
             observation,
             success_when,
@@ -1202,7 +1205,7 @@ async def pursue_on_screen(
     pending["when_a_game_ends"] = lambda: _judge_what_she_judges_by_in_her_model(
         knows, world, pending, matters, move_keys,
         success_when or pending.get("aiming_at") or "", narrate,
-        within_s=max(0.0, ends_at - time.monotonic()),
+        within_s=max(0.0, ends_at - time.monotonic()), this_world=this_world,
     )
     try:
         furthest["here"] = float(knew.get("furthest") or 0.0)
@@ -1655,7 +1658,7 @@ async def pursue_on_screen(
     # worth more time than the living it stands in for.
     _judge_what_she_judges_by_in_her_model(
         knows, world, pending, matters, move_keys, success_when or pending.get("aiming_at") or "", narrate,
-        within_s=max(1.0, ends_at - began),
+        within_s=max(1.0, ends_at - began), this_world=this_world,
     )
     pending.pop("when_a_game_ends", None)
     return result
@@ -1696,8 +1699,14 @@ def _judge_what_she_judges_by_in_her_model(
     narrate: bool,
     *,
     within_s: float = 0.0,
+    this_world: str = "",
 ) -> Any:
     """Rehearse every property she invented, and let go of any that does worse.
+
+    And, the first time she has a model of a world to play in, work out what
+    each thing about a situation is worth there, in a process of its own —
+    see `core/agency/working_out_what_matters`. Every term starts level; what
+    she finds is kept with the world, so the next game starts from it.
 
     Returns the task it runs as, or None where there is nothing to rehearse.
 
@@ -1712,9 +1721,14 @@ def _judge_what_she_judges_by_in_her_model(
     # finished position, and from there every way of judging goes nowhere.
     start = pending.get("first_arranged") or pending.get("arranged")
     rules = getattr(knows, "rules", None)
+    # Only the real record of what matters here can take a weighting: the
+    # first game in a world she has a model of is where it is worked out.
+    to_work_out = callable(getattr(matters, "settled_by_playing_it_out", None)) and not bool(
+        getattr(matters, "played_out", False)
+    )
     # Each way of having nothing to rehearse is said, at info: a faculty that
     # returns without a word looks, from outside, like one that never ran.
-    if not INVENTED:
+    if not INVENTED and not to_work_out:
         logger.info("nothing to rehearse: she judges by no property she invented here")
         return None
     if start is None or rules is None or getattr(rules, "rule", lambda: None)() is None:
@@ -1764,10 +1778,39 @@ def _judge_what_she_judges_by_in_her_model(
             what_she_invented.keep()
             logger.info("let go of %s after playing them out in her own model", ", ".join(let_go))
 
+    async def work_out_what_matters() -> None:
+        from core.agency.looking_ahead import _default_weights
+        from core.agency.working_out_what_matters import in_a_process_of_its_own
+
+        began_working_out = time.monotonic()
+        said = await in_a_process_of_its_own(
+            rules, world, start, list(move_keys),
+            weights=dict(matters.weights() or _default_weights()),
+            toward=toward, within_s=within_s or 600.0,
+        )
+        if not said or not said.get("ok"):
+            logger.info(
+                "did not work out what matters here: %s",
+                (said or {}).get("why") or "no answer from the process it ran in",
+            )
+            return
+        matters.settled_by_playing_it_out(said.get("weights") or {}, str(said.get("said") or ""))
+        logger.info(
+            "worked out what matters here in %.0fs: %s",
+            time.monotonic() - began_working_out, said.get("said"),
+        )
+        if narrate:
+            _tell(f"I {said.get('said')}.")
+        if this_world:
+            await asyncio.to_thread(_keep_what_matters_here, this_world, matters)
+
     async def beside_the_run() -> None:
         try:
-            await asyncio.to_thread(rehearse_them)
-        except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+            if INVENTED:
+                await asyncio.to_thread(rehearse_them)
+            if to_work_out:
+                await work_out_what_matters()
+        except (AttributeError, KeyError, RuntimeError, TypeError, ValueError, OSError) as exc:
             record_degradation(
                 "screen_pursuit", exc, severity="info",
                 action="kept what she judges by without rehearsing it",
@@ -1783,6 +1826,20 @@ def _judge_what_she_judges_by_in_her_model(
         )
         return None
 
+
+
+def _keep_what_matters_here(this_world: str, matters: Any) -> None:
+    """Write what she worked out matters here into her record of the world.
+
+    The record was written when the run ended and this was still being
+    worked out, so it is read back and this part of it replaced.
+    """
+    from core.runtime.what_she_learned import recall, remember
+
+    record = recall(this_world)
+    if record:
+        record["matters"] = matters.as_memory()
+        remember(this_world, record)
 
 
 def _a_number_in(said: str) -> float:

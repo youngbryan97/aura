@@ -42,16 +42,30 @@ def _memory(world: str) -> dict:
     return raw.get("data") or raw.get("payload") or raw
 
 
-def _a_start(rows: int, columns: int, seed: int, like: object | None):
-    """An empty place with what the world usually brings at the start of a game."""
+def _a_start(rows: int, columns: int, seed: int, arrives: object):
+    """An empty place with two of what she has seen this world bring, at the shares she saw them.
+
+    Two, because a start is an empty board the world has answered twice. What
+    turns up is read from her record of this world rather than written here:
+    this instrument once dealt 2s and 4s into every world it was pointed at.
+    """
     from core.perception.what_is_there import Arrangement, Cell
 
     roll = random.Random(seed)
+    seen = list(getattr(arrives, "what_arrives", lambda: ())() or ())
+    if not seen:
+        raise SystemExit("she has no record of what this world brings; nothing to start from")
     spots = roll.sample([(r, c) for r in range(rows) for c in range(columns)], 2)
-    cells = tuple(
-        Cell(row=r, column=c, says=roll.choice(("2", "2", "2", "4")), at=(0.0, 0.0))
-        for r, c in sorted(spots)
-    )
+
+    def one() -> str:
+        pick = roll.random()
+        for said, share in seen:
+            pick -= share
+            if pick <= 0.0:
+                return str(said)
+        return str(seen[-1][0])
+
+    cells = tuple(Cell(row=r, column=c, says=one(), at=(0.0, 0.0)) for r, c in sorted(spots))
     return Arrangement(rows=rows, columns=columns, cells=cells, places_seen=True)
 
 
@@ -76,6 +90,10 @@ def main() -> int:
     parser.add_argument(
         "--approach", default="",
         help="a line she holds, judged by her search the way the live loop judges it",
+    )
+    parser.add_argument(
+        "--weights", default="",
+        help='what she judges by: blank for what she carries, "even" for every term alike, or JSON',
     )
     parser.add_argument(
         "--lean", type=float, default=0.0,
@@ -115,14 +133,24 @@ def main() -> int:
     if args.without_invented:
         for name in list(INVENTED):
             forget(name)
+    # The shape she read this world through, rather than a board of four by four.
+    rows, columns = (int(v) for v in (rules.read_through or (0, 0)))
+    if not rows or not columns:
+        print("her record of this world has no shape; nothing to start from")
+        return 2
     weights = dict(matters.weights() or AS_GOOD_A_GUESS_AS_ANY)
-    acts = ["up", "down", "left", "right"]
+    if args.weights == "even":
+        weights = {name: 1.0 for name in weights}
+    elif args.weights:
+        weights = {**weights, **{k: float(v) for k, v in json.loads(args.weights).items()}}
+    # Her acts, as she has seen them push; the arrows where she has no record.
+    acts = sorted(rules.pushes) or ["up", "down", "left", "right"]
     print(f"judging by: {', '.join(f'{k}={v:.2f}' for k, v in sorted(weights.items()))}")
     print(f"invented in play: {sorted(INVENTED) or 'none'}")
 
     reached: list[float] = []
     for game in range(args.games):
-        start = _a_start(4, 4, args.seed + game, None)
+        start = _a_start(rows, columns, args.seed + game, world)
         made = compiled(rules, world, start, acts)
         if made is None:
             print("her model of this world does not compile; nothing to play in")

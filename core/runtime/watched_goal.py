@@ -358,6 +358,13 @@ def _best_finishing_test(text: str) -> str:
     nothing in particular however late it appears. Without this, a closing
     "tell me when you have it" outranked the tile being played for.
     """
+    # A grid written into the request is the finish, whole. Read clause by
+    # clause, "until it reads 1 2 3 / 4 5 6 / 7 8 _" finished at "1".
+    from core.utils.written_layout import written_layout
+
+    layout = written_layout(text)
+    if layout:
+        return layout
     clauses = _condition_clauses(text)
     named: list[str] = []
     for clause in clauses:
@@ -764,10 +771,67 @@ _NOT_AN_APP = frozenset({
 
 def _keys_for(text: str) -> tuple[str, ...]:
     lowered = text.lower()
+    # Keys the request names are the keys. A game played with w, a, s and d
+    # says so, and the arrows would press nothing it listens to.
+    named = keys_named_in(lowered)
+    if named:
+        return named
     # Word boundaries: "form" sits inside "conformance" and "performance".
     if names_any(lowered, ("wizard", "form", "field", "installer", "setup", "next screen")):
         return FORM_KEYS
     return BOARD_KEYS
+
+
+#: What sits next to keys a request names: "with w a s d", "the hjkl keys",
+#: "press j and k".
+_KEY_CUES = frozenset({"with", "using", "use", "keys", "key", "press", "pressing", "controls"})
+
+#: Words that sit before "keys" and name a kind of key rather than the keys.
+_NOT_KEYS = frozenset({
+    "arrow", "arrows", "letter", "number", "cursor", "direction", "function",
+    "the", "these", "those", "same", "other", "all", "any", "some", "special",
+    "modifier", "space", "return", "enter", "tab", "escape", "my", "your", "its",
+})
+
+
+def keys_named_in(text: str) -> tuple[str, ...]:
+    """Plain keys a request names for itself, in the order it names them. Empty when it names none.
+
+    Two ways of naming them are read. One character at a time, beside a word
+    that says keys are meant: "with w a s d", "press j, k and l". Or run
+    together in front of the word "keys": "the wasd keys". A run of single
+    letters with no such word beside it is left alone, because "a" and "i"
+    are words.
+    """
+    words = [word.strip(".;:!?()\"'") for word in re.split(r"[\s,/]+", str(text or "").lower())]
+    words = [word for word in words if word]
+    best: list[str] = []
+    index = 0
+    while index < len(words):
+        run: list[str] = []
+        at = index
+        while at < len(words) and (
+            re.fullmatch(r"[a-z0-9]", words[at]) or (run and words[at] == "and")
+        ):
+            if words[at] != "and":
+                run.append(words[at])
+            at += 1
+        if len(run) >= 2 and len(set(run)) == len(run):
+            around = set(words[max(0, index - 3):index]) | set(words[at:at + 2])
+            if around & _KEY_CUES and len(run) > len(best):
+                best = run
+        index = max(at, index + 1)
+    if best:
+        return tuple(best)
+    for before, after in zip(words, words[1:]):
+        if (
+            after in ("keys", "controls")
+            and before not in _NOT_KEYS
+            and re.fullmatch(r"[a-z]{2,8}", before)
+            and len(set(before)) == len(before)
+        ):
+            return tuple(before)
+    return ()
 
 
 

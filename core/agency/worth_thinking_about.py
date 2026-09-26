@@ -21,14 +21,14 @@ from __future__ import annotations
 
 from typing import Mapping
 
-from core.agency.how_good_is_this import ROOM_MATTERS
-
 __all__ = ["TOO_CLOSE_TO_CALL", "WORTH_A_PASS", "worth_a_pass"]
 
-#: Below this, two futures differ only in the weakest of the reasons a
-#: situation can be good, and calling one better than the other is reading
-#: noise. Tied to the smallest term the score is built from rather than picked.
-TOO_CLOSE_TO_CALL = ROOM_MATTERS
+#: Below this, two futures are too close to call, and calling one better than
+#: the other is reading noise. A line on the scale scores are read on, and not
+#: a weight: it was tied to what room was worth when room was worth 0.15, and
+#: kept at that when every term went level (2026-09-25), because it sets how
+#: much her stated line counts as a tie-breaker and nothing measured that.
+TOO_CLOSE_TO_CALL = 0.15
 
 #: What has to be riding on a move before it is worth a pass whatever the
 #: arithmetic says. Above this a wrong choice costs more than the thinking.

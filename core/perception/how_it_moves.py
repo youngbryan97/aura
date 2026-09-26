@@ -368,6 +368,9 @@ class HowItMoves:
     #: evidence carries the conditions it was gathered under, so that it can
     #: be dropped when they stop holding.
     read_through: tuple[int, int] = (0, 0)
+    #: Which way each of her acts pushes, as she has seen it push: by act,
+    #: then by direction, how many of her moves that direction explained.
+    pushes: dict[str, dict[str, int]] = field(default_factory=dict)
 
     # ── learning ─────────────────────────────────────────────────────────
 
@@ -640,10 +643,12 @@ class HowItMoves:
         told_apart = here.as_text() != there.as_text()
         if told_apart:
             self.moved += 1
+            self._note_which_way(here, action, there)
+        way = self.way_of(action)
         agreed: set[str] = set()
         held = self.rule()
         for rule in RULES:
-            predicted = rule.apply(here, action)
+            predicted = rule.apply(here, way) if way else None
             if predicted is None:
                 continue
             self.tried[rule.name] = self.tried.get(rule.name, 0) + 1
@@ -691,6 +696,46 @@ class HowItMoves:
                     " / ".join(_rows_of(here)),
                     " / ".join(_rows_of(there)),
                 )
+
+    def _note_which_way(self, before: Arrangement, action: str, after: Arrangement) -> None:
+        """Which ways of pushing would have done what this act just did.
+
+        An act is a name, and a name is not a direction. Arrow keys are
+        called what they do in most places, but a game can be played with w,
+        a, s and d, or with keys that run the other way, and a rule that
+        takes "left" to mean left is wrong about every move in either. So the
+        name is asked nothing: each way a thing can be pushed is tried under
+        every rule she knows, and each way that some rule says would have
+        done exactly this is counted for this act.
+        """
+        explained = self.pushes.setdefault(str(action), {})
+        for way in _TOWARD:
+            if any(
+                rule.carries and _near_enough(rule.apply(before, way) or before, after)
+                for rule in RULES
+            ):
+                explained[way] = explained.get(way, 0) + 1
+
+    def way_of(self, action: str) -> str:
+        """Which way this act pushes, as far as she has seen. Empty when she cannot say.
+
+        The way her moves have borne out most often. Where none have, or two
+        ways are level, the act's own name decides if it names a way — a
+        name is weak evidence, but it is evidence, and it is all there is
+        before the first move. An act whose name says nothing and that has
+        not yet moved anything pushes no way she knows of.
+        """
+        named = str(action or "").strip().lower()
+        counted = self.pushes.get(str(action)) or {}
+        if counted:
+            most = max(counted.values())
+            leaders = [way for way, times in counted.items() if times == most]
+            if len(leaders) == 1:
+                return leaders[0]
+            if named in leaders:
+                return named
+            return ""
+        return named if named in _TOWARD else ""
 
     # ── using it ─────────────────────────────────────────────────────────
 
@@ -863,7 +908,8 @@ class HowItMoves:
         counts: list[int] = []
         for rule in standing:
             try:
-                foretold = rule.apply(self.the_thing(arrangement), action)
+                way = self.way_of(action)
+                foretold = rule.apply(self.the_thing(arrangement), way) if way else None
             # not a failure: a rule that will not apply to this arrangement foretells nothing.
             except (AttributeError, TypeError, ValueError):
                 foretold = None
@@ -995,9 +1041,10 @@ class HowItMoves:
         and not a failure: she acts and looks instead.
         """
         rule = self.rule()
-        if rule is None:
+        way = self.way_of(action)
+        if rule is None or not way:
             return None
-        return rule.apply(self.the_thing(arrangement), action)
+        return rule.apply(self.the_thing(arrangement), way)
 
     def expect_all(
         self, arrangement: Arrangement, actions: Sequence[str]
@@ -1023,6 +1070,7 @@ class HowItMoves:
             "right_when_it_moved": dict(self.right_when_it_moved),
             "tried_when_it_moved": dict(self.tried_when_it_moved),
             "read_through": list(self.read_through),
+            "pushes": {act: dict(ways) for act, ways in self.pushes.items()},
         }
 
     @classmethod
@@ -1062,6 +1110,11 @@ class HowItMoves:
             right_when_it_moved=carried(held.get("right_when_it_moved")),
             tried_when_it_moved=carried(held.get("tried_when_it_moved")),
             read_through=through,
+            pushes={
+                str(act): carried(ways)
+                for act, ways in (held.get("pushes") or {}).items()
+                if isinstance(ways, dict)
+            },
         )
 
     def says(self) -> str:

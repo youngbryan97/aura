@@ -34,7 +34,7 @@ from typing import Any
 
 logger = logging.getLogger("Aura.Rehearsing")
 
-__all__ = ["Rehearsed", "rehearse"]
+__all__ = ["Played", "Rehearsed", "played_out", "rehearse"]
 
 #: How many times each way. The same starts and the same dice both ways, so
 #: what differs between the two is the change and not the luck.
@@ -103,7 +103,25 @@ def _furthest(state: Any) -> float:
     return float(max(numbers)) if numbers else 0.0
 
 
-def _one(
+@dataclass(frozen=True)
+class Played:
+    """One game played out in her head: the furthest thing reached, and in how many acts."""
+
+    furthest: float
+    moves: int
+    #: Whether what she was after was reached, where it names something.
+    reached: bool = False
+    #: The nearest the game came to what she was after, where reaching it is one.
+    nearest: float = 0.0
+
+
+def _one(knows: Any, world: Any, start: Any, actions: Sequence[str], **how: Any) -> float | None:
+    """One rehearsal: her own search, her own model, her own dice. How far it got."""
+    played = played_out(knows, world, start, actions, **how)
+    return None if played is None else played.furthest
+
+
+def played_out(
     knows: Any,
     world: Any,
     start: Any,
@@ -111,32 +129,36 @@ def _one(
     *,
     weights: dict[str, float],
     toward: str,
-    how_far: int,
-    looks_ahead: int,
-    seed: int,
-    choose: Callable[..., dict[str, tuple[float, str]]],
+    how_far: int = HOW_FAR,
+    looks_ahead: int = LOOKS_AHEAD,
+    seed: int = 0,
+    choose: Callable[..., dict[str, tuple[float, str]]] | None = None,
     until: float = 0.0,
-) -> float | None:
-    """One rehearsal: her own search, her own model, her own dice. How far it got.
+) -> Played | None:
+    """One game in her own model, from ``start``, with her own search judging by ``weights``.
 
     None where there is no model to play in, or where ``until`` came first: a
     game cut off by the clock is not evidence about how far it would have got.
     """
+    if choose is None:
+        from core.agency.looking_ahead import look_ahead as choose  # noqa: PLC0415
     from core.agency.a_world_compiled import compiled  # noqa: PLC0415
-    from core.agency.how_good_is_this import _target  # noqa: PLC0415
+    from core.agency.what_she_is_after import goal_in  # noqa: PLC0415
 
     made = compiled(knows, world, start, actions)
     if made is None:
         return None
-    aim = _target(toward)
+    goal = goal_in(toward)
     roll = random.Random(seed)
     board = made.board(start)
     state = start
     furthest = _furthest(state)
+    nearest = goal.nearness(state)
+    reached = goal.reached(state)
     moves = 0
     while how_far <= 0 or moves < how_far:
         moves += 1
-        if aim and furthest >= aim:
+        if reached:
             break
         if until and _clock.monotonic() > until:
             return None
@@ -160,7 +182,9 @@ def _one(
         board = landed
         state = made.arrangement(board, like=start)
         furthest = max(furthest, _furthest(state))
-    return furthest
+        nearest = max(nearest, goal.nearness(state))
+        reached = reached or goal.reached(state)
+    return Played(furthest, moves, reached=reached, nearest=nearest)
 
 
 def rehearse(

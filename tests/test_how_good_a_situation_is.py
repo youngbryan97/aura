@@ -103,11 +103,11 @@ def test_a_situation_is_asked_only_about_the_content_of_the_line():
 
 # ── room to act ──────────────────────────────────────────────────────────
 
-def test_room_left_is_worth_something_and_not_much():
+def test_room_left_is_worth_something():
+    """How much is the world's to say: see test_what_matters_is_worked_out_in_each_world."""
     roomy = board([["2", "", "", "4"], ["", "8", "", ""], ["", "", "2", ""], ["4", "", "", "8"]])
     full = board([["2", "4", "8", "2"], ["4", "8", "2", "4"], ["8", "2", "4", "8"], ["2", "4", "8", "2"]])
     assert how_good(roomy) > how_good(full)
-    assert how_good(roomy) - how_good(full) < 0.2
 
 
 # ── saying why ───────────────────────────────────────────────────────────
@@ -162,9 +162,10 @@ def test_order_is_worth_about_what_room_is_worth():
 
 
 def test_neither_of_them_outweighs_the_line_she_is_holding():
+    """Level with each, never under either: a plan is not decorative."""
     from core.agency.how_good_is_this import LINE_MATTERS, ORDER_MATTERS, ROOM_MATTERS
 
-    assert LINE_MATTERS > ORDER_MATTERS + ROOM_MATTERS
+    assert LINE_MATTERS >= max(ORDER_MATTERS, ROOM_MATTERS)
 
 
 def test_something_with_no_numbers_in_it_is_not_scored_for_order():

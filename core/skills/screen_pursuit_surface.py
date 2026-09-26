@@ -19,10 +19,14 @@ logger = logging.getLogger("Aura.ScreenPursuit")
 
 
 #: Keys the loop is allowed to press, by the name a person would use.
-#: Bounded on purpose — a loop that can press anything can press ⌘Q.
+#: Bounded on purpose — a loop that can press anything can press ⌘Q. Plain
+#: letters and digits are in it, pressed with no modifier, because a game can
+#: be played with w, a, s and d as well as with the arrows, and a letter on
+#: its own quits nothing.
 PRESSABLE_KEYS = (
     "up", "down", "left", "right",
     "return", "enter", "tab", "space", "escape",
+    *"abcdefghijklmnopqrstuvwxyz0123456789",
 )
 
 

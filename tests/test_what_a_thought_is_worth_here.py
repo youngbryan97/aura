@@ -16,16 +16,23 @@ CLEAR = {"left": (3.0, "clearly best"), "up": (1.0, ""), "down": (0.9, ""), "rig
 CLOSE = {"left": (2.00, ""), "up": (1.99, ""), "down": (1.0, ""), "right": (0.5, "")}
 
 
+#: How often her rule has been right, for the two tests below. The bar is her
+#: own error (3d4f2bb9c): with nothing said about it she is taken to be right
+#: none of the time, every gap is inside that error and every move buys words,
+#: which is what these two tests were failing on before they said it.
+MOSTLY_RIGHT = 0.9
+
+
 def test_a_clear_best_move_does_not_need_words():
-    asked, because = worth_a_pass(CLEAR, stakes=0.3)
+    asked, because = worth_a_pass(CLEAR, stakes=0.3, how_sure=MOSTLY_RIGHT)
     assert not asked
     assert "clear" in because
 
 
 def test_two_moves_too_close_to_call_are_worth_a_thought():
-    asked, because = worth_a_pass(CLOSE, stakes=0.3)
+    asked, because = worth_a_pass(CLOSE, stakes=0.3, how_sure=MOSTLY_RIGHT)
     assert asked
-    assert "too close to call" in because
+    assert "inside what her model of this world gets wrong" in because
 
 
 def test_seeing_nothing_ahead_is_always_worth_a_thought():

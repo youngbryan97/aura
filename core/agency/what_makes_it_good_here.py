@@ -64,6 +64,12 @@ five re-runs it would otherwise cost somebody. What it would take is a grade
 attached to the transition rather than to the position — which is what the
 action-value model already does, in a different place, for a different
 question.
+
+The pursuit did wire it later, and the grade it needed turned out to be a
+whole game rather than a transition: played out in her own model of a world,
+from the same starts and the same dice, one weighting against another. That is
+`working_out_what_matters` (2026-09-25). What she finds there is kept here,
+and single moves stop moving it.
 """
 
 from __future__ import annotations
@@ -126,6 +132,13 @@ class WhatMakesItGoodHere:
     _did_not: int = 0
     #: What the recent moves gained, so this one can be compared to them.
     _gains: list[float] = field(default_factory=list)
+    #: Whether these were worked out by playing this world out in her own
+    #: model. A whole game is graded by where it ended, which is what the
+    #: terms are for, so that outranks what single moves suggest and they no
+    #: longer move it. See `working_out_what_matters`.
+    played_out: bool = False
+    #: What she said about how she settled on them, for saying so again.
+    how_she_knows: str = ""
 
     # ── learning ─────────────────────────────────────────────────────────
 
@@ -187,9 +200,15 @@ class WhatMakesItGoodHere:
             self._did_not += 1
         self._reweigh()
 
+    def settled_by_playing_it_out(self, weights: Mapping[str, float], said: str = "") -> None:
+        """Take a weighting she found by playing this world out in her own model."""
+        self.worth = {str(name): float(value) for name, value in weights.items()}
+        self.played_out = True
+        self.how_she_knows = str(said or "")
+
     def _reweigh(self) -> None:
         """Move each weight toward what the moves that went well had more of."""
-        if self._went_well < 1 or self._did_not < 1:
+        if self.played_out or self._went_well < 1 or self._did_not < 1:
             return
         for name in list(self.worth):
             good = self._when_it_went_well.get(name, 0.0) / self._went_well
@@ -205,8 +224,8 @@ class WhatMakesItGoodHere:
     # ── using it ─────────────────────────────────────────────────────────
 
     def worked_out(self) -> bool:
-        """Whether she has watched enough for these to be hers."""
-        return self.seen >= ENOUGH_TO_REWEIGH
+        """Whether she has played it out or watched enough for these to be hers."""
+        return self.played_out or self.seen >= ENOUGH_TO_REWEIGH
 
     def weights(self) -> dict[str, float] | None:
         """What to weigh a situation by, or nothing if she has not worked it out."""
@@ -214,6 +233,8 @@ class WhatMakesItGoodHere:
 
     def says(self) -> str:
         """What matters here, for whoever has to answer for it."""
+        if self.played_out and self.how_she_knows:
+            return f"what matters here: {self.how_she_knows}"
         if not self.worked_out():
             return (
                 f"what matters here is not worked out yet ({self.seen} move(s) watched)"
@@ -225,7 +246,12 @@ class WhatMakesItGoodHere:
     # ── keeping it ───────────────────────────────────────────────────────
 
     def as_memory(self) -> dict[str, Any]:
-        return {"worth": dict(self.worth), "seen": self.seen}
+        return {
+            "worth": dict(self.worth),
+            "seen": self.seen,
+            "played_out": self.played_out,
+            "how_she_knows": self.how_she_knows,
+        }
 
     @classmethod
     def from_memory(cls, held: Any, trust: float = 1.0) -> "WhatMakesItGoodHere":
@@ -242,4 +268,9 @@ class WhatMakesItGoodHere:
                     # weighting from yesterday is a starting point and not a
                     # verdict.
                     worth[name] = worth[name] * (1.0 - share) + float(value) * share
-        return cls(worth=worth, seen=int(round(float(held.get("seen") or 0) * share)))
+        return cls(
+            worth=worth,
+            seen=int(round(float(held.get("seen") or 0) * share)),
+            played_out=bool(held.get("played_out")) and isinstance(kept, dict),
+            how_she_knows=str(held.get("how_she_knows") or ""),
+        )

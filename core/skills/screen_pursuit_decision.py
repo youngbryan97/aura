@@ -117,6 +117,18 @@ from .screen_pursuit_surface import (
 
 
 
+def _the_layout_is_made(success_when: str, knows: Any, laid_out: Any) -> bool:
+    """Whether the thing she is acting in is laid out as the goal says, where the goal is a layout."""
+    from core.agency.what_she_is_after import goal_in
+
+    goal = goal_in(success_when or "")
+    if not goal.layout or laid_out is None:
+        return False
+    rules = getattr(knows, "rules", None)
+    thing = rules.the_thing(laid_out) if rules is not None else laid_out
+    return goal.reached(thing)
+
+
 async def _decide_the_next_move_part_6(
     anchor: Any,
     confirmed_here: Any,
@@ -524,6 +536,14 @@ async def decide_the_next_move(
         lattice=lattice,
     )
     laid_out = _decide_the_next_move_laid_out(confirmed_here, got_to, lattice, moves, pending, whole)
+    # A goal that is a layout is met by where things are, which no text on the
+    # screen says, and it has to be seen before the next move undoes it. So
+    # the board is asked here, and a made layout is not moved out of.
+    if _the_layout_is_made(success_when, knows, laid_out):
+        pending["the_layout_is_made"] = True
+        no_move["because"] = "the board is laid out the way she was asked"
+        logger.info("the board is laid out as asked: %s", success_when)
+        return None
     if not confirmed_here["value"]:
         await _decide_the_next_move_part_6(
             anchor, confirmed_here, expect_page, open_page, seen, target_app,
@@ -1287,6 +1307,13 @@ async def decide_the_next_move(
             # it goes. Measured per world from her own graded predictions;
             # nothing until enough of them are graded, and then a real bound.
             as_far_as_it_carries = carries.carries_to() if carries is not None else 0
+            # Every board of this game she has stood on, read the way her
+            # search reads a board, so a world where acts can be undone is
+            # not walked in circles. Nothing recurs in a world that adds
+            # something after every act, and there it changes nothing.
+            stood_on = pending.setdefault("stood_on", set())
+            if knows.rules is not None:
+                stood_on.add(knows.rules.the_thing(laid_out).as_text())
             ahead = look_ahead(
                 knows.rules,
                 laid_out,
@@ -1298,6 +1325,7 @@ async def decide_the_next_move(
                 # What matters HERE, once she has watched enough to say.
                 weights=matters.weights(),
                 no_deeper_than=as_far_as_it_carries,
+                been_before=stood_on,
             )
             pending["thought_for"] = time.monotonic() - thought_from
         # And what a move would TELL her, which is a different question
@@ -1624,6 +1652,7 @@ async def decide_the_next_move(
                 # last one of an old game, where every way of judging goes
                 # nowhere and nothing is learned (live, 2026-09-23).
                 pending.pop("first_arranged", None)
+                pending.pop("stood_on", None)
                 pending["judge_on_the_next_board"] = True
                 # And what she has been getting per act is counted from this
                 # game's start. Counted from the board before the restart, a
