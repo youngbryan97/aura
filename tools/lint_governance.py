@@ -161,6 +161,7 @@ CANONICAL_PRIMITIVE_OWNERS: dict[str, frozenset[str]] = {
             # Fixed CPU-only world simulation; the worker command is not a
             # caller argument, and process ownership stays in the gateway.
             "core/agency/working_out_what_matters.py",
+            "core/agency/thinking_elsewhere.py",
             "core/runtime/action_executor.py",
             "core/runtime/desktop_action_gateway.py",
             "core/runtime/skill_catalog_probe.py",
@@ -181,6 +182,7 @@ CANONICAL_PRIMITIVE_OWNERS: dict[str, frozenset[str]] = {
             # state root. Callers supply word names, never paths; writes still
             # cross the gateway inside a named internal governance scope.
             "core/cognition/how_she_learns_to_look.py",
+            "core/agency/what_she_tried.py",
             # Engineering export owns one fixed artifacts/live_designs tree.
             # Caller-selected subdirectories are confined beneath that root;
             # bundle slugs and filenames are canonical single components, and

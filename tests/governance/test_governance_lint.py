@@ -43,6 +43,37 @@ def test_search_history_owns_governed_writes_not_raw_mutations():
     assert not _canonical_owner("raw_file_mutation", path)
 
 
+def test_episode_owner_cannot_turn_a_world_name_into_an_external_path(tmp_path, monkeypatch):
+    from core.agency import what_she_tried
+
+    monkeypatch.setattr(what_she_tried, "_kept_in", lambda: tmp_path)
+    for world in ("../../outside", "/absolute/path", "", "A Room"):
+        assert what_she_tried._file_for(world).parent == tmp_path
+    path = "core/agency/what_she_tried.py"
+    assert _canonical_owner("file_write_gateway", path)
+    assert not _canonical_owner("raw_file_mutation", path)
+
+
+def test_lookahead_owner_has_only_its_fixed_cpu_readonly_child(monkeypatch):
+    from core.agency.thinking_elsewhere import _start
+    from core.runtime import subprocess_gateway
+
+    calls = []
+    class Gateway:
+        def spawn(self, command, **kwargs):
+            calls.append((command, kwargs))
+            return "child"
+    monkeypatch.setattr(subprocess_gateway, "get_subprocess_gateway", lambda: Gateway())
+    assert _start() == "child"
+    command, settings = calls[0]
+    assert command == [sys.executable, "-m", "core.agency.thinking_elsewhere"]
+    assert settings["read_only"] is True and settings["accelerator_capability"] == "none"
+    assert settings["source"] == "agency.thinking_elsewhere"
+    path = "core/agency/thinking_elsewhere.py"
+    assert _canonical_owner("subprocess_gateway", path)
+    assert not _canonical_owner("raw_subprocess", path)
+
+
 def test_world_simulation_owns_only_its_fixed_cpu_worker(monkeypatch):
     from core.agency.working_out_what_matters import _a_child
     from core.runtime import subprocess_gateway

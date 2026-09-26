@@ -3457,6 +3457,30 @@
       "scope": "<module>.keep._write"
     },
     {
+      "callee": "<file_write_gateway>.append_text",
+      "canonical_owner": true,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/agency/what_she_tried.py",
+      "scope": "<module>.keep"
+    },
+    {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": true,
+      "category": "file_write_gateway",
+      "count": 2,
+      "path": "core/agency/what_she_tried.py",
+      "scope": "<module>.keep"
+    },
+    {
+      "callee": "<file_write_gateway>.write_bytes",
+      "canonical_owner": true,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/agency/what_she_tried.py",
+      "scope": "<module>.keep"
+    },
+    {
       "callee": "<file_write_gateway>.ensure_directory_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -14689,6 +14713,14 @@
       "scope": "<module>._default_command_runner"
     },
     {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn",
+      "canonical_owner": true,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "core/agency/thinking_elsewhere.py",
+      "scope": "<module>._start"
+    },
+    {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_async",
       "canonical_owner": false,
       "category": "subprocess_gateway",
@@ -16538,6 +16570,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "0520c8b4198cd436c0cfe534abfbceaaafe68e9cb8ed05e1369d7153acd2ecd4",
+  "inventory_sha256": "6e8b72a038bfe030572d5a02940a932c6c35dbc38c8cfce35c66b919dd83019b",
   "schema_version": 1
 }

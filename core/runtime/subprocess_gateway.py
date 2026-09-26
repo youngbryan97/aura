@@ -717,6 +717,27 @@ class WorkBoundExpired(subprocess.TimeoutExpired):
         return f"{base} ({self.reason})" if self.reason else base
 
 
+def _drain_stopped_child(proc: Any, *, timeout_s: float, text: bool) -> tuple[Any, Any]:
+    """Reap the owned child without waiting forever for inherited output pipes."""
+    try:
+        return proc.communicate(timeout=max(.05, timeout_s))
+    except subprocess.TimeoutExpired as incomplete:
+        def partial(value: Any, stream: Any) -> Any:
+            if text and isinstance(value, bytes):
+                encoding = getattr(stream, "encoding", None) or "utf-8"
+                errors = getattr(stream, "errors", None) or "strict"
+                return value.decode(encoding, errors).replace("\r\n", "\n").replace("\r", "\n")
+            return value
+        out, err = partial(incomplete.output, proc.stdout), partial(incomplete.stderr, proc.stderr)
+        # A descendant may own the writer. Closing our readers does not kill
+        # that descendant or confuse its PID with the direct child we own.
+        for stream in (proc.stdin, proc.stdout, proc.stderr):
+            if stream is not None:
+                stream.close()
+        proc.wait(timeout=max(.05, timeout_s))
+        return out, err
+
+
 def _run_bounded_by_its_work(
     command: list[str],
     *,
@@ -776,7 +797,9 @@ def _run_bounded_by_its_work(
                 pending_input = None  # not a failure: the timeout IS the watch period
             now = time.monotonic()
             cpu = _child_cpu_seconds(proc.pid)
-            if cpu is None:
+            if proc.poll() is not None:
+                stopped_for = "exited child left inherited output pipes open"
+            elif cpu is None:
                 if proc.poll() is None and now - started >= budget:
                     stopped_for = (
                         f"unobservable child ran {now - started:.1f}s of wall against a "
@@ -796,8 +819,9 @@ def _run_bounded_by_its_work(
                         f"{cpu_seen:.1f}s of CPU, {now - started:.1f}s of wall"
                     )
             if stopped_for:
-                proc.kill()
-                out, err = proc.communicate()
+                if proc.poll() is None:
+                    proc.kill()
+                out, err = _drain_stopped_child(proc, timeout_s=period, text=text)
                 raise WorkBoundExpired(
                     command, budget, output=out, stderr=err, reason=stopped_for
                 ) from None
@@ -1141,7 +1165,9 @@ class SubprocessGateway:
                 pass  # not a failure: the timeout IS the watch period.
             now = time.monotonic()
             cpu = _child_cpu_seconds(proc.pid)
-            if cpu is None:
+            if proc.poll() is not None:
+                stopped_for = "exited child left inherited output pipes open"
+            elif cpu is None:
                 if proc.poll() is None and now - started >= budget:
                     stopped_for = (
                         f"unobservable: no CPU reading for this child and "
@@ -1162,8 +1188,9 @@ class SubprocessGateway:
                         f"at {cpu_seen:.1f}s of CPU, {now - started:.1f}s of wall"
                     )
             if stopped_for:
-                proc.kill()
-                stdout, stderr = proc.communicate()
+                if proc.poll() is None:
+                    proc.kill()
+                stdout, stderr = _drain_stopped_child(proc, timeout_s=watch_period_s, text=True)
                 break
         if stopped_for:
             completed = subprocess.CompletedProcess(
