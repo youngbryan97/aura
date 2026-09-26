@@ -1813,6 +1813,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   reconstructs 1,764 archived examples and 656 schemas across eight families
   from the exact manifests. Twenty-seven tests pass. Default family settings
   no longer qualify a structural preflight; fresh transfer remains unmeasured.
+  [Fresh native component selection](evidence/G04_NATIVE_FRESH_SCHEMA_2026-09-26.md)
+  scores 72/72 on target-derived six-candidate inventories across 24 withheld
+  three-step constructions, versus 55/72 unfitted. This is label-blind
+  selection with oracle proposal reach, not end-to-end transfer or G04 closure.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
   OPEN, observed live 2026-09-21, and recorded here because it is a
   reasoning error rather than a plumbing one. Asked how far a bird flies
