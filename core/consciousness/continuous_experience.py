@@ -635,15 +635,13 @@ class ContinuousExperienceStream:
                 for frame in self._frames:
                     self._episode_for(frame).add(frame)
             self._scene_counter = int(payload.get("scene_counter", 0) or 0)
-            report = payload.get("compounding_report") or {}
-            self._compounding_report = CompoundingErrorReport(
-                active=bool(report.get("active", False)),
-                severity=_clamp(report.get("severity", 0.0)),
-                reasons=_as_tuple(report.get("reasons")),
-                recommended_mode=str(report.get("recommended_mode") or "continue"),
-                affected_frame_ids=_as_tuple(report.get("affected_frame_ids")),
-                transfer_tags=_as_tuple(report.get("transfer_tags")),
-            )
+            # Recomputed from the frames that came back, not restored from the
+            # snapshot. The report is a statement about the last six frames, so
+            # a saved copy of it says nothing the frames do not — and it
+            # outlives them: retention prunes the frames it was about while the
+            # verdict stays, which left a store with `active` set true and no
+            # way back until three fresh frames arrived to overwrite it.
+            self._compounding_report = self._detect_compounding_errors_locked()
             self._pending_journal_frames.clear()
 
     def _resolve_snapshot_frame_limit(self) -> int:

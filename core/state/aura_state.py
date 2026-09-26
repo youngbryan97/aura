@@ -694,6 +694,11 @@ class CognitiveContext:
     # Discourse State — lightweight topic threading for natural conversation flow
     discourse_topic: str | None = None        # Current conversation thread/topic
     discourse_depth: int = 0                     # Turns spent on this thread
+    #: Turns since the person last said anything. The dynamics engine has
+    #: always kept it; the closure test found it predicting the core from
+    #: outside, which is what a part of her that the core does not hold looks
+    #: like. See core/conversational/dynamics.py.
+    turns_since_user_spoke: int = 0
     discourse_branches: list[str] = field(default_factory=list)  # Adjacent topics available
     user_emotional_trend: str = "neutral"        # "warming_up"|"engaged"|"cooling_off"|"neutral"
     #: Whether she is keeping somebody company rather than helping them: they

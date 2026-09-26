@@ -8,8 +8,9 @@ Position in pipeline: after SensoryIngestion, before CognitiveRouting.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from core.kernel.bridge import Phase
 from core.runtime.conversation_support import (
@@ -23,6 +24,26 @@ if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
 
 logger = logging.getLogger("Aura.ConversationalDynamics")
+
+
+def _open_thread_id(dynamics: Any) -> str | None:
+    """Which unresolved thread she is on, or nothing when none is open.
+
+    `cognition.active_thread_id` was declared on the state, read by the subject
+    schema, held by the clamp, and assigned nowhere in the tree: a field for a
+    concept the runtime never connected, so the column that names it was zero
+    on every frame. The engine has kept the threads all along; they are
+    identified by what they are about, so the id is a digest of that, stable
+    across the turns the thread stays open.
+    """
+    threads = list(getattr(dynamics, "open_threads", []) or [])
+    if not threads:
+        return None
+    hottest = max(threads, key=lambda one: float(getattr(one, "urgency", 0.0) or 0.0))
+    content = str(getattr(hottest, "content", "") or "")
+    if not content:
+        return None
+    return hashlib.blake2s(content.encode("utf-8"), digest_size=8).hexdigest()
 
 
 def _record_conversational_degradation(
@@ -570,10 +591,20 @@ class ConversationalDynamicsPhase(Phase):
             logger.debug("the entity record did not see this turn: %s", exc)
 
     async def _execute_compute_dynamics_latest(self, active_user_id, engine, new_state, objective, state):
-        # Compute dynamics from the latest user message
+        # Whose turn this is, from the origin the turn was opened with. The
+        # role was the constant "user", so `_process_aura_message` was never
+        # reached from here and `turns_since_user_spoke` was set to zero on
+        # every turn and incremented on none: a counter that can only be
+        # reset. Her own autonomous turns were also analysed as though the
+        # person had spoken them, which set the floor, the speech act and the
+        # open question from her own words.
+        from core.kernel.turn_door import USER_ORIGINS
+
+        origin = str(getattr(state.cognition, "current_origin", "") or "").strip().lower()
+        role = "user" if origin in USER_ORIGINS else "assistant"
         dynamics = engine.update(
             message=objective,
-            role="user",
+            role=role,
             working_memory=state.cognition.working_memory
         )
 
@@ -613,6 +644,8 @@ class ConversationalDynamicsPhase(Phase):
             if not a.is_resolved and a.topic != dynamics.current_topic
         ]
         cog.discourse_branches = available_callbacks
+        cog.turns_since_user_spoke = int(getattr(dynamics, "turns_since_user_spoke", 0) or 0)
+        cog.active_thread_id = _open_thread_id(dynamics)
 
         # Store the full dynamics state for downstream phases
         new_state.response_modifiers["conv_dynamics_state"] = {
@@ -1147,6 +1180,24 @@ class ConversationalDynamicsPhase(Phase):
         self._name_the_kind(new_state, objective)
         return new_state
 
+    @staticmethod
+    def _note_her_own_turn(engine: Any, objective: str, state: AuraState) -> None:
+        """Tell the engine she was the one who spoke, and carry the count."""
+        try:
+            dynamics = engine.update(
+                message=objective,
+                role="assistant",
+                working_memory=state.cognition.working_memory,
+            )
+            state.cognition.turns_since_user_spoke = int(
+                getattr(dynamics, "turns_since_user_spoke", 0) or 0
+            )
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _record_conversational_degradation(
+                exc,
+                action="left the silence count where it was after her own turn was not recorded",
+            )
+
     async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         if not objective:
             return state
@@ -1157,8 +1208,14 @@ class ConversationalDynamicsPhase(Phase):
 
         origin = kwargs.get("origin", state.cognition.current_origin or "system")
 
-        # Only run full analysis on user-facing messages
+        # Only run full analysis on user-facing messages. Her own turns are
+        # still told to the engine, cheaply: it keeps the floor, the silence
+        # and the open thread across both sides of the exchange, and returning
+        # here without saying anything left `turns_since_user_spoke` set to
+        # zero on every turn and raised on none. A conversation engine that
+        # only ever hears one speaker cannot count the other's silence.
         if origin not in ("user", "voice", "admin", "web"):
+            self._note_her_own_turn(engine, objective, state)
             return state
 
         try:

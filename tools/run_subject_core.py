@@ -106,8 +106,34 @@ def _log(message: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {message}", flush=True)
 
 
+class DeadReader(RuntimeError):
+    """A declared source that did not read once in a whole pass of the conditions."""
+
+
+def _never_read(frames: list[Any]) -> list[str]:
+    """Sources that failed on every frame so far.
+
+    A source that has not read once by the end of a pass through all eight
+    conditions has no writer in this build: one pass is the smallest complete
+    exercise of the organism, because the conditions are the declared set of
+    ordinary situations and between them they run every phase. The run refuses
+    such a source at the end anyway, after the whole recording — an hour of
+    seed-7 at three hundred rounds — so it is worth asking after the first
+    eight turns instead.
+    """
+    seen = [set(getattr(frame, "misses", {}) or {}) for frame in frames]
+    if not seen:
+        return []
+    return sorted(set.intersection(*seen))
+
+
 async def _record(
-    runtime: Any, conditions: Any, rounds: int, named: Any = None
+    runtime: Any,
+    conditions: Any,
+    rounds: int,
+    named: Any = None,
+    *,
+    strict: bool = True,
 ) -> tuple[list[Any], tuple[np.ndarray, tuple[str, ...]]]:
     """Live the rounds, keeping each frame's core state and periphery reading.
 
@@ -122,7 +148,7 @@ async def _record(
 
     frames: list[Any] = []
     periphery = PeripheryAccumulator()
-    for _ in range(rounds):
+    for index in range(rounds):
         for condition in conditions:
             for reading in await runtime.turn_once(condition):
                 frames.append(reading)
@@ -131,6 +157,13 @@ async def _record(
                 # rather than in it. See core/subject/named_readings.py.
                 if named is not None:
                     named.note(runtime.state)
+        if index == 0 and strict:
+            dead = _never_read(frames)
+            if dead:
+                raise DeadReader(
+                    "a declared source did not read once in a whole pass of the "
+                    f"conditions: {dead}"
+                )
     return frames, periphery.matrix()
 
 
@@ -497,7 +530,9 @@ async def main() -> int:
         from core.subject.named_readings import NamedAccumulator
 
         named = NamedAccumulator()
-        frames, periphery_read = await _record(runtime, CONDITIONS, args.rounds, named)
+        frames, periphery_read = await _record(
+            runtime, CONDITIONS, args.rounds, named, strict=not args.allow_degraded
+        )
         recording = build_recording(
             frames,
             notes={

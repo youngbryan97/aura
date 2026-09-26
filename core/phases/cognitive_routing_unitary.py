@@ -507,6 +507,43 @@ class CognitiveRoutingPhase(Phase):
         )
 
     async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
+        routed = await self._route(state, objective=objective, **kwargs)
+        self._deliberate_after_a_bad_run(routed)
+        return routed
+
+    @staticmethod
+    def _deliberate_after_a_bad_run(state: AuraState) -> None:
+        """A reflex is the wrong answer when the last few frames went badly.
+
+        The continuous experience stream measures compounding error — three
+        frames in a row, or four of the last six, carrying a low outcome, harm,
+        a repeated prediction miss or unity repair pressure — and publishes
+        `safe_to_act` and a recommended mode of "observe, stabilise, replay"
+        with it. Nothing anywhere read either one, so a run of bad frames
+        changed nothing about how the next turn was taken.
+
+        Observing rather than acting is deliberating rather than reacting, and
+        the mode is a gate that already exists. This only ever lifts a reactive
+        turn; it never makes a deliberate one reflexive.
+        """
+        try:
+            from core.consciousness.continuous_experience import (
+                get_continuous_experience_stream,
+            )
+
+            report = get_continuous_experience_stream().compounding_report
+            if not getattr(report, "active", False):
+                return
+            if state.cognition.current_mode is CognitiveMode.REACTIVE:
+                state.cognition.current_mode = CognitiveMode.DELIBERATE
+                logger.info(
+                    "🧭 Routing: the last frames compounded (%s); observing rather than reacting.",
+                    ", ".join(getattr(report, "reasons", ()) or ()) or "no reason given",
+                )
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("the experience stream did not reach routing: %s", exc)
+
+    async def _route(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         priority = kwargs.get("priority", False)
         if not objective:
             return state

@@ -10,7 +10,7 @@ import os
 import random
 import time
 from collections import deque
-from collections.abc import Awaitable, Callable, Iterable, Iterator
+from collections.abc import Awaitable, Callable, Iterable, Iterator, Sequence
 from contextlib import suppress
 from dataclasses import dataclass, field
 from enum import Enum, auto
@@ -28,6 +28,37 @@ if TYPE_CHECKING:
     from core.resilience.inhibition_manager import InhibitionManager
 
 logger = logging.getLogger("Consciousness.GlobalWorkspace")
+
+
+#: How much of her own recent competition an ignition bar is taken over, and
+#: how many winners there must be before a rank is a rank. The same two the
+#: pulse uses, for the same reason: a rank within a window cannot saturate at
+#: any length, so the window sets how quickly the bar follows her rather than
+#: what the reading can reach. See core/soma/pulse.py.
+_WINNER_WINDOW: int = 256
+_ENOUGH_WINNERS: int = 8
+
+
+def _stood_out(priority: float, recent: Sequence[float], bar: float) -> bool:
+    """Whether this winner was strong for her, against her own recent winners.
+
+    The bar was six tenths of the priority scale, and over a 320-turn recording
+    the winning priority never fell below 0.749, so `ignited` read True on every
+    frame of every run. The qualia engine weights it, the phenomenal present
+    branches on it and the broadcast record keeps content by it; each was handed
+    a constant where it expected an event.
+
+    Six tenths is still the bar. What it is six tenths of has changed: the
+    winners she has actually been having, rather than a scale nothing sits at
+    the bottom of. Below `_ENOUGH_WINNERS` there is nothing to rank against and
+    the absolute bar answers, which is what it did before.
+    """
+    value = float(priority)
+    if not recent or len(recent) < _ENOUGH_WINNERS:
+        return value >= bar
+    below = sum(1 for one in recent if one < value)
+    ties = sum(1 for one in recent if one == value)
+    return (below + ties / 2.0) / len(recent) >= bar
 
 
 def _ignition_level(priority: float, threshold: float) -> float:
@@ -644,7 +675,9 @@ class GlobalWorkspace:
         
         # --- Ignition Detection (GWT) ---
         self.ignition_level: float = 0.0    # 0.0-1.0 current ignition intensity
-        self.ignited: bool = False          # True when ignition_level >= threshold
+        self.ignited: bool = False          # True when the winner stood out from her own recent ones
+        #: Her own recent winners, which the ignition bar is taken against.
+        self._recent_winner_priorities: deque[float] = deque(maxlen=_WINNER_WINDOW)
         self._ignition_count: int = 0       # Total ignition events
         self._current_phi: float = 0.0      # Φ from substrate (updated externally)
         self._degraded_channels: dict[str, str] = {}
@@ -1568,7 +1601,12 @@ class GlobalWorkspace:
         winner_priority = winner.effective_priority
         self.ignition_level = _ignition_level(winner_priority, self._IGNITION_THRESHOLD)
         was_ignited = self.ignited
-        self.ignited = winner_priority >= self._IGNITION_THRESHOLD
+        self.ignited = _stood_out(
+            winner_priority,
+            list(self._recent_winner_priorities),
+            self._IGNITION_THRESHOLD,
+        )
+        self._recent_winner_priorities.append(float(winner_priority))
         
         if self.ignited and not was_ignited:
             self._ignition_count += 1

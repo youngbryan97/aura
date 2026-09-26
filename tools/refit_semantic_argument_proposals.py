@@ -37,6 +37,21 @@ def verify_source_splits(examples, receipt):
             raise ValueError(f"{split} source cohort differs from frozen parent")
 
 
+def source_input_order_policy(model, report):
+    """Require training report and candidate to name the same input contract."""
+    schema = report.get("schema")
+    policy = report.get("input_order_policy")
+    if schema == "aura.compositional_source_training.v1":
+        if policy is not None or model.training_receipt.get("input_order_policy") is not None:
+            raise ValueError("source input order differs from frozen parent")
+    elif schema == "aura.compositional_source_training.v2":
+        if policy != "source_token_order_v1" or model.training_receipt.get("input_order_policy") != policy:
+            raise ValueError("source input order differs from frozen parent")
+    else:
+        raise ValueError("unsupported source training report schema")
+    return policy
+
+
 def load_source_examples(model, report, bundles):
     """Share the exact parent-bound source admission across refits and diagnostics."""
     from core.learning.semantic_program_basis import bind_training_examples_to_shared_representation
@@ -44,6 +59,9 @@ def load_source_examples(model, report, bundles):
     from core.learning.semantic_program_feature_materialization import (
         load_standard_semantic_feature_bundle,
     )
+    from core.learning.semantic_source_order import source_order_training_example
+
+    policy = source_input_order_policy(model, report)
 
     compatibility = report["representation_compatibility"]
     expected = compatibility["source_feature_manifest_sha256s"]
@@ -59,6 +77,8 @@ def load_source_examples(model, report, bundles):
     if set(examples) != set(expected):
         raise ValueError("source bundles must include every source family")
     bound = bind_training_examples_to_shared_representation(examples, compatibility=compatibility)
+    if policy == "source_token_order_v1":
+        bound = tuple(source_order_training_example(item) for item in bound)
     verify_source_splits(bound, model.training_receipt)
     return bound
 

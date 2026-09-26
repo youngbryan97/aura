@@ -32,6 +32,7 @@ from core.learning.semantic_program_shared_evaluation import (
 )
 from core.learning.semantic_program_shared_transducer import _relation_span_vector
 from core.learning.semantic_program_transducer import SemanticTransducerTrainingExample
+from core.learning.semantic_source_order import source_order_training_example
 
 COMPOSITIONAL_LEAVE_FAMILY_OUT_SCHEMA: Final = (
     "aura.semantic_program_compositional_leave_family_out.v1"
@@ -59,7 +60,8 @@ def select_compositional_program_candidate(
 ) -> dict[str, Any]:
     """Select on autonomous validation programs, never gold answers or test tasks."""
     from core.learning.semantic_validation_checkpoint import (
-        VALIDATION_SCORING, validation_implementation_identity,
+        VALIDATION_SCORING,
+        validation_implementation_identity,
     )
     if scoring not in VALIDATION_SCORING:
         raise ValueError("unknown semantic validation scoring")
@@ -79,7 +81,8 @@ def select_compositional_program_candidate(
     implementation = validation_implementation_identity()
     if checkpoint_path is not None:
         from core.learning.semantic_validation_checkpoint import (
-            SemanticValidationCheckpoint, validation_identity,
+            SemanticValidationCheckpoint,
+            validation_identity,
         )
 
         checkpoint = SemanticValidationCheckpoint(
@@ -112,8 +115,8 @@ def select_compositional_program_candidate(
             target = item.ir.to_program()
             grounding_valid = True
             if outcome.ir is not None and scoring == "source_anchors_v2":
-                from core.learning.semantic_joint_graph_learning import align_source_input_registers
                 from core.learning.procedure_induction import Instruction, Program
+                from core.learning.semantic_joint_graph_learning import align_source_input_registers
                 try:
                     instructions, _ = align_source_input_registers(item, outcome.ir.input_spans)
                     target = Program(len(item.public_inputs), tuple(
@@ -193,13 +196,17 @@ class CompositionalLeaveFamilyOutResult:
     report: dict[str, Any]
 
 
-def prepare_compositional_source_training(bundles: Any) -> tuple[tuple[Any, ...], dict[str, Any]]:
+def prepare_compositional_source_training(
+    bundles: Any, *, source_order_inputs: bool = False,
+) -> tuple[tuple[Any, ...], dict[str, Any]]:
     """Bind exact source cohorts, admitting training-only augmentation without test access."""
     manifests = {name: bundle.manifest for name, bundle in bundles.items()}
     compatibility = establish_semantic_training_representation_compatibility(manifests)
     examples = {name: training_examples_from_feature_bundle(bundle, required_splits=frozenset({"train"}))
                 for name, bundle in bundles.items()}
     bound = bind_training_examples_to_shared_representation(examples, compatibility=compatibility)
+    if source_order_inputs:
+        bound = tuple(source_order_training_example(item) for item in bound)
     ids = [item.ir.source_text_sha256 for item in bound]
     if len(ids) != len(set(ids)):
         raise ValueError("compositional source examples repeat across cohorts or splits")
@@ -207,7 +214,8 @@ def prepare_compositional_source_training(bundles: Any) -> tuple[tuple[Any, ...]
     if {item.split for item in selected} != {"train", "validation"}:
         raise ValueError("compositional source training needs train and validation")
     body = {
-        "schema": "aura.compositional_source_training_plan.v1",
+        "schema": ("aura.compositional_source_training_plan.v2" if source_order_inputs
+                   else "aura.compositional_source_training_plan.v1"),
         "representation_compatibility": compatibility,
         "cohort_split_counts": {name: {split: sum(item.split == split for item in items)
             for split in ("train", "validation", "test")} for name, items in examples.items()},
@@ -218,6 +226,8 @@ def prepare_compositional_source_training(bundles: Any) -> tuple[tuple[Any, ...]
         "test_examples_available_to_fit": 0,
         "serving_authority": False,
     }
+    if source_order_inputs:
+        body["input_order_policy"] = "source_token_order_v1"
     return selected, {**body, "report_sha256": _sha(body)}
 
 
@@ -226,9 +236,11 @@ def fit_compositional_source_campaign(
     *,
     input_grounding: Any,
     progress: Any=None,
+    source_order_inputs: bool = False,
 ) -> Any:
     """Fit new coefficients on a measured representation, never relabel an older head."""
-    examples, report = prepare_compositional_source_training(bundles)
+    examples, report = prepare_compositional_source_training(
+        bundles, source_order_inputs=source_order_inputs)
     if progress:
         progress({"stage": "source_fit_start", "training_examples": report["training_example_count"],
                   "validation_examples": report["validation_example_count"]})
@@ -237,8 +249,16 @@ def fit_compositional_source_campaign(
              .with_overlap_complete_mentions().with_atomic_literal_arguments()
              .with_feasible_operation_charts().with_order_invariant_argument_graph()
              .with_joint_definition_graph().with_categorical_relation_scores())
+    if source_order_inputs:
+        receipt_body = {key: value for key, value in model.training_receipt.items()
+                        if key != "receipt_sha256"}
+        receipt_body["input_order_policy"] = "source_token_order_v1"
+        model = replace(model, training_receipt={**receipt_body,
+                        "receipt_sha256": _sha(receipt_body)})
     body = {key: value for key, value in report.items() if key != "report_sha256"}
-    body.update(schema="aura.compositional_source_training.v1", transducer_receipt_sha256=model.receipt_sha256,
+    body.update(schema=("aura.compositional_source_training.v2" if source_order_inputs
+                        else "aura.compositional_source_training.v1"),
+                transducer_receipt_sha256=model.receipt_sha256,
                 decoder_recipe="global_joint_categorical_atomic_v1", inherited_coefficients=False,
                 fit_complete=True, evaluation_complete=False)
     return CompositionalLeaveFamilyOutResult(model, {**body, "report_sha256": _sha(body)})

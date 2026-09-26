@@ -33,6 +33,7 @@ species within her cortical columns.
 """
 from __future__ import annotations
 
+import copy
 import logging
 import time
 from typing import Any
@@ -59,6 +60,58 @@ _DEGRADED_SUBSYSTEMS_KEY = "cognitive_integration_degraded"
 # overwrites them. Raising this makes the ecology more dominant; setting it to
 # 0 restores the old behaviour where the kernel was pure telemetry.
 _LENIA_COUPLING_BLEND = 0.1
+
+
+# Modifier values that cannot change under anybody's hands, so a snapshot can
+# hold the value itself. Everything else is copied before a background task
+# runs, or an append the task makes is invisible to both snapshots at once.
+_IMMUTABLE_MODIFIERS = (type(None), bool, int, float, complex, str, bytes)
+
+# Stands in for a value no copy could be made of. It equals nothing, so the
+# key it stands for is always reported as written.
+_UNCOPYABLE = object()
+
+
+def _modifier_snapshot(modifiers: dict[str, Any]) -> dict[str, Any]:
+    """Copy a modifier dict deeply enough to see an in-place write.
+
+    A task that appends to a list under a key changes nothing a shallow copy
+    can tell you about, because both snapshots hold the one list. Scalars need
+    no copy, so an ordinary tick pays nothing for this.
+    """
+    snapshot: dict[str, Any] = {}
+    for key, value in modifiers.items():
+        if isinstance(value, _IMMUTABLE_MODIFIERS):
+            snapshot[key] = value
+            continue
+        try:
+            snapshot[key] = copy.deepcopy(value)
+        except (TypeError, ValueError, RecursionError):
+            snapshot[key] = _UNCOPYABLE
+    return snapshot
+
+
+def _modifier_delta(
+    before: dict[str, Any], after: dict[str, Any]
+) -> dict[str, Any]:
+    """Return the modifiers that changed between two snapshots.
+
+    A key that holds a value no ``==`` can reduce to one truth value, such as
+    an array, counts as changed. That keeps the caller honest: it carries a
+    value it cannot prove is the old one, instead of dropping a real write.
+    """
+    delta: dict[str, Any] = {}
+    for key, value in after.items():
+        if key not in before:
+            delta[key] = value
+            continue
+        try:
+            same = bool(before[key] == value)
+        except (ValueError, TypeError):
+            same = False
+        if not same:
+            delta[key] = value
+    return delta
 
 
 def _record_cognitive_degradation(
@@ -227,11 +280,19 @@ class CognitiveIntegrationPhase(Phase):
         async def _run_alife_background(func):
             # Pass a derived state so it doesn't mutate the live tick state
             bg_state = new_state.derive("alife_bg")
+            # The derived state carries a copy of every modifier the turn held
+            # at this moment. By the time the queue drains, one tick later,
+            # those values are stale, and merging the whole dict reverts every
+            # modifier a phase wrote in between. Carry what this task wrote.
+            before = _modifier_snapshot(bg_state.response_modifiers)
             try:
                 await func(bg_state)
+                delta = _modifier_delta(before, bg_state.response_modifiers)
+                if not delta:
+                    return
                 # Keep the queue bounded to prevent memory leaks if tick rate outpaces ALife
                 if len(self._pending_deltas) < 100:
-                    self._pending_deltas.append(bg_state.response_modifiers)
+                    self._pending_deltas.append(delta)
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation(
                     "alife_bg",

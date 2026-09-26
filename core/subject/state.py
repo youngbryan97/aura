@@ -148,6 +148,20 @@ class Organs:
     #: the substrate's. The closure test found both predicting the core from
     #: outside it; see core/subject/sketch.py.
     mesh: Any = None
+    #: The unified field's own recurrent connectivity. Plasticity moves it
+    #: every tick and nothing in the core held it, so the closure test read its
+    #: extremes from outside and they predicted the core's next state.
+    field: Any = None
+    #: The last frame of the continuous experience stream. Its ownership
+    #: confidence is the third of the three the closure test read from outside,
+    #: and it is not a field of the unity state: it is the frame's own.
+    #:
+    #: Unlike every organ above it, this one is replaced every turn rather than
+    #: kept and stepped, so `live()` cannot hold it: the frame that exists when
+    #: the organism is built is None and would stay None for the run. It is
+    #: resolved per reading by `_experience_frame`, and a value here overrides
+    #: that, which is how a test hands one in.
+    experience: Any = None
 
     @classmethod
     def live(cls) -> Organs:
@@ -194,6 +208,7 @@ class Organs:
             self_prediction=runtime("self_prediction"),
             comparator=_agency_comparator(),
             soma=service("soma"),
+            field=service("unified_field"),
         )
 
 
@@ -521,7 +536,13 @@ _SCHEMAS: dict[str, Schema] = {
             # arrived in both with nothing in between. Integrated information
             # is a property of the recurrent system, not of what has attention,
             # so it stays with C and leaves here.
-            ("selfhood_readings", "cognition.selfhood_reading"),
+            # The readings themselves, not the shape of the record that holds
+            # them. `as_dict` returns the same five keys every turn, so the
+            # size of that mapping was 0.5556 on every frame of every run while
+            # the numbers inside it moved. What varies is how much of herself
+            # the tick could read, and what it read.
+            ("selfhood_read", "cognition.selfhood_reading.missing"),
+            ("selfhood_level", "cognition.selfhood_reading.readings"),
             ("ignition", "organ:workspace.ignition_level"),
             ("ignited", "organ:workspace.ignited"),
             ("candidates", "organ:workspace.pending_candidates"),
@@ -591,6 +612,10 @@ _SCHEMAS: dict[str, Schema] = {
             # See core/subject/sketch.py.
             *((f"substrate_state_{part}", "organ:substrate.x") for part in SKETCH_FIELDS),
             *((f"mesh_state_{part}", "organ:mesh.column_activations") for part in SKETCH_FIELDS),
+            # And the third recurrent state: the field's own weights, which
+            # plasticity rewrites while she runs. Read through the same sketch,
+            # for the same reason the two above are.
+            *((f"field_weight_{part}", "organ:field.W_field") for part in SKETCH_FIELDS),
         ),
     ),
     "S": _sch(
@@ -695,6 +720,14 @@ _SCHEMAS: dict[str, Schema] = {
             ("agency_pending", "organ:comparator.pending_efferences"),
             ("agency_attribution", "organ:comparator.recent_attribution"),
             ("agency_attribution_known", "organ:comparator.recent_attribution"),
+            # What the unity monitor decided about whose the last moment was,
+            # and how clean the line between her and the world is. The
+            # comparator above answers for one action; these answer for the
+            # whole bound moment, and the closure test read all three from
+            # outside the core. See core/unity/unity_monitor.py.
+            ("unity_ownership", "cognition.unity_state.agency_ownership_score"),
+            ("unity_boundary", "cognition.unity_state.self_world_boundary_score"),
+            ("unity_ownership_confidence", "organ:experience.ownership_confidence"),
         ),
     ),
     "M": _sch(
@@ -790,6 +823,11 @@ _SCHEMAS: dict[str, Schema] = {
             ("causal_confirmed", "organ:world_model.causal.causal_edges"),
             ("model_facets", "organ:world_model.status"),
             ("model_train_steps", "organ:world_model.learned.train_steps"),
+            # How long since they last said anything. The dynamics engine has
+            # counted it all along and the core did not hold it, so the closure
+            # test read it from outside and it was the largest leak of the run.
+            # It is what her own silence is measured against.
+            ("turns_since_user_spoke", "cognition.turns_since_user_spoke"),
         ),
     ),
     "D": _sch(
@@ -1350,7 +1388,7 @@ def _read_G(state: Any, organs: Organs) -> np.ndarray:
             _f(_dig(state, "cognition.conversation_energy"), 0.5),
             _sat(_f(_dig(state, "cognition.discourse_depth")), 8.0),
             _sat(_dig(state, "cognition.discourse_branches", []) or [], 4.0),
-            _sat(_dig(state, "cognition.selfhood_reading", {}) or {}, 4.0),
+            *_selfhood(_dig(state, "cognition.selfhood_reading", {}) or {}),
             _f(workspace.get("ignition_level")),
             1.0 if workspace.get("ignited") else 0.0,
             _sat(_f(workspace.get("pending_candidates")), 4.0),
@@ -1424,7 +1462,49 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
     )
     head.extend(_sketched(organs.substrate, "x", source="organ:substrate.x"))
     head.extend(_sketched(organs.mesh, "column_activations", source="organ:mesh.column_activations"))
+    head.extend(_sketched(organs.field, "W_field", source="organ:field.W_field"))
     return np.array(head, dtype=np.float64)
+
+
+def _experience_frame() -> Any:
+    """The current frame of the continuous experience stream, or nothing.
+
+    Read per reading rather than held, because the container's entry is a new
+    frame every turn: an organ resolved once at build time would be the frame
+    that existed before her first one, which is none of them.
+    """
+    try:
+        from core.container import ServiceContainer
+
+        return ServiceContainer.get("continuous_experience_frame", default=None)
+    # not a failure: no container here, so there is no frame to read.
+    except (ImportError, AttributeError, RuntimeError):
+        return None
+
+
+def _selfhood(reading: Any) -> list[float]:
+    """How much of herself the selfhood tick could read, and what it read.
+
+    Two numbers: the share of the drives that produced a reading, and the mean
+    of those readings. A tick that read nothing reads as nothing read and a
+    level of zero, which is a different state from a tick that read everything
+    and found zero — the first has a share of zero and the second a share of
+    one.
+    """
+    if not isinstance(reading, Mapping):
+        return [0.0, 0.0]
+    readings = reading.get("readings")
+    values = [
+        float(one)
+        for one in (readings.values() if isinstance(readings, Mapping) else [])
+        if isinstance(one, (int, float)) and not isinstance(one, bool)
+    ]
+    missing = reading.get("missing")
+    absent = len(missing) if isinstance(missing, (list, tuple, set)) else 0
+    asked = len(values) + absent
+    share = (len(values) / asked) if asked else 0.0
+    level = (sum(values) / len(values)) if values else 0.0
+    return [share, level]
 
 
 def _sketched(organ: Any, attribute: str, *, source: str) -> list[float]:
@@ -1516,6 +1596,24 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
             _sat(_f(comparator.get("total_traces")), 16.0),
             _sat(_f(comparator.get("pending_efferences")), 4.0),
             *_ladder(comparator.get("recent_attribution", ""), _ATTRIBUTION_LADDER),
+        ]
+    )
+    # Defaults of one, not zero: an unbound moment is not a moment she has
+    # disowned, and the monitor's own rest value for all three is full
+    # ownership. A zero here would read as a self that had lost the world.
+    kit_experience = organs.experience or _experience_frame()
+    if kit_experience is None:
+        _miss("organ:experience.ownership_confidence", "organ absent")
+    head.extend(
+        [
+            _f(_dig(state, "cognition.unity_state.agency_ownership_score"), 1.0),
+            _f(_dig(state, "cognition.unity_state.self_world_boundary_score"), 1.0),
+            _f(
+                getattr(kit_experience, "ownership_confidence", None)
+                if kit_experience is not None
+                else None,
+                1.0,
+            ),
         ]
     )
     return np.array(head, dtype=np.float64)
@@ -1649,6 +1747,10 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
             # not exist on the object — a feature of my own reading nothing,
             # which is the defect this file was written to find.
             _sat(_f(learned.get("train_steps")), 5_000.0),
+            # Saturating over a handful of turns: the difference between one
+            # turn of silence and three is the whole of what this says, and
+            # between thirty and forty it says nothing new.
+            _sat(_f(_dig(state, "cognition.turns_since_user_spoke")), 8.0),
         ],
         dtype=np.float64,
     )

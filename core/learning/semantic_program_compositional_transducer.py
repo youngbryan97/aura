@@ -551,7 +551,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
                 receipt.get("operation_assignment_policy") != "joint_factor_score_v2"
                 or receipt.get("argument_search_strategy") != "global_constraint_v1"))
             or receipt.get("operation_search_policy", "ranked_beam_v1")
-            not in {"ranked_beam_v1", "complete_bounded_v1"}
+            not in {"ranked_beam_v1", "complete_bounded_v1", "signature_diverse_v1"}
             or (
                 receipt.get("operation_search_policy") == "complete_bounded_v1"
                 and (receipt.get("operation_assignment_policy") != "joint_factor_score_v2"
@@ -560,6 +560,9 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
             or (receipt.get("operation_search_max_expansions") is not None
                 and (type(receipt["operation_search_max_expansions"]) is not int
                      or receipt["operation_search_max_expansions"] < 1))
+            or (receipt.get("operation_search_policy") == "signature_diverse_v1"
+                and (type(receipt.get("operation_signature_max_table_entries")) is not int
+                     or receipt["operation_signature_max_table_entries"] < 1))
             or type(receipt.get("operation_label_limit", 1)) is not int
             or not 1 <= receipt.get("operation_label_limit", 1) <= len(self.operation_head.labels)
             or receipt.get("relation_score_strategy", "positive_label_margin_v1")
@@ -989,7 +992,14 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
             return _operation_chart_use_feasible(selected, n_inputs=len(inputs), contract=self.register_use_contract,
                 input_types=tuple("integer" if type(value) is int else "integer_sequence" for value in inputs)
                 if typed_search else None)
-        charts = (OperationChartSearch(
+        from core.learning.semantic_operation_search import best_charts_by_operation_sequence
+
+        charts = (best_charts_by_operation_sequence(
+            nodes, max_steps=inference_max_steps, length_penalty=self.operation_length_penalty,
+            feasible=feasible,
+            max_table_entries=self.training_receipt["operation_signature_max_table_entries"],
+        )[:self.operation_chart_beam] if self.training_receipt.get("operation_search_policy")
+            == "signature_diverse_v1" else OperationChartSearch(
             nodes, max_steps=inference_max_steps, length_penalty=self.operation_length_penalty,
             feasible=feasible,
             max_expansions=self.training_receipt.get("operation_search_max_expansions"),
@@ -1044,14 +1054,17 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
         inference_max_steps = self.inference_step_limit(len(inputs))
         if inference_max_steps is None:
             return SemanticTransductionOutcome(None, "public_input_count_unsupported", {}, {})
+        from core.learning.semantic_operation_search import OperationSearchIncompleteError
+
         try:
             input_spans, input_scores, argument_pointer_scores, charts = self._runtime_operation_charts(
                 tokens, hidden, inputs, inference_max_steps)
+        except OperationSearchIncompleteError as exc:
+            return SemanticTransductionOutcome(None, str(exc), {}, {}, search_interrupted=True)
         except ValueError as exc:
             return SemanticTransductionOutcome(None, str(exc), {}, {})
         from core.learning.semantic_argument_chart import select_operation_argument_graph
         from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
-        from core.learning.semantic_operation_search import OperationSearchIncompleteError
 
         def remaining() -> Any:
             if deadline is None:

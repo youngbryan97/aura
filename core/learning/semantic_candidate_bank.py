@@ -2,6 +2,7 @@
 
 import hashlib
 import math
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -148,6 +149,7 @@ def decode_semantic_candidates(
     max_charts: int=16,
     max_graphs_per_chart: int=16,
     solve_time_limit_s: float=10.0,
+    bank_time_limit_s: float | None=None,
     progress: Any=None,
 ) -> Any:
     """Retain bounded alternatives from the same builders used by ``decode``.
@@ -162,6 +164,20 @@ def decode_semantic_candidates(
     if (type(solve_time_limit_s) not in (int, float) or not math.isfinite(solve_time_limit_s)
             or solve_time_limit_s <= 0):
         raise ValueError("candidate solve allowance must be finite and positive")
+    if (bank_time_limit_s is not None and
+            (type(bank_time_limit_s) not in (int, float)
+             or not math.isfinite(bank_time_limit_s) or bank_time_limit_s <= 0)):
+        raise ValueError("candidate bank allowance must be finite and positive")
+    deadline = None if bank_time_limit_s is None else time.monotonic() + bank_time_limit_s
+
+    def remaining() -> float | None:
+        if deadline is None:
+            return None
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise ArgumentOptimizationIncompleteError("candidate_bank_budget_exhausted")
+        return left
+
     source_token_ids, public_inputs = tuple(source_token_ids), tuple(public_inputs)
     if progress:
         progress({"stage": "ordinary_decode"})
@@ -176,6 +192,8 @@ def decode_semantic_candidates(
             "solve_time_limit_s": solve_time_limit_s, "charts": [],
             "operation_inventory_exhausted": False, "operation_search_complete": False,
             "search_complete": False, "selected_refusal": outcome.refusal}
+    if bank_time_limit_s is not None:
+        body["bank_time_limit_s"] = bank_time_limit_s
     body["selected_search_interrupted"] = outcome.search_interrupted
     candidates = []
     spans = ()
@@ -204,8 +222,15 @@ def decode_semantic_candidates(
     body["observation_sha256"] = candidate_observation_identity(tokens, inputs, hidden)
     if model.training_receipt.get("argument_search_strategy") != "global_constraint_v1":
         return finish("argument_inventory_unsupported")
-    spans, _, argument_scores, charts = model._runtime_operation_charts(
-        tokens, hidden, inputs, model.inference_step_limit(len(inputs)))
+    try:
+        remaining()
+    except ArgumentOptimizationIncompleteError as exc:
+        return finish(str(exc))
+    try:
+        spans, _, argument_scores, charts = model._runtime_operation_charts(
+            tokens, hidden, inputs, model.inference_step_limit(len(inputs)))
+    except OperationSearchIncompleteError as exc:
+        return finish(str(exc))
     if outcome.ir is not None and tuple(spans) != outcome.ir.input_spans:
         raise ValueError("candidate search changed ordinary input grounding")
     charts = iter(charts)
@@ -214,6 +239,7 @@ def decode_semantic_candidates(
     reasons = []
     try:
         for chart_index in range(max_charts + 1):
+            remaining()
             nodes = next(charts, None)
             if nodes is None:
                 body["operation_inventory_exhausted"] = True
@@ -236,7 +262,7 @@ def decode_semantic_candidates(
                     operation_nodes=nodes, argument_pointer_scores=argument_scores,
                     relation_score_cache=relation_scores, relation_vector_cache=relation_vectors,
                     definition_pointer_scores=definition_scores, chart_observer=captured.append,
-                    build_only=True)
+                    build_only=True, time_limit_s=remaining())
             except ArgumentOptimizationIncompleteError as exc:
                 row["interruption"] = str(exc)
                 row["search_complete"] = False
@@ -248,12 +274,14 @@ def decode_semantic_candidates(
             excluded = []
             try:
                 for graph_index in range(max_graphs_per_chart + 1):
+                    left = remaining()
                     if progress:
                         progress({"stage": "candidate_graph", "chart": chart_index, "graph": graph_index})
                     selected_options = []
                     result = captured[0].solve(excluded_graphs=excluded,
                                                selection_observer=selected_options.append,
-                                               time_limit_s=solve_time_limit_s)
+                                               time_limit_s=min(solve_time_limit_s, left)
+                                               if left is not None else solve_time_limit_s)
                     if result is None:
                         row["search_complete"] = True
                         break
@@ -286,6 +314,9 @@ def decode_semantic_candidates(
     except OperationSearchIncompleteError as exc:
         body["interruption"] = str(exc)
         reasons.append("operation_search_incomplete")
+    except ArgumentOptimizationIncompleteError as exc:
+        body["interruption"] = str(exc)
+        reasons.append("candidate_bank_budget_exhausted")
     body["search_complete"] = body["operation_search_complete"] and all(
         row["search_complete"] for row in body["charts"])
     return finish(",".join(dict.fromkeys(reasons)) or None)
