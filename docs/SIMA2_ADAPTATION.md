@@ -164,7 +164,7 @@ mouse direction and gain, layout and prompt keys; she is told none of it.
 | chasing | 21/30 | not run |
 
 Live, in the test room, three fresh rooms: door and chest opened six times
-of six, 8 to 12 seconds a trip. Self-set practice: she set herself both,
+of six, 10.2 seconds a trip on average. Self-set practice: she set herself both,
 opened both, and did not repeat what she had managed.
 
 ## Build order
