@@ -137,6 +137,43 @@ def equivalent_recompositions(program: Any) -> Iterator[Any]:
             yield candidate
 
 
+def _source_relation_records(examples: tuple[Any, ...]) -> dict[tuple, list[tuple]]:
+    grouped: dict[tuple, list[tuple]] = defaultdict(list)
+    identities = set()
+    for item in examples:
+        if item.split != 'train':
+            raise ValueError('relation controls require source training only')
+        ir = getattr(item, 'ir', None)
+        source_id = item.example_id if ir is None else ir.source_text_sha256
+        program = item.program if ir is None else ir.to_program()
+        inputs = item.inputs if ir is None else item.public_inputs
+        source_hash = (hashlib.sha256(item.source_text.encode('utf-8')).hexdigest()
+                       if ir is None else ir.source_text_sha256)
+        if source_id in identities:
+            raise ValueError('relation controls repeat a source identity')
+        identities.add(source_id)
+        relation = semantic_program_structural_key(program)
+        if relation is None:
+            raise ValueError('relation controls require connected typed programs')
+        record = (source_id, item.construction_id, item.contrast_id or source_id,
+                  program, inputs, source_hash)
+        grouped[relation].append(record)
+    return grouped
+
+
+def cross_construction_relation_partners(examples: tuple[Any, ...]) -> dict[str, str]:
+    """Give each fit source an independent same-relation construction partner."""
+    partners = {}
+    for records in _source_relation_records(examples).values():
+        ordered = sorted(records)
+        for source in ordered:
+            other = next((candidate for candidate in ordered
+                          if candidate[1] != source[1] and candidate[2] != source[2]), None)
+            if other is not None:
+                partners[source[0]] = other[0]
+    return partners
+
+
 def cross_construction_relation_controls(examples: tuple[Any, ...]) -> dict[str, Any]:
     """Pair shared computation across independent source forms with witnessed rivals.
 
@@ -147,41 +184,36 @@ def cross_construction_relation_controls(examples: tuple[Any, ...]) -> dict[str,
     from itertools import combinations
     from core.learning.semantic_candidate_contrasts import source_program_factor_contrasts
 
-    grouped: dict[tuple, dict[str, Any]] = defaultdict(dict)
-    identities = set()
-    for item in examples:
-        if item.split != 'train':
-            raise ValueError('relation controls require source training only')
-        if item.example_id in identities:
-            raise ValueError('relation controls repeat a source identity')
-        identities.add(item.example_id)
-        relation = semantic_program_structural_key(item.program)
-        if relation is None:
-            raise ValueError('relation controls require connected typed programs')
-        current = grouped[relation].get(item.construction_id)
-        if current is None or item.example_id < current.example_id:
-            grouped[relation][item.construction_id] = item
+    grouped = _source_relation_records(examples)
+    identities = {record[0] for records in grouped.values() for record in records}
     pairs = []
-    for relation, by_construction in sorted(grouped.items(), key=lambda row: _sha(row[0])):
+    for relation, records in sorted(grouped.items(), key=lambda row: _sha(row[0])):
+        by_construction = {}
+        for record in sorted(records):
+            by_construction.setdefault(record[1], record)
         for left, right in combinations((by_construction[key] for key in sorted(by_construction)), 2):
-            if left.contrast_id == right.contrast_id:
+            if left[2] == right[2]:
                 continue
             candidates = source_program_factor_contrasts(
-                left.program, left.inputs,
-                source_sha256=hashlib.sha256(left.source_text.encode('utf-8')).hexdigest())
+                left[3], left[4], source_sha256=left[5])
             if len(candidates) < 2:
                 continue
-            rival = candidates[1]
-            comparison = compare_program_meanings(left.program, rival,
-                                                  counterfactual_inputs(left.inputs))
+            role_rivals = [candidate for candidate in candidates[1:] if all(
+                proposed.op == original.op for proposed, original in zip(
+                    candidate.instructions, left[3].instructions, strict=True))]
+            rival = role_rivals[0] if role_rivals else candidates[1]
+            negative_kind = 'role_or_dependency_flip' if role_rivals else 'operation_change'
+            comparison = compare_program_meanings(left[3], rival,
+                                                  counterfactual_inputs(left[4]))
             if comparison['status'] != 'different' or comparison.get('witness') is None:
                 raise ValueError('relation rival lacks a changed-meaning witness')
-            pairs.append({'left': left.example_id, 'right': right.example_id,
-                          'left_construction': left.construction_id,
-                          'right_construction': right.construction_id,
+            pairs.append({'left': left[0], 'right': right[0],
+                          'left_construction': left[1],
+                          'right_construction': right[1],
                           'relation_sha256': _sha(relation),
-                          'positive_program_sha256': left.program.sha(),
+                          'positive_program_sha256': left[3].sha(),
                           'negative_program_sha256': rival.sha(),
+                          'negative_kind': negative_kind,
                           'negative_witness': comparison['witness']})
     body = {'schema': 'aura.semantic_cross_construction_relation_controls.v1',
             'source_examples': len(identities), 'relations': len(grouped),

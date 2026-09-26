@@ -112,6 +112,19 @@ def native_source_loss(suffix, hidden_rows, sequences, *, scope, objective):
     return loss if objective == "token" else loss + native_choice_loss(scores, (0,))
 
 
+def native_relational_source_loss(suffix, left_hidden, left_sequences,
+                                  right_hidden, right_sequences):
+    """Optimize both source forms, emphasizing the weaker same-relation form."""
+    import mlx.core as mx
+
+    losses = mx.stack((
+        native_source_loss(suffix, left_hidden, left_sequences,
+                           scope="semantic_decisions", objective="contrastive"),
+        native_source_loss(suffix, right_hidden, right_sequences,
+                           scope="semantic_decisions", objective="contrastive")))
+    return mx.logsumexp(losses) - math.log(2.)
+
+
 def native_supervision_sets(items, texts, tokenizer, identities, *, peers=(),
                             contrast_limit=None, max_tokens=1024):
     """Reuse the floor's witnessed contrasts only for declared source supervision."""
@@ -155,7 +168,7 @@ def main():
     parser.add_argument("--max-sequence-tokens", type=int, default=1024)
     parser.add_argument("--loss-scope", choices=("continuation", "semantic_decisions"),
                         default="continuation")
-    parser.add_argument("--objective", choices=("token", "contrastive"), default="token")
+    parser.add_argument("--objective", choices=("token", "contrastive", "relational"), default="token")
     parser.add_argument("--contrast-limit", type=int, default=4)
     parser.add_argument("--plan-only", action="store_true")
     args = parser.parse_args()
@@ -163,7 +176,8 @@ def main():
             args.steps, args.save_every, args.rank, args.layers, args.max_sequence_tokens))
             or args.steps % args.save_every or not 0 < args.max_seconds <= 14400
             or not 1 <= args.prefix_batch_size <= 32 or not 2 <= args.contrast_limit <= 32
-            or args.objective == "contrastive" and args.loss_scope != "semantic_decisions"):
+            or args.objective in {"contrastive", "relational"}
+            and args.loss_scope != "semantic_decisions"):
         parser.error("positive sizes, complete checkpoint intervals and a finite time bound required")
 
     from tools.refit_semantic_argument_proposals import (
@@ -179,6 +193,7 @@ def main():
     from tools.probe_semantic_proposer_crossfit import _digest, _save_if_absent
     from tools.train_nested_semantic_ranker import _verified_pair
     from tools.train_semantic_atom_ranker import construction_weights, validate_atom_partition
+    from core.learning.semantic_counterfactual_corpus import cross_construction_relation_partners
 
     outer, bank_report = _verified_pair(args.bank)
     raw = {name: path.read_bytes() for name, path in (
@@ -197,6 +212,13 @@ def main():
     calibration_ids = construction_subset(examples, outer["calibration_ids"],
                                            per_construction=args.calibration_per_construction)
     schedule = native_training_schedule(outer["fit_ids"], steps=args.steps, seed=20260925)
+    relational_partners = (cross_construction_relation_partners(tuple(fit))
+                           if args.objective == "relational" else {})
+    scheduled_partners = {identity: relational_partners[identity] for identity in set(schedule)
+                          if identity in relational_partners}
+    if args.objective == "relational" and not scheduled_partners:
+        raise ValueError("relational objective has no scheduled cross-construction fit partners")
+    captured_fit_ids = sorted(set(schedule) | set(scheduled_partners.values()))
     peer_programs = {item.ir.to_program().sha(): item.ir.to_program() for item in fit}
     spec = get_active_cortex_spec(force_refresh=True)
     if spec is None or not spec.exact_identity:
@@ -210,6 +232,7 @@ def main():
         "core/learning/semantic_native_program.py", "core/brain/llm/decoder_topology.py",
         "core/learning/semantic_program_feature_materialization.py",
         "core/learning/semantic_candidate_contrasts.py",
+        "core/learning/semantic_counterfactual_corpus.py",
         "core/learning/semantic_graph_counterexamples.py",
         "core/learning/semantic_program_floor.py",
         "core/runtime/mlx_memory_guard.py", "tools/evaluate_semantic_candidate_ranker.py",
@@ -226,10 +249,12 @@ def main():
             "loss_scope": args.loss_scope,
             "semantic_decision_basis": "program_atoms_and_graph_termination_v1",
             "objective": args.objective, "contrast_limit": args.contrast_limit,
+            "relational_fit_partners": dict(sorted(scheduled_partners.items())),
+            "relational_paired_updates": sum(identity in scheduled_partners for identity in schedule),
             "contrast_policy": "source_floor_typed_witnessed_difference_v1",
-            "contrast_weight": 1.0 if args.objective == "contrastive" else 0.0,
+            "contrast_weight": 1.0 if args.objective != "token" else 0.0,
             "supervision_peer_program_sha256s": sorted(peer_programs)
-                if args.objective == "contrastive" else [],
+                if args.objective != "token" else [],
             "max_seconds": args.max_seconds, "max_sequence_tokens": args.max_sequence_tokens,
             "model_descriptor_sha256": spec.descriptor_sha256,
             "model_path": str(spec.model_path), "pointer_sha256": spec.pointer_sha256,
@@ -238,7 +263,7 @@ def main():
             "source_report_sha256": outer["source_report_sha256"],
             "fit_ids": outer["fit_ids"], "calibration_ids": calibration_ids,
             "scheduled_fit_ids": schedule,
-            "captured_fit_ids": sorted(set(schedule)),
+            "captured_fit_ids": captured_fit_ids,
             "complete_calibration_population": len(calibration), "held_ids": held_ids,
             "heldout_axis": outer["heldout_axis"],
             "selection": "minimum_source_calibration_" + args.objective + "_" + args.loss_scope,
@@ -307,11 +332,11 @@ def main():
         items = {item.ir.source_text_sha256: item for item in examples if item.split == "train"}
         texts = {identity: source_text_from_tokens(item, tokenizer) for identity, item in items.items()}
         public_by_id = {identity: item.public_inputs for identity, item in items.items()}
-        supervised_ids = tuple(sorted(set(schedule) | set(calibration_ids)))
+        supervised_ids = tuple(sorted(set(captured_fit_ids) | set(calibration_ids)))
         sequences, groups = native_supervision_sets(
             items, texts, tokenizer, supervised_ids,
             peers=tuple(peer_programs[key] for key in sorted(peer_programs)),
-            contrast_limit=args.contrast_limit if args.objective == "contrastive" else None,
+            contrast_limit=args.contrast_limit if args.objective != "token" else None,
             max_tokens=args.max_sequence_tokens)
         supervision = {"plan_sha256": plan["plan_sha256"],
             "rows": [{"source": key[0], "program_sha256": key[1],
@@ -356,8 +381,16 @@ def main():
                                   "active_memory_bytes": mx.get_active_memory()}), flush=True)
         def source_objective(tail, identity, states):
             keys = groups[identity]
-            return native_source_loss(tail, [states[key] for key in keys],
-                [sequences[key] for key in keys], scope=args.loss_scope, objective=args.objective)
+            hidden = [states[key] for key in keys]
+            rows = [sequences[key] for key in keys]
+            partner = scheduled_partners.get(identity) if args.objective == "relational" else None
+            if partner is not None:
+                peer_keys = groups[partner]
+                return native_relational_source_loss(tail, hidden, rows,
+                    [states[key] for key in peer_keys], [sequences[key] for key in peer_keys])
+            return native_source_loss(tail, hidden, rows, scope=args.loss_scope,
+                                      objective="contrastive" if args.objective == "relational"
+                                      else args.objective)
 
         def measure_calibration(states):
             return sum(source_objective(suffix, identity, states).item() * calibration_weights[identity]
