@@ -538,13 +538,6 @@ _SCHEMAS: dict[str, Schema] = {
             # from outside the core, where it was the largest single leak of the
             # 25 September run. A feeling nothing in the affect domain held.
             ("dread", "organ:homeostasis.prospective_dread"),
-            # How often she has been in each of the phi core's affective states.
-            # Her own history of having felt each way, which the closure test
-            # read from outside the core. Through the sketch it reads it through.
-            *(
-                (f"felt_before_{part}", "organ:phi_core._affective_state_visits")
-                for part in SKETCH_FIELDS
-            ),
         ),
     ),
     "G": _sch(
@@ -644,9 +637,14 @@ _SCHEMAS: dict[str, Schema] = {
             # See core/subject/sketch.py.
             *((f"substrate_state_{part}", "organ:substrate.x") for part in SKETCH_FIELDS),
             *((f"mesh_state_{part}", "organ:mesh.column_activations") for part in SKETCH_FIELDS),
-            # And the third recurrent state: the field's own weights, which
-            # plasticity rewrites while she runs. Read through the same sketch,
-            # for the same reason the two above are.
+            # And the third recurrent state, the unified field's own: the
+            # integrated state the rest of the stack reads from and writes into.
+            # Its weights were brought in and its state was not, and on the
+            # seed-7 run of 25 September at 21fec3d95 the field's state was the
+            # largest leak into the core after the process-size clock.
+            *((f"field_state_{part}", "organ:field.F") for part in SKETCH_FIELDS),
+            # And the field's own weights, which plasticity rewrites while she
+            # runs. Read through the same sketch, for the same reason.
             *((f"field_weight_{part}", "organ:field.W_field") for part in SKETCH_FIELDS),
             # And the two connectivities plasticity rewrites beside it. The
             # closure test read the substrate's own matrix and the mesh's stack
@@ -659,6 +657,16 @@ _SCHEMAS: dict[str, Schema] = {
             # is recurrent cognition's own history of itself.
             *(
                 (f"been_here_{part}", "organ:phi_core._state_visits")
+                for part in SKETCH_FIELDS
+            ),
+            # And how often she has been in each of its affective states: her
+            # own history of having felt each way, which the closure test read
+            # from outside the core. It sat in the affect domain, which made
+            # the phi core an organ of two domains: holding either held the
+            # whole organ, so a cut between affect and recurrent cognition froze
+            # part of the side it meant to leave free.
+            *(
+                (f"felt_before_{part}", "organ:phi_core._affective_state_visits")
                 for part in SKETCH_FIELDS
             ),
         ),
@@ -1438,13 +1446,6 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
         source="organ:homeostasis.prospective_dread",
     ) or {}
     head.append(_f(homeostasis.get("prospective_dread")))
-    head.extend(
-        _shared_out(
-            organs.phi_core,
-            "_affective_state_visits",
-            source="organ:phi_core._affective_state_visits",
-        )
-    )
     return np.array(head, dtype=np.float64)
 
 
@@ -1536,11 +1537,19 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
     )
     head.extend(_sketched(organs.substrate, "x", source="organ:substrate.x"))
     head.extend(_sketched(organs.mesh, "column_activations", source="organ:mesh.column_activations"))
+    head.extend(_sketched(organs.field, "F", source="organ:field.F"))
     head.extend(_sketched(organs.field, "W_field", source="organ:field.W_field"))
     head.extend(_sketched(organs.substrate, "W", source="organ:substrate.W"))
     head.extend(_sketched(organs.mesh, "_W_batch", source="organ:mesh._W_batch"))
     head.extend(
         _shared_out(organs.phi_core, "_state_visits", source="organ:phi_core._state_visits")
+    )
+    head.extend(
+        _shared_out(
+            organs.phi_core,
+            "_affective_state_visits",
+            source="organ:phi_core._affective_state_visits",
+        )
     )
     return np.array(head, dtype=np.float64)
 
