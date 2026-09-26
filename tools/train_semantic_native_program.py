@@ -61,6 +61,24 @@ def native_training_schedule(identities, *, steps, seed):
     return tuple(schedule)
 
 
+def native_schedule_coverage(identities, schedule, captured_identities):
+    """Separate eligible fit data, primary updates, and metric-donor capture."""
+    from collections import Counter
+
+    eligible = set(identities)
+    primary = Counter(schedule)
+    captured = set(captured_identities)
+    if (not eligible or len(eligible) != len(identities) or not primary
+            or not set(primary) <= captured <= eligible):
+        raise ValueError("native coverage differs from the admitted fit partition")
+    missing = sorted(eligible - set(primary))
+    return {"eligible_sources": len(eligible), "primary_updates": len(schedule),
+            "primary_sources": len(primary), "captured_sources": len(captured),
+            "primary_unvisited_ids": missing,
+            "minimum_primary_visits": min(primary[identity] for identity in eligible),
+            "complete_primary_epoch": not missing}
+
+
 def native_prediction_positions(sequence, *, scope):
     """Identify targets before vocabulary projection, retaining every causal state."""
     start = sequence.continuation_start
@@ -234,16 +252,16 @@ def main():
     )
     configure_refit_environment(args.directory / "report.json")
     from core.brain.llm.model_registry import get_active_cortex_spec
+    from core.learning.semantic_counterfactual_corpus import (
+        cross_construction_relation_partners,
+        cross_construction_relation_triplets,
+    )
     from core.learning.semantic_program_compositional_transducer import (
         compositional_semantic_program_transducer_from_dict,
     )
     from tools.probe_semantic_proposer_crossfit import _digest, _save_if_absent
     from tools.train_nested_semantic_ranker import _verified_pair
     from tools.train_semantic_atom_ranker import construction_weights, validate_atom_partition
-    from core.learning.semantic_counterfactual_corpus import (
-        cross_construction_relation_partners,
-        cross_construction_relation_triplets,
-    )
 
     outer, bank_report = _verified_pair(args.bank)
     raw = {name: path.read_bytes() for name, path in (
@@ -325,6 +343,8 @@ def main():
             "fit_ids": outer["fit_ids"], "calibration_ids": calibration_ids,
             "scheduled_fit_ids": schedule,
             "captured_fit_ids": captured_fit_ids,
+            "schedule_coverage": native_schedule_coverage(outer["fit_ids"], schedule,
+                                                          captured_fit_ids),
             "complete_calibration_population": len(calibration), "held_ids": held_ids,
             "heldout_axis": outer["heldout_axis"],
             "selection": "minimum_source_calibration_" + args.objective + "_" + args.loss_scope,
@@ -339,6 +359,7 @@ def main():
     if args.plan_only:
         print(json.dumps({"stage": "plan_only", "plan_sha256": plan["plan_sha256"],
                           "fit": len(fit), "calibration": len(calibration_ids),
+                          "schedule_coverage": plan["schedule_coverage"],
                           "held": len(held_ids), "model_weights_loaded": False}), flush=True)
         return
     if any(args.directory.glob("checkpoint-*.json")):

@@ -14,6 +14,7 @@ from core.learning.semantic_native_program import (
     native_program_sequence,
     native_program_surface,
     native_program_text,
+    native_text_decision_sequence,
     parse_native_program,
     source_text_from_tokens,
 )
@@ -79,6 +80,17 @@ def test_supervision_contains_the_unchanged_request_and_masked_prefix():
     assert bytes(row.tokens[index] for index in row.semantic_positions).decode() == "sub01]"
     with pytest.raises(ValueError, match="sequence length"):
         native_program_sequence(source, _program(), tokenizer, max_tokens=5)
+
+
+def test_partial_grammar_prefix_scores_only_the_declared_decision():
+    text = '{"inputs":2,"steps":[["sub"'
+    span = (text.index("sub"), text.index("sub") + 3)
+    sequence = native_text_decision_sequence("Unchanged request", text, (span,), Tokenizer())
+    assert bytes(sequence.tokens[index] for index in sequence.semantic_positions).decode() == "sub"
+    with pytest.raises(ValueError, match="target spans"):
+        native_text_decision_sequence("Unchanged request", text, ((0, len(text) + 1),), Tokenizer())
+    with pytest.raises(ValueError):
+        parse_native_program(text)
 
 
 def test_tokenizer_template_boundary_cannot_be_repaired_by_guessing():

@@ -11,13 +11,14 @@ from tools.train_semantic_native_program import (
     construction_subset,
     exact_length_batches,
     native_loss,
-    native_relational_source_loss,
     native_relation_metric_loss,
+    native_relational_source_loss,
+    native_schedule_coverage,
     native_source_embedding,
-    selected_projection_error,
     native_source_loss,
     native_supervision_sets,
     native_training_schedule,
+    selected_projection_error,
 )
 
 
@@ -32,6 +33,19 @@ def test_source_identity_sampling_keeps_all_constructions_without_labels():
     for invalid in (["missing"], ["a-0", "a-0"]):
         with pytest.raises(ValueError, match="identities"):
             construction_subset(examples, invalid, per_construction=1)
+
+
+def test_primary_epoch_coverage_is_not_inferred_from_capture_or_update_count():
+    partial = native_schedule_coverage(("a", "b", "c"), ("a", "a", "b"), ("a", "b", "c"))
+    assert partial["primary_unvisited_ids"] == ["c"]
+    assert partial["complete_primary_epoch"] is False
+    assert partial["captured_sources"] == 3
+    assert partial["minimum_primary_visits"] == 0
+    complete = native_schedule_coverage(("a", "b", "c"), ("a", "b", "c", "a"), ("a", "b", "c"))
+    assert complete["complete_primary_epoch"] is True
+    assert complete["minimum_primary_visits"] == 1
+    with pytest.raises(ValueError, match="admitted fit"):
+        native_schedule_coverage(("a", "b"), ("a",), ("a", "held"))
 
 
 def test_prefix_batches_preserve_every_complete_sequence_and_ignore_input_order():
@@ -200,7 +214,8 @@ def test_selected_projection_gate_checks_supervised_probability_not_unrelated_lo
 def test_native_partner_map_uses_typed_relation_not_construction_identity():
     from core.learning.procedure_induction import Instruction, Program
     from core.learning.semantic_counterfactual_corpus import (
-        cross_construction_relation_partners, cross_construction_relation_triplets,
+        cross_construction_relation_partners,
+        cross_construction_relation_triplets,
     )
 
     shared = Program(2, (Instruction('sub', (0, 1)),))

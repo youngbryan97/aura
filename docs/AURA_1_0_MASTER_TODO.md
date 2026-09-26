@@ -1817,6 +1817,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   scores 72/72 on target-derived six-candidate inventories across 24 withheld
   three-step constructions, versus 55/72 unfitted. This is label-blind
   selection with oracle proposal reach, not end-to-end transfer or G04 closure.
+  [Target-blind native proposals](evidence/G04_NATIVE_TARGET_BLIND_PROPOSALS_2026-09-26.md)
+  fail two distinct three-request canaries. Typed generation exposes wrong
+  intermediate-register binding despite successful whole-graph discrimination.
+  This boundary remains open; no serving or fusion change is qualified.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
   OPEN, observed live 2026-09-21, and recorded here because it is a
   reasoning error rather than a plumbing one. Asked how far a bird flies

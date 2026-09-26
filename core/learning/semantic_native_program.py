@@ -126,13 +126,33 @@ def native_program_sequence(source: str, program: Program, tokenizer: Any,
     """
     if not isinstance(source, str) or not source or type(max_tokens) is not int or max_tokens < 2:
         raise ValueError("native semantic sequence needs a request and a finite token bound")
+    target, semantic_spans = native_program_surface(program, decision_basis=decision_basis)
+    return native_text_decision_sequence(source, target, semantic_spans, tokenizer,
+                                         max_tokens=max_tokens)
+
+
+def native_text_decision_sequence(source: str, target: str,
+                                  semantic_spans: tuple[tuple[int, int], ...],
+                                  tokenizer: Any, *, max_tokens: int = 1024
+                                  ) -> NativeProgramSequence:
+    """Score declared text decisions under the same unmodified assistant template.
+
+    A grammar decoder may score an incomplete graph prefix. Such text has no
+    execution authority; only parse_native_program admits a completed graph.
+    Offsets must belong to that prefix rather than private template controls.
+    """
+    if (not isinstance(source, str) or not source or not isinstance(target, str) or not target
+            or type(max_tokens) is not int or max_tokens < 2
+            or not isinstance(semantic_spans, tuple) or not semantic_spans
+            or any(type(left) is not int or type(right) is not int
+                   or not 0 <= left < right <= len(target) for left, right in semantic_spans)):
+        raise ValueError("native text decisions need exact nonempty target spans")
     from core.learning.semantic_program_feature_materialization import (
         offset_tokenizer_for_worker,
         tokenize_with_offsets,
     )
 
     user = {"role": "user", "content": source}
-    target, semantic_spans = native_program_surface(program, decision_basis=decision_basis)
     messages = [user, {"role": "assistant", "content": target}]
     prefix_text = tokenizer.apply_chat_template([user], add_generation_prompt=True, tokenize=False)
     whole_text = tokenizer.apply_chat_template(messages, tokenize=False)

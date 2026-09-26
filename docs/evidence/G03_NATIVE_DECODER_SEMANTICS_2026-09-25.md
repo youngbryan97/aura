@@ -735,3 +735,16 @@ incumbent non-regression. The report is
 (`51a54178f5d024426efdb3907e5bb045ceb0db8f8c87527cfcc53ee260283f63`).
 No checkpoint was selected from held labels, and this candidate is not
 promoted. G03 and G04 remain open.
+
+### Training coverage correction, 2026-09-26
+
+The preceding fold-2 paragraph incorrectly equates the 367 eligible fit
+requests with sources used in primary optimizer updates. Its retained plan
+contains 320 distinct primary sources in 320 updates, and 331 captured
+sources after including metric donors. Forty-seven eligible sources received
+no primary update. Folds 0 and 1 each had 303 eligible sources and completed
+their primary epoch in 320 updates. The fold-2 result remains 37/47; this
+coverage difference is a confound, not an established cause of its losses.
+The trainer now records eligible, scheduled, captured, and unvisited sources
+separately. A complete-epoch control keeps the source partitions, objective,
+seed, candidate bank, and full calibration population unchanged.
