@@ -718,3 +718,20 @@ evidence; neither gives fresh-family transfer, independent mixed-policy
 admission, or serving authority. Reusing all 185 calibration requests for
 checkpoint choice also leaves no independent members of that partition for
 the existing source-only arbiter experiment.
+
+The same full-calibration protocol failed to replicate on utterance fold 2.
+Its frozen source partition contained 367 fit requests, 185 calibration
+requests, and 47 held requests; 320 scheduled updates used 367 distinct fit
+sources. Source calibration chose step 224 from the complete checkpoint
+schedule, reducing loss from 3.279402 to 0.205439. Nevertheless, the native
+suffix selected 37/47 held programs correctly, versus 43/47 for the incumbent
+and 16/47 for the unfitted suffix. There were zero incumbent-relative gains
+and six regressions, while the bank contained a correct candidate for 44/47.
+The regressions span fork/join, fronted arithmetic, cataphora, and natural
+alias/count requests. This is a complete negative replication: better source
+calibration loss and a large within-native learning gain do not establish
+incumbent non-regression. The report is
+`~/.aura/rlc-evidence/semantic-native-metric-fullcal-fold2-20260926/report.json`
+(`51a54178f5d024426efdb3907e5bb045ceb0db8f8c87527cfcc53ee260283f63`).
+No checkpoint was selected from held labels, and this candidate is not
+promoted. G03 and G04 remain open.
