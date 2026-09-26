@@ -58,6 +58,11 @@ def forget_how_far_she_saw() -> None:
     _SAW["acts"] = 0
 
 
+def she_saw(depth: int) -> None:
+    """Record how far a search done elsewhere saw, for whoever asks how far she can see."""
+    _SAW["acts"] = int(depth)
+
+
 def how_far_she_can_see() -> int:
     """How many of her own acts ahead her last look reached. Nought before any.
 

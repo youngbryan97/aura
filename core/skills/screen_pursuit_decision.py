@@ -1314,19 +1314,33 @@ async def decide_the_next_move(
             stood_on = pending.setdefault("stood_on", set())
             if knows.rules is not None:
                 stood_on.add(knows.rules.the_thing(laid_out).as_text())
-            ahead = look_ahead(
-                knows.rules,
-                laid_out,
-                [option.name for option in available],
-                toward=aiming_at,
-                approach=held_line,
-                budget_s=thinking_for,
-                world=world,
-                # What matters HERE, once she has watched enough to say.
-                weights=matters.weights(),
-                no_deeper_than=as_far_as_it_carries,
-                been_before=stood_on,
-            )
+            # In a process of its own when it can be, so the rest of her does
+            # not take its time: see core/agency/thinking_elsewhere.py.
+            from core.agency.looking_ahead import she_saw
+            from core.agency.thinking_elsewhere import think_it_through
+
+            thought = await think_it_through(
+                knows.rules, knows.rules.the_thing(laid_out), [option.name for option in available],
+                toward=aiming_at, approach=held_line, budget_s=thinking_for, world=world,
+                weights=matters.weights(), no_deeper_than=as_far_as_it_carries, been_before=stood_on,
+            ) if knows.rules is not None else None
+            if thought is not None:
+                ahead, saw = thought
+                she_saw(saw)
+            else:
+                ahead = look_ahead(
+                    knows.rules,
+                    laid_out,
+                    [option.name for option in available],
+                    toward=aiming_at,
+                    approach=held_line,
+                    budget_s=thinking_for,
+                    world=world,
+                    # What matters HERE, once she has watched enough to say.
+                    weights=matters.weights(),
+                    no_deeper_than=as_far_as_it_carries,
+                    been_before=stood_on,
+                )
             pending["thought_for"] = time.monotonic() - thought_from
         # And what a move would TELL her, which is a different question
         # from where it leads.

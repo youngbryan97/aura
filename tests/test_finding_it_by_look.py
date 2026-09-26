@@ -54,3 +54,22 @@ def test_a_colour_that_is_not_there_is_not_found():
     frame[100:160, 50:130] = (30, 30, 220)
     assert of_colour(frame, "blue") is None
     assert of_colour(np.full((90, 160, 3), 128, np.uint8), "red") is None
+
+
+def test_a_colour_is_found_where_opencv_is_refused(monkeypatch):
+    """Aura's main process refuses OpenCV, and a trip to the red door runs there."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def refusing(name, *args, **kwargs):
+        if name.split(".")[0] == "cv2":
+            raise ImportError("OpenCV import is blocked in Aura's primary macOS process")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", refusing)
+    frame = np.full((120, 200, 3), 128, np.uint8)
+    frame[20:60, 30:90] = (30, 30, 220)
+    found = of_colour(frame, "red", name="the red door")
+    assert found is not None and found["center_x"] == pytest.approx(60 / 200, abs=0.01)
+    assert looks_like(frame, frame[20:60, 30:90], name="the carving") is None
