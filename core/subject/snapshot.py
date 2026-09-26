@@ -1777,6 +1777,15 @@ class _DeclaredHost(_HeldObserver):
     any thread and between turns. Every other question, processes,
     connections, open files, disk and power, goes to the real observer,
     because those are the harness's bookkeeping and nothing she feels.
+
+    Her own process's size is held at what it was when the run declared its
+    host. It had passed straight through, and in an offline run the process is
+    mostly the harness: every anchor's snapshot is in it. So it rose through a
+    run like a clock, differed from arm to arm, and crossed the 3,500 MB line
+    at which homeostasis throttles how deeply she thinks. On the seed-7 run of
+    25 September at 21fec3d95 the homeostatic coupling's copy of it was the
+    largest single leak into her core: a gain of 0.0148, where the whole leak
+    read 0.0452 against a shuffled floor of 0.0028.
     """
 
     def __init__(self, inner: Any, host: dict[str, float]) -> None:
@@ -1784,6 +1793,7 @@ class _DeclaredHost(_HeldObserver):
         from core.runtime.lockdep import LockRank, checked_lock
 
         self._declared_lock = checked_lock("subject.snapshot.declared_host", rank=LockRank.LEAF)
+        self._held_rss: tuple[int, int] | None = None
         self.declare(host)
 
     def declare(self, host: dict[str, float]) -> None:
@@ -1804,6 +1814,11 @@ class _DeclaredHost(_HeldObserver):
         )
         real_compute = inner.compute()
         real_memory = inner.memory(include_process_tree=False)
+        if self._held_rss is None:
+            self._held_rss = (
+                int(getattr(real_memory, "process_rss_bytes", 0) or 0),
+                int(getattr(real_memory, "process_tree_rss_bytes", 0) or 0),
+            )
         cpu = max(0.0, min(100.0, float(host.get("cpu_usage", 0.0) or 0.0)))
         cores = max(1, int(getattr(real_compute, "cpu_count", 1) or 1))
         load = cpu / 100.0 * cores
@@ -1828,8 +1843,8 @@ class _DeclaredHost(_HeldObserver):
             free_bytes=available,
             active_bytes=total - available,
             percent=percent,
-            process_rss_bytes=int(getattr(real_memory, "process_rss_bytes", 0) or 0),
-            process_tree_rss_bytes=int(getattr(real_memory, "process_tree_rss_bytes", 0) or 0),
+            process_rss_bytes=self._held_rss[0],
+            process_tree_rss_bytes=self._held_rss[1],
         )
         temperature = float(host.get("temperature", 0.0) or 0.0)
         level = 3 if temperature >= _CRITICAL_C else 2 if temperature >= _SERIOUS_C else 0

@@ -94,3 +94,27 @@ def test_everything_that_reads_through_psutil_sees_the_declared_host() -> None:
         assert resource_psutil.getloadavg()[0] == pytest.approx(0.12 * 18)
     finally:
         set_resource_observer_for_test(previous)
+
+
+def test_her_process_size_is_held_where_the_run_declared_it() -> None:
+    """The process grows through a run with the harness's snapshots in it, and
+    that growth reached homeostasis as memory stress: a clock, different in
+    every arm, that crossed the throttling line mid-run."""
+    from dataclasses import replace
+
+    class _Growing(SimulatedResourceObserver):
+        def __init__(self) -> None:
+            super().__init__(cpu_percent=50.0, memory_percent=50.0, cpu_count=18)
+            self.rss = 800 * 1024 * 1024
+
+        def memory(self, *args, **kwargs):
+            return replace(super().memory(*args, **kwargs), process_rss_bytes=self.rss)
+
+    machine = _Growing()
+    host = _DeclaredHost(machine, CALM)
+    at_start = host.memory().process_rss_bytes
+    assert at_start == 800 * 1024 * 1024
+    machine.rss = 5000 * 1024 * 1024
+    host.declare(STRESS)
+    assert host.memory().process_rss_bytes == at_start
+    assert host.memory().percent == 88.0, "the declared reading still moves with the turn"
