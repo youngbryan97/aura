@@ -641,3 +641,23 @@ with receipt SHA-256
 `3d3df20e31ab2ad69da0ffb0f3174e24f4ee005e6d3742c7aac8c125b62d9bf6`.
 This establishes a small within-native learning gain, not incumbent
 non-regression, broad transfer, or serving authority. G03 remains open.
+
+A full-fit run then visited all 303 fit sources in 320 updates, with 230
+witnessed metric triplets. It selected step 256 from ten scheduled checkpoint
+intervals and the eligible step-0 baseline. Calibration loss fell from
+2.800060 to 0.555287, although intermediate checkpoints varied sharply.
+On the 18 exposed held utterances, it selected 17 correctly, versus 8 for
+the unfitted native suffix and 15 for the incumbent. There were two paired
+incumbent gains and no paired regressions. The sole miss was an arithmetic
+case that the incumbent also missed; the observed bank reached 17/18.
+Training finished in 1,351.02 seconds. The run receipt is
+`~/.aura/rlc-evidence/semantic-native-metric-full-fold0-20260926/report.json`
+(`9ff0f5631c5a428fa4bc463a4e9b53ce4ab68c22b6d872c9fbd9c0a49f90dec3`).
+
+A fresh-process replay independently selected the source-calibration-best
+checkpoint, rescored the same frozen bank without fitting, and reproduced
+17/18, the two gains, zero regressions and the 17/18 reach ceiling. Its
+receipt is `~/.aura/rlc-evidence/semantic-native-metric-full-replay-fold0-20260926/report.json`
+(`ebff1ff357a92960e60c46c2f86b8c52d87bfd8bde9c34d074ea69ed137d0dbf`).
+These 18 utterances are an exposed development subset. This result neither
+establishes fresh-family transfer nor qualifies a serving configuration.
