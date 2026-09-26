@@ -12,6 +12,7 @@ from tools.train_semantic_native_program import (
     exact_length_batches,
     native_loss,
     native_relational_source_loss,
+    selected_projection_error,
     native_source_loss,
     native_supervision_sets,
     native_training_schedule,
@@ -148,6 +149,22 @@ def test_relational_objective_couples_two_source_forms_without_hiding_a_weak_one
         tail, left, rows, right, rows))(suffix)
     assert mx.isfinite(value).item()
     assert mx.sum(mx.abs(gradient['output']['weight'])).item() > 0
+
+
+def test_selected_projection_gate_checks_supervised_probability_not_unrelated_logits():
+    sequence = NativeProgramSequence((1, 2, 2, 3), 2, (2, 3))
+    full = mx.array([[[0., 0., 0., 0.], [0., 0., 2., -10.],
+                      [0., 0., -10., 2.]]], dtype=mx.bfloat16)
+    selected = mx.array([[[0., 0., 2., -9.9375],
+                          [0., 0., -9.9375, 2.]]], dtype=mx.bfloat16)
+    error, tolerance = selected_projection_error(full, selected, sequence, (1, 2))
+    assert 0 < error < tolerance
+    wrong = mx.array([[[0., 0., 0., 2.], [0., 0., 2., 0.]]], dtype=mx.bfloat16)
+    error, tolerance = selected_projection_error(full, wrong, sequence, (1, 2))
+    assert error > tolerance
+    with pytest.raises(ValueError, match="complete causal states"):
+        selected_projection_error(full, selected,
+                                  NativeProgramSequence((1, 2, 4, 3), 2, (2, 3)), (1, 2))
 
 
 def test_native_partner_map_uses_typed_relation_not_construction_identity():
