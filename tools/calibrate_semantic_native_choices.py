@@ -87,7 +87,12 @@ def combined_views(bank, native_rows):
     incumbent = bank["bank"]["selected_program_sha256"]
     if incumbent is not None and keys[0] != incumbent:
         raise ValueError("native score inventory lost its ordinary incumbent")
-    choices = tuple(dict.fromkeys(row["chosen_program_sha256"] for row in native_rows))
+    proposals = [key for row in native_rows for key in (
+        row["chosen_program_sha256"], row["pretrained_program_sha256"])]
+    if maximum is not None:
+        proposals.append(max((key for key in keys if candidates[key]["joint_score"] is not None),
+                             key=lambda key: (candidates[key]["joint_score"], key)))
+    choices = tuple(dict.fromkeys(proposals))
     if incumbent not in views or any(key not in views for key in choices):
         return None
     return incumbent, choices, views

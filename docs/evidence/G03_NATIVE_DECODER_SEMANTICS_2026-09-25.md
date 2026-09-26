@@ -356,3 +356,24 @@ numerical differences is unmeasured. Original prefix computation was restored
 exactly; no tolerance was relaxed and no cache speedup is claimed. The core edit
 also stopped source acquisition at its implementation check after 105 durable
 rows. Acquisition resumes against the original pinned implementation.
+
+## Complete source acquisition and alternative coverage
+
+Source acquisition completed all 185 cases and exited zero. Independent row
+verification reproduces the complete origin/candidate binding and every nested
+bank/diagnosis receipt. Observed equivalent proposals exist in 163 cases; 22
+remain unresolved after incomplete search. The incumbent selects 122 correct
+programs and the existing joint score selects 144. There are 298 equivalent and
+971 witnessed-different candidate comparisons, with no unknown comparisons.
+The plan is `8b86b0d7fe3d1c9f8855167481e950ed48b1a04b94e727574f4cb1e7fc9f1c02`;
+the report is `e22320676e1ef6313487c605962fac4199fda7e16f8862e90e4a25e4ac2db300`.
+
+The combined adapter now retains fitted-native, unfitted-native and joint-score
+choices. They share the same independently validated typed inventory; labels
+remain outside the choice construction. Including the unfitted alternatives
+raises the exposed 50-case oracle union from 46 to 47, equal to observed bank
+reach. Adding the joint choice does not increase this union. This is an exposed
+architecture diagnostic, not a learned policy, fresh test or qualification.
+Three cases still have no observed equivalent proposal. Sixty-nine focused
+checks pass across the adapter, selector, replay, proposer and the newly merged
+numeric-answer acceptance repair. No G03 checkbox closes.

@@ -1205,6 +1205,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   calibrated selector. Eighteen focused checks pass, including source-bank
   lineage, label-blind application and checkpoint-bound held replay. No policy
   has yet passed real source-native admission; this is infrastructure evidence.
+  Complete source calibration acquisition now verifies 185/185 durable rows:
+  incumbent 122 correct, joint selection 144, observed proposal reach 163;
+  the other 22 have unresolved search reach. Native calibration and independent
+  combined-policy admission remain. Unfitted-native alternatives cover the
+  remaining reachable miss in the exposed 50-case oracle union, but that union
+  is not a callable policy. G03 stays open.
   [Nested selector and research review](evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md):
   508 source-only inner rows train a selector for a disjoint 256-source outer
   construction fold. It falls from incumbent 179 correct to 108 (5 gains,

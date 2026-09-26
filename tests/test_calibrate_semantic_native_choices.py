@@ -39,7 +39,7 @@ def test_combined_features_ignore_target_labels_and_construction_names():
     rows[0].update(selected_correct=False, incumbent_correct=True, construction="different")
     assert combined_views(bank, rows) == before
     incumbent, choices, views = before
-    assert incumbent == keys[0] and choices == (keys[1],)
+    assert incumbent == keys[0] and choices == tuple(keys[::-1])
     assert set(views[keys[0]]) == set(views[keys[1]])
     assert not any("correct" in name or "construction" in name for name in views[keys[0]])
 
@@ -51,6 +51,21 @@ def test_multiple_native_methods_keep_each_distinct_proposal():
     assert incumbent == keys[0] and set(choices) == set(keys)
     assert "method_1_scores_gap" in views[keys[0]]
     assert combined_views(bank, [*rows, alternate, alternate])[1] == choices
+
+
+def test_joint_and_unfitted_successes_are_available_without_an_outcome_oracle():
+    bank, rows, keys = fixture()
+    program = Program(2, (Instruction("mul", (0, 1)),))
+    key = program.sha()
+    bank["bank"]["candidates"].append({"program_sha256": key, "joint_score": 4.,
+        "program": {"instructions": [["mul", [0, 1]]], "sha": key}})
+    rows[0]["program_sha256s"] = [*keys, key]
+    rows[0]["scores"] = [-3., -1., -4.]
+    rows[0]["pretrained_scores"] = [-1., -2., -3.]
+    incumbent, choices, views = combined_views(bank, rows)
+    assert incumbent == keys[0]
+    assert set(choices) == {*keys, key}
+    assert set(views) == set(choices)
 
 
 @pytest.mark.parametrize("defect", ["inventory", "incumbent", "nonfinite", "program"])
