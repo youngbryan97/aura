@@ -9,6 +9,7 @@ import pytest
 from core.learning.procedure_induction import Instruction, Program
 from tools.calibrate_semantic_native_choices import (
     calibrate,
+    candidate_motif_keys,
     candidate_relation_keys,
     combined_views,
     native_method_basis,
@@ -17,6 +18,7 @@ from tools.calibrate_semantic_native_choices import (
     source_invariance_audit,
     source_observations,
     with_schema_support,
+    with_motif_support,
 )
 from tools.evaluate_semantic_native_checkpoint import digest
 
@@ -24,7 +26,8 @@ from tools.evaluate_semantic_native_checkpoint import digest
 def fixture():
     programs = [Program(2, (Instruction(op, (0, 1)),)) for op in ("add", "sub")]
     keys = [program.sha() for program in programs]
-    bank = {"bank": {"input_spans": [{}, {}], "selected_program_sha256": keys[0],
+    bank = {"bank": {"input_spans": [{"start": 0, "end": 2}, {"start": 12, "end": 14}],
+        "selected_program_sha256": keys[0],
         "candidates": [{"program_sha256": key, "joint_score": score,
                         "program": {"instructions": [[program.instructions[0].op, [0, 1]]],
                                     "sha": key}}
@@ -98,12 +101,17 @@ def test_source_relationships_are_candidate_evidence_not_diagnosis():
     assert first["source_span_available"] == 1.
     assert first["source_relation_available"] == 1.
     assert first["source_relation_overlap"] == .5
+    assert first["source_input_binding_available"] == 1.
+    assert first["source_input_binding_fraction"] == 0.
     assert first["selected_definition_paths"] == 1.
     bank["diagnosis"] = {"comparisons": [{"program_sha256": keys[1],
                                              "status": "equivalent"}]}
     assert combined_views(bank, rows)[2][keys[1]] == first
     candidate["definition_spans"][0][1] = {"start": 12, "end": 14}
     assert combined_views(bank, rows)[2][keys[1]]["source_relation_overlap"] == 1.
+    assert combined_views(bank, rows)[2][keys[1]]["source_input_binding_fraction"] == .5
+    candidate["definition_spans"][0][0] = {"start": 0, "end": 2}
+    assert combined_views(bank, rows)[2][keys[1]]["source_input_binding_fraction"] == 1.
     candidate["operation_spans"] = [{"start": -1, "end": 5}]
     with pytest.raises(ValueError):
         combined_views(bank, rows)
@@ -233,6 +241,46 @@ def test_source_schema_support_is_typed_and_target_blind():
         with_schema_support(combined_views(bank, native), relations, {relations[keys[1]]: -1})
 
 
+def test_connected_motifs_bridge_partial_program_structure_without_equating_outputs():
+    first = Program(2, (Instruction("add", (0, 1)), Instruction("sub", (2, 1))))
+    second = Program(2, (Instruction("add", (1, 0)), Instruction("mul", (2, 1))))
+    bank = {"bank": {"input_spans": [{"start": 0, "end": 1},
+                                     {"start": 2, "end": 3}], "candidates": [
+        {"program_sha256": program.sha(), "program": {"sha": program.sha(),
+            "instructions": [[step.op, list(step.args)] for step in program.instructions]}}
+        for program in (first, second)]}}
+    motifs = candidate_motif_keys(bank)
+    assert len(set(motifs[first.sha()]) & set(motifs[second.sha()])) == 1
+    assert motifs[first.sha()] != motifs[second.sha()]
+    case = (first.sha(), (first.sha(), second.sha()),
+            {first.sha(): {}, second.sha(): {}})
+    shared = next(iter(set(motifs[first.sha()]) & set(motifs[second.sha()])))
+    enriched = with_motif_support(case, motifs, {shared: {"positive": 2, "negative": 1}})
+    assert enriched[2][first.sha()]["motif_positive_groups"] == 1.
+    assert enriched[2][second.sha()]["motif_negative_groups"] == .5
+    with pytest.raises(ValueError):
+        with_motif_support(case, motifs, {shared: {"positive": -1, "negative": 0}})
+
+
+def test_motif_memory_excludes_own_construction_during_fit(monkeypatch):
+    from core.evidence import calibrated_binary
+
+    rows = population()
+    for row in rows:
+        _incumbent, choices, _views = row["views"]
+        row["candidate_motif_keys"] = {key: ("shared",) for key in choices}
+    observed = {}
+    def capture(fit, tune):
+        observed["fit"] = fit
+        observed["tune"] = tune
+        return None, {"admitted": False}
+    monkeypatch.setattr(calibrated_binary, "fit_calibrated_binary_scorer", capture)
+    result = calibrate(rows, excluded_ids=set())
+    assert result["motif_memory_counts"]["shared"] == {"positive": 2, "negative": 2}
+    assert {dict(row.values)["motif_positive_groups"] for row in observed["fit"]} == {1.}
+    assert {dict(row.values)["motif_positive_groups"] for row in observed["tune"]} == {2.}
+
+
 def test_existing_selector_can_admit_a_measured_combined_gain():
     from core.evidence.calibrated_candidate_selector import calibrated_candidate_selector_from_dict
 
@@ -246,10 +294,12 @@ def test_existing_selector_can_admit_a_measured_combined_gain():
     selector = calibrated_candidate_selector_from_dict(result["selector"])
     bank, native, keys = fixture()
     assert select_combined(selector, bank, native, source_ref="new-request",
-                           schema_memory_counts=result["schema_memory_counts"]) == keys[1]
+                           schema_memory_counts=result["schema_memory_counts"],
+                           motif_memory_counts=result["motif_memory_counts"]) == keys[1]
     bank["diagnosis"] = {"comparisons": "invalid and unavailable labels"}
     assert select_combined(selector, bank, native, source_ref="new-request",
-                           schema_memory_counts=result["schema_memory_counts"]) == keys[1]
+                           schema_memory_counts=result["schema_memory_counts"],
+                           motif_memory_counts=result["motif_memory_counts"]) == keys[1]
     native[0]["scored"] = False
     assert select_combined(selector, bank, native, source_ref="unscored-request",
                            schema_memory_counts=result["schema_memory_counts"]) == keys[0]

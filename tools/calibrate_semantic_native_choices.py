@@ -63,6 +63,29 @@ def candidate_relation_keys(bank):
     return result
 
 
+def candidate_motif_keys(bank):
+    """Expose connected typed subcomputations for graded structural transfer."""
+    from core.learning.procedure_induction import Instruction, Program
+    from core.learning.semantic_program_floor import semantic_program_structural_key
+
+    result = {}
+    for candidate in bank["bank"]["candidates"]:
+        payload = candidate["program"]
+        program = Program(len(bank["bank"]["input_spans"]), tuple(
+            Instruction(operation, tuple(arguments))
+            for operation, arguments in payload["instructions"]))
+        structural = semantic_program_structural_key(program)
+        if (structural is None or program.sha() != candidate["program_sha256"]
+                or payload["sha"] != candidate["program_sha256"]):
+            raise ValueError("source candidate has no executable typed motifs")
+        motifs = tuple(sorted({digest({"connected_subcomputation": node})
+                               for node in structural[2]}))
+        prior = result.setdefault(candidate["program_sha256"], motifs)
+        if prior != motifs:
+            raise ValueError("source candidate motif identity differs across paths")
+    return result
+
+
 def with_schema_support(case, candidate_relations, memory_counts):
     """Attach source-fit relation precedent to candidate views, never outcomes."""
     if case is None:
@@ -75,6 +98,30 @@ def with_schema_support(case, candidate_relations, memory_counts):
     return incumbent, choices, {key: {**views[key],
         "schema_support_groups": float(memory_counts.get(candidate_relations[key], 0))}
         for key in choices}
+
+
+def with_motif_support(case, candidate_motifs, memory_counts):
+    """Compare each candidate's connected subgraphs with frozen fit precedent."""
+    if case is None:
+        return None
+    incumbent, choices, views = case
+    if set(choices) != set(candidate_motifs):
+        raise ValueError("motif memory and program inventory differ")
+    if any(not isinstance(counts, dict) or set(counts) != {"positive", "negative"}
+           or any(type(value) is not int or value < 0 for value in counts.values())
+           for counts in memory_counts.values()):
+        raise ValueError("motif memory counts are invalid")
+    enriched = {}
+    for key in choices:
+        motifs = candidate_motifs[key]
+        positive = sum(memory_counts.get(motif, {}).get("positive", 0) for motif in motifs)
+        negative = sum(memory_counts.get(motif, {}).get("negative", 0) for motif in motifs)
+        scale = len(motifs) or 1
+        enriched[key] = {**views[key],
+                         "motif_positive_groups": positive / scale,
+                         "motif_negative_groups": negative / scale,
+                         "motif_net_groups": (positive - negative) / scale}
+    return incumbent, choices, enriched
 
 
 def combined_views(bank, native_rows):
@@ -118,7 +165,7 @@ def combined_views(bank, native_rows):
             raise ValueError("candidate source evidence span is invalid")
         return (span["start"] + span["end"]) / 2
 
-    source_spans = []
+    source_spans = list(bank["bank"]["input_spans"])
     for variant in bank["bank"]["candidates"]:
         for field in ("operation_spans", "argument_spans", "definition_spans"):
             rows = variant.get(field)
@@ -129,10 +176,13 @@ def combined_views(bank, native_rows):
         midpoint(span)
     source_scale = max((span["end"] for span in source_spans), default=1)
 
-    def path_evidence(variants, depth):
+    def path_evidence(variants, instructions):
+        depth = len(instructions)
         anchors = []
         distances = []
         overlaps = []
+        bound_inputs = []
+        bound_intermediates = []
         selected_definitions = 0
         for variant in variants:
             operations = variant.get("operation_spans")
@@ -148,13 +198,23 @@ def combined_views(bank, native_rows):
                 continue
             if len(mentions) != len(definitions) or len(mentions) != len(operations):
                 raise ValueError("candidate source evidence differs from its graph")
-            for mentioned, defined in zip(mentions, definitions, strict=True):
+            for step, (mentioned, defined) in enumerate(zip(mentions, definitions, strict=True)):
                 if len(mentioned) != len(defined):
                     raise ValueError("candidate source roles differ")
-                for left, right in zip(mentioned, defined, strict=True):
+                arguments = instructions[step][1]
+                if len(defined) != len(arguments):
+                    raise ValueError("candidate source roles differ from executable arguments")
+                for argument, left, right in zip(arguments, mentioned, defined, strict=True):
                     distances.append(abs(midpoint(left) - midpoint(right)))
                     overlaps.append(float(min(left["end"], right["end"])
                                           > max(left["start"], right["start"])))
+                    origin = (bank["bank"]["input_spans"][argument]
+                              if argument < len(bank["bank"]["input_spans"])
+                              else operations[argument - len(bank["bank"]["input_spans"])])
+                    aligned = float(min(origin["end"], right["end"])
+                                    > max(origin["start"], right["start"]))
+                    (bound_inputs if argument < len(bank["bank"]["input_spans"])
+                     else bound_intermediates).append(aligned)
                     anchors.extend((left, right))
         return {"source_evidence_paths": float(len(variants)),
                 "source_span_available": float(bool(anchors)),
@@ -163,6 +223,13 @@ def combined_views(bank, native_rows):
                                              if distances else 0.),
                 "source_relation_overlap": (sum(overlaps) / len(overlaps)
                                             if overlaps else 0.),
+                "source_input_binding_available": float(bool(bound_inputs)),
+                "source_input_binding_fraction": (sum(bound_inputs) / len(bound_inputs)
+                                                  if bound_inputs else 0.),
+                "source_intermediate_binding_available": float(bool(bound_intermediates)),
+                "source_intermediate_binding_fraction": (
+                    sum(bound_intermediates) / len(bound_intermediates)
+                    if bound_intermediates else 0.),
                 "selected_definition_paths": float(selected_definitions)}
 
     views = {}
@@ -174,7 +241,7 @@ def combined_views(bank, native_rows):
                   "joint_evidence_available": float(score is not None),
                   "joint_gap": float(maximum - score) if score is not None else 0.,
                   "joint_winner": float(key == joint_winner),
-                  **path_evidence(paths[key], len(candidate["program"]["instructions"]))}
+                  **path_evidence(paths[key], candidate["program"]["instructions"])}
         for method, row in enumerate(native_rows):
             for field in ("scores", "pretrained_scores"):
                 scores = row[field]
@@ -299,7 +366,8 @@ def source_invariance_audit(rows, *, excluded_ids, seed=0, permutations=100):
                     if different_within else None}}
 
 
-def select_combined(selector, bank, native_rows, *, source_ref, schema_memory_counts=None):
+def select_combined(selector, bank, native_rows, *, source_ref, schema_memory_counts=None,
+                    motif_memory_counts=None):
     """Apply the admitted evidence policy without reading comparison outcomes."""
     from core.evidence.necessary_condition_selector import PairwiseSelectionEvidence
     from core.evidence.packet import observe
@@ -307,6 +375,8 @@ def select_combined(selector, bank, native_rows, *, source_ref, schema_memory_co
     case = combined_views(bank, native_rows)
     if schema_memory_counts is not None:
         case = with_schema_support(case, candidate_relation_keys(bank), schema_memory_counts)
+    if motif_memory_counts is not None:
+        case = with_motif_support(case, candidate_motif_keys(bank), motif_memory_counts)
     if case is None:
         return bank["bank"]["selected_program_sha256"]
     incumbent, choices, views = case
@@ -387,12 +457,14 @@ def source_observations(bank_directory, native_directories, *, origin_directory)
         if len({row["construction"] for row in rows}) != 1:
             raise ValueError("native arbitration construction identity differs")
         candidate_relations = candidate_relation_keys(bank)
+        candidate_motifs = candidate_motif_keys(bank)
         relation_keys = {relation for key, relation in candidate_relations.items()
                          if labels[key] is True}
         result.append({"source": source, "construction": rows[0]["construction"],
                        "views": combined_views(bank, rows), "labels": labels,
                        "verified_relation_keys": tuple(sorted(relation_keys)),
-                       "candidate_relation_keys": candidate_relations})
+                       "candidate_relation_keys": candidate_relations,
+                       "candidate_motif_keys": candidate_motifs})
     return result, excluded, bank_report, tuple(method[2] for method in methods)
 
 
@@ -442,6 +514,18 @@ def calibrate(rows, *, excluded_ids, seed=0):
         for relation in row.get("verified_relation_keys", ()):
             fit_memory.setdefault(relation, set()).add(row["construction"])
     schema_memory_counts = {key: len(groups) for key, groups in sorted(fit_memory.items())}
+    motif_memory = {}
+    for row in fit:
+        for key, motifs in row.get("candidate_motif_keys", {}).items():
+            verdict = row["labels"][key]
+            if type(verdict) is not bool:
+                continue
+            polarity = "positive" if verdict else "negative"
+            for motif in motifs:
+                motif_memory.setdefault(motif, {"positive": set(), "negative": set()})[
+                    polarity].add(row["construction"])
+    motif_memory_counts = {key: {polarity: len(groups) for polarity, groups in counts.items()}
+                           for key, counts in sorted(motif_memory.items())}
 
     def enriched(population, *, leave_own_group):
         result = []
@@ -451,7 +535,14 @@ def calibrate(rows, *, excluded_ids, seed=0):
                          or ({key: key for key in case[1]} if case is not None else {}))
             memory = {key: len(groups - ({row["construction"]} if leave_own_group else set()))
                       for key, groups in fit_memory.items()}
-            result.append({**row, "views": with_schema_support(case, relations, memory)})
+            case = with_schema_support(case, relations, memory)
+            motifs = (row.get("candidate_motif_keys")
+                      or ({key: () for key in case[1]} if case is not None else {}))
+            motif_counts = {key: {polarity: len(groups - (
+                {row["construction"]} if leave_own_group else set()))
+                for polarity, groups in counts.items()}
+                for key, counts in motif_memory.items()}
+            result.append({**row, "views": with_motif_support(case, motifs, motif_counts)})
         return tuple(result)
 
     fit = enriched(fit, leave_own_group=True)
@@ -518,6 +609,7 @@ def calibrate(rows, *, excluded_ids, seed=0):
             "invariance_audit": invariance_audit,
             "relation_coverage": relation_coverage,
             "schema_memory_counts": schema_memory_counts,
+            "motif_memory_counts": motif_memory_counts,
             "excluded_checkpoint_calibration_ids": sorted(excluded_ids),
             "scorer_report": scorer_report, "selector_report": selector_report,
             "raw_rank_groups": rank_report,

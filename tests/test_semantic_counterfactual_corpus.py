@@ -7,7 +7,8 @@ import pytest
 
 from core.learning.procedure_induction import Instruction, Program
 from core.learning.semantic_counterfactual_corpus import (
-    augment_source_programs, equivalent_recompositions, render_bound_program,
+    augment_source_programs, cross_construction_relation_controls,
+    equivalent_recompositions, render_bound_program,
 )
 from core.learning.semantic_program_corpus import build_semantic_program_corpus
 from core.learning.semantic_program_floor import compile_source_independent_program_to_floor, execute_semantic_floor_program
@@ -74,6 +75,26 @@ def test_generated_contrasts_are_source_only_and_independently_replay():
         assert outputs == witness['outputs'] and outputs[0] != outputs[1]
     replay, repeated = augment_source_programs((*training, *excluded), seed=12)
     assert repeated == receipt and replay == rows
+
+
+def test_cross_construction_controls_share_relation_and_witness_role_change():
+    from core.learning.semantic_program_floor import semantic_program_structural_key
+
+    examples = tuple(item for item in build_semantic_program_corpus(seed=24)
+                     if item.split == 'train')
+    controls = cross_construction_relation_controls(examples)
+    by_id = {item.example_id: item for item in examples}
+    assert controls['cross_construction_pairs'] > 0
+    assert controls == cross_construction_relation_controls(examples)
+    for pair in controls['pairs']:
+        left, right = by_id[pair['left']], by_id[pair['right']]
+        assert left.construction_id != right.construction_id
+        assert left.contrast_id != right.contrast_id
+        assert semantic_program_structural_key(left.program) == semantic_program_structural_key(right.program)
+        assert pair['negative_witness']['outputs'][0] != pair['negative_witness']['outputs'][1]
+    with pytest.raises(ValueError, match='source training only'):
+        cross_construction_relation_controls((*examples[:1], next(item for item in
+            build_semantic_program_corpus(seed=24) if item.split == 'validation')))
 
 
 def test_source_variants_remain_in_their_origin_construction_fold():
