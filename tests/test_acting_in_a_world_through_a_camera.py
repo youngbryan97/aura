@@ -282,3 +282,33 @@ async def test_looking_around_reads_what_is_there_and_where():
     # than one and a half and less than three and a half views round.
     assert 1.5 < around[0][1] < 3.5
     assert sim.facing - facing == pytest.approx(360.0, abs=FIELD)
+
+
+class ARedDoorNothingNames(Simulated):
+    """The door is a red patch on the wall; no words say where it is."""
+
+    def frame(self):
+        grey_walls = super().frame()
+        picture = np.dstack([grey_walls] * 3).astype(np.uint8)
+        dx, dy = self.door[0] - self.x, self.door[1] - self.y
+        off = (math.degrees(math.atan2(dx, dy)) - self.facing + 180.0) % 360.0 - 180.0
+        if abs(off) < FIELD / 2:
+            far = max(math.hypot(dx, dy), 0.5)
+            half = int(min(VIEW[0] / 2 - 1, 400 / far))
+            middle = int(VIEW[1] / 2 + off * PX_PER_DEGREE)
+            left, right = max(0, middle - half // 2), min(VIEW[1], middle + half // 2)
+            picture[VIEW[0] // 2 - half : VIEW[0] // 2 + half, left:right] = (30, 30, 220)
+        return picture
+
+    def layout(self):
+        # Only the prompt: the door itself carries no name.
+        return [region for region in super().layout() if "Press" in region["text"] or "open" in region["text"]]
+
+
+@pytest.mark.asyncio
+async def test_a_thing_called_by_its_colour_is_found_by_its_colour():
+    sim = ARedDoorNothingNames()
+    world = _world(sim)
+    body = await learn_the_body(world, keys=("w", "s"), slot_s=0.2)
+    trip = await go_to(world, "red door", body, slot_s=0.2, most_chunks=120)
+    assert trip.done and trip.answered == "the screen now says 'The door is open'"

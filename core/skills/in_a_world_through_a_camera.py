@@ -194,6 +194,17 @@ async def go_to(
         return trip
     frame, layout = world.look()
     small_wide = grey(frame).shape[1]
+    by_look = _what_it_looks_like(named)
+
+    def with_what_it_looks_like(frame: Any, layout: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        # Where no words on screen name it, a thing called by its colour is
+        # looked for by that colour.
+        if by_look is None or frame is None or seen_named(layout, named):
+            return layout
+        found = by_look(frame)
+        return [*layout, found] if found else layout
+
+    layout = with_what_it_looks_like(frame, layout)
     going = GoingTo(named, turn_for=lambda share: body.turn_for(share * small_wide), walks=walks, leads=leads)
     last_said = ""
     sweep: list[Any] = []
@@ -257,6 +268,7 @@ async def go_to(
                     continue
             break
         frame, layout = look_settled(world)
+        layout = with_what_it_looks_like(frame, layout)
         if before is not None and frame is not None:
             across, _down, grew, _sure = how_it_moved(grey(before), grey(frame))
             going.slid(across / small_wide)
@@ -267,6 +279,23 @@ async def go_to(
     if trip.ended not in trip.said:
         trip.said.append(trip.ended)
     return trip
+
+
+def _what_it_looks_like(named: str) -> Callable[[Any], dict[str, Any] | None] | None:
+    """A way to find ``named`` by how it looks, where its name says how: a colour it is called by."""
+    from core.perception.finding_it_by_look import HUES, of_colour
+
+    colours = [word for word in named.lower().split() if word in HUES]
+    if not colours:
+        return None
+
+    def finds(frame: Any) -> dict[str, Any] | None:
+        pixels = np.asarray(frame)
+        if pixels.ndim != 3:
+            return None
+        return of_colour(pixels, colours[0], name=named)
+
+    return finds
 
 
 def _how_the_world_answered(
