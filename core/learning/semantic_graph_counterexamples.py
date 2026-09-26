@@ -143,6 +143,8 @@ def compare_program_meanings(
     *,
     fuel: int=100000,
     observation_cache: Any=None,
+    transition_feedback_input: int | None=None,
+    transition_horizon: int=4,
 ) -> dict:
     """Prove a supported symmetry or witness different values or defined domains."""
     if target.n_inputs != alternative.n_inputs:
@@ -175,12 +177,115 @@ def compare_program_meanings(
                     "distinction": "domain" if statuses[0] != statuses[1] else "value",
                     "witness": observation, "witness_sha256": _sha(observation)}
         observations.append(observation)
+    transition = None
+    if transition_feedback_input is not None:
+        transition = compare_transition_horizons(
+            target, alternative, probes, feedback_input=transition_feedback_input,
+            horizon=transition_horizon, fuel=fuel, observation_cache=observation_cache)
+        if transition["status"] == "different":
+            return transition
     return {"status": "unknown", "method": "finite_probes_without_distinction",
             "probes_checked": len(observations), "observations_sha256": _sha(observations),
             "failed_probes": sum(any(item["status"] == "error" for item in row["outcomes"])
                                  for row in observations),
             "jointly_undefined_probes": sum(all(item["status"] == "undefined" for item in row["outcomes"])
-                                            for row in observations)}
+                                            for row in observations),
+            **({"transition_probe": transition} if transition is not None else {})}
+
+
+def compare_transition_horizons(
+    target: Program,
+    alternative: Program,
+    initial_contexts: Sequence[tuple],
+    *,
+    feedback_input: int,
+    horizon: int=4,
+    fuel: int=100000,
+    observation_cache: Any=None,
+) -> dict[str, Any]:
+    """Search for delayed divergence when a declared output feeds a state input.
+
+    A finite trace cannot establish equivalence. The caller, not this function,
+    must establish that feedback has the intended meaning for the task.
+    """
+    if (target.n_inputs != alternative.n_inputs or type(feedback_input) is not int
+            or not 0 <= feedback_input < target.n_inputs or type(horizon) is not int
+            or not 1 <= horizon <= 16 or type(fuel) is not int or fuel < 1
+            or len(initial_contexts) > 64):
+        raise ValueError("transition comparison needs bounded matching state geometry")
+    contexts = []
+    for context in initial_contexts:
+        values = tuple(context)
+        if len(values) != target.n_inputs or any(
+                type(value) is not int and not (
+                    type(value) is tuple and all(type(item) is int for item in value))
+                for value in values):
+            raise ValueError("transition context differs from typed program inputs")
+        contexts.append(values)
+    contexts = tuple(dict.fromkeys(contexts))
+    if not contexts:
+        raise ValueError("transition comparison needs an initial context")
+    cache = observation_cache or ProgramObservationCache()
+    traces = []
+    for initial in contexts:
+        state_type = type(initial[feedback_input])
+        context = initial
+        steps = []
+        for step in range(1, horizon + 1):
+            outcomes = [cache.observe(program, context, fuel=fuel)
+                        for program in (target, alternative)]
+            statuses = [row["status"] for row in outcomes]
+            values = [row["result"] for row in outcomes]
+            observed = {"step": step, "inputs": list(context), "statuses": statuses,
+                        "outputs": values,
+                        "execution_receipts": [row["execution_receipt"] for row in outcomes]}
+            steps.append(observed)
+            if "error" in statuses:
+                break
+            if statuses[0] != statuses[1] or (statuses[0] == "value" and values[0] != values[1]):
+                return {"status": "different", "method": "floor_transition_counterexample_v1",
+                        "target_program_sha256": target.sha(),
+                        "alternative_program_sha256": alternative.sha(),
+                        "feedback_input": feedback_input, "horizon": horizon,
+                        "distinct_initial_contexts": len(contexts),
+                        "witness": {"initial": list(initial), "trace": steps},
+                        "witness_sha256": _sha({"initial": initial, "trace": steps})}
+            if statuses[0] != "value" or type(values[0]) is not state_type:
+                break
+            context = tuple(values[0] if index == feedback_input else value
+                            for index, value in enumerate(context))
+        traces.append({"initial": list(initial), "steps": steps})
+    return {"status": "unknown", "method": "finite_transition_probes_v1",
+            "target_program_sha256": target.sha(),
+            "alternative_program_sha256": alternative.sha(),
+            "feedback_input": feedback_input, "horizon": horizon,
+            "distinct_initial_contexts": len(contexts),
+            "steps_checked": sum(len(row["steps"]) for row in traces),
+            "traces_sha256": _sha(traces),
+            "incomplete_traces": sum(len(row["steps"]) < horizon for row in traces),
+            "failed_traces": sum(any("error" in step["statuses"] for step in row["steps"])
+                                 for row in traces),
+            "jointly_undefined_traces": sum(row["steps"][-1]["statuses"] == ["undefined", "undefined"]
+                                            for row in traces)}
+
+
+def compare_transition_counterfactuals(
+    target: Program,
+    alternative: Program,
+    public_inputs: tuple,
+    *,
+    feedback_input: int,
+    count: int=8,
+    seed: int=0,
+    horizon: int=4,
+    fuel: int=100000,
+) -> dict[str, Any]:
+    """Vary initial contexts, then follow each declared transition over time."""
+    if type(count) is not int or not 0 <= count <= 63:
+        raise ValueError("transition counterfactual count must fit the bounded probe")
+    return compare_transition_horizons(
+        target, alternative, counterfactual_inputs(public_inputs, count=count, seed=seed),
+        feedback_input=feedback_input, horizon=horizon, fuel=fuel)
 
 
 @dataclass(frozen=True)

@@ -9,6 +9,8 @@ from core.learning.semantic_argument_chart import ScoredArgumentChart
 from core.learning.semantic_graph_counterexamples import (
     argument_graph_program,
     compare_program_meanings,
+    compare_transition_counterfactuals,
+    compare_transition_horizons,
     find_graph_counterexample,
     find_program_counterexample,
     uniform_reduction_equivalence,
@@ -27,6 +29,39 @@ def chart(n_inputs=3):
 
 def nodes(op="add"):
     return (_OperationNode(TokenSpan(10, 11), op, 0., 0., 1.),)
+
+
+def test_transition_probe_finds_delayed_difference_without_repeated_seed_credit():
+    increment = Program(2, (Instruction("add", (0, 1)),))
+    double = Program(2, (Instruction("mul", (0, 1)),))
+    report = compare_transition_horizons(
+        increment, double, ((2, 2), (2, 2)), feedback_input=0, horizon=4)
+    assert report["status"] == "different"
+    assert report["distinct_initial_contexts"] == 1
+    assert [step["step"] for step in report["witness"]["trace"]] == [1, 2]
+    assert report["witness"]["trace"][-1]["outputs"] == [6, 8]
+    assert compare_program_meanings(
+        increment, double, ((2, 2),), transition_feedback_input=0,
+        transition_horizon=4)["witness_sha256"] == report["witness_sha256"]
+
+
+def test_transition_probe_keeps_sampled_agreement_unproven():
+    forward = Program(2, (Instruction("add", (0, 1)),))
+    reverse = Program(2, (Instruction("add", (1, 0)),))
+    report = compare_transition_horizons(
+        forward, reverse, ((2, 1), (2, 1)), feedback_input=0, horizon=4)
+    assert report["status"] == "unknown"
+    assert report["steps_checked"] == 4
+    assert report["distinct_initial_contexts"] == 1
+    assert report["failed_traces"] == 0
+    varied = compare_transition_counterfactuals(
+        forward, reverse, (2, 1), feedback_input=0, count=4, seed=9, horizon=3)
+    assert varied == compare_transition_counterfactuals(
+        forward, reverse, (2, 1), feedback_input=0, count=4, seed=9, horizon=3)
+    assert varied["status"] == "unknown"
+    assert varied["distinct_initial_contexts"] > 1
+    with pytest.raises(ValueError, match="bounded matching state geometry"):
+        compare_transition_horizons(forward, reverse, ((2, 1),), feedback_input=0, horizon=17)
 
 
 @pytest.mark.parametrize("prune", [False, True])
