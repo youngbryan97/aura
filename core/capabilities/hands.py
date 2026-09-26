@@ -161,6 +161,7 @@ class QuartzHands:
         if flags:
             quartz.CGEventSetFlags(event, quartz.CGEventGetFlags(event) | flags)
         quartz.CGEventPost(quartz.kCGHIDEventTap, event)
+        self._window_server.her_hands_posted()
         return True
 
     def move_by(self, dx: int, dy: int) -> bool:
@@ -175,6 +176,7 @@ class QuartzHands:
         quartz.CGEventSetIntegerValueField(event, quartz.kCGMouseEventDeltaX, int(dx))
         quartz.CGEventSetIntegerValueField(event, quartz.kCGMouseEventDeltaY, int(dy))
         quartz.CGEventPost(quartz.kCGHIDEventTap, event)
+        self._window_server.her_hands_posted()
         return True
 
     def click(self, button: str, x: float, y: float) -> bool:
@@ -189,6 +191,7 @@ class QuartzHands:
             quartz.CGEventPost(
                 quartz.kCGHIDEventTap, quartz.CGEventCreateMouseEvent(None, kind, (x, y), which)
             )
+        self._window_server.her_hands_posted()
         return True
 
     def scroll(self, dx: int, dy: int) -> bool:
@@ -197,4 +200,5 @@ class QuartzHands:
             return False
         event = quartz.CGEventCreateScrollWheelEvent(None, quartz.kCGScrollEventUnitLine, 2, int(dy), int(dx))
         quartz.CGEventPost(quartz.kCGHIDEventTap, event)
+        self._window_server.her_hands_posted()
         return True

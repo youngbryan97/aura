@@ -95,6 +95,20 @@ def _magnified(frame: np.ndarray, growth: float) -> np.ndarray | None:
     return grown - grown.mean()
 
 
+def _lined_up(one: np.ndarray, two: np.ndarray, across: float, down: float) -> float:
+    """Normalised correlation of two frames once ``two`` is slid back by (across, down)."""
+    dx, dy = int(round(across)), int(round(down))
+    back = np.roll(np.roll(two, -dy, axis=0), -dx, axis=1)
+    high, wide = one.shape
+    my, mx = abs(dy) + 1, abs(dx) + 1
+    if high <= 2 * my + 4 or wide <= 2 * mx + 4:
+        return -math.inf
+    a = one[my : high - my, mx : wide - mx]
+    b = back[my : high - my, mx : wide - mx]
+    a, b = a - a.mean(), b - b.mean()
+    return float((a * b).sum() / (math.sqrt((a * a).sum() * (b * b).sum()) + 1e-9))
+
+
 def how_it_moved(before: np.ndarray, after: np.ndarray) -> tuple[float, float, float, float]:
     """How far the picture slid and how much it grew between two frames: (across, down, grew, sure).
 
@@ -102,9 +116,12 @@ def how_it_moved(before: np.ndarray, after: np.ndarray) -> tuple[float, float, f
     off a magnified pair is off by the magnification, and a magnification read
     off a pair that slid lines up texture instead of the scene. For every
     trial magnification the best slide is found by phase correlation, and the
-    pair whose correlation peak stands highest wins. Measured live, reading
-    them apart gave walking steps of 0.8 and 1.1 in a row while the view grew
-    five per cent a step.
+    pair that is most alike once lined up wins.
+
+    Most alike, and not the sharpest correlation peak: a magnified picture is
+    smoother, which changes how sharp a peak it can make, so peak heights are
+    not comparable across magnifications, and normalised correlation of the
+    lined-up pictures is.
     """
     if before.shape != after.shape or min(before.shape) < 8:
         return 0.0, 0.0, 1.0, 0.0
@@ -112,7 +129,8 @@ def how_it_moved(before: np.ndarray, after: np.ndarray) -> tuple[float, float, f
         # Nothing changed, and every trial ties on a picture that did not
         # move; the tie must not be broken toward motion that was not there.
         return 0.0, 0.0, 1.0, math.inf
-    best = (0.0, 0.0, 1.0, -math.inf)
+    best = (0.0, 0.0, 1.0, 0.0)
+    best_alike = -math.inf
     for growth in _GROWTHS:
         trials = [(growth, _magnified(before, growth), after)]
         if growth != 1.0:
@@ -121,8 +139,9 @@ def how_it_moved(before: np.ndarray, after: np.ndarray) -> tuple[float, float, f
             if one is None or two is None:
                 continue
             across, down, sure = how_it_slid(one, two)
-            if sure > best[3]:
-                best = (across, down, grew, sure)
+            alike = _lined_up(one, two, across, down)
+            if alike > best_alike:
+                best, best_alike = (across, down, grew, sure), alike
     return best
 
 
@@ -137,16 +156,8 @@ def how_alike(one: np.ndarray, two: np.ndarray) -> float:
     if one.shape != two.shape or min(one.shape) < 8:
         return 0.0
     across, down, _sure = how_it_slid(one, two)
-    dx, dy = int(round(across)), int(round(down))
-    back = np.roll(np.roll(two, -dy, axis=0), -dx, axis=1)
-    high, wide = one.shape
-    my, mx = abs(dy) + 1, abs(dx) + 1
-    if high <= 2 * my + 4 or wide <= 2 * mx + 4:
-        return 0.0
-    a = one[my : high - my, mx : wide - mx]
-    b = back[my : high - my, mx : wide - mx]
-    a, b = a - a.mean(), b - b.mean()
-    return float((a * b).sum() / (math.sqrt((a * a).sum() * (b * b).sum()) + 1e-9))
+    alike = _lined_up(one, two, across, down)
+    return alike if alike > -math.inf else 0.0
 
 
 def how_it_grew(before: np.ndarray, after: np.ndarray) -> float:

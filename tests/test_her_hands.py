@@ -159,3 +159,26 @@ def test_the_machine_side_knows_every_key_a_hand_may_hold():
 
     unplayable = {key for key in KEYS if key not in _POSITIONS and window_server.key_code(key) is None}
     assert not unplayable, sorted(unplayable)
+
+
+def test_her_own_last_press_is_not_a_person_at_the_keyboard(monkeypatch):
+    """The hardware counts her posted events as input, so right after she
+    pressed something it read nought and she would have waited on herself."""
+    import time
+    from types import SimpleNamespace
+
+    from core.capabilities import window_server
+
+    idle = {"s": 0.01}
+    fake = SimpleNamespace(
+        kCGEventSourceStateHIDSystemState=1, kCGAnyInputEventType=2,
+        CGEventSourceSecondsSinceLastEventType=lambda state, kind: idle["s"],
+    )
+    monkeypatch.setattr(window_server, "_quartz", lambda: fake)
+    monkeypatch.setattr(window_server, "_HER_OWN_LAST", [0.0])
+    assert window_server.seconds_since_someone_touched_it() == 0.01  # a person, nothing of hers
+    window_server.her_hands_posted()
+    assert window_server.seconds_since_someone_touched_it() == float("inf")  # the latest was hers
+    window_server._HER_OWN_LAST[0] = time.monotonic() - 30.0
+    idle["s"] = 2.0
+    assert window_server.seconds_since_someone_touched_it() == 2.0  # a person, after her

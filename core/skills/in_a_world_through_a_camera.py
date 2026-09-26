@@ -261,7 +261,7 @@ async def go_to(
             across, _down, grew, _sure = how_it_moved(grey(before), grey(frame))
             going.slid(across / small_wide)
             if chunk.slots and all(walks in slot.held for slot in chunk.slots):
-                going.walked(grew)
+                going.walked(grew, chunk.slot_s * len(chunk.slots))
                 walked_since_press = True
     trip.ended = going.ended or "the time for this trip ran out"
     if trip.ended not in trip.said:

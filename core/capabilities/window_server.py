@@ -276,23 +276,37 @@ def type_keys(keys: Sequence[str], *, between_s: float = 0.0) -> int:
     return sent
 
 
-def seconds_since_someone_touched_it() -> float:
-    """Seconds since the keyboard or the mouse last did anything, as the hardware reports it.
+#: When her own hands last posted an event, on the monotonic clock.
+_HER_OWN_LAST = [0.0]
 
-    Infinite where it cannot be read, which reads as nobody there; the caller
-    that is about to take the front decides what that is worth.
+
+def her_hands_posted() -> None:
+    """Note that her own hands just posted an input event."""
+    _HER_OWN_LAST[0] = time.monotonic()
+
+
+def seconds_since_someone_touched_it() -> float:
+    """Seconds since a person last used the keyboard or the mouse, as the hardware reports it.
+
+    The hardware counts her own posted events as input too, so right after
+    she pressed something it reads nought and she would wait on herself.
+    Where the latest input could have been hers, nobody else has touched it
+    since, and that reads as nobody there. Infinite where it cannot be read.
     """
     quartz = _quartz()
     if quartz is None:
         return float("inf")
     try:
-        return float(
+        idle = float(
             quartz.CGEventSourceSecondsSinceLastEventType(
                 quartz.kCGEventSourceStateHIDSystemState, quartz.kCGAnyInputEventType
             )
         )
     except (AttributeError, RuntimeError, TypeError, ValueError):
         return float("inf")
+    if _HER_OWN_LAST[0] and time.monotonic() - _HER_OWN_LAST[0] <= idle + 0.05:
+        return float("inf")
+    return idle
 
 
 def owns_the_front(app: str) -> bool:

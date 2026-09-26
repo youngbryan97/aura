@@ -145,6 +145,8 @@ class GoingTo:
     _slid: float | None = None
     #: How far the thing moved on its own between looks, each time it was measured.
     _drifts: list[float] = field(default_factory=list)
+    #: How long the last walk lasted, in seconds.
+    _walked_for: float = 0.0
 
     def _where_it_will_be(self, sight: Sighting) -> float:
         """Across, where the thing will be at the next look, on a constant-velocity guess.
@@ -253,17 +255,37 @@ class GoingTo:
             held = frozenset({self.walks}) if self.heights else frozenset()
             if held:
                 self.heights.append(sight.high)
-            return Chunk((Slot(held, moved=(travel, 0)),), slot_s)
+            return Chunk((Slot(held, moved=(travel, 0)),), self._a_step(slot_s) if held else slot_s)
         if self._stopped_getting_nearer(sight):
             self.ended = f"{self.named!r} stopped getting nearer"
             return Chunk((), slot_s, done=True)
         self.heights.append(sight.high)
-        return Chunk(tuple(Slot(frozenset({self.walks})) for _ in range(max(1, slots))), slot_s)
+        return Chunk(tuple(Slot(frozenset({self.walks})) for _ in range(max(1, slots))), self._a_step(slot_s))
 
 
-    def walked(self, grew: float) -> None:
-        """How much the whole view grew over the walk just made, as her body measured it."""
+    def walked(self, grew: float, seconds: float = 0.0) -> None:
+        """How much the whole view grew over the walk just made, and how long the walk was."""
         self.growths.append(float(grew))
+        if seconds > 0.0:
+            self._walked_for = float(seconds)
+
+    def _a_step(self, slot_s: float) -> float:
+        """How long the next step lasts: never more than half the way that is left.
+
+        She knows how far away something is in walking time: a step of t
+        seconds that makes the view grow by g leaves her t·g/(g-1) seconds
+        from it. A step of half that cannot carry her past it, whatever the
+        estimate gets wrong by less than half. Live, on a loaded machine, a
+        step lasted as long as a look, half a second, and she walked through
+        the chest from one side of its prompt to the other between two looks.
+        Never shorter than four halvings of a whole step, so an estimate that
+        is wrong the other way slows her and does not stop her.
+        """
+        if not self.growths or not self._walked_for or self.growths[-1] <= 1.0:
+            return slot_s
+        grew = self.growths[-1]
+        left = self._walked_for * grew / (grew - 1.0)
+        return max(min(slot_s, left / 2.0), slot_s / 16.0)
 
     def slid(self, share: float) -> None:
         """How far the whole picture slid since the last look, in shares of its width."""

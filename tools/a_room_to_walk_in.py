@@ -34,6 +34,7 @@ FIELD = 90.0
 PACE = 2.5          # distance a second of walking covers
 TURN = 0.15         # degrees of turn per point of mouse delta
 REACH = 1.8
+ROUND = 14.0        # the room's radius; the walls are this far from its middle
 
 
 def _log(**what: object) -> None:
@@ -62,6 +63,12 @@ class Room:
             if abs(off) < FIELD / 2:
                 found.append((name, off, math.hypot(dx, dy)))
         return found
+
+    def ahead(self) -> float:
+        """How far the wall is along the way she faces, in a round room."""
+        ux, uy = math.sin(math.radians(self.facing)), math.cos(math.radians(self.facing))
+        along = self.x * ux + self.y * uy
+        return -along + math.sqrt(max(0.0, along * along - (self.x ** 2 + self.y ** 2 - ROUND ** 2)))
 
     def prompt(self) -> str:
         for name, off, far in self.seen():
@@ -102,9 +109,12 @@ class View(AppKit.NSView):
         wide, high = self.bounds().size.width, self.bounds().size.height
         AppKit.NSColor.blackColor().set()
         AppKit.NSRectFill(self.bounds())
-        # The walls: one column a degree, magnified by how far she has walked.
-        nearest = min((far for _n, _o, far in room.seen()), default=10.0)
-        grow = max(0.6, min(12.0, 8.0 / max(nearest, 0.4)))
+        # The walls: one column a degree, magnified by how near the wall ahead
+        # is. The room is round; walking toward any part of it brings that
+        # part nearer. It was magnified by the nearest thing in view, which
+        # shrank the walls whenever a near thing left the view, so walking
+        # forward could read, correctly, as the view shrinking.
+        grow = max(0.4, min(12.0, ROUND / max(room.ahead(), 0.4)))
         per_degree = wide / FIELD
         for column in range(int(-FIELD / 2) - 1, int(FIELD / 2) + 2):
             angle = int(room.facing + column) % 360
@@ -154,7 +164,9 @@ class View(AppKit.NSView):
                 name = said.rsplit(" ", 1)[-1]
                 self.room.opened.append(name)
                 _log(event="opened", thing=name)
-        _log(event="key", key=key or str(code), down=True)
+        room = self.room
+        _log(event="key", key=key or str(code), down=True,
+             at=[round(room.x, 2), round(room.y, 2), round(room.facing, 1)])
         self.setNeedsDisplay_(True)
 
     def keyUp_(self, event):
@@ -162,6 +174,9 @@ class View(AppKit.NSView):
         code = event.keyCode()
         if key in ("w", "s") or code in (125, 126):
             self.room.walking = 0.0
+        room = self.room
+        _log(event="key", key=key or str(code), down=False,
+             at=[round(room.x, 2), round(room.y, 2), round(room.facing, 1)])
         self.setNeedsDisplay_(True)
 
     def mouseMoved_(self, event):

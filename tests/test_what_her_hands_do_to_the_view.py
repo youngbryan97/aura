@@ -105,3 +105,26 @@ def test_an_act_she_has_not_watched_says_nothing():
     hands = WhatMyHandsDoToTheView()
     assert hands.what_it_does("w") is None
     assert hands.walks_forward() == "" and hands.turn_for(10) == 0
+
+
+def _a_blocky_wall(grow: float, seed: int = 7) -> np.ndarray:
+    """A wall of large grey blocks, magnified about the middle, the way the live room draws one."""
+    roll = np.random.default_rng(seed)
+    shades = roll.random((12, 90))
+    high, wide = 600, 960
+    ys, xs = np.mgrid[0:high, 0:wide].astype(float)
+    column = np.floor((xs - wide / 2) / (wide / 90 * grow)).astype(int) + 45
+    row = np.floor((ys - high / 2) / (18 * grow)).astype(int) + 6
+    inside = (row >= 0) & (row < 12) & (column >= 0) & (column < 90)
+    picture = np.zeros((high, wide))
+    picture[inside] = 0.2 + 0.6 * shades[row[inside], column[inside]]
+    return picture * 255.0
+
+
+def test_walking_reads_as_growth_on_a_wall_of_blocks():
+    """A wall of large flat blocks, which leaves little texture to register on."""
+    from core.perception.how_the_view_moves import how_it_moved
+
+    near, far = grey(_a_blocky_wall(1.26)), grey(_a_blocky_wall(1.0))
+    assert how_it_moved(far, near)[2] > 1.0
+    assert how_it_moved(near, far)[2] < 1.0
