@@ -673,3 +673,17 @@ candidate. The independent replay receipt is
 (`c890680e5c442686db24493642b0afc2cbd5af7c28ef82d867a03d99f946d5a5`).
 This completes this fold's exposed held readout. It is still one known
 construction partition, with no fresh-family or broad reasoning claim.
+
+The same 320-update objective on utterance fold 1 did not replicate the
+incumbent-relative gain. The frozen source-only plan had 303 fit sources and
+50 held utterances. Its candidate bank reached 47/50; the incumbent selected
+41/50. The fitted native suffix selected 41/50 at source-calibration step 288,
+with four paired gains and four paired regressions. The regressions included
+arithmetic, cataphoric, and two reserved-alias cases. Calibration loss fell
+from 5.154188 to 0.585496, but that optimization did not improve the held
+total. The fit used 153 witnessed metric updates, compared with 230 in fold 0;
+this difference is observed, not established as the cause of the outcome.
+The immutable report is at
+`~/.aura/rlc-evidence/semantic-native-metric-fold1-full-20260926/report.json`
+(`e218718334c3640cc35b1e2ca284551ec54948881264101aea7f48317665168e`).
+This negative replication prevents promotion or a general-transfer claim.
