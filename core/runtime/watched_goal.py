@@ -249,6 +249,47 @@ class WatchedGoal:
         return payload
 
 
+#: Going somewhere in a world is a small closed class of words: a verb of
+#: moving and "to", or "approach". What follows, up to the next clause, is the
+#: thing to go to.
+_A_TRIP = re.compile(
+    r"\b(?:(?:go|walk|run|head|move|get|travel|navigate|make\s+your\s+way)"
+    r"\s+(?:over\s+|up\s+|down\s+|across\s+|back\s+)?to|approach)\s+"
+    r"(?:the|a|an|that|this)\s+(?P<thing>[a-z0-9][a-z0-9' -]*?)"
+    r"(?=\s+(?:and|then|in|on|inside|within|using|with|until)\b|[,.;!?]|$)",
+    re.IGNORECASE,
+)
+
+#: Places on a computer rather than in a world. Going to one of these is
+#: navigation, which the desktop already does, and not a walk.
+_COMPUTER_PLACES = frozenset({
+    "page", "site", "website", "web", "tab", "url", "link", "folder", "file", "directory",
+    "app", "application", "window", "desktop", "settings", "preferences", "home screen",
+})
+
+
+def a_trip_asked_for(text: str) -> str:
+    """The thing a request asks her to walk to, in a world seen through a camera. Empty when it asks none.
+
+    "Walk to the red door and open it" asks for the red door. "Go to the
+    downloads folder" and "go to google.com" are about places on a computer,
+    which the desktop already reaches, so they are not trips. Without an
+    article, going to something is usually an idiom — to sleep, to work —
+    so a thing to go to is one named with "the", "a" or "this".
+    """
+    said = str(text or "")
+    found = _A_TRIP.search(said)
+    if not found:
+        return ""
+    thing = " ".join(found.group("thing").lower().split())
+    # A name that runs on into a dot and more letters is an address.
+    if not thing or re.match(r"\.[a-z0-9]", said[found.end("thing"):], re.IGNORECASE):
+        return ""
+    if set(thing.split()) & _COMPUTER_PLACES or thing in _COMPUTER_PLACES:
+        return ""
+    return thing
+
+
 def _continuation(text: str) -> str:
     for pattern in _CONTINUING_RE:
         found = pattern.search(text)
@@ -1012,7 +1053,15 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
     named_game = "" if _is_asking(text) else _a_game_here(text)
     if named_game and _the_medium_comes_first(text, named_game):
         named_game = ""
-    if not cue and not named_game:
+    # Walking to something is kept at until she gets there, like any goal
+    # with a condition; where it is going is in the request itself.
+    trip = "" if _is_asking(text) else a_trip_asked_for(text)
+    # And only in something on this machine the request names. "I want to go
+    # to the store later" is about her day, and a walk with nowhere to take
+    # it would have her acting on a sentence said in conversation.
+    if trip and not (named_game or _named_app(text) or _an_application_here(text, only_chosen=True)):
+        trip = ""
+    if not cue and not named_game and not trip:
         return None
     if _nothing_to_watch(text):
         return None
@@ -1086,5 +1135,5 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
         region_bottom=1.0,
         max_seconds=time_for() if open_ended else time_until_met(),
         max_cycles=PURSUIT_CYCLES if open_ended else UNTIL_IT_IS_MET_CYCLES,
-        detail={"continuation": cue},
+        detail={"continuation": cue, **({"trip": trip} if trip else {})},
     )

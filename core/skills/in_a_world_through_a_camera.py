@@ -33,6 +33,8 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+import numpy as np
+
 from core.agency.going_to_what_she_sees import GoingTo, seen_named
 from core.agency.what_hands_do import Chunk, Slot
 from core.perception.how_the_view_moves import ViewChange, WhatMyHandsDoToTheView, grey, how_alike
@@ -81,6 +83,26 @@ class Trip:
     done: bool = False
 
 
+def look_settled(world: ACameraWorld, *, most: int = 3) -> tuple[Any, list[dict[str, Any]]]:
+    """A look taken once the view has stopped changing, or the last of ``most`` looks.
+
+    A world draws an act's effect when it gets round to it. On a loaded
+    machine the look right after a key came up could still be the picture
+    from before it, and an act whose effect had not been drawn yet read as an
+    act that did nothing: live, on a machine running four other jobs, a key
+    that walked was measured as one that did not. Two looks alike in a row
+    means the drawing has caught up; a world that never stops moving is taken
+    at its last look.
+    """
+    frame, layout = world.look()
+    for _ in range(max(0, most - 1)):
+        again, layout_again = world.look()
+        if frame is not None and again is not None and np.array_equal(np.asarray(frame), np.asarray(again)):
+            return again, layout_again
+        frame, layout = again, layout_again
+    return frame, layout
+
+
 async def learn_the_body(
     world: ACameraWorld, *, keys: Sequence[str], slot_s: float, most_travel: int = 4096
 ) -> WhatMyHandsDoToTheView:
@@ -97,7 +119,7 @@ async def learn_the_body(
     while travel <= most_travel:
         before, _ = world.look()
         await _played(world, Chunk((Slot(moved=(travel, 0)),), slot_s))
-        after, _ = world.look()
+        after, _ = look_settled(world)
         change = body.watched("mouse", before, after, mouse=(travel, 0))
         # Back where she was, so the next thing tried starts from the same view.
         await _played(world, Chunk((Slot(moved=(-travel, 0)),), slot_s))
@@ -107,7 +129,7 @@ async def learn_the_body(
     for key in keys:
         before, _ = world.look()
         await _played(world, Chunk((Slot(frozenset({key})),), slot_s))
-        after, _ = world.look()
+        after, _ = look_settled(world)
         body.watched(key, before, after)
     if not body.walks_forward():
         # Up against something, walking forward changes nothing, and a key
@@ -135,7 +157,7 @@ async def learn_the_body(
         for key in retry:
             before, _ = world.look()
             await _played(world, Chunk((Slot(frozenset({key})),), slot_s))
-            after, _ = world.look()
+            after, _ = look_settled(world)
             body.watched(key, before, after)
     return body
 
@@ -194,7 +216,7 @@ async def go_to(
         if chunk.done or chunk.think:
             trip.done = chunk.done
             break
-        frame, layout = world.look()
+        frame, layout = look_settled(world)
         if chunk.slots and all(walks in slot.held for slot in chunk.slots):
             going.walked(body.growth_between(before, frame))
     trip.ended = going.ended or "the time for this trip ran out"
@@ -287,3 +309,46 @@ def what_answers_to(world: ACameraWorld, named: str) -> list[str]:
     """What on screen answers to a name right now, for asking the person which."""
     _frame, layout = world.look()
     return [sight.text for sight in seen_named(layout, named)]
+
+
+async def a_trip_for_the_pursuit(
+    named: str,
+    app: str,
+    move_keys: Sequence[str],
+    *,
+    tell: Callable[[str], None] | None,
+    within_s: float,
+) -> dict[str, Any]:
+    """A trip asked for in a request, run live and answered the way a pursuit answers.
+
+    The keys tried for walking are the request's own, then w and s, which is
+    what a person tries first in a game they have not played.
+    """
+    world = live_camera_world(app, wait_s=within_s)
+    if world is None:
+        return {"ok": False, "completed": False, "outcome": "cannot_see",
+                "cannot_see": f"there is no {app} window on screen", "moves": [], "attempts": []}
+    began = time.monotonic()
+    slot = a_look_takes(world)
+    keys = tuple(dict.fromkeys([*move_keys, "w", "s"]))
+    try:
+        body = await learn_the_body(world, keys=keys, slot_s=slot)
+        trip = await go_to(
+            world, named, body, slot_s=slot,
+            most_chunks=max(1, int((within_s - (time.monotonic() - began)) / max(slot, 1e-3))),
+            tell=tell,
+        )
+    except NotInFront as why:
+        return {"ok": False, "completed": False, "outcome": "navigated_away",
+                "needs_person": str(why), "moves": [], "attempts": []}
+    return {
+        "ok": trip.done,
+        "completed": trip.done,
+        "outcome": "reached" if trip.done else "no_move_available",
+        "cannot_decide": "" if trip.done else trip.ended,
+        "moves": trip.said,
+        "attempts": [],
+        "said": trip.said,
+        "trip": {"to": named, "ended": trip.ended, "chunks": trip.chunks},
+    }
+

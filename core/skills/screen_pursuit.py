@@ -795,6 +795,16 @@ async def pursue_on_screen(
     ends_at = began + float(max_seconds)
     if deadline_at > 0.0:
         ends_at = min(ends_at, float(deadline_at))
+    # A walk to something in a world seen through a camera is its own loop.
+    from core.runtime.watched_goal import a_trip_asked_for
+
+    if target_app and a_trip_asked_for(goal):
+        from core.skills.in_a_world_through_a_camera import a_trip_for_the_pursuit
+
+        return await a_trip_for_the_pursuit(
+            a_trip_asked_for(goal), target_app, move_keys,
+            tell=_tell if narrate else None, within_s=max(1.0, ends_at - time.monotonic()),
+        )
     # How far she could see is a fact about this run, not the last one.
     from core.agency.looking_ahead import forget_how_far_she_saw
 
