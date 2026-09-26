@@ -437,3 +437,42 @@ This is a source-only pilot selected before labels, not G03 closure. It
 supplies measured hard examples aligned to wording transfer while keeping
 selection and reachability separate. Full cross-fold evidence and a selector
 that improves paired development accuracy without regression remain open.
+
+## Direct source-atom supervision
+
+`AtomAlignedProgramRanker` teaches operation identity and typed register roles
+from the source IR, then sums those same factors when selecting a complete
+graph. It uses the existing request encoder's latent sequence directly;
+the legacy restored-feature interface remains unchanged. The candidate bank
+and source splits remain frozen. Each wording construction contributes equal
+training mass. No held labels choose weights or an epoch.
+
+The fold-0 fit used 303 source examples and 185 source calibration examples,
+ten fixed epochs and 3,030 updates. Calibration atom loss selected epoch 3.
+At that epoch, operation recognition was 418/434 and reference binding was
+485/868 on calibration's gold anchors. Training loss kept falling after the
+selected epoch while calibration loss rose. This separates weak transferable
+reference evidence from insufficient optimizer steps.
+
+The frozen 50-row bank still had 47 observed equivalent alternatives. Atom
+selection was 41/50 versus the incumbent's 41/50, with two gains and two
+regressions. Removing cross-token attention also selected 41/50. These counts
+do not establish a causal benefit from the added request context. This fit is
+rejected for serving and supplies no G03 closure or fresh-transfer evidence.
+
+The complete fit and evaluation took 58.722 seconds on the CPU, with no
+resident model loaded. Evidence is under
+`~/.aura/rlc-evidence/semantic-source-order-atoms-fold0-20260925/`:
+
+- `plan.json`: `d9d4f223cf16df6a51c351b33b8fe8f119d009c871319426fe3a249a2eed4db0`.
+- `epoch-3.safetensors`: `b7a264e26d3ec16bb9ddb34ef703059e9e69dfcaa9d3235b58b2a6668a11c245`.
+- `report.json`: `19c280e8ca77cd2e33b69e523a567fa3287f821d10302d98e798eee5a28a48b0`.
+
+Primary research offers mechanisms to test, rather than a guarantee of this
+fit: [span-based semantic parsing](https://arxiv.org/abs/2009.06040) represents
+program composition through source spans; [span-supervised attention](https://aclanthology.org/2021.naacl-main.225/)
+teaches correspondence explicitly; [pretraining and intermediate representations](https://arxiv.org/abs/2007.08970)
+examines transfer from a pretrained language model. The current atom scorer
+uses operation and register anchors, but not the argument mentions and
+definition choices retained by the bank. Those distinctions and the existing
+resident training/decoding interfaces must be traced before another fit.

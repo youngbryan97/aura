@@ -87,6 +87,30 @@ def test_state_roundtrip():
     torch.testing.assert_close(model(x, valid), copy(x, valid))
 
 
+def test_latent_encoder_shares_exact_restore_path_and_padding_contract():
+    model, x, valid = setup("relative")
+    valid[0, -1] = False
+    clean = x.masked_fill(~valid.unsqueeze(-1), 0)
+    state = model.encode_tokens(x, valid)
+    assert state.shape == (2, 5, model.config.width)
+    assert torch.count_nonzero(state[~valid]) == 0
+    expected = functional.normalize(clean + model.restore(state), dim=-1)
+    torch.testing.assert_close(model(x, valid), expected.masked_fill(~valid.unsqueeze(-1), 0))
+
+
+def test_latent_context_lesion_blocks_suffix_information_and_restoration_work():
+    model, x, valid = setup()
+    changed = x.clone()
+    changed[:, -1] = -changed[:, -1]
+    torch.testing.assert_close(model.encode_tokens(x, valid, cross_token=False)[:, 0],
+                               model.encode_tokens(changed, valid, cross_token=False)[:, 0])
+    assert not torch.allclose(model.encode_tokens(x, valid)[:, 0],
+                              model.encode_tokens(changed, valid)[:, 0])
+    model.encode_tokens(x, valid).square().sum().backward()
+    assert model.project.weight.grad.abs().sum() > 0
+    assert model.restore.weight.grad is None
+
+
 @pytest.mark.parametrize("position_mode", ["absolute", "relative", "none"])
 @pytest.mark.parametrize("cross_token", [True, False])
 def test_eval_preserves_real_valued_attention_bias(position_mode, cross_token):

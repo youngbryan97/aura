@@ -111,7 +111,8 @@ def _rankable_or_none(item, row: dict, *, preserve_evidence: bool = False) -> tu
     return _rankable(item, row, preserve_evidence=preserve_evidence)
 
 
-def _evaluate(model, items: dict, rows: dict, source_ids: list[str]) -> dict:
+def _evaluate(model, items: dict, rows: dict, source_ids: list[str], *,
+              cross_token: bool = True) -> dict:
     import torch
 
     from core.learning.semantic_span_pointer import _hidden_array
@@ -134,6 +135,8 @@ def _evaluate(model, items: dict, rows: dict, source_ids: list[str]) -> dict:
             features = torch.from_numpy(_hidden_array(item.hidden_states)).float()
             kwargs = ({"argument_spans": case[4], "definition_spans": case[5]}
                       if model.argument_evidence else {})
+            if not cross_token:
+                kwargs["cross_token"] = False
             scores = model(features, spans, kinds, programs, operation_spans=anchors, **kwargs)
             if model.retain_evidence_variants:
                 from core.learning.semantic_candidate_ranker import aggregate_program_scores
