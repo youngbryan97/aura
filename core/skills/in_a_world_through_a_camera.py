@@ -86,6 +86,8 @@ class Trip:
     answered: str = ""
     #: Every chunk she played, as written, in order.
     played: list[str] = field(default_factory=list)
+    #: The small grey view she had before each of them.
+    looks: list[Any] = field(default_factory=list)
 
 
 def look_settled(world: ACameraWorld, *, most: int = 3) -> tuple[Any, list[dict[str, Any]]]:
@@ -219,6 +221,9 @@ async def go_to(
                 return trip
             trip.chunks += 1
             trip.played.append(chunk.as_text())
+            if before is not None:
+                small = grey(before)
+                trip.looks.append(np.clip(small - small.min(), 0, 255).astype(np.uint8))
         if chunk.done or chunk.think:
             trip.done = chunk.done
             if chunk.done and chunk.slots:
@@ -381,6 +386,7 @@ async def a_trip_for_the_pursuit(
             ended=trip.ended, answered=trip.answered, played=list(trip.played),
             skill="going to a thing",
         ),
+        list(trip.looks),
     )
     return {
         "ok": heard,
@@ -392,4 +398,44 @@ async def a_trip_for_the_pursuit(
         "said": trip.said,
         "trip": {"to": named, "ended": trip.ended, "chunks": trip.chunks},
     }
+
+
+async def what_is_around(
+    world: ACameraWorld,
+    body: WhatMyHandsDoToTheView,
+    *,
+    slot_s: float,
+    most_looks: int,
+) -> list[tuple[str, float]]:
+    """Everything she can read by turning on the spot once, with the way she turned to see it.
+
+    Answering a question about a world by going and looking is one of the
+    things SIMA 2 shows (a scan it walked to and read, arXiv 2512.04797,
+    Fig. 1). The nearest version of that needs no walking: turn half a view
+    at a time until the view is the one she began with, and keep every name
+    she read and how far round she had turned when she read it, in shares of
+    a view. She ends facing the way she started.
+    """
+    from core.agency.going_to_what_she_sees import reads_as_a_thing
+
+    seen: dict[str, float] = {}
+    sweep: list[Any] = []
+    frame, layout = look_settled(world)
+    small_wide = grey(frame).shape[1] if frame is not None else 0
+    turned = 0.0
+    for _ in range(max(1, most_looks)):
+        for region in layout or ():
+            if reads_as_a_thing(region):
+                name = " ".join(str(region.get("text", "")).split())
+                seen.setdefault(name, turned + float(region.get("center_x", 0.5)) - 0.5)
+        sweep.append(frame)
+        if _back_where_she_started(sweep) or not small_wide:
+            break
+        travel = body.turn_for(-0.5 * small_wide)
+        if not travel:
+            break
+        await _played(world, Chunk((Slot(moved=(travel, 0)),), slot_s))
+        turned += 0.5
+        frame, layout = look_settled(world)
+    return sorted(seen.items(), key=lambda item: item[1])
 

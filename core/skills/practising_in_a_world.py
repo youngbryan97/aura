@@ -48,7 +48,7 @@ async def practise(
     most_chunks: int,
     title: str = "",
     tell: Callable[[str], None] | None = None,
-    keeping: Callable[[Episode], Any] = keep,
+    keeping: Callable[..., Any] = keep,
 ) -> list[Episode]:
     """Up to ``attempts`` tasks she sets herself here, each tried, graded and kept."""
     try:
@@ -86,6 +86,6 @@ async def practise(
             world=world_name, task=task, set_by=HERSELF, succeeded=heard,
             ended=trip.ended, answered=trip.answered, played=list(trip.played), skill=GOING,
         )
-        await asyncio.to_thread(keeping, episode)
+        await asyncio.to_thread(keeping, episode, list(trip.looks))
         lived.append(episode)
     return lived

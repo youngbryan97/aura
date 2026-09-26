@@ -38,10 +38,17 @@ def test_nothing_in_view_that_is_a_thing_sets_no_task():
 
 def test_what_she_tried_is_kept_and_read_back(tmp_path, monkeypatch):
     monkeypatch.setattr(what_she_tried, "_kept_in", lambda: tmp_path)
+    import numpy as np
+
     for worked in (True, False, True):
         assert keep(Episode(world="A Room", task="go to the door", set_by=HERSELF, succeeded=worked))
     assert how_it_goes("A Room") == {"go to the door": (3, 2)}
-    assert [episode.set_by for episode in what_she_tried.what_she_tried("A Room")] == [HERSELF] * 3
+    looked = Episode(world="A Room", task="go to the chest", set_by=HERSELF, succeeded=True,
+                     played=["w", "mouse(3,0)"])
+    assert keep(looked, [np.zeros((4, 8)), np.ones((4, 8))])
+    with np.load(tmp_path / looked.looks_file) as kept:
+        assert kept["looks"].shape == (2, 4, 8) and list(kept["played"]) == ["w", "mouse(3,0)"]
+    assert [episode.set_by for episode in what_she_tried.what_she_tried("A Room")] == [HERSELF] * 4
 
 
 @pytest.mark.asyncio
@@ -56,10 +63,18 @@ async def test_she_practises_and_the_world_grades_it():
 
     sim = Simulated()
     kept: list[Episode] = []
+    pictures: list[list] = []
+
+    def keeping(episode, looks=()):
+        kept.append(episode)
+        pictures.append(list(looks))
+
     lived = await practise(
         _world(sim), "a simulated room", keys=("w", "s"), slot_s=0.2, attempts=2,
-        most_chunks=80, keeping=kept.append,
+        most_chunks=80, keeping=keeping,
     )
+    # A picture for every chunk she played: what she saw, and what she did.
+    assert len(pictures[0]) == len(lived[0].played) > 0
     # She opened the door. Once managed, it had nothing left to teach from
     # there, so the second turn went to looking elsewhere, not to the door again.
     assert [(episode.task, episode.succeeded) for episode in lived] == [("go to the door", True)]

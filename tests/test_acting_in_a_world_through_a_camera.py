@@ -265,3 +265,20 @@ async def test_up_against_a_wall_she_backs_off_and_finds_the_key_that_walks():
 
     body = await learn_the_body(ACameraWorld(look=sim.look, play=blocked_ahead), keys=("w", "s"), slot_s=0.2)
     assert body.walks_forward() == "w"
+
+
+@pytest.mark.asyncio
+async def test_looking_around_reads_what_is_there_and_where():
+    from core.skills.in_a_world_through_a_camera import what_is_around
+
+    sim = Simulated()
+    sim.door = (-6.0, -8.0)  # behind her and to the left
+    world = _world(sim)
+    body = await learn_the_body(world, keys=("w", "s"), slot_s=0.2)
+    facing = sim.facing
+    around = await what_is_around(world, body, slot_s=0.2, most_looks=20)
+    assert [name for name, _way in around] == ["Door"]
+    # Behind her: a full turn here is four views, and the door was read more
+    # than one and a half and less than three and a half views round.
+    assert 1.5 < around[0][1] < 3.5
+    assert sim.facing - facing == pytest.approx(360.0, abs=FIELD)

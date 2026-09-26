@@ -23,6 +23,7 @@ import json
 import logging
 import re
 import time
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -49,6 +50,8 @@ class Episode:
     #: What kind of thing was tried, for counting what she is good at.
     skill: str = ""
     at: float = field(default_factory=time.time)
+    #: Where the pictures she saw before each chunk are kept, beside this file.
+    looks_file: str = ""
 
 
 def _kept_in() -> Path:
@@ -62,8 +65,13 @@ def _file_for(world: str) -> Path:
     return _kept_in() / f"{name}.jsonl"
 
 
-def keep(episode: Episode) -> bool:
-    """Add one episode to what she has tried in its world. Blocking: call it off the loop."""
+def keep(episode: Episode, looks: Sequence[Any] = ()) -> bool:
+    """Add one episode to what she has tried in its world. Blocking: call it off the loop.
+
+    ``looks`` are the small grey views she had before each chunk, in order,
+    one per entry of ``episode.played``: with them an episode is pairs of what
+    she saw and what she did, which is what a policy learns from.
+    """
     try:
         from core.governance_context import local_internal_governed_scope
         from core.runtime.file_write_gateway import get_file_write_gateway
@@ -73,6 +81,22 @@ def keep(episode: Episode) -> bool:
         ):
             gateway = get_file_write_gateway()
             gateway.ensure_directory(_kept_in(), source="what_she_tried")
+            if len(looks):
+                import io
+
+                import numpy as np
+
+                pictures = _file_for(episode.world).with_suffix("")
+                gateway.ensure_directory(pictures, source="what_she_tried")
+                name = f"{int(episode.at * 1000)}.npz"
+                packed = io.BytesIO()
+                np.savez_compressed(
+                    packed,
+                    looks=np.stack([np.asarray(look, dtype=np.uint8) for look in looks]),
+                    played=np.asarray(episode.played[: len(looks)]),
+                )
+                gateway.write_bytes(pictures / name, packed.getvalue(), source="what_she_tried")
+                episode.looks_file = f"{pictures.name}/{name}"
             gateway.append_text(
                 _file_for(episode.world), json.dumps(asdict(episode)) + "\n", source="what_she_tried"
             )
