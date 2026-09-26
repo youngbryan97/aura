@@ -527,10 +527,32 @@ changed output is witnessed by the existing floor comparison. Equal lineage,
 unproved rivals, and validation/test examples cannot enter. On the established
 seed-24 program-first source corpus, 640 training examples yield 56 relations
 and 560 cross-construction pairs. Receipt SHA-256:
-`64e7c30511cb8c540136cf1c472c140b82a374c3e37c11001cc26b9747509f62`.
+`22e0a3b83a1a743f4940d426ca339bac5340144066f553c0dd16423644fdde2e`.
+Of the 560 witnessed negatives, 440 preserve the operation sequence while
+changing a role or dependency; 120 change an operation. The distinction is
+retained so a role-binding result cannot be credited to operation recognition.
 This inventory is callable source supervision and an acceptance contract for
 the proposed relational learner. It has not trained a model, measured an
 unseen construction, or changed serving. The preexisting native contrastive
 objective only contrasts programs within a source; the cross-construction
-positive relation still needs a source-hidden-state training consumer and a
+positive relation needed a source-hidden-state training consumer and a
 separately frozen held-family test.
+
+The native semantic trainer now has an opt-in `relational` objective using
+that same typed relation identity. It pairs fit examples across construction
+families and unrelated contrast lineages, retains witnessed within-source
+candidate contrasts, and optimizes the smooth maximum of the two source
+losses. An unmatched scheduled source retains the ordinary contrastive loss;
+the plan names every scheduled partner and counts paired updates. Only the
+scheduled partner set is prefetched, not the entire fit pool. Calibration
+examples are never used as partners. This arm is implemented and unit-tested,
+but no resident training run or held-family result exists yet; it has no
+serving authority. It is a testable relational-learning mechanism, not a
+claim that source-pair optimization guarantees transfer.
+
+The first read-only plan against the frozen fold-0 source cohort completed
+without loading model weights: 303 fit sources, 8 calibration requests, 18
+declared held requests, 11 paired updates in a 16-update pilot, and 23 unique
+fit sources to cache. Five updates are explicitly unmatched. Plan receipt:
+`06a27aa1b396d2a97091a9c6acc176144cbde214646ffa9270abe265a35b912e`
+at `~/.aura/rlc-evidence/semantic-native-relational-plan-fold0-20260926/plan.json`.

@@ -11,6 +11,7 @@ from tools.train_semantic_native_program import (
     construction_subset,
     exact_length_batches,
     native_loss,
+    native_relational_source_loss,
     native_source_loss,
     native_supervision_sets,
     native_training_schedule,
@@ -130,6 +131,39 @@ def test_source_competition_uses_the_same_candidate_scores_and_positive_likeliho
     assert mx.sum(mx.abs(gradient['output']['weight'])).item() > 0
     with pytest.raises(ValueError, match="supervision set"):
         native_source_loss(suffix, hidden, rows, scope="continuation", objective="contrastive")
+
+
+def test_relational_objective_couples_two_source_forms_without_hiding_a_weak_one():
+    suffix = Suffix()
+    rows = [NativeProgramSequence((1, 2, 3, 4, 5, 6), 2, (3, 5)),
+            NativeProgramSequence((1, 2, 3, 5, 5, 4), 2, (3, 5))]
+    left = [mx.ones((1, 5, 4)) for _ in rows]
+    right = [mx.full((1, 5, 4), 2.) for _ in rows]
+    a = native_source_loss(suffix, left, rows, scope="semantic_decisions", objective="contrastive")
+    b = native_source_loss(suffix, right, rows, scope="semantic_decisions", objective="contrastive")
+    paired = native_relational_source_loss(suffix, left, rows, right, rows)
+    assert mx.allclose(paired, mx.logsumexp(mx.stack((a, b))) - mx.log(2.)).item()
+    assert paired.item() >= min(a.item(), b.item())
+    value, gradient = nn.value_and_grad(suffix, lambda tail: native_relational_source_loss(
+        tail, left, rows, right, rows))(suffix)
+    assert mx.isfinite(value).item()
+    assert mx.sum(mx.abs(gradient['output']['weight'])).item() > 0
+
+
+def test_native_partner_map_uses_typed_relation_not_construction_identity():
+    from core.learning.procedure_induction import Instruction, Program
+    from core.learning.semantic_counterfactual_corpus import cross_construction_relation_partners
+
+    shared = Program(2, (Instruction('sub', (0, 1)),))
+    reversed_roles = Program(2, (Instruction('sub', (1, 0)),))
+    def item(identity, construction, program, lineage):
+        return SimpleNamespace(split='train', construction_id=construction,
+            contrast_id=lineage, public_inputs=(5, 2), ir=SimpleNamespace(
+                source_text_sha256=identity, to_program=lambda: program))
+    rows = (item('a', 'form-a', shared, 'a'), item('b', 'form-b', shared, 'b'),
+            item('c', 'form-c', reversed_roles, 'c'),
+            item('d', 'form-d', shared, 'a'))
+    assert cross_construction_relation_partners(rows) == {'a': 'b', 'b': 'a', 'd': 'b'}
 
 
 def test_supervision_reuses_witnessed_floor_contrasts_and_never_reads_a_held_target():
