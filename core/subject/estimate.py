@@ -141,10 +141,17 @@ def _penalties(width: int, own_width: int | None) -> list[tuple[float, float, np
 
     The nested grid is a path rather than a product: each own-strength is
     paired first with the addition switched off — which is the narrow model
-    exactly — and then the extra-strengths are swept once against the whole set
-    of own-strengths. That is a hundred candidates reduced to twenty with the
-    same two ends: the narrow model is always reachable, and so is every degree
-    of leaning on the addition.
+    exactly — and then each own-strength is paired with the matching
+    extra-strength. That is a hundred candidates reduced to twenty, and it keeps
+    the end that matters: the narrow model is always reachable.
+
+    It does not keep every degree of leaning on the addition, and the earlier
+    version of this sentence said it did. Measured on the seed-7 recording of 25
+    September, sweeping the full product instead moved the S,D->C interaction
+    gain's lower bound from -0.08299 to -0.08223 and moved A,S->G's the wrong
+    way, from +0.00361 to +0.00051, because the extra candidates cost more in
+    fold-to-fold spread than they bought in mean. The diagonal is what the
+    estimator uses and the product is not better here.
 
     Switched off means off. The pairing used to be the largest finite strength
     in the grid, which shrinks the addition toward zero and never to it, so the
