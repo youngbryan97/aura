@@ -239,6 +239,10 @@ def _decide_the_next_move_part_4(
             # And those places, gathered over acts rather than read off
             # one glance, are what the grid is built from.
             was = (responds["lattice"].rows, responds["lattice"].columns)
+            # A change is against the shape her counts were read through. A
+            # first grid, the shape of every reading so far, once wiped eleven
+            # moves of a rule right on all of them (the real app, 26 Sep).
+            read_through = tuple(getattr(knows.rules, "read_through", ()) or ())
             if responds["lattice"].built_from(
                 itself,
                 moving.acts,
@@ -248,7 +252,7 @@ def _decide_the_next_move_part_4(
                 available=move_keys,
             ):
                 now = (responds["lattice"].rows, responds["lattice"].columns)
-                if was != now and knows.rules is not None:
+                if was != now and knows.rules is not None and read_through != now:
                     # Everything counted while the grid was the wrong
                     # shape was counted about a thing that does not exist.
                     knows.rules.learned_through_a_different_reading()

@@ -15,8 +15,6 @@ from __future__ import annotations
 
 import random
 
-import pytest
-
 from core.perception.how_it_moves import (
     ALWAYS_THERE,
     STILL_ENOUGH_TO_JUDGE,
@@ -191,7 +189,57 @@ def test_a_readout_that_only_changes_sometimes_is_still_a_readout():
 
 
 def test_and_the_thing_underneath_is_worked_out():
+    """Right about every move from here on.
+
+    Not right about every move so far: a score that changes only on a merge
+    is found once it has changed more than the board's own squares would by
+    chance, and the pairs she watched before that were scored with it in.
+    """
     knows, state = watch_a_page()
     assert knows.rule().name == "slides and combines"
-    assert knows.confidence() == pytest.approx(1.0)
     assert knows.expect(state, "left") is not None
+    rng = random.Random(11)
+    plain = knows.the_thing(state)
+    for _ in range(20):
+        move = rng.choice(["left", "right", "up", "down"])
+        foreseen = knows.expect(state, move)
+        moved = shifted_and_combined(plain, move)
+        assert foreseen is not None and foreseen.as_text() == moved.as_text(), move
+        plain = spawn(moved, rng)
+        state = dressed(plain, 0, state)
+
+
+# ── what the thing does that looks like furniture ────────────────────────
+
+def played_into_a_corner(moves: int = 80, seed: int = 3) -> HowItMoves:
+    """Down first, then left: the biggest tiles kept in one corner, as a good player keeps them."""
+    rng = random.Random(seed)
+    knows = HowItMoves()
+    plain = board(BOARD)
+    for _ in range(moves):
+        move = next(
+            (
+                way
+                for way in ("down", "left", "right", "up")
+                if shifted_and_combined(plain, way).as_text() != plain.as_text()
+            ),
+            None,
+        )
+        if move is None:
+            break
+        after = spawn(shifted_and_combined(plain, move), rng)
+        knows.watched(plain, move, after)
+        plain = after
+    return knows
+
+
+def test_a_corner_that_takes_every_merge_is_not_furniture():
+    """It never empties and keeps saying something new, 32, 64, 128.
+
+    That was the whole test for a readout, and in 82 of 100 games played this
+    way it cut a board square out of her rule. What a readout says, no rule
+    of hers puts there; what a corner says is what sliding and combining put
+    there.
+    """
+    for seed in (1, 2, 3, 4, 5):
+        assert not played_into_a_corner(seed=seed).counters

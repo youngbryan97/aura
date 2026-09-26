@@ -232,15 +232,18 @@ def test_the_score_she_found_is_what_scores_a_stretch() -> None:
         }
 
     # Tiles sliding along a row, so their values move between places, and a
-    # score that rises only when two of them join.
-    frames = [
-        reading(0, ["2", "", "4", "8"]),
-        reading(0, ["", "2", "4", "8"]),
-        reading(0, ["", "", "2", "4"]),
-        reading(8, ["", "", "8", "4"]),
-        reading(8, ["", "8", "4", ""]),
-        reading(16, ["", "", "8", "8"]),
+    # score that rises only when two of them join. Four rounds of it: the
+    # tiles have arrivals of their own, so a place is a tally only once its
+    # arrivals are more than theirs would be by chance.
+    stretch = [
+        (0, ["2", "", "4", "8"]),
+        (0, ["", "2", "4", "8"]),
+        (0, ["", "", "2", "4"]),
+        (8, ["", "", "8", "4"]),
+        (8, ["", "8", "4", ""]),
+        (16, ["", "", "8", "8"]),
     ]
+    frames = [reading(score + 16 * round_, row) for round_ in range(4) for score, row in stretch]
     moving = MovesWithinItself()
     for before, after in zip(frames, frames[1:], strict=False):
         moving.saw(places_and_text(before), places_and_text(after))
@@ -250,7 +253,7 @@ def test_the_score_she_found_is_what_scores_a_stretch() -> None:
     assert moving.what_measures_doing_well() == frozenset({score_at}), (
         "a tile that moves about is not a tally"
     )
-    assert _how_much_the_tally_moved(moving, frames[4], frames[5]) == 8.0
-    assert _how_much_the_tally_moved(moving, frames[1], frames[2]) == 0.0
+    assert _how_much_the_tally_moved(moving, frames[-2], frames[-1]) == 8.0
+    assert _how_much_the_tally_moved(moving, frames[-5], frames[-4]) == 0.0
     # And nothing to say where she has found no tally.
     assert _how_much_the_tally_moved(MovesWithinItself(), frames[0], frames[1]) is None

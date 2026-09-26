@@ -62,6 +62,58 @@ def _a_game(turns: int = 8, seed: int = 1):
     return frames
 
 
+def _slid_scoring(line: list[int]) -> tuple[list[int], int]:
+    kept = [one for one in line if one]
+    out, gained, at = [], 0, 0
+    while at < len(kept):
+        if at + 1 < len(kept) and kept[at] == kept[at + 1]:
+            out.append(kept[at] * 2)
+            gained += kept[at] * 2
+            at += 2
+        else:
+            out.append(kept[at])
+            at += 1
+    return out + [0] * (len(line) - len(out)), gained
+
+
+def _pushed(grid, way: str):
+    """The board after one push, and what the push scored, as the game counts it."""
+    across = way in ("left", "right")
+    lines = [list(row) for row in grid] if across else [[grid[r][c] for r in range(4)] for c in range(4)]
+    backwards = way in ("right", "down")
+    done, gained = [], 0
+    for line in lines:
+        new, got = _slid_scoring(line[::-1] if backwards else line)
+        done.append(new[::-1] if backwards else new)
+        gained += got
+    if across:
+        return done, gained
+    return [[done[c][r] for c in range(4)] for r in range(4)], gained
+
+
+def _played(turns: int, seed: int = 1, grid=None):
+    """A game played every way at random, the score going up by what each merge makes."""
+    roll = random.Random(seed)
+    if grid is None:
+        grid = [[0] * 4 for _ in range(4)]
+        for _ in range(2):
+            row, col = roll.choice([(r, c) for r in range(4) for c in range(4) if not grid[r][c]])
+            grid[row][col] = 2
+    score, moves = 1000, 0
+    frames = [_screen(grid, score, moves)]
+    for _ in range(turns):
+        ways = [way for way in ("up", "down", "left", "right") if _pushed(grid, way)[0] != grid]
+        if not ways:
+            break
+        grid, gained = _pushed(grid, roll.choice(ways))
+        score += gained
+        row, col = roll.choice([(r, c) for r in range(4) for c in range(4) if not grid[r][c]])
+        grid[row][col] = 2 if roll.random() < 0.9 else 4
+        moves += 1
+        frames.append(_screen(grid, score, moves))
+    return frames
+
+
 def test_the_board_is_the_part_that_rearranges() -> None:
     watching = MovesWithinItself()
     frames = _a_game()
@@ -74,15 +126,59 @@ def test_the_board_is_the_part_that_rearranges() -> None:
 
 
 def test_the_score_and_the_move_counter_are_not_part_of_it() -> None:
+    for seed in (1, 2, 3):
+        watching = MovesWithinItself()
+        frames = _played(20, seed)
+        for before, after in zip(frames, frames[1:], strict=False):
+            watching.saw(before, after)
+        reports = watching.the_things_that_report()
+        assert SCORE in reports
+        assert MOVES in reports
+        assert not reports & set(BOARD), sorted(reports & set(BOARD))
+        assert SCORE not in watching.the_thing_itself()
+        assert MOVES not in watching.the_thing_itself()
+
+
+def test_a_tile_arriving_in_a_square_does_not_make_it_a_readout() -> None:
+    """The thing has arrivals of its own: a tile appears in an empty square.
+
+    LIVE 2026-09-26, a game picked up half way: one tile arriving in a square
+    that had held nothing new before was "1 place(s) only report", the square
+    was cut out of her rule with a tile in it, and eight of the first nine
+    misses she logged were on that square.
+    """
     watching = MovesWithinItself()
-    frames = _a_game()
-    for before, after in zip(frames, frames[1:], strict=False):
-        watching.saw(before, after)
-    reports = watching.the_things_that_report()
-    assert SCORE in reports
-    assert MOVES in reports
-    assert SCORE not in watching.the_thing_itself()
-    assert MOVES not in watching.the_thing_itself()
+    before = {(0, 0): "2", (1, 0): "8", (2, 0): "", (3, 0): "", SCORE: "1000"}
+    # Left: the 8 goes nowhere, a 2 arrives in the empty square beside it.
+    after = {(0, 0): "2", (1, 0): "8", (2, 0): "2", (3, 0): "", SCORE: "1000"}
+    watching.saw(before, after)
+    assert (2, 0) not in watching.the_things_that_report()
+
+
+def test_squares_that_take_merges_in_place_are_not_readouts() -> None:
+    """Tiles kept in a corner: merges land in the corner and nothing leaves it.
+
+    Played out over 200 games, the old test called some board square a
+    readout on 89% of moves played this way.
+    """
+    board = [[64, 32, 16, 8], [4, 8, 2, 0], [2, 0, 0, 0], [0, 0, 0, 0]]
+    for seed in (1, 2, 3):
+        roll = random.Random(seed)
+        grid = [row[:] for row in board]
+        watching = MovesWithinItself()
+        score, moves = 5000, 0
+        for _ in range(40):
+            ways = [way for way in ("up", "left", "right", "down") if _pushed(grid, way)[0] != grid]
+            if not ways:
+                break
+            before = _screen(grid, score, moves)
+            grid, gained = _pushed(grid, ways[0])
+            score += gained
+            row, col = roll.choice([(r, c) for r in range(4) for c in range(4) if not grid[r][c]])
+            grid[row][col] = 2
+            moves += 1
+            watching.saw(before, _screen(grid, score, moves))
+            assert not watching.the_things_that_report() & set(BOARD)
 
 
 def test_furniture_that_never_changes_is_in_neither() -> None:
@@ -108,18 +204,28 @@ def test_one_act_settles_nothing_and_says_so() -> None:
 
 
 def test_it_is_not_about_boards() -> None:
-    """Files being moved between folders, and a count of them underneath."""
+    """Files being moved between folders, and a count of what is in the first."""
     watching = MovesWithinItself()
-    steps = [
-        {(0, 0): "notes.md", (0, 1): "todo.md", (1, 0): "plan.md", (5, 5): "3 files"},
-        {(0, 0): "notes.md", (0, 1): "todo.md", (1, 0): "", (5, 5): "2 files"},
-        {(0, 0): "notes.md", (0, 1): "", (1, 0): "todo.md", (5, 5): "2 files"},
-        {(0, 0): "", (0, 1): "notes.md", (1, 0): "todo.md", (5, 5): "2 files"},
-    ]
-    for before, after in zip(steps, steps[1:], strict=False):
-        watching.saw(before, after)
-    assert (0, 1) in watching.the_thing_itself()
-    assert (5, 5) in watching.the_things_that_report()
+    names = ["notes.md", "todo.md", "plan.md", "draft.md", "ideas.md"]
+    roll = random.Random(3)
+    where = {name: roll.randrange(4) for name in names}
+
+    def seen() -> dict:
+        shown = {}
+        for folder in range(4):
+            inside = sorted(name for name in names if where[name] == folder)
+            for slot in range(len(names)):
+                shown[(folder, slot)] = inside[slot] if slot < len(inside) else ""
+        shown[(9, 9)] = f"{sum(1 for name in names if where[name] == 0)} files"
+        return shown
+
+    for _ in range(20):
+        before = seen()
+        where[roll.choice(names)] = roll.randrange(4)
+        watching.saw(before, seen())
+    assert watching.the_thing_itself() <= {(folder, slot) for folder in range(4) for slot in range(len(names))}
+    assert watching.the_thing_itself()
+    assert (9, 9) in watching.the_things_that_report()
 
 
 def test_what_it_found_survives_the_process_as_evidence_not_as_fact() -> None:
@@ -186,9 +292,10 @@ def test_a_score_reading_the_same_as_a_tile_is_still_a_score() -> None:
     before = {(0, 0): "8", (0, 1): "2", (9, 0): "8"}
     # The score goes 8 -> 16 while a tile reading 8 is still sitting there.
     after = {(0, 0): "8", (0, 1): "2", (9, 0): "16"}
-    moved, came = what_moved_within(before, after)
-    assert (9, 0) in came, "the score arrived at a value it did not move to"
-    assert (9, 0) not in moved
+    watching = MovesWithinItself()
+    watching.saw(before, after)
+    assert watching.arrived.get((9, 0)) == 1, "the score arrived at a value it did not move to"
+    assert (9, 0) not in watching.rearranged
 
 
 def test_a_tally_going_back_to_the_start_is_a_new_game_not_a_fall() -> None:
