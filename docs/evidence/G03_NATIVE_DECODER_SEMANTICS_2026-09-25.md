@@ -591,3 +591,160 @@ is not inferred automatically from arbitrary prose or used to select a
 candidate without external observations. In particular, more internal
 simulation alone cannot tell which of two distinct programs matches the
 user's intended relation.
+
+The existing `structure_mapping` and `transfer_search` engines now accept
+connected typed programs through a diagnostic graph adapter. The adapter
+retrieves source-fit precedents by structure, carries the shuffled null, and
+checks proposed matches with the universal floor. It cannot establish that
+an utterance intended the retrieved program. On the untouched source-only
+admission constructions, the bounded audit found 95/95 candidate programs
+passing the structural analogy threshold, including all 75 graded incorrect
+ones; none was floor-proven equivalent to a fit precedent. The 14 admission
+sources and 95 candidates therefore provide a negative result for analogy
+as a discriminator, not a transfer gain. Fit precedent used only verified fit
+labels; admission labels graded the result after retrieval. Receipt:
+`~/.aura/rlc-evidence/semantic-program-analogy-held-audit-20260926.json`
+(`18d18bac8dcfd50001291044da4075e9375be66d935b4aa99cdd2b77919b6871`).
+No serving authority or G03 closeout follows. Multi-hop similarity would
+compound these false positives unless every edge had independent source and
+meaning evidence; a path alone is not a proof of semantic transfer.
+
+The next opt-in native objective takes one step beyond paired source losses.
+It embeds a request's last pre-answer hidden state through the trainable native
+suffix, pulls a same-relation source from another construction closer, and
+pushes a different-relation source from the same construction away. All three
+sources belong to fit; the positive has a different contrast lineage. The
+negative must have a changed-meaning witness from the existing floor
+comparison. Structural difference alone is not accepted. This auxiliary
+metric loss runs beside the source-level contrastive loss. It does not use the
+answer continuation to form its embedding, and calibration retains its
+ordinary source loss. A changed embedding geometry is an optimization target,
+not proof that a new utterance will choose the correct program.
+
+The read-only fold-0 plan, before loading model weights, has 303 fit sources,
+8 calibration requests, and 18 held requests. Ten of 16 scheduled updates
+have witnessed triplets, requiring 31 unique fit sources in the prefix cache.
+The immutable plan at `~/.aura/rlc-evidence/semantic-native-metric-plan3-fold0-20260926/plan.json`
+has SHA-256 `e97ce207d02a663904942e0d1414e488814f40a4555038bd8c56ed2b36eae0f7`.
+No model-active metric result or G03 closeout follows from this plan.
+
+The model-active pilot completed in 317.05 seconds. Its selected step-16
+checkpoint lowered calibration loss from 2.800060 to 2.716242. On 18 held
+utterances, native selection rose from 8 correct before fitting to 11 after
+fitting: three learning gains and no learning regressions. The existing
+incumbent selected 15 correctly. Relative to that incumbent, the trained
+native selector had no gains and four regressions: two natural-source cases,
+one arithmetic case, and one cataphoric case. The held labels were unavailable
+to fitting and checkpoint selection. The immutable report is at
+`~/.aura/rlc-evidence/semantic-native-metric-pilot-fold0-20260926/report.json`
+with receipt SHA-256
+`3d3df20e31ab2ad69da0ffb0f3174e24f4ee005e6d3742c7aac8c125b62d9bf6`.
+This establishes a small within-native learning gain, not incumbent
+non-regression, broad transfer, or serving authority. G03 remains open.
+
+A full-fit run then visited all 303 fit sources in 320 updates, with 230
+witnessed metric triplets. It selected step 256 from ten scheduled checkpoint
+intervals and the eligible step-0 baseline. Calibration loss fell from
+2.800060 to 0.555287, although intermediate checkpoints varied sharply.
+On the 18 exposed held utterances, it selected 17 correctly, versus 8 for
+the unfitted native suffix and 15 for the incumbent. There were two paired
+incumbent gains and no paired regressions. The sole miss was an arithmetic
+case that the incumbent also missed; the observed bank reached 17/18.
+Training finished in 1,351.02 seconds. The run receipt is
+`~/.aura/rlc-evidence/semantic-native-metric-full-fold0-20260926/report.json`
+(`9ff0f5631c5a428fa4bc463a4e9b53ce4ab68c22b6d872c9fbd9c0a49f90dec3`).
+
+A fresh-process replay independently selected the source-calibration-best
+checkpoint, rescored the same frozen bank without fitting, and reproduced
+17/18, the two gains, zero regressions and the 17/18 reach ceiling. Its
+receipt is `~/.aura/rlc-evidence/semantic-native-metric-full-replay-fold0-20260926/report.json`
+(`ebff1ff357a92960e60c46c2f86b8c52d87bfd8bde9c34d074ea69ed137d0dbf`).
+These 18 utterances are an exposed development subset. This result neither
+establishes fresh-family transfer nor qualifies a serving configuration.
+
+The same frozen step-256 checkpoint was replayed, without further updates,
+against all 50 held utterances in this fold. It selected 46/50 correctly,
+versus 41/50 for the incumbent and 26/50 for the unfitted native suffix:
+five paired gains and zero regressions. The candidate bank reached 47/50.
+Three failures share one arithmetic construction and lack a correct bank
+candidate; the remaining reserved-alias failure has a reachable correct
+candidate. The independent replay receipt is
+`~/.aura/rlc-evidence/semantic-native-metric-full-replay50-fold0-20260926/report.json`
+(`c890680e5c442686db24493642b0afc2cbd5af7c28ef82d867a03d99f946d5a5`).
+This completes this fold's exposed held readout. It is still one known
+construction partition, with no fresh-family or broad reasoning claim.
+
+The same 320-update objective on utterance fold 1 did not replicate the
+incumbent-relative gain. The frozen source-only plan had 303 fit sources and
+50 held utterances. Its candidate bank reached 47/50; the incumbent selected
+41/50. The fitted native suffix selected 41/50 at source-calibration step 288,
+with four paired gains and four paired regressions. The regressions included
+arithmetic, cataphoric, and two reserved-alias cases. Calibration loss fell
+from 5.154188 to 0.585496, but that optimization did not improve the held
+total. The fit used 153 witnessed metric updates, compared with 230 in fold 0;
+this difference is observed, not established as the cause of the outcome.
+The immutable report is at
+`~/.aura/rlc-evidence/semantic-native-metric-fold1-full-20260926/report.json`
+(`e218718334c3640cc35b1e2ca284551ec54948881264101aea7f48317665168e`).
+This negative replication prevents promotion or a general-transfer claim.
+
+A matched fold-0 lesion removed the metric term and kept the 303 fit sources,
+320 scheduled updates, candidate bank, native suffix geometry, and
+source-calibration checkpoint rule. Contrastive-only selected step 96 and
+scored 45/50, versus 41/50 for the incumbent and 26/50 unfitted. It had six
+incumbent-relative gains and two regressions. Against that arm, the metric
+candidate fixed two errors (arithmetic and cataphoric) but lost one correct
+reserved-alias selection, yielding its 46/50. The contrastive-only report is
+`~/.aura/rlc-evidence/semantic-native-contrastive-full-fold0-20260926/report.json`
+(`e1d2307d38487bafca27bb380cc18522415def34bb06f8884231eff85c493603`).
+The extra objective has a narrow positive effect on this fold, but its
+fold-1 regressions and this small paired difference do not support promotion.
+
+An expanded fold-1 source-calibration run used all 185 disjoint calibration
+requests instead of one per construction (eight). The 303 fit sources, 320
+updates, bank, objective, seed, and held 50 were unchanged. Checkpoint weight
+digests match the earlier fold-1 run at corresponding steps, isolating the
+change to calibration and checkpoint choice. The expanded source loss selected
+step 320, rather than step 288. Held selection rose from 41/50 to 46/50:
+six gains and one regression versus the 41/50 incumbent, with 47/50 observed
+bank reach. All five decisions changed from the eight-request run became
+correct; the remaining regression is a reachable arithmetic case. The
+immutable report is
+`~/.aura/rlc-evidence/semantic-native-metric-fullcal-fold1-20260926/report.json`
+(`1c0052fa77d487218ccbe58acf9eb3b0d3a6a84350ea0319b36f4df22f9c0526`).
+This establishes that sparse source calibration caused part of the fold-1
+selection failure. Both folds remain exposed known-construction development
+evidence; neither gives fresh-family transfer, independent mixed-policy
+admission, or serving authority. Reusing all 185 calibration requests for
+checkpoint choice also leaves no independent members of that partition for
+the existing source-only arbiter experiment.
+
+The same full-calibration protocol failed to replicate on utterance fold 2.
+Its frozen source partition contained 367 fit requests, 185 calibration
+requests, and 47 held requests; 320 scheduled updates used 367 distinct fit
+sources. Source calibration chose step 224 from the complete checkpoint
+schedule, reducing loss from 3.279402 to 0.205439. Nevertheless, the native
+suffix selected 37/47 held programs correctly, versus 43/47 for the incumbent
+and 16/47 for the unfitted suffix. There were zero incumbent-relative gains
+and six regressions, while the bank contained a correct candidate for 44/47.
+The regressions span fork/join, fronted arithmetic, cataphora, and natural
+alias/count requests. This is a complete negative replication: better source
+calibration loss and a large within-native learning gain do not establish
+incumbent non-regression. The report is
+`~/.aura/rlc-evidence/semantic-native-metric-fullcal-fold2-20260926/report.json`
+(`51a54178f5d024426efdb3907e5bb045ceb0db8f8c87527cfcc53ee260283f63`).
+No checkpoint was selected from held labels, and this candidate is not
+promoted. G03 and G04 remain open.
+
+### Training coverage correction, 2026-09-26
+
+The preceding fold-2 paragraph incorrectly equates the 367 eligible fit
+requests with sources used in primary optimizer updates. Its retained plan
+contains 320 distinct primary sources in 320 updates, and 331 captured
+sources after including metric donors. Forty-seven eligible sources received
+no primary update. Folds 0 and 1 each had 303 eligible sources and completed
+their primary epoch in 320 updates. The fold-2 result remains 37/47; this
+coverage difference is a confound, not an established cause of its losses.
+The trainer now records eligible, scheduled, captured, and unvisited sources
+separately. A complete-epoch control keeps the source partitions, objective,
+seed, candidate bank, and full calibration population unchanged.

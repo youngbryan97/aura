@@ -240,9 +240,9 @@ def test_how_often_she_has_felt_each_way_is_in_the_core():
     """As shares of her history, so the total does not enter as a clock."""
     counts = np.array([1.0, 4.0, 9.0, 2.0], dtype=np.float32)
     reading = _read(AuraState.default(), Organs(phi_core=_Held(_affective_state_visits=counts)))
-    assert _column(reading, "A.felt_before_mean") == pytest.approx(0.25)
-    assert _column(reading, "A.felt_before_max") == pytest.approx(9.0 / 16.0)
-    assert _column(reading, "A.felt_before_min") == pytest.approx(1.0 / 16.0)
+    assert _column(reading, "C.felt_before_mean") == pytest.approx(0.25)
+    assert _column(reading, "C.felt_before_max") == pytest.approx(9.0 / 16.0)
+    assert _column(reading, "C.felt_before_min") == pytest.approx(1.0 / 16.0)
 
 
 def test_a_history_spread_evenly_has_no_spread():
@@ -314,3 +314,33 @@ def test_nothing_counted_yet_is_a_miss_rather_than_a_shape():
     reading = _read(AuraState.default(), Organs(phi_core=_Held(_state_visits=np.zeros(4))))
     assert _column(reading, "C.been_here_max") == pytest.approx(0.0)
     assert any(source.startswith("organ:phi_core._state_visits") for source in reading.misses)
+
+
+# ── the unified field's own state ─────────────────────────────────────────
+#
+# The core read the substrate's state and weights and the mesh's state and
+# weights, and of the unified field only its weights. On the seed-7 run of 25
+# September at 21fec3d95 the field's state (`F`) was the largest leak into the
+# core after the process-size clock.
+
+
+class _FieldWithState:
+    def __init__(self, state: np.ndarray) -> None:
+        self.F = state
+        self.W_field = np.eye(4)
+
+
+def test_the_core_carries_the_fields_state():
+    field = _FieldWithState(np.linspace(-0.5, 0.5, 256).astype(np.float32))
+    reading = _read(AuraState.default(), Organs(field=field))
+    assert _column(reading, "C.field_state_max") == pytest.approx(0.5)
+    assert _column(reading, "C.field_state_min") == pytest.approx(-0.5)
+
+
+def test_the_fields_state_and_weights_are_different_columns():
+    # A state of 0.4 against weights of eye(4), whose mean is a quarter.
+    field = _FieldWithState(np.full(256, 0.4, dtype=np.float32))
+    reading = _read(AuraState.default(), Organs(field=field))
+    assert _column(reading, "C.field_state_mean") == pytest.approx(0.4)
+    assert _column(reading, "C.field_weight_mean") == pytest.approx(0.25)
+    assert "C.field_state_mean" in feature_names() and "C.field_weight_mean" in feature_names()

@@ -8,7 +8,9 @@ import random
 import string
 
 from core.learning.procedure_induction import Instruction
-from core.learning.semantic_graph_counterexamples import compare_program_meanings, counterfactual_inputs
+from core.learning.semantic_graph_counterexamples import (
+    ProgramObservationCache, compare_program_meanings, counterfactual_inputs,
+)
 from core.learning.semantic_program_campaign import _sha
 from core.learning.semantic_program_corpus import (
     SemanticInstructionAnnotation, _AnnotatedText, _append_natural_binary_operation,
@@ -172,6 +174,41 @@ def cross_construction_relation_partners(examples: tuple[Any, ...]) -> dict[str,
             if other is not None:
                 partners[source[0]] = other[0]
     return partners
+
+
+def cross_construction_relation_triplets(examples: tuple[Any, ...]) -> dict[str, tuple[str, str]]:
+    """Match a relation across forms and witness a rival within a form.
+
+    All three sources come from the caller's training split. The same-form
+    negative stops a representation from solving the task by construction ID.
+    A different structural key alone does not prove different meaning.
+    """
+    grouped = _source_relation_records(examples)
+    all_records = sorted((record, relation) for relation, records in grouped.items()
+                         for record in records)
+    observations = ProgramObservationCache(capacity=512)
+    triplets = {}
+    for source, relation in all_records:
+        positive = next((other for other in sorted(grouped[relation])
+                         if other[1] != source[1] and other[2] != source[2]), None)
+        if positive is None:
+            continue
+        negative = None
+        for other, other_relation in all_records:
+            if (other_relation == relation or other[1] != source[1]
+                    or other[2] == source[2] or other[3].n_inputs != source[3].n_inputs
+                    or tuple(type(value) for value in other[4])
+                    != tuple(type(value) for value in source[4])):
+                continue
+            probes = counterfactual_inputs(source[4], count=8)
+            comparison = compare_program_meanings(
+                source[3], other[3], probes, observation_cache=observations)
+            if comparison['status'] == 'different' and comparison.get('witness') is not None:
+                negative = other
+                break
+        if positive is not None and negative is not None:
+            triplets[source[0]] = (positive[0], negative[0])
+    return triplets
 
 
 def cross_construction_relation_controls(examples: tuple[Any, ...]) -> dict[str, Any]:

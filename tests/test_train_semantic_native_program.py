@@ -11,11 +11,14 @@ from tools.train_semantic_native_program import (
     construction_subset,
     exact_length_batches,
     native_loss,
+    native_relation_metric_loss,
     native_relational_source_loss,
-    selected_projection_error,
+    native_schedule_coverage,
+    native_source_embedding,
     native_source_loss,
     native_supervision_sets,
     native_training_schedule,
+    selected_projection_error,
 )
 
 
@@ -30,6 +33,19 @@ def test_source_identity_sampling_keeps_all_constructions_without_labels():
     for invalid in (["missing"], ["a-0", "a-0"]):
         with pytest.raises(ValueError, match="identities"):
             construction_subset(examples, invalid, per_construction=1)
+
+
+def test_primary_epoch_coverage_is_not_inferred_from_capture_or_update_count():
+    partial = native_schedule_coverage(("a", "b", "c"), ("a", "a", "b"), ("a", "b", "c"))
+    assert partial["primary_unvisited_ids"] == ["c"]
+    assert partial["complete_primary_epoch"] is False
+    assert partial["captured_sources"] == 3
+    assert partial["minimum_primary_visits"] == 0
+    complete = native_schedule_coverage(("a", "b", "c"), ("a", "b", "c", "a"), ("a", "b", "c"))
+    assert complete["complete_primary_epoch"] is True
+    assert complete["minimum_primary_visits"] == 1
+    with pytest.raises(ValueError, match="admitted fit"):
+        native_schedule_coverage(("a", "b"), ("a",), ("a", "held"))
 
 
 def test_prefix_batches_preserve_every_complete_sequence_and_ignore_input_order():
@@ -151,6 +167,34 @@ def test_relational_objective_couples_two_source_forms_without_hiding_a_weak_one
     assert mx.sum(mx.abs(gradient['output']['weight'])).item() > 0
 
 
+def test_relation_metric_reads_pre_answer_state_and_prefers_cross_form_relation():
+    class MetricSuffix(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.projection = nn.Linear(4, 4, bias=False)
+
+        def normalized_states(self, hidden):
+            return self.projection(hidden)
+
+    suffix = MetricSuffix()
+    suffix.projection.weight = mx.eye(4)
+    sequence = NativeProgramSequence((1, 2, 3, 4), 2, (2, 3))
+    a = mx.array([[[1., 0., 0., 0.], [9., 0., 0., 0.], [9., 0., 0., 0.]]])
+    b = mx.array([[[1., 0., 0., 0.], [-9., 0., 0., 0.], [-9., 0., 0., 0.]]])
+    c = mx.array([[[0., 1., 0., 0.], [9., 0., 0., 0.], [9., 0., 0., 0.]]])
+    assert mx.allclose(native_source_embedding(suffix, a, sequence),
+                       native_source_embedding(suffix, b, sequence)).item()
+    good = native_relation_metric_loss(suffix, (a, sequence), (b, sequence), (c, sequence))
+    reversed_loss = native_relation_metric_loss(suffix, (a, sequence), (c, sequence), (b, sequence))
+    assert good.item() < reversed_loss.item()
+    _value, gradient = nn.value_and_grad(suffix, lambda model: native_relation_metric_loss(
+        model, (a, sequence), (b, sequence), (c, sequence)))(suffix)
+    assert mx.all(mx.isfinite(gradient['projection']['weight'])).item()
+    assert mx.sum(mx.abs(gradient['projection']['weight'])).item() > 0
+    with pytest.raises(ValueError, match="source-only token boundary"):
+        native_source_embedding(suffix, a, NativeProgramSequence((1, 2, 3, 4), 1, (2, 3)))
+
+
 def test_selected_projection_gate_checks_supervised_probability_not_unrelated_logits():
     sequence = NativeProgramSequence((1, 2, 2, 3), 2, (2, 3))
     full = mx.array([[[0., 0., 0., 0.], [0., 0., 2., -10.],
@@ -169,7 +213,10 @@ def test_selected_projection_gate_checks_supervised_probability_not_unrelated_lo
 
 def test_native_partner_map_uses_typed_relation_not_construction_identity():
     from core.learning.procedure_induction import Instruction, Program
-    from core.learning.semantic_counterfactual_corpus import cross_construction_relation_partners
+    from core.learning.semantic_counterfactual_corpus import (
+        cross_construction_relation_partners,
+        cross_construction_relation_triplets,
+    )
 
     shared = Program(2, (Instruction('sub', (0, 1)),))
     reversed_roles = Program(2, (Instruction('sub', (1, 0)),))
@@ -178,9 +225,32 @@ def test_native_partner_map_uses_typed_relation_not_construction_identity():
             contrast_id=lineage, public_inputs=(5, 2), ir=SimpleNamespace(
                 source_text_sha256=identity, to_program=lambda: program))
     rows = (item('a', 'form-a', shared, 'a'), item('b', 'form-b', shared, 'b'),
-            item('c', 'form-c', reversed_roles, 'c'),
+            item('c', 'form-a', reversed_roles, 'c'),
             item('d', 'form-d', shared, 'a'))
     assert cross_construction_relation_partners(rows) == {'a': 'b', 'b': 'a', 'd': 'b'}
+    assert cross_construction_relation_triplets(rows) == {'a': ('b', 'c')}
+
+
+def test_metric_triplets_reject_structurally_distinct_equivalent_rivals():
+    from core.learning.procedure_induction import Instruction, Program
+    from core.learning.semantic_counterfactual_corpus import cross_construction_relation_triplets
+
+    target = Program(2, (Instruction('sub', (0, 1)),))
+    same_meaning = Program(2, (Instruction('add', (0, 1)),
+                               Instruction('sub', (2, 1)), Instruction('sub', (3, 1))))
+    different = Program(2, (Instruction('sub', (1, 0)),))
+
+    def item(identity, construction, program):
+        return SimpleNamespace(split='train', example_id=identity,
+            construction_id=construction, contrast_id=identity,
+            public_inputs=(5, 2), ir=SimpleNamespace(
+                source_text_sha256=identity, to_program=lambda: program))
+
+    rows = (item('a', 'form-a', target), item('b', 'form-b', target),
+            item('c', 'form-a', same_meaning))
+    assert cross_construction_relation_triplets(rows) == {}
+    assert cross_construction_relation_triplets((*rows, item('d', 'form-a', different))) == {
+        'a': ('b', 'd')}
 
 
 def test_supervision_reuses_witnessed_floor_contrasts_and_never_reads_a_held_target():
