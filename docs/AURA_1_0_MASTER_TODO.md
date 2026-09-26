@@ -1176,6 +1176,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Native decoder pilot](evidence/G03_NATIVE_DECODER_SEMANTICS_2026-09-25.md)
+  uses the resident model's original semantic pathway with source-only LoRA.
+  The complete held-wording pilot reaches 14/18 versus 7/18 unfitted and
+  15/18 incumbent. One incumbent gain and two regressions reject promotion.
+  Exact cached-prefix equivalence, real tokenizer boundaries and the shared
+  Metal limit/rollback repair pass 61 focused tests. G03 remains open.
   [Nested selector and research review](evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md):
   508 source-only inner rows train a selector for a disjoint 256-source outer
   construction fold. It falls from incumbent 179 correct to 108 (5 gains,
