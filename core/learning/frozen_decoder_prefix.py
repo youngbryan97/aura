@@ -33,6 +33,15 @@ class NativeDecoderSuffix(nn.Module):
         self.tied_output = bool(getattr(owner.args, "tie_word_embeddings", False))
         self.output = backbone.embed_tokens if self.tied_output else owner.lm_head
 
+    def normalized_states(self, hidden):
+        """Expose causal suffix states before vocabulary projection."""
+        if hidden.ndim != 3 or hidden.shape[1] < 1:
+            raise ValueError("native suffix requires a complete hidden sequence")
+        masks = decoder_layer_masks(self, hidden)
+        for layer, mask in zip(self.layers, masks, strict=True):
+            hidden = layer(hidden, mask=mask, cache=None)
+        return self.norm(hidden)
+
     def __call__(self, hidden, *, logit_positions=None):
         if hidden.ndim != 3 or hidden.shape[1] < 1:
             raise ValueError("native suffix requires a complete hidden sequence")
@@ -42,10 +51,7 @@ class NativeDecoderSuffix(nn.Module):
                        for index in logit_positions)
                 or len(set(logit_positions)) != len(logit_positions)):
             raise ValueError("native logit positions must identify distinct causal states")
-        masks = decoder_layer_masks(self, hidden)
-        for layer, mask in zip(self.layers, masks, strict=True):
-            hidden = layer(hidden, mask=mask, cache=None)
-        hidden = self.norm(hidden)
+        hidden = self.normalized_states(hidden)
         if logit_positions is not None:
             # All attention/recurrent states are computed before selecting outputs.
             hidden = mx.take(hidden, mx.array(logit_positions, dtype=mx.int32), axis=1)

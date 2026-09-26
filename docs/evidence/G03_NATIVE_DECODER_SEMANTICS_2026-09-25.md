@@ -608,3 +608,22 @@ labels; admission labels graded the result after retrieval. Receipt:
 No serving authority or G03 closeout follows. Multi-hop similarity would
 compound these false positives unless every edge had independent source and
 meaning evidence; a path alone is not a proof of semantic transfer.
+
+The next opt-in native objective takes one step beyond paired source losses.
+It embeds a request's last pre-answer hidden state through the trainable native
+suffix, pulls a same-relation source from another construction closer, and
+pushes a different-relation source from the same construction away. All three
+sources belong to fit; the positive has a different contrast lineage. The
+negative must have a changed-meaning witness from the existing floor
+comparison. Structural difference alone is not accepted. This auxiliary
+metric loss runs beside the source-level contrastive loss. It does not use the
+answer continuation to form its embedding, and calibration retains its
+ordinary source loss. A changed embedding geometry is an optimization target,
+not proof that a new utterance will choose the correct program.
+
+The read-only fold-0 plan, before loading model weights, has 303 fit sources,
+8 calibration requests, and 18 held requests. Ten of 16 scheduled updates
+have witnessed triplets, requiring 31 unique fit sources in the prefix cache.
+The immutable plan at `~/.aura/rlc-evidence/semantic-native-metric-plan3-fold0-20260926/plan.json`
+has SHA-256 `e97ce207d02a663904942e0d1414e488814f40a4555038bd8c56ed2b36eae0f7`.
+No model-active metric result or G03 closeout follows from this plan.

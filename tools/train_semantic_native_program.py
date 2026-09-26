@@ -114,7 +114,7 @@ def native_source_loss(suffix, hidden_rows, sequences, *, scope, objective):
 
 def native_relational_source_loss(suffix, left_hidden, left_sequences,
                                   right_hidden, right_sequences):
-    """Optimize both source forms, emphasizing the weaker same-relation form."""
+    """Optimize both source forms with extra weight on the weaker one."""
     import mlx.core as mx
 
     losses = mx.stack((
@@ -123,6 +123,30 @@ def native_relational_source_loss(suffix, left_hidden, left_sequences,
         native_source_loss(suffix, right_hidden, right_sequences,
                            scope="semantic_decisions", objective="contrastive")))
     return mx.logsumexp(losses) - math.log(2.)
+
+
+def native_source_embedding(suffix, hidden, sequence):
+    """Embed only the request prefix, excluding any answer-boundary token."""
+    import mlx.core as mx
+
+    cutoff = sequence.continuation_start - 1
+    if (type(cutoff) is not int or cutoff < 1 or hidden.ndim != 3
+            or hidden.shape[0] != 1 or hidden.shape[1] != len(sequence.tokens) - 1
+            or cutoff > hidden.shape[1]):
+        raise ValueError("relation embedding escaped its source-only token boundary")
+    state = suffix.normalized_states(hidden[:, :cutoff])[:, -1, :].astype(mx.float32)
+    return state / mx.maximum(mx.sqrt(mx.sum(state * state, axis=-1, keepdims=True)), 1e-6)
+
+
+def native_relation_metric_loss(suffix, anchor, positive, negative):
+    """Prefer a cross-form same-relation source over a same-form rival relation."""
+    import mlx.core as mx
+
+    vectors = [native_source_embedding(suffix, hidden, sequence)
+               for hidden, sequence in (anchor, positive, negative)]
+    same = mx.sum(vectors[0] * vectors[1], axis=-1)
+    rival = mx.sum(vectors[0] * vectors[2], axis=-1)
+    return mx.mean(mx.logaddexp(0., (rival - same) / .1))
 
 
 def selected_projection_error(full_logits, selected_logits, sequence, positions):
@@ -191,7 +215,7 @@ def main():
     parser.add_argument("--max-sequence-tokens", type=int, default=1024)
     parser.add_argument("--loss-scope", choices=("continuation", "semantic_decisions"),
                         default="continuation")
-    parser.add_argument("--objective", choices=("token", "contrastive", "relational"), default="token")
+    parser.add_argument("--objective", choices=("token", "contrastive", "relational", "relational_metric"), default="token")
     parser.add_argument("--contrast-limit", type=int, default=4)
     parser.add_argument("--plan-only", action="store_true")
     args = parser.parse_args()
@@ -199,7 +223,7 @@ def main():
             args.steps, args.save_every, args.rank, args.layers, args.max_sequence_tokens))
             or args.steps % args.save_every or not 0 < args.max_seconds <= 14400
             or not 1 <= args.prefix_batch_size <= 32 or not 2 <= args.contrast_limit <= 32
-            or args.objective in {"contrastive", "relational"}
+            or args.objective in {"contrastive", "relational", "relational_metric"}
             and args.loss_scope != "semantic_decisions"):
         parser.error("positive sizes, complete checkpoint intervals and a finite time bound required")
 
@@ -216,7 +240,10 @@ def main():
     from tools.probe_semantic_proposer_crossfit import _digest, _save_if_absent
     from tools.train_nested_semantic_ranker import _verified_pair
     from tools.train_semantic_atom_ranker import construction_weights, validate_atom_partition
-    from core.learning.semantic_counterfactual_corpus import cross_construction_relation_partners
+    from core.learning.semantic_counterfactual_corpus import (
+        cross_construction_relation_partners,
+        cross_construction_relation_triplets,
+    )
 
     outer, bank_report = _verified_pair(args.bank)
     raw = {name: path.read_bytes() for name, path in (
@@ -237,11 +264,18 @@ def main():
     schedule = native_training_schedule(outer["fit_ids"], steps=args.steps, seed=20260925)
     relational_partners = (cross_construction_relation_partners(tuple(fit))
                            if args.objective == "relational" else {})
+    metric_triplets = (cross_construction_relation_triplets(tuple(fit))
+                       if args.objective == "relational_metric" else {})
     scheduled_partners = {identity: relational_partners[identity] for identity in set(schedule)
                           if identity in relational_partners}
+    scheduled_triplets = {identity: metric_triplets[identity] for identity in set(schedule)
+                          if identity in metric_triplets}
     if args.objective == "relational" and not scheduled_partners:
         raise ValueError("relational objective has no scheduled cross-construction fit partners")
-    captured_fit_ids = sorted(set(schedule) | set(scheduled_partners.values()))
+    if args.objective == "relational_metric" and not scheduled_triplets:
+        raise ValueError("relational metric objective has no scheduled fit triplets")
+    captured_fit_ids = sorted(set(schedule) | set(scheduled_partners.values())
+                              | {source for pair in scheduled_triplets.values() for source in pair})
     peer_programs = {item.ir.to_program().sha(): item.ir.to_program() for item in fit}
     spec = get_active_cortex_spec(force_refresh=True)
     if spec is None or not spec.exact_identity:
@@ -274,6 +308,10 @@ def main():
             "objective": args.objective, "contrast_limit": args.contrast_limit,
             "relational_fit_partners": dict(sorted(scheduled_partners.items())),
             "relational_paired_updates": sum(identity in scheduled_partners for identity in schedule),
+            "relational_metric_fit_triplets": dict(sorted(scheduled_triplets.items())),
+            "relational_metric_updates": sum(identity in scheduled_triplets for identity in schedule),
+            "relational_metric_weight": .1 if args.objective == "relational_metric" else 0.,
+            "relational_metric_temperature": .1 if args.objective == "relational_metric" else None,
             "contrast_policy": "source_floor_typed_witnessed_difference_v1",
             "contrast_weight": 1.0 if args.objective != "token" else 0.0,
             "supervision_peer_program_sha256s": sorted(peer_programs)
@@ -413,9 +451,17 @@ def main():
                 peer_keys = groups[partner]
                 return native_relational_source_loss(tail, hidden, rows,
                     [states[key] for key in peer_keys], [sequences[key] for key in peer_keys])
-            return native_source_loss(tail, hidden, rows, scope=args.loss_scope,
-                                      objective="contrastive" if args.objective == "relational"
-                                      else args.objective)
+            source_loss = native_source_loss(tail, hidden, rows, scope=args.loss_scope,
+                objective="contrastive" if args.objective in {"relational", "relational_metric"}
+                else args.objective)
+            triplet = scheduled_triplets.get(identity) if args.objective == "relational_metric" else None
+            if triplet is None:
+                return source_loss
+            def source_pair(source):
+                key = groups[source][0]
+                return states[key], sequences[key]
+            return source_loss + plan["relational_metric_weight"] * native_relation_metric_loss(
+                tail, source_pair(identity), source_pair(triplet[0]), source_pair(triplet[1]))
 
         def measure_calibration(states):
             return sum(source_objective(suffix, identity, states).item() * calibration_weights[identity]
