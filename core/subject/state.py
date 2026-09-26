@@ -160,6 +160,12 @@ class Organs:
     #: Her own routing network. Its topology revision counts how many times her
     #: wiring has changed, which is a fact about her the core did not hold.
     mycelium: Any = None
+    #: The phi core, which keeps how often she has been in each of its states
+    #: and each of its affective states. Her own history of having been that way.
+    phi_core: Any = None
+    #: The executive closure engine, whose predictive self-model holds the
+    #: weights her self-prediction has learned.
+    executive: Any = None
 
     @classmethod
     def live(cls) -> Organs:
@@ -221,6 +227,8 @@ class Organs:
             field=service("unified_field"),
             homeostasis=either("homeostatic_coupling"),
             mycelium=either("mycelium"),
+            phi_core=either("phi_core"),
+            executive=either("executive_closure"),
         )
 
 
@@ -535,6 +543,13 @@ _SCHEMAS: dict[str, Schema] = {
             # from outside the core, where it was the largest single leak of the
             # 25 September run. A feeling nothing in the affect domain held.
             ("dread", "organ:homeostasis.prospective_dread"),
+            # How often she has been in each of the phi core's affective states.
+            # Her own history of having felt each way, which the closure test
+            # read from outside the core. Through the sketch it reads it through.
+            *(
+                (f"felt_before_{part}", "organ:phi_core._affective_state_visits")
+                for part in SKETCH_FIELDS
+            ),
         ),
     ),
     "G": _sch(
@@ -645,6 +660,12 @@ _SCHEMAS: dict[str, Schema] = {
             # doing, and these say what she has learned to do.
             *((f"substrate_weight_{part}", "organ:substrate.W") for part in SKETCH_FIELDS),
             *((f"mesh_weight_{part}", "organ:mesh._W_batch") for part in SKETCH_FIELDS),
+            # And how often she has been in each of the phi core's states, which
+            # is recurrent cognition's own history of itself.
+            *(
+                (f"been_here_{part}", "organ:phi_core._state_visits")
+                for part in SKETCH_FIELDS
+            ),
         ),
     ),
     "S": _sch(
@@ -764,6 +785,14 @@ _SCHEMAS: dict[str, Schema] = {
             # authored, so nothing is lost by reading it there.
             ("unity_ownership", "cognition.unity_state.agency_ownership_score"),
             ("unity_boundary", "cognition.unity_state.self_world_boundary_score"),
+            # What her self-prediction has learned. The executive closure
+            # engine's predictive self-model holds the weights, and the closure
+            # test read three moments of them from outside the core: her
+            # self-model's parameters are hers, and the core did not have them.
+            *(
+                (f"self_model_weight_{part}", "organ:executive._predictive_self.weights")
+                for part in SKETCH_FIELDS
+            ),
         ),
     ),
     "M": _sch(
@@ -1420,6 +1449,13 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
         source="organ:homeostasis.prospective_dread",
     ) or {}
     head.append(_f(homeostasis.get("prospective_dread")))
+    head.extend(
+        _sketched(
+            organs.phi_core,
+            "_affective_state_visits",
+            source="organ:phi_core._affective_state_visits",
+        )
+    )
     return np.array(head, dtype=np.float64)
 
 
@@ -1514,6 +1550,9 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
     head.extend(_sketched(organs.field, "W_field", source="organ:field.W_field"))
     head.extend(_sketched(organs.substrate, "W", source="organ:substrate.W"))
     head.extend(_sketched(organs.mesh, "_W_batch", source="organ:mesh._W_batch"))
+    head.extend(
+        _sketched(organs.phi_core, "_state_visits", source="organ:phi_core._state_visits")
+    )
     return np.array(head, dtype=np.float64)
 
 
@@ -1561,11 +1600,21 @@ def _counted(organ: Any, attribute: str, scale: float, *, source: str) -> float:
 
 
 def _sketched(organ: Any, attribute: str, *, source: str) -> list[float]:
-    """An organ's state array through the shared sketch, zeros and a miss when absent."""
+    """An organ's state array through the shared sketch, zeros and a miss when absent.
+
+    ``attribute`` may be dotted. The predictive self-model's weights live on the
+    executive engine's own model rather than on the engine, and the closure test
+    reads them at that depth.
+    """
     if organ is None:
         _miss(source, "organ absent")
         return [0.0] * len(SKETCH_FIELDS)
-    summary = sketch(getattr(organ, attribute, None))
+    held: Any = organ
+    for step in attribute.split("."):
+        held = getattr(held, step, None)
+        if held is None:
+            break
+    summary = sketch(held)
     if summary is None:
         _miss(source, "no finite state")
         return [0.0] * len(SKETCH_FIELDS)
@@ -1659,6 +1708,13 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
             _f(_dig(state, "cognition.unity_state.agency_ownership_score"), 1.0),
             _f(_dig(state, "cognition.unity_state.self_world_boundary_score"), 1.0),
         ]
+    )
+    head.extend(
+        _sketched(
+            organs.executive,
+            "_predictive_self.weights",
+            source="organ:executive._predictive_self.weights",
+        )
     )
     return np.array(head, dtype=np.float64)
 

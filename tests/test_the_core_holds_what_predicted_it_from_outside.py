@@ -218,3 +218,70 @@ def test_a_reading_that_is_not_a_mapping_is_two_zeros():
     reading = _read(state)
     assert _column(reading, "G.selfhood_read") == pytest.approx(0.0)
     assert _column(reading, "G.selfhood_level") == pytest.approx(0.0)
+
+
+# ── the learning state ───────────────────────────────────────────────────
+#
+# The closure walk differences fifteen periphery variables that are her learned
+# parameters and her own history of having been a way: the substrate's and the
+# mesh's and the field's weights, the self-model's weights, the phi core's visit
+# counts, the network's rewirings. K is her, and her learned parameters are hers;
+# the machine's bookkeeping is not. That is the line, and it is the same one the
+# fork already draws with `_MACHINERY_PACKAGES`.
+
+
+class _Held:
+    def __init__(self, **kw) -> None:
+        for name, value in kw.items():
+            setattr(self, name, value)
+
+
+def test_how_often_she_has_felt_each_way_is_in_the_core():
+    counts = np.array([1.0, 4.0, 9.0, 2.0], dtype=np.float32)
+    reading = _read(AuraState.default(), Organs(phi_core=_Held(_affective_state_visits=counts)))
+    assert _column(reading, "A.felt_before_mean") == pytest.approx(4.0)
+    assert _column(reading, "A.felt_before_max") == pytest.approx(9.0)
+
+
+def test_how_often_she_has_been_in_each_state_is_in_the_core():
+    counts = np.array([3.0, 3.0, 3.0], dtype=np.float32)
+    reading = _read(AuraState.default(), Organs(phi_core=_Held(_state_visits=counts)))
+    assert _column(reading, "C.been_here_mean") == pytest.approx(3.0)
+    assert _column(reading, "C.been_here_sd") == pytest.approx(0.0)
+
+
+def test_what_her_self_prediction_has_learned_is_in_the_core():
+    """The weights live on the engine's model, not on the engine."""
+    weights = np.array([0.1, -0.2, 0.3], dtype=np.float32)
+    engine = _Held(_predictive_self=_Held(weights=weights))
+    reading = _read(AuraState.default(), Organs(executive=engine))
+    assert _column(reading, "S.self_model_weight_max") == pytest.approx(0.3, abs=1e-6)
+    assert _column(reading, "S.self_model_weight_min") == pytest.approx(-0.2, abs=1e-6)
+
+
+def test_a_dotted_attribute_that_stops_short_is_a_miss_not_a_crash():
+    reading = _read(AuraState.default(), Organs(executive=_Held(_predictive_self=None)))
+    assert _column(reading, "S.self_model_weight_mean") == pytest.approx(0.0)
+    assert any(source.startswith("organ:executive") for source in reading.misses)
+
+
+def test_the_dread_is_read_from_the_method_that_exists():
+    class _Homeostasis:
+        @staticmethod
+        def get_snapshot():
+            return {"prospective_dread": 0.42}
+
+    reading = _read(AuraState.default(), Organs(homeostasis=_Homeostasis()))
+    assert _column(reading, "A.dread") == pytest.approx(0.42)
+
+
+def test_her_rewirings_saturate_rather_than_running_away():
+    def at(count: int) -> float:
+        organs = Organs(mycelium=_Held(_topology_revision=count))
+        return _column(_read(AuraState.default(), organs), "I.rewirings")
+
+    assert at(0) == pytest.approx(0.0)
+    first = at(1) - at(0)
+    later = at(101) - at(100)
+    assert first > later > 0.0
+    assert at(10_000) < 1.0
