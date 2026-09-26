@@ -178,11 +178,18 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         # D ended with no incoming edge at all, which failed five criteria at
         # once. These are quantities she already acts on; they were computed
         # each turn and thrown away.
+        # Unrounded. Six places is a display choice and it became a
+        # measurement: warmth returns about six millionths of integrity's gap
+        # in a turn — its rate is declared per day and a turn is a second of
+        # her life — so `round(..., 6)` recorded the whole channel as exactly
+        # 0.0 on all 79,200 frames of the seed-7 run of 25 September while the
+        # mechanism was firing. The other four forces are order one and lose
+        # nothing by keeping their digits.
         mot.forces = {
-            "pressure": round(float(pressure), 6),
-            "social_hold": round(float(social_decay_multiplier), 6),
-            "warmth_return": round(float(warmth_return), 6),
-            "attended_credit": round(float(attended_credit), 6),
+            "pressure": float(pressure),
+            "social_hold": float(social_decay_multiplier),
+            "warmth_return": float(warmth_return),
+            "attended_credit": float(attended_credit),
             "resolve_hold": 1.0 if borrowed_resolve else 0.0,
         }
         
