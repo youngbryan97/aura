@@ -823,7 +823,7 @@ def keys_named_in(text: str) -> tuple[str, ...]:
         index = max(at, index + 1)
     if best:
         return tuple(best)
-    for before, after in zip(words, words[1:]):
+    for before, after in zip(words, words[1:], strict=False):
         if (
             after in ("keys", "controls")
             and before not in _NOT_KEYS

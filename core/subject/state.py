@@ -152,6 +152,14 @@ class Organs:
     #: every tick and nothing in the core held it, so the closure test read its
     #: extremes from outside and they predicted the core's next state.
     field: Any = None
+    #: The homeostatic coupling engine. It keeps a prospective dread — how much
+    #: it minds where the trajectory is going — which was the largest single
+    #: leak of the 25 September run at 0.017, and is a feeling the affect domain
+    #: did not hold.
+    homeostasis: Any = None
+    #: Her own routing network. Its topology revision counts how many times her
+    #: wiring has changed, which is a fact about her the core did not hold.
+    mycelium: Any = None
 
     @classmethod
     def live(cls) -> Organs:
@@ -178,6 +186,18 @@ class Organs:
             except (ImportError, AttributeError, RuntimeError):
                 return None
 
+        def either(name: str) -> Any:
+            """Whichever registry has it. Some organs are published to one only.
+
+            The homeostatic coupling engine goes into the runtime registry at
+            bring-up and into the container beside it, and which of the two
+            answers depends on how the organism was brought up. The closure walk
+            found its prospective dread through the container while this kit
+            resolved None through the runtime registry, and a run refused for a
+            reader that was there all along.
+            """
+            return runtime(name) or service(name)
+
         agency = None
         try:
             from core.agency.authorship import get_agency_ledger
@@ -199,6 +219,8 @@ class Organs:
             comparator=_agency_comparator(),
             soma=service("soma"),
             field=service("unified_field"),
+            homeostasis=either("homeostatic_coupling"),
+            mycelium=either("mycelium"),
         )
 
 
@@ -418,6 +440,11 @@ _SCHEMAS: dict[str, Schema] = {
             # is paid back as she rests, so it decides what she does next and
             # no column read it. See core/soma/fatigue.py.
             ("fatigue", "soma.fatigue.share"),
+            # How many times her own routing has been rewired. The mycelial
+            # network counts it and the closure test read the count from outside
+            # the core; her wiring changing is a fact about her body, not about
+            # the machine.
+            ("rewirings", "organ:mycelium._topology_revision"),
         ),
     ),
     "A": _sch(
@@ -503,6 +530,11 @@ _SCHEMAS: dict[str, Schema] = {
             ("moment_particular", "cognition.moment.particular"),
             ("moment_meets", "cognition.moment.meets"),
             ("moment_weight", "cognition.moment.weight"),
+            # How much she minds where the trajectory is going. The homeostatic
+            # coupling engine has kept it all along and the closure test read it
+            # from outside the core, where it was the largest single leak of the
+            # 25 September run. A feeling nothing in the affect domain held.
+            ("dread", "organ:homeostasis.prospective_dread"),
         ),
     ),
     "G": _sch(
@@ -606,6 +638,13 @@ _SCHEMAS: dict[str, Schema] = {
             # plasticity rewrites while she runs. Read through the same sketch,
             # for the same reason the two above are.
             *((f"field_weight_{part}", "organ:field.W_field") for part in SKETCH_FIELDS),
+            # And the two connectivities plasticity rewrites beside it. The
+            # closure test read the substrate's own matrix and the mesh's stack
+            # of per-column weights from outside the core, and each predicted
+            # the core's next state: the activations above say what she is
+            # doing, and these say what she has learned to do.
+            *((f"substrate_weight_{part}", "organ:substrate.W") for part in SKETCH_FIELDS),
+            *((f"mesh_weight_{part}", "organ:mesh._W_batch") for part in SKETCH_FIELDS),
         ),
     ),
     "S": _sch(
@@ -1277,7 +1316,7 @@ def _read_P(state: Any, now: float) -> np.ndarray:
     )
 
 
-def _read_I(state: Any) -> np.ndarray:
+def _read_I(state: Any, organs: Organs) -> np.ndarray:
     return np.array(
         [
             _f(_dig(state, "soma.hardware.cpu_usage")),
@@ -1308,6 +1347,12 @@ def _read_I(state: Any) -> np.ndarray:
             )
             / float(len(_SENSE_CHANNELS)),
             _f((_dig(state, "soma.fatigue", {}) or {}).get("share")),
+            _counted(
+                organs.mycelium,
+                "_topology_revision",
+                8.0,
+                source="organ:mycelium._topology_revision",
+            ),
         ],
         dtype=np.float64,
     )
@@ -1368,6 +1413,13 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
     head.append(float(np.std(values)) if len(values) > 1 else 0.0)
     moment = _dig(state, "cognition.moment", {}) or {}
     head.extend(_f(moment.get(key)) for key in ("particular", "meets", "weight"))
+    homeostasis = _call(
+        organs.homeostasis,
+        "get_snapshot",
+        {},
+        source="organ:homeostasis.prospective_dread",
+    ) or {}
+    head.append(_f(homeostasis.get("prospective_dread")))
     return np.array(head, dtype=np.float64)
 
 
@@ -1460,6 +1512,8 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
     head.extend(_sketched(organs.substrate, "x", source="organ:substrate.x"))
     head.extend(_sketched(organs.mesh, "column_activations", source="organ:mesh.column_activations"))
     head.extend(_sketched(organs.field, "W_field", source="organ:field.W_field"))
+    head.extend(_sketched(organs.substrate, "W", source="organ:substrate.W"))
+    head.extend(_sketched(organs.mesh, "_W_batch", source="organ:mesh._W_batch"))
     return np.array(head, dtype=np.float64)
 
 
@@ -1486,6 +1540,24 @@ def _selfhood(reading: Any) -> list[float]:
     share = (len(values) / asked) if asked else 0.0
     level = (sum(values) / len(values)) if values else 0.0
     return [share, level]
+
+
+def _counted(organ: Any, attribute: str, scale: float, *, source: str) -> float:
+    """An organ's own counter, saturating, with an absent organ recorded.
+
+    A count read straight through would grow without bound over a long life and
+    stop being a reading of anything; saturating it against a scale keeps the
+    difference between one and three where it matters and says nothing new
+    between three hundred and four hundred.
+    """
+    if organ is None:
+        _miss(source, "organ absent")
+        return 0.0
+    value = getattr(organ, attribute, None)
+    if value is None:
+        _miss(source, "no such reading")
+        return 0.0
+    return _sat(_f(value), scale)
 
 
 def _sketched(organ: Any, attribute: str, *, source: str) -> list[float]:
@@ -1842,11 +1914,13 @@ _ORGAN_READERS: dict[str, Callable[[Any, Organs], np.ndarray]] = {
     "S": _read_S,
     "W": _read_W,
     "D": _read_D,
+    # Interoception joined these when the body started reading her own routing
+    # network's rewirings, which the closure test read from outside the core.
+    "I": _read_I,
 }
 
 #: Readers that only need the state object.
 _STATE_READERS: dict[str, Callable[[Any], np.ndarray]] = {
-    "I": _read_I,
     "M": _read_M,
 }
 
