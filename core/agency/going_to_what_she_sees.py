@@ -19,6 +19,7 @@ one. Which of two doors was meant is the person's to say.
 
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -56,16 +57,19 @@ def reads_as_a_thing(region: dict[str, Any]) -> bool:
     something, and live, it made her own success message a second chest to
     choose between. And a word cut by the edge of the frame: live, a chest
     half out of view was read as "hest" and she looked all the way round for
-    one. A box that comes nearer the edge than one of its own letters is wide
-    may be missing letters.
+    one. A glyph cut by the frame sits within half its own width of the
+    edge, so a box that comes nearer than that may be missing letters. A
+    whole letter was too wide a margin: up close, where letters are large, it
+    turned away a whole word sitting comfortably off the middle, and she lost
+    a crate she was walking to.
     """
     said = " ".join(str(region.get("text", "")).split())
     if not said or len(said.split()) > 3 or _TALK.search(said):
         return False
     wide = float(region.get("width", 0.0))
     left = float(region.get("x", float(region.get("center_x", 0.5)) - wide / 2.0))
-    letter = wide / max(1, len(said))
-    return left > letter and left + wide < 1.0 - letter
+    half_a_letter = wide / max(1, len(said)) / 2.0
+    return left > half_a_letter and left + wide < 1.0 - half_a_letter
 
 
 def seen_named(layout: Sequence[dict[str, Any]], named: str) -> list[Sighting]:
@@ -127,6 +131,61 @@ class GoingTo:
     growths: list[float] = field(default_factory=list)
     #: Why the trip ended, once it has.
     ended: str = ""
+    #: Whether to aim where a moving thing will be when she arrives rather
+    #: than where it is. Off: measured 2026-09-26 in thirty generated worlds
+    #: with a thing circling at under her pace, walking while steering at
+    #: where it is caught it in 20, and leading by its drift over the time to
+    #: arrive caught it in 11. The drift carried over twenty looks aims at the
+    #: edge of the view and she loses it; the right lead is an angle, and that
+    #: needs the field of view in degrees, which nothing measures yet.
+    leads: bool = False
+    #: Where the thing was at the last look.
+    _last: float | None = None
+    #: How far the whole picture slid since the last look, as her eyes measured it.
+    _slid: float | None = None
+    #: How far the thing moved on its own between looks, each time it was measured.
+    _drifts: list[float] = field(default_factory=list)
+
+    def _where_it_will_be(self, sight: Sighting) -> float:
+        """Across, where the thing will be at the next look, on a constant-velocity guess.
+
+        What she sees move between two looks is her own turning plus the
+        thing's own motion. Her turning she knows: she slid the view by a
+        share she chose. What is left is the thing moving, and a thing seen
+        moving at some pace is aimed for where that pace takes it by the next
+        look. SIMA 2 is weakest at exactly this — combat, 25% against 64% for
+        people — and a reactive policy aims where the target was.
+        """
+        if self._last is not None and self._slid is not None:
+            # The picture's own slide is measured, not assumed from the turn
+            # she meant: assumed, whatever her gain got wrong read as the thing
+            # moving, and a still thing was led off the screen. What of its
+            # motion is not the picture's is its own.
+            self._drifts.append(sight.across - (self._last + self._slid))
+        self._slid = None
+        if not self.leads or len(self._drifts) < 3:
+            return sight.across
+        drift = sum(self._drifts) / len(self._drifts)
+        spread = math.sqrt(sum((d - drift) ** 2 for d in self._drifts) / (len(self._drifts) - 1))
+        # A thing that is not moving shows a drift of nothing give or take its
+        # reading; it is led only when the drift clears twice its own standard
+        # error, the ordinary line between a motion and noise.
+        if abs(drift) <= 2.0 * spread / math.sqrt(len(self._drifts)):
+            return sight.across
+        # Aim where it will be when she gets there, not one look on: a thing
+        # moving across is caught by heading for where it is going. How many
+        # looks away she is comes from her own walking: a step that makes the
+        # view grow by g leaves her g/(g-1) steps from it. Never further off
+        # than half a view, because past that she aims at something she can
+        # no longer see.
+        horizon = 1.0
+        if self.growths and self.growths[-1] > 1.0:
+            grew = self.growths[-1]
+            horizon = grew / (grew - 1.0)
+        lead = drift * horizon
+        if abs(lead) > 0.5:
+            lead = 0.5 if lead > 0 else -0.5
+        return sight.across + lead
 
     def _the_cue_is_ours(self, layout: Sequence[dict[str, Any]], seen: list[Sighting]) -> bool:
         """Whether a prompt on screen belongs to the thing she is going to.
@@ -179,12 +238,22 @@ class GoingTo:
             self.ended = f"{self.named!r} went out of view"
             return Chunk((), slot_s, think=True)
         sight = seen[0]
-        off = sight.across - 0.5
+        off = self._where_it_will_be(sight) - 0.5
+        self._last = sight.across
         # In front means inside its own width of the middle: a wide thing is
         # faced sooner than a narrow one, and nothing here picks a tolerance.
         if abs(off) > max(sight.wide / 2.0, 1e-3):
             travel = self.turn_for(-off)
-            return Chunk((Slot(moved=(travel, 0)),), slot_s)
+            # Once it has been walked toward, she keeps walking as she turns,
+            # the way a person runs and steers at once: anything in view is
+            # within half the field of straight ahead, so every step still
+            # brings her nearer. Facing first and walking after, she never
+            # walked at a thing that kept moving: live in generated worlds,
+            # two hundred turns and one step.
+            held = frozenset({self.walks}) if self.heights else frozenset()
+            if held:
+                self.heights.append(sight.high)
+            return Chunk((Slot(held, moved=(travel, 0)),), slot_s)
         if self._stopped_getting_nearer(sight):
             self.ended = f"{self.named!r} stopped getting nearer"
             return Chunk((), slot_s, done=True)
@@ -196,18 +265,27 @@ class GoingTo:
         """How much the whole view grew over the walk just made, as her body measured it."""
         self.growths.append(float(grew))
 
+    def slid(self, share: float) -> None:
+        """How far the whole picture slid since the last look, in shares of its width."""
+        self._slid = float(share)
+
     def _stopped_getting_nearer(self, sight: Sighting) -> bool:
         """Two walks running that brought her no nearer.
 
-        The whole view's growth says it best where it was measured: a box
-        drawn round a few letters of text is a pixel taller or shorter from
-        one reading to the next, and live, on the first trip, two readings of
-        that noise ended a walk that was getting nearer at five per cent a
-        step. The box is what is left where nothing measured the view.
+        The box drawn round a few letters of text is a pixel taller or
+        shorter from one reading to the next, and live, on the first trip,
+        two readings of that noise ended a walk that was getting nearer at
+        five per cent a step; the whole view's growth is what steadies it.
         """
+        # Both have to agree. The view growing says she walked, not that she
+        # walked toward this: chasing a thing that moved round her, the wall
+        # ahead grew while the thing did not, and neither alone is nearness.
+        # So two walks running where neither the view nor the thing grew.
+        thing_grew = not (len(self.heights) >= 2 and sight.high <= self.heights[-1] <= self.heights[-2])
         if self.growths:
-            return len(self.growths) >= 2 and all(grew <= 1.0 for grew in self.growths[-2:])
-        return len(self.heights) >= 2 and sight.high <= self.heights[-1] <= self.heights[-2]
+            view_grew = not (len(self.growths) >= 2 and all(grew <= 1.0 for grew in self.growths[-2:]))
+            return not view_grew and not thing_grew
+        return not thing_grew
 
 
 def turn_by_share(body: Any, small_wide: int) -> Callable[[float], int]:

@@ -17,6 +17,7 @@ starts with her learning her body.
     using           go to a thing and do what its prompt says; the world answers
     finding         go to a thing that starts behind her
     asking          two things answer to the name; she must ask, not walk
+    chasing         go to a thing that keeps moving round the room, and use it
 
     python tools/measure_in_camera_worlds.py --worlds 10
 """
@@ -61,6 +62,8 @@ class Thing:
     y: float
     key: str
     used: bool = False
+    #: Degrees a second it travels round the middle of the room; nought stands still.
+    moving: float = 0.0
 
 
 @dataclass
@@ -139,6 +142,12 @@ class AGeneratedWorld:
                 self.x += step * math.sin(math.radians(self.facing))
                 self.y += step * math.cos(math.radians(self.facing))
             for thing in self.things:
+                if thing.moving:
+                    turn = math.radians(thing.moving * chunk.slot_s)
+                    thing.x, thing.y = (
+                        thing.x * math.cos(turn) + thing.y * math.sin(turn),
+                        -thing.x * math.sin(turn) + thing.y * math.cos(turn),
+                    )
                 off, far = self._bearing(thing)
                 if thing.key in slot.held and far < REACH and abs(off) < 12:
                     thing.used = True
@@ -155,7 +164,11 @@ def a_world_for(category: str, seed: int) -> tuple[AGeneratedWorld, str]:
         world.place(f"{colours[1]} {names[0]}", roll.uniform(8, 35), roll.uniform(6, 11), roll.choice(PROMPT_KEYS))
         return world, names[0]
     ahead = roll.uniform(-35, 35) if category != "finding" else roll.uniform(120, 240)
-    world.place(names[0], ahead, roll.uniform(6, 11), roll.choice(PROMPT_KEYS))
+    target = world.place(names[0], ahead, roll.uniform(6, 11), roll.choice(PROMPT_KEYS))
+    if category == "chasing":
+        # Round the room at under her own walking pace, so it can be caught.
+        pace = roll.uniform(0.3, 0.8) * PACE
+        target.moving = roll.choice((-1, 1)) * math.degrees(pace / math.hypot(target.x, target.y))
     for other in names[1:]:
         world.place(other, roll.uniform(-180, 180), roll.uniform(6, 12), roll.choice(PROMPT_KEYS))
     return world, names[0]
@@ -171,11 +184,11 @@ def wilson(worked: int, tried: int) -> tuple[float, float]:
     return max(0.0, middle - half), min(1.0, middle + half)
 
 
-async def one(category: str, seed: int) -> bool:
+async def one(category: str, seed: int, *, leads: bool = False) -> bool:
     world, named = a_world_for(category, seed)
     loop = ACameraWorld(look=world.look, play=world.play)
     body = await learn_the_body(loop, keys=("w", "s", "up", "down", "i", "k"), slot_s=0.2)
-    trip = await go_to(loop, named, body, slot_s=0.2, most_chunks=200)
+    trip = await go_to(loop, named, body, slot_s=0.2, most_chunks=200, leads=leads)
     thing = next(thing for thing in world.things if named in thing.name)
     if category == "asking":
         return trip.chunks == 0 and "things answer to" in trip.ended
@@ -185,11 +198,12 @@ async def one(category: str, seed: int) -> bool:
     return thing.used and bool(trip.answered) and "nothing on screen" not in trip.answered
 
 
-async def measure(worlds: int) -> None:
-    print(f"{worlds} generated worlds per category, each with its own keys, mouse and layout\n")
+async def measure(worlds: int, *, leads: bool = False) -> None:
+    print(f"{worlds} generated worlds per category, each with its own keys, mouse and layout")
+    print(f"aiming {'where a moving thing will be' if leads else 'where it is'}\n")
     print(f"{'category':<12} {'did it':>8}  {'95% interval':>14}")
-    for category in ("navigation", "using", "finding", "asking"):
-        results = [await one(category, seed) for seed in range(worlds)]
+    for category in ("navigation", "using", "finding", "asking", "chasing"):
+        results = [await one(category, seed, leads=leads) for seed in range(worlds)]
         worked = sum(results)
         low, high = wilson(worked, worlds)
         print(f"{category:<12} {worked:>3}/{worlds:<4}  {low:>6.0%} - {high:>4.0%}")
@@ -198,8 +212,9 @@ async def measure(worlds: int) -> None:
 def main() -> int:
     ask = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ask.add_argument("--worlds", type=int, default=10)
+    ask.add_argument("--lead", action="store_true", help="aim where a moving thing will be, not where it is")
     said = ask.parse_args()
-    asyncio.run(measure(said.worlds))
+    asyncio.run(measure(said.worlds, leads=said.lead))
     return 0
 
 

@@ -37,7 +37,13 @@ import numpy as np
 
 from core.agency.going_to_what_she_sees import GoingTo, seen_named
 from core.agency.what_hands_do import Chunk, Slot
-from core.perception.how_the_view_moves import ViewChange, WhatMyHandsDoToTheView, grey, how_alike
+from core.perception.how_the_view_moves import (
+    ViewChange,
+    WhatMyHandsDoToTheView,
+    grey,
+    how_alike,
+    how_it_moved,
+)
 
 __all__ = ["ACameraWorld", "NotInFront", "Trip", "go_to", "learn_the_body", "live_camera_world"]
 
@@ -177,8 +183,9 @@ async def go_to(
     slot_s: float,
     most_chunks: int,
     tell: Callable[[str], None] | None = None,
+    leads: bool = False,
 ) -> Trip:
-    """One trip to the thing named, told as it goes."""
+    """One trip to the thing named, told as it goes. ``leads`` aims where a moving thing will be."""
     trip = Trip(named)
     walks = body.walks_forward()
     if not walks:
@@ -187,9 +194,10 @@ async def go_to(
         return trip
     frame, layout = world.look()
     small_wide = grey(frame).shape[1]
-    going = GoingTo(named, turn_for=lambda share: body.turn_for(share * small_wide), walks=walks)
+    going = GoingTo(named, turn_for=lambda share: body.turn_for(share * small_wide), walks=walks, leads=leads)
     last_said = ""
     sweep: list[Any] = []
+    walked_since_press = True
     for _ in range(most_chunks):
         chunk = going.next_chunk(layout, slot_s=slot_s, slots=1)
         looking = False
@@ -202,7 +210,11 @@ async def go_to(
                 going.ended = f"looked all the way round and nothing answers to {named!r}"
                 chunk = Chunk((), slot_s, think=True)
             else:
-                chunk = Chunk((Slot(moved=(body.turn_for(-0.5 * small_wide), 0)),), slot_s)
+                # Toward the side it was last seen on, when it was seen at
+                # all: a thing that walked out of view is most likely still
+                # going that way.
+                side = -1.0 if (going._last is not None and going._last < 0.5) else 1.0
+                chunk = Chunk((Slot(moved=(body.turn_for(-0.5 * side * small_wide), 0)),), slot_s)
                 going.ended = ""
                 looking = True
         said = f"looking around for the {named}" if looking else _what_this_does(chunk, named, going)
@@ -227,27 +239,48 @@ async def go_to(
         if chunk.done or chunk.think:
             trip.done = chunk.done
             if chunk.done and chunk.slots:
-                trip.answered = _how_the_world_answered(layout, look_settled(world)[1])
+                frame, after = look_settled(world)
+                trip.answered = _how_the_world_answered(layout, after, named)
                 if trip.answered:
                     trip.said.append(trip.answered)
                     if tell is not None:
                         tell(trip.answered)
+                # Pressed and nothing answered, with the thing still there: a
+                # thing that moves can be out of reach by the time a key lands.
+                # She goes on and presses again, within the trip she was given.
+                # Once: a second press nothing answered, with no walking since
+                # the first, would be the same press again, and a locked door
+                # stays locked however often she tries it.
+                if trip.answered == UNANSWERED and seen_named(after, named) and walked_since_press:
+                    layout, going.ended, trip.done = after, "", False
+                    walked_since_press = False
+                    continue
             break
         frame, layout = look_settled(world)
-        if chunk.slots and all(walks in slot.held for slot in chunk.slots):
-            going.walked(body.growth_between(before, frame))
+        if before is not None and frame is not None:
+            across, _down, grew, _sure = how_it_moved(grey(before), grey(frame))
+            going.slid(across / small_wide)
+            if chunk.slots and all(walks in slot.held for slot in chunk.slots):
+                going.walked(grew)
+                walked_since_press = True
     trip.ended = going.ended or "the time for this trip ran out"
     if trip.ended not in trip.said:
         trip.said.append(trip.ended)
     return trip
 
 
-def _how_the_world_answered(before: list[dict[str, Any]], after: list[dict[str, Any]]) -> str:
+def _how_the_world_answered(
+    before: list[dict[str, Any]], after: list[dict[str, Any]], named: str = ""
+) -> str:
     """What the screen says to the last thing she did: words that went, and words that came.
 
     Pressing what a prompt names is not success; the world answering is. A
     prompt that is still there after the press, with nothing new beside it,
     is a press nothing heard, and she says so rather than calling it done.
+
+    A prompt that only went away is an answer when the thing is still in
+    front of her, no smaller: a prompt also goes when its thing moves out of
+    reach, and chasing one, that read as the thing having been used.
     """
     was = {str(region.get("text", "")).strip() for region in before or ()}
     now = {str(region.get("text", "")).strip() for region in after or ()}
@@ -256,8 +289,16 @@ def _how_the_world_answered(before: list[dict[str, Any]], after: list[dict[str, 
     if came:
         return f"the screen now says {came[0]!r}"
     if went:
+        if named:
+            then, still = seen_named(before, named), seen_named(after, named)
+            if not still or (then and still[0].high < then[0].high):
+                return UNANSWERED
         return f"{went[0]!r} went away"
-    return "she pressed it and nothing on screen answered"
+    return UNANSWERED
+
+
+#: What she says when she pressed what a prompt named and nothing answered.
+UNANSWERED = "she pressed it and nothing on screen answered"
 
 
 def _back_where_she_started(sweep: list[Any]) -> bool:
