@@ -68,7 +68,7 @@ wired to screen work, or covering part of it), **none**.
 | Action chunks with empty slots | `Chunk` of slots, `.` for an empty one, `done` and `think` | have |
 | Latency hiding | eyes and search off the loop; no measured perception-to-action delay per world | part |
 | Staying still once done | `done` ends a chunk; a made layout is not moved out of | have |
-| Precise control by look-ahead | `looking_ahead`, `a_world_compiled` on boards | part |
+| Precise control by look-ahead | boards: `looking_ahead`; moving things: walking while steering, 21 of 30 chases caught; a lead by drift is built and switched off (11 of 30) | part |
 
 ### Language, instructions and dialogue
 
@@ -101,7 +101,7 @@ wired to screen work, or covering part of it), **none**.
 | Faculty | Aura today | Status |
 |---|---|---|
 | Transfer from breadth | rules composed per world; kinds of world carried (`CARRIES_TO_A_WORLD_LIKE_IT`) | part |
-| Zero-shot unseen worlds | `tools/measure_getting_there.py` (9 grid worlds) | part |
+| Zero-shot unseen worlds | 9 grid worlds (`measure_getting_there`); generated camera worlds with remapped keys and mouse (`measure_in_camera_worlds`) | have |
 | Concept transfer across games | none | none |
 | Keeping general ability | the 27B is not trained on actions | have |
 
@@ -109,13 +109,13 @@ wired to screen work, or covering part of it), **none**.
 
 | Faculty | Aura today | Status |
 |---|---|---|
-| Imitation of her own play | action logs exist; nothing trains on them | none |
+| Imitation of her own play | (view, chunk) pairs kept per episode; nothing trains on them yet | part |
 | Causal and hindsight labels | `core/environment/experience_replay.py` (hindsight replay, environment kernel only) | part |
 | Bridge data (reasoning written onto successes) | none | none |
 | RL on verifiable tasks | rehearsal in her model (`rehearsing_in_her_model`, `working_out_what_matters`) | part |
-| Task setter | `core/environment/curriculum.py` (environment kernel only) | part |
-| Reward model / judge | none for screen tasks | none |
-| Experience bank and retraining | `core/learning/verified_replay_sft.py` (language, not actions) | part |
+| Task setter | `core/agency/setting_herself_a_task.py`: untried first, then nearest even odds; mastered sends her looking elsewhere | have |
+| Reward model / judge | the world's own answer: words that came or a prompt that went with its thing still in front (`in_a_world_through_a_camera`) | have |
+| Experience bank and retraining | `core/agency/what_she_tried.py`: every episode per world, who set it, chunks and the view before each; nothing trains on it yet | part |
 | Learning in a generated world | her compiled world model | part |
 
 ### Evaluation
@@ -123,9 +123,9 @@ wired to screen work, or covering part of it), **none**.
 | Faculty | Aura today | Status |
 |---|---|---|
 | Three success functions (ground truth, programmatic, human) | programmatic only, per run | part |
-| Suite rules (persisting success, post-completion cap, chains, held-out states) | none | none |
+| Suite rules (persisting success, post-completion cap, chains, held-out states) | `tools/measure_in_camera_worlds.py`: generated worlds, per-category Wilson intervals, a random-act null | part |
 | Human baselines | none | none |
-| Skill taxonomy | none for screen tasks | none |
+| Skill taxonomy | navigation, using, finding, asking, chasing | part |
 
 ### From agents SIMA 2 does not have
 
@@ -149,6 +149,23 @@ how the mouse turns the camera by trying them, opened the Door (6.1 s), then
 looked around for the Chest behind her, walked to it and opened it (6.8 s).
 "Walk over to the chest in Python and open it", passed to `pursue_on_screen`
 as a person would say it, did the same in fourteen chunks.
+
+## Measured (26 Sep)
+
+Generated camera worlds, thirty per category, each with its own walking key,
+mouse direction and gain, layout and prompt keys; she is told none of it.
+
+| Category | Her | Random acts |
+|---|---|---|
+| navigation | 30/30 | 0/30 |
+| using | 30/30 | 0/30 |
+| finding | 30/30 | 0/30 |
+| asking | 30/30 | 0/30 |
+| chasing | 21/30 | not run |
+
+Live, in the test room, three fresh rooms: door and chest opened six times
+of six, 8 to 12 seconds a trip. Self-set practice: she set herself both,
+opened both, and did not repeat what she had managed.
 
 ## Build order
 
