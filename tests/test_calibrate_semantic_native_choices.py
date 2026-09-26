@@ -141,6 +141,22 @@ def test_unknown_evidence_cannot_supply_negative_training_labels():
     assert result["scorer_report"]["reason"] == "insufficient_fit_observations"
 
 
+def test_best_incumbent_is_retained_without_a_self_comparison():
+    from types import SimpleNamespace
+
+    bank, native, keys = fixture()
+    incumbent_values = combined_views(bank, native)[2][keys[0]]
+    class Scorer:
+        def predict(self, values):
+            return float(values == incumbent_values)
+    class Selector:
+        scorer = Scorer()
+        def select(self, **kwargs):
+            raise AssertionError("an incumbent is not a distinct challenger")
+    bank["diagnosis"] = SimpleNamespace(comparisons="unavailable")
+    assert select_combined(Selector(), bank, native, source_ref="same-choice") == keys[0]
+
+
 def durable_fixture(root):
     from core.learning.semantic_program_campaign import _sha
 

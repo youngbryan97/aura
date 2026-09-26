@@ -124,6 +124,8 @@ def select_combined(selector, bank, native_rows, *, source_ref):
         return bank["bank"]["selected_program_sha256"]
     incumbent, choices, views = case
     challenger = preferred_challenger(selector.scorer, choices, views)
+    if challenger == incumbent:
+        return incumbent
     evidence = PairwiseSelectionEvidence.from_mappings(
         incumbent=views[incumbent], challenger=views[challenger],
         packet=observe(1., origin="semantic_native_program_scores", ref=source_ref))
