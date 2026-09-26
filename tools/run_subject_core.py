@@ -131,9 +131,12 @@ def _never_read(frames: list[Any]) -> list[str]:
     worth asking after the first eight turns instead.
 
     Only the structural reasons, so a reading that is warming up is not mistaken
-    for one that is missing. `cognition.current_origin` fails on five of the
-    first eight turns of every run and on 5.7% of three hundred rounds; a check
-    that counted it would refuse every campaign.
+    for one that is missing. The nearest live example is
+    `cognition.current_origin`: it fails on five of the first eight turns of the
+    offline organism and on 5.7% of three hundred rounds, under the 20% the
+    battery refuses at. Five of eight leaves the intersection empty, so it was
+    never named — but a source that missed for a whole first pass and recovered
+    afterwards would have been, and the reason is what tells the two apart.
     """
     structural = [
         {
