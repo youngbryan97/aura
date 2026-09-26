@@ -128,15 +128,43 @@ class GoingTo:
     #: Why the trip ended, once it has.
     ended: str = ""
 
+    def _the_cue_is_ours(self, layout: Sequence[dict[str, Any]], seen: list[Sighting]) -> bool:
+        """Whether a prompt on screen belongs to the thing she is going to.
+
+        A prompt that names a thing belongs to that thing. One that names
+        nothing belongs to whatever is in front, so it is hers only when her
+        thing is. Measured in generated worlds, with another thing standing
+        between her and hers: its prompt came up as she passed, she pressed
+        it, and used the wrong thing.
+        """
+        wanted = set(_words(self.named))
+        for region in layout or ():
+            said = str(region.get("text", ""))
+            if not _A_CUE.search(said):
+                continue
+            words = set(_words(said))
+            if wanted <= words:
+                return True
+            others = {
+                word
+                for other in layout or ()
+                if other is not region and reads_as_a_thing(other)
+                for word in _words(other.get("text", ""))
+            } - wanted
+            if words & others:
+                return False
+            return len(seen) == 1 and abs(seen[0].across - 0.5) <= max(seen[0].wide / 2.0, 1e-3)
+        return False
+
     def next_chunk(self, layout: Sequence[dict[str, Any]], *, slot_s: float, slots: int) -> Chunk:
         """What the hands do between this look and the next."""
+        seen = seen_named(layout, self.named)
         cue = a_cue_to_press(layout)
-        if cue is not None:
+        if cue is not None and self._the_cue_is_ours(layout, seen):
             key, hold = cue
             self.ended = f"the screen said to {'hold' if hold else 'press'} {key}"
             pressed = [Slot(frozenset({key}))] * (slots if hold else 1)
             return Chunk(tuple(pressed), slot_s, done=True)
-        seen = seen_named(layout, self.named)
         if len(seen) > 1:
             self.ended = f"{len(seen)} things answer to {self.named!r}: " + "; ".join(
                 sorted(sight.text for sight in seen)

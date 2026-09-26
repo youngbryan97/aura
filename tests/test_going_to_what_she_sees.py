@@ -102,7 +102,7 @@ def test_a_thing_that_stops_getting_nearer_ends_the_trip():
 
 
 def test_a_cue_to_hold_is_held():
-    layout = [{"text": "Hold [F] to absorb", "center_x": 0.5}]
+    layout = [{"text": "Hold [F] to absorb the goo", "center_x": 0.5}]
     assert a_cue_to_press(layout) == ("f", True)
     chunk = GoingTo("goo", turn_for=lambda share: 0, walks="w").next_chunk(layout, slot_s=0.1, slots=4)
     assert chunk.done and [slot.held for slot in chunk.slots] == [frozenset({"f"})] * 4
@@ -111,3 +111,27 @@ def test_a_cue_to_hold_is_held():
 def test_words_that_only_look_like_a_cue_are_not_one():
     assert a_cue_to_press([{"text": "Impress your friends"}]) is None
     assert a_cue_to_press([{"text": "Press Cmd to quit"}]) is None
+
+
+def test_a_prompt_that_belongs_to_something_else_is_not_answered():
+    """Measured in generated worlds: another thing stood between her and the
+    chest, its prompt came up as she passed, and she used the altar."""
+    layout = [
+        {"text": "Altar", "center_x": 0.5, "width": 0.3, "height": 0.4},
+        {"text": "Chest", "center_x": 0.45, "width": 0.1, "height": 0.1},
+        {"text": "Press F to use the altar", "center_x": 0.5, "width": 0.3, "height": 0.03},
+    ]
+    chunk = GoingTo("chest", turn_for=lambda share: 0, walks="w").next_chunk(layout, slot_s=0.1, slots=3)
+    assert not chunk.done and all("f" not in slot.held for slot in chunk.slots)
+
+
+def test_a_prompt_that_names_nothing_is_hers_only_when_her_thing_is_in_front():
+    ahead = [{"text": "Chest", "center_x": 0.5, "width": 0.2, "height": 0.2},
+             {"text": "Press E", "center_x": 0.5, "width": 0.1, "height": 0.03}]
+    aside = [{"text": "Chest", "center_x": 0.8, "width": 0.1, "height": 0.1},
+             {"text": "Press E", "center_x": 0.5, "width": 0.1, "height": 0.03}]
+    walker = GoingTo("chest", turn_for=lambda share: 7, walks="w")
+    assert walker.next_chunk(ahead, slot_s=0.1, slots=1).done
+    turned = GoingTo("chest", turn_for=lambda share: 7, walks="w").next_chunk(aside, slot_s=0.1, slots=1)
+    assert not turned.done and turned.slots[0].moved == (7, 0)
+
