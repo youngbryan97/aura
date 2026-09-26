@@ -237,17 +237,25 @@ class _Held:
 
 
 def test_how_often_she_has_felt_each_way_is_in_the_core():
+    """As shares of her history, so the total does not enter as a clock."""
     counts = np.array([1.0, 4.0, 9.0, 2.0], dtype=np.float32)
     reading = _read(AuraState.default(), Organs(phi_core=_Held(_affective_state_visits=counts)))
-    assert _column(reading, "A.felt_before_mean") == pytest.approx(4.0)
-    assert _column(reading, "A.felt_before_max") == pytest.approx(9.0)
+    assert _column(reading, "A.felt_before_mean") == pytest.approx(0.25)
+    assert _column(reading, "A.felt_before_max") == pytest.approx(9.0 / 16.0)
+    assert _column(reading, "A.felt_before_min") == pytest.approx(1.0 / 16.0)
 
 
-def test_how_often_she_has_been_in_each_state_is_in_the_core():
+def test_a_history_spread_evenly_has_no_spread():
     counts = np.array([3.0, 3.0, 3.0], dtype=np.float32)
     reading = _read(AuraState.default(), Organs(phi_core=_Held(_state_visits=counts)))
-    assert _column(reading, "C.been_here_mean") == pytest.approx(3.0)
+    assert _column(reading, "C.been_here_mean") == pytest.approx(1.0 / 3.0)
     assert _column(reading, "C.been_here_sd") == pytest.approx(0.0)
+
+
+def test_a_history_concentrated_in_one_state_does_have_spread():
+    counts = np.array([1.0, 1.0, 97.0, 1.0], dtype=np.float32)
+    reading = _read(AuraState.default(), Organs(phi_core=_Held(_state_visits=counts)))
+    assert _column(reading, "C.been_here_sd") > 0.3
 
 
 def test_what_her_self_prediction_has_learned_is_in_the_core():
@@ -275,13 +283,34 @@ def test_the_dread_is_read_from_the_method_that_exists():
     assert _column(reading, "A.dread") == pytest.approx(0.42)
 
 
-def test_her_rewirings_saturate_rather_than_running_away():
-    def at(count: int) -> float:
-        organs = Organs(mycelium=_Held(_topology_revision=count))
-        return _column(_read(AuraState.default(), organs), "I.rewirings")
+def test_a_running_total_does_not_become_a_column():
+    """The rewiring count was one and is gone.
 
-    assert at(0) == pytest.approx(0.0)
-    first = at(1) - at(0)
-    later = at(101) - at(100)
-    assert first > later > 0.0
-    assert at(10_000) < 1.0
+    Her wiring changing is a fact about her, and the count of how many times is
+    elapsed time: its mean, its smallest and its largest only ever go one way,
+    which is what `without_clocks` holds flat because elapsed time is not a
+    hidden state. The density beside it — links against links plus nodes — is
+    the state, and it is already in the body's columns.
+    """
+    from core.subject.state import schema
+
+    assert "rewirings" not in schema("I").features
+    assert "mycelium_density" in schema("I").features
+
+
+def test_a_visit_count_enters_as_its_shape_not_its_total():
+    """Three of the eight sketch numbers of a running total are clocks."""
+    counts = np.array([1.0, 1.0, 6.0, 2.0], dtype=np.float32)
+    doubled = counts * 2.0
+    one = _read(AuraState.default(), Organs(phi_core=_Held(_state_visits=counts)))
+    two = _read(AuraState.default(), Organs(phi_core=_Held(_state_visits=doubled)))
+    for part in ("mean", "sd", "min", "max"):
+        assert _column(one, f"C.been_here_{part}") == pytest.approx(
+            _column(two, f"C.been_here_{part}"), abs=1e-6
+        )
+
+
+def test_nothing_counted_yet_is_a_miss_rather_than_a_shape():
+    reading = _read(AuraState.default(), Organs(phi_core=_Held(_state_visits=np.zeros(4))))
+    assert _column(reading, "C.been_here_max") == pytest.approx(0.0)
+    assert any(source.startswith("organ:phi_core._state_visits") for source in reading.misses)

@@ -448,11 +448,6 @@ _SCHEMAS: dict[str, Schema] = {
             # is paid back as she rests, so it decides what she does next and
             # no column read it. See core/soma/fatigue.py.
             ("fatigue", "soma.fatigue.share"),
-            # How many times her own routing has been rewired. The mycelial
-            # network counts it and the closure test read the count from outside
-            # the core; her wiring changing is a fact about her body, not about
-            # the machine.
-            ("rewirings", "organ:mycelium._topology_revision"),
         ),
     ),
     "A": _sch(
@@ -1376,12 +1371,6 @@ def _read_I(state: Any, organs: Organs) -> np.ndarray:
             )
             / float(len(_SENSE_CHANNELS)),
             _f((_dig(state, "soma.fatigue", {}) or {}).get("share")),
-            _counted(
-                organs.mycelium,
-                "_topology_revision",
-                8.0,
-                source="organ:mycelium._topology_revision",
-            ),
         ],
         dtype=np.float64,
     )
@@ -1450,7 +1439,7 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
     ) or {}
     head.append(_f(homeostasis.get("prospective_dread")))
     head.extend(
-        _sketched(
+        _shared_out(
             organs.phi_core,
             "_affective_state_visits",
             source="organ:phi_core._affective_state_visits",
@@ -1551,7 +1540,7 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
     head.extend(_sketched(organs.substrate, "W", source="organ:substrate.W"))
     head.extend(_sketched(organs.mesh, "_W_batch", source="organ:mesh._W_batch"))
     head.extend(
-        _sketched(organs.phi_core, "_state_visits", source="organ:phi_core._state_visits")
+        _shared_out(organs.phi_core, "_state_visits", source="organ:phi_core._state_visits")
     )
     return np.array(head, dtype=np.float64)
 
@@ -1581,22 +1570,37 @@ def _selfhood(reading: Any) -> list[float]:
     return [share, level]
 
 
-def _counted(organ: Any, attribute: str, scale: float, *, source: str) -> float:
-    """An organ's own counter, saturating, with an absent organ recorded.
+def _shared_out(organ: Any, attribute: str, *, source: str) -> list[float]:
+    """An organ's counts as the shape of them, through the shared sketch.
 
-    A count read straight through would grow without bound over a long life and
-    stop being a reading of anything; saturating it against a scale keeps the
-    difference between one and three where it matters and says nothing new
-    between three hundred and four hundred.
+    A count of visits only ever goes one way, so its mean, its smallest and its
+    largest are three clocks, and `without_clocks` holds a clock flat because
+    elapsed time is not a hidden state. What is state here is which of the
+    states she visits often and which rarely, which is the counts divided by
+    their total. The share's mean is then one over their number — a constant,
+    which `_components` drops — and the rest of the sketch carries the shape.
     """
     if organ is None:
         _miss(source, "organ absent")
-        return 0.0
-    value = getattr(organ, attribute, None)
-    if value is None:
+        return [0.0] * len(SKETCH_FIELDS)
+    held = getattr(organ, attribute, None)
+    if held is None:
         _miss(source, "no such reading")
-        return 0.0
-    return _sat(_f(value), scale)
+        return [0.0] * len(SKETCH_FIELDS)
+    try:
+        counts = np.asarray(held, dtype=np.float64).reshape(-1)
+        total = float(np.abs(counts).sum())
+    except (TypeError, ValueError):
+        _miss(source, "not a count")
+        return [0.0] * len(SKETCH_FIELDS)
+    if not math.isfinite(total) or total <= 0.0:
+        _miss(source, "nothing counted yet")
+        return [0.0] * len(SKETCH_FIELDS)
+    summary = sketch(counts / total)
+    if summary is None:
+        _miss(source, "no finite state")
+        return [0.0] * len(SKETCH_FIELDS)
+    return [summary[part] for part in SKETCH_FIELDS]
 
 
 def _sketched(organ: Any, attribute: str, *, source: str) -> list[float]:
