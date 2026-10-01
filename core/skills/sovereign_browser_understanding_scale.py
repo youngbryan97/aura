@@ -380,17 +380,22 @@ class _PlacesHerself:
                 'about in you, concretely>"}}'
             )
         )
-        # Room to think. Nine hundred tokens across eight items is a hundred
+        # Room to say it. Nine hundred tokens across eight items is a hundred
         # each, which is a line apiece and not the account she gives when
         # someone asks her about herself in conversation. One item at a time
-        # needs the room for one answer, and the base budget already holds it.
+        # needs the room for one reason: two or three sentences.
+        #
+        # And no room to think, for one item: where she stands on it was
+        # measured from her record before this was asked, so this says what
+        # that place is, and nothing is being worked out. See `_asked_of_her`.
         room = (
-            self.DECISION_MAX_TOKENS
+            self.REASON_MAX_TOKENS
             if asked_about is not None
             else max(self.DECISION_MAX_TOKENS, 260 * max(1, len(theme)))
         )
         said, lane = await self._asked_of_her(
-            prompt, mind, shaped=False, most_tokens=room
+            prompt, mind, shaped=False, most_tokens=room,
+            worked_out_here=asked_about is None,
         )
         if not said or lane != self._HER_OWN_LANE:
             # One exhausted call should not cost a whole theme its thinking.
@@ -406,7 +411,8 @@ class _PlacesHerself:
                 "🌐 A theme came back from %s; asking again.", lane or "nowhere"
             )
             said, lane = await self._asked_of_her(
-                prompt, mind, shaped=False, most_tokens=room
+                prompt, mind, shaped=False, most_tokens=room,
+                worked_out_here=asked_about is None,
             )
         if not said or lane != self._HER_OWN_LANE:
             record_degradation(

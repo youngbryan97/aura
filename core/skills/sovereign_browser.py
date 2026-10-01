@@ -755,9 +755,9 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
     def _one_round_of_her_decisions(cls) -> float:
         """Seconds her own model takes to decide the widest round, at measured rates.
 
-        A round that asks about her decides up to `PURSUE_PARALLEL_ITEMS`
-        questions, each on her own model and each up to `DECISION_MAX_TOKENS`
-        with the thinking the worker adds, and one model decides them in turn.
+        A round that asks about her gives up to `PURSUE_PARALLEL_ITEMS` reasons,
+        each on her own model and each up to `REASON_MAX_TOKENS`, and one model
+        writes them in turn.
         0.0 while the rate is unmeasured. LIVE 26 Sep her model wrote 7.2
         tokens a second, and forty rounds at forty-five seconds each gave a
         thirty-two-item test half an hour for decisions that take longer.
@@ -765,8 +765,15 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         try:
             from core.brain.llm.thinking_reserve import reserve_tokens, seconds_to_decode
 
-            one = cls.DECISION_MAX_TOKENS + int(reserve_tokens())
-            return float(seconds_to_decode(one * cls.PURSUE_PARALLEL_ITEMS))
+            # The larger of the two rounds there are: one decision about the
+            # page, which works something out and pays the private channel's
+            # reserve, or a screen of reasons, which say what was measured and
+            # pay none (see `_asked_of_her`). Sized as eight full decisions
+            # with the reserve each, LIVE 2026-10-01 one round came to 26,681
+            # seconds and a pursuit to twelve days.
+            decision = cls.DECISION_MAX_TOKENS + int(reserve_tokens())
+            reasons = cls.REASON_MAX_TOKENS * cls.PURSUE_PARALLEL_ITEMS
+            return float(seconds_to_decode(max(decision, reasons)))
         except (ImportError, AttributeError, OSError, TypeError, ValueError) as exc:
             record_degradation("sovereign_browser", exc, severity="info", action="sized the pursuit without its decision rate")
             return 0.0

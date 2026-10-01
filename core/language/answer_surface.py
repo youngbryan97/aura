@@ -23,6 +23,7 @@ __all__ = [
     "AnswerSurfaceSplit",
     "has_private_planning_prefix",
     "split_private_planning_prefix",
+    "without_private_markup",
 ]
 
 _TOKEN_RE: Final = re.compile(r"[a-z0-9]+(?:'[a-z]+)?")
@@ -178,3 +179,36 @@ def has_private_planning_prefix(text: str) -> bool:
     """Whether generated text begins with a positively identified work plan."""
 
     return split_private_planning_prefix(text).planning_units >= 2
+
+
+#: Blocks a model writes for itself, by the names it writes them under. A
+#: reasoning model's channel and the critique an old instruction asked for.
+_PRIVATE_BLOCK: Final = re.compile(
+    r"<(?P<tag>internal_critique|think|thinking|reasoning|scratchpad)>"
+    r"(?P<body>.*?)(?:</(?P=tag)>|\Z)",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def without_private_markup(text: str) -> str:
+    """``text`` without the blocks a model wrote for itself.
+
+    A closed block goes whole. An unclosed one runs to the first blank line,
+    because a model that never closed its critique went on to the answer
+    after a paragraph break; where there is none, only the tag goes, since
+    dropping everything after it would drop the answer with it. LIVE
+    2026-10-01: a forecast reached the chat as "<internal_critique> First
+    instinct: ...", and what she predicted was never shown.
+    """
+    body = str(text or "")
+    if "<" not in body:
+        return body
+
+    def _drop(match: re.Match[str]) -> str:
+        if match.group(0).lower().endswith(f"</{match.group('tag').lower()}>"):
+            return ""
+        inside = match.group("body")
+        paragraph = re.search(r"\n\s*\n", inside)
+        return inside[paragraph.end():] if paragraph else inside
+
+    return _PRIVATE_BLOCK.sub(_drop, body).strip()

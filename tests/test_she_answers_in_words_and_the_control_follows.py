@@ -122,8 +122,10 @@ def _screen(monkeypatch, said: str, lane: str = "Cortex"):
     skill = S()
     handed: dict[str, Any] = {"prompts": []}
 
-    async def _asked(prompt: str, mind: str = "", *, shaped: bool = True, most_tokens=None):
+    async def _asked(prompt: str, mind: str = "", *, shaped: bool = True, most_tokens=None,
+                     worked_out_here: bool = True):
         handed.setdefault("spoken", [])
+        handed["worked_out_here"] = worked_out_here
         handed["prompts"].append(prompt)
         handed["most_tokens"] = most_tokens
         handed["prompt"] = prompt
@@ -182,7 +184,8 @@ def test_each_question_is_thought_about_said_answered_and_left_up_in_turn(monkey
     said = '{"each": {"Q1": "Lists hold truth steady.", "Q2": "I check first."}}'
     skill, handed = _screen(monkeypatch, said)
 
-    async def _asked(prompt: str, mind: str = "", *, shaped: bool = True, most_tokens=None):
+    async def _asked(prompt: str, mind: str = "", *, shaped: bool = True, most_tokens=None,
+                     worked_out_here: bool = True):
         happened.append("think")
         return said, "Cortex"
 
@@ -298,11 +301,17 @@ def test_the_measure_is_not_tuned_to_any_instrument():
 
 
 def test_a_reason_is_bounded_so_a_page_of_them_is_affordable(monkeypatch):
-    """An unbounded reason decoded 341 tokens at 8 a second, live."""
+    """An unbounded reason decoded 341 tokens at 8 a second, live.
+
+    And on 1 Oct, with the private channel open on every item, 650 to 860
+    tokens and 70 to 120 seconds each for two or three sentences.
+    """
     skill, handed = _screen(monkeypatch, '{"thinking": "t", "each": {}}')
     _run(skill, {"url": "u", "title": "t", "text": "x", "elements": _row("Q1") + _row("Q2")})
-    assert handed["most_tokens"] and handed["most_tokens"] >= 260 * 2, (
-        "a theme is thought about at length: room for each item in it"
+    assert handed["most_tokens"] == S.REASON_MAX_TOKENS
+    assert handed["worked_out_here"] is False, (
+        "her place on the item was measured before she was asked; nothing is "
+        "worked out in the call that says why"
     )
 
 

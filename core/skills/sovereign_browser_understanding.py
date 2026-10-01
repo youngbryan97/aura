@@ -565,6 +565,7 @@ class _UnderstandsThePage(_PlacesHerself):
         *,
         shaped: bool = True,
         most_tokens: int | None = None,
+        worked_out_here: bool = True,
     ) -> tuple[str, str]:
         """One way to ask her something about herself, used by everything that does.
 
@@ -594,6 +595,16 @@ class _UnderstandsThePage(_PlacesHerself):
 
         Returns the text and the lane that produced it; the caller decides what
         an answer from somewhere else is worth.
+
+        ``worked_out_here`` says whether this call is where something gets
+        worked out — a forecast, a verdict — or only says what was settled
+        before it. Her place on an item is measured from her record before she
+        is asked, so her reason for it is the second kind, and the runtime's
+        typed lane for that closes the private channel: LIVE 2026-10-01,
+        every item opened it, decoded 650 to 860 tokens and took 70 to 120
+        seconds for two or three sentences. Either way ``most_tokens`` is a
+        ceiling and not a hint: undeclared, the gate sized a forecast at "room
+        for about 675 words" and she wrote 2,046 of them.
         """
         router = optional_service("llm_router", default=None)
         think = getattr(router, "think", None)
@@ -624,9 +635,18 @@ class _UnderstandsThePage(_PlacesHerself):
                 # reply fell back to reciting the rounds. Declared, the decoder
                 # closes the channel at its bound and the reserve is bought on top,
                 # so what she is asked for is what the budget pays for.
-                user_surface_completion_floor=max(
-                    self._ROOM_AN_ANSWER_NEEDS, int(most_tokens or self.DECISION_MAX_TOKENS)
+                user_surface_completion_floor=(
+                    max(
+                        self._ROOM_AN_ANSWER_NEEDS,
+                        int(most_tokens or self.DECISION_MAX_TOKENS),
+                    )
+                    if worked_out_here
+                    else int(most_tokens or self.REASON_MAX_TOKENS)
                 ),
+                hard_output_token_ceiling=True,
+                # The typed lane for "say what was settled": the worker and the
+                # gate's clock both read it, and neither opens the channel.
+                **({} if worked_out_here else {"cognitive_mode": "fast"}),
                 **(
                     {"schema": self._DECISION_SCHEMA, "output_shape": "json_object"}
                     if shaped
@@ -1053,9 +1073,13 @@ class _UnderstandsThePage(_PlacesHerself):
         as a failed decision: a question about her was never answered by her.
         The old three-part shape is still read, for anything that returns it.
         """
+        from core.language.answer_surface import without_private_markup
+
+        # Never what the model wrote for itself: everything read here is said
+        # to a person or acted on. See `without_private_markup`.
         if isinstance(reply, tuple) and len(reply) == 3:
-            return str(reply[1] or "")
-        return str(reply or "")
+            return without_private_markup(str(reply[1] or ""))
+        return without_private_markup(str(reply or ""))
 
     @staticmethod
     def _who_answered(reply: Any) -> str:

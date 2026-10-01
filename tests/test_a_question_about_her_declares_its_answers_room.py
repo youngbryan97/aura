@@ -13,8 +13,10 @@ reserve on top of the answer's budget. Declared nothing, the channel is neither
 opened nor bounded, the model reasons in the answer, and the budget is gone
 before it concludes.
 
-Every question the browser asks her about herself is that kind of call: her
-forecast, her sentences for a theme of items, and her verdict on the result.
+Her forecast and her verdict on the result are that kind of call. Her reason
+for one item is not: where she stands on it was measured from her record before
+she was asked, so the call says what was settled, and on 1 Oct an open channel
+cost 70 to 120 seconds an item for two or three sentences.
 """
 from __future__ import annotations
 
@@ -80,3 +82,45 @@ async def test_the_floor_is_taken_from_the_runtimes_own_constant():
         "a number written here instead of read from there is a number that "
         "drifts away from the gate it has to clear"
     )
+
+
+@pytest.mark.asyncio
+async def test_a_reason_for_a_measured_place_does_not_open_the_channel(router):
+    skill = SovereignBrowserSkill()
+    await skill._asked_of_her(
+        "why is that answer yours", "her mind", shaped=False,
+        most_tokens=SovereignBrowserSkill.REASON_MAX_TOKENS, worked_out_here=False,
+    )
+    asked = router.asked[-1]
+    assert int(asked["user_surface_completion_floor"]) <= A_CLOSED_QUESTIONS_FLOOR
+    assert asked["cognitive_mode"] == "fast"
+    assert asked["hard_output_token_ceiling"] is True
+    assert asked["max_tokens"] == SovereignBrowserSkill.REASON_MAX_TOKENS
+
+
+@pytest.mark.asyncio
+async def test_what_she_is_given_room_for_is_a_ceiling(router):
+    """Undeclared, the gate sized a forecast at 675 words and she wrote 2,046."""
+    skill = SovereignBrowserSkill()
+    await skill._asked_of_her("what do you expect", "her mind", shaped=False)
+    asked = router.asked[-1]
+    assert asked["hard_output_token_ceiling"] is True
+    assert "cognitive_mode" not in asked, "a forecast is worked out here"
+
+
+@pytest.mark.asyncio
+async def test_what_she_wrote_for_herself_is_not_what_she_says(monkeypatch):
+    class Leaky:
+        async def think(self, prompt: str = "", **kwargs: object) -> str:
+            return "<internal_critique>First instinct: INTP.</internal_critique>I expect INTJ."
+
+    monkeypatch.setattr(
+        "core.skills.sovereign_browser_understanding.optional_service",
+        lambda *names, default=None: Leaky() if "llm_router" in names else default,
+    )
+    monkeypatch.setattr(
+        "core.brain.generation_provenance.generation_metadata_of",
+        lambda _reply: {"endpoint": "Cortex"},
+    )
+    text, _lane = await SovereignBrowserSkill()._asked_of_her("predict", "mind", shaped=False)
+    assert text == "I expect INTJ."
