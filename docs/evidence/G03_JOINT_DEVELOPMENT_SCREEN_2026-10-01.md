@@ -117,3 +117,37 @@ root, not from the trainer. The corrected run had no such warning.
 
 At this checkpoint the real development screen remains unrun. Completed
 joint fitting is a prerequisite, not evidence of semantic improvement.
+
+## First Integrated Screen: Stopped Negative Diagnostic
+
+The screen ran from frozen `feacf169f`, separately from the editable merge
+checkpoint `20451d611b` pushed to main. Supervisor 52032 owned child 52058.
+The supervisor plan was
+`c464817a54b276f80ce8074735b0cfceb63f4014fe6e756e0ef780aaf075d53e`.
+All 21 parent and 21 global-chart decodes completed. The first eight joint
+requests each consumed about 30 seconds and returned no program: seven
+`grounded_chart_bridge_budget_exhausted` and one
+`argument_chart_construction_budget_exhausted`. No clean advancement was
+possible after those results. The run was stopped through the authenticated
+supervisor control rather than ridden to its outer timeout.
+
+The stopped terminal receipt is
+`92935d1580ee9a2877074ba9770ed3fae67d850c81e9a5c645f9992393ed5394`.
+It records return -15 with verified containment; child, supervisor, process
+group and lineage were dead. This is partial diagnostic evidence, not a
+complete paired scientific score. The original logs are retained under
+`semantic-grounded-joint-development-v1-20261001`; no success report was
+manufactured from them.
+
+Live progress also exposed a fixture omission: ordinary successful decodes
+carry an empty refusal string rather than `None`. The report verifier and
+fixtures now preserve that actual interface. This fix does not reinterpret
+the genuine joint budget refusals as success.
+
+The evaluator adds an explicit single-exposed-source profiling mode. It
+records function call counts and self/cumulative time around the same public
+decode, and always denies development advancement. It does not change the
+checkpoint, include a target graph in decoding, or enlarge the search budget.
+The next diagnostic must identify the expensive execution boundary before
+another complete integrated screen. Profiling fixtures and handoff checks
+passed 25 tests in 9.55 seconds.

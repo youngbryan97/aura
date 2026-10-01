@@ -1477,8 +1477,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Joint development screen](evidence/G03_JOINT_DEVELOPMENT_SCREEN_2026-10-01.md)
   compares the source parent, existing global chart and complete trained
   joint path through public-only decode and the existing source-anchor
-  scorer. The corrected fit is detached under frozen `86154d49d`; no held
-  semantic result or G03 closure is established by its launch.
+  scorer. The corrected fit completed 512 updates under frozen `86154d49d`,
+  selecting step 288. The first integrated screen was stopped after eight
+  repeated chart-budget refusals; G03 is not closed. A one-request profiler
+  now isolates execution waste before another integrated screen.
   [Hybrid joint execution](evidence/G03_HYBRID_JOINT_EXECUTION_2026-10-01.md)
   repairs the suffix's unsupported inference-kernel backward pass, binds the
   same differentiable computation into fitting and replay, and releases

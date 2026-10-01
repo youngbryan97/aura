@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import cProfile
 import gc
 import hashlib
 import json
 import math
+import pstats
 import sys
 import time
 import traceback
@@ -23,10 +25,21 @@ def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
 
 
+def profile_receipt(profiler):
+    rows = []
+    for (filename, line, function), (primitive, calls, elapsed, cumulative, _callers) in pstats.Stats(profiler).stats.items():
+        rows.append({"file": filename, "line": line, "function": function, "primitive_calls": primitive,
+            "calls": calls, "self_seconds": elapsed, "cumulative_seconds": cumulative})
+    body = {"schema": "aura.grounded_decode_profile.v1",
+        "rows": sorted(rows, key=lambda row: (-row["cumulative_seconds"], row["file"], row["line"]))}
+    return {**body, "receipt_sha256": digest(body)}
+
+
 class PublicDecodeArm:
-    def __init__(self, decoder, *, receipt, search_seconds, name=None, progress=None):
+    def __init__(self, decoder, *, receipt, search_seconds, name=None, progress=None, profile=False):
         self.decoder, self.search_seconds = decoder, search_seconds
         self.name, self.progress = name, progress
+        self.profile = profile
         self.receipt_sha256 = receipt
         self.measured_decodes = {}
 
@@ -34,16 +47,25 @@ class PublicDecodeArm:
         started = time.monotonic()
         if self.progress is not None:
             self.progress({"stage": "grounded_decode_started", "arm": self.name, "source": source_text_sha256})
-        result = self.decoder.decode(source_token_ids=source_token_ids, hidden_states=hidden_states,
-            public_inputs=public_inputs, source_text_sha256=source_text_sha256,
-            model_basis_sha256=model_basis_sha256, search_time_limit_s=self.search_seconds)
+        profiler = cProfile.Profile() if self.profile else None
+        if profiler is not None:
+            profiler.enable()
+        try:
+            result = self.decoder.decode(source_token_ids=source_token_ids, hidden_states=hidden_states,
+                public_inputs=public_inputs, source_text_sha256=source_text_sha256,
+                model_basis_sha256=model_basis_sha256, search_time_limit_s=self.search_seconds)
+        finally:
+            if profiler is not None:
+                profiler.disable()
         measured = getattr(self.decoder, "last_receipt", None)
         self.measured_decodes[source_text_sha256] = {"refusal": result.refusal,
             "program_sha256": result.ir.to_program().sha() if result.ir is not None else None,
             "joint_receipt": measured, "elapsed_seconds": time.monotonic() - started}
+        if profiler is not None:
+            self.measured_decodes[source_text_sha256]["profile"] = profile_receipt(profiler)
         if self.progress is not None:
             self.progress({"stage": "grounded_decode_completed", "arm": self.name, "source": source_text_sha256,
-                **self.measured_decodes[source_text_sha256]})
+                **{key: value for key, value in self.measured_decodes[source_text_sha256].items() if key != "profile"}})
         return result
 
 
@@ -76,6 +98,7 @@ def main(argv=None):
     parser.add_argument("--bundle", action="append", required=True)
     parser.add_argument("--authority-key-file", type=Path, required=True)
     parser.add_argument("--search-seconds", type=float, default=30.)
+    parser.add_argument("--profile-source-id", help="One exposed development request; never advancement evidence")
     args = parser.parse_args(argv)
     if args.output.exists() or not math.isfinite(args.search_seconds) or not 0 < args.search_seconds <= 300:
         parser.error("evaluation needs a fresh output and bounded search")
@@ -119,6 +142,10 @@ def main(argv=None):
     validate_atom_partition(examples, outer, folds)
     by_id = {item.ir.source_text_sha256: item for item in examples}
     held = tuple(by_id[identity] for identity in outer["held_ids"])
+    if args.profile_source_id is not None:
+        held = tuple(item for item in held if item.ir.source_text_sha256 == args.profile_source_id)
+        if len(held) != 1:
+            raise ValueError("profile source must belong to the declared exposed development bank")
     fit_report = json.loads(read_stable_bytes(args.directory / "report.json", max_bytes=64 * 1024 ** 2))
     native = fit_report["native_contract"]
     if (set(outer["held_ids"]) & set((*native["fit_ids"], *native["calibration_ids"]))
@@ -130,7 +157,8 @@ def main(argv=None):
     implementation = implementation_receipt()
     evaluator_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     plan = {"schema": "aura.grounded_native_development_plan.v1", "fit_verification": verified,
-        "bank_plan_sha256": outer["plan_sha256"], "held_ids": list(outer["held_ids"]),
+        "bank_plan_sha256": outer["plan_sha256"], "held_ids": [item.ir.source_text_sha256 for item in held],
+        "profile_only": args.profile_source_id is not None,
         "search_seconds": args.search_seconds, "arms": ["source_parent", "global_chart", "joint_native"],
         "implementation": implementation, "evaluator_sha256": evaluator_sha,
         "source_report_sha256": hashlib.sha256(raw["source"]).hexdigest(),
@@ -149,6 +177,7 @@ def main(argv=None):
         chart = parent.with_global_constraint_arguments().with_joint_operation_argument_scores()
         arms = {name: PublicDecodeArm(owner, receipt=digest({"arm": name, "plan": plan["plan_sha256"]}),
             search_seconds=args.search_seconds, name=name,
+            profile=args.profile_source_id is not None,
             progress=lambda row: print(json.dumps(row), flush=True)) for name, owner in (
             ("source_parent", parent), ("global_chart", chart), ("joint_native", decoder))}
         return compare(arms, held)
@@ -169,6 +198,8 @@ def main(argv=None):
         raise ValueError("joint development implementation changed during evaluation")
     body = {"schema": "aura.grounded_native_development.v1", "plan": plan, **comparison,
         "g03_complete": False, "fresh_transfer_proven": False}
+    if args.profile_source_id is not None:
+        body["advance_development"] = False
     report = {**body, "receipt_sha256": digest(body)}
     with local_internal_governed_scope("grounded_native_development", domain="file_write"):
         if not gateway.write_bytes_if_absent(args.output, json.dumps(report, indent=2).encode(),

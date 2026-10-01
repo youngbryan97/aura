@@ -16,7 +16,7 @@ class FixedPublicDecoder:
         self.calls.append(public)
         result = self.outputs[public["source_text_sha256"]]
         self.last_receipt = {"source_id": public["source_text_sha256"], "target_available_to_decoder": False}
-        return SimpleNamespace(ir=result, refusal=None if result is not None else "fixture_refusal")
+        return SimpleNamespace(ir=result, refusal="" if result is not None else "fixture_refusal")
 
 
 def cases():
@@ -90,7 +90,7 @@ def measured_report():
             "fit_receipt_sha256": fit["fit_receipt_sha256"], "weights_sha256": fit["weights_sha256"],
             "selected_step": 4, "learned_checkpoint_selected": True, "source_only_native_capture": True,
             "target_available_to_decoder": False, "serving_authority": False,
-            "refusal": None, "selected_chart": {"status": "bound"}}
+            "refusal": "", "selected_chart": {"status": "bound"}}
     report = {"schema": "aura.grounded_native_development.v1", "plan": plan, **comparison,
         "g03_complete": False, "fresh_transfer_proven": False}
     seal(report, "receipt_sha256")
@@ -144,3 +144,28 @@ def test_per_request_progress_reports_started_and_measured_completion():
         model_basis_sha256=item.ir.model_basis_receipt_sha256)
     assert [row["stage"] for row in progress] == ["grounded_decode_started", "grounded_decode_completed"]
     assert progress[-1]["elapsed_seconds"] >= 0 and progress[-1]["program_sha256"] is not None
+
+
+def test_profile_observes_public_decode_and_cannot_advance_development():
+    from tools.verify_semantic_grounded_evaluation import verify_report
+
+    items = cases()
+    arm = PublicDecodeArm(FixedPublicDecoder({items[0].ir.source_text_sha256: items[0].ir}),
+        receipt="a" * 64, search_seconds=2., profile=True)
+    item = items[0]
+    arm.decode(source_token_ids=item.ir.source_token_ids, hidden_states=item.hidden_states,
+        public_inputs=item.public_inputs, source_text_sha256=item.ir.source_text_sha256,
+        model_basis_sha256=item.ir.model_basis_receipt_sha256)
+    profile = arm.measured_decodes[item.ir.source_text_sha256]["profile"]
+    assert any(row["function"] == "decode" and row["calls"] == 1 for row in profile["rows"])
+    report, plan, fit = measured_report()
+    plan["profile_only"] = True
+    seal(plan, "plan_sha256")
+    for name, metrics in report["comparison"]["candidates"].items():
+        metrics["transducer_receipt_sha256"] = digest({"arm": name, "plan": plan["plan_sha256"]})
+        for decoded in report["decodes"][name].values():
+            decoded["profile"] = profile
+    seal(report["comparison"], "report_sha256")
+    report["advance_development"] = False
+    seal(report, "receipt_sha256")
+    assert not verify_report(report, plan, fit)["advance_development"]

@@ -75,9 +75,11 @@ def verify_report(report, plan, fit):
             raise ValueError("joint development request inventory differs")
         for index, identity in enumerate(identities):
             decoded = decodes[identity]
+            if plan.get("profile_only") is True:
+                document(decoded["profile"], "receipt_sha256")
             elapsed = decoded.get("elapsed_seconds")
             if (not isinstance(elapsed, (int, float)) or not math.isfinite(elapsed) or elapsed < 0
-                    or (decoded["program_sha256"] is None) != (decoded["refusal"] is not None)
+                    or (decoded["program_sha256"] is None) != bool(decoded["refusal"])
                     or row["program_equivalent_correct"][index] and decoded["program_sha256"] is None):
                 raise ValueError("joint development outcome or timing differs")
             if name == "joint_native":
@@ -98,6 +100,8 @@ def verify_report(report, plan, fit):
     losses = {name: sum(old and not new for old, new in zip(
         metrics[name]["program_equivalent_correct"], correct, strict=True)) for name in names[:2]}
     advance = all(correct) and metrics["joint_native"]["equivalent_gains"] > 0 and not any(losses.values())
+    if plan.get("profile_only") is True:
+        advance = False
     if report["paired_regressions"] != losses or report["advance_development"] is not advance:
         raise ValueError("joint development advancement verdict differs")
     body = {"schema": "aura.grounded_native_development_verification.v1",
