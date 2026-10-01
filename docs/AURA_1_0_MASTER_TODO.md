@@ -1474,6 +1474,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Hybrid joint execution](evidence/G03_HYBRID_JOINT_EXECUTION_2026-10-01.md)
+  repairs the suffix's unsupported inference-kernel backward pass, binds the
+  same differentiable computation into fitting and replay, and releases
+  archived feature matrices before loading weights. A quantized hybrid
+  fixture proves execution and custody, not held-language accuracy.
   [Joint native decode](evidence/G03_JOINT_NATIVE_DECODE_2026-10-01.md)
   attaches the selected suffix and pointer to the complete public chart and
   links measured evidence to its actual output graph. Small fixtures prove

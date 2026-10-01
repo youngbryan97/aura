@@ -34,7 +34,20 @@ def test_native_capture_span_contract_is_blind_to_teacher_references():
     assert native_capture_template(item, evidence, (0, 1)) == native_capture_template(changed, evidence, (0, 1))
 
 
-@pytest.mark.parametrize("interrupted", [False, "update", "completion", "prepared", "mixed"])
+def test_native_source_metadata_retains_exact_capture_without_retaining_archived_features():
+    from tools.fit_semantic_grounded_binding import compact_native_sources
+    item = sources()[0]
+    features = weakref.ref(item.hidden_states)
+    evidence = grounded_supervision_from_source_example(item).evidence
+    expected = native_capture_template(item, evidence, (0, 1))
+    compact = compact_native_sources((item,))[0]
+    assert native_capture_template(compact, evidence, (0, 1)) == expected
+    assert compact.ir is item.ir and not hasattr(compact, "hidden_states")
+    del item
+    assert features() is None
+
+
+@pytest.mark.parametrize("interrupted", [False, "update", "completion", "prepared", "mixed", "hybrid"])
 def test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_release(monkeypatch, tmp_path, interrupted):
     import mlx_lm
     from mlx_lm.models.qwen2 import Model, ModelArgs
@@ -45,6 +58,15 @@ def test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_rel
     config = {"model_type": "qwen2", "hidden_size": 16, "intermediate_size": 32,
         "num_hidden_layers": 3, "num_attention_heads": 4, "num_key_value_heads": 2,
         "vocab_size": 1024, "rms_norm_eps": 1e-6}
+    if interrupted == "hybrid":
+        from mlx_lm.models.qwen3_5 import TextModel as Model
+        from mlx_lm.models.qwen3_5 import TextModelArgs as ModelArgs
+        config = {**config, "model_type": "qwen3_5_text", "num_hidden_layers": 4,
+            "hidden_size": 32, "intermediate_size": 64,
+            "num_attention_heads": 2, "num_key_value_heads": 1,
+            "head_dim": 16, "full_attention_interval": 4, "linear_num_key_heads": 2,
+            "linear_num_value_heads": 2, "linear_key_head_dim": 32, "linear_value_head_dim": 32,
+            "tie_word_embeddings": True}
     model_path = tmp_path / "fixture-model"
     model_path.mkdir()
     (model_path / "config.json").write_text(json.dumps(config))
@@ -71,6 +93,9 @@ def test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_rel
         loads.append(path)
         mx.random.seed(111)
         model = Model(ModelArgs.from_dict(config))
+        if interrupted == "hybrid":
+            import mlx.nn as nn
+            nn.quantize(model, group_size=32, bits=4)
         residents.append(weakref.ref(model))
         return model, Tokenizer()
     monkeypatch.setattr(mlx_lm, "load", load)
@@ -78,7 +103,7 @@ def test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_rel
     examples = tuple(grounded_supervision_from_source_example(item) for item in items)
     options = dict(spec=spec, rank=2, layers=2, max_tokens=64, cache_bytes=8192, relation_width=8,
         fit_options={"steps": 4, "save_every": 2, "learning_rate": .01, "max_seconds": 30., "role_margin": .25})
-    if interrupted == "prepared":
+    if interrupted in {"prepared", "hybrid"}:
         from core.learning.semantic_program_compositional_transducer import (
             fit_compositional_semantic_program_transducer,
         )
@@ -88,6 +113,8 @@ def test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_rel
         options["source_basis"] = {"parent_sha256": hashlib.sha256(parent_bytes).hexdigest()}
     if interrupted == "mixed":
         options["adapter_options"] = {"layer_kinds": ["lora", "product"], "layer_ranks": [2, 3]}
+    if interrupted == "hybrid":
+        options.update(layers=3, adapter_options={"layer_kinds": ["lora", "product", "silu"]})
     if interrupted == "prepared":
         engine, prepared = fit_native_grounded_sources(examples[:1], examples[1:], items,
             tmp_path / "fit", prepare_only=True, **options)
@@ -109,6 +136,10 @@ def test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_rel
         def interrupt(directory, state, *args):
             original(directory, state, *args)
             if state["step"] == 2:
+                from tools.verify_semantic_grounded_restart import verify as verify_restart
+                checked = verify_restart(directory)
+                assert checked["step"] == 2 and checked["generation_integrity_verified"]
+                assert not checked["report_exists"] and not checked["completion_exists"]
                 raise RuntimeError("native interruption")
 
         monkeypatch.setattr(module, "_save_grounded_restart", interrupt)
@@ -163,10 +194,17 @@ def test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_rel
     checked = verify(tmp_path / "fit")
     assert checked["native_acquisition_sha256"] and checked["artifacts_verified"]
     assert not checked["model_weights_loaded"] and not checked["held_sources_scored"]
-    if interrupted == "prepared":
+    from tools.verify_semantic_grounded_restart import verify as verify_restart
+    restart = verify_restart(tmp_path / "fit")
+    assert restart["step"] == 4 and restart["completion_exists"]
+    assert not restart["model_weights_loaded"] and not restart["qualification_evidence"]
+    if interrupted in {"prepared", "hybrid"}:
         from tools.semantic_grounded_native_decode import GroundedNativeChartDecoder
         mx.random.seed(111)
         native = Model(ModelArgs.from_dict(config))
+        if interrupted == "hybrid":
+            import mlx.nn as nn
+            nn.quantize(native, group_size=32, bits=4)
         with pytest.raises(ValueError, match="custody"):
             GroundedNativeChartDecoder.from_fit(native, directory=tmp_path / "fit",
                 parent_bytes=parent_bytes + b" ", spec=spec)
@@ -185,12 +223,38 @@ def test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_rel
             assert decoder.last_receipt["selected_chart"]["all_options_retained"]
         else:
             assert decoder.last_receipt["selected_chart"] is None and decoder.last_receipt["refusal"]
-        assert decoder.last_receipt["native_state_shape"] == [len(item.ir.source_token_ids), 2, 16]
+        assert decoder.last_receipt["native_state_shape"] == [len(item.ir.source_token_ids),
+            options["layers"], config["hidden_size"]]
         assert not decoder.last_receipt["target_available_to_decoder"]
         assert not decoder.last_receipt["serving_authority"]
     with pytest.raises(ValueError, match="already complete"):
         fit_native_grounded_sources(examples[:1], examples[1:], items, tmp_path / "fit", resume=True, **options)
     assert len(loads) == (3 if interrupted == "update" else 1)
+    pointer = json.loads((tmp_path / "fit" / "resume.json").read_bytes())
+    generation = tmp_path / "fit" / pointer["file"]
+    generation.write_bytes(generation.read_bytes() + b"corrupt")
+    with pytest.raises(ValueError, match="checksum"):
+        verify_restart(tmp_path / "fit")
+
+
+def test_restart_verdict_matches_the_detached_consumer_and_rejects_unbound_context():
+    from tools.run_detached_step import validate_resume_verdict
+    from tools.verify_semantic_grounded_restart import detached_verdict
+    context = {"transport": "stdout-v3", "plan_sha256": "a" * 64, "command_sha256": "b" * 64,
+        "prior_attempt": 1, "prior_journal_head_sha256": "c" * 64}
+    for complete in (False, True):
+        result = detached_verdict({"step": 32, "completion_exists": complete}, context)
+        accepted = validate_resume_verdict(result, **{key: value for key, value in context.items() if key != "transport"})
+        assert accepted["verdict"] == ("already_completed" if complete else "safe_to_resume")
+    with pytest.raises(ValueError, match="bound detached"):
+        detached_verdict({"step": 0, "completion_exists": False}, {**context, "prior_attempt": 0})
+
+
+def test_resume_if_available_refuses_partial_directories(tmp_path):
+    from tools.fit_semantic_grounded_binding import resume_native_if_available
+    assert not resume_native_if_available(tmp_path / "missing")
+    with pytest.raises(FileNotFoundError):
+        resume_native_if_available(tmp_path)
 
 
 def test_bad_source_population_or_token_bound_fails_before_model_loading(tmp_path):

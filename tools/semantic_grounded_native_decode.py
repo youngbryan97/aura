@@ -59,7 +59,8 @@ class GroundedNativeChartDecoder:
                 or plan.get("pointer_sha256") != spec.pointer_sha256
                 or plan.get("model_path") != str(spec.model_path)
                 or plan.get("installed_arithmetic") != installed_arithmetic_basis()
-                or plan.get("precision") != "native" or plan.get("prefix_strategy") != "full"):
+                or plan.get("precision") != "native" or plan.get("prefix_strategy") != "full"
+                or plan.get("suffix_layer_execution") != "differentiable_native_ops_v1"):
             raise ValueError("joint chart decode changed its source parent, model or arithmetic custody")
         parent = compositional_semantic_program_transducer_from_dict(json.loads(parent_bytes))
         parent = parent.with_global_constraint_arguments().with_joint_operation_argument_scores()
@@ -70,6 +71,8 @@ class GroundedNativeChartDecoder:
         prefix = FrozenDecoderPrefix(model, split_at=split)
         suffix = NativeDecoderSuffix(model, split_at=split)
         install_native_adapters(model, plan)
+        for layer in suffix.layers:
+            layer.train()
         engine = GroundedBindingEngine.load(directory, native_suffix=suffix, native_contract=plan)
         return cls(parent, engine, prefix, suffix, plan, verification)
 

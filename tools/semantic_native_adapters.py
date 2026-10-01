@@ -211,7 +211,8 @@ def native_adapter_parameter_estimate(config, contract):
     head_dim = geometry.get("head_dim", width // geometry["num_attention_heads"])
     q_width = geometry["num_attention_heads"] * head_dim
     kv_width = geometry["num_key_value_heads"] * head_dim
-    dense = {"self_attn.q_proj": (width, q_width * (2 if geometry.get("attn_output_gate") else 1)),
+    query_multiplier = 2 if geometry["model_type"] == "qwen3_5_text" else 1
+    dense = {"self_attn.q_proj": (width, q_width * query_multiplier),
              "self_attn.k_proj": (width, kv_width), "self_attn.v_proj": (width, kv_width),
              "self_attn.o_proj": (q_width, width)}
     mlp = {"mlp.gate_proj": (width, intermediate), "mlp.up_proj": (width, intermediate),

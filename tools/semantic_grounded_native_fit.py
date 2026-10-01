@@ -134,6 +134,7 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
         "model_path": str(spec.model_path), "pointer_sha256": spec.pointer_sha256,
         "source_token_only": True, "implementation": implementation_receipt(), "seed": seed,
         "installed_arithmetic": arithmetic, "precision": "native", "prefix_strategy": "full",
+        "suffix_layer_execution": "differentiable_native_ops_v1",
         "fit_ids": sorted(item.evidence.source_id for item in training),
         "calibration_ids": sorted(item.evidence.source_id for item in calibration),
         "max_tokens": max_tokens, "prefix_cache_bytes": cache_bytes,
@@ -192,6 +193,9 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
         suffix = NativeDecoderSuffix(model, split_at=len(model.layers) - layers)
         mx.random.seed(seed)
         install_native_adapters(model, plan)
+        # Hybrid delta-net inference kernels do not implement backward passes.
+        for layer in suffix.layers:
+            layer.train()
         observed = sum(value.size for _, value in tree_flatten(suffix.trainable_parameters()))
         if observed != projection["trainable_parameters"] or any("lora_" not in key for key, _ in tree_flatten(model.trainable_parameters())):
             raise ValueError("native grounded adapter ownership differs from its projected sites")

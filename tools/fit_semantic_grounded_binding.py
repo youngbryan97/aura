@@ -4,14 +4,35 @@
 from __future__ import annotations
 
 import argparse
+import gc
 import hashlib
 import json
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+
+@dataclass(frozen=True)
+class NativeSourceMetadata:
+    ir: object
+    split: str
+    register_definition_spans: tuple
+
+
+def compact_native_sources(examples):
+    return tuple(NativeSourceMetadata(item.ir, item.split, item.register_definition_spans) for item in examples)
+
+
+def resume_native_if_available(directory):
+    if not Path(directory).exists():
+        return False
+    from tools.verify_semantic_grounded_restart import verify
+    verify(directory)
+    return True
 
 
 def main():
@@ -38,6 +59,7 @@ def main():
     parser.add_argument("--native", action="store_true")
     parser.add_argument("--prepare-only", action="store_true")
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--resume-if-available", action="store_true")
     parser.add_argument("--authority-key-file", type=Path)
     parser.add_argument("--native-rank", type=int, default=32)
     parser.add_argument("--native-layers", type=int, default=8)
@@ -50,8 +72,10 @@ def main():
     parser.add_argument("--calibration-per-stratum", type=int,
                         help="source-identity quota per eligible construction/depth calibration stratum")
     args = parser.parse_args()
-    if args.prepare_only and (not args.native or args.resume):
+    if args.prepare_only and (not args.native or args.resume or args.resume_if_available):
         parser.error("prepare-only requires a fresh native source fit")
+    if args.resume_if_available and (not args.native or args.resume):
+        parser.error("resume-if-available requires native fitting and cannot combine with resume")
     if not args.native and (args.native_kind != "lora" or args.native_layer_kinds
             or args.native_layer_ranks or args.native_experts != 1):
         parser.error("native adapter topology requires --native")
@@ -69,6 +93,8 @@ def main():
     if args.native:
         from tools.train_semantic_native_program import require_native_cortex_spec
         spec = require_native_cortex_spec(args.authority_key_file)
+        if args.resume_if_available:
+            args.resume = resume_native_if_available(args.directory)
     from core.learning.semantic_program_compositional_transducer import (
         compositional_semantic_program_transducer_from_dict,
     )
@@ -124,7 +150,13 @@ def main():
         training_schedule=schedule, sampling_receipt=sampling_receipt)
     if args.native:
         from tools.semantic_grounded_native_fit import fit_native_grounded_sources
-        _engine, report = fit_native_grounded_sources(training, calibration, (*fit, *calibration_items), args.directory,
+        native_items = compact_native_sources((*fit, *calibration_items))
+        discarded = len(examples)
+        del examples, fit, calibration_items
+        gc.collect()
+        print(json.dumps({"stage": "grounded_archived_features_released", "archived_source_count": discarded,
+            "native_source_count": len(native_items), "supervision_retained": True}), flush=True)
+        _engine, report = fit_native_grounded_sources(training, calibration, native_items, args.directory,
             spec=spec, rank=args.native_rank, layers=args.native_layers, max_tokens=args.native_max_tokens,
             cache_bytes=args.native_cache_mib * 1024 ** 2, seed=args.seed,
             relation_width=args.relation_width, rounds=args.rounds, fit_options=fit_options, resume=args.resume,
