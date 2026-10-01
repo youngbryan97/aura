@@ -333,6 +333,7 @@ def _carry_rules_from_a_world_like_it(
     from core.perception.how_it_moves import HowItMoves
     from core.perception.what_the_world_does import WhatTheWorldDoes
     if elsewhere:
+        like_it["carried"] = True
         carried = _no_more_than_a_fresh_one_is_worth(elsewhere.get("moves"))
         knows.rules.__dict__.update(
             HowItMoves.from_memory(
@@ -357,6 +358,77 @@ def _carry_rules_from_a_world_like_it(
             "borrowed from %r at %.2f trust: %s",
             like_it["kind"], carried, knows.rules.says(),
         )
+
+
+def _borrow_from_the_world_it_is_most_like(
+    *,
+    knows: Any,
+    laid_out: Any,
+    like_it: Any,
+    world: Any,
+) -> None:
+    """Start from the solved world shaped most like this one, where none of its kind was.
+
+    The kind carried above is an exact name — the same size, the same number
+    of acts — so a five-by-five board that moves like a four-by-four one she
+    has solved got nothing from it. This asks by shape instead, on every look
+    that shows more than the last while her own rule is still unsettled, and
+    lends at most once. See `core.agency.the_world_it_is_most_like`.
+
+    And when her own rule settles, the look in front of her then is kept as
+    this world's shape, for the next world that might be like it.
+    """
+    if laid_out is None or not laid_out.occupied() or knows.rules is None:
+        return
+    from core.agency.the_world_it_is_most_like import (
+        graph_to_memory,
+        lend_to,
+        lent,
+        most_like,
+        shape_of,
+        solved_worlds,
+    )
+
+    look = shape_of(laid_out)
+    if knows.rules.rule() is not None:
+        if look.relations and not like_it.get("shape"):
+            like_it["shape"] = graph_to_memory(look)
+        return
+    if like_it.get("lent") or like_it.get("carried"):
+        return
+    if len(look.relations) <= int(like_it.get("asked_at") or 0):
+        return
+    like_it["asked_at"] = len(look.relations)
+    from core.runtime.what_she_learned import kept_worlds, recall
+
+    from .screen_pursuit import _tell, logger
+
+    if "solved" not in like_it:
+        like_it["solved"] = {
+            name: found
+            for name, found in solved_worlds(kept_worlds(), recall).items()
+            if name != like_it.get("this_world")
+        }
+    solved = like_it["solved"]
+    likeness = most_like(
+        look,
+        {name: graph for name, (graph, _knew) in solved.items()},
+        teaches={name: str(knew.get("_teaches") or "") for name, (_g, knew) in solved.items()},
+    )
+    if likeness is None:
+        return
+    given = lent(solved[likeness.world][1], likeness)
+    if not lend_to(knows.rules, given, world):
+        return
+    like_it["lent"] = likeness.world
+    _tell(
+        f"This is shaped like {likeness.world}, which I worked out before, so I "
+        "will start from how that moved and let my moves here decide."
+    )
+    logger.info(
+        "lent by %s, at %.2f of a fresh start: %s",
+        likeness.says(), float(given.get("trust") or 0.0), knows.rules.says(),
+    )
 
 
 def _narrate_a_fresh_plan(
