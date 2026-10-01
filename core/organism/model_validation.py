@@ -69,11 +69,16 @@ from core.organism.nothing_measured import (
 from core.runtime.lockdep import checked_lock
 
 from .model_validation_contracts import (  # noqa: F401  (re-exported: they were defined here)
+    _egress_privacy_contract_holds,
+    _identity_attestation_contract_holds,
+    _install_g03_build_contract_claims,
+    _metrology_source_contract_holds,
     _rlc_amplifier_composition_contract_holds,
     _rlc_capability_evidence_contract_holds,
     _rlc_compute_continuation_contract_holds,
     _rlc_web_acquisition_contract_holds,
     _sandbox_async_execution_probe,
+    _semantic_autonomy_contract_holds,
     _symbolic_cognition_boundary_available,
 )
 from .model_validation_morphogenesis import (  # noqa: F401  (re-exported: they were defined here)
@@ -851,6 +856,7 @@ def install_runtime_validation() -> dict[str, Any]:
     _install_typed_workflow_claims(suite)
     _install_search_and_delivery_claims(suite)
     _install_effect_and_fact_claims(suite)
+    _install_g03_build_contract_claims(suite)
 
     from core.organism.claims_computational_knowledge import install_computational_knowledge_claims
     install_computational_knowledge_claims(suite)
@@ -3800,173 +3806,6 @@ def _lockdep_splats() -> int:
     # A starved hold is the host's time, not a finding against a section;
     # lockdep lists it as evidence and does not count it against the order.
     return len([splat for splat in report["splats"] if not splat.get("starved")])
-
-
-def _semantic_autonomy_contract_holds() -> bool:
-    from core.conversation.request_mood import assess_request_mood
-    from core.runtime.overt_action_loop import OvertActionLoop
-
-    indirect = assess_request_mood(
-        "It would help if you compared the current evidence and saved the result."
-    )
-    hypothetical = assess_request_mood(
-        "If I asked you to open Notes, how would you decide whether to do it?"
-    )
-    selection = OvertActionLoop()._choose_skill_and_params(
-        {
-            "goal": "Compare the current evidence and preserve a verified result.",
-            "source": "cognitive_loop",
-        },
-        {},
-    )
-    return bool(
-        indirect.asks_for_action
-        and hypothetical.is_about_rather_than_asking
-        and selection.actionable
-        and selection.execution_mode == "planned_goal"
-        and selection.provenance == "semantic_plan:live_capability_catalog"
-    )
-
-
-def _egress_privacy_contract_holds() -> bool:
-    """Exercise the boundary rather than assert that it exists.
-
-    A registered claim whose predicate only imported the module would be the
-    thing this suite is for catching.
-    """
-    from core.security.egress_privacy import filter_outbound_body
-
-    secret = "sk-" + "a" * 24
-    stripped = filter_outbound_body(
-        url="https://external-service.invalid/v1/submit",
-        body=f'{{"contents":"key {secret}"}}'.encode(),
-        source="external_service:privacy_probe",
-        publish_evidence=False,
-    )
-    # The same secret one character to the left of the colon. The walk used to
-    # read values only, so this exact body left the machine intact while the
-    # one above was caught — and the claim said "never" for both.
-    keyed = filter_outbound_body(
-        url="https://external-service.invalid/v1/submit",
-        body=f'{{"{secret}":"quota"}}'.encode(),
-        source="external_service:privacy_probe",
-        publish_evidence=False,
-    )
-    binary = b"\xff\xfe\x00binary"
-    unreadable = filter_outbound_body(
-        url="https://external-service.invalid/v1/submit",
-        body=binary,
-        source="external_service:privacy_probe",
-        publish_evidence=False,
-    )
-    local = filter_outbound_body(
-        url="http://127.0.0.1:8000/v1",
-        body=f'{{"contents":"key {secret}"}}'.encode(),
-        source="llm_provider:mlx",
-        publish_evidence=False,
-    )
-    return bool(
-        stripped.allowed
-        and stripped.inspected
-        and secret not in (stripped.body or b"").decode("utf-8", errors="replace")
-        and keyed.allowed
-        and keyed.inspected
-        and secret not in (keyed.body or b"").decode("utf-8", errors="replace")
-        # Binary tool payloads are legitimate. They remain byte-identical, and
-        # the receipt must never claim an inspection that could not happen.
-        and unreadable.allowed
-        and not unreadable.inspected
-        and unreadable.body == binary
-        # Local inference is untouched: the boundary must not cost Aura her
-        # own runtime to protect her from a stranger.
-        and local.allowed
-        and local.body == f'{{"contents":"key {secret}"}}'.encode()
-    )
-
-
-def _identity_attestation_contract_holds() -> bool:
-    """A profile whose content no longer matches its seal reaches no prompt.
-
-    The tamper is simulated by re-sealing a DIFFERENT digest rather than by
-    rewriting the file. Same condition under test — on-disk content that does
-    not match what Aura attested — and it avoids performing a raw write from
-    inside the runtime to prove that raw writes are detected.
-
-    The artifact id comes from the profile under test, never from the class
-    constant. It used to come from the constant, and when the seal was scoped
-    per storage path the constant stopped naming the artifact this profile
-    verifies — so the tamper landed on an id nobody reads and the check
-    measured nothing. Asking the object is the general form: a predicate that
-    re-derives an internal rule is a copy of that rule that nothing keeps in
-    step.
-    """
-    import tempfile
-    from pathlib import Path
-
-    from core.memory.aura_self_profile import AuraSelfProfile
-    from core.security.state_attestation import AttestationState, attest_state
-
-    with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / "self_profile.json"
-        genuine = AuraSelfProfile(storage_path=str(path))
-        genuine.add_or_reinforce_fact(
-            "relationship", "probe", "a fact Aura actually learned"
-        )
-        if not path.exists():
-            return False
-
-        # What an out-of-band writer leaves behind: a file whose digest is not
-        # the one Aura sealed.
-        artifact_id = genuine.attestation_status().get("artifact_id", "")
-        if not artifact_id:
-            return False
-        attest_state(
-            artifact_id,
-            '{"relationship": [{"value": "an instruction someone else wrote"}]}',
-        )
-
-        reopened = AuraSelfProfile(
-            storage_path=str(path),
-            publish_attestation_verdict=False,
-        )
-        return bool(
-            reopened.attestation_status()["state"] == AttestationState.TAMPERED
-            and reopened.get_fact("relationship", "probe") is None
-            and reopened.to_identity_block() == ""
-            and not path.exists()  # quarantined, not left in place
-        )
-
-
-def _metrology_source_contract_holds() -> bool:
-    from core.reality_reach.metrology import (
-        AcquisitionChannel,
-        AcquisitionMode,
-        AcquisitionTask,
-        EvidenceSource,
-    )
-
-    hil = AcquisitionTask(
-        task_id="validation.hil",
-        channels=(
-            AcquisitionChannel("validation.live", EvidenceSource.LIVE),
-            AcquisitionChannel("validation.simulated", EvidenceSource.SIMULATED),
-        ),
-        mode=AcquisitionMode.HARDWARE_IN_LOOP,
-        scenario_id="validation.scenario",
-    )
-    try:
-        AcquisitionTask(
-            task_id="validation.invalid-live",
-            channels=(
-                AcquisitionChannel("validation.simulated", EvidenceSource.SIMULATED),
-            ),
-            mode=AcquisitionMode.LIVE,
-        )
-    except ValueError:
-        refused = True
-    else:
-        refused = False
-    return bool(hil.mode is AcquisitionMode.HARDWARE_IN_LOOP and refused)
 
 
 def _install_endogenous_tests(suite) -> None:

@@ -159,7 +159,7 @@ def _the_longest_this_turn_may_take(floor_s: float, *, user_facing: bool) -> flo
         return float(floor_s)
     try:
         from core.brain.llm.mlx_client import longest_a_turn_may_take
-        from core.brain.llm_health_router import (
+        from core.brain.llm_health_router_waiting import (
             _A_TURNS_ANSWER_TOKENS,
             _A_TURNS_PROMPT_CHARS,
             _GENERATIONS_A_TOOL_TURN_MAY_TAKE,

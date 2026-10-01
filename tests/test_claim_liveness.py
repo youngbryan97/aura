@@ -101,6 +101,38 @@ def test_the_two_ways_a_channel_can_be_empty_read_differently(monkeypatch):
     assert "has never been written" in ran_and_wrote_nothing.reason()
 
 
+def test_a_run_that_took_no_reading_measured_nothing_here(monkeypatch):
+    """A publisher writes only the channels with an organ behind them.
+
+    The phenomena publisher ran six times in a test boot with no dispositions
+    registered and wrote nothing, and the claim on its channels read as an
+    organ at fault. A run that took no reading is this process not measuring;
+    a run that wrote a sibling and left this channel empty is still a gap.
+    """
+    import core.fsw.telemetry_samplers as samplers
+
+    # A register of its own, so no publisher another test registered runs here.
+    register = samplers.SamplerRegister()
+    monkeypatch.setattr(samplers, "_REGISTER", register)
+    _declare("test.no_organ", identifier=0x0FE1)
+    _declare("test.sibling", identifier=0x0FE2)
+    register.register("test.empty_run", lambda: {}, owner="tests", channels=("test.no_organ",))
+    register.run_all()
+    assert channel_liveness("test.no_organ").sampled_here is False
+
+    def one_reading() -> dict[str, float]:
+        write("test.sibling", 1.0)
+        return {"test.sibling": 1.0}
+
+    register.register(
+        "test.empty_run", one_reading, owner="tests", channels=("test.no_organ", "test.sibling")
+    )
+    register.run_all()
+    gap = channel_liveness("test.no_organ")
+    assert gap.sampled_here is True
+    assert "has never been written" in gap.reason()
+
+
 def test_unbound_claim_is_unchanged():
     resolved, note, liveness = effective_evidence(Evidence.MEASURED_LIVE, [])
     assert resolved is Evidence.MEASURED_LIVE

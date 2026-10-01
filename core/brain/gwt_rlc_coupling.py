@@ -200,10 +200,7 @@ async def broadcast_episode_conclusion(
             "reason": "empty_conclusion",
         }
     try:
-        from core.consciousness.global_workspace import (
-            CognitiveCandidate,
-            ContentType,
-        )
+        from core.consciousness.workspace_candidate import CognitiveCandidate, ContentType
 
         priority, pricing = _conclusion_priority(dict(receipt or {}), stakes)
         candidate = CognitiveCandidate(

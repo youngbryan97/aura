@@ -3701,7 +3701,7 @@ async def _run_cognitive_engine_chat_turn(
                 # A turn somebody is waiting for keeps going while it is
                 # working. One that has gone quiet still fails on the next
                 # slice, and nothing here changes the budget.
-                from core.brain.llm_health_router import _await_while_it_is_working
+                from core.brain.llm_health_router_waiting import _await_while_it_is_working
 
                 return await _await_while_it_is_working(
                     operation(),

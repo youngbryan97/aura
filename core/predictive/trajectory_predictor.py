@@ -34,7 +34,7 @@ class TrajectoryPredictor:
         
     async def predict_path(self, objective: str, current_state: Any) -> Trajectory:
         """Analyze objective and predict next steps."""
-        from core.brain.llm.llm_router import LLMTier
+        from core.brain.llm.llm_tier import LLMTier
         router = self.container.get("llm_router", default=None)
         
         if not router or not objective:

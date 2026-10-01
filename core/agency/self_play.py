@@ -11,7 +11,7 @@ import random
 import re
 import time
 from core.runtime.service_registry import get_runtime_service
-from core.brain.cognitive_engine import ThinkingMode
+from core.brain.types import ThinkingMode
 from core.runtime.background_policy import (
     RESEARCH_BACKGROUND_POLICY,
     background_activity_reason,

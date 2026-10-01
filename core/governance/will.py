@@ -46,6 +46,9 @@ from core.executive.execution_policy import (
     classify_execution_risk,
     resolve_execution_effect_scope,
 )
+from core.governance.action_domain import (
+    ActionDomain,  # noqa: F401  (re-exported: it was defined here)
+)
 from core.identity.self_contract import contains_identity_erasure
 from core.memory.retention_policy import working_history_retention_policy
 from core.runtime.errors import record_degradation
@@ -117,29 +120,6 @@ def _strict_default_deny_enabled() -> bool:
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
-
-class ActionDomain(StrEnum):
-    """What kind of action is being decided on."""
-    RESPONSE = "response"               # sending a reply to the user
-    TOOL_EXECUTION = "tool_execution"   # external tool / skill dispatch
-    MEMORY_WRITE = "memory_write"       # episodic, semantic, belief mutation
-    INITIATIVE = "initiative"           # autonomous goal / impulse
-    STATE_MUTATION = "state_mutation"    # internal state change
-    EXPRESSION = "expression"           # spontaneous output
-    EXPLORATION = "exploration"         # novelty-seeking action
-    STABILIZATION = "stabilization"     # rest / recovery action
-    REFLECTION = "reflection"           # internal reflection / metacognition
-    SEMANTIC_WEIGHT_UPDATE = "semantic_weight_update"  # plastic adapter update
-    BELIEF_UPDATE = "belief_update"       # explicit belief graph update
-    ENVIRONMENT_ACTION = "environment_action"  # embodied/digital environment action
-    EXTERNAL_ACTION = "external_action"   # externally visible side effect
-    FILE_WRITE = "file_write"             # persistent filesystem mutation
-    NETWORK_CALL = "network_call"         # network or browser action
-    CLOUD_CALL = "cloud_call"             # cloud/provider side effect
-    CI_CD = "ci_cd"                       # CI/CD and deployment authority
-    SELF_MODIFICATION = "self_modification"  # code/architecture mutation
-    CLOUD_FALLBACK = "cloud_fallback"     # Falling back to cloud LLM APIs
-
 
 # Modules whose weights may be updated under SEMANTIC_WEIGHT_UPDATE.  This
 # list is the *positive* policy: every other target is denied by default.

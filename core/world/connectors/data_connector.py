@@ -8,7 +8,7 @@ import json
 import logging
 from typing import Any
 
-from core.governance.will import ActionDomain
+from core.governance.action_domain import ActionDomain
 from core.governance_context import GovernanceViolation
 from core.runtime.action_executor import ActionExecutor
 

@@ -110,7 +110,7 @@ class StrategicSynthesizer:
         """
         
         try:
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
             # Use DEEP thinking for the final synthesis to ensure quality
             thought = await brain.think(
                 synthesis_prompt,

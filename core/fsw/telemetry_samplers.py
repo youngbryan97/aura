@@ -54,6 +54,10 @@ class _Sampler:
     #: The telemetry dictionary's generation when this last ran. A dictionary
     #: emptied since holds nothing this run wrote.
     generation: int = -1
+    #: The generation it last took a reading in. A publisher writes only the
+    #: channels with a live organ behind them, so a run that wrote nothing in a
+    #: process with no organs measured nothing there. Unknown counts as wrote.
+    wrote_generation: int = -1
 
 
 @dataclass
@@ -119,6 +123,8 @@ class SamplerRegister:
             sampler.last_error = ""
             sampler.last_run = started
             sampler.last_wrote = _how_many_it_wrote(result)
+            if sampler.last_wrote != 0:
+                sampler.wrote_generation = sampler.generation
             outcomes[sampler.name] = {"ok": True, "wrote": sampler.last_wrote}
         return outcomes
 
@@ -144,6 +150,7 @@ class SamplerRegister:
                     "last_run": s.last_run,
                     "wrote": s.last_wrote,
                     "generation": s.generation,
+                    "wrote_generation": s.wrote_generation,
                 }
                 for s in sorted(samplers, key=lambda s: s.name)
             ],

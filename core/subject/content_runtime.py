@@ -38,7 +38,7 @@ from core.state.percepts import PERCEPT_EMOTIONS, emit_percept
 from core.subject.content import PerceptClass
 from core.subject.intrinsic_v25 import crossfit_fisher_rao
 from core.subject.perturbation import shift_reference
-from core.subject.state import perturb, perturb_organs
+from core.subject.perturbation import perturb, perturb_organs
 
 __all__ = [
     "EMOTIONS",

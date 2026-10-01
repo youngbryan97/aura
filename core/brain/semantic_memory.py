@@ -483,7 +483,7 @@ class SemanticMemory:
             return
 
         try:
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
             text_to_summarize = "\n".join(
                 f"{m['role'].upper()}: {m['content']}" for m in history[-10:]
             )

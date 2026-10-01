@@ -35,7 +35,7 @@ Return the response as a valid JSON object with the following structure:
   ]
 }}
 """
-        from core.brain.cognitive_engine import ThinkingMode
+        from core.brain.types import ThinkingMode
         thought = await self.brain.think(prompt, mode=ThinkingMode.DEEP)
         if not thought or not thought.content:
             logger.error("Failed to generate strategic plan")

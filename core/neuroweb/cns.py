@@ -111,7 +111,7 @@ class CentralNervousSystem:
         # 2. Competitive Bottleneck (Phase 1 Consciousness)
         gwt = getattr(getattr(self.brain, 'consciousness', None), 'global_workspace', None)
         if gwt:
-            from core.consciousness.global_workspace import CognitiveCandidate
+            from core.consciousness.workspace_candidate import CognitiveCandidate
             candidate = CognitiveCandidate(
                 content=intent.text,
                 source="cns_stimulus",

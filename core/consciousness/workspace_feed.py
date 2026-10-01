@@ -136,7 +136,7 @@ def _goal_priority(goal: Any) -> float:
 
 def build_candidates(state: Any) -> list[Any]:
     """One bid per domain that has something to say, priced by the state."""
-    from core.consciousness.global_workspace import CognitiveCandidate, ContentType
+    from core.consciousness.workspace_candidate import CognitiveCandidate, ContentType
 
     bids: list[Any] = []
     affect = getattr(state, "affect", None)

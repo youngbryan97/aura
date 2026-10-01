@@ -325,15 +325,14 @@ def resolve_cognitive_engine(*, default: Any = None) -> Any:
 # raw ServiceContainer.get() usage so the cross-wiring only shrinks.
 
 def resolve_will(*, default: Any = None) -> Any:
-    will = optional_service("will", default=None)
-    if will is not None:
-        return will
-    try:
-        from core.will import get_will
+    """The Will as the spine holds it.
 
-        return get_will()
-    except (ImportError, AttributeError, RuntimeError):
-        return default
+    Spine-resolved only, like the resolvers below. This used to build one
+    through `core.will.get_will` when none was registered, which put the
+    governance engine behind an accessor 158 modules import; nothing called
+    it for that, and a caller that means to create the Will calls its getter.
+    """
+    return optional_service("will", default=default)
 
 
 def resolve_inference_gate(*, default: Any = None) -> Any:
@@ -346,15 +345,8 @@ def resolve_skill_router(*, default: Any = None) -> Any:
 
 
 def resolve_mlx_client(*, default: Any = None) -> Any:
-    client = optional_service("mlx_client", default=None)
-    if client is not None:
-        return client
-    try:
-        from core.brain.llm.mlx_client import get_mlx_client
-
-        return get_mlx_client()
-    except (ImportError, AttributeError, RuntimeError):
-        return default
+    """The model client as the spine holds it; see `resolve_will` for why only that."""
+    return optional_service("mlx_client", default=default)
 
 
 def resolve_weight_compounding(*, default: Any = None) -> Any:
@@ -373,12 +365,5 @@ def resolve_practice_director(*, default: Any = None) -> Any:
 
 
 def resolve_incident_narrator(*, default: Any = None) -> Any:
-    narrator = optional_service("incident_narrator", default=None)
-    if narrator is not None:
-        return narrator
-    try:
-        from core.observability.incident_narrator import get_incident_narrator
-
-        return get_incident_narrator()
-    except (ImportError, AttributeError, RuntimeError):
-        return default
+    """The incident narrator as the spine holds it; see `resolve_will` for why only that."""
+    return optional_service("incident_narrator", default=default)

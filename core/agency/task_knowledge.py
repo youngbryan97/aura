@@ -860,7 +860,7 @@ def _announce(knowledge: TaskKnowledge) -> None:
     if not knowledge.known:
         return
     try:
-        from core.consciousness.global_workspace import ContentType  # noqa: PLC0415
+        from core.consciousness.workspace_candidate import ContentType  # noqa: PLC0415
         from core.container import ServiceContainer  # noqa: PLC0415
 
         workspace = ServiceContainer.get("global_workspace", default=None)

@@ -34,7 +34,7 @@ class VisualContextSkill(BaseSkill):
             
         try:
             # Query the buffer
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
             analysis = await vision.query_visual_context(prompt=prompt, brain=brain, mode=ThinkingMode.FAST)
             return {
                 "ok": True,

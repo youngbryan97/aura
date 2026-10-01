@@ -1863,7 +1863,7 @@ def _tell(line: str) -> None:
 def _publish_decision(said: str, because: str, expected: str, chosen: Any) -> None:
     """Offer one decision to the workspace, whatever kind of line it is."""
     try:
-        from core.consciousness.global_workspace import ContentType
+        from core.consciousness.workspace_candidate import ContentType
         from core.container import ServiceContainer
 
         workspace = ServiceContainer.get("global_workspace", default=None)

@@ -171,7 +171,7 @@ async def _compose(observation: Any, trigger: str) -> str:
         )
         import asyncio
 
-        from core.brain.llm.llm_router import LLMTier
+        from core.brain.llm.llm_tier import LLMTier
 
         response = await asyncio.wait_for(
             brain.think(

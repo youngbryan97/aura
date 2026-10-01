@@ -397,7 +397,7 @@ class RealityAcceptanceService:
     async def run_acoustic_a1(self, request: AcousticA1Request) -> dict[str, Any]:
         """Run the exact precommitted A1 campaign through Will/ActionExecutor."""
 
-        from core.governance.will import ActionDomain
+        from core.governance.action_domain import ActionDomain
         from core.runtime.action_executor import ActionExecutor
         from core.runtime.skill_contract import ActionExpectation
 

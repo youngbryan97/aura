@@ -260,7 +260,7 @@ class ContinuousPerceptionEngine:
                         from core.container import ServiceContainer
                         brain = ServiceContainer.get("cognitive_engine", default=None)
                         if brain:
-                            from core.brain.cognitive_engine import ThinkingMode
+                            from core.brain.types import ThinkingMode
                             res = await brain.think(prompt, mode=ThinkingMode.FAST, priority=0.2)
                             summary = res.content if hasattr(res, 'content') else str(res)
                             

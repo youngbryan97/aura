@@ -342,7 +342,7 @@ class HigherOrderThoughtEngine:
 
         kwargs: dict[str, Any] = {"priority": 0.3, "is_background": True}
         try:
-            from core.brain.llm.llm_router import LLMTier
+            from core.brain.llm.llm_tier import LLMTier
 
             kwargs["prefer_tier"] = LLMTier.TERTIARY
         except ImportError as exc:

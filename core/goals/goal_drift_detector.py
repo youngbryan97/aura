@@ -39,7 +39,7 @@ REASON: [Brief explanation]
 """
         try:
             # Use 'FAST' mode for this check to save cost/latency
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
             thought = await self.brain.think(prompt, mode=ThinkingMode.FAST)
             response = thought.content
             

@@ -811,7 +811,7 @@ class ResponseProcessingMixin:
             return None
 
         logger.info("🏎️ FAST-PATH: Authority-approved simple response.")
-        from core.brain.cognitive_engine import ThinkingMode
+        from core.brain.types import ThinkingMode
 
         context = self._get_cleaned_history_context(10)
 

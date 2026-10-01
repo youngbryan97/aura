@@ -922,7 +922,7 @@ class MissionState:
         if router is None:
             return {"success": False, "error": "LLM router unavailable for synthesis"}
         try:
-            from core.brain.llm.llm_router import LLMTier
+            from core.brain.llm.llm_tier import LLMTier
 
             text = await asyncio.wait_for(
                 router.think(prompt, priority=0.8, prefer_tier=LLMTier.PRIMARY),

@@ -24,7 +24,8 @@ from tests.source_contract import family_text_at
 
 pytestmark = pytest.mark.unit
 
-SOURCE = Path("core/brain/llm_health_router.py")
+# Lifted out of llm_health_router, which re-exports it.
+SOURCE = Path("core/brain/llm_health_router_waiting.py")
 
 
 def _the_waiting_function() -> ast.AsyncFunctionDef:

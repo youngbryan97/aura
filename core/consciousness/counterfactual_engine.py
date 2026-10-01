@@ -409,7 +409,7 @@ class CounterfactualEngine:
     async def _llm_simulate(self, action_type: str, description: str,
                               context: dict[str, Any], router) -> str:
         try:
-            from core.brain.llm.llm_router import LLMTier
+            from core.brain.llm.llm_tier import LLMTier
             prompt = (
                 f"Predict the outcome of this action in one sentence:\n"
                 f"Action: {action_type} — {description}\n"

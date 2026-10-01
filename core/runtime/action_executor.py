@@ -22,7 +22,7 @@ from typing import Any
 from core.being.body_state_service import BodyStateService
 from core.being.welfare_state import WelfareState
 from core.being.welfare_transaction import WelfareTransaction
-from core.governance.will import ActionDomain
+from core.governance.action_domain import ActionDomain
 from core.governance_context import (
     GovernanceViolation,
     get_active_governance,

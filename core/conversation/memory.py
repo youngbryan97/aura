@@ -88,7 +88,7 @@ If no facts found, return [].
             if not brain: return
             
             # Use Fast mode for extraction
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
             thought = await brain.think(
                 prompt, mode=ThinkingMode.FAST, context={"output_shape": "json_array"}
             )

@@ -193,12 +193,15 @@ def _a_publisher_ran_for(channel: str) -> bool:
 
         # A run into a dictionary that has been emptied since wrote nothing
         # that is still there to read. Counting it made a test that cleared
-        # telemetry leave every later claim reading "never written".
+        # telemetry leave every later claim reading "never written". And a run
+        # that took no reading at all had no organ to read: the phenomena
+        # publisher ran six times in a test boot with no dispositions
+        # registered, and every claim on its channels read as a fault.
         current = get_telemetry().generation
         for row in samplers_report()["samplers"]:
             if (
                 row["runs"]
-                and row.get("generation") == current
+                and row.get("wrote_generation") == current
                 and channel in (row.get("channels") or ())
             ):
                 return True

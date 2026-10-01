@@ -146,7 +146,7 @@ class ExpectationEngine:
             )
             return str(response or "")
 
-        from core.brain.cognitive_engine import ThinkingMode
+        from core.brain.types import ThinkingMode
 
         response = await self.brain.think(
             prompt,

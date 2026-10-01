@@ -231,7 +231,8 @@ def test_stream_deep_narrative_defers_when_generation_gate_is_active(
 ):
     import time
 
-    import core.brain.llm_health_router as router_module
+    # Where the gate reading is defined, which is where the stream reads it.
+    import core.brain.llm_health_router_gate_readings as router_module
     import core.consciousness.stream_of_being as stream_module
 
     class Gate:

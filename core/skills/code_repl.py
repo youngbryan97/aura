@@ -25,7 +25,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from core.config import config
-from core.governance.will import ActionDomain
+from core.governance.action_domain import ActionDomain
 from core.runtime.action_executor import ActionExecutor
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway

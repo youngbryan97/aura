@@ -275,7 +275,7 @@ def _remember(*, changing: bool, spine: Any, lived: bool) -> None:
 def _publish(said: str, *, priority: float) -> None:
     """Offer it to the workspace, so the rest of her can be affected by it."""
     try:
-        from core.consciousness.global_workspace import ContentType  # noqa: PLC0415
+        from core.consciousness.workspace_candidate import ContentType  # noqa: PLC0415
         from core.container import ServiceContainer  # noqa: PLC0415
 
         workspace = ServiceContainer.get("global_workspace", default=None)

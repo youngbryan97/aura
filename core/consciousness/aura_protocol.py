@@ -498,7 +498,7 @@ class AuraProtocolServer:
     async def _inject_into_workspace(self, msg: AuraMessage) -> None:
         """Submit the received message as a CognitiveCandidate."""
         try:
-            from core.consciousness.global_workspace import CognitiveCandidate, ContentType
+            from core.consciousness.workspace_candidate import CognitiveCandidate, ContentType
 
             workspace = ServiceContainer.get("global_workspace", default=None)
             if not workspace:

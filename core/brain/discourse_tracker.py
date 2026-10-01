@@ -131,7 +131,7 @@ class DiscourseTracker:
         try:
             router = get_runtime_service("llm_router", default=None)
             if router:
-                from core.brain.llm.llm_router import LLMTier
+                from core.brain.llm.llm_tier import LLMTier
                 result = await router.think(
                     prompt=prompt,
                     prefer_tier=LLMTier.TERTIARY,

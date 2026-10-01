@@ -61,9 +61,8 @@ def argument_slot_evidence(
     position: Any,
     mention: Any,
 ) -> Any:
-    from core.learning.semantic_program_transducer_fitting import (
-        _directional_relation_feature, _relation_span_vector,
-    )
+    from core.learning.semantic_relation_tissue import _directional_relation_feature
+    from core.learning.semantic_program_shared_transducer import _relation_span_vector
 
     def vector(span: Any) -> Any:
         return _relation_span_vector(hidden, span, hidden_channels=model.hidden_channels,

@@ -136,7 +136,7 @@ class Soul:
                 workspace = get_runtime_service("global_workspace", default=None)
                 if workspace:
                     logger.info("✨ SOUL: Publishing spatial empathy request to Global Workspace.")
-                    from core.consciousness.global_workspace import CognitiveCandidate
+                    from core.consciousness.workspace_candidate import CognitiveCandidate
                     await workspace.submit(CognitiveCandidate(
                         priority=0.8,
                         source="Soul::connectionDrive",

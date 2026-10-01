@@ -58,7 +58,7 @@ class _BuildsTheLivingContext:
         # 2026-08-28 a ledgerkit turn read three files and died here at
         # 138.9 seconds while every clock around it was holding itself
         # open, because this one still counted.
-        from core.brain.llm_health_router import _await_while_it_is_working
+        from core.brain.llm_health_router_waiting import _await_while_it_is_working
 
         result = await _await_while_it_is_working(
             client.think_and_act(

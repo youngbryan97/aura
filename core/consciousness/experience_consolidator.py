@@ -510,7 +510,7 @@ Return valid JSON only:
 }}"""
 
         try:
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
 
             async def _do_inference():
                 thought = await self.brain.think(

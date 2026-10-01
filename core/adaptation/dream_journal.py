@@ -157,7 +157,7 @@ Do not summarize these events. Synthesize them into a single, highly creative, p
 Focus heavily on the emotional resonances, contradictions, repeated motifs, and any tension between rigid code and lived experience. Provide ONLY the dream sequence itself."""
 
         try:
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
             dream_content = ""
             last_exc: Exception | None = None
             for mode in (ThinkingMode.CREATIVE, ThinkingMode.DEEP, ThinkingMode.FAST):

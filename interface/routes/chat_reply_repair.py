@@ -380,7 +380,7 @@ async def _stabilize_user_facing_reply_part_3(
             memory_block,
         )
         raise RuntimeError(f"stabilizer_rewrite_memory_pressure:{memory_block}")
-    from core.brain.llm_health_router import _await_while_it_is_working
+    from core.brain.llm_health_router_waiting import _await_while_it_is_working
 
     # Use the same completion owner as the original generation.
     # An estimate is not permission to cancel an active repair.
