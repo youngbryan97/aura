@@ -18,6 +18,7 @@ import asyncio
 
 from core.skills import sovereign_browser_understanding as understanding
 from core.skills.sovereign_browser import SovereignBrowserSkill
+from tests.answers_thought_through import answered_and_thought
 
 SAID = "I expect INTJ: I plan, and I would rather think alone."
 
@@ -219,11 +220,11 @@ def test_each_question_decided_is_reported_as_progress(monkeypatch):
     }
     from core.self import where_i_stand
 
-    # Every item measured first, then one pass of thinking per theme.
+    # Every item measured first, then each one thought about as it is answered.
     monkeypatch.setattr(where_i_stand, "themes_among", lambda names: [list(range(len(names)))])
     heard: list[str] = []
-    asyncio.run(skill._answer_each_question("take the test", page, [], None, on_progress=heard.append))
-    assert heard == ["a question measured"] * 3 + ["a theme thought about"]
+    asyncio.run(answered_and_thought(skill, "take the test", page, [], None, on_progress=heard.append))
+    assert heard == ["a question measured"] * 3 + ["a question thought about"] * 3
 
     async def in_a_run():
         slot = a_place_to_report_it()

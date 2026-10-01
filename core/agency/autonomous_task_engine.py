@@ -1834,13 +1834,45 @@ The plan is a JSON array of steps:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 return " ".join(match.group(1).split()).strip(" .")
-        lowered = text.lower()
-        if "terminal" in lowered:
-            return "Terminal"
-        if "notes" in lowered:
-            return "Notes"
-        if "browser" in lowered:
-            return "Browser"
+        # An app the request asks to have opened, named as it is installed.
+        #
+        # This used to be three substring tests: any goal with "notes" in it
+        # opened Notes, "terminal" opened Terminal and "browser" a browser —
+        # "take notes on the test", "footnotes", "denotes", "the browser tab I
+        # left open". Bryan, 1 Oct: "when we run computer skills, for some
+        # reason my notes app always opens? and sometimes a browser". The name
+        # has to follow a word that asks for opening, and has to be an app on
+        # this machine — opened, or worked in ("run ls in the terminal").
+        for asked in re.finditer(
+            r"\b(?:open|launch|start|bring\s+up|switch\s+to|in|into|using)\s+(?:up\s+)?"
+            r"(?:the\s+|my\s+|a\s+|an\s+)?([A-Za-z][A-Za-z0-9 ._-]{0,48})",
+            text,
+            re.IGNORECASE,
+        ):
+            words = asked.group(1).split()
+            for count in range(min(3, len(words)), 0, -1):
+                named = " ".join(words[:count]).strip(" .")
+                if named.lower() in {"browser", "web browser"}:
+                    return "Browser"
+                installed = AutonomousTaskEngine._an_installed_app_called(named)
+                if installed:
+                    return installed
+        return ""
+
+    @staticmethod
+    def _an_installed_app_called(named: str) -> str:
+        """The installed app ``named`` names, by its own name, or ""."""
+        from core.runtime.app_target_resolution import (
+            _normal_name,
+            installed_app_inventory,
+        )
+
+        wanted = _normal_name(named)
+        if not wanted:
+            return ""
+        for app in installed_app_inventory():
+            if _normal_name(app.name) == wanted:
+                return app.name
         return ""
 
 

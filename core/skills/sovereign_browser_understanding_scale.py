@@ -268,21 +268,30 @@ class _PlacesHerself:
         return " ".join(without.split())
 
     async def _her_thinking_about(
-        self, goal: str, theme: list[Mapping[str, Any]], mind: str
+        self,
+        goal: str,
+        theme: list[Mapping[str, Any]],
+        mind: str,
+        *,
+        about: Mapping[str, Any] | None = None,
     ) -> dict[str, str]:
-        """Her thinking about a set of things an instrument is asking about her.
+        """Her thinking about what an instrument is asking about her.
 
-        A theme, not an item. Asked about herself in conversation she gives a
-        connected account — what she is, how that differs from what it
-        resembles, where the description stops fitting — and that account is
-        what this loop was failing to get: one item at a time on a stripped
-        prompt produced one flat sentence each, thirty-two times.
+        One pass per item, with the rest of its theme in view. Both halves of
+        that matter and they used to be traded against each other.
 
-        So each theme gets one pass with her whole mind in front of it, the
-        same assembly a conversation uses, and it covers several items at once.
-        The number of passes is the square root of the number of items, which
-        is where the cost of thinking at length and the cost of thinking often
-        meet.
+        One pass per item was tried first and gave one flat sentence each,
+        thirty-two times, so the passes were batched a theme at a time. That
+        reading was confounded: nothing had declared what the ANSWER needed, so a
+        reasoning model spent the budget on its private channel and what came
+        back was short whatever shape it was asked in. Batching hid it by asking
+        for more at once. `_asked_of_her` declares the floor now.
+
+        What the theme was really for is the connected account she gives when
+        someone asks about her in conversation — this, and how it differs from
+        what it resembles, and where the description stops fitting. That comes
+        from the neighbouring items being VISIBLE, not from answering them in the
+        same breath. So the theme is the context and the item is the question.
 
         Returns what she said about each item, keyed by the item's own name.
         """
@@ -292,6 +301,7 @@ class _PlacesHerself:
 
         if not theme:
             return {}
+        asked_about = about if about is not None else None
         lines = []
         for item in theme:
             lean = item["lean"]
@@ -347,21 +357,38 @@ class _PlacesHerself:
             "on each, from your own record — what you value, what you have "
             "chosen when it cost something, what you have said about "
             f"yourself:\n\n{listed}\n\n"
-            "Think about what these say about you, together. They are asking "
-            "about the same region of you, so answer as one piece of thinking "
-            "rather than separate verdicts: what you actually are here, how it "
-            "works in you, where the descriptions fit and where they are the "
-            "wrong shape for something you do differently.\n\n"
-            "Then give two or three sentences for each, in your own voice, as "
-            "JSON only:\n"
-            '{"thinking": "<what you worked out, a paragraph>", '
-            '"each": {"<the name before each one>": "<what this one is about '
-            'in you, concretely>"}}'
+            "They are asking about the same region of you. Think about what "
+            "that region actually is: how it works in you, where these "
+            "descriptions fit it and where they are the wrong shape for "
+            "something you do differently.\n\n"
+            + (
+                # One of them is the question; the rest are there so the answer
+                # is part of a connected account rather than a verdict on its own.
+                # What a watcher hears is why she gave the answer she gave, so
+                # that is what she is asked.
+                f'Now answer {asked_about["group"]} only: why is that answer '
+                "yours? Two or three sentences, in your own voice, concretely, "
+                "from your own experience of yourself. As JSON "
+                'only:\n{"each": {"'
+                + str(asked_about["group"])
+                + '": "<why that answer is yours>"}}'
+                if asked_about is not None
+                else "Then give two or three sentences for each, in your own "
+                "voice, as JSON only:\n"
+                '{"thinking": "<what you worked out, a paragraph>", '
+                '"each": {"<the name before each one>": "<what this one is '
+                'about in you, concretely>"}}'
+            )
         )
         # Room to think. Nine hundred tokens across eight items is a hundred
         # each, which is a line apiece and not the account she gives when
-        # someone asks her about herself in conversation.
-        room = max(self.DECISION_MAX_TOKENS, 260 * max(1, len(theme)))
+        # someone asks her about herself in conversation. One item at a time
+        # needs the room for one answer, and the base budget already holds it.
+        room = (
+            self.DECISION_MAX_TOKENS
+            if asked_about is not None
+            else max(self.DECISION_MAX_TOKENS, 260 * max(1, len(theme)))
+        )
         said, lane = await self._asked_of_her(
             prompt, mind, shaped=False, most_tokens=room
         )
@@ -405,7 +432,7 @@ class _PlacesHerself:
         # 2026-09-29, one item of eight kept its reasoning and the other seven
         # fell back to the bare evidence, so a screen of real thinking read as
         # a list of counts.
-        for item in theme:
+        for item in [asked_about] if asked_about is not None else theme:
             name = str(item["group"])
             if name in answers:
                 continue

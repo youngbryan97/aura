@@ -370,18 +370,26 @@ async def _go_back_to_the_last_good_page(
 
 def _moves_from_the_decision(
     decision: Mapping[str, Any], elements: list[Any]
-) -> list[tuple[BrowserAction, str]]:
-    """Turn a decision into moves: each action it names, resolved against the list she was shown."""
-    moves: list[tuple[BrowserAction, str]] = []
+) -> list[tuple[BrowserAction, Any]]:
+    """Turn a decision into moves: each action it names, resolved against the list she was shown.
+
+    A move is an action and what she says for it: the words, or the thinking
+    that will produce them when the move is made.
+    """
+    moves: list[tuple[BrowserAction, Any]] = []
     # Selectors that were already resolved against the list their
     # own decision was shown — see `_answer_each_question`. They
     # skip index resolution entirely, because there is no shared
     # list to resolve them against.
+    #
+    # Where her words for a move are still to be thought, the move carries the
+    # thinking itself, and the loop asks for it when that move comes up.
     for item in decision.get("resolved_actions") or []:
         if isinstance(item, dict) and item.get("selector"):
+            think = item.get("think")
             moves.append((
                 BrowserAction(type="click", selector=str(item["selector"])),
-                str(item.get("said") or ""),
+                think if callable(think) else str(item.get("said") or ""),
             ))
     for item in decision.get("actions") or []:
         if not isinstance(item, dict):
@@ -504,11 +512,11 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
     async def _make_each_move(
         self,
         browser: PhantomBrowser,
-        moves: list[tuple[BrowserAction, str]],
+        moves: list[tuple[BrowserAction, Any]],
         *,
         action_context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Say each choice as it is made, make it, then go on to the next.
+        """Think about each choice, say it, make it, wait, then go on to the next.
 
         A screen of questions used to be answered in one batch and read out
         afterwards: every click landed, and then one bubble listed what had
@@ -517,19 +525,27 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         are told about once it is over.
 
         Each move is executed on its own so the reason can sit in front of it.
-        The rows come back merged into the shape one interaction returns, so
-        nothing downstream knows whether a round was one move or thirty.
+        Where the move carries its thinking rather than its words, the thinking
+        is done here, so the next question is not thought about until the last
+        one has been answered and left up to be read. The rows come back merged
+        into the shape one interaction returns, so nothing downstream knows
+        whether a round was one move or thirty.
         """
         rows: list[Any] = []
         errors: list[str] = []
         any_ok = False
         for action, said in moves:
+            if callable(said):
+                said = str(await said() or "")
             if said:
                 self._say_out_loud(said)
-                await self._hold_for_reading(said)
             report = await self._handle_interact(
                 browser, None, [action], action_context=action_context
             )
+            # Left up after the answer is made, so what a watcher reads is the
+            # reason beside the answer it was for.
+            if said:
+                await self._hold_for_reading(said)
             landed = report.get("action_report")
             if isinstance(landed, list):
                 rows.extend(landed)
@@ -597,8 +613,18 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
 
     @staticmethod
     def _say_out_loud(line: str) -> None:
-        """One line where a person watching her can hear it, as her play is said."""
-        said = " ".join(str(line or "").split())[:400]
+        """One line where a person watching her can hear it, as her play is said.
+
+        Bounded by what a watcher can read, which is the same policy that decides
+        how long the line stays up. Four hundred characters was a number written
+        for a game move; on a reason with two or three sentences in it, LIVE
+        2026-09-29, it cut the end off and the seam downstream reported
+        "completed a reply cut off mid-clause (400 -> 315 chars)" four times in a
+        row, each one a piece of her reasoning nobody read.
+        """
+        from core.agency.reading_pace import as_much_as_can_be_read
+
+        said = as_much_as_can_be_read(line)
         if not said:
             return
         try:
@@ -1022,17 +1048,22 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                         timeout=self.INTERACTION_TIMEOUT,
                     )
                 elif params.mode == "pursue":
-                    return await self._handle_pursue(
-                        browser,
-                        params.url,
-                        params.goal or "",
-                        params.max_steps,
-                        action_context=action_context,
-                        # Her reply to this turn, carried in the context so
-                        # the permission model does not read it as the target.
-                        said_before=params.said_before
-                        or str((action_context or {}).get("cognitive_reply") or ""),
-                    )
+                    from core.agency.reading_pace import paced_as_asked
+
+                    # Every line she says in this run stays up for the wait the
+                    # person asked for, if they named one.
+                    with paced_as_asked(params.goal):
+                        return await self._handle_pursue(
+                            browser,
+                            params.url,
+                            params.goal or "",
+                            params.max_steps,
+                            action_context=action_context,
+                            # Her reply to this turn, carried in the context so
+                            # the permission model does not read it as the target.
+                            said_before=params.said_before
+                            or str((action_context or {}).get("cognitive_reply") or ""),
+                        )
                 else:
                     return {"ok": False, "error": f"Unsupported browser mode: {params.mode}"}
             except TimeoutError as te:

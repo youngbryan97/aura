@@ -81,17 +81,17 @@ Respond with a JSON array of steps:
 [
   {{
     "id": "t1",
-    "action": "launch_app",
-    "params": {{"name": "Notes"}},
+    "action": "<one primitive from the list>",
+    "params": {{}},
     "depends_on": [],
-    "verify": "app_is_frontmost",
-    "verify_args": {{"name": "Notes"}},
-    "rollback": "close_app",
-    "rollback_params": {{"name": "Notes"}},
+    "verify": "<predicate>",
+    "verify_args": {{}},
+    "rollback": "",
+    "rollback_params": {{}},
     "fallback": "",
     "fallback_params": {{}},
     "risk": "low",
-    "description": "Open Notes app",
+    "description": "<what this step does>",
     "critical": true
   }}
 ]
@@ -103,7 +103,7 @@ Rules:
 3. Each step must have a verification predicate.
 4. Non-critical steps (like opening a tab for visual reference) can have critical: false.
 5. Include rollback actions where possible.
-6. Include fallback alternatives (e.g., TextEdit if Notes fails).
+6. Include fallback alternatives (another available app that does the same job).
 7. Use the most reliable method first (direct API > AppleScript > UI clicking).
 8. For long text, use create_text_file or clipboard+paste, NOT keystroke typing.
 9. Do NOT hardcode specific content — use placeholders like {{generated_content}}.

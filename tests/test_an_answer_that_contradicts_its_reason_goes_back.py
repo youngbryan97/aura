@@ -17,6 +17,7 @@ import asyncio
 import pytest
 
 from core.skills.sovereign_browser import SovereignBrowserSkill as S
+from tests.answers_thought_through import answered_and_thought
 
 pytestmark = pytest.mark.unit
 
@@ -90,15 +91,15 @@ def _placed_in_the_middle(monkeypatch, words: str):
     async def mind():
         return ""
 
-    async def thinking(goal, theme, mind):
-        return {item["group"]: words for item in theme}
+    async def thinking(goal, theme, mind, *, about=None):
+        return {item["group"]: words for item in ([about] if about else theme)}
 
     monkeypatch.setattr(skill, "_measure_where_she_stands", measure)
     monkeypatch.setattr(skill, "_assembled_mind", mind)
     monkeypatch.setattr(skill, "_her_thinking_about", thinking)
     monkeypatch.setattr(where_i_stand, "themes_among", lambda names: [list(range(len(names)))])
     observation = {"url": "u", "title": "t", "text": "x", "elements": _row() + _row_q2()}
-    return asyncio.run(skill._answer_each_question("take it", observation, [], None))
+    return asyncio.run(answered_and_thought(skill, "take it", observation, [], None))
 
 
 def test_a_sentence_that_leans_away_from_her_place_is_noticed_and_the_place_stands(monkeypatch):

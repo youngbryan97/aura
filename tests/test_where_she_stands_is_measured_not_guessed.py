@@ -253,4 +253,4 @@ def test_the_live_path_places_them_together():
 
     body = inspect.getsource(u._UnderstandsThePage._answer_each_question)
     assert "against_the_rest" in body
-    assert body.index("against_the_rest") < body.index("_her_thinking_about")
+    assert body.index("against_the_rest") < body.index("_thinking_for_one_answer")

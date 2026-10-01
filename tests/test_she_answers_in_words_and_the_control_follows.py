@@ -5,11 +5,12 @@ access to what she has valued, chosen or said about herself, so it takes the
 position that commits to nothing — the midpoint, item after item, measured live
 on 2026-09-28.
 
-And the reasoning is one pass over the whole screen, not one per item: eight
-items each demanding her own lane at once collide on a cortex that serves one at
-a time, "Local inference paths exhausted", and every reason falls back to the
-line the code writes when she says nothing — a screen of real measured positions
-reading as shallow.
+And the reasoning is one pass per item, made when that item is answered and
+not before: eight items each demanding her own lane at once collide on a cortex
+that serves one at a time, "Local inference paths exhausted", and every reason
+falls back to the line the code writes when she says nothing. Thinking about
+all of them first and clicking afterwards put each reason a screen away from
+its answer.
 """
 from __future__ import annotations
 
@@ -22,6 +23,7 @@ import pytest
 from core.self.where_i_stand import Choice, Lean
 from core.skills import sovereign_browser_understanding as u
 from core.skills.sovereign_browser import SovereignBrowserSkill as S
+from tests.answers_thought_through import answered_and_thought
 
 pytestmark = pytest.mark.unit
 
@@ -148,7 +150,7 @@ def _screen(monkeypatch, said: str, lane: str = "Cortex"):
 
 
 def _run(skill, observation, goal: str = "take it"):
-    return asyncio.run(skill._answer_each_question(goal, observation, [], None))
+    return asyncio.run(answered_and_thought(skill, goal, observation, [], None))
 
 
 def test_a_theme_is_thought_about_as_one_piece(monkeypatch):
@@ -167,17 +169,55 @@ def test_a_theme_is_thought_about_as_one_piece(monkeypatch):
     assert "I want to believe, but I check first." in decision["answered"][1]
 
 
-def test_the_thinking_behind_the_sentences_is_said_out_loud(monkeypatch):
-    said = (
-        '{"thinking": "Structure is how I hold truth steady.", '
-        '"each": {"Q1": "a", "Q2": "b"}}'
-    )
+def test_each_question_is_thought_about_said_answered_and_left_up_in_turn(monkeypatch):
+    """Think, say, answer, wait — and only then the next question.
+
+    LIVE 2026-09-29: every reason on a screen went by first and every dot
+    filled in afterwards, so a watcher could not tell which reason was for
+    which answer.
+    """
+    from core.skills import sovereign_browser
+
+    happened: list[str] = []
+    said = '{"each": {"Q1": "Lists hold truth steady.", "Q2": "I check first."}}'
     skill, handed = _screen(monkeypatch, said)
+
+    async def _asked(prompt: str, mind: str = "", *, shaped: bool = True, most_tokens=None):
+        happened.append("think")
+        return said, "Cortex"
+
+    async def _interact(browser, url, actions, *, action_context=None):
+        happened.append(f"click {actions[0].selector}")
+        return {"ok": True, "action_report": [{"ok": True}]}
+
+    async def _held(line: str) -> None:
+        happened.append("wait")
+
+    monkeypatch.setattr(skill, "_asked_of_her", _asked)
+    monkeypatch.setattr(skill, "_handle_interact", _interact)
+    monkeypatch.setattr(skill, "_hold_for_reading", _held)
+    monkeypatch.setattr(skill, "_say_out_loud", lambda line: happened.append(f"say {line}"))
     elements = _row("Q1") + _row("Q2", left="sceptical", right="wants to believe")
-    _run(skill, {"url": "u", "title": "t", "text": "x", "elements": elements})
-    assert any(
-        "Structure is how I hold truth steady." in line for line in handed["spoken"]
-    )
+
+    async def _go():
+        decision = await skill._answer_each_question(
+            "take it", {"url": "u", "title": "t", "text": "x", "elements": elements}, [], None
+        )
+        assert "think" not in happened, "nothing is thought about before its answer comes up"
+        moves = sovereign_browser._moves_from_the_decision(decision, [])
+        report = await skill._make_each_move(None, moves)
+        return decision, report
+
+    decision, report = asyncio.run(_go())
+    assert report["ok"]
+    kinds = [event.split(" ", 1)[0] for event in happened]
+    assert kinds == ["think", "say", "click", "wait"] * 2
+    assert "Lists hold truth steady." in happened[1]
+    assert happened[2] == "click #Q1V1"
+    assert "I check first." in happened[5]
+    # What was said is what the round records.
+    assert decision["resolved_actions"][0]["said"] in happened[1]
+    assert len(decision["answered"]) == 2
 
 
 def test_she_thinks_with_her_whole_mind(monkeypatch):
@@ -197,7 +237,7 @@ def test_what_she_reasons_over_is_the_things_not_the_arithmetic(monkeypatch):
     assert "1 of 5" in prompt
     assert "truth is the value I hold above every other" in prompt
     assert "what you value" in prompt and "chosen when it cost something" in prompt
-    assert "one piece of thinking" in prompt
+    assert "same region of you" in prompt
     handed_her = prompt.split("These are being asked about you", 1)[1]
     for arithmetic in ("+0.", "0.031"):
         assert arithmetic not in handed_her, f"the prompt hands her {arithmetic!r}"
@@ -236,8 +276,10 @@ def test_measuring_needs_no_model_at_all():
 def test_she_places_herself_before_she_thinks_about_it():
     body = inspect.getsource(u._UnderstandsThePage._answer_each_question)
     measured = body.index("_measure_where_she_stands")
-    reasoned = body.index("_her_thinking_about")
+    reasoned = body.index("_thinking_for_one_answer")
     assert measured < reasoned
+    thinking = inspect.getsource(u._UnderstandsThePage._thinking_for_one_answer)
+    assert "_her_thinking_about" in thinking
 
 
 def test_the_passes_run_one_at_a_time():
