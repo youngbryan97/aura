@@ -190,6 +190,10 @@ def test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_rel
         assert receipt["completion_recovery"] == "verified_saved_fit_without_model_loading"
         assert receipt["memory_envelope"] is None and receipt["peak_memory_bytes"] is None
     assert any(key.startswith("native_suffix.") for key in mx.load(str(tmp_path / "fit" / "selected.safetensors")))
+    initial = mx.load(str(tmp_path / "fit" / "checkpoint-0.safetensors"))
+    final = mx.load(str(tmp_path / "fit" / "checkpoint-4.safetensors"))
+    assert any(not mx.array_equal(final[key], value).item() for key, value in initial.items()
+        if key.startswith("native_suffix."))
     from tools.verify_semantic_grounded_fit import verify
     checked = verify(tmp_path / "fit")
     assert checked["native_acquisition_sha256"] and checked["artifacts_verified"]
