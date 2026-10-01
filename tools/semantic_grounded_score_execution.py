@@ -2,10 +2,40 @@
 
 from collections import defaultdict
 from dataclasses import replace
+import math
 
 import mlx.core as mx
 
 from core.learning.semantic_relational_pointer import RelationalBindingPointer
+
+
+def conditional_role_update(baseline, learned, *, weight):
+    """Normalize a multiplicative update of the complete baseline choice pool.
+
+    u_i = b_i + w*s_i - (logsumexp(b+w*s) - logsumexp(b)).
+    The fitted choice loss cannot identify a constant offset in one role's
+    logits. That offset cancels here. Uniform evidence is exactly neutral,
+    and the original slot's partition mass stays unchanged across charts.
+    No target, selected answer or construction label defines this correction.
+    """
+    baseline, learned = tuple(baseline), tuple(learned)
+    if (not baseline or len(baseline) != len(learned) or not math.isfinite(weight)
+            or weight < 0 or not all(map(math.isfinite, (*baseline, *learned)))):
+        raise ValueError("conditional update needs complete finite choice evidence")
+    # Center before scaling so large, meaningless learned offsets do not
+    # incur cancellation against an equally large partition function.
+    center = max(learned)
+    shifted = tuple(base + weight * (score - center) for base, score in zip(baseline, learned, strict=True))
+    def log_partition(values):
+        maximum = max(values)
+        return maximum + math.log(math.fsum(math.exp(value - maximum) for value in values))
+    correction = log_partition(shifted) - log_partition(baseline)
+    updated = tuple(value - correction for value in shifted)
+    if not all(map(math.isfinite, updated)):
+        raise ValueError("conditional update overflowed finite choice evidence")
+    return updated, {"policy": "conditional_likelihood_v1", "choice_count": len(baseline),
+        "learned_center": center, "centered_log_partition_delta": correction,
+        "weight": weight, "uniform_evidence_is_neutral": True, "target_available": False}
 
 
 class PooledPointer(RelationalBindingPointer):

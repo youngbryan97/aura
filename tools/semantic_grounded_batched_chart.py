@@ -22,16 +22,21 @@ from core.learning.semantic_grounded_binding_engine import (
 from core.learning.semantic_grounded_chart_bridge import GroundedBindingChartSolver
 from core.learning.semantic_program_floor import semantic_primitive_type_signature
 from core.learning.semantic_relational_pointer import semantic_role_features
-from tools.semantic_grounded_score_execution import ObservationEncoder, reduce_dominated_mentions
+from tools.semantic_grounded_score_execution import (
+    ObservationEncoder, conditional_role_update, reduce_dominated_mentions,
+)
 
 
-def execution_contract():
+def execution_contract(score_policy="raw"):
+    if score_policy not in {"raw", "conditional_likelihood"}:
+        raise ValueError("undeclared grounded relation score policy")
     helper = Path(__file__).with_name("semantic_grounded_score_execution.py")
-    return {"schema": "aura.grounded_batched_chart_execution.v2",
+    return {"schema": "aura.grounded_batched_chart_execution.v3",
         "source_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "helper_sha256": hashlib.sha256(helper.read_bytes()).hexdigest(),
         "pointer_function": "factored_fitted_pointer_vmap", "alternative_batch_size": 16,
         "candidate_pruning": "certified_same_register_definition_token_subset_only",
+        "relation_score_policy": score_policy,
         "checkpoint_mutation": False, "qualification_evidence": False,
         "serving_authority": False}
 
@@ -86,8 +91,10 @@ def conditioned_scores(pointer, evidence, alternatives, *, projection=None, batc
 
 
 class BatchedGroundedBindingChartSolver(GroundedBindingChartSolver):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, score_policy="raw", **kwargs):
         super().__init__(*args, **kwargs)
+        execution_contract(score_policy)
+        self.score_policy = score_policy
         self.observed_spans = {}
         self.encoder = ObservationEncoder(self.engine.pointer, self.engine.nuisance_projection)
 
@@ -148,12 +155,25 @@ class BatchedGroundedBindingChartSolver(GroundedBindingChartSolver):
                 locations.append((step, slot, option_index, role, register, span))
         learned = conditioned_scores(self.engine.pointer, evidence, alternatives,
             projection=self.engine.nuisance_projection, remaining=remaining, encoder=self.encoder)
-        updated = [[[] for _slot in node] for node in chart.options]
+        conditioned = [[[] for _slot in node] for node in chart.options]
+        for value, (step, slot, *_location) in zip(learned, locations, strict=True):
+            conditioned[step][slot].append(value)
+        policies, updated = {}, [[[] for _slot in node] for node in chart.options]
+        for step, node in enumerate(chart.options):
+            for slot, pool in enumerate(node):
+                if self.score_policy == "conditional_likelihood":
+                    values, policy = conditional_role_update([option[0] for option in pool],
+                        conditioned[step][slot], weight=self.engine.evidence_weight)
+                    policies[step, slot] = policy
+                else:
+                    values = tuple(option[0] + self.engine.evidence_weight * value
+                        for option, value in zip(pool, conditioned[step][slot], strict=True))
+                updated[step][slot] = [(value, register, span)
+                    for value, (_baseline, register, span) in zip(values, pool, strict=True)]
         edge_receipts = []
         for value, (step, slot, option_index, role, register, span) in zip(learned, locations, strict=True):
             score = chart.options[step][slot][option_index][0]
-            combined = score + self.engine.evidence_weight * value
-            updated[step][slot].append((combined, register, span))
+            combined = updated[step][slot][option_index][0]
             edge_receipts.append({"operation_id": step, "operation": operation_nodes[step].operation,
                 "role_instance": role.identity, "role_id": role.role, "required_type": role.type_name,
                 "candidate_id": register_keys[register], "candidate_source": records[register].source,
@@ -172,6 +192,9 @@ class BatchedGroundedBindingChartSolver(GroundedBindingChartSolver):
         self.last_resolution = {"status": resolution.status, "margin": resolution.margin, "source_id": source_id,
             "all_options_retained": True, "role_bindings": resolution.bindings, "edge_evidence": edge_receipts,
             "margin_is_probability": False, "pointer_execution": "factored_conditioned_alternatives_v2",
+            "relation_score_policy": self.score_policy,
+            "role_updates": tuple({"operation_id": step, "slot": slot, **policy}
+                for (step, slot), policy in policies.items()),
             "dominated_mention_witnesses": witnesses, "ambiguity_margin_adjustment": margin_adjustment,
             "solver_option_count": sum(len(slot) for node in augmented.options for slot in node)}
         if resolution.assignment is not None:
@@ -184,8 +207,10 @@ class BatchedGroundedBindingChartSolver(GroundedBindingChartSolver):
 
 
 class BatchedNativeChartDecoder:
-    def __init__(self, verified_decoder):
+    def __init__(self, verified_decoder, *, score_policy="raw"):
         self.owner = verified_decoder
+        execution_contract(score_policy)
+        self.score_policy = score_policy
         self.last_receipt = None
 
     def decode(self, *, source_token_ids, hidden_states, public_inputs, source_text_sha256,
@@ -211,7 +236,8 @@ class BatchedNativeChartDecoder:
         remaining = search_time_limit_s - (time.monotonic() - started)
         if remaining <= 0:
             raise TimeoutError("batched chart acquisition exhausted its allowance")
-        bridge = BatchedGroundedBindingChartSolver(owner.engine, source_text_sha256, states, max_seconds=remaining)
+        bridge = BatchedGroundedBindingChartSolver(owner.engine, source_text_sha256, states,
+            max_seconds=remaining, score_policy=self.score_policy)
         outcome = owner.parent.decode(source_token_ids=tokens, hidden_states=hidden_states, public_inputs=public_inputs,
             source_text_sha256=source_text_sha256, model_basis_sha256=model_basis_sha256,
             search_time_limit_s=remaining, binding_chart_solver=bridge)
@@ -225,5 +251,9 @@ class BatchedNativeChartDecoder:
             "examined_charts": len(bridge.resolutions), "refusal": outcome.refusal,
             "selected_step": owner.verification["selected_step"],
             "learned_checkpoint_selected": owner.verification["learned_checkpoint_selected"],
-            "target_available_to_decoder": False, "execution": execution_contract(), "serving_authority": False}
+            "target_available_to_decoder": False, "execution": execution_contract(self.score_policy),
+            "chart_diagnostics": tuple({key: resolution.get(key) for key in (
+                "status", "margin", "graph_signature", "argument_graph_score", "relation_score_policy",
+                "role_updates", "solver_option_count")} for resolution in bridge.resolutions),
+            "serving_authority": False}
         return outcome

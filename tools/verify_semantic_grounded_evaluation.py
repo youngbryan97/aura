@@ -124,7 +124,7 @@ def verify(path, directory):
     plan = json.loads(read_stable_bytes(path.with_suffix(".plan.json"), max_bytes=64 * 1024 ** 2))
     if plan.get("chart_execution", "individual") == "batched":
         from tools.semantic_grounded_batched_chart import execution_contract
-        if plan.get("execution_contract") != execution_contract():
+        if plan.get("execution_contract") != execution_contract(plan.get("relation_score_policy", "raw")):
             raise ValueError("joint development batched execution changed")
     if (plan["implementation"] != implementation_receipt()
             or plan["evaluator_sha256"] != hashlib.sha256((ROOT / "tools/evaluate_semantic_grounded_native.py").read_bytes()).hexdigest()):

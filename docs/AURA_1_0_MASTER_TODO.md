@@ -1474,6 +1474,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Joint score identifiability](evidence/G03_JOINT_SCORE_IDENTIFIABILITY_2026-10-01.md)
+  records a completed but wrong sixteen-chart replay: positive absolute
+  pointer offsets rewarded an unnecessary operation. A declared conditional
+  likelihood update removes that unidentifiable role offset without new
+  fitting, target information or lost alternatives. Paired replay is pending.
   The batched real canary completed eleven charts but still timed out.
   [Execution version two](evidence/G03_JOINT_CHART_BATCHING_2026-10-01.md)
   factors unchanged independent projections and certifies redundant mention

@@ -159,3 +159,57 @@ def test_reduction_preserves_ambiguity_tolerance_from_every_original_option():
     actual = reduced.solve_grounded(context, roles, keys, minimum_margin=adjustment)
     assert expected.status == actual.status == "ambiguous"
     assert actual.margin == pytest.approx(expected.margin, abs=1e-8)
+
+
+@pytest.mark.parametrize("offset", [-70., 0., 70., 1000.])
+@pytest.mark.parametrize("weight", [0., .25, 1., 2.])
+def test_conditional_relation_update_is_offset_invariant_and_preserves_baseline_mass(offset, weight):
+    from scipy.special import logsumexp
+    from tools.semantic_grounded_score_execution import conditional_role_update
+
+    baseline, learned = (5., -2., 3., 1.), (1., 4., 2., -3.)
+    expected, _ = conditional_role_update(baseline, learned, weight=weight)
+    actual, receipt = conditional_role_update(baseline, [value + offset for value in learned], weight=weight)
+    np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
+    assert logsumexp(actual) == pytest.approx(logsumexp(baseline), abs=1e-12)
+    assert np.argmax(actual) == np.argmax(np.asarray(baseline) + weight * np.asarray(learned))
+    neutral, _ = conditional_role_update(baseline, [offset] * len(baseline), weight=weight)
+    assert neutral == baseline
+    assert receipt["uniform_evidence_is_neutral"] and not receipt["target_available"]
+
+
+def test_uniform_pointer_bias_cannot_reward_an_unnecessary_operation():
+    from tools.semantic_grounded_score_execution import conditional_role_update
+
+    correct_baseline, extra_baseline = ((5., 0.),) * 6, ((5., 0.),) * 8
+    operation_scores = (10., -7.)
+    raw = [sum(max(value + 70. for value in slot) for slot in graph) + operation
+        for graph, operation in zip((correct_baseline, extra_baseline), operation_scores, strict=True)]
+    assert raw[1] > raw[0]
+    normalized = [sum(max(conditional_role_update(slot, (70., 70.), weight=1.)[0])
+        for slot in graph) + operation
+        for graph, operation in zip((correct_baseline, extra_baseline), operation_scores, strict=True)]
+    assert normalized[0] > normalized[1]
+
+
+def test_conditional_relation_policy_changes_only_the_declared_chart_score_update():
+    from tests.test_semantic_grounded_chart_bridge import fixture
+
+    individual, chart, arguments = fixture()
+    bridge = BatchedGroundedBindingChartSolver(individual.engine, individual.source_id,
+        individual.depth_states, score_policy="conditional_likelihood")
+    result = bridge(chart, **arguments)
+    assert result is not None
+    assert bridge.last_resolution["relation_score_policy"] == "conditional_likelihood"
+    assert len(bridge.last_resolution["role_updates"]) == 2
+    assert len(bridge.last_resolution["edge_evidence"]) == 4
+    assert all(policy["choice_count"] == 2 and not policy["target_available"]
+        for policy in bridge.last_resolution["role_updates"])
+
+
+@pytest.mark.parametrize("baseline,learned,weight", [([], [], 1.), ([0.], [], 1.),
+    ([0.], [mx.nan], 1.), ([0.], [0.], -1.)])
+def test_conditional_role_update_rejects_incomplete_nonfinite_or_negative_weight(baseline, learned, weight):
+    from tools.semantic_grounded_score_execution import conditional_role_update
+    with pytest.raises(ValueError, match="complete finite"):
+        conditional_role_update(baseline, learned, weight=weight)

@@ -100,9 +100,12 @@ def main(argv=None):
     parser.add_argument("--search-seconds", type=float, default=30.)
     parser.add_argument("--profile-source-id", help="One exposed development request; never advancement evidence")
     parser.add_argument("--chart-execution", choices=("individual", "batched"), default="individual")
+    parser.add_argument("--relation-score-policy", choices=("raw", "conditional_likelihood"), default="raw")
     args = parser.parse_args(argv)
     if args.output.exists() or not math.isfinite(args.search_seconds) or not 0 < args.search_seconds <= 300:
         parser.error("evaluation needs a fresh output and bounded search")
+    if args.relation_score_policy != "raw" and args.chart_execution != "batched":
+        parser.error("conditional relation scoring requires its declared execution variant")
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
         load_source_examples,
@@ -157,12 +160,13 @@ def main(argv=None):
     gc.collect()
     implementation = implementation_receipt()
     from tools.semantic_grounded_batched_chart import execution_contract
-    execution = execution_contract() if args.chart_execution == "batched" else None
+    execution = execution_contract(args.relation_score_policy) if args.chart_execution == "batched" else None
     evaluator_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     plan = {"schema": "aura.grounded_native_development_plan.v1", "fit_verification": verified,
         "bank_plan_sha256": outer["plan_sha256"], "held_ids": [item.ir.source_text_sha256 for item in held],
         "profile_only": args.profile_source_id is not None,
         "chart_execution": args.chart_execution, "execution_contract": execution,
+        "relation_score_policy": args.relation_score_policy,
         "search_seconds": args.search_seconds, "arms": ["source_parent", "global_chart", "joint_native"],
         "implementation": implementation, "evaluator_sha256": evaluator_sha,
         "source_report_sha256": hashlib.sha256(raw["source"]).hexdigest(),
@@ -180,7 +184,7 @@ def main(argv=None):
         decoder = GroundedNativeChartDecoder.from_fit(model, directory=args.directory, parent_bytes=raw["parent"], spec=spec)
         if args.chart_execution == "batched":
             from tools.semantic_grounded_batched_chart import BatchedNativeChartDecoder
-            decoder = BatchedNativeChartDecoder(decoder)
+            decoder = BatchedNativeChartDecoder(decoder, score_policy=args.relation_score_policy)
         chart = parent.with_global_constraint_arguments().with_joint_operation_argument_scores()
         arms = {name: PublicDecodeArm(owner, receipt=digest({"arm": name, "plan": plan["plan_sha256"]}),
             search_seconds=args.search_seconds, name=name,
@@ -203,7 +207,7 @@ def main(argv=None):
             mx.clear_cache()
     if implementation_receipt() != implementation or hashlib.sha256(Path(__file__).read_bytes()).hexdigest() != evaluator_sha:
         raise ValueError("joint development implementation changed during evaluation")
-    if execution is not None and execution_contract() != execution:
+    if execution is not None and execution_contract(args.relation_score_policy) != execution:
         raise ValueError("joint batched execution changed during evaluation")
     body = {"schema": "aura.grounded_native_development.v1", "plan": plan, **comparison,
         "g03_complete": False, "fresh_transfer_proven": False}
