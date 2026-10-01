@@ -1474,6 +1474,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Joint chart batching](evidence/G03_JOINT_CHART_BATCHING_2026-10-01.md)
+  diagnoses 16,655 repeated pointer calls in one timed-out public request and
+  adds a declared, bounded vmap execution variant without refitting or
+  changing selected weights. Fixture equivalence is not language success.
   [Joint development screen](evidence/G03_JOINT_DEVELOPMENT_SCREEN_2026-10-01.md)
   compares the source parent, existing global chart and complete trained
   joint path through public-only decode and the existing source-anchor

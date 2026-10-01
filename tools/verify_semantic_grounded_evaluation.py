@@ -92,6 +92,7 @@ def verify_report(report, plan, fit):
                         or receipt.get("weights_sha256") != fit["weights_sha256"]
                         or receipt.get("selected_step") != fit["selected_step"]
                         or receipt.get("learned_checkpoint_selected") is not True
+                        or receipt.get("execution") != plan.get("execution_contract")
                         or receipt.get("refusal") != decoded["refusal"]
                         or (receipt.get("selected_chart") is None) != (decoded["program_sha256"] is None)
                         or receipt.get("selected_chart") is not None and receipt["selected_chart"].get("status") != "bound"):
@@ -121,6 +122,10 @@ def verify(path, directory):
     path = Path(path)
     report = json.loads(read_stable_bytes(path, max_bytes=64 * 1024 ** 2))
     plan = json.loads(read_stable_bytes(path.with_suffix(".plan.json"), max_bytes=64 * 1024 ** 2))
+    if plan.get("chart_execution", "individual") == "batched":
+        from tools.semantic_grounded_batched_chart import execution_contract
+        if plan.get("execution_contract") != execution_contract():
+            raise ValueError("joint development batched execution changed")
     if (plan["implementation"] != implementation_receipt()
             or plan["evaluator_sha256"] != hashlib.sha256((ROOT / "tools/evaluate_semantic_grounded_native.py").read_bytes()).hexdigest()):
         raise ValueError("joint development implementation changed")
