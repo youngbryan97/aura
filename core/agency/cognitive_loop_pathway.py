@@ -386,7 +386,7 @@ async def _publish_result_to_workspace(
 ) -> dict[str, Any]:
     """Offer the thought to attention without retaining it as a belief."""
     try:
-        from core.consciousness.global_workspace import ContentType
+        from core.consciousness.workspace_candidate import ContentType
         from core.container import ServiceContainer
 
         workspace = ServiceContainer.get("global_workspace", default=None)

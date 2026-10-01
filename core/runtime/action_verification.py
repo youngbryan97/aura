@@ -13,7 +13,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from pathlib import Path
 from typing import Any
 
-from core.governance.will import ActionDomain
+from core.governance.action_domain import ActionDomain
 from core.runtime.skill_contract import ActionExpectation
 
 logger = logging.getLogger(__name__)

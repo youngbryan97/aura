@@ -8,7 +8,7 @@ from typing import Any, Dict, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from core.governance.will import ActionDomain
+from core.governance.action_domain import ActionDomain
 from core.runtime.action_executor import ActionExecutor
 from core.runtime.errors import record_degradation
 from core.skills.base_skill import BaseSkill

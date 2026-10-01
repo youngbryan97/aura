@@ -11,7 +11,7 @@ import numpy as np
 
 from core.subject.causal import SUSTAINED
 from core.subject.intrinsic_v25 import characteristic_signature
-from core.subject.state import perturb, perturb_organs
+from core.subject.perturbation import perturb, perturb_organs
 from core.subject.v25_runtime import Anchor, lag_vector
 
 

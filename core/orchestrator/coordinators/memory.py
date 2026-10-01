@@ -267,7 +267,7 @@ class MemoryCoordinator:
 
             router = ServiceContainer.get("llm_router")
             if router:
-                from core.brain.llm.llm_router import LLMTier
+                from core.brain.llm.llm_tier import LLMTier
 
                 # Run this as a background task on a fast model
                 summary = await router.think(

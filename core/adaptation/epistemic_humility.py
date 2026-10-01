@@ -197,7 +197,7 @@ class EpistemicHumility:
             # raised ImportError and was swallowed by the handler below —
             # heuristic induction has never once produced a rule. The router's
             # actual API is think(prompt=...) returning a string.
-            from core.brain.llm.llm_router import LLMTier
+            from core.brain.llm.llm_tier import LLMTier
 
             response = await llm.think(
                 prompt=prompt,

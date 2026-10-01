@@ -409,7 +409,7 @@ class HierarchicalAgency:
             )
 
         try:
-            from core.governance.will import ActionDomain
+            from core.governance.action_domain import ActionDomain
             from core.runtime.action_executor import ActionExecutor
 
             admission = ActionExecutor.authorize_action(

@@ -415,7 +415,7 @@ def _parts_the_request_counted(text: str) -> int:
     counted units, so this does not become a second opinion about numbers.
     """
     try:
-        from core.conversation.response_reliability import requested_count
+        from core.conversation.response_reliability_requests import requested_count
 
         return int(requested_count(text, *_COUNTED_PARTS) or 0)
     except (ImportError, AttributeError, TypeError, ValueError) as exc:

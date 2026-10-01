@@ -213,7 +213,7 @@ Recent Interactions:
 {memory_text}
 """
         try:
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
 
             if not hasattr(self.orchestrator, "cognitive_engine"):
                 logger.warning("No cognitive engine available for evolution.")

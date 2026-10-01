@@ -115,7 +115,7 @@ class LearningEvolutionMixin:
             # 2. Use LLM to extract structured knowledge (if cognitive engine available)
             if self.cognitive_engine:
                 try:
-                    from core.brain.cognitive_engine import ThinkingMode
+                    from core.brain.types import ThinkingMode
 
                     extraction_prompt = (
                         "Extract any factual knowledge, user preferences, or skills demonstrated "

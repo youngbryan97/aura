@@ -175,7 +175,7 @@ class SelfImprovementSkill(BaseSkill):
         if brain is not None:
             try:
                 self.cognitive = brain
-                from core.brain.cognitive_engine import ThinkingMode
+                from core.brain.types import ThinkingMode
 
                 reflection = await brain.think(
                     f"[{prompt}]\n\n{knowledge_text}",
@@ -226,7 +226,7 @@ class SelfImprovementSkill(BaseSkill):
                     "TASK: Reflect on your current state and propose 3 specific technical upgrades for your v3.5.5 architecture.\n"
                     "Focus on autonomy, resilience, and speed. Be technical and dry."
                 )
-                from core.brain.cognitive_engine import ThinkingMode
+                from core.brain.types import ThinkingMode
 
                 reflection = await brain.think(prompt, mode=ThinkingMode.REFLECTIVE)
                 improvement_plan = [line for line in reflection.content.split("\n") if line.strip()]

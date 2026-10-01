@@ -171,7 +171,7 @@ class SovereignPruner:
             # Route memory consolidation through the 7B background lane so
             # housekeeping never steals the cortex's conversation brain.
             if hasattr(brain, "think"):
-                from core.brain.cognitive_engine import ThinkingMode
+                from core.brain.types import ThinkingMode
 
                 thought = await asyncio.wait_for(
                     brain.think(

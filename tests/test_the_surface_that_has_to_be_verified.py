@@ -25,18 +25,25 @@ from tools.lint_convergence_surface import BASELINE, HOW_MANY_KEPT, measure
 
 
 def test_a_utility_is_not_a_convergence_surface():
-    """Fan-in alone is a utility. Everything imports the logger."""
+    """Fan-in alone is a utility. Everything imports the logger.
+
+    The example used to be the cognitive engine, reached by fifty and reaching
+    sixty. Forty of the fifty came for an enum it re-exported, and once they
+    took it from where it lives the engine stopped being the worst shape, so
+    the example is whichever module the measure ranks first.
+    """
 
     now = measure()
     by_name = {one["module"]: one for one in now["worst"]}
     errors = by_name.get("core.runtime.errors")
-    engine = by_name.get("core.brain.cognitive_engine")
-    if errors is None or engine is None:
-        pytest.skip("the tree no longer has both of these")
-    assert errors["paths"] > engine["paths"], "the error sink should mediate more"
-    assert engine["surface"] > errors["surface"], (
-        "a module reached by fifty and reaching sixty is the dangerous shape; "
-        "one reached by a thousand and reaching eleven is a utility"
+    if errors is None:
+        pytest.skip("the error sink is no longer among the worst")
+    first = now["worst"][0]
+    assert first["module"] != "core.runtime.errors", "a utility ranked first"
+    assert errors["paths"] > first["paths"], "the error sink should mediate more"
+    assert first["surface"] > errors["surface"], (
+        "a module many reach and that reaches many is the dangerous shape; "
+        "one reached by a thousand and reaching a dozen is a utility"
     )
 
 

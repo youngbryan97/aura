@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from core.config import config
-from core.governance.will import ActionDomain
+from core.governance.action_domain import ActionDomain
 from core.reality_reach.actuation import (
     ActuationCommand,
     ActuationLease,

@@ -334,7 +334,7 @@ def _prime_requested_output_contract_trace(
     """Bind the user-authored contract before any early return can occur."""
 
     try:
-        from core.conversation.response_reliability import requested_output_contract
+        from core.conversation.response_reliability_requests import requested_output_contract
 
         contract = requested_output_contract(user_message)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:

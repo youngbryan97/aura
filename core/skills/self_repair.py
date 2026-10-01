@@ -7,7 +7,7 @@ learning system to remember what worked.
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 from core.runtime.action_executor import ActionExecutor
-from core.governance.will import ActionDomain
+from core.governance.action_domain import ActionDomain
 import logging
 import re
 import time

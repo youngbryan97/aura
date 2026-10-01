@@ -1307,7 +1307,7 @@ Keep uncertainty and retain factual fidelity. Do not invent connections that are
 Be concise (1-2 sentences). Extract the universal pattern."""
 
         try:
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
 
             result = await brain.think(prompt, mode=ThinkingMode.FAST, max_tokens=150)
             return result.content if hasattr(result, "content") else str(result)

@@ -524,7 +524,7 @@ class HierarchicalPlanner:
         if not goal or not router:
             return []
         try:
-            from core.brain.llm.llm_router import LLMTier
+            from core.brain.llm.llm_tier import LLMTier
 
             nonce = f"{int(time.time() * 1000) % 10**10:010d}"
             prompt = (

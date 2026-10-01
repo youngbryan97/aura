@@ -460,7 +460,7 @@ class MessageCoordinator:
         """v5.2: Stream tokens from the cognitive engine.
         Bypasses wait-loops and queues for maximum speed.
         """
-        from core.brain.cognitive_engine import ThinkingMode
+        from core.brain.types import ThinkingMode
 
         orch = self.orch
         message = _safe_text(message, max_chars=MAX_MESSAGE_CHARS)

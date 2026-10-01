@@ -427,7 +427,7 @@ async def perturb_organs(
         # to change the outcome, which is the workspace intervention the
         # specification asks for: perturb one workspace content.
         try:
-            from core.consciousness.global_workspace import CognitiveCandidate, ContentType
+            from core.consciousness.workspace_candidate import CognitiveCandidate, ContentType
 
             # The runner-up, raised until it wins. A displacement of attention
             # is a change in what wins the competition among what is actually

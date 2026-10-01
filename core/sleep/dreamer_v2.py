@@ -340,7 +340,7 @@ class DreamerV2:
             """
             
             # 3. Think (Dreaming) — properly async
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
             insight_thought = await self.brain.think(
                 prompt,
                 mode=ThinkingMode.CREATIVE,

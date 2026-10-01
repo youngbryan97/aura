@@ -90,7 +90,7 @@ class NarratorService:
         )
 
         try:
-            from core.brain.llm.llm_router import LLMTier
+            from core.brain.llm.llm_tier import LLMTier
             # Shift LLM to 'Translate' mode
             response = await self.llm_router.think(
                 prompt=prompt,

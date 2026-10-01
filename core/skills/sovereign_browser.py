@@ -21,7 +21,7 @@ from core.capabilities.browser_authority import (
 )
 from core.capabilities.phantom_browser import PhantomBrowser
 from core.governance_context import get_active_governance
-from core.governance.will import ActionDomain
+from core.governance.action_domain import ActionDomain
 from core.runtime.action_executor import ActionExecutor
 from core.runtime.errors import record_degradation
 from core.runtime.still_getting_somewhere import it_got_somewhere

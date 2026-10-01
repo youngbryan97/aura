@@ -1132,7 +1132,7 @@ class StreamOfBeing:
             return False
 
         try:
-            from core.brain.llm_health_router import generation_gate_snapshot
+            from core.brain.llm_health_router_gate_readings import generation_gate_snapshot
 
             gate_snapshot = generation_gate_snapshot()
             if int(gate_snapshot.get("active_count", 0) or 0) > 0:

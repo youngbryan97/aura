@@ -573,7 +573,7 @@ class CELBridge:
     async def _on_expression(self, se: StateExpression):
         """Publish the expression to GlobalWorkspace as a candidate."""
         try:
-            from core.consciousness.global_workspace import CognitiveCandidate
+            from core.consciousness.workspace_candidate import CognitiveCandidate
             from core.container import ServiceContainer
 
             ws = ServiceContainer.get("global_workspace", default=None)

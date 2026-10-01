@@ -449,7 +449,7 @@ class IntentClassifierQueue:
                 f"Message: {message[:500]}"
             )
 
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
             response = await cognition.think(
                 objective=prompt, context={"output_shape": "json_object"}, mode=ThinkingMode.FAST
             )

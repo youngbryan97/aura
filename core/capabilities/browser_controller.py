@@ -426,7 +426,7 @@ class BrowserController:
 
         An unreachable Will is a refusal, not a grant.
         """
-        from core.governance.will import ActionDomain
+        from core.governance.action_domain import ActionDomain
         from core.runtime.action_executor import ActionExecutor
 
         try:

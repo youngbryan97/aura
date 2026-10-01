@@ -410,7 +410,7 @@ class NarrativeEngine:
         )
 
         try:
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
             brain = self.orchestrator.cognitive_engine
             if not brain: return None
 

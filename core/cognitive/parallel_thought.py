@@ -15,7 +15,7 @@ class ParallelThoughtStream:
         
     async def branch(self, objective: str, context: str) -> List[Dict[str, str]]:
         """Generate 3 parallel thoughts/hypotheses for the current context."""
-        from core.brain.llm.llm_router import LLMTier
+        from core.brain.llm.llm_tier import LLMTier
         router = self.container.get("llm_router", default=None)
         
         if not router:

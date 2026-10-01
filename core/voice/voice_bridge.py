@@ -67,7 +67,7 @@ class VoiceConversationBridge:
         if engine is None or not hasattr(engine, "think"):
             return None
         try:
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
 
             desktop_execution_contract = self._looks_like_desktop_objective(text)
             context = {

@@ -235,7 +235,7 @@ class MessagePipelineMixin:
     async def _generate_fallback(self, message: str) -> str:
         """Fast fallback when agentic loop fails (transparent)."""
         try:
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
 
             hist_snippet = (
                 self.conversation_history[-3:]

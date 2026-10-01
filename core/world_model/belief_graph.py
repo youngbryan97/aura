@@ -759,7 +759,7 @@ class BeliefGraph:
     async def predict_outcome(self, action: str, context: str, brain: Any) -> str:
         prompt = f"Action: {action}\nContext: {context}\nPredict the outcome. Be concise."
         try:
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
             response = await brain.think(prompt, mode=ThinkingMode.FAST)
             return response.content
         except (ImportError, AttributeError, RuntimeError) as e:
@@ -770,7 +770,7 @@ class BeliefGraph:
     async def calculate_surprise(self, expectation: str, reality: str, brain: Any) -> float:
         prompt = f"Expected: {expectation}\nActual: {reality}\nRate Surprise (0.0 to 1.0). Return ONLY the number."
         try:
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
             response = await brain.think(prompt, mode=ThinkingMode.FAST)
             match = re.search(r"(\d+(\.\d+)?)", response.content)
             return float(match.group(1)) if match else 0.5

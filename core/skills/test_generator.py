@@ -195,7 +195,7 @@ class TestGeneratorSkill(BaseSkill):
                 Respond ONLY with the Python code for the test. Focus on edge cases and functional correctness.
                 """
                 try:
-                    from core.brain.cognitive_engine import ThinkingMode
+                    from core.brain.types import ThinkingMode
 
                     thought = await asyncio.wait_for(
                         brain.think(

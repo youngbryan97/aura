@@ -20,7 +20,6 @@ import re
 import threading
 import time
 from collections import OrderedDict
-from enum import StrEnum
 from functools import partial
 from typing import Any
 from urllib.parse import urlsplit
@@ -28,6 +27,10 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from core.brain.llm.deferral_record import record_deferral
+from core.brain.llm.llm_tier import (  # noqa: F401  (re-exported: they were defined here)
+    LLMTier,
+    LLMTierAlias,
+)
 from core.brain.llm.model_registry import (
     DEEP_ENDPOINT,
     audit_lane_assignments,
@@ -199,24 +202,6 @@ class BoundedLRUCache:
             self._cache[key] = (value, time.monotonic() + self._ttl)
             while len(self._cache) > self._maxsize:
                 self._cache.popitem(last=False)
-
-
-class LLMTier(StrEnum):
-    """LLM quality tiers"""
-
-    PRIMARY = "primary"          # Local powerful, best quality
-    SECONDARY = "secondary"      # Local medium, good quality
-    TERTIARY = "tertiary"        # Local lightweight, basic quality
-    EMERGENCY = "emergency"      # Fallback to rule-based
-
-
-
-class LLMTierAlias:
-    """Compatibility labels for local tiers; they do not denote remote APIs."""
-    API_DEEP   = "api_deep"
-    API_FAST   = "api_fast"
-    LOCAL      = "local"
-    EMERGENCY  = "emergency"
 
 
 TIER_ALIAS_MAP: dict[str, LLMTier] = {

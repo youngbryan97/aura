@@ -371,7 +371,7 @@ class BoundedValueModel:
         if not judgment.permitted:
             return judgment  # already refusing; Will only tightens, never loosens
         try:
-            from core.governance.will import ActionDomain
+            from core.governance.action_domain import ActionDomain
             from core.runtime.action_executor import ActionExecutor
 
             admission = ActionExecutor.authorize_action(

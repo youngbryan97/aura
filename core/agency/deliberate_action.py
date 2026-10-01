@@ -1181,7 +1181,7 @@ def _announce(deliberation: Deliberation, control_point: str) -> None:
     if deliberation.chosen is None:
         return
     try:
-        from core.consciousness.global_workspace import ContentType  # noqa: PLC0415
+        from core.consciousness.workspace_candidate import ContentType  # noqa: PLC0415
         from core.container import ServiceContainer  # noqa: PLC0415
 
         workspace = ServiceContainer.get("global_workspace", default=None)
@@ -1512,7 +1512,7 @@ def confirm(
 def _announce_outcome(deliberation: Deliberation, attempt: Attempt, verdict: Verdict) -> None:
     """Offer what actually happened, so a broken prediction can be said too."""
     try:
-        from core.consciousness.global_workspace import ContentType  # noqa: PLC0415
+        from core.consciousness.workspace_candidate import ContentType  # noqa: PLC0415
         from core.container import ServiceContainer  # noqa: PLC0415
 
         workspace = ServiceContainer.get("global_workspace", default=None)

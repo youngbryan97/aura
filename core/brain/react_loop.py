@@ -78,7 +78,7 @@ def _network_response_text(response: dict[str, Any], *, context: str) -> str:
 
 def _thinking_mode_default():
     """Resolve ThinkingMode.DEEP lazily to avoid a hard import cycle at module load."""
-    from core.brain.cognitive_engine import ThinkingMode
+    from core.brain.types import ThinkingMode
     return ThinkingMode.DEEP
 
 
@@ -957,7 +957,7 @@ class ReActLoop:
         if self._is_simple_query(query) and allow_simple_query_bypass(query, context):
             logger.debug("ReAct: Simple query detected, bypassing reasoning loop")
             try:
-                from core.brain.cognitive_engine import ThinkingMode
+                from core.brain.types import ThinkingMode
                 thought = await self.brain.think(query, mode=ThinkingMode.FAST, priority=context.get("priority", False))
                 content = thought.content if hasattr(thought, 'content') else str(thought)
                 trace.final_answer = content
@@ -1112,7 +1112,7 @@ class ReActLoop:
                             f"Provide a final synthesized answer to: {query}"
                         )
                         try:
-                            from core.brain.cognitive_engine import ThinkingMode
+                            from core.brain.types import ThinkingMode
                             res = await self.brain.think(synthesis_prompt, mode=ThinkingMode.FAST)
                             trace.final_answer = res.content if hasattr(res, 'content') else str(res)
                         except (ImportError, AttributeError, RuntimeError):

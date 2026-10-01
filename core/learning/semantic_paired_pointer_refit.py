@@ -116,7 +116,7 @@ def refit_compositional_paired_operation_pointer(
     ranking: bool=False,
 ) -> Any:
     """Replace the operation pointer; calibrate length without fitting validation."""
-    from core.learning.semantic_program_transducer_fitting import _select_operation_length_penalty
+    from core.learning.semantic_program_transducer_fitting_chart_calibration import _select_operation_length_penalty
 
     training = tuple(item for item in examples if item.split == "train")
     validation = tuple(item for item in examples if item.split == "validation")

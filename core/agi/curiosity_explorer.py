@@ -743,7 +743,7 @@ class CuriosityExplorer:
     ) -> ExplorationOutcome:
         del orchestrator
         try:
-            from core.brain.llm.llm_router import LLMTier
+            from core.brain.llm.llm_tier import LLMTier
             from core.container import ServiceContainer
 
             router = ServiceContainer.get("llm_router", default=None)

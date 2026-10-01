@@ -130,7 +130,7 @@ class KnowledgeExtractor:
         if not self.orch.cognitive_engine:
             return
         try:
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
 
             extraction_prompt = (
                 "Extract any factual knowledge, user preferences, or skills demonstrated "

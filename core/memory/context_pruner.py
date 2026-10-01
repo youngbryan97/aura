@@ -21,7 +21,7 @@ class ContextPruner:
         """Compress conversation history.
         Strategy: Summarize the oldest segments, keep the recent context raw.
         """
-        from core.brain.cognitive_engine import ThinkingMode
+        from core.brain.types import ThinkingMode
 
         # Only prune if history is substantial
         if len(history) < 60:

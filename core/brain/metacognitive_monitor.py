@@ -5,7 +5,7 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from core.brain.llm.llm_router import LLMTier
+from core.brain.llm.llm_tier import LLMTier
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
 

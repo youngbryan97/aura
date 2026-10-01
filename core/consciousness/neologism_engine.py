@@ -408,7 +408,7 @@ Task:
 Reply as JSON: {{"word": "...", "definition": "...", "example": "..."}}
 Only reply with the JSON, nothing else."""
 
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
 
             thought = await brain.think(
                 prompt,

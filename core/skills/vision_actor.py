@@ -103,7 +103,7 @@ class VisionActorSkill(BaseSkill):
                 return None
             
             # Use Brain's unified think with images
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
             response = await brain.think(
                 prompt=f"ACTOR_IMAGE_PARSE: {prompt}",
                 images=[image_b64],

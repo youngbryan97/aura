@@ -40,7 +40,7 @@ class CognitiveManager:
         if not self.initialized:
             raise RuntimeError("CognitiveManager not initialized")
             
-        from core.brain.cognitive_engine import ThinkingMode
+        from core.brain.types import ThinkingMode
         try:
             from core.thought_stream import get_emitter
         except ImportError:

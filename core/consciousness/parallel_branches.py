@@ -522,7 +522,7 @@ class BranchManager:
 
         # Submit to Global Workspace
         try:
-            from core.consciousness.global_workspace import CognitiveCandidate, ContentType
+            from core.consciousness.workspace_candidate import CognitiveCandidate, ContentType
 
             workspace = ServiceContainer.get("global_workspace", default=None)
             if workspace:

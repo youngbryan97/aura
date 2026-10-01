@@ -48,7 +48,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from core.governance.will import ActionDomain
+from core.governance.action_domain import ActionDomain
 from core.runtime.action_executor import ActionExecutor
 from core.runtime.atomic_writer import async_atomic_write_text, atomic_write_text
 from core.runtime.errors import record_degradation

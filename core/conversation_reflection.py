@@ -399,7 +399,7 @@ class ConversationReflector:
                 )
                 reflection = result.get("content", "").strip()
             elif hasattr(brain, 'think'):
-                from core.brain.cognitive_engine import ThinkingMode
+                from core.brain.types import ThinkingMode
                 # The transcript rides in context as data; the objective is
                 # a fixed instruction the conversation cannot rewrite.
                 thought = await brain.think(

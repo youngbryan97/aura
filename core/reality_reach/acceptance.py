@@ -452,7 +452,7 @@ class ScalarAcceptanceRunner:
         return acceptance_governance_accepted(evidence)
 
     async def _run_governed(self) -> ConnectorAcceptanceCertificate:
-        from core.governance.will import ActionDomain
+        from core.governance.action_domain import ActionDomain
         from core.runtime.action_executor import ActionExecutor
         from core.runtime.skill_contract import ActionExpectation
 

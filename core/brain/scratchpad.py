@@ -224,7 +224,7 @@ class ScratchpadEngine(AuraBaseModule):
         deadline: float,
     ) -> str:
         """First pass. The objective and history are DATA, not instructions."""
-        from core.brain.cognitive_engine import ThinkingMode
+        from core.brain.types import ThinkingMode
 
         history = self._recent_history(context)
         prompt = (
@@ -254,7 +254,7 @@ class ScratchpadEngine(AuraBaseModule):
         the next instruction, so an injection surviving one pass was promoted
         to instruction status on the next and amplified with each refinement.
         """
-        from core.brain.cognitive_engine import ThinkingMode
+        from core.brain.types import ThinkingMode
 
         prompt = (
             "Critique the draft plan in the fenced block below against the "

@@ -1514,7 +1514,7 @@ class MetabolicCoordinator(_TriggersTheImpulses):
             if not recent:
                 return
             chat_text = "\n".join([f"{m['role']}: {m.get('content', '')}" for m in recent])
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
             summary_prompt = (
                 "Review this recent conversation fragment and extract 3-5 key 'long-term' facts "
                 "or user preferences learned. Format as single-sentence declarations. "

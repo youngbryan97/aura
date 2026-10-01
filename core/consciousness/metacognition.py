@@ -414,7 +414,7 @@ Output as a technical 'Sovereign Directive'."""
         
         try:
              # Escalating to REFLECTIVE mode for self-audit
-             from core.brain.cognitive_engine import ThinkingMode
+             from core.brain.types import ThinkingMode
              thought = await self.brain.think(prompt, mode=ThinkingMode.REFLECTIVE)
              return thought.content
         except (ImportError, AttributeError, RuntimeError) as e:

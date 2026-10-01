@@ -220,10 +220,7 @@ async def _push_workspace(state: Arbitrated) -> dict[str, Any]:
     if not state.attention:
         return {"moved": False}
     try:
-        from core.consciousness.global_workspace import (
-            CognitiveCandidate,
-            ContentType,
-        )
+        from core.consciousness.workspace_candidate import CognitiveCandidate, ContentType
 
         workspace = optional_service("global_workspace", default=None)
         if workspace is None or not hasattr(workspace, "submit"):

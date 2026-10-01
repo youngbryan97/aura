@@ -270,7 +270,7 @@ def _sections_asked_for(request: object) -> int:
     version of this did.
     """
     try:
-        from core.conversation.response_reliability import requested_count
+        from core.conversation.response_reliability_requests import requested_count
 
         return requested_count(request, *_SECTION_UNITS) or 0
     except (ImportError, AttributeError, TypeError, ValueError) as exc:

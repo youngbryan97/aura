@@ -305,7 +305,7 @@ class CognitiveCoordinator:
         if not is_simple:
             return None
         logger.info("🏎️ FAST-PATH: Bypassing Agentic Loop.")
-        from core.brain.cognitive_engine import ThinkingMode
+        from core.brain.types import ThinkingMode
         context = orch._get_cleaned_history_context(10)
         p_ctx = orch._get_personality_context()
         if p_ctx:
@@ -595,7 +595,7 @@ class CognitiveCoordinator:
         """Fast fallback when agentic loop fails."""
         orch = self.orch
         try:
-            from core.brain.cognitive_engine import ThinkingMode
+            from core.brain.types import ThinkingMode
             hist_snippet = orch.conversation_history[-3:] if isinstance(orch.conversation_history, list) else []
             t = await orch.cognitive_engine.think(message, {"history": hist_snippet}, ThinkingMode.FAST)
             if not t or not hasattr(t, "content") or not t.content:
