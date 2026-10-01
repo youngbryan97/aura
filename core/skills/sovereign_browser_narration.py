@@ -73,7 +73,7 @@ class _NarratesTheBrowsing:
         elif decision.get("done") is True and not decision.get("actions"):
             said = f"I think this is finished. {why}" if why else "I think this is finished."
         elif any(
-            str(item.get("said") or "").strip()
+            str(item.get("said") or "").strip() or callable(item.get("think"))
             for item in (decision.get("resolved_actions") or [])
             if isinstance(item, dict)
         ):

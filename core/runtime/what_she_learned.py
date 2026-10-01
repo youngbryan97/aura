@@ -25,7 +25,7 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 
-__all__ = ["forget", "named", "recall", "remember", "TRUST_CARRIED_OVER"]
+__all__ = ["forget", "kept_worlds", "named", "recall", "remember", "TRUST_CARRIED_OVER"]
 
 logger = logging.getLogger("Aura.WhatSheLearned")
 
@@ -175,6 +175,14 @@ def recall(world: str) -> dict[str, Any]:
     # is left alone rather than guessed at.
     held.pop("_kept_for", None)
     return held
+
+
+def kept_worlds() -> list[str]:
+    """The name of every thing she has kept a record of, for a caller looking across them."""
+    try:
+        return sorted(path.stem for path in _kept_in().glob("*.json"))
+    except OSError:
+        return []
 
 
 def forget(world: str) -> bool:

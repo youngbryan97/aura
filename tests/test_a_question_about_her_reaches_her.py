@@ -14,6 +14,7 @@ from __future__ import annotations
 import inspect
 
 from core.skills.sovereign_browser import SovereignBrowserSkill
+from tests.answers_thought_through import answered_and_thought
 
 asks = SovereignBrowserSkill._asks_about_the_one_answering
 
@@ -175,7 +176,7 @@ class TestEachQuestionIsItsOwnDecision:
             understanding, "record_degradation", lambda subsystem, exc, **_k: recorded.append(subsystem)
         )
 
-        decided = asyncio.run(skill._answer_each_question("answer it", {}, [], None))
+        decided = asyncio.run(answered_and_thought(skill, "answer it", {}, [], None))
 
         chosen = [a["selector"] for a in decided["resolved_actions"]]
         assert len(chosen) == 1 and chosen[0].startswith("#b"), chosen

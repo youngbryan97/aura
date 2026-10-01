@@ -63,6 +63,9 @@ def browser(monkeypatch):
     patch_pursuit(monkeypatch, "press", press)
     patch_pursuit(monkeypatch, "_ensure_frontmost", frontmost)
     patch_pursuit(monkeypatch, "_restore_tab", focus, raising=False)
+    # And raising the window, which went to the real Mac: every run of this
+    # test brought Google Chrome to the front of whoever's desktop it ran on.
+    patch_pursuit(monkeypatch, "_bring_the_thing_back_to_the_front", frontmost)
     return state
 
 

@@ -310,6 +310,36 @@ _MODALITY_PATTERNS: dict[str, tuple[str, ...]] = {
 }
 
 
+#: A word that turns what follows it, in the same clause, into what is NOT
+#: being asked for.
+_NEGATION = re.compile(r"\b(?:no|not|never|without|nor|none)\b|n['\u2019]t\b", re.IGNORECASE)
+
+#: Where a clause ends, so a negation reaches only as far as its own clause.
+#: Not a quotation mark: what is quoted after "no" is what is being refused.
+_CLAUSE_ENDS = re.compile(
+    r"[.;:!?,()\[\]\u2014\u2013]|\b(?:and|but|then|so|or)\b", re.IGNORECASE
+)
+
+
+def _said_not_to(text: str, at: int) -> bool:
+    """Whether the word at ``at`` is mentioned as something NOT wanted.
+
+    A modality is detected from the words of a request, and a word is not an
+    act. LIVE 2026-10-01: "the free Myers-Briggs alternative that doesn't ask
+    for an email or phone number" was refused with "Modality 'email' is
+    disabled" before a single step was planned; Bryan's own description of the
+    same test was "no 'you must give us email/phone number'". Both name the
+    thing to say it is not wanted.
+
+    So a mention under a negation in its own clause does not count. Only its
+    own clause: "don't open it, and send the email" still asks for an email.
+    """
+    start = 0
+    for boundary in _CLAUSE_ENDS.finditer(text, 0, at):
+        start = boundary.end()
+    return bool(_NEGATION.search(text, start, at))
+
+
 # ---------------------------------------------------------------------------
 # The model
 # ---------------------------------------------------------------------------
@@ -584,7 +614,11 @@ class PermissionRiskModel:
         reachable = self._REACHABLE_BY_SCOPE.get(str(effect_scope or ""))
         combined = f"{action} {target}".lower()
         for modality, patterns in _MODALITY_PATTERNS.items():
-            if any(re.search(pattern, combined, re.IGNORECASE) for pattern in patterns):
+            if any(
+                not _said_not_to(combined, found.start())
+                for pattern in patterns
+                for found in re.finditer(pattern, combined, re.IGNORECASE)
+            ):
                 if reachable is not None and modality not in reachable:
                     # The words say one thing and the capability cannot do it.
                     # The words are the weaker evidence.

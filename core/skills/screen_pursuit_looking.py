@@ -238,26 +238,10 @@ def _the_kind_of_world_this_is(state: Any, acts: Sequence[str], toward: str) -> 
 
 
 def _no_more_than_a_fresh_one_is_worth(held: Any) -> float:
-    """How much of another world's evidence to carry: the conclusion, not the
-    confidence.
+    """How much of another world's evidence to carry; see `no_more_than_a_fresh_start`."""
+    from core.perception.how_it_moves import no_more_than_a_fresh_start  # noqa: PLC0415
 
-    A rule that survived two hundred acts somewhere else is not two hundred
-    acts of evidence about here. Carried whole it would take two hundred
-    disagreements to overturn, and she would play a world she had misread for
-    an hour rather than a handful of moves. Discounted to exactly what it
-    takes to establish a rule here from scratch, it starts her off knowing
-    what she knew and loses to the first few things this world does
-    differently — which is what evidence from somewhere else is worth.
-    """
-    from core.perception.how_it_moves import ENOUGH_TO_TRUST  # noqa: PLC0415
-
-    counts = [
-        value
-        for value in ((held or {}).get("tried") or {}).values()
-        if isinstance(value, (int, float))
-    ]
-    most = max(counts, default=0)
-    return min(1.0, ENOUGH_TO_TRUST / most) if most > ENOUGH_TO_TRUST else 1.0
+    return no_more_than_a_fresh_start(held)
 
 
 #: How much longer than usual a look may take before it is a wedge rather than

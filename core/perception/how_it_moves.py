@@ -48,6 +48,7 @@ __all__ = [
     "CARRIES",
     "HOW_MANY",
     "composed",
+    "no_more_than_a_fresh_start",
     "shifted",
     "shifted_and_combined",
 ]
@@ -1223,6 +1224,26 @@ class HowItMoves:
                 said = f"{said}; closest is {name} at {right}/{tried}"
             return f"{said})"
         return f"this {rule.name} — right {self.confidence():.0%} of {self.tried.get(rule.name, 0)}"
+
+
+def no_more_than_a_fresh_start(held: Any) -> float:
+    """How much of another world's counts to carry: the conclusion, not the confidence.
+
+    A rule that survived two hundred acts somewhere else is not two hundred
+    acts of evidence about here. Carried whole it would take two hundred
+    disagreements to overturn, and she would play a world she had misread for
+    an hour rather than a handful of moves. Discounted to exactly what it takes
+    to establish a rule here from scratch, it starts her off knowing what she
+    knew and loses to the first few things this world does differently — which
+    is what evidence from somewhere else is worth.
+    """
+    counts = [
+        value
+        for value in ((held or {}).get("tried") or {}).values()
+        if isinstance(value, (int, float))
+    ]
+    most = max(counts, default=0)
+    return min(1.0, ENOUGH_TO_TRUST / most) if most > ENOUGH_TO_TRUST else 1.0
 
 
 def _rows_of(arrangement: Any) -> list[str]:

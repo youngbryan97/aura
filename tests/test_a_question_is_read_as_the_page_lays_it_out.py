@@ -191,8 +191,11 @@ def test_each_answer_about_her_is_said_out_loud_as_it_lands(monkeypatch):
         ends = options[0]["asks"].split(" [")[0], options[0]["asks"].split("] ")[-1]
         return 1, lean, ends[0], ends[1]
 
-    async def thinking(goal, theme, mind):
-        return {item["group"]: f"my reason for {item['group']}" for item in theme}
+    async def thinking(goal, theme, mind, *, about=None):
+        return {
+            item["group"]: f"my reason for {item['group']}"
+            for item in ([about] if about else theme)
+        }
 
     monkeypatch.setattr(where_i_stand, "themes_among", lambda names: [list(range(len(names)))])
     monkeypatch.setattr(where_i_stand, "against_the_rest", lambda leans: [one.toward for one in leans])

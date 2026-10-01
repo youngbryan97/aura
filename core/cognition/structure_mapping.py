@@ -27,13 +27,15 @@ module carries that number.
 from __future__ import annotations
 
 import itertools
+import math
 import random
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
 __all__ = ["Relation", "Graph", "Alignment", "AlignmentAlternatives",
-           "map_structures", "map_structures_alternatives", "shuffled_null"]
+           "map_structures", "map_structures_alternatives", "scrambled",
+           "shuffled_null"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +78,10 @@ class Alignment:
     #: domains happened to use the same words, which is the easy case and not
     #: the one the module is for.
     predicate_mapping: Mapping[str, str] = field(default_factory=dict)
+    #: Whether every correspondence was tried. False for a domain past
+    #: ``max_objects``, which was searched by growing matches outward from
+    #: its strongest ones and may have missed the best.
+    exhaustive: bool = True
 
     @property
     def shares_no_object_names(self) -> bool:
@@ -111,6 +117,7 @@ class Alignment:
             "shares_no_object_names": self.shares_no_object_names,
             "shares_no_vocabulary": self.shares_no_vocabulary,
             "predicate_mapping": dict(self.predicate_mapping),
+            "exhaustive": self.exhaustive,
         }
 
 
@@ -239,6 +246,7 @@ _MAX_PREDICATE_READINGS = 4096
 def _candidate_alignments(
     source: Graph, target: Graph, max_objects: int, *,
     require_complete: bool = False,
+    readings: list[dict[str, str]] | None = None,
 ) -> Iterator[Alignment]:
     source_objects, target_objects = source.objects, target.objects
     if not source_objects or not target_objects:
@@ -249,8 +257,9 @@ def _candidate_alignments(
             f"{max_objects} this exhaustive search will attempt; a bigger domain needs "
             "a heuristic search, and pretending to have found nothing would be worse"
         )
-    readings = _predicate_candidates(
-        source, target, require_complete=require_complete)
+    if readings is None:
+        readings = _predicate_candidates(
+            source, target, require_complete=require_complete)
     size = min(len(source_objects), len(target_objects))
     # A maximal partial injection can extend every smaller injection without
     # removing matches. Enumerate source subsets when the target is smaller.
@@ -265,21 +274,131 @@ def _candidate_alignments(
 
 
 def map_structures(
-    source: Graph, target: Graph, *, max_objects: int = 7
+    source: Graph, target: Graph, *, max_objects: int = 7,
+    same_vocabulary: bool = False,
 ) -> Alignment | None:
     """Find the correspondence that aligns the most relational structure.
 
-    Exhaustive over object correspondences, which is why ``max_objects`` exists:
-    the search is factorial and a domain with more objects than this needs a
-    heuristic that is not written here. Refusing is better than a partial
-    search whose failures look like "no analogy".
+    Exhaustive over object correspondences up to ``max_objects``, where the
+    factorial search is affordable and its answer is the best there is. Past
+    it, the search grows matches outward from the strongest local ones (see
+    `_grown_alignment`) and says so in ``Alignment.exhaustive``: a refusal
+    left every domain bigger than seven objects with no analogy at all, which
+    is the same failure as a partial search hiding its misses, only certain.
+
+    ``same_vocabulary`` reads every relation word as itself. Right when both
+    graphs were written by one describer, whose words mean one thing each;
+    renaming them there only finds coincidences.
     """
+    if same_vocabulary:
+        readings = [{r.predicate: r.predicate for r in source.relations}]
+    else:
+        readings = None
+    source_objects, target_objects = source.objects, target.objects
+    if len(source_objects) > max_objects or len(target_objects) > max_objects:
+        return _grown_alignment(source, target, readings)
     best: Alignment | None = None
-    for candidate in _candidate_alignments(source, target, max_objects):
+    for candidate in _candidate_alignments(
+            source, target, max_objects, readings=readings):
         if best is None or (candidate.score, candidate.systematicity) > (
                 best.score, best.systematicity):
             best = candidate
     return best
+
+
+#: Readings of the relation words tried when the objects are too many for an
+#: exhaustive search: the first of `_predicate_candidates`' order, which puts
+#: the readings that rename least and leave least unmapped first.
+_READINGS_WHEN_GROWING = 16
+
+#: Strongest local matches each grown search starts from.
+_SEEDS_WHEN_GROWING = 24
+
+
+def _grown_alignment(
+    source: Graph, target: Graph, readings: list[dict[str, str]] | None,
+) -> Alignment | None:
+    """The best correspondence found by growing matches outward, for a big domain.
+
+    A match hypothesis pairs one source relation with one target relation it
+    can be read as, and with them the objects in their places. Starting from
+    each of the strongest — a higher-order relation first, then the one most
+    other matches agree with — the mapping takes on every match consistent
+    with it that shares an object with what it already holds, then any
+    consistent match at all, until nothing more fits. This is the greedy merge
+    of structure-mapping engines, and like it, it can miss the best.
+    """
+    if not source.objects or not target.objects:
+        return None
+    if readings is None:
+        readings = _predicate_candidates(source, target)[:_READINGS_WHEN_GROWING]
+    best: Alignment | None = None
+    for reading in readings:
+        matches: list[tuple[Relation, Relation, tuple[tuple[str, str], ...]]] = []
+        for relation in source.relations:
+            read_as = reading.get(relation.predicate)
+            if read_as is None:
+                continue
+            for candidate in target.relations_with(read_as):
+                if len(candidate.args) != len(relation.args):
+                    continue
+                pairs = tuple(zip(relation.args, candidate.args, strict=True))
+                if _consistent({}, pairs) is None:
+                    continue
+                matches.append((relation, candidate, pairs))
+        if not matches:
+            continue
+        support = {
+            index: sum(
+                1 for other, (_r, _c, pairs) in enumerate(matches)
+                if other != index and set(pairs) & set(matches[index][2])
+            )
+            for index in range(len(matches))
+        }
+        order = sorted(
+            range(len(matches)),
+            key=lambda index: (-matches[index][0].order, -support[index], index),
+        )
+        for seed in order[:_SEEDS_WHEN_GROWING]:
+            mapping = _consistent({}, matches[seed][2]) or {}
+            grew = True
+            while grew:
+                grew = False
+                for touching in (True, False):
+                    for index in order:
+                        pairs = matches[index][2]
+                        if touching and not any(a in mapping for a, _b in pairs):
+                            continue
+                        merged = _consistent(mapping, pairs)
+                        if merged is not None and merged != mapping:
+                            mapping = merged
+                            grew = True
+                    if grew:
+                        break
+            score, systematicity, matched = _score(source, target, mapping, reading)
+            candidate = Alignment(
+                mapping=dict(mapping), matched=tuple(matched), score=score,
+                systematicity=systematicity, predicate_mapping=dict(reading),
+                exhaustive=False,
+            )
+            if best is None or (candidate.score, candidate.systematicity) > (
+                    best.score, best.systematicity):
+                best = candidate
+    return best
+
+
+def _consistent(
+    mapping: Mapping[str, str], pairs: Sequence[tuple[str, str]],
+) -> dict[str, str] | None:
+    """``mapping`` with ``pairs`` added, or None where that breaks one-to-one."""
+    merged = dict(mapping)
+    taken = {target: source for source, target in merged.items()}
+    for source, target in pairs:
+        if merged.get(source, target) != target or taken.get(target, source) != source:
+            return None
+        merged[source] = target
+        taken[target] = source
+    return merged
 
 
 def map_structures_alternatives(
@@ -311,6 +430,27 @@ def map_structures_alternatives(
     return AlignmentAlternatives(tuple(ties), truncated)
 
 
+def scrambled(target: Graph, rng: random.Random) -> Graph:
+    """``target`` with its structure broken and its names and words kept.
+
+    Which object fills which argument slot is drawn afresh for every relation,
+    from the target's own objects. Renaming would not do: an exhaustive search
+    undoes a renaming exactly.
+    """
+    objects = list(target.objects)
+    return Graph(
+        name=f"{target.name}_scrambled",
+        relations=tuple(
+            Relation(
+                r.predicate,
+                tuple(rng.choice(objects) for _ in r.args),
+                r.order,
+            )
+            for r in target.relations
+        ),
+    )
+
+
 def shuffled_null(
     source: Graph, target: Graph, *, trials: int = 20, seed: int = 0, max_objects: int = 7
 ) -> dict[str, Any]:
@@ -330,28 +470,29 @@ def shuffled_null(
     if real is None:
         return {"measurable": False}
     rng = random.Random(seed)
-    objects = list(target.objects)
     scores = []
     for _ in range(trials):
-        scrambled = Graph(
-            name=f"{target.name}_scrambled",
-            relations=tuple(
-                Relation(
-                    r.predicate,
-                    tuple(rng.choice(objects) for _ in r.args),
-                    r.order,
-                )
-                for r in target.relations
-            ),
-        )
-        alignment = map_structures(source, scrambled, max_objects=max_objects)
+        alignment = map_structures(
+            source, scrambled(target, rng), max_objects=max_objects)
         if alignment is not None:
             scores.append(alignment.score)
     mean_null = sum(scores) / len(scores) if scores else 0.0
+    ordered = sorted(scores)
+    # The upper tail, and how often a scrambled copy did as well. A mean is
+    # cleared by a distractor that shares a third of the structure: one
+    # scored 0.67 against a mean of 0.50 here, and "structural" said yes.
+    upper = (
+        ordered[min(len(ordered) - 1, max(0, math.ceil(0.95 * len(ordered)) - 1))]
+        if ordered else 1.0
+    )
+    as_well = sum(1 for score in scores if score >= real.score)
     return {
         "measurable": True,
         "score": real.score,
         "null_mean": mean_null,
+        "null_upper": upper,
+        "as_often_by_chance": (as_well + 1) / (len(scores) + 1),
+        "beats_the_upper_tail": real.score > upper,
         "separation": real.score - mean_null,
         "structural": real.score > mean_null,
         "alignment": real.to_dict(),

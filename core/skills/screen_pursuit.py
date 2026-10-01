@@ -927,7 +927,7 @@ async def pursue_on_screen(
     this_world = named(target_app, expect_page or open_page)
     knew = recall(this_world)
     # And whether she has been anywhere LIKE it, asked once she has seen it.
-    like_it: dict[str, Any] = {"kind": "", "looked": False}
+    like_it: dict[str, Any] = {"kind": "", "looked": False, "this_world": this_world}
     # Moves she made and could not learn from, by what stopped her.
     # A tally, not a fixed set of keys.
     #
@@ -1588,6 +1588,10 @@ async def pursue_on_screen(
             "beats": beats.as_memory(),
             "repeats": repeats.as_memory(),
             "moves": knows.rules.as_memory() if knows.rules is not None else {},
+            # The look in front of her when her rule settled, kept so the next
+            # world shaped like this one can find it. See
+            # `core.agency.the_world_it_is_most_like`.
+            "shape": like_it.get("shape") or knew.get("shape") or [],
             "acts": can_do.as_memory(),
             "skill": skilled.as_memory(),
             "world": world.as_memory(),

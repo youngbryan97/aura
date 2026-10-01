@@ -202,6 +202,7 @@ markers = [
     "macos: marks tests requiring macOS-specific facilities (AppleScript, Metal)",
     "longrun: marks soak/longevity tests measured in hours",
     "host_observation: test intentionally reads current host resource state",
+    "host_actuation: test intentionally launches apps, opens URLs or brings windows forward on the real desktop",
     "host_leak_observation: test observes only current-test child, port, and file leaks; never policy evidence",
     "mutates_global_state: test deliberately changes process-global state; exempt from the contamination guard",
 ]

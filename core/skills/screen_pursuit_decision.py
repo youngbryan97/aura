@@ -12,6 +12,7 @@ after the point where the closure used to be defined.
 from __future__ import annotations
 
 from .screen_pursuit_decision_steps import (  # noqa: F401  (re-exported: they were defined here)
+    _borrow_from_the_world_it_is_most_like,
     _carry_rules_from_a_world_like_it,
     _hold_the_rule_to_its_prediction,
     _learn_what_made_a_move_safe,
@@ -1160,6 +1161,11 @@ async def decide_the_next_move(
                 skilled=skilled,
                 world=world,
             )
+        # And, where nothing of its kind was there to carry, the world she
+        # solved that is shaped most like this one.
+        _borrow_from_the_world_it_is_most_like(
+            knows=knows, laid_out=laid_out, like_it=like_it, world=world,
+        )
 
         # Where each move would lead, when she has worked out how this
         # moves and there is anything to prefer one future over another by.

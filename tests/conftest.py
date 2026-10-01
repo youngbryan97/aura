@@ -1277,6 +1277,65 @@ def _no_test_moves_the_real_pointer(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_test_opens_an_app_on_the_real_desktop(request, monkeypatch):
+    """A test never launches an app, opens a URL, or brings a window forward.
+
+    The pointer stand-in above kept tests from clicking; `open` and
+    AppleScript still reached the real Mac, and a desktop skill's test that
+    got as far as its executor opened Notes or a search page on the desktop
+    of whoever ran it (2026-10-01). See `tests/host_actuation_guard.py`. A
+    test about the real desktop says so with ``live``, ``hardware`` or
+    ``host_actuation``.
+    """
+    import subprocess
+    import webbrowser
+
+    from tests import host_actuation_guard as guard
+
+    if any(request.node.get_closest_marker(name) for name in guard.ALLOWED_MARKERS):
+        yield []
+        return
+    refused: list[str] = []
+    nodeid = request.node.nodeid
+    real_popen = subprocess.Popen
+
+    class _Refusing(real_popen):  # type: ignore[misc, valid-type]
+        def __init__(self, args, *rest, **kwargs):
+            if guard.would_act_on_the_desktop(args, shell=bool(kwargs.get("shell"))):
+                refused.append(str(args)[:400])
+                guard.record(nodeid, args)
+                kwargs.pop("executable", None)
+                kwargs["shell"] = False
+                args = ["/bin/sh", "-c", f"echo '{guard.REASON}' >&2; exit 1"]
+            super().__init__(args, *rest, **kwargs)
+
+    monkeypatch.setattr(subprocess, "Popen", _Refusing)
+
+    def _no_browser(url, *_args, **_kwargs):
+        refused.append(f"webbrowser.open {url}"[:400])
+        guard.record(nodeid, f"webbrowser.open {url}")
+        return False
+
+    for name in ("open", "open_new", "open_new_tab"):
+        monkeypatch.setattr(webbrowser, name, _no_browser)
+    # And her own browser, which a pursuit opens in a window a person can
+    # watch, runs without one: a test that starts it starts it headless.
+    try:
+        from core.capabilities import phantom_browser
+    except ImportError:
+        phantom_browser = None
+    if phantom_browser is not None:
+        real_init = phantom_browser.PhantomBrowser.__init__
+
+        def _headless(self, *args, **kwargs):
+            real_init(self, *args, **kwargs)
+            self.visible = False
+
+        monkeypatch.setattr(phantom_browser.PhantomBrowser, "__init__", _headless)
+    yield refused
+
+
+@pytest.fixture(autouse=True)
 def _a_test_has_no_network_unless_it_says_so():
     """Nothing she looks up in a test goes out to the real internet.
 

@@ -1136,6 +1136,87 @@ class _UnderstandsThePage(_PlacesHerself):
         why = " ".join(why.split())
         return f"{said}. {why}" if why else said
 
+    def _thinking_for_one_answer(
+        self,
+        goal: str,
+        theme: list[dict[str, Any]],
+        mind: str,
+        item: dict[str, Any],
+        resolved: dict[str, Any],
+        decision: dict[str, Any],
+        *,
+        on_progress: Callable[[str], None] | None = None,
+    ) -> Callable[[], Any]:
+        """Her thinking about one answer, made when that answer is about to be given.
+
+        Returns a coroutine function. Awaited, it asks her about this item with
+        its theme in view, writes what she said into ``resolved`` and into the
+        decision's record, and returns the line to say before the click.
+        """
+
+        async def _think() -> str:
+            if resolved.get("said"):
+                return str(resolved["said"])
+            try:
+                said = await self._her_thinking_about(goal, theme, mind, about=item)
+            except (RuntimeError, ValueError, TypeError, KeyError, OSError, TimeoutError) as exc:
+                # The placement stands without its sentence: the answer falls
+                # back to what in her decided it.
+                record_degradation(
+                    "sovereign_browser.theme",
+                    exc,
+                    severity="warning",
+                    action=f"placed question {item['group']} without her words for it",
+                )
+                said = {}
+            hers = str(said.get(item["group"]) or "")
+            options = item["options"]
+            index = item["index"]
+            lean = item["lean"]
+            leaning = item["second"] if lean.toward > 0 else item["first"]
+            # An answer is never said bare.
+            #
+            # Her sentence first; the thing in her that decided it where she
+            # said nothing; and where even that is empty — a pass that failed
+            # outright — the placement itself, in words. LIVE 2026-09-29:
+            # "works best in groups … works best alone — 3 of 5, between
+            # "works best in groups" and "works best alone"." and nothing
+            # after it, which reads as an answer with no reason behind it.
+            why = (
+                hers
+                or next(iter(lean.because), "")
+                or f'this sits nearer "{leaning}" for me than the other side'
+            )
+            # Her own words held against the place her record gave. The place
+            # stands, because it is the measurement; a sentence that leans the
+            # other way is noticed and reported beside it. LIVE 2026-09-28:
+            # "3 of 5 ... I genuinely hold a strong preference for
+            # externalized structure", and nothing noticed.
+            disagrees = (
+                self._the_choice_disagrees_with_its_reason(options, index, hers)
+                if hers
+                else ""
+            )
+            words = self._an_answer_in_words(options, index, why)
+            resolved["said"] = words
+            resolved["why"] = why
+            resolved["because"] = list(lean.because)
+            decision["answered"].append(words)
+            if disagrees:
+                decision["noticed"].append(disagrees)
+            decision["why"] = "; ".join(
+                dict.fromkeys(
+                    str(done.get("why") or "")
+                    for done in decision["resolved_actions"]
+                    if done.get("why")
+                )
+            )[:400]
+            if on_progress is not None:
+                on_progress("a question thought about")
+            return words
+
+        return _think
+
     async def _answer_each_question(
         self,
         goal: str,
@@ -1246,7 +1327,6 @@ class _UnderstandsThePage(_PlacesHerself):
             # Her whole mind, the same assembly a conversation uses, because
             # the shallow answers came from taking it away.
             mind = await self._assembled_mind()
-            answers: list[dict[str, Any]] = []
             # Grouped by what they are about, so she thinks about a region of
             # herself rather than giving thirty-two disconnected verdicts.
             try:
@@ -1259,93 +1339,53 @@ class _UnderstandsThePage(_PlacesHerself):
             except ImportError as exc:
                 record_degradation("sovereign_browser.themes", exc, severity="debug")
                 themes = [[place] for place in range(len(measured))]
-            thought: dict[str, str] = {}
+            theme_of: dict[int, list[dict[str, Any]]] = {}
             for group in themes:
                 theme = [measured[place] for place in group]
-                try:
-                    said = await self._her_thinking_about(goal, theme, mind)
-                except (RuntimeError, ValueError, TypeError, KeyError, OSError, TimeoutError) as exc:
-                    # The placements stand without their sentences: each
-                    # answer falls back to what in her decided it.
-                    record_degradation(
-                        "sovereign_browser.theme",
-                        exc,
-                        severity="warning",
-                        action="placed a theme's questions without her words for them",
-                    )
-                    said = {}
-                spoken = said.pop("__thinking__", "")
-                if spoken:
-                    self._say_out_loud(spoken)
-                    await self._hold_for_reading(spoken)
-                thought.update(said)
-                if on_progress is not None:
-                    on_progress("a theme thought about")
-            for item in measured:
-                item["why"] = thought.get(item["group"], "")
-            for item in measured:
+                for place in group:
+                    theme_of[place] = theme
+            decision: dict[str, Any] = {
+                "resolved_actions": [],
+                "answered": [],
+                "why": "",
+                "expect": "",
+                "noticed": [],
+            }
+            # One question at a time, in the page's order: she thinks about
+            # it, says why, the answer is made, and the next one is not
+            # started until then.
+            #
+            # Every item used to be thought about first and every click made
+            # afterwards, so a watcher saw thirty-two reasons go by and then
+            # thirty-two dots fill in at once — a reason arriving long before
+            # the answer it was for, and an answer arriving with no reason in
+            # front of it. The thinking is carried with its move, as `think`,
+            # and the loop that makes the move asks for it at the moment the
+            # move is made. The theme is still what she thinks ABOUT; the item
+            # is what she answers.
+            for place, item in enumerate(measured):
                 options = item["options"]
                 index = item["index"]
                 selector = str(options[index].get("selector") or "")
                 if not selector:
                     continue
-                lean = item["lean"]
-                leaning = item["second"] if lean.toward > 0 else item["first"]
-                # Where she said nothing, what stands is the thing in her that
-                # decided it — not the arithmetic that read it.
-                # An answer is never narrated bare.
-                #
-                # Her sentence first; the thing in her that decided it where
-                # she said nothing; and where even that is empty — a theme pass
-                # that failed outright — the placement itself, in words. LIVE
-                # 2026-09-29: "works best in groups … works best alone — 3 of
-                # 5, between "works best in groups" and "works best alone"."
-                # and nothing after it, which reads as an answer with no reason
-                # behind it.
-                why = (
-                    item.get("why")
-                    or next(iter(lean.because), "")
-                    or f'this sits nearer "{leaning}" for me than the other side'
-                )
-                # Her own words held against the place her record gave. The
-                # place stands, because it is the measurement; a sentence that
-                # leans the other way is noticed and reported beside it. LIVE
-                # 2026-09-28: "3 of 5 ... I genuinely hold a strong preference
-                # for externalized structure", and nothing noticed.
-                disagrees = (
-                    self._the_choice_disagrees_with_its_reason(options, index, item["why"])
-                    if item.get("why")
-                    else ""
-                )
-                answers.append(
-                    {
-                        "selector": selector,
-                        "name": str(options[index].get("name") or ""),
-                        "stand": "; ".join(lean.because[:2]),
-                        "why": why,
-                        "expect": "",
-                        "said": self._an_answer_in_words(options, index, why),
-                        "because": list(lean.because),
-                        "disagrees": disagrees,
-                    }
-                )
-            if answers:
-                return {
-                    "resolved_actions": [
-                        {
-                            "selector": answer["selector"],
-                            "name": answer["name"],
-                            "said": str(answer.get("said") or ""),
-                        }
-                        for answer in answers
-                    ],
-                    "answered": [answer["said"] for answer in answers if answer.get("said")],
-                    "why": "; ".join(
-                        dict.fromkeys(answer["why"] for answer in answers if answer["why"])
-                    )[:400],
-                    "expect": "",
-                    "noticed": [answer["disagrees"] for answer in answers if answer["disagrees"]],
+                resolved: dict[str, Any] = {
+                    "selector": selector,
+                    "name": str(options[index].get("name") or ""),
+                    "said": "",
                 }
+                resolved["think"] = self._thinking_for_one_answer(
+                    goal,
+                    theme_of.get(place) or [item],
+                    mind,
+                    item,
+                    resolved,
+                    decision,
+                    on_progress=on_progress,
+                )
+                decision["resolved_actions"].append(resolved)
+            if decision["resolved_actions"]:
+                return decision
 
         return None
 

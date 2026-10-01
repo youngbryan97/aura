@@ -339,10 +339,18 @@ def test_an_unrelated_domain_aligns_with_nothing():
     assert result["separation"] < 0.2
 
 
-def test_a_domain_too_big_for_the_exhaustive_search_refuses_rather_than_failing_quietly():
+def test_a_domain_too_big_for_the_exhaustive_search_says_it_was_not_exhaustive():
+    """Past the cap the search grows matches outward, and says it did.
+
+    It used to refuse, which left every domain bigger than seven objects with
+    no analogy at all (external review, 2026-10-01).
+    """
     big = Graph("big", tuple(Relation("r", (f"o{i}", f"o{i+1}")) for i in range(10)))
-    with pytest.raises(ValueError, match="exhaustive search"):
-        map_structures(big, big)
+    other = Graph("other", tuple(Relation("r", (f"p{i}", f"p{i+1}")) for i in range(10)))
+    alignment = map_structures(big, other)
+    assert alignment is not None
+    assert alignment.exhaustive is False
+    assert alignment.score == 1.0
 
 
 # ── agent models ──────────────────────────────────────────────────────────

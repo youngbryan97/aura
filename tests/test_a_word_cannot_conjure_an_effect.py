@@ -18,6 +18,8 @@ refused if it is disabled.
 
 from __future__ import annotations
 
+import pytest
+
 from core.capabilities.permission_model import PermissionRiskModel
 
 
@@ -88,3 +90,30 @@ def test_nothing_above_sandboxed_compute_was_widened() -> None:
         assert "email" not in reach
         assert "file_delete" not in reach
         assert "cloud_write" not in reach
+
+
+@pytest.mark.parametrize(
+    "said",
+    [
+        # LIVE 2026-10-01, the psych-test request, refused before a step was planned.
+        "the free Myers-Briggs alternative that doesn't ask for an email or phone number",
+        # Bryan's own description of the same test.
+        'Closest free option to Meyers Briggs with no "you must give us email/phone number"',
+        "do it without using my email",
+    ],
+)
+def test_a_thing_named_as_not_wanted_is_not_asked_for(said: str) -> None:
+    assert PermissionRiskModel()._detect_modality("tool_execution", said) != "email"
+
+
+@pytest.mark.parametrize(
+    "said",
+    [
+        "check my email",
+        "email Sam the notes",
+        # A negation reaches only as far as its own clause.
+        "never email anyone, just read my mail",
+    ],
+)
+def test_a_thing_asked_for_is_still_detected(said: str) -> None:
+    assert PermissionRiskModel()._detect_modality("tool_execution", said) == "email"
