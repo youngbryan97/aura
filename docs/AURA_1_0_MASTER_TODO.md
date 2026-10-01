@@ -1474,6 +1474,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  The batched real canary completed eleven charts but still timed out.
+  [Execution version two](evidence/G03_JOINT_CHART_BATCHING_2026-10-01.md)
+  factors unchanged independent projections and certifies redundant mention
+  removal while preserving register graphs and original ambiguity tolerance.
+  Its real replay is pending; no development advancement is claimed.
   [Joint chart batching](evidence/G03_JOINT_CHART_BATCHING_2026-10-01.md)
   diagnoses 16,655 repeated pointer calls in one timed-out public request and
   adds a declared, bounded vmap execution variant without refitting or

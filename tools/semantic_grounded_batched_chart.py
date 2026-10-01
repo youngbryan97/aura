@@ -22,17 +22,21 @@ from core.learning.semantic_grounded_binding_engine import (
 from core.learning.semantic_grounded_chart_bridge import GroundedBindingChartSolver
 from core.learning.semantic_program_floor import semantic_primitive_type_signature
 from core.learning.semantic_relational_pointer import semantic_role_features
+from tools.semantic_grounded_score_execution import ObservationEncoder, reduce_dominated_mentions
 
 
 def execution_contract():
-    return {"schema": "aura.grounded_batched_chart_execution.v1",
+    helper = Path(__file__).with_name("semantic_grounded_score_execution.py")
+    return {"schema": "aura.grounded_batched_chart_execution.v2",
         "source_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-        "pointer_function": "unchanged_fitted_pointer_vmap", "alternative_batch_size": 16,
-        "candidate_pruning": False, "checkpoint_mutation": False, "qualification_evidence": False,
+        "helper_sha256": hashlib.sha256(helper.read_bytes()).hexdigest(),
+        "pointer_function": "factored_fitted_pointer_vmap", "alternative_batch_size": 16,
+        "candidate_pruning": "certified_same_register_definition_token_subset_only",
+        "checkpoint_mutation": False, "qualification_evidence": False,
         "serving_authority": False}
 
 
-def conditioned_scores(pointer, evidence, alternatives, *, projection=None, batch_size=16, remaining=None):
+def conditioned_scores(pointer, evidence, alternatives, *, projection=None, batch_size=16, remaining=None, encoder=None):
     """Evaluate every (role, candidate, mention, definition) condition separately.
 
     The original pointer is vmapped, not approximated by a second scorer.
@@ -41,20 +45,15 @@ def conditioned_scores(pointer, evidence, alternatives, *, projection=None, batc
     """
     if type(batch_size) is not int or not 1 <= batch_size <= 64 or not alternatives:
         raise ValueError("conditioned pointer needs nonempty alternatives and a bounded batch")
-    operations, mentions, candidates = evidence.arrays()[0]
+    evidence.arrays()
+    encoder = ObservationEncoder(pointer, projection) if encoder is None else encoder
+    operations = encoder.encode([evidence.operations[role.identity] for role in evidence.roles], "operation")
+    mentions = encoder.encode([evidence.mentions[role.identity] for role in evidence.roles], "mention")
+    candidates = encoder.encode([evidence.candidates[record.key] for record in evidence.context.referents], "candidate")
     roles = semantic_role_features(evidence.roles)
     allowed = mx.array([[evidence.context.eligible(role, record) for record in evidence.context.referents]
         for role in evidence.roles], dtype=mx.bool_)
-    projection_basis = None if projection is None else mx.array(projection.basis.tolist())
-    def project(value):
-        if projection_basis is None:
-            return value
-        if value.shape[-1] != projection_basis.shape[0]:
-            raise ValueError("batched grounded projection width differs")
-        basis = projection_basis.astype(value.dtype)
-        return value - (value @ basis) @ basis.T
-    operations = project(operations)
-    scorer = mx.vmap(lambda operation, mention, candidate: pointer(operation, mention, candidate,
+    scorer = mx.vmap(lambda operation, mention, candidate: encoder.replay(operation, mention, candidate,
         adjacency=evidence.adjacency, allowed=allowed, role_features=roles))
     values = []
     for start in range(0, len(alternatives), batch_size):
@@ -72,10 +71,10 @@ def conditioned_scores(pointer, evidence, alternatives, *, projection=None, batc
         rows = mx.array([row for row, _column, _mention, _definition in selected], dtype=mx.int32)
         columns = mx.array([column for _row, column, _mention, _definition in selected], dtype=mx.int32)
         index = mx.arange(count)
-        batch_mentions[index, rows] = mx.stack([mention for _row, _column, mention, _definition in selected])
-        batch_candidates[index, columns] = mx.stack([candidates[column] if definition is None else definition
-            for _row, column, _mention, definition in selected])
-        batch_mentions, batch_candidates = project(batch_mentions), project(batch_candidates)
+        batch_mentions[index, rows] = encoder.encode([mention for _row, _column, mention, _definition in selected], "mention")
+        definitions = encoder.encode([evidence.candidates[evidence.context.referents[column].key]
+            if definition is None else definition for _row, column, _mention, definition in selected], "candidate")
+        batch_candidates[index, columns] = definitions
         if not mx.all(mx.isfinite(batch_mentions)).item() or not mx.all(mx.isfinite(batch_candidates)).item():
             raise ValueError("batched pointer needs finite conditioned observations")
         scores = scorer(mx.broadcast_to(operations, (count, *operations.shape)), batch_mentions, batch_candidates)
@@ -90,6 +89,7 @@ class BatchedGroundedBindingChartSolver(GroundedBindingChartSolver):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.observed_spans = {}
+        self.encoder = ObservationEncoder(self.engine.pointer, self.engine.nuisance_projection)
 
     def __call__(self, chart, *, operation_nodes, input_spans, inputs, source_id, time_limit_s=None):
         if source_id != self.source_id or len(operation_nodes) != len(chart.options) or len(inputs) != chart.n_inputs:
@@ -147,7 +147,7 @@ class BatchedGroundedBindingChartSolver(GroundedBindingChartSolver):
                 alternatives.append((row, register, observe(span), None if definition is None else observe(definition)))
                 locations.append((step, slot, option_index, role, register, span))
         learned = conditioned_scores(self.engine.pointer, evidence, alternatives,
-            projection=self.engine.nuisance_projection, remaining=remaining)
+            projection=self.engine.nuisance_projection, remaining=remaining, encoder=self.encoder)
         updated = [[[] for _slot in node] for node in chart.options]
         edge_receipts = []
         for value, (step, slot, option_index, role, register, span) in zip(learned, locations, strict=True):
@@ -162,15 +162,18 @@ class BatchedGroundedBindingChartSolver(GroundedBindingChartSolver):
                 "combined_score": combined})
         augmented = replace(chart, options=tuple(tuple(tuple(pool) for pool in node) for node in updated),
             option_factors=None, option_relation_evidence=None)
+        augmented, witnesses, margin_adjustment = reduce_dominated_mentions(augmented, remaining=remaining)
         nested_roles, offset = [], 0
         for node in chart.options:
             nested_roles.append(tuple(roles[offset:offset + len(node)]))
             offset += len(node)
         resolution = augmented.solve_grounded(context, tuple(nested_roles), register_keys,
-            minimum_margin=self.minimum_margin, time_limit_s=remaining())
+            minimum_margin=self.minimum_margin + margin_adjustment, time_limit_s=remaining())
         self.last_resolution = {"status": resolution.status, "margin": resolution.margin, "source_id": source_id,
             "all_options_retained": True, "role_bindings": resolution.bindings, "edge_evidence": edge_receipts,
-            "margin_is_probability": False, "pointer_execution": "vmap_conditioned_alternatives_v1"}
+            "margin_is_probability": False, "pointer_execution": "factored_conditioned_alternatives_v2",
+            "dominated_mention_witnesses": witnesses, "ambiguity_margin_adjustment": margin_adjustment,
+            "solver_option_count": sum(len(slot) for node in augmented.options for slot in node)}
         if resolution.assignment is not None:
             self.last_resolution["graph_signature"] = tuple(sorted((node.operation, node.span.start, node.span.end,
                 tuple((anchors[register].start, anchors[register].end) for register in values))
