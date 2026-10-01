@@ -223,7 +223,7 @@ async def _await_phase_completion(task, *, phase_name, priority, origin, budget_
         and phase_name in {"UnitaryResponsePhase", "ResponseGenerationPhase"}
         and a_person_is_waiting(origin)
     ):
-        from core.brain.llm_health_router import _await_while_it_is_working
+        from core.brain.llm_health_router_waiting import _await_while_it_is_working
 
         return await _await_while_it_is_working(
             task, budget_s=budget_s, user_facing=True, person_is_waiting=True,

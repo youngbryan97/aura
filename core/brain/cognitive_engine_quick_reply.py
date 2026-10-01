@@ -666,7 +666,7 @@ class _AnswersTheDesktopDirectly:
         # arriving, gives up on silence, and is bounded by the turn's own
         # ceiling. This origin is one a person types into, and the caller
         # already said so.
-        from core.brain.llm_health_router import _await_while_it_is_working
+        from core.brain.llm_health_router_waiting import _await_while_it_is_working
         from core.runtime.turn_origin import a_person_is_waiting
 
         content = await _await_while_it_is_working(

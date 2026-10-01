@@ -348,9 +348,7 @@ class _RunsTheGenerationSteps:
         # silence, and stays inside the turn's own ceiling. This
         # phase composes what a person reads, so a person is
         # waiting on it unless the state says otherwise.
-        from core.brain.llm_health_router import (
-            _await_while_it_is_working,
-        )
+        from core.brain.llm_health_router_waiting import _await_while_it_is_working
         from core.runtime.turn_origin import a_person_is_waiting
 
         from .response_generation import (

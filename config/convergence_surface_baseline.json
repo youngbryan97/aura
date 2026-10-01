@@ -1,21 +1,21 @@
 {
-  "modules": 4139,
-  "total_paths": 90032,
-  "worst_total": 716.98,
+  "modules": 4155,
+  "total_paths": 90130,
+  "worst_total": 711.53,
   "worst": [
+    {
+      "module": "core.brain.llm.mlx_client",
+      "fan_in": 32,
+      "fan_out": 61,
+      "paths": 1952,
+      "surface": 41.98
+    },
     {
       "module": "core.conversation.response_reliability",
       "fan_in": 39,
       "fan_out": 44,
       "paths": 1716,
       "surface": 41.35
-    },
-    {
-      "module": "core.brain.llm.mlx_client",
-      "fan_in": 31,
-      "fan_out": 61,
-      "paths": 1891,
-      "surface": 41.11
     },
     {
       "module": "core.runtime.action_executor",
@@ -33,9 +33,9 @@
     },
     {
       "module": "core.runtime.errors",
-      "fan_in": 1356,
+      "fan_in": 1357,
       "fan_out": 13,
-      "paths": 17628,
+      "paths": 17641,
       "surface": 25.75
     },
     {
@@ -58,13 +58,6 @@
       "fan_out": 53,
       "paths": 689,
       "surface": 20.88
-    },
-    {
-      "module": "core.brain.llm_health_router",
-      "fan_in": 15,
-      "fan_out": 27,
-      "paths": 405,
-      "surface": 19.29
     },
     {
       "module": "core.executive.authority_gateway",
@@ -131,17 +124,17 @@
     },
     {
       "module": "core.runtime.file_write_gateway",
-      "fan_in": 309,
+      "fan_in": 311,
       "fan_out": 8,
-      "paths": 2472,
+      "paths": 2488,
       "surface": 15.6
     },
     {
       "module": "core.organism.model_validation",
       "fan_in": 9,
-      "fan_out": 58,
-      "paths": 522,
-      "surface": 15.58
+      "fan_out": 56,
+      "paths": 504,
+      "surface": 15.51
     },
     {
       "module": "core.service_registration",
@@ -266,6 +259,13 @@
       "module": "core.cognition.what_she_could_do_next",
       "fan_in": 16,
       "fan_out": 11,
+      "paths": 176,
+      "surface": 13.04
+    },
+    {
+      "module": "core.learning.semantic_program_compositional_transducer",
+      "fan_in": 11,
+      "fan_out": 16,
       "paths": 176,
       "surface": 13.04
     },
