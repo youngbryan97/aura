@@ -119,6 +119,18 @@ def test_a_correct_only_pool_has_zero_contrast_loss_without_an_artificial_blocke
     assert source.source_loss(bridge.engine.pointer, field, bridge.depth_states).item() == 0.
 
 
+def test_definition_free_program_roundtrip_preserves_absence_and_valid_graphs():
+    bridge, field, source = source_pool()
+    assert source.charts[0].chart.definition_options is None
+    assert source.charts[0].chart.definition_scores is None
+    loaded = GroundedProgramSupervision.from_receipt(source.receipt())
+    assert loaded.receipt() == source.receipt()
+    assert loaded.charts[0].chart.definition_scores is None
+    loaded.validate(field, len(bridge.depth_states))
+    np.testing.assert_allclose(loaded.source_loss(bridge.engine.pointer, field, bridge.depth_states).item(),
+        source.source_loss(bridge.engine.pointer, field, bridge.depth_states).item(), atol=1e-6)
+
+
 def test_public_mining_precedes_source_labels_and_refuses_held_examples():
     from core.learning.semantic_program_compositional_transducer import (
         fit_compositional_semantic_program_transducer,

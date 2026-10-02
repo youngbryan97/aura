@@ -157,7 +157,7 @@ class GroundedProgramSupervision:
                 None if span is None else TokenSpan(*span) for span in slot) for slot in node)
                 for node in row["definitions"])
             chart = ScoredArgumentChart(options, row["n_inputs"], RegisterUseContract(**row["register_contract"]),
-                definition_options=definitions, definition_scores={
+                definition_options=definitions, definition_scores=None if not row["definition_scores"] else {
                     (register, TokenSpan(start, end)): score
                     for register, start, end, score in row["definition_scores"]},
                 choice_log_normalizer=row["normalizer"])
