@@ -1474,6 +1474,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Program proof retention](evidence/G03_PROGRAM_POOL_PROGRESS_2026-10-01.md)
+  repairs source mining that discarded completed graphs after a later search
+  timeout. Public decoding still requires optimality. Two previously failing
+  source cases now retain sixteen proved alternatives each; completed pools
+  require rebuilt factors, checked constraints and re-proved meanings before
+  reuse across code revisions. The original preparation was stopped with
+  proved process cleanup and 282 immutable pools preserved. 169 focused
+  checks pass; these are source preparation and implementation results, not
+  learned accuracy or G03 completion.
   [Whole-request operation repair](evidence/G03_OPERATION_FIELD_REPAIR_2026-10-01.md)
   audits all five hundred public proposal banks: correct operation sequences
   are absent in 70, present in 430, and first-ranked in all 38 joint regressions.

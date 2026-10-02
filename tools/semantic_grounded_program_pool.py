@@ -7,10 +7,11 @@ from pathlib import Path
 from core.learning.semantic_grounded_program_objective import (
     GroundedProgramSupervision,
     mine_grounded_program_supervision,
+    revalidate_grounded_program_supervision,
 )
 
 
-def source_program_pool(parent, item, directory, **bounds):
+def source_program_pool(parent, item, directory, *, reuse_directory=None, **bounds):
     from core.governance_context import local_internal_governed_scope
     from core.learning.semantic_grounded_binding_engine import implementation_receipt
     from core.runtime.file_write_gateway import get_file_write_gateway
@@ -29,22 +30,43 @@ def source_program_pool(parent, item, directory, **bounds):
         "observed_states_geometry": (str(item.hidden_states.dtype), item.hidden_states.shape)}
     basis_sha = digest(basis)
     path = Path(directory) / f"{item.ir.source_text_sha256}.json"
-    if path.exists():
+    def checked_receipt(path):
         receipt = json.loads(path.read_bytes())
-        if (receipt.get("basis_sha256") != basis_sha
-                or digest(receipt["basis"]) != basis_sha
+        if (digest(receipt["basis"]) != receipt.get("basis_sha256")
                 or digest({key: value for key, value in receipt.items() if key != "receipt_sha256"})
                     != receipt.get("receipt_sha256")):
+            raise ValueError("durable program pool differs from its receipt custody")
+        return receipt
+    if path.exists():
+        receipt = checked_receipt(path)
+        if receipt.get("basis_sha256") != basis_sha:
             raise ValueError("durable program pool differs from source or implementation custody")
         return GroundedProgramSupervision.from_receipt(receipt["programs"]), True
-    programs = mine_grounded_program_supervision(parent, item, **bounds)
+    ancestor = None if reuse_directory is None else Path(reuse_directory) / path.name
+    provenance = None
+    if ancestor is not None and ancestor.exists():
+        prior = checked_receipt(ancestor)
+        current_source = {key: value for key, value in basis.items() if key != "implementation"}
+        prior_source = {key: value for key, value in prior["basis"].items() if key != "implementation"}
+        if digest(current_source) != digest(prior_source):
+            raise ValueError("retained program pool differs from exact source, parent or bounds")
+        programs = revalidate_grounded_program_supervision(parent, item,
+            GroundedProgramSupervision.from_receipt(prior["programs"]),
+            max_charts=bounds["max_charts"], max_graphs=bounds["max_graphs"])
+        provenance = {"path": str(ancestor.absolute()), "receipt_sha256": prior["receipt_sha256"],
+            "basis_sha256": prior["basis_sha256"], "prior_implementation": prior["basis"]["implementation"],
+            "factors_rebuilt": True, "graph_constraints_rechecked": True, "program_meanings_reproved": True}
+    else:
+        programs = mine_grounded_program_supervision(parent, item, **bounds)
     receipt = {"basis": basis, "basis_sha256": basis_sha, "programs": programs.receipt()}
+    if provenance is not None:
+        receipt["revalidation"] = provenance
     receipt["receipt_sha256"] = digest(receipt)
     with local_internal_governed_scope("grounded_program_pool", domain="file_write"):
         if not get_file_write_gateway().write_bytes_if_absent(path,
                 (json.dumps(receipt, indent=2) + "\n").encode(), source="grounded_program_pool", mode=0o400):
             raise FileExistsError("another owner published the source program pool")
-    return programs, False
+    return programs, provenance is not None
 
 
 def prepare_program_population(parent, items, directory, **bounds):
@@ -70,6 +92,8 @@ def prepare_program_population(parent, items, directory, **bounds):
             "population": len(items), **row}), flush=True)
     report = {"schema": "aura.grounded_program_population_preflight.v1", "population": len(items),
         "ready": len(programs), "failed": len(failures), "sources": rows,
+        "partial_search_pools": sum(not program.mining.get("requested_searches_completed", True)
+            for program in programs.values()),
         "fit_ready": not failures, "model_weights_loaded": False, "held_sources_scored": False,
         "semantic_success": None, "serving_authority": False}
     digest = hashlib.sha256(json.dumps(report, sort_keys=True, separators=(",", ":")).encode()).hexdigest()

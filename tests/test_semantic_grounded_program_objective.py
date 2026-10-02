@@ -16,6 +16,7 @@ from core.learning.semantic_grounded_program_objective import (
     mine_grounded_program_supervision,
     program_chart_edge_scores,
     program_objective_contract,
+    revalidate_grounded_program_supervision,
 )
 from core.learning.semantic_native_operation_field import NativeOperationField
 from tools.semantic_grounded_score_execution import conditional_role_update
@@ -184,3 +185,93 @@ def test_population_preflight_keeps_all_failures_and_does_not_claim_semantic_suc
     report = json.loads(next(tmp_path.glob("population-*.json")).read_text())
     assert report["failed"] == report["population"] == 3 and not report["fit_ready"]
     assert not report["model_weights_loaded"] and report["semantic_success"] is None
+
+
+def mining_fixture():
+    from core.learning.semantic_program_compositional_transducer import (
+        fit_compositional_semantic_program_transducer,
+    )
+    from tests.test_semantic_program_shared_transducer import _examples, _grounding
+    examples = _examples()
+    return (fit_compositional_semantic_program_transducer(examples, input_grounding=_grounding()),
+            next(item for item in examples if item.split == "train"))
+
+
+def test_late_competitor_timeout_retains_completed_proofs_without_claiming_finished_search(monkeypatch):
+    from core.learning.semantic_argument_chart import ScoredArgumentChart
+    from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
+    parent, item = mining_fixture()
+    original, calls = ScoredArgumentChart.solve, []
+    def interrupted(chart, **kwargs):
+        calls.append(chart)
+        if len(calls) == 3:
+            raise ArgumentOptimizationIncompleteError("argument_optimizer_status:1")
+        return original(chart, **kwargs)
+    monkeypatch.setattr(ScoredArgumentChart, "solve", interrupted)
+    pool = mine_grounded_program_supervision(parent, item, max_charts=2, max_graphs=2, max_seconds=10.)
+    assert pool.mining["proven_positive_graphs"] and pool.mining["witnessed_negative_graphs"]
+    assert not pool.mining["requested_searches_completed"]
+    assert pool.mining["unfinished_searches"][0]["completed_graphs_retained"] == 2
+    assert pool.mining["unfinished_searches"][0]["reason"] == "argument_optimizer_status:1"
+    assert not pool.mining["complete_grammar_partition"]
+
+
+def test_incomplete_target_feasibility_is_not_a_successful_source_pool(monkeypatch):
+    from core.learning.semantic_argument_chart import ScoredArgumentChart
+    from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
+    parent, item = mining_fixture()
+    def incomplete(*_args, **_kwargs):
+        raise ArgumentOptimizationIncompleteError("target_not_proved")
+    monkeypatch.setattr(ScoredArgumentChart, "solve", incomplete)
+    with pytest.raises(ArgumentOptimizationIncompleteError, match="target_not_proved"):
+        mine_grounded_program_supervision(parent, item, max_charts=2, max_graphs=2, max_seconds=10.)
+
+
+def test_old_pool_is_reproved_without_repeating_optimizer_search(monkeypatch, tmp_path):
+    import json
+
+    import tools.semantic_grounded_program_pool as module
+    from core.learning.semantic_argument_chart import ScoredArgumentChart
+    parent, item = mining_fixture()
+    bounds = dict(max_charts=2, max_graphs=2, max_seconds=10.)
+    prior = tmp_path / "prior"
+    pool, _ = module.source_program_pool(parent, item, prior, **bounds)
+    import core.learning.semantic_grounded_binding_engine as engine
+    old_implementation = engine.implementation_receipt()
+    monkeypatch.setattr(engine, "implementation_receipt", lambda: {**old_implementation, "revision": "new"})
+    monkeypatch.setattr(module, "mine_grounded_program_supervision", lambda *_args, **_kwargs:
+        pytest.fail("repeated completed source search"))
+    monkeypatch.setattr(ScoredArgumentChart, "solve", lambda *_args, **_kwargs:
+        pytest.fail("repeated optimizer search"))
+    adopted, reused = module.source_program_pool(parent, item, tmp_path / "current", reuse_directory=prior, **bounds)
+    assert reused and len(adopted.charts) == len(pool.charts)
+    assert adopted.mining["program_meanings_reproved"] and not adopted.mining["optimizer_search_repeated"]
+    receipt = json.loads((tmp_path / "current" / f"{item.ir.source_text_sha256}.json").read_bytes())
+    assert receipt["basis"]["implementation"]["revision"] == "new"
+    assert receipt["revalidation"]["prior_implementation"] == old_implementation
+    with pytest.raises(ValueError, match="exact source"):
+        module.source_program_pool(parent, replace(item, public_inputs=tuple(99 for _ in item.public_inputs)),
+            tmp_path / "different-source", reuse_directory=prior, **bounds)
+
+
+@pytest.mark.parametrize("fault", ["role_score", "comparison", "baseline", "operation", "indices"])
+def test_pool_revalidation_rejects_factors_labels_identity_and_invalid_graphs(fault):
+    parent, item = mining_fixture()
+    pool = mine_grounded_program_supervision(parent, item, max_charts=2, max_graphs=2, max_seconds=10.)
+    proposal = pool.charts[0]
+    if fault == "role_score":
+        options = [[list(slot) for slot in node] for node in proposal.chart.options]
+        score, register, span = options[0][0][0]
+        options[0][0][0] = (score + .5, register, span)
+        proposal = replace(proposal, chart=replace(proposal.chart, options=options))
+    elif fault == "comparison":
+        proposal = replace(proposal, graphs=(replace(proposal.graphs[0], comparison={"status": "different"}),))
+    elif fault == "baseline":
+        proposal = replace(proposal, graphs=(replace(proposal.graphs[0], baseline_score=999.),))
+    elif fault == "operation":
+        proposal = replace(proposal, nodes=(replace(proposal.nodes[0], operation="invented"), *proposal.nodes[1:]))
+    else:
+        proposal = replace(proposal, graphs=(replace(proposal.graphs[0], indices=()),))
+    with pytest.raises(ValueError):
+        revalidate_grounded_program_supervision(parent, item, replace(pool, charts=(proposal,)),
+            max_charts=2, max_graphs=2)

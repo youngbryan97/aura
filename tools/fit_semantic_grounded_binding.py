@@ -76,6 +76,8 @@ def main():
     parser.add_argument("--program-graphs", type=int, default=4)
     parser.add_argument("--program-mining-seconds", type=float, default=10.)
     parser.add_argument("--program-pool-directory", type=Path)
+    parser.add_argument("--revalidate-program-pools", type=Path,
+                        help="rebuild factors and reprove existing source pools under current implementation")
     parser.add_argument("--calibration-per-stratum", type=int,
                         help="source-identity quota per eligible construction/depth calibration stratum")
     args = parser.parse_args()
@@ -92,6 +94,8 @@ def main():
         parser.error("native operation field requires --native")
     if args.complete_program_objective and not args.native_operation_field:
         parser.error("complete-program objective requires --native-operation-field")
+    if args.revalidate_program_pools is not None and not args.complete_program_objective:
+        parser.error("program pool revalidation requires --complete-program-objective")
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
         load_source_examples,
@@ -168,6 +172,7 @@ def main():
         from tools.semantic_grounded_program_pool import prepare_program_population
         pool_directory = args.program_pool_directory or args.directory.parent / (args.directory.name + "-program-pools")
         programs, _pool_report = prepare_program_population(parent, (*fit, *calibration_items), pool_directory,
+            reuse_directory=args.revalidate_program_pools,
             max_charts=args.program_charts, max_graphs=args.program_graphs,
             max_seconds=args.program_mining_seconds)
     if not training:

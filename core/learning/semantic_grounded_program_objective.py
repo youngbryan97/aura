@@ -10,7 +10,7 @@ import hashlib
 import json
 import math
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from itertools import islice
 
 import mlx.core as mx
@@ -205,6 +205,7 @@ class GroundedProgramSupervision:
                 score += sum((chart.definition_scores or {}).get(key, 0.) for key in definitions)
                 if abs(score - graph.baseline_score) > 1e-5 * (1. + abs(score)):
                     raise ValueError("complete program baseline differs from selected public factors")
+                chart.certify_selection(graph.indices)
                 positives += graph.comparison["status"] == "equivalent"
                 negatives += graph.comparison["status"] == "different"
         if not positives:
@@ -243,33 +244,13 @@ class GroundedProgramSupervision:
         return mx.logsumexp(scores) - mx.logsumexp(scores[mx.array(positives, dtype=mx.int32)])
 
 
-def mine_grounded_program_supervision(parent, item, *, max_charts=4, max_graphs=4, max_seconds=5.):
-    """Freeze public competitors first; use source annotations only for labels.
-
-    The source target chart is added for fitting and explicitly recorded. It
-    is never supplied to public decoding. A finite probe cannot certify two
-    programs equal; such undecided comparisons are excluded from this loss.
-    """
-    from core.learning.semantic_graph_counterexamples import (
-        argument_graph_program,
-        compare_program_meanings,
-        counterfactual_inputs,
-    )
+def _source_program_context(parent, item, max_charts):
+    from core.learning.semantic_graph_counterexamples import argument_graph_program
     from core.learning.semantic_joint_graph_learning import align_source_input_registers
-    from core.learning.semantic_program_transducer_fitting import (
-        _assign_typed_arguments,
-        _OperationNode,
-    )
+    from core.learning.semantic_program_transducer_fitting import _OperationNode
 
-    if (item.split != "train" or any(type(bound) is not int or bound < 1 for bound in (max_charts, max_graphs))
-            or max_seconds <= 0):
+    if item.split != "train" or type(max_charts) is not int or max_charts < 1:
         raise ValueError("complete-program mining requires bounded source-training inputs")
-    deadline = time.monotonic() + max_seconds
-    def remaining():
-        allowance = deadline - time.monotonic()
-        if allowance <= 0:
-            raise TimeoutError("complete-program source mining exhausted its allowance")
-        return allowance
     parent = parent.with_global_constraint_arguments().with_conditional_argument_choices()
     limit = parent.inference_step_limit(len(item.public_inputs))
     if limit is None:
@@ -285,13 +266,98 @@ def mine_grounded_program_supervision(parent, item, *, max_charts=4, max_graphs=
     target_nodes = tuple(_OperationNode(instructions[index].operation_span, instructions[index].op, 0., 0., 1.)
         for index in order)
     target = argument_graph_program(target_nodes, target_args, n_inputs=len(spans))
+    return parent, spans, arguments, public, target_nodes, target_args, target
+
+
+def revalidate_grounded_program_supervision(parent, item, programs, *, max_charts, max_graphs):
+    """Rebuild public factors and reprove stored meanings before changing custody."""
+    from core.learning.semantic_graph_counterexamples import (
+        argument_graph_program,
+        compare_program_meanings,
+        counterfactual_inputs,
+    )
+    from core.learning.semantic_program_transducer_fitting import _assign_typed_arguments
+
+    parent, spans, arguments, public, target_nodes, _args, target = _source_program_context(parent, item, max_charts)
+    signature = lambda nodes: tuple((node.operation, node.span) for node in nodes)
+    allowed = {signature(nodes) for nodes in (*public, target_nodes)}
+    if (programs.source_id != item.ir.source_text_sha256 or programs.input_spans != spans
+            or programs.inputs != item.public_inputs or len(programs.charts) > len(allowed)
+            or len({signature(proposal.nodes) for proposal in programs.charts}) != len(programs.charts)):
+        raise ValueError("retained program pool differs from current source context")
+    probes = counterfactual_inputs(item.public_inputs)
+    proposals, positives, negatives = [], 0, 0
+    for proposal in programs.charts:
+        if signature(proposal.nodes) not in allowed or not 1 <= len(proposal.graphs) <= max_graphs + 1:
+            raise ValueError("retained program pool exceeds current public proposal bounds")
+        captured = []
+        _assign_typed_arguments(model=parent, hidden=item.hidden_states, inputs=item.public_inputs,
+            source_token_ids=item.ir.source_token_ids, input_spans=spans, operation_nodes=proposal.nodes,
+            argument_pointer_scores=arguments, chart_observer=captured.append, build_only=True)
+        if len(captured) != 1:
+            raise ValueError("retained program chart is absent from current public grammar")
+        chart = captured[0]
+        if (ProgramChartChoices(proposal.nodes, chart, ()).receipt()
+                != replace(proposal, graphs=()).receipt()):
+            raise ValueError("retained program factors differ from current public chart")
+        graphs = []
+        for graph in proposal.graphs:
+            score, registers, _mentions, _dependencies = chart.certify_selection(graph.indices)
+            if abs(score - graph.baseline_score) > 1e-5 * (1. + abs(score)):
+                raise ValueError("retained program baseline differs from selected public factors")
+            program = argument_graph_program(proposal.nodes, registers, n_inputs=len(spans))
+            comparison = compare_program_meanings(target, program, probes)
+            if (comparison["status"] not in {"equivalent", "different"}
+                    or comparison["status"] != graph.comparison.get("status")):
+                raise ValueError("retained program meaning was not independently reproved")
+            positives += comparison["status"] == "equivalent"
+            negatives += comparison["status"] == "different"
+            graphs.append(replace(graph, comparison=comparison))
+        proposals.append(replace(proposal, chart=chart, graphs=tuple(graphs)))
+    if not positives:
+        raise ValueError("retained program pool has no proven positive")
+    mining = {**programs.mining, "proven_positive_graphs": positives, "witnessed_negative_graphs": negatives,
+        "source_factors_rebuilt": True, "graph_constraints_rechecked": True,
+        "program_meanings_reproved": True, "optimizer_search_repeated": False}
+    return replace(programs, charts=tuple(proposals), mining=mining)
+
+
+def mine_grounded_program_supervision(parent, item, *, max_charts=4, max_graphs=4, max_seconds=5.):
+    """Freeze public competitors first; use source annotations only for labels.
+
+    The source target chart is added for fitting and explicitly recorded. It
+    is never supplied to public decoding. A finite probe cannot certify two
+    programs equal; such undecided comparisons are excluded from this loss.
+    """
+    from core.learning.semantic_graph_counterexamples import (
+        argument_graph_program,
+        compare_program_meanings,
+        counterfactual_inputs,
+    )
+    from core.learning.semantic_program_transducer_fitting import _assign_typed_arguments
+
+    if type(max_graphs) is not int or max_graphs < 1 or not math.isfinite(max_seconds) or max_seconds <= 0:
+        raise ValueError("complete-program mining requires bounded source-training inputs")
+    deadline = time.monotonic() + max_seconds
+    def remaining():
+        allowance = deadline - time.monotonic()
+        if allowance <= 0:
+            raise TimeoutError("complete-program source mining exhausted its allowance")
+        return allowance
+    parent, spans, arguments, public, target_nodes, target_args, target = _source_program_context(parent, item, max_charts)
     signature = lambda nodes: tuple((node.operation, node.span) for node in nodes)
     public_signatures = {signature(nodes) for nodes in public}
-    sets = dict((signature(nodes), nodes) for nodes in (*public, target_nodes))
+    # Source feasibility is required; further competitors are bounded witnesses.
+    # The public proposal bank above is already frozen before reading the target.
+    sets = dict((signature(nodes), nodes) for nodes in (target_nodes, *public))
     proposals, unknown, negatives, positives = [], 0, 0, 0
+    searches, complete = [], True
     probes = counterfactual_inputs(item.public_inputs)
     for nodes in sets.values():
-        remaining()
+        if time.monotonic() >= deadline:
+            complete = False
+            searches.append({"phase": "chart_start", "status": "budget_exhausted"})
+            break
         captured = []
         _assign_typed_arguments(model=parent, hidden=item.hidden_states, inputs=item.public_inputs,
             source_token_ids=item.ir.source_token_ids, input_spans=spans, operation_nodes=nodes,
@@ -320,7 +386,19 @@ def mine_grounded_program_supervision(parent, item, *, max_charts=4, max_graphs=
             excluded.append(result[1])
         for _ in range(max_graphs):
             indices = []
-            result = chart.solve(excluded_graphs=excluded, selection_observer=indices.append, time_limit_s=remaining())
+            from core.learning.semantic_argument_optimization import (
+                ArgumentOptimizationIncompleteError,
+            )
+
+            try:
+                result = chart.solve(excluded_graphs=excluded, selection_observer=indices.append,
+                    time_limit_s=remaining())
+            except (TimeoutError, ArgumentOptimizationIncompleteError) as exc:
+                complete = False
+                searches.append({"operations": [(node.operation, node.span.start, node.span.end)
+                    for node in nodes], "phase": "competitor_search", "status": "incomplete",
+                    "reason": str(exc), "completed_graphs_retained": len(selections)})
+                break
             if result is None:
                 break
             selections.append((result, indices[0]))
@@ -337,11 +415,14 @@ def mine_grounded_program_supervision(parent, item, *, max_charts=4, max_graphs=
             graphs.append(ProgramGraphChoice(indices, result[0], comparison))
         if graphs:
             proposals.append(ProgramChartChoices(nodes, chart, tuple(graphs)))
+        if not complete:
+            break
     mining = {"schema": "aura.grounded_program_mining.v1", "max_charts": max_charts,
         "max_graphs_per_chart": max_graphs, "public_charts": len(public),
         "source_target_chart_added": signature(target_nodes) not in public_signatures,
         "proven_positive_graphs": positives, "witnessed_negative_graphs": negatives,
         "informative_complete_program_contrast": bool(negatives),
+        "requested_searches_completed": complete, "unfinished_searches": searches,
         "unknown_comparisons_excluded": unknown, "complete_grammar_partition": False,
         "target_available_to_runtime": False, "serving_authority": False}
     if not positives:
