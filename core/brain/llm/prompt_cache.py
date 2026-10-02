@@ -601,6 +601,14 @@ class PromptCacheLRU:
             current = current[tok]
         return current["cache"]
 
+    def _holds(self, model_key: Any, tokens: list[int]) -> bool:
+        """Whether an entry for exactly these tokens is in the trie."""
+        try:
+            self._get(model_key, tokens)
+        except KeyError:
+            return False
+        return True
+
     def _delete(self, model_key: int, tokens: list[int]) -> None:
         path = [self._cache[model_key]]
         for tok in tokens:
@@ -658,6 +666,21 @@ class PromptCacheLRU:
 
         if result.shorter is not None:
             cache_entry = self._extract(model_key, result.shorter)
+            # A prefix nothing longer can be trimmed back to stays in the trie.
+            #
+            # Handing the entry over removes it, and the entry this turn leaves
+            # behind holds the whole prompt and its reply; on a model that
+            # cannot trim, that one can never give the prefix back. LIVE
+            # 2026-10-02, one psych-test item after another: a hit reusing
+            # 4096 of 5321 tokens, then "miss — prefilling all 5344 tokens"
+            # with 4189 matched, then a hit, then a miss. Every other item read
+            # its whole prompt again, about forty seconds each.
+            if not can_trim_prompt_cache(cache_entry.prompt_cache) and not self._holds(
+                model_key, result.shorter
+            ):
+                self.insert_cache(
+                    model_key, list(result.shorter), copy.deepcopy(cache_entry.prompt_cache)
+                )
             prefix_len = len(result.shorter)
             logger.info(
                 "🎯 [PROMPT CACHE] prefix hit — reused %d/%d tokens, %d to prefill.",

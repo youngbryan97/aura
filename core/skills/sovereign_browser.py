@@ -632,7 +632,9 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         for a game move; on a reason with two or three sentences in it, LIVE
         2026-09-29, it cut the end off and the seam downstream reported
         "completed a reply cut off mid-clause (400 -> 315 chars)" four times in a
-        row, each one a piece of her reasoning nobody read.
+        row, each one a piece of her reasoning nobody read. The bound is the
+        bubble's; the card stays, so its body is all of it (LIVE 2026-10-02 the
+        forecast's card stopped at 599 characters, before the type she expected).
         """
         from core.agency.reading_pace import as_much_as_can_be_read
 
@@ -641,7 +643,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
             return
         laid_out = dict(parts or {})
         if laid_out.get("said"):
-            laid_out["said"] = as_much_as_can_be_read(str(laid_out["said"]))
+            laid_out["said"] = " ".join(str(laid_out["said"]).split())
         try:
             from core.agency.narrator import Narrator
 

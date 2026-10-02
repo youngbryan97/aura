@@ -95,3 +95,27 @@ def test_the_chat_lays_a_narrated_line_out_and_does_not_call_it_autonomic():
     assert "function narrationCardHtml(" in source
     badge = source.split("function messageBadgeHtml", 1)[1].split("\n}\n", 1)[0]
     assert badge.index("metadata.narration") < badge.index("metadata.autonomic")
+
+
+def test_the_card_keeps_the_whole_of_what_she_said(monkeypatch):
+    """The bubble is bounded by reading time; the card stays, so it is not.
+
+    LIVE 2026-10-02 the forecast's card stopped at 599 characters, before the
+    type she expected.
+    """
+    from core.agency.reading_pace import as_much_as_can_be_read
+
+    published: list[dict[str, Any]] = []
+
+    class Orchestrator:
+        def _publish_telemetry(self, event: dict[str, Any]) -> None:
+            published.append(event)
+
+    monkeypatch.setattr("core.agency.narrator.resolve_orchestrator", lambda: Orchestrator())
+    forecast = " ".join(f"This is reason number {n} for what I expect." for n in range(60))
+    forecast += " So I expect INTJ."
+    SovereignBrowserSkill._say_out_loud(forecast, {"label": "What I expect", "said": forecast})
+    event = published[-1]
+    assert event["metadata"]["narrated"]["said"].endswith("So I expect INTJ.")
+    assert event["message"] == as_much_as_can_be_read(forecast)
+    assert len(event["message"]) < len(forecast)

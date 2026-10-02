@@ -249,3 +249,31 @@ def test_binding_a_resume_handle_leaves_the_prefix_in_the_trie():
     # trie entry may extend it without touching the continuation.
     bound = lru._resume_bindings[handle].prompt_cache
     assert bound == kv and bound is not cache
+
+
+def test_a_prefix_hit_on_an_untrimmable_model_leaves_the_prefix_for_the_next_turn():
+    """LIVE 2026-10-02: hit, miss, hit, miss, one psych-test item after another.
+
+    The hit handed the snapshot over and removed it; the entry left behind held
+    the whole prompt and reply, which this model cannot trim back. So every
+    other item read its whole prompt again.
+    """
+    lru = PromptCacheLRU(max_size=8)
+    lru.insert_cache(_KEY, [1, 2, 3], ["KV-for-three"])
+    first, rest = _fetch(lru, [1, 2, 3, 4, 4])
+    assert first == ["KV-for-three"] and rest == [4, 4]
+    first.append("KV-for-the-rest")  # generation writes into the object it was handed
+    lru.insert_cache(_KEY, [1, 2, 3, 4, 4, 8], first)  # what this turn leaves behind
+    second, rest = _fetch(lru, [1, 2, 3, 5, 5])
+    assert second == ["KV-for-three"], "the next item found nothing to reuse"
+    assert rest == [5, 5]
+
+
+def test_a_trimmable_prefix_is_handed_over_without_a_copy():
+    """Where a longer entry can be trimmed back, the prefix needs no keeping."""
+    lru = PromptCacheLRU(max_size=8)
+    lru.insert_cache(_KEY, [1, 2, 3], ["KV-for-three"])
+    lru.fetch_nearest_cache(
+        _KEY, [1, 2, 3, 4], can_trim_prompt_cache=lambda _c: True, trim_prompt_cache=lambda _c, _n: None
+    )
+    assert not lru._holds(_KEY, [1, 2, 3])
