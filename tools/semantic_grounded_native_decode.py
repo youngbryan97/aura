@@ -74,6 +74,8 @@ class GroundedNativeChartDecoder:
         for layer in suffix.layers:
             layer.train()
         engine = GroundedBindingEngine.load(directory, native_suffix=suffix, native_contract=plan)
+        if engine.operation_field is not None:
+            parent = parent.with_conditional_argument_choices()._with_coefficients(operation_length_penalty=0.)
         return cls(parent, engine, prefix, suffix, plan, verification)
 
     def decode(self, *, source_token_ids, hidden_states, public_inputs,
@@ -83,6 +85,14 @@ class GroundedNativeChartDecoder:
         Native states come from the selected suffix, not teacher operations,
         arguments, construction identities or expected execution answers.
         """
+        if self.engine.operation_field is not None:
+            from tools.semantic_grounded_batched_chart import BatchedNativeChartDecoder
+            decoder = BatchedNativeChartDecoder(self, score_policy="conditional_likelihood")
+            outcome = decoder.decode(source_token_ids=source_token_ids, hidden_states=hidden_states,
+                public_inputs=public_inputs, source_text_sha256=source_text_sha256,
+                model_basis_sha256=model_basis_sha256, search_time_limit_s=search_time_limit_s)
+            self.last_receipt = decoder.last_receipt
+            return outcome
         import mlx.core as mx
 
         from core.learning.semantic_grounded_chart_bridge import GroundedBindingChartSolver
@@ -105,10 +115,12 @@ class GroundedNativeChartDecoder:
         if remaining <= 0:
             raise TimeoutError("joint chart source acquisition exhausted its declared allowance")
         bridge = GroundedBindingChartSolver(self.engine, source_text_sha256, states, max_seconds=remaining)
+        proposer = (self.engine.operation_field.proposal(source_text_sha256, states)
+                    if self.engine.operation_field is not None else None)
         outcome = self.parent.decode(source_token_ids=tokens, hidden_states=hidden_states,
             public_inputs=public_inputs, source_text_sha256=source_text_sha256,
             model_basis_sha256=model_basis_sha256, search_time_limit_s=remaining,
-            binding_chart_solver=bridge)
+            binding_chart_solver=bridge, operation_chart_proposer=proposer)
         selected = selected_chart_receipt(bridge.resolutions, outcome)
         self.last_receipt = {"schema": "aura.grounded_native_chart_decode.v1",
             "fit_receipt_sha256": self.verification["fit_receipt_sha256"],
@@ -119,5 +131,6 @@ class GroundedNativeChartDecoder:
             "selected_chart": selected, "examined_charts": len(bridge.resolutions), "refusal": outcome.refusal,
             "selected_step": self.verification["selected_step"],
             "learned_checkpoint_selected": self.verification["learned_checkpoint_selected"],
+            "operation_proposal": proposer.last_receipt if proposer is not None else None,
             "target_available_to_decoder": False, "serving_authority": False}
         return outcome

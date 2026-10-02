@@ -1474,6 +1474,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Whole-request operation repair](evidence/G03_OPERATION_FIELD_REPAIR_2026-10-01.md)
+  audits all five hundred public proposal banks: correct operation sequences
+  are absent in 70, present in 430, and first-ranked in all 38 joint regressions.
+  A native span-set learner now trains operation presence, labels and count
+  with the same suffix and optimizer as the binding pointer, survives exact
+  interrupted recovery, and supplies public decoder proposals. A complete
+  program contrast objective now shares the runtime's conditioned edge
+  function, with durable source-only public program pools and explicit
+  unknown comparisons. 185 focused checks pass. Whole-program calibration
+  beyond those pools and new model outcomes remain
+  unproved; this build grants no promotion or G03 completion.
   [Complete source negative](evidence/G03_COMPLETE_SOURCE_NEGATIVE_2026-10-01.md)
   independently grades all five hundred sources: parent 355 equivalent,
   global chart 327, joint native 326; reference answers 386, 343 and 341.

@@ -3,7 +3,11 @@ from types import SimpleNamespace
 import pytest
 
 from tools.semantic_grounded_development_archive import digest
-from tools.semantic_grounded_interventions import MODES, IntervenedGroundedDecoder, grounded_evidence_intervention
+from tools.semantic_grounded_interventions import (
+    MODES,
+    IntervenedGroundedDecoder,
+    grounded_evidence_intervention,
+)
 
 
 def owner(kind="lora"):
@@ -57,6 +61,7 @@ def test_lesions_act_on_installed_mlx_sites_and_restore_intact_arithmetic(mode, 
 
 def test_mixed_hybrid_control_resolves_all_linear_mixing_and_full_attention_sites():
     import mlx.nn as nn
+
     from tests.test_semantic_native_adapters import plan, tiny_model
     from tools.semantic_native_adapters import install_native_adapters
 
@@ -162,6 +167,35 @@ def test_failed_parameter_recovery_taints_owner_and_requires_reload(monkeypatch)
     with pytest.raises(ValueError, match="ownership"):
         with grounded_evidence_intervention(item, "intact"):
             pytest.fail("tainted owner reused")
+
+
+def test_operation_field_parameters_are_restored_and_not_confused_with_relation_lesion():
+    import mlx.core as mx
+
+    from core.learning.semantic_native_operation_field import NativeOperationField
+
+    item = owner()
+    field = item.engine.operation_field = NativeOperationField(4, depths=2, labels=("add", "sub"))
+    original = field.output.weight
+    with pytest.raises(ValueError, match="during decode"):
+        with grounded_evidence_intervention(item, "relation_off") as receipt:
+            assert receipt["operation_field_retained"]
+            field.output.weight = mx.ones_like(original)
+    assert field.output.weight is original
+    with grounded_evidence_intervention(item, "intact") as rescue:
+        assert item.engine.operation_field is field
+    assert rescue["restored"]
+
+
+def test_replacing_operation_module_taints_intervention_owner():
+    from core.learning.semantic_native_operation_field import NativeOperationField
+
+    item = owner()
+    item.engine.operation_field = NativeOperationField(4, depths=2, labels=("add", "sub"))
+    with pytest.raises(ValueError, match="module ownership"):
+        with grounded_evidence_intervention(item, "intact"):
+            item.engine.operation_field = NativeOperationField(4, depths=2, labels=("add", "sub"))
+    assert item._grounded_intervention_tainted
 
 
 def test_public_wrapper_preserves_request_and_actual_selection_receipt():

@@ -22,6 +22,7 @@ def intervention_contract():
 
 def _sites(owner):
     from mlx_lm.tuner.lora import LoRALinear
+
     from tools.semantic_native_adapter_layers import SemanticAdapterLinear
     from tools.semantic_native_adapters import native_adapter_keys_by_layer, native_adapter_scale
 
@@ -51,15 +52,22 @@ def _sites(owner):
 def _parameters(owner):
     from mlx.utils import tree_flatten
 
-    return {f"{prefix}.{name}": value for prefix, module in (
-        ("suffix", owner.suffix), ("pointer", owner.engine.pointer))
+    return {f"{prefix}.{name}": value for prefix, module in _modules(owner)
         for name, value in tree_flatten(module.parameters())}
+
+
+def _modules(owner):
+    modules = [("suffix", owner.suffix), ("pointer", owner.engine.pointer)]
+    field = getattr(owner.engine, "operation_field", None)
+    if field is not None:
+        modules.append(("operation_field", field))
+    return tuple(modules)
 
 
 def _restore_parameters(owner, parameters):
     from mlx.utils import tree_unflatten
 
-    for prefix, module in (("suffix", owner.suffix), ("pointer", owner.engine.pointer)):
+    for prefix, module in _modules(owner):
         module.update(tree_unflatten([(name[len(prefix) + 1:], value)
             for name, value in parameters.items() if name.startswith(prefix + ".")]))
     current = _parameters(owner)
@@ -92,9 +100,11 @@ def grounded_evidence_intervention(owner, mode):
             "fitted_scale": scale, "applied_scale": scale * adapter_multiplier}
             for name, module, scale in sites], "intact_evidence_weight": weight,
         "applied_evidence_weight": weight * relation_multiplier, "parameter_arrays": len(parameters),
+        "operation_field_retained": getattr(owner.engine, "operation_field", None) is not None,
         "restored": False, "parameter_objects_unchanged": False,
         "qualification_evidence": False, "serving_authority": False}
     owner._grounded_intervention_active = True
+    modules = _modules(owner)
     try:
         for _name, module, scale in sites:
             module.scale = scale * adapter_multiplier
@@ -108,8 +118,13 @@ def grounded_evidence_intervention(owner, mode):
         owner.engine.evidence_weight = weight
         owner._grounded_intervention_active = False
         current = _parameters(owner)
-        unchanged = set(parameters) == set(current) and all(current[name] is value for name, value in parameters.items())
+        module_ownership = all(dict(_modules(owner)).get(name) is module for name, module in modules)
+        unchanged = (module_ownership and set(parameters) == set(current)
+            and all(current[name] is value for name, value in parameters.items()))
         if not unchanged:
+            if not module_ownership:
+                owner._grounded_intervention_tainted = True
+                raise ValueError("intervention changed fitted module ownership; reload required")
             try:
                 _restore_parameters(owner, parameters)
             except Exception:

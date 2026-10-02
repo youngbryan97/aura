@@ -270,6 +270,8 @@ class BatchedNativeChartDecoder:
 
         self.last_receipt = None
         owner, tokens = self.owner, tuple(source_token_ids)
+        if owner.engine.operation_field is not None and self.score_policy != "conditional_likelihood":
+            raise ValueError("native operation field requires the conditional binding score policy")
         if (not tokens or len(tokens) > owner.plan["max_tokens"]
                 or any(type(token) is not int or token < 0 for token in tokens)
                 or type(search_time_limit_s) not in (int, float)
@@ -286,9 +288,11 @@ class BatchedNativeChartDecoder:
             raise TimeoutError("batched chart acquisition exhausted its allowance")
         bridge = BatchedGroundedBindingChartSolver(owner.engine, source_text_sha256, states,
             max_seconds=remaining, score_policy=self.score_policy, length_penalty=owner.parent.operation_length_penalty)
+        proposer = (owner.engine.operation_field.proposal(source_text_sha256, states)
+                    if owner.engine.operation_field is not None else None)
         outcome = owner.parent.decode(source_token_ids=tokens, hidden_states=hidden_states, public_inputs=public_inputs,
             source_text_sha256=source_text_sha256, model_basis_sha256=model_basis_sha256,
-            search_time_limit_s=remaining, binding_chart_solver=bridge)
+            search_time_limit_s=remaining, binding_chart_solver=bridge, operation_chart_proposer=proposer)
         self.last_receipt = {"schema": "aura.grounded_native_chart_decode.v1",
             "fit_receipt_sha256": owner.verification["fit_receipt_sha256"],
             "weights_sha256": owner.verification["weights_sha256"], "source_id": source_text_sha256,
@@ -299,6 +303,7 @@ class BatchedNativeChartDecoder:
             "examined_charts": len(bridge.resolutions), "refusal": outcome.refusal,
             "selected_step": owner.verification["selected_step"],
             "learned_checkpoint_selected": owner.verification["learned_checkpoint_selected"],
+            "operation_proposal": proposer.last_receipt if proposer is not None else None,
             "target_available_to_decoder": False, "execution": execution_contract(self.score_policy),
             "chart_diagnostics": tuple({key: resolution.get(key) for key in (
                 "status", "margin", "graph_signature", "argument_graph_score", "relation_score_policy",

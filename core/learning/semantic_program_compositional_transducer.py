@@ -32,6 +32,7 @@ from typing import Any, Final
 
 import numpy as np
 
+from core.learning.semantic_binding_residual import NonlinearBindingResidual
 from core.learning.semantic_definition_attachment import valid_attachment_contract
 from core.learning.semantic_input_grounding import (
     SemanticInputGroundingContract,
@@ -65,7 +66,6 @@ from core.learning.semantic_program_transducer import (
 )
 from core.learning.semantic_relation_tissue import valid_relation_rank_contract
 from core.learning.semantic_triadic_binding import TriadicBindingHead
-from core.learning.semantic_binding_residual import NonlinearBindingResidual
 
 from .semantic_program_transducer_amendments import _CarriesItsAmendments
 from .semantic_program_transducer_fitting import (
@@ -1034,6 +1034,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
         model_basis_sha256: str,
         search_time_limit_s: float | None = None,
         binding_chart_solver: Any = None,
+        operation_chart_proposer: Any = None,
     ) -> SemanticTransductionOutcome:
         if search_time_limit_s is not None and (
             type(search_time_limit_s) not in (int, float)
@@ -1045,6 +1046,10 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
             raise ValueError("grounded binding integration requires the complete global argument chart")
         if binding_chart_solver is not None and self.training_receipt.get("operation_assignment_policy") != "joint_factor_score_v2":
             raise ValueError("grounded binding integration requires joint operation-argument selection")
+        if operation_chart_proposer is not None and (
+                not callable(operation_chart_proposer) or self.operation_length_penalty != 0.
+                or self.training_receipt.get("argument_choice_normalization") != "local_categorical_v1"):
+            raise ValueError("native operation field requires null-relative scoring and conditional argument choices")
         if model_basis_sha256 != self.model_basis_sha256:
             return SemanticTransductionOutcome(None, "model_basis_mismatch", {}, {})
         if not _is_sha256(source_text_sha256):
@@ -1063,8 +1068,13 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
         from core.learning.semantic_operation_search import OperationSearchIncompleteError
 
         try:
-            input_spans, input_scores, argument_pointer_scores, charts = self._runtime_operation_charts(
-                tokens, hidden, inputs, inference_max_steps)
+            if operation_chart_proposer is None:
+                input_spans, input_scores, argument_pointer_scores, charts = self._runtime_operation_charts(
+                    tokens, hidden, inputs, inference_max_steps)
+            else:
+                input_spans, input_scores, argument_pointer_scores = self._runtime_input_grounding(tokens, hidden, inputs)
+                charts = operation_chart_proposer(source_id=source_text_sha256,
+                    source_token_ids=tokens, input_spans=input_spans, max_steps=inference_max_steps)
         except OperationSearchIncompleteError as exc:
             return SemanticTransductionOutcome(None, str(exc), {}, {}, search_interrupted=True)
         except ValueError as exc:

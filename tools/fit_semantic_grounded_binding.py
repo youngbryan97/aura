@@ -69,6 +69,13 @@ def main():
     parser.add_argument("--native-layer-kinds", help="comma-separated suffix function classes")
     parser.add_argument("--native-layer-ranks", help="comma-separated suffix ranks")
     parser.add_argument("--native-experts", type=int, default=1)
+    parser.add_argument("--native-operation-field", action="store_true")
+    parser.add_argument("--operation-relation-width", type=int, default=128)
+    parser.add_argument("--complete-program-objective", action="store_true")
+    parser.add_argument("--program-charts", type=int, default=4)
+    parser.add_argument("--program-graphs", type=int, default=4)
+    parser.add_argument("--program-mining-seconds", type=float, default=10.)
+    parser.add_argument("--program-pool-directory", type=Path)
     parser.add_argument("--calibration-per-stratum", type=int,
                         help="source-identity quota per eligible construction/depth calibration stratum")
     args = parser.parse_args()
@@ -81,6 +88,10 @@ def main():
         parser.error("native adapter topology requires --native")
     if args.calibration_per_stratum is not None and args.calibration_per_stratum < 1:
         parser.error("calibration quota must be positive")
+    if args.native_operation_field and not args.native:
+        parser.error("native operation field requires --native")
+    if args.complete_program_objective and not args.native_operation_field:
+        parser.error("complete-program objective requires --native-operation-field")
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
         load_source_examples,
@@ -139,6 +150,26 @@ def main():
     pairs = grounded_source_equivariance_pairs(fit, training) if args.source_equivariance else ()
     schedule, sampling_receipt = bounded_native_fit_schedule(fit,
         tuple(item.evidence.source_id for item in training), steps=args.steps, seed=args.seed)
+    if args.native_operation_field:
+        from types import SimpleNamespace
+
+        from core.learning.semantic_native_operation_field import OperationSetSupervision
+        grammar = SimpleNamespace(labels=parent.operation_head.labels, max_steps=parent.max_steps,
+            max_span_tokens=parent.max_span_tokens)
+        for item in (*fit, *calibration_items):
+            OperationSetSupervision(item.ir.source_text_sha256, len(item.ir.source_token_ids),
+                item.ir.input_spans, tuple((instruction.op, instruction.operation_span)
+                    for instruction in item.ir.instructions)).indices(grammar)
+        print(json.dumps({"stage": "grounded_operation_grammar_preflight", "fit_sources": len(fit),
+            "calibration_sources": len(calibration_items), "all_source_operations_reachable": True,
+            "model_weights_loaded": False, "held_sources_scored": False}), flush=True)
+    programs = None
+    if args.complete_program_objective:
+        from tools.semantic_grounded_program_pool import prepare_program_population
+        pool_directory = args.program_pool_directory or args.directory.parent / (args.directory.name + "-program-pools")
+        programs, _pool_report = prepare_program_population(parent, (*fit, *calibration_items), pool_directory,
+            max_charts=args.program_charts, max_graphs=args.program_graphs,
+            max_seconds=args.program_mining_seconds)
     if not training:
         raise ValueError("grounded source fit has no observed roles")
     geometry = next(iter(training[0].evidence.candidates.values())).shape
@@ -160,6 +191,11 @@ def main():
             spec=spec, rank=args.native_rank, layers=args.native_layers, max_tokens=args.native_max_tokens,
             cache_bytes=args.native_cache_mib * 1024 ** 2, seed=args.seed,
             relation_width=args.relation_width, rounds=args.rounds, fit_options=fit_options, resume=args.resume,
+            program_supervision=programs,
+            operation_options=({"labels": parent.operation_head.labels,
+                "relation_width": args.operation_relation_width,
+                "max_span_tokens": parent.max_span_tokens, "max_steps": parent.max_steps}
+                if args.native_operation_field else None),
             source_basis={"parent_sha256": hashlib.sha256(raw["parent"]).hexdigest(),
                 "source_report_sha256": hashlib.sha256(raw["source"]).hexdigest(),
                 "folds_sha256": hashlib.sha256(raw["folds"]).hexdigest(), "bank_plan_sha256": outer["plan_sha256"]},

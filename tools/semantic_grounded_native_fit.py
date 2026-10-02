@@ -29,7 +29,10 @@ class NativeCaptureBank(Mapping):
 
 
 def native_capture_template(item, evidence, depths):
-    """Use public proposed operation/spans, not teacher argument registers."""
+    """Align annotated source-fit frames; teacher registers do not enter capture.
+
+    These are supervised training frames, not public inference proposals.
+    """
     instructions = item.ir.instructions
     anchors = (item.register_definition_spans or
                (*item.ir.input_spans, *(instruction.operation_span for instruction in instructions)))
@@ -51,7 +54,8 @@ def native_capture_template(item, evidence, depths):
 def fit_native_grounded_sources(training, calibration, source_items, directory, *, spec, rank=32, layers=8,
                                max_tokens=512, cache_bytes=512 * 1024 ** 2, seed=20260930,
                                relation_width=128, rounds=2, fit_options=None, resume=False,
-                               prepare_only=False, adapter_options=None, source_basis=None):
+                               prepare_only=False, adapter_options=None, source_basis=None,
+                               operation_options=None, program_supervision=None, program_weight=1.):
     """Load one authorized model; recompute actual suffix states in gradients.
 
     Prefixes are immutable complete source-only sequences, sharded on disk.
@@ -83,6 +87,7 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
     from tools.train_semantic_native_program import require_native_cortex_spec
 
     directory, fit_options = Path(directory), dict(fit_options or {})
+    operation_options = None if operation_options is None else dict(operation_options)
     training, calibration, source_items = tuple(training), tuple(calibration), tuple(source_items)
     validate_grounded_fit_inputs(training, calibration, **fit_options)
     adapter_options = dict(adapter_options or {})
@@ -107,6 +112,33 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
             or resume and not (directory / "resume.json").is_file()
             or any(not item.ir.source_token_ids or len(item.ir.source_token_ids) > max_tokens for item in items.values())):
         raise ValueError("native grounded source custody, token bound or fresh fit directory differs")
+    operation_sources, operation_contract = None, None
+    if operation_options is not None:
+        from core.learning.semantic_native_operation_field import (
+            NativeOperationField,
+            OperationSetSupervision,
+        )
+        if not set(operation_options) <= {"labels", "relation_width", "max_span_tokens", "max_steps"}:
+            raise ValueError("unknown native operation field options")
+        geometry = json.loads((spec.model_path / "config.json").read_text())
+        width = geometry.get("text_config", geometry)["hidden_size"]
+        field = NativeOperationField(width, depths=layers, **operation_options)
+        operation_contract = field.to_contract()
+        operation_sources = {identity: OperationSetSupervision(identity, len(item.ir.source_token_ids),
+            item.ir.input_spans, tuple((instruction.op, instruction.operation_span)
+                for instruction in item.ir.instructions)) for identity, item in items.items()}
+        for value in operation_sources.values():
+            value.indices(field)
+        if program_supervision is not None:
+            if set(program_supervision) != set(items):
+                raise ValueError("complete-program sources differ from native source custody")
+            for identity, program in program_supervision.items():
+                if program.source_id != identity:
+                    raise ValueError("complete-program pool changed its source identity")
+                program.validate(field, len(items[identity].ir.source_token_ids))
+        del field
+    elif program_supervision is not None:
+        raise ValueError("complete-program objective requires a native operation field")
     adaptation = adapter_contract(rank=rank, layers=layers, sites="native_topology_v1",
         **{"scaling": "alpha_over_sqrt_rank_v1", "alpha": float(rank), **adapter_options})
     arithmetic = installed_arithmetic_basis()
@@ -143,6 +175,12 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
         "source_supervision_sha256": hashlib.sha256(json.dumps(sources, sort_keys=True,
             separators=(",", ":"), allow_nan=False).encode()).hexdigest(),
         "fit_options": {**fit_options, "equivariance_pairs": [asdict(pair) for pair in fit_options.get("equivariance_pairs", ())]}}
+    if operation_contract is not None:
+        plan["operation_field_contract"] = operation_contract
+        plan["operation_supervision"] = [operation_sources[key].receipt() for key in sorted(items)]
+    if program_supervision is not None:
+        from core.learning.semantic_grounded_program_objective import program_objective_contract
+        plan["program_objective_contract"] = program_objective_contract(program_supervision, program_weight)
     plan = json.loads(json.dumps(plan, allow_nan=False))
     plan_hash = hashlib.sha256(json.dumps(plan, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     config = json.loads((spec.model_path / "config.json").read_text())
@@ -155,7 +193,13 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
     pointer_parameters = sum(value.size for _, value in tree_flatten(pointer_geometry.trainable_parameters()))
     nuisance_parameters = ((pointer_geometry.feature_blocks * relation_width + 1)
         * len({item.environment for item in training}) if fit_options.get("domain_reversal", 0.) else 0)
-    trainable_bytes = projection["five_float32_copies_bytes"] + 20 * (pointer_parameters + nuisance_parameters)
+    operation_parameters = 0
+    if operation_contract is not None:
+        field = NativeOperationField.from_contract(operation_contract)
+        operation_parameters = sum(value.size for _, value in tree_flatten(field.trainable_parameters()))
+        del field
+    trainable_bytes = projection["five_float32_copies_bytes"] + 20 * (
+        pointer_parameters + nuisance_parameters + operation_parameters)
     del pointer_geometry
     custody = directory.parent / (directory.name + "-native-custody")
     if custody.exists():
@@ -173,6 +217,8 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
         body = {"schema": "aura.grounded_native_preparation.v1", "plan_sha256": plan_hash,
             "adapter_projection": projection, "pointer_parameters": pointer_parameters,
             "nuisance_parameters": nuisance_parameters,
+            "operation_parameters": operation_parameters,
+            "operation_source_grammar_coverage_checked": operation_contract is not None,
             "trainable_five_float32_copies_bytes": trainable_bytes,
             "activation_memory_is_measured": False,
             "fit_source_count": len(training), "calibration_source_count": len(calibration),
@@ -227,6 +273,10 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
         pointer = RelationalBindingPointer(hidden.shape[-1], depths=layers, relation_width=relation_width, rounds=rounds)
         engine, report = fit_grounded_binding(pointer, training, calibration, directory,
             native_suffix=suffix, native_captures=NativeCaptureBank(store, templates), native_contract=plan,
+            operation_field=(NativeOperationField.from_contract(operation_contract)
+                             if operation_contract is not None else None),
+            operation_supervision=operation_sources,
+            program_supervision=program_supervision, program_weight=program_weight,
             **{**fit_options, "max_seconds": remaining, "resume": resume})
         if (require_native_cortex_spec().descriptor_sha256 != spec.descriptor_sha256
                 or implementation_receipt() != plan["implementation"] or installed_arithmetic_basis() != arithmetic):
