@@ -1,3 +1,4 @@
+import math
 from dataclasses import replace
 from types import SimpleNamespace
 
@@ -241,6 +242,110 @@ def test_uniform_pointer_bias_cannot_reward_an_unnecessary_operation():
         for slot in graph) + operation
         for graph, operation in zip((correct_baseline, extra_baseline), operation_scores, strict=True)]
     assert normalized[0] > normalized[1]
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_conditional_chart_bound_covers_arbitrary_learned_logits_and_definitions(seed):
+    from core.learning.semantic_argument_chart import ScoredArgumentChart
+    from core.learning.semantic_program_ir import TokenSpan
+    from core.learning.semantic_program_transducer_fitting import RegisterUseContract
+    from tools.semantic_grounded_score_execution import conditional_chart_upper_bound, conditional_role_update
+
+    rng = np.random.default_rng(seed)
+    options = tuple(tuple(tuple((float(rng.normal()), register, TokenSpan(slot, slot + 1))
+        for register in range(5)) for slot in range(2)) for _ in range(2))
+    scores = {(register, TokenSpan(name, name + 1)): float(rng.normal())
+        for register in range(5) for name in (5, 7)}
+    chart = ScoredArgumentChart(options, 3, RegisterUseContract(1, 1, 1, 1, True),
+        definition_scores=scores, choice_log_normalizer=2.3)
+    upper = conditional_chart_upper_bound(chart)
+    for weight in (0., .1, 1., 100.):
+        values = [max(conditional_role_update([choice[0] for choice in slot],
+            rng.normal(0., 100., len(slot)), weight=weight)[0]) for node in options for slot in node]
+        definition_upper = sum(max(0., *(score for (identity, _span), score in scores.items() if identity == register))
+            for register in range(5))
+        assert sum(values) + definition_upper - chart.choice_log_normalizer <= upper + 1e-10
+
+
+def test_partition_bound_skips_only_a_proved_losing_complete_chart(monkeypatch):
+    from tools import semantic_grounded_batched_chart as execution
+    individual, chart, arguments = fixture_for_bound()
+    bridge = BatchedGroundedBindingChartSolver(individual.engine, individual.source_id,
+        individual.depth_states, score_policy="conditional_likelihood", length_penalty=0.)
+    first = bridge(chart, **arguments)
+    assert first is not None and bridge.last_resolution["status"] == "bound"
+    winner_score = bridge.best_joint_score
+    losing = {**arguments, "operation_nodes": tuple(SimpleNamespace(**{**vars(node), "score": -1000.})
+        for node in arguments["operation_nodes"])}
+    def must_not_score(*args, **kwargs):
+        raise AssertionError("proved losing chart reached learned scoring")
+    monkeypatch.setattr(execution, "conditioned_scores", must_not_score)
+    assert bridge(chart, **losing) is None
+    proof = bridge.last_resolution
+    assert proof["status"] == "certified_pruned"
+    assert proof["chart_upper_bound"] + proof["bound_roundoff_guard"] < winner_score
+    assert not proof["all_options_retained"] and bridge.best_joint_score == winner_score
+
+
+def fixture_for_bound():
+    from tests.test_semantic_grounded_chart_bridge import fixture
+    individual, chart, arguments = fixture()
+    arguments = {**arguments, "operation_nodes": tuple(SimpleNamespace(**vars(node), score=0.)
+        for node in arguments["operation_nodes"])}
+    return individual, chart, arguments
+
+
+def test_partition_bound_keeps_equal_or_better_charts_and_raw_evidence():
+    individual, chart, arguments = fixture_for_bound()
+    for policy in ("raw", "conditional_likelihood"):
+        bridge = BatchedGroundedBindingChartSolver(individual.engine, individual.source_id,
+            individual.depth_states, score_policy=policy, length_penalty=0.)
+        assert bridge(chart, **arguments) is not None
+        assert bridge(chart, **arguments) is not None
+        assert bridge.last_resolution["status"] == "bound"
+        better = {**arguments, "operation_nodes": tuple(SimpleNamespace(**{**vars(node), "score": 1000.})
+            for node in arguments["operation_nodes"])}
+        assert bridge(chart, **better) is not None
+        assert bridge.last_resolution["status"] == "bound"
+
+
+@pytest.mark.parametrize("rejection", ["order", "register_use"])
+def test_partition_bound_never_uses_an_assignment_the_parent_rejects(monkeypatch, rejection):
+    from tools import semantic_grounded_batched_chart as execution
+
+    individual, chart, arguments = fixture_for_bound()
+    bridge = BatchedGroundedBindingChartSolver(individual.engine, individual.source_id,
+        individual.depth_states, score_policy="conditional_likelihood", length_penalty=0.)
+    if rejection == "order":
+        monkeypatch.setattr(execution, "_operation_order", lambda *_args, **_kwargs: None)
+    else:
+        monkeypatch.setattr(type(chart.contract), "accepts_complete", lambda *_args, **_kwargs: False)
+    for operation_score in (0., -1000.):
+        nodes = tuple(SimpleNamespace(**{**vars(node), "score": operation_score})
+            for node in arguments["operation_nodes"])
+        assert bridge(chart, **{**arguments, "operation_nodes": nodes}) is not None
+        assert not bridge.last_resolution["parent_assignment_checks_passed"]
+        assert bridge.best_joint_score == -math.inf
+
+
+def test_complete_graph_selector_agrees_with_unpruned_execution():
+    from core.learning.semantic_argument_chart import select_operation_argument_graph
+
+    individual, chart, arguments = fixture_for_bound()
+    charts = tuple(tuple(SimpleNamespace(**{**vars(node), "score": score})
+        for node in arguments["operation_nodes"]) for score in (0., -1000., 50., 50., -500.))
+    outcomes = []
+    for penalty in (None, 0.):
+        bridge = BatchedGroundedBindingChartSolver(individual.engine, individual.source_id,
+            individual.depth_states, score_policy="conditional_likelihood", length_penalty=penalty)
+        def assign(nodes):
+            result = bridge(chart, **{**arguments, "operation_nodes": nodes})
+            return None if result is None else SimpleNamespace(score=result[0], assignment=result,
+                operation_nodes=nodes)
+        selected = select_operation_argument_graph(charts, assign, length_penalty=0., joint=True)
+        outcomes.append((selected.score, selected.assignment, selected.operation_nodes))
+        assert sum(row["status"] == "certified_pruned" for row in bridge.resolutions) == (0 if penalty is None else 2)
+    assert outcomes[0] == outcomes[1]
 
 
 def test_conditional_relation_policy_changes_only_the_declared_chart_score_update():

@@ -1474,10 +1474,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Conditional chart bound](evidence/G03_CONDITIONAL_CHART_BOUND_2026-10-01.md)
+  skips a complete chart only when its best possible normalized learned
+  score cannot beat a parent-accepted incumbent. 103 focused checks and
+  standard gates pass; a real replay of the remaining timeout is pending.
   [Selected-edge execution](evidence/G03_SELECTED_EDGE_EXECUTION_2026-10-01.md)
   preserves all fitted graph messages and every scored alternative while
   avoiding unrequested final edge outputs. 115 focused checks and standard
-  gates pass; the remaining timeout's real replay is pending.
+  gates pass. The completed replay still timed out after eight charts;
+  that negative result is retained and no full screen followed it.
   [Joint score identifiability](evidence/G03_JOINT_SCORE_IDENTIFIABILITY_2026-10-01.md)
   records a completed but wrong sixteen-chart replay: positive absolute
   pointer offsets rewarded an unnecessary operation. A declared conditional

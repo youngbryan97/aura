@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import math
 import time
+from collections import Counter
 from dataclasses import replace
 from pathlib import Path
 
@@ -21,9 +22,11 @@ from core.learning.semantic_grounded_binding_engine import (
 )
 from core.learning.semantic_grounded_chart_bridge import GroundedBindingChartSolver
 from core.learning.semantic_program_floor import semantic_primitive_type_signature
+from core.learning.semantic_program_transducer_fitting import _operation_order
 from core.learning.semantic_relational_pointer import semantic_role_features
 from tools.semantic_grounded_score_execution import (
     ObservationEncoder,
+    conditional_chart_upper_bound,
     conditional_role_update,
     reduce_dominated_mentions,
 )
@@ -33,12 +36,13 @@ def execution_contract(score_policy="raw"):
     if score_policy not in {"raw", "conditional_likelihood"}:
         raise ValueError("undeclared grounded relation score policy")
     helper = Path(__file__).with_name("semantic_grounded_score_execution.py")
-    return {"schema": "aura.grounded_batched_chart_execution.v4",
+    return {"schema": "aura.grounded_batched_chart_execution.v5",
         "source_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "helper_sha256": hashlib.sha256(helper.read_bytes()).hexdigest(),
         "pointer_function": "factored_fitted_pointer_selected_edges", "alternative_batch_size": 16,
         "all_graph_message_nodes_retained": True,
         "candidate_pruning": "certified_same_register_definition_token_subset_only",
+        "chart_pruning": "baseline_partition_bound_v1" if score_policy == "conditional_likelihood" else "none",
         "relation_score_policy": score_policy,
         "checkpoint_mutation": False, "qualification_evidence": False,
         "serving_authority": False}
@@ -97,10 +101,14 @@ def conditioned_scores(pointer, evidence, alternatives, *, projection=None, batc
 
 
 class BatchedGroundedBindingChartSolver(GroundedBindingChartSolver):
-    def __init__(self, *args, score_policy="raw", **kwargs):
+    def __init__(self, *args, score_policy="raw", length_penalty=None, **kwargs):
         super().__init__(*args, **kwargs)
         execution_contract(score_policy)
         self.score_policy = score_policy
+        if length_penalty is not None and (not math.isfinite(length_penalty) or length_penalty < 0):
+            raise ValueError("joint chart bound needs the unchanged nonnegative operation penalty")
+        self.length_penalty = length_penalty
+        self.best_joint_score = -math.inf
         self.observed_spans = {}
         self.encoder = ObservationEncoder(self.engine.pointer, self.engine.nuisance_projection)
 
@@ -120,6 +128,25 @@ class BatchedGroundedBindingChartSolver(GroundedBindingChartSolver):
                 span.validate_bound(len(self.depth_states))
                 self.observed_spans[span] = mx.mean(self.depth_states[span.start:span.end], axis=0)
             return self.observed_spans[span]
+        operation_score, bound_evidence = None, {}
+        if self.score_policy == "conditional_likelihood" and self.length_penalty is not None:
+            operation_score = sum(node.score for node in operation_nodes) - self.length_penalty * len(operation_nodes)
+            if not math.isfinite(operation_score):
+                raise ValueError("joint chart bound needs finite operation scores")
+            upper = conditional_chart_upper_bound(chart) + operation_score
+            finite_incumbent = math.isfinite(self.best_joint_score)
+            guard = 1e-6 * (1. + abs(upper) + abs(self.best_joint_score)) if finite_incumbent and math.isfinite(upper) else 0.
+            bound_evidence = {"chart_upper_bound": upper if math.isfinite(upper) else None,
+                "operation_chart_score": operation_score,
+                "incumbent_joint_score": self.best_joint_score if finite_incumbent else None,
+                "bound_roundoff_guard": guard}
+            if finite_incumbent and math.isfinite(upper) and upper + guard < self.best_joint_score:
+                self.last_resolution = {"status": "certified_pruned", "margin": None, "source_id": source_id,
+                    "all_options_retained": False, **bound_evidence, "role_updates": (), "solver_option_count": 0,
+                    "relation_score_policy": self.score_policy,
+                    "reason": "complete_chart_cannot_exceed_verified_incumbent"}
+                self.resolutions.append(self.last_resolution)
+                return None
         signatures = [semantic_primitive_type_signature(node.operation) for node in operation_nodes]
         if any(signature is None for signature in signatures):
             raise ValueError("batched chart needs typed public operations")
@@ -196,6 +223,7 @@ class BatchedGroundedBindingChartSolver(GroundedBindingChartSolver):
         resolution = augmented.solve_grounded(context, tuple(nested_roles), register_keys,
             minimum_margin=self.minimum_margin + margin_adjustment, time_limit_s=remaining())
         self.last_resolution = {"status": resolution.status, "margin": resolution.margin, "source_id": source_id,
+            **bound_evidence,
             "all_options_retained": True, "role_bindings": resolution.bindings, "edge_evidence": edge_receipts,
             "margin_is_probability": False, "pointer_execution": "factored_conditioned_selected_edges_v4",
             "relation_score_policy": self.score_policy,
@@ -208,6 +236,20 @@ class BatchedGroundedBindingChartSolver(GroundedBindingChartSolver):
                 tuple((anchors[register].start, anchors[register].end) for register in values))
                 for node, values in zip(operation_nodes, resolution.assignment[1], strict=True)))
             self.last_resolution["argument_graph_score"] = resolution.assignment[0]
+            if resolution.status == "bound" and operation_score is not None:
+                _score, arguments, _spans, dependencies = resolution.assignment
+                order = _operation_order(dependencies, operation_nodes, require_connected=True)
+                referenced = {dependency for values in dependencies for dependency in values}
+                sinks = tuple(index for index in range(len(operation_nodes)) if index not in referenced)
+                accepted = (order is not None and len(sinks) == 1 and chart.contract.accepts_complete(
+                    Counter(register for values in arguments for register in values), n_inputs=chart.n_inputs,
+                    operation_count=len(operation_nodes), sink=sinks[0]))
+                self.last_resolution["parent_assignment_checks_passed"] = accepted
+                if accepted:
+                    joint_score = resolution.assignment[0] + operation_score
+                    if not math.isfinite(joint_score):
+                        raise ValueError("joint chart incumbent needs a finite complete score")
+                    self.best_joint_score = max(self.best_joint_score, joint_score)
         self.resolutions.append(self.last_resolution)
         return resolution.assignment if resolution.status == "bound" else None
 
@@ -243,7 +285,7 @@ class BatchedNativeChartDecoder:
         if remaining <= 0:
             raise TimeoutError("batched chart acquisition exhausted its allowance")
         bridge = BatchedGroundedBindingChartSolver(owner.engine, source_text_sha256, states,
-            max_seconds=remaining, score_policy=self.score_policy)
+            max_seconds=remaining, score_policy=self.score_policy, length_penalty=owner.parent.operation_length_penalty)
         outcome = owner.parent.decode(source_token_ids=tokens, hidden_states=hidden_states, public_inputs=public_inputs,
             source_text_sha256=source_text_sha256, model_basis_sha256=model_basis_sha256,
             search_time_limit_s=remaining, binding_chart_solver=bridge)
@@ -260,6 +302,8 @@ class BatchedNativeChartDecoder:
             "target_available_to_decoder": False, "execution": execution_contract(self.score_policy),
             "chart_diagnostics": tuple({key: resolution.get(key) for key in (
                 "status", "margin", "graph_signature", "argument_graph_score", "relation_score_policy",
-                "role_updates", "solver_option_count")} for resolution in bridge.resolutions),
+                "role_updates", "solver_option_count", "chart_upper_bound", "operation_chart_score",
+                "incumbent_joint_score", "bound_roundoff_guard", "parent_assignment_checks_passed",
+                "reason")} for resolution in bridge.resolutions),
             "serving_authority": False}
         return outcome

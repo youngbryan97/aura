@@ -38,6 +38,32 @@ def conditional_role_update(baseline, learned, *, weight):
         "weight": weight, "uniform_evidence_is_neutral": True, "target_available": False}
 
 
+def conditional_chart_upper_bound(chart):
+    """Bound any normalized learned update without looking at its logits.
+
+    Each updated choice is at most the unchanged baseline log-partition.
+    Relax all assignment constraints and add each register's positive maximum
+    definition score once. The original chart normalizer still applies.
+    This bound is invalid for an unnormalized additive learned score.
+    """
+    partitions = []
+    for node in chart.options:
+        for slot in node:
+            values = tuple(option[0] for option in slot)
+            if not values:
+                return -math.inf
+            if not all(map(math.isfinite, values)):
+                raise ValueError("conditional chart bound needs finite baseline choices")
+            maximum = max(values)
+            partitions.append(maximum + math.log(math.fsum(math.exp(value - maximum) for value in values)))
+    definitions = {}
+    for (register, _span), score in (chart.definition_scores or {}).items():
+        if not math.isfinite(score):
+            raise ValueError("conditional chart bound needs finite definition scores")
+        definitions[register] = max(definitions.get(register, 0.), score)
+    return math.fsum((*partitions, *definitions.values(), -chart.choice_log_normalizer))
+
+
 class PooledPointer(RelationalBindingPointer):
     """Replay the original relation function after its independent projections."""
     def __init__(self, owner):
