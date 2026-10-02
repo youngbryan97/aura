@@ -303,8 +303,8 @@ def test_the_measure_is_not_tuned_to_any_instrument():
 def test_a_reason_is_bounded_so_a_page_of_them_is_affordable(monkeypatch):
     """An unbounded reason decoded 341 tokens at 8 a second, live.
 
-    And on 1 Oct, with the private channel open on every item, 650 to 860
-    tokens and 70 to 120 seconds each for two or three sentences.
+    And on 1 Oct, with the private channel open, the first three items
+    decoded 771, 650 and 859 tokens in 111, 86 and 123 seconds.
     """
     skill, handed = _screen(monkeypatch, '{"thinking": "t", "each": {}}')
     _run(skill, {"url": "u", "title": "t", "text": "x", "elements": _row("Q1") + _row("Q2")})

@@ -96,10 +96,11 @@ def test_the_page_she_is_shown_carries_the_layout():
 
 
 def test_an_unlabelled_answer_says_what_it_sits_between():
+    """And which end it is nearer, which "between" alone did not say."""
     options = _row(left="sceptical", right="wants to believe")
     said = S._an_answer_in_words(options, 1, "")
     assert "2 of 5" in said
-    assert 'between "sceptical" and "wants to believe"' in said
+    assert 'nearer "sceptical" than "wants to believe"' in said
 
 
 def test_a_labelled_answer_still_says_its_own_label():

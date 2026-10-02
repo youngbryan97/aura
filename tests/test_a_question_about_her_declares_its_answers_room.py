@@ -16,7 +16,7 @@ before it concludes.
 Her forecast and her verdict on the result are that kind of call. Her reason
 for one item is not: where she stands on it was measured from her record before
 she was asked, so the call says what was settled, and on 1 Oct an open channel
-cost 70 to 120 seconds an item for two or three sentences.
+cost the first item 111 seconds for three sentences.
 """
 from __future__ import annotations
 

@@ -601,8 +601,8 @@ class _UnderstandsThePage(_PlacesHerself):
         before it. Her place on an item is measured from her record before she
         is asked, so her reason for it is the second kind, and the runtime's
         typed lane for that closes the private channel: LIVE 2026-10-01,
-        every item opened it, decoded 650 to 860 tokens and took 70 to 120
-        seconds for two or three sentences. Either way ``most_tokens`` is a
+        the first three items opened it and decoded 771, 650 and 859 tokens
+        in 111, 86 and 123 seconds, for two or three sentences each. Either way ``most_tokens`` is a
         ceiling and not a hint: undeclared, the gate sized a forecast at "room
         for about 675 words" and she wrote 2,046 of them.
         """
@@ -1145,10 +1145,19 @@ class _UnderstandsThePage(_PlacesHerself):
             between = re.search(r'laid out between "(.+?)" and "(.+?)"', laid_out)
             ends = cls._the_ends_the_page_names(options)
             if between:
-                picked = (
-                    f"{picked}, between \"{between.group(1)}\" and "
-                    f"\"{between.group(2)}\""
-                )
+                # And which end it is nearer, which "between" alone does not
+                # say. LIVE 2026-10-01: "4 of 5, between 'makes lists' and
+                # 'relies on memory'", and her reason began "That's the list
+                # side" — the dot was a step from the other end, and neither
+                # she nor anyone watching could tell from the words.
+                first, second = between.group(1), between.group(2)
+                middle = (len(options) - 1) / 2.0
+                if index < middle:
+                    picked = f'{picked}, nearer "{first}" than "{second}"'
+                elif index > middle:
+                    picked = f'{picked}, nearer "{second}" than "{first}"'
+                else:
+                    picked = f'{picked}, midway between "{first}" and "{second}"'
             elif ends is not None:
                 # A grid names its scale above the run, and the word above the
                 # dot she chose is what she said. "4 of 5" alone tells a watcher
