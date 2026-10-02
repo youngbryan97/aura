@@ -181,6 +181,7 @@ REQUEST_FIELDS: dict[str, Field_] = {
     # later the run had not started.
     "output_shape": Field_(Kind.STRING),
     "hard_output_token_ceiling": Field_(Kind.BOOL),
+    "internal_inference": Field_(Kind.BOOL),
     "sampling_bias": Field_(Kind.OPAQUE),
     "imagination_sampling_bias": Field_(Kind.OPAQUE),
     "bicameral_sampling_bias": Field_(Kind.OPAQUE),

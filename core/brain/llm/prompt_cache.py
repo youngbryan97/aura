@@ -681,6 +681,12 @@ class PromptCacheLRU:
                 self.insert_cache(
                     model_key, list(result.shorter), copy.deepcopy(cache_entry.prompt_cache)
                 )
+                # And how far this prompt matched past it, which is where the
+                # prefill now running should keep its next prefix. Recorded on
+                # a miss only, the snapshot stayed where the first miss put it:
+                # LIVE 2026-10-02, every item a hit that reused 1472 of ~5300
+                # tokens, with 4189 shared from one item to the next.
+                self._diverged_at[model_key] = result.common_prefix
             prefix_len = len(result.shorter)
             logger.info(
                 "🎯 [PROMPT CACHE] prefix hit — reused %d/%d tokens, %d to prefill.",

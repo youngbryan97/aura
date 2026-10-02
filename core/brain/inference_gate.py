@@ -10228,10 +10228,10 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
                             )
                             logger.warning("🧠 %s bounded retry failed.", local_label)
                         if (
-                            proof_evaluation_contract
-                            or strict_primary_proof_lane
+                            proof_evaluation_contract or strict_primary_proof_lane
                             or operator_evidence_contract
                             or desktop_cognitive_engine_contract
+                            or bool(context.get("own_lane_required"))
                         ):
                             logger.warning(
                                 "🧠 Proof/operator request requires a valid Cortex response; refusing lower-lane fallback."

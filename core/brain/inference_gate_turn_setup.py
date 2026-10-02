@@ -608,6 +608,13 @@ class _SetsTheTurnUp:
             "disable_prompt_cache",
             "clear_prompt_cache",
             "health_probe",
+            # Whether this generation is anybody's reply. The draft check in
+            # `_generate_with_client` reads it to decide whether to grade the
+            # text against a question, and it was never copied here: LIVE
+            # 2026-10-02 her verdict on her own test result, 3804 characters,
+            # was graded against its own prompt, read as arithmetic for the
+            # scores in it, and thrown away as arithmetic_answer_missing.
+            "internal_inference",
         ):
             if _gen_key in context:
                 morpho_kwargs[_gen_key] = context[_gen_key]

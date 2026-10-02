@@ -277,3 +277,17 @@ def test_a_trimmable_prefix_is_handed_over_without_a_copy():
         _KEY, [1, 2, 3, 4], can_trim_prompt_cache=lambda _c: True, trim_prompt_cache=lambda _c, _n: None
     )
     assert not lru._holds(_KEY, [1, 2, 3])
+
+
+def test_a_hit_says_how_far_the_prompt_matched_so_a_deeper_prefix_is_kept():
+    """LIVE 2026-10-02: every item a hit reusing 1472 of ~5300 tokens, 4189 shared.
+
+    Recorded on a miss only, the place to snapshot stayed where the first miss
+    left it, and the prefix every item shared was never kept.
+    """
+    lru = PromptCacheLRU(max_size=8)
+    lru.insert_cache(_KEY, [1, 2], ["KV-for-two"])
+    lru.insert_cache(_KEY, [1, 2, 3, 4, 5, 6], ["KV-for-six"])
+    cache, rest = _fetch(lru, [1, 2, 3, 4, 9, 9])
+    assert cache == ["KV-for-two"] and rest == [3, 4, 9, 9]
+    assert lru.where_it_last_diverged(_KEY) == 4
