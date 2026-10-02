@@ -965,6 +965,22 @@ def _measured_host_rates_do_not_leak(request):
 
 
 @pytest.fixture(autouse=True)
+def _her_words_are_not_read_by_a_model_on_disk(monkeypatch):
+    """Whether a test's answer is placed by her words cannot depend on the cache.
+
+    `core.self.how_her_words_stand` reads an entailment model from the local
+    Hugging Face cache, and where it is present her own sentence decides the
+    answer instead of her record. On 2 Oct the model was downloaded and five
+    tests about the record's placement failed on that machine alone. A test
+    that wants a reader replaces `_reader` or `_how_far_it_bears_out` itself.
+    """
+    from core.self import how_her_words_stand
+
+    monkeypatch.setattr(how_her_words_stand, "_reader", lambda: None)
+    yield
+
+
+@pytest.fixture(autouse=True)
 def hermetic_resource_sandbox(tmp_path_factory):
     # Resource observation is test infrastructure, not test-owned payload. Put
     # it beside pytest's per-test directory so exact-directory transaction
