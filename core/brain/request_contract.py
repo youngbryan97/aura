@@ -174,6 +174,13 @@ REQUEST_FIELDS: dict[str, Field_] = {
     "presence_penalty": Field_(Kind.FLOAT, minimum=-2.0, maximum=2.0),
     "stop_sequences": Field_(Kind.STRING_LIST),
     "schema": Field_(Kind.OPAQUE),
+    # The shape the decoder holds, and a ceiling the gate may not raise.
+    # Undeclared, both were dropped by InferenceGate.think() as unknown:
+    # LIVE 2026-10-01 a page read on the resident model asked for a JSON
+    # object, the decoder was never told, and three arrays and 230 seconds
+    # later the run had not started.
+    "output_shape": Field_(Kind.STRING),
+    "hard_output_token_ceiling": Field_(Kind.BOOL),
     "sampling_bias": Field_(Kind.OPAQUE),
     "imagination_sampling_bias": Field_(Kind.OPAQUE),
     "bicameral_sampling_bias": Field_(Kind.OPAQUE),

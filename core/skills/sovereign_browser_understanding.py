@@ -9,10 +9,12 @@ sovereign_browser.py; this is the half that thinks about what came back.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
+from contextvars import ContextVar
 from typing import Any
 
 from core.conversation.word_markers import names_any
@@ -23,6 +25,71 @@ from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
 from .sovereign_browser_understanding_scale import _PlacesHerself
 
 logger = logging.getLogger("Skills.SovereignBrowser")
+
+#: How a pursuit running here says it is still getting somewhere, for the
+#: model calls made inside it. Set by `_handle_pursue`; None outside one.
+SAYING_IT_MOVES: ContextVar[Callable[[str], None] | None] = ContextVar(
+    "aura_pursuit_says_it_moves", default=None
+)
+
+#: How often her model's worker reports reading or writing, at least
+#: (`_should_emit_generation_progress` in the worker). Looking more often
+#: finds nothing new; looking less often only notices progress later.
+_HER_MODEL_SPEAKS_UP_EVERY_S = 1.5
+
+
+def _when_her_model_last_moved() -> float:
+    """The latest moment any of her model processes read or wrote a token."""
+    try:
+        from core.brain.llm.mlx_client import clients_snapshot
+    except ImportError:
+        return 0.0
+    latest = 0.0
+    for _key, client in clients_snapshot():
+        try:
+            status = client.get_lane_status()
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            continue
+        for stamp in ("last_token_progress_at", "last_prefill_progress_at"):
+            try:
+                latest = max(latest, float(status.get(stamp) or 0.0))
+            except (TypeError, ValueError):
+                continue
+    return latest
+
+
+@contextlib.asynccontextmanager
+async def while_she_writes(what: str) -> AsyncIterator[None]:
+    """Say the pursuit is moving each time her model reads or writes, while this runs.
+
+    The executor ends an action that is silent for its ceiling, and one model
+    call is not silent while it decodes. LIVE 2026-10-01: her forecast took
+    599 seconds at 3.3 tokens a second, the pursuit reported nothing for the
+    whole of it, and at 600 the run was stopped before the first question.
+    Only real reading and writing counts: a generation that stops moving is
+    still silence, and still ends the run.
+    """
+    say = SAYING_IT_MOVES.get()
+    if say is None:
+        yield
+        return
+
+    async def _watch() -> None:
+        seen = _when_her_model_last_moved()
+        while True:
+            await asyncio.sleep(_HER_MODEL_SPEAKS_UP_EVERY_S)
+            moved = _when_her_model_last_moved()
+            if moved > seen:
+                seen = moved
+                say(what)
+
+    watcher = asyncio.create_task(_watch())
+    try:
+        yield
+    finally:
+        watcher.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await watcher
 
 #: A decision round must never take the browser down with it. The loop can
 #: always report a failed round and stop; it can never leave a live lease and a
@@ -540,7 +607,13 @@ class _UnderstandsThePage(_PlacesHerself):
             "predict them. If it does not, say what it is likely to say about "
             "you from what it measures. Answer in your own words."
         )
-        said, lane = await self._asked_of_her(prompt, mind, shaped=False)
+        # As much as a line she says can show. A bubble is cut to what can be
+        # read while it stays up, so anything longer was written to be thrown
+        # away: LIVE 2026-10-01 a forecast decoded 1,854 tokens in ten minutes
+        # and the run was stopped before the first question.
+        said, lane = await self._asked_of_her(
+            prompt, mind, shaped=False, most_tokens=self.REASON_MAX_TOKENS
+        )
         if said and lane == self._HER_OWN_LANE:
             return said
         if said:
@@ -565,6 +638,7 @@ class _UnderstandsThePage(_PlacesHerself):
         *,
         shaped: bool = True,
         most_tokens: int | None = None,
+        worked_out_here: bool = True,
     ) -> tuple[str, str]:
         """One way to ask her something about herself, used by everything that does.
 
@@ -594,6 +668,16 @@ class _UnderstandsThePage(_PlacesHerself):
 
         Returns the text and the lane that produced it; the caller decides what
         an answer from somewhere else is worth.
+
+        ``worked_out_here`` says whether this call is where something gets
+        worked out — a forecast, a verdict — or only says what was settled
+        before it. Her place on an item is measured from her record before she
+        is asked, so her reason for it is the second kind, and the runtime's
+        typed lane for that closes the private channel: LIVE 2026-10-01,
+        the first three items opened it and decoded 771, 650 and 859 tokens
+        in 111, 86 and 123 seconds, for two or three sentences each. Either way ``most_tokens`` is a
+        ceiling and not a hint: undeclared, the gate sized a forecast at "room
+        for about 675 words" and she wrote 2,046 of them.
         """
         router = optional_service("llm_router", default=None)
         think = getattr(router, "think", None)
@@ -601,38 +685,48 @@ class _UnderstandsThePage(_PlacesHerself):
             return "", ""
         who: dict[str, Any] = {}
         try:
-            reply = await think(
-                prompt,
-                system_prompt=mind,
-                prefer_tier="primary",
-                origin=self._PAGE_ORIGIN,
-                purpose="page_decision" if shaped else "page_forecast",
-                own_lane_required=True,
-                serves_current_turn=True,
-                _generation_metadata_sink=who,
-                max_tokens=most_tokens or self.DECISION_MAX_TOKENS,
-                temperature=0.2 if shaped else 0.4,
-                _non_chat_inference=True,
-                # How much room the ANSWER needs, declared, because a reasoning
-                # model charges its thinking to the same budget.
-                #
-                # Without this the private channel is neither opened nor bounded:
-                # the model reasons anyway, in the answer, and the budget is gone
-                # before it concludes. LIVE 2026-09-29, the verdict on her own
-                # result — the thing the person asked for — decoded all 900 tokens
-                # it was given and returned ten characters, "Okay. Here", and the
-                # reply fell back to reciting the rounds. Declared, the decoder
-                # closes the channel at its bound and the reserve is bought on top,
-                # so what she is asked for is what the budget pays for.
-                user_surface_completion_floor=max(
-                    self._ROOM_AN_ANSWER_NEEDS, int(most_tokens or self.DECISION_MAX_TOKENS)
-                ),
-                **(
-                    {"schema": self._DECISION_SCHEMA, "output_shape": "json_object"}
-                    if shaped
-                    else {}
-                ),
-            )
+            async with while_she_writes("her model is writing"):
+                reply = await think(
+                    prompt,
+                    system_prompt=mind,
+                    prefer_tier="primary",
+                    origin=self._PAGE_ORIGIN,
+                    purpose="page_decision" if shaped else "page_forecast",
+                    own_lane_required=True,
+                    serves_current_turn=True,
+                    _generation_metadata_sink=who,
+                    max_tokens=most_tokens or self.DECISION_MAX_TOKENS,
+                    temperature=0.2 if shaped else 0.4,
+                    _non_chat_inference=True,
+                    # How much room the ANSWER needs, declared, because a reasoning
+                    # model charges its thinking to the same budget.
+                    #
+                    # Without this the private channel is neither opened nor bounded:
+                    # the model reasons anyway, in the answer, and the budget is gone
+                    # before it concludes. LIVE 2026-09-29, the verdict on her own
+                    # result — the thing the person asked for — decoded all 900 tokens
+                    # it was given and returned ten characters, "Okay. Here", and the
+                    # reply fell back to reciting the rounds. Declared, the decoder
+                    # closes the channel at its bound and the reserve is bought on top,
+                    # so what she is asked for is what the budget pays for.
+                    user_surface_completion_floor=(
+                        max(
+                            self._ROOM_AN_ANSWER_NEEDS,
+                            int(most_tokens or self.DECISION_MAX_TOKENS),
+                        )
+                        if worked_out_here
+                        else int(most_tokens or self.REASON_MAX_TOKENS)
+                    ),
+                    hard_output_token_ceiling=True,
+                    # The typed lane for "say what was settled": the worker and the
+                    # gate's clock both read it, and neither opens the channel.
+                    **({} if worked_out_here else {"cognitive_mode": "fast"}),
+                    **(
+                        {"schema": self._DECISION_SCHEMA, "output_shape": "json_object"}
+                        if shaped
+                        else {}
+                    ),
+                )
         except _BROWSER_DECISION_ERRORS as exc:
             record_degradation(
                 "sovereign_browser.asked_of_her",
@@ -757,12 +851,13 @@ class _UnderstandsThePage(_PlacesHerself):
         try:
             think = getattr(router, "think", None)
             if callable(think) and mind:
-                raw = self._the_text_of(await think(
-                    prompt, system_prompt=mind, schema=self._UNDERSTANDING_SCHEMA, output_shape="json_object",
-                    serves_current_turn=True,
-                    origin=self._PAGE_ORIGIN, purpose="page_understanding",
-                    max_tokens=420, temperature=0.2, _non_chat_inference=True,
-                ))
+                async with while_she_writes("her model is reading the page"):
+                    raw = self._the_text_of(await think(
+                        prompt, system_prompt=mind, schema=self._UNDERSTANDING_SCHEMA,
+                        output_shape="json_object", serves_current_turn=True,
+                        origin=self._PAGE_ORIGIN, purpose="page_understanding",
+                        max_tokens=420, temperature=0.2, _non_chat_inference=True,
+                    ))
             else:
                 generate = getattr(router, "generate", None)
                 if not callable(generate):
@@ -1053,9 +1148,13 @@ class _UnderstandsThePage(_PlacesHerself):
         as a failed decision: a question about her was never answered by her.
         The old three-part shape is still read, for anything that returns it.
         """
+        from core.language.answer_surface import without_private_markup
+
+        # Never what the model wrote for itself: everything read here is said
+        # to a person or acted on. See `without_private_markup`.
         if isinstance(reply, tuple) and len(reply) == 3:
-            return str(reply[1] or "")
-        return str(reply or "")
+            return without_private_markup(str(reply[1] or ""))
+        return without_private_markup(str(reply or ""))
 
     @staticmethod
     def _who_answered(reply: Any) -> str:
@@ -1121,10 +1220,19 @@ class _UnderstandsThePage(_PlacesHerself):
             between = re.search(r'laid out between "(.+?)" and "(.+?)"', laid_out)
             ends = cls._the_ends_the_page_names(options)
             if between:
-                picked = (
-                    f"{picked}, between \"{between.group(1)}\" and "
-                    f"\"{between.group(2)}\""
-                )
+                # And which end it is nearer, which "between" alone does not
+                # say. LIVE 2026-10-01: "4 of 5, between 'makes lists' and
+                # 'relies on memory'", and her reason began "That's the list
+                # side" — the dot was a step from the other end, and neither
+                # she nor anyone watching could tell from the words.
+                first, second = between.group(1), between.group(2)
+                middle = (len(options) - 1) / 2.0
+                if index < middle:
+                    picked = f'{picked}, nearer "{first}" than "{second}"'
+                elif index > middle:
+                    picked = f'{picked}, nearer "{second}" than "{first}"'
+                else:
+                    picked = f'{picked}, midway between "{first}" and "{second}"'
             elif ends is not None:
                 # A grid names its scale above the run, and the word above the
                 # dot she chose is what she said. "4 of 5" alone tells a watcher
@@ -1136,86 +1244,6 @@ class _UnderstandsThePage(_PlacesHerself):
         why = " ".join(why.split())
         return f"{said}. {why}" if why else said
 
-    def _thinking_for_one_answer(
-        self,
-        goal: str,
-        theme: list[dict[str, Any]],
-        mind: str,
-        item: dict[str, Any],
-        resolved: dict[str, Any],
-        decision: dict[str, Any],
-        *,
-        on_progress: Callable[[str], None] | None = None,
-    ) -> Callable[[], Any]:
-        """Her thinking about one answer, made when that answer is about to be given.
-
-        Returns a coroutine function. Awaited, it asks her about this item with
-        its theme in view, writes what she said into ``resolved`` and into the
-        decision's record, and returns the line to say before the click.
-        """
-
-        async def _think() -> str:
-            if resolved.get("said"):
-                return str(resolved["said"])
-            try:
-                said = await self._her_thinking_about(goal, theme, mind, about=item)
-            except (RuntimeError, ValueError, TypeError, KeyError, OSError, TimeoutError) as exc:
-                # The placement stands without its sentence: the answer falls
-                # back to what in her decided it.
-                record_degradation(
-                    "sovereign_browser.theme",
-                    exc,
-                    severity="warning",
-                    action=f"placed question {item['group']} without her words for it",
-                )
-                said = {}
-            hers = str(said.get(item["group"]) or "")
-            options = item["options"]
-            index = item["index"]
-            lean = item["lean"]
-            leaning = item["second"] if lean.toward > 0 else item["first"]
-            # An answer is never said bare.
-            #
-            # Her sentence first; the thing in her that decided it where she
-            # said nothing; and where even that is empty — a pass that failed
-            # outright — the placement itself, in words. LIVE 2026-09-29:
-            # "works best in groups … works best alone — 3 of 5, between
-            # "works best in groups" and "works best alone"." and nothing
-            # after it, which reads as an answer with no reason behind it.
-            why = (
-                hers
-                or next(iter(lean.because), "")
-                or f'this sits nearer "{leaning}" for me than the other side'
-            )
-            # Her own words held against the place her record gave. The place
-            # stands, because it is the measurement; a sentence that leans the
-            # other way is noticed and reported beside it. LIVE 2026-09-28:
-            # "3 of 5 ... I genuinely hold a strong preference for
-            # externalized structure", and nothing noticed.
-            disagrees = (
-                self._the_choice_disagrees_with_its_reason(options, index, hers)
-                if hers
-                else ""
-            )
-            words = self._an_answer_in_words(options, index, why)
-            resolved["said"] = words
-            resolved["why"] = why
-            resolved["because"] = list(lean.because)
-            decision["answered"].append(words)
-            if disagrees:
-                decision["noticed"].append(disagrees)
-            decision["why"] = "; ".join(
-                dict.fromkeys(
-                    str(done.get("why") or "")
-                    for done in decision["resolved_actions"]
-                    if done.get("why")
-                )
-            )[:400]
-            if on_progress is not None:
-                on_progress("a question thought about")
-            return words
-
-        return _think
 
     async def _answer_each_question(
         self,
@@ -1374,7 +1402,8 @@ class _UnderstandsThePage(_PlacesHerself):
                     "name": str(options[index].get("name") or ""),
                     "said": "",
                 }
-                resolved["think"] = self._thinking_for_one_answer(
+                resolved["think"] = _thinking_for_one_answer(
+                    self,
                     goal,
                     theme_of.get(place) or [item],
                     mind,
@@ -1865,3 +1894,95 @@ class _UnderstandsThePage(_PlacesHerself):
                     "sovereign_browser.retain_positions", exc, severity="warning"
                 )
                 return
+
+
+def _thinking_for_one_answer(
+    skill: Any,
+    goal: str,
+    theme: list[dict[str, Any]],
+    mind: str,
+    item: dict[str, Any],
+    resolved: dict[str, Any],
+    decision: dict[str, Any],
+    *,
+    on_progress: Callable[[str], None] | None = None,
+) -> Callable[[], Any]:
+    """Her thinking about one answer, made when that answer is about to be given.
+
+    Returns a coroutine function. Awaited, it asks her about this item with
+    its theme in view, writes what she said into ``resolved`` and into the
+    decision's record, and returns the line to say before the click.
+    """
+
+    async def _think() -> str:
+        if resolved.get("said"):
+            return str(resolved["said"])
+        try:
+            said = await skill._her_thinking_about(goal, theme, mind, about=item)
+        except (RuntimeError, ValueError, TypeError, KeyError, OSError, TimeoutError) as exc:
+            # The placement stands without its sentence: the answer falls
+            # back to what in her decided it.
+            record_degradation(
+                "sovereign_browser.theme",
+                exc,
+                severity="warning",
+                action=f"placed question {item['group']} without her words for it",
+            )
+            said = {}
+        hers = str(said.get(item["group"]) or "")
+        options = item["options"]
+        index = item["index"]
+        lean = item["lean"]
+        leaning = item["second"] if lean.toward > 0 else item["first"]
+        # An answer is never said bare.
+        #
+        # Her sentence first; the thing in her that decided it where she
+        # said nothing; and where even that is empty — a pass that failed
+        # outright — the placement itself, in words. LIVE 2026-09-29:
+        # "works best in groups … works best alone — 3 of 5, between
+        # "works best in groups" and "works best alone"." and nothing
+        # after it, which reads as an answer with no reason behind it.
+        why = (
+            hers
+            or next(iter(lean.because), "")
+            or f'this sits nearer "{leaning}" for me than the other side'
+        )
+        # Her own words held against the place her record gave. The place
+        # stands, because it is the measurement; a sentence that leans the
+        # other way is noticed and reported beside it. LIVE 2026-09-28:
+        # "3 of 5 ... I genuinely hold a strong preference for
+        # externalized structure", and nothing noticed.
+        disagrees = (
+            skill._the_choice_disagrees_with_its_reason(options, index, hers)
+            if hers
+            else ""
+        )
+        words = skill._an_answer_in_words(options, index, why)
+        asks, picked = _the_question_and_the_answer(skill, options, index)
+        resolved["said"] = words
+        resolved["why"] = why
+        resolved["because"] = list(lean.because)
+        decision["answered"].append(words)
+        if disagrees:
+            decision["noticed"].append(disagrees)
+        decision["why"] = "; ".join(
+            dict.fromkeys(
+                str(done.get("why") or "")
+                for done in decision["resolved_actions"]
+                if done.get("why")
+            )
+        )[:400]
+        if on_progress is not None:
+            on_progress("a question thought about")
+        return words, {"asks": asks, "chose": picked, "said": " ".join(why.split())}
+
+    return _think
+
+
+def _the_question_and_the_answer(
+    skill: Any, options: list[Mapping[str, Any]], index: int
+) -> tuple[str, str]:
+    """The question and the answer, apart: the two halves of `_an_answer_in_words`."""
+    joined = skill._an_answer_in_words(options, index, "")
+    question, _dash, picked = joined.rpartition(" \u2014 ")
+    return (question, picked) if question else ("", joined)

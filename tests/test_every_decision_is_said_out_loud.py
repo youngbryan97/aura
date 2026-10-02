@@ -46,7 +46,7 @@ def _skill(monkeypatch, decision: dict[str, Any], said: list[str]):
     monkeypatch.setattr(skill, "_decide_next_actions", _decided)
     monkeypatch.setattr(skill, "_asks_about_the_one_answering", lambda *_a: False)
     monkeypatch.setattr(skill, "_narrate", lambda step: said.append(str(step.get("why") or "")))
-    monkeypatch.setattr(skill, "_say_out_loud", lambda line: said.append(str(line)))
+    monkeypatch.setattr(skill, "_say_out_loud", lambda line, *_a, **_k: said.append(str(line)))
     monkeypatch.setattr(skill, "_remember_the_place", lambda *_a, **_k: None)
     monkeypatch.setattr(skill, "_recall_about", lambda *_a, **_k: "")
     monkeypatch.setattr(skill, "_retain_stated_positions", lambda *_a, **_k: None)

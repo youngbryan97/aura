@@ -158,7 +158,7 @@ def test_an_answer_is_said_as_its_question_its_choice_and_its_reason():
     ]
     assert (
         SovereignBrowserSkill._an_answer_in_words(unlabelled, 1, "I like to know where I am going.")
-        == 'plans ahead … improvises — 2 of 5, between "plans ahead" and "improvises". '
+        == 'plans ahead … improvises — 2 of 5, nearer "plans ahead" than "improvises". '
         "I like to know where I am going."
     )
     labelled = [
@@ -177,7 +177,7 @@ def test_each_answer_about_her_is_said_out_loud_as_it_lands(monkeypatch):
     from core.agency.narrator import Narrator
 
     said: list[str] = []
-    monkeypatch.setattr(Narrator, "say_everywhere", staticmethod(said.append))
+    monkeypatch.setattr(Narrator, "say_everywhere", staticmethod(lambda line, *_a, **_k: said.append(line)))
 
     skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
 
@@ -226,5 +226,24 @@ def test_each_answer_about_her_is_said_out_loud_as_it_lands(monkeypatch):
             return page
 
     asyncio.run(skill._handle_pursue(Browser(), None, "take the test", 2))
-    assert 'plans ahead … improvises — 2 of 5, between "plans ahead" and "improvises". my reason for A0' in said
-    assert 'quiet … talkative — 2 of 5, between "quiet" and "talkative". my reason for A1' in said
+    assert 'plans ahead … improvises — 2 of 5, nearer "plans ahead" than "improvises". my reason for A0' in said
+    assert 'quiet … talkative — 2 of 5, nearer "quiet" than "talkative". my reason for A1' in said
+
+
+@pytest.mark.parametrize(
+    ("index", "said"),
+    [
+        (0, '1 of 5, nearer "makes lists" than "relies on memory"'),
+        (3, '4 of 5, nearer "relies on memory" than "makes lists"'),
+        (2, '3 of 5, midway between "makes lists" and "relies on memory"'),
+    ],
+)
+def test_a_place_on_a_run_says_which_end_it_is_nearer(index, said):
+    """LIVE 2026-10-01: "4 of 5, between" read as the list side; it was not."""
+    asks = "makes lists [1] [2] [3] [4] [5] relies on memory"
+    options = [
+        {"group": "Q1", "role": "radio", "name": "Q1", "value": str(n),
+         "selector": f"#Q1V{n}", "asks": asks}
+        for n in range(1, 6)
+    ]
+    assert said in SovereignBrowserSkill._an_answer_in_words(options, index, "")

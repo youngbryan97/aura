@@ -122,8 +122,10 @@ def _screen(monkeypatch, said: str, lane: str = "Cortex"):
     skill = S()
     handed: dict[str, Any] = {"prompts": []}
 
-    async def _asked(prompt: str, mind: str = "", *, shaped: bool = True, most_tokens=None):
+    async def _asked(prompt: str, mind: str = "", *, shaped: bool = True, most_tokens=None,
+                     worked_out_here: bool = True):
         handed.setdefault("spoken", [])
+        handed["worked_out_here"] = worked_out_here
         handed["prompts"].append(prompt)
         handed["most_tokens"] = most_tokens
         handed["prompt"] = prompt
@@ -136,7 +138,7 @@ def _screen(monkeypatch, said: str, lane: str = "Cortex"):
     handed["spoken"] = []
     monkeypatch.setattr(skill, "_asked_of_her", _asked)
     monkeypatch.setattr(skill, "_assembled_mind", _mind)
-    monkeypatch.setattr(skill, "_say_out_loud", lambda line: handed["spoken"].append(str(line)))
+    monkeypatch.setattr(skill, "_say_out_loud", lambda line, *_a, **_k: handed["spoken"].append(str(line)))
 
     async def _held(_said: str) -> None:
         return None
@@ -182,7 +184,8 @@ def test_each_question_is_thought_about_said_answered_and_left_up_in_turn(monkey
     said = '{"each": {"Q1": "Lists hold truth steady.", "Q2": "I check first."}}'
     skill, handed = _screen(monkeypatch, said)
 
-    async def _asked(prompt: str, mind: str = "", *, shaped: bool = True, most_tokens=None):
+    async def _asked(prompt: str, mind: str = "", *, shaped: bool = True, most_tokens=None,
+                     worked_out_here: bool = True):
         happened.append("think")
         return said, "Cortex"
 
@@ -196,7 +199,7 @@ def test_each_question_is_thought_about_said_answered_and_left_up_in_turn(monkey
     monkeypatch.setattr(skill, "_asked_of_her", _asked)
     monkeypatch.setattr(skill, "_handle_interact", _interact)
     monkeypatch.setattr(skill, "_hold_for_reading", _held)
-    monkeypatch.setattr(skill, "_say_out_loud", lambda line: happened.append(f"say {line}"))
+    monkeypatch.setattr(skill, "_say_out_loud", lambda line, *_a, **_k: happened.append(f"say {line}"))
     elements = _row("Q1") + _row("Q2", left="sceptical", right="wants to believe")
 
     async def _go():
@@ -278,7 +281,7 @@ def test_she_places_herself_before_she_thinks_about_it():
     measured = body.index("_measure_where_she_stands")
     reasoned = body.index("_thinking_for_one_answer")
     assert measured < reasoned
-    thinking = inspect.getsource(u._UnderstandsThePage._thinking_for_one_answer)
+    thinking = inspect.getsource(u._thinking_for_one_answer)
     assert "_her_thinking_about" in thinking
 
 
@@ -298,11 +301,17 @@ def test_the_measure_is_not_tuned_to_any_instrument():
 
 
 def test_a_reason_is_bounded_so_a_page_of_them_is_affordable(monkeypatch):
-    """An unbounded reason decoded 341 tokens at 8 a second, live."""
+    """An unbounded reason decoded 341 tokens at 8 a second, live.
+
+    And on 1 Oct, with the private channel open, the first three items
+    decoded 771, 650 and 859 tokens in 111, 86 and 123 seconds.
+    """
     skill, handed = _screen(monkeypatch, '{"thinking": "t", "each": {}}')
     _run(skill, {"url": "u", "title": "t", "text": "x", "elements": _row("Q1") + _row("Q2")})
-    assert handed["most_tokens"] and handed["most_tokens"] >= 260 * 2, (
-        "a theme is thought about at length: room for each item in it"
+    assert handed["most_tokens"] == S.REASON_MAX_TOKENS
+    assert handed["worked_out_here"] is False, (
+        "her place on the item was measured before she was asked; nothing is "
+        "worked out in the call that says why"
     )
 
 

@@ -1495,6 +1495,17 @@ class _CallsTheEndpoint:
                                 "presence_penalty",
                                 "stop_sequences",
                                 "schema",
+                                # The shape the decoder holds, the lane that
+                                # decides whether to think, and a ceiling the
+                                # gate may not raise. All three were dropped
+                                # here: LIVE 2026-10-01 a page read on the
+                                # resident model came back a JSON array three
+                                # times, 230 seconds, because the decoder was
+                                # never told to hold an object.
+                                "output_shape",
+                                "cognitive_mode",
+                                "hard_output_token_ceiling",
+                                "web_interlocutor_contract",
                                 "strict_answer_contract",
                                 "strict_value_contract",
                                 "proof_evaluation_contract",

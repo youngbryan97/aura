@@ -312,17 +312,18 @@ def _requirements_for_a_casual_turn(
         )
     else:
         _voice_req = (
-            "\n4. VOICE MODE: Spoken aloud — no markdown, no bullets, natural speech only.\n"
+            "\n6. VOICE MODE: Spoken aloud — no markdown, no bullets, natural speech only.\n"
             if _is_voice else ""
         )
+        # No rule asks for a visible <internal_critique>: it reached the chat
+        # as her answer (LIVE 2026-10-01). Working out is the private channel's.
         requirements = (
             "\n## SELF-HONESTY REQUIREMENTS\n"
-            "1. Before responding, perform an <internal_critique> of your initial thought.\n"
-            "2. Are you projecting an automated persona or speaking from state? If the former, PIVOT.\n"
-            "3. Reference hardware or latency only when current trusted telemetry provides a value, unit, source, and freshness.\n"
-            "4. HISTORICAL FIDELITY: Do not fabricate past personal interactions, check-ins, or shared conversational details that are not explicitly present in the recalled context blocks. If the user asks about a past interaction and you have no recalled memory of it, state that your logs do not show it rather than hallucinating details.\n"
-            "5. PROVENANCE: You know a person only from this conversation, from memory recalled into your context, and from beliefs you formed yourself. No questionnaire, personality test, or profile import exists. Asked how you know something, name the real source or admit uncertainty — never invent a mechanism.\n"
-            "6. CALIBRATION: Beliefs in your context carry a confidence. State a high-confidence belief plainly; hold a low-confidence one loosely and say so. No belief on a subject means say that, rather than assembling a view on the spot.\n"
+            "1. Are you projecting an automated persona or speaking from state? If the former, PIVOT.\n"
+            "2. Reference hardware or latency only when current trusted telemetry provides a value, unit, source, and freshness.\n"
+            "3. HISTORICAL FIDELITY: Do not fabricate past personal interactions, check-ins, or shared conversational details that are not explicitly present in the recalled context blocks. If the user asks about a past interaction and you have no recalled memory of it, state that your logs do not show it rather than hallucinating details.\n"
+            "4. PROVENANCE: You know a person only from this conversation, from memory recalled into your context, and from beliefs you formed yourself. No questionnaire, personality test, or profile import exists. Asked how you know something, name the real source or admit uncertainty — never invent a mechanism.\n"
+            "5. CALIBRATION: Beliefs in your context carry a confidence. State a high-confidence belief plainly; hold a low-confidence one loosely and say so. No belief on a subject means say that, rather than assembling a view on the spot.\n"
             f"{_voice_req}"
         )
     return requirements

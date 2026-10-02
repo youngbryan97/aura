@@ -65,6 +65,7 @@ class _NarratesTheBrowsing:
             list(observation.get("elements") or []), goal
         )
         why = " ".join(str(decision.get("why") or "").split())
+        parts: dict[str, str] | None = None
         if decision.get("error"):
             raw = " ".join(str(decision.get("raw") or "").split())
             said = f"I could not use my own answer here ({decision['error']})"
@@ -97,9 +98,12 @@ class _NarratesTheBrowsing:
             said = f"{why} I am going to {doing}." if doing and why else (
                 why or (f"I am going to {doing}." if doing else "")
             )
+            # Laid out, the reason is hers and the act is a footer under it;
+            # the joined line stays for every surface that reads only text.
+            parts = {"said": why, "doing": doing} if why else None
         if not said:
             return ""
         self._narrate({"why": said, "asked": str(observation.get("title") or "")})
-        self._say_out_loud(said)
+        self._say_out_loud(said, parts)
         return said
 

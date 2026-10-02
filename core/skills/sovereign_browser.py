@@ -535,10 +535,14 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         errors: list[str] = []
         any_ok = False
         for action, said in moves:
+            parts: Mapping[str, Any] | None = None
             if callable(said):
-                said = str(await said() or "")
+                said = await said()
+            if isinstance(said, tuple):
+                said, parts = said
+            said = str(said or "")
             if said:
-                self._say_out_loud(said)
+                self._say_out_loud(said, parts)
             report = await self._handle_interact(
                 browser, None, [action], action_context=action_context
             )
@@ -612,7 +616,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
             await asyncio.sleep(pause)
 
     @staticmethod
-    def _say_out_loud(line: str) -> None:
+    def _say_out_loud(line: str, parts: Mapping[str, Any] | None = None) -> None:
         """One line where a person watching her can hear it, as her play is said.
 
         Bounded by what a watcher can read, which is the same policy that decides
@@ -627,10 +631,13 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         said = as_much_as_can_be_read(line)
         if not said:
             return
+        laid_out = dict(parts or {})
+        if laid_out.get("said"):
+            laid_out["said"] = as_much_as_can_be_read(str(laid_out["said"]))
         try:
             from core.agency.narrator import Narrator
 
-            Narrator.say_everywhere(said)
+            Narrator.say_everywhere(said, parts=laid_out or None)
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("sovereign_browser", exc, severity="info", action="answered without saying so")
 
@@ -755,9 +762,9 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
     def _one_round_of_her_decisions(cls) -> float:
         """Seconds her own model takes to decide the widest round, at measured rates.
 
-        A round that asks about her decides up to `PURSUE_PARALLEL_ITEMS`
-        questions, each on her own model and each up to `DECISION_MAX_TOKENS`
-        with the thinking the worker adds, and one model decides them in turn.
+        A round that asks about her gives up to `PURSUE_PARALLEL_ITEMS` reasons,
+        each on her own model and each up to `REASON_MAX_TOKENS`, and one model
+        writes them in turn.
         0.0 while the rate is unmeasured. LIVE 26 Sep her model wrote 7.2
         tokens a second, and forty rounds at forty-five seconds each gave a
         thirty-two-item test half an hour for decisions that take longer.
@@ -765,8 +772,15 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         try:
             from core.brain.llm.thinking_reserve import reserve_tokens, seconds_to_decode
 
-            one = cls.DECISION_MAX_TOKENS + int(reserve_tokens())
-            return float(seconds_to_decode(one * cls.PURSUE_PARALLEL_ITEMS))
+            # The larger of the two rounds there are: one decision about the
+            # page, which works something out and pays the private channel's
+            # reserve, or a screen of reasons, which say what was measured and
+            # pay none (see `_asked_of_her`). Sized as eight full decisions
+            # with the reserve each, LIVE 2026-10-01 one round came to 26,681
+            # seconds and a pursuit to twelve days.
+            decision = cls.DECISION_MAX_TOKENS + int(reserve_tokens())
+            reasons = cls.REASON_MAX_TOKENS * cls.PURSUE_PARALLEL_ITEMS
+            return float(seconds_to_decode(max(decision, reasons)))
         except (ImportError, AttributeError, OSError, TypeError, ValueError) as exc:
             record_degradation("sovereign_browser", exc, severity="info", action="sized the pursuit without its decision rate")
             return 0.0
@@ -1555,6 +1569,11 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 heartbeat = candidate
 
         still_going = _StillGoing(heartbeat)
+        # And the model calls inside the run say it too, while her model is
+        # reading or writing for them. See `while_she_writes`.
+        from .sovereign_browser_understanding import SAYING_IT_MOVES
+
+        SAYING_IT_MOVES.set(still_going)
 
         # What she has already done survives however this ends.
         #
@@ -1675,7 +1694,9 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                         # one, which reads as though it appeared from nowhere.
                         read_it = read_it or said_before
                         if read_it:
-                            self._say_out_loud(read_it)
+                            self._say_out_loud(
+                                read_it, {"label": "What I expect", "said": read_it}
+                            )
                             await self._hold_for_reading(read_it)
                     decision = await self._answer_each_question(
                         goal, observation, steps, understanding, on_progress=still_going
@@ -1852,7 +1873,9 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 goal, said_before, final or observation, mind
             )
             if concluded:
-                self._say_out_loud(concluded)
+                self._say_out_loud(
+                    concluded, {"label": "What it said, and what I make of it", "said": concluded}
+                )
                 await self._hold_for_reading(concluded)
 
         _seam_early_response = _account_of_the_pursuit(

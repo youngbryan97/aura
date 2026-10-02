@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from core.skills import sovereign_browser_understanding as understanding
 from core.skills.sovereign_browser import SovereignBrowserSkill
 from tests.answers_thought_through import answered_and_thought
@@ -163,7 +165,7 @@ def test_her_reply_is_said_before_a_page_is_worked_and_not_before_other_work(mon
     from interface.routes.chat_desktop_objective import _say_before_working_a_page
 
     said: list[str] = []
-    monkeypatch.setattr(Narrator, "say_everywhere", staticmethod(said.append))
+    monkeypatch.setattr(Narrator, "say_everywhere", staticmethod(lambda line, *_a, **_k: said.append(line)))
     _say_before_working_a_page("Take the personality test on openpsychometrics.org", SAID)
     assert said == [SAID]
     said.clear()
@@ -181,8 +183,15 @@ def test_a_pursuit_is_given_the_time_her_decisions_take(monkeypatch):
     unmeasured = SovereignBrowserSkill.timeout_for({"mode": "pursue"})
     monkeypatch.setattr(thinking_reserve, "seconds_to_decode", lambda tokens, model="", typical=False: tokens / 7.0)
     measured = SovereignBrowserSkill.timeout_for({"mode": "pursue"})
-    widest = SovereignBrowserSkill.DECISION_MAX_TOKENS * SovereignBrowserSkill.PURSUE_PARALLEL_ITEMS / 7.0
-    assert measured - unmeasured == SovereignBrowserSkill.PURSUE_DEFAULT_STEPS * widest
+    # The widest round is one decision about the page or a screen of reasons,
+    # whichever is longer; a reason says what was measured and pays no
+    # private-channel reserve (1 Oct: eight decisions with the reserve each
+    # sized one round at 26,681 seconds).
+    widest = max(
+        SovereignBrowserSkill.DECISION_MAX_TOKENS,
+        SovereignBrowserSkill.REASON_MAX_TOKENS * SovereignBrowserSkill.PURSUE_PARALLEL_ITEMS,
+    ) / 7.0
+    assert measured - unmeasured == pytest.approx(SovereignBrowserSkill.PURSUE_DEFAULT_STEPS * widest)
     assert SovereignBrowserSkill.timeout_for({"mode": "search"}) < unmeasured
 
 

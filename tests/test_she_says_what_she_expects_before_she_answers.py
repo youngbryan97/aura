@@ -82,7 +82,7 @@ def _skill(monkeypatch, said: list[str], forecast: str = "I expect it to call me
     monkeypatch.setattr(skill, "_handle_interact", _interacted)
     monkeypatch.setattr(skill, "_narrate", lambda *_a, **_k: None)
     monkeypatch.setattr(skill, "_narrate_decision", lambda *_a, **_k: "")
-    monkeypatch.setattr(skill, "_say_out_loud", lambda line: said.append(str(line)))
+    monkeypatch.setattr(skill, "_say_out_loud", lambda line, *_a, **_k: said.append(str(line)))
     monkeypatch.setattr(skill, "_hold_for_reading", _held)
     monkeypatch.setattr(skill, "_remember_the_place", lambda *_a, **_k: None)
     monkeypatch.setattr(skill, "_recall_about", lambda *_a, **_k: "")

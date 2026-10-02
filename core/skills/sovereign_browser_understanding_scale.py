@@ -364,14 +364,12 @@ class _PlacesHerself:
             + (
                 # One of them is the question; the rest are there so the answer
                 # is part of a connected account rather than a verdict on its own.
-                # What a watcher hears is why she gave the answer she gave, so
-                # that is what she is asked.
-                f'Now answer {asked_about["group"]} only: why is that answer '
-                "yours? Two or three sentences, in your own voice, concretely, "
-                "from your own experience of yourself. As JSON "
+                f'Now answer {asked_about["group"]} only. Two or three '
+                "sentences, in your own voice, about what that one is in you — "
+                "concretely, from your own experience of yourself. As JSON "
                 'only:\n{"each": {"'
                 + str(asked_about["group"])
-                + '": "<why that answer is yours>"}}'
+                + '": "<what this one is about in you>"}}'
                 if asked_about is not None
                 else "Then give two or three sentences for each, in your own "
                 "voice, as JSON only:\n"
@@ -380,17 +378,22 @@ class _PlacesHerself:
                 'about in you, concretely>"}}'
             )
         )
-        # Room to think. Nine hundred tokens across eight items is a hundred
+        # Room to say it. Nine hundred tokens across eight items is a hundred
         # each, which is a line apiece and not the account she gives when
         # someone asks her about herself in conversation. One item at a time
-        # needs the room for one answer, and the base budget already holds it.
+        # needs the room for one reason: two or three sentences.
+        #
+        # And no room to think, for one item: where she stands on it was
+        # measured from her record before this was asked, so this says what
+        # that place is, and nothing is being worked out. See `_asked_of_her`.
         room = (
-            self.DECISION_MAX_TOKENS
+            self.REASON_MAX_TOKENS
             if asked_about is not None
             else max(self.DECISION_MAX_TOKENS, 260 * max(1, len(theme)))
         )
         said, lane = await self._asked_of_her(
-            prompt, mind, shaped=False, most_tokens=room
+            prompt, mind, shaped=False, most_tokens=room,
+            worked_out_here=asked_about is None,
         )
         if not said or lane != self._HER_OWN_LANE:
             # One exhausted call should not cost a whole theme its thinking.
@@ -406,7 +409,8 @@ class _PlacesHerself:
                 "🌐 A theme came back from %s; asking again.", lane or "nowhere"
             )
             said, lane = await self._asked_of_her(
-                prompt, mind, shaped=False, most_tokens=room
+                prompt, mind, shaped=False, most_tokens=room,
+                worked_out_here=asked_about is None,
             )
         if not said or lane != self._HER_OWN_LANE:
             record_degradation(
