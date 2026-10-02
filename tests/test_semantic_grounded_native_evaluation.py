@@ -169,3 +169,63 @@ def test_profile_observes_public_decode_and_cannot_advance_development():
     report["advance_development"] = False
     seal(report, "receipt_sha256")
     assert not verify_report(report, plan, fit)["advance_development"]
+
+
+def test_public_decode_archives_before_reporting_completion_without_retaining_targets(tmp_path):
+    from tools.semantic_grounded_development_archive import archive_decode, verify_archived_decode
+
+    item = cases()[0]
+    progress = []
+    def persist(record, ir, public):
+        assert set(public) == {"source_token_ids", "public_inputs", "source_text_sha256", "model_basis_sha256"}
+        return archive_decode(tmp_path, plan_sha256="a" * 64, arm="joint_native",
+            identity=public["source_text_sha256"], record=record, ir=ir,
+            source_token_ids=public["source_token_ids"], public_inputs=public["public_inputs"],
+            model_basis_sha256=public["model_basis_sha256"])
+    arm = PublicDecodeArm(FixedPublicDecoder({item.ir.source_text_sha256: item.ir}),
+        receipt="a" * 64, search_seconds=2., name="joint_native", progress=progress.append, archive=persist)
+    result = arm.decode(source_token_ids=item.ir.source_token_ids, hidden_states=item.hidden_states,
+        public_inputs=item.public_inputs, source_text_sha256=item.ir.source_text_sha256,
+        model_basis_sha256=item.ir.model_basis_receipt_sha256)
+    assert result.ir == item.ir and "decode_archive" in progress[-1]
+    compact = arm.measured_decodes[item.ir.source_text_sha256]
+    verify_archived_decode(tmp_path, plan_sha256="a" * 64, arm="joint_native",
+        identity=item.ir.source_text_sha256, compact=compact)
+
+
+def test_independent_entrypoint_checks_every_archived_arm_and_inventory(tmp_path, monkeypatch):
+    import hashlib
+    import json
+
+    from core.learning.semantic_grounded_binding_engine import implementation_receipt
+    from tools import verify_semantic_grounded_evaluation as verification
+    from tools.semantic_grounded_development_archive import archive_decode, development_contract
+    from tools import verify_semantic_grounded_fit
+
+    report, plan, fit = measured_report()
+    plan.update(population="bank_holdout", archive_decodes=True, development_contract=development_contract(),
+        implementation=implementation_receipt(), evaluator_sha256=hashlib.sha256(
+            (verification.ROOT / "tools/evaluate_semantic_grounded_native.py").read_bytes()).hexdigest())
+    seal(plan, "plan_sha256")
+    path = tmp_path / "report.json"
+    by_id = {item.ir.source_text_sha256: item for item in cases()}
+    for name, metrics in report["comparison"]["candidates"].items():
+        metrics["transducer_receipt_sha256"] = digest({"arm": name, "plan": plan["plan_sha256"]})
+        for identity, decoded in report["decodes"][name].items():
+            item = by_id[identity]
+            report["decodes"][name][identity] = archive_decode(path.with_suffix(".rows"),
+                plan_sha256=plan["plan_sha256"], arm=name, identity=identity, record=decoded,
+                ir=None if decoded["program_sha256"] is None else item.ir,
+                source_token_ids=item.ir.source_token_ids, public_inputs=item.public_inputs,
+                model_basis_sha256=item.ir.model_basis_receipt_sha256)
+    seal(report["comparison"], "report_sha256")
+    seal(report, "receipt_sha256")
+    path.write_text(json.dumps(report))
+    path.with_suffix(".plan.json").write_text(json.dumps(plan))
+    monkeypatch.setattr(verify_semantic_grounded_fit, "verify", lambda _directory: fit)
+    result = verification.verify(path, tmp_path / "fit")
+    assert result["artifacts_verified"] and result["advance_development"]
+    extra = path.with_suffix(".rows") / "unmeasured.json"
+    extra.write_text("{}")
+    with pytest.raises(ValueError, match="inventory"):
+        verification.verify(path, tmp_path / "fit")

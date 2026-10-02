@@ -1474,10 +1474,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Complete development rows](evidence/G03_DEVELOPMENT_ROW_ARCHIVES_2026-10-01.md)
+  admit all five hundred original validation sources with no native fit or
+  selection overlap, preserve complete per-request evidence and actual IR,
+  and independently check every archive. 131 focused checks and standard
+  gates pass; the full source-development measurement is next.
   [Conditional chart bound](evidence/G03_CONDITIONAL_CHART_BOUND_2026-10-01.md)
   skips a complete chart only when its best possible normalized learned
   score cannot beat a parent-accepted incumbent. 103 focused checks and
-  standard gates pass; a real replay of the remaining timeout is pending.
+  standard gates pass. The real remaining canary is correct in 16.012830
+  seconds, and the unchanged full twenty-one-request screen independently
+  verifies at 21 equivalent with zero paired regressions in 148.316713
+  supervisor seconds. This advances the development screen, not G03.
+  Its gain over the parent is also present in the existing global chart;
+  isolated learned gain and full-cohort acceptance remain unproved.
   [Selected-edge execution](evidence/G03_SELECTED_EDGE_EXECUTION_2026-10-01.md)
   preserves all fitted graph messages and every scored alternative while
   avoiding unrequested final edge outputs. 115 focused checks and standard

@@ -43,7 +43,11 @@ def verify_report(report, plan, fit):
             or comparison.get("scoring") != "source_anchors_v2"
             or comparison.get("incumbent") != "source_parent" or comparison.get("test_examples_used") != 0
             or comparison.get("equivalence_used_for_selection") is not False
-            or plan.get("cohort") != "previously_exposed_source_bank_development"
+            or plan.get("population", "bank_holdout") not in {"bank_holdout", "source_validation"}
+            or plan.get("cohort") != {"bank_holdout": "previously_exposed_source_bank_development",
+                "source_validation": "previously_exposed_source_validation_development"}.get(plan.get("population", "bank_holdout"))
+            or plan.get("population") == "source_validation" and (
+                plan.get("archive_decodes") is not True or plan.get("profile_only") is not False)
             or any(report.get(key) is not False for key in ("g03_complete", "fresh_transfer_proven",
                 "held_used_for_fit_or_checkpoint_selection", "qualification_evidence", "serving_authority"))
             or plan.get("held_controls_fit_or_checkpoint_selection") is not False
@@ -122,6 +126,14 @@ def verify(path, directory):
     path = Path(path)
     report = json.loads(read_stable_bytes(path, max_bytes=64 * 1024 ** 2))
     plan = json.loads(read_stable_bytes(path.with_suffix(".plan.json"), max_bytes=64 * 1024 ** 2))
+    from tools.semantic_grounded_development_archive import (
+        development_contract,
+        verify_archive_inventory,
+        verify_archived_decode,
+        verify_population_basis,
+    )
+    if plan.get("development_contract") != development_contract():
+        raise ValueError("joint development population or storage implementation changed")
     if plan.get("chart_execution", "individual") == "batched":
         from tools.semantic_grounded_batched_chart import execution_contract
         if plan.get("execution_contract") != execution_contract(plan.get("relation_score_policy", "raw")):
@@ -129,7 +141,17 @@ def verify(path, directory):
     if (plan["implementation"] != implementation_receipt()
             or plan["evaluator_sha256"] != hashlib.sha256((ROOT / "tools/evaluate_semantic_grounded_native.py").read_bytes()).hexdigest()):
         raise ValueError("joint development implementation changed")
-    return verify_report(report, plan, verify_fit(directory))
+    result = verify_report(report, plan, verify_fit(directory))
+    if plan.get("population") == "source_validation":
+        native = json.loads(read_stable_bytes(Path(directory) / "report.json", max_bytes=64 * 1024 ** 2))["native_contract"]
+        verify_population_basis(plan, native)
+    if plan.get("archive_decodes") is True:
+        verify_archive_inventory(path.with_suffix(".rows"), plan["arms"], plan["held_ids"])
+        for arm in plan["arms"]:
+            for identity in plan["held_ids"]:
+                verify_archived_decode(path.with_suffix(".rows"), plan_sha256=plan["plan_sha256"], arm=arm,
+                    identity=identity, compact=report["decodes"][arm][identity])
+    return result
 
 
 def main():
