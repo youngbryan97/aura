@@ -148,7 +148,7 @@ class TestEachQuestionIsItsOwnDecision:
         import asyncio
 
         from core.self import where_i_stand
-        from core.skills import sovereign_browser_understanding as understanding
+        from core.skills import sovereign_browser_one_question as one_question
 
         first = [{"selector": "#a1", "name": "Disagree"}, {"selector": "#a2", "name": "Agree"}]
         second = [{"selector": "#b1", "name": "Disagree"}, {"selector": "#b2", "name": "Agree"}]
@@ -164,7 +164,7 @@ class TestEachQuestionIsItsOwnDecision:
         async def mind():
             return ""
 
-        async def thinking(goal, theme, mind):
+        async def thinking(goal, theme, mind, **_k):
             return {}
 
         monkeypatch.setattr(skill, "_unanswered_questions", lambda _obs: [("q1", first), ("q2", second)])
@@ -173,7 +173,7 @@ class TestEachQuestionIsItsOwnDecision:
         monkeypatch.setattr(skill, "_her_thinking_about", thinking)
         monkeypatch.setattr(where_i_stand, "themes_among", lambda names: [[i] for i in range(len(names))])
         monkeypatch.setattr(
-            understanding, "record_degradation", lambda subsystem, exc, **_k: recorded.append(subsystem)
+            one_question, "record_degradation", lambda subsystem, exc, **_k: recorded.append(subsystem)
         )
 
         decided = asyncio.run(answered_and_thought(skill, "answer it", {}, [], None))

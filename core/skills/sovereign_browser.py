@@ -33,6 +33,13 @@ from .sovereign_browser_understanding import (
     _BROWSER_DECISION_ERRORS,
     _UnderstandsThePage,
 )
+from .sovereign_browser_what_it_did import (
+    every_way_on_led_back,
+    names_of_the_moves,
+    remember_what_was_seen,
+    what_the_move_did,
+    with_what_was_seen_here,
+)
 
 #: Returned by an extracted block that did NOT return early. A unique
 #: object, so no value a block legitimately returns can be mistaken for it.
@@ -1539,6 +1546,11 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         been_in: set[str] = set()
         went_nowhere: set[str] = set()
         last_moves: list[str] = []
+        # What the last move did, and every line each page showed in this run.
+        # See `sovereign_browser_what_it_did`.
+        before_move: Mapping[str, Any] = {}
+        last_done: list[str] = []
+        seen_here: dict[str, list[str]] = {}
         observation: dict[str, Any] = {}
         completed = False
 
@@ -1629,10 +1641,17 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                         len(last_moves),
                     )
                 been_in.add(signature)
+                remember_what_was_seen(seen_here, observation)
+                noticed = what_the_move_did(
+                    before_move, observation, done=last_done,
+                    expected=str((steps[-1] if steps else {}).get("expected") or ""),
+                )
+                last_done = []
+                exhausted = every_way_on_led_back(observation, went_nowhere)
                 observation = self._without_the_moves_that_go_nowhere(
                     observation, went_nowhere
                 )
-                if signature == last_signature:
+                if signature == last_signature or exhausted:
                     stalled += 1
                     if stalled >= self.PURSUE_STALL_LIMIT:
                         steps.append({"error": "no_progress", "url": observation.get("url")})
@@ -1710,7 +1729,8 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                     )
                 if decision is None:
                     decision = await self._decide_next_actions(
-                        goal, observation, steps, understanding, said_before=said_before
+                        goal, observation, steps, understanding,
+                        said_before=said_before, noticed=noticed,
                     )
                 # Every decision said out loud, the moment it is made — the
                 # ones that act and the ones that do not — and left up long
@@ -1799,6 +1819,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                     for action, _said in moves
                     if getattr(action, "selector", "")
                 ]
+                before_move, last_done = observation, names_of_the_moves(moves, elements)
                 planned = [action for action, _said in moves]
                 asked = str(observation.get("text") or "").strip().splitlines()
                 _record_the_round(
@@ -1877,7 +1898,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         concluded = ""
         if self._landed_anything(steps):
             concluded = await self._hold_the_outcome_against_what_she_said(
-                goal, said_before, final or observation, mind
+                goal, said_before, with_what_was_seen_here(final or observation, seen_here), mind
             )
             if concluded:
                 self._say_out_loud(
