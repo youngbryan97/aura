@@ -2536,6 +2536,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 
 - [ ] G06 Compare ordinary model, equal-compute alternatives, matched controls,
   and causal lesions; account for selection, retries, and regressions.
+  [Grounded matched lesions](evidence/G06_GROUNDED_MATCHED_LESIONS_2026-10-01.md)
+  apply reversible adapter-off, relation-off and both-off conditions inside
+  the same source-grounded chart path. They preserve public requests, search,
+  constraints and fitted arrays, restore after exceptions, and reject tainted
+  ownership. 211 focused checks pass, including all supported adapter classes
+  and mixed hybrid sites. Native causal gain remains unmeasured; the running
+  five-hundred-source comparison is not modified or duplicated.
   [Matched source-erasure result](evidence/G06_NATIVE_SOURCE_ERASURE_RESULT_2026-09-26.md)
   independently verifies the same 46/50 correctness outcomes as intact-source
   fitting, with five different program selections. It does not support attributing
